@@ -26,9 +26,7 @@ describe("the frame router", () => {
                 throw new Error("disk on fire");
               })()
             : reply({ agentId, path, content: "x" }),
-      skill_install: async () => {
-        throw new Error("the installer crashed");
-      },
+      skill_install: () => Promise.reject(new Error("the installer crashed")),
     };
     const { bridge } = bridgeWith({ modules: [agents] });
     const c = client("d1");

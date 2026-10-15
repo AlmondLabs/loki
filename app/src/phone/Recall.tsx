@@ -239,7 +239,14 @@ function Leads({
                       Not this
                     </Button>
                     {l.source.agentId && l.source.conversationId && (
-                      <Button size="touch" tone="paper" onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>
+                      <Button
+                        size="touch"
+                        tone="paper"
+                        onClick={() => {
+                          const { agentId, conversationId } = l.source;
+                          if (agentId && conversationId) onOpen(agentId, conversationId);
+                        }}
+                      >
                         Where it came up
                       </Button>
                     )}

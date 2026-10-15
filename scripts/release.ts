@@ -73,7 +73,8 @@ export const isStableVersion = (v: string): boolean => /^\d{4}\.(?:[1-9]|1[0-2])
 export const isNightlyVersion = (v: string): boolean => /^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(v);
 
 const byVersion = (a: string, b: string) => {
-  const [x, y] = [parseVersion(a)!, parseVersion(b)!];
+  const [x, y] = [parseVersion(a), parseVersion(b)];
+  if (!x || !y) throw new Error(`cannot compare ${a} with ${b}: not both versions`);
   for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
   return 0;
 };
@@ -149,7 +150,7 @@ export interface Commit {
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
 /** The commits that are changes, not the release PR's or the Windows and Linux PR's own (`release: …`). */
-export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^release: /.test(c.subject));
+export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !c.subject.startsWith("release: "));
 
 /** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
 export function releaseNotes(version: string, commits: Commit[]): string {
@@ -230,8 +231,8 @@ function commitsSince(tag: string | null, head = "HEAD"): Commit[] {
     .map((r) => r.trim())
     .filter(Boolean)
     .map((r) => {
-      const [sha, subject, body] = r.split("\x00");
-      return { sha, subject, body: body ?? "" };
+      const [sha, subject, body = ""] = r.split("\x00");
+      return { sha, subject, body };
     });
 }
 function output(kv: Record<string, string>): void {
@@ -518,7 +519,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         cmdPublish(args[0] ?? "", args[1] ?? "", args.slice(2));
         break;
       case "preview-pr":
-        cmdPreviewPr(args[0] ?? lastStable() ?? "");
+        cmdPreviewPr(args.at(0) ?? lastStable() ?? "");
         break;
       case "attach":
         cmdAttach(args[0] ?? "", args.slice(1));

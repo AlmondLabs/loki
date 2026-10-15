@@ -6,7 +6,7 @@ import { isWriterChat, learnTitle, type Lead } from "../core/recall/model.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
-import { RecallStore } from "./recall.ts";
+import type { RecallStore } from "./recall.ts";
 import { paths } from "./paths.ts";
 
 /**
@@ -99,7 +99,11 @@ export function lessonCard(lead: Lead): { type: "info-card"; title: string; data
   };
 }
 
-type LessonOpts = { store: RecallStore; widgetsDir?: string; expect?: (widgetId: string, change: WidgetChange) => void };
+interface LessonOpts {
+  store: RecallStore;
+  widgetsDir?: string;
+  expect?: (widgetId: string, change: WidgetChange) => void;
+}
 /** Make a lesson's chat for an agent, titled `[Learn] · <lead>`, in the home folder. */
 type CreateLessonChat = (agentId: string, title: string) => Promise<{ agentId: string; conversationId: string }>;
 

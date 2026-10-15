@@ -79,7 +79,7 @@ export function refusedOffset(dx: number): number {
 }
 
 /** The px per ms of the last stretch of a drag, from the sample at least `window` ms back. */
-export function velocityOf(samples: { x: number; t: number }[], window = 60): number {
+export function velocityOf(samples: Array<{ x: number; t: number }>, window = 60): number {
   if (samples.length < 2) return 0;
   const last = samples[samples.length - 1];
   let ref = samples[0];
@@ -182,13 +182,13 @@ export type Role = "top" | "shell" | "leaving";
  * The cards drawn: the one flying off (if any) over the top three of the stack. One keyed list, so a
  * card keeps its DOM node as it goes shell → top → leaving and its transform transitions between poses.
  */
-export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | null): { item: AttentionItem; role: Role; index: number }[] {
+export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | null): Array<{ item: AttentionItem; role: Role; index: number }> {
   return [
     ...(leaving ? [{ item: leaving, role: "leaving" as Role, index: -1 }] : []),
     ...visible
       .slice(0, 3)
       .filter((i) => !leaving || idOf(i) !== idOf(leaving))
-      .map((item, index) => ({ item, role: (index === 0 ? "top" : "shell") as Role, index })),
+      .map((item, index): { item: AttentionItem; role: Role; index: number } => ({ item, role: index === 0 ? "top" : "shell", index })),
   ];
 }
 
@@ -210,7 +210,7 @@ export interface DeckState {
   held: AttentionItem | null;
   pass: PassSummary;
 }
-export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS }) as DeckState;
+export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS });
 
 /** The ways off a card: an approval only by its decision, anything else by Next or Archive; a main chat cannot be archived. */
 export function canCommit(item: AttentionItem, via: Via): boolean {
@@ -249,7 +249,7 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
   const dismissed = pruned.size === s.dismissed.size ? s.dismissed : pruned;
   const held = s.held && items.some(same(s.held)) ? s.held : null;
   const next = dismissed === s.dismissed && held === s.held ? s : { ...s, dismissed, held };
-  const top = deckQueue(items, next)[0];
+  const top = deckQueue(items, next).at(0);
   const topId = top ? idOf(top) : null;
   return topId === next.topId ? next : { ...next, topId };
 }

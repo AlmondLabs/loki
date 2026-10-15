@@ -297,29 +297,29 @@ export class LanListener {
     try {
       switch (url.pathname) {
         case "/health":
-          return void json(res, 200, { ok: true, build: buildIdOf(this.dist), ...(this.opts.health?.() ?? {}) });
+          return json(res, 200, { ok: true, build: buildIdOf(this.dist), ...(this.opts.health?.() ?? {}) });
         case "/pair": {
-          if (req.method !== "POST") return void json(res, 405, { error: "POST" });
+          if (req.method !== "POST") return json(res, 405, { error: "POST" });
           const refused = crossSite(req, this.allowedHosts());
-          if (refused) return void json(res, refused.status, { error: refused.error });
-          return void this.pair(req, res);
+          if (refused) return json(res, refused.status, { error: refused.error });
+          return this.pair(req, res);
         }
         case "/me": {
           const who = this.authorize(req, url);
           const device = who.deviceId ? this.opts.devices.get(who.deviceId) : null;
-          if (!device) return void json(res, 401, { error: "not paired" });
-          return void json(res, 200, { deviceId: device.id, name: device.name });
+          if (!device) return json(res, 401, { error: "not paired" });
+          return json(res, 200, { deviceId: device.id, name: device.name });
         }
         case "/unpair": {
-          if (req.method !== "POST") return void json(res, 405, { error: "POST" });
+          if (req.method !== "POST") return json(res, 405, { error: "POST" });
           const refused = crossSite(req, this.allowedHosts());
-          if (refused) return void json(res, refused.status, { error: refused.error });
+          if (refused) return json(res, refused.status, { error: refused.error });
           const who = this.authorize(req, url);
           if (who.deviceId) {
             this.forget(who.deviceId);
             this.opts.onChange?.("devices", this.status());
           }
-          return void json(res, 200, { ok: true }, { "set-cookie": clearCookie() });
+          return json(res, 200, { ok: true }, { "set-cookie": clearCookie() });
         }
       }
       if (profileRoute(req, res, url, this.authorize, this.opts.profile, 401)) return;
@@ -348,7 +348,7 @@ export class LanListener {
 
   private pair(req: IncomingMessage, res: ServerResponse): void {
     const ip = req.socket.remoteAddress ?? "?";
-    if (this.attempts.blocked(ip)) return void json(res, 429, { error: "too many wrong codes; wait a while" });
+    if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
     void readJson(req).then(
       (body) => {
         // Again once the body is in: requests sent together all passed the first check before any had failed.
@@ -382,7 +382,7 @@ export class LanListener {
  * Bonjour name), is also the listener's own.
  */
 export function crossSite(req: IncomingMessage, allowedHosts: string[] = []): { status: number; error: string } | null {
-  const type = String(req.headers["content-type"] ?? "").toLowerCase();
+  const type = (req.headers["content-type"] ?? "").toLowerCase();
   if (!type.startsWith("application/json")) return { status: 415, error: "send application/json" };
   return crossOrigin(req, allowedHosts);
 }
@@ -550,7 +550,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
         const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "null") as unknown;
         resolve(typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null);
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
     req.on("error", reject);

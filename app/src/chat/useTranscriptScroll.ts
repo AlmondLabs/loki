@@ -114,7 +114,7 @@ export function useTranscriptScroll(
   // Follow the bottom: one scroll per frame however many updates landed in it, read and written in the frame
   // (reading scrollHeight straight after each commit forced a layout per streamed update).
   useEffect(() => {
-    const last = messages[messages.length - 1];
+    const last = messages.at(-1);
     if (!pinnedRef.current && last?.role !== "user") return;
     pinnedRef.current = true;
     setUnpinned(false); // the scroll to the bottom that follows clears the new-message count too (onScroll)
@@ -136,7 +136,11 @@ export function useTranscriptScroll(
   return { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal };
 }
 
-type Win = { id: string; start: number; first: TranscriptRow | null };
+interface Win {
+  id: string;
+  start: number;
+  first: TranscriptRow | null;
+}
 
 /** How many rows now sit above what was the first row (0 when it is not there: another thread, or nothing new above). */
 export function olderRowsAbove(messages: readonly TranscriptRow[], first: TranscriptRow | null): number {

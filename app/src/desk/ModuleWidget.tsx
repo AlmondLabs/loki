@@ -98,7 +98,7 @@ export function ModuleWidget({
           return;
         }
         case "size":
-          setSize((s) => (s && s.width === m.width && s.height === m.height ? s : { width: m.width, height: m.height }));
+          setSize((s) => (s?.width === m.width && s.height === m.height ? s : { width: m.width, height: m.height }));
           return;
         case "focus":
           gesture({ kind: "focus", id: entry.id });
@@ -159,13 +159,12 @@ export function ModuleWidget({
           return r.text();
         })
         .then((code) => alive && send({ type: "load", hash: entry.hash, code }))
-        .catch((err) => fail(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
     }
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boot, entry.file, entry.hash]);
+  }, [boot, entry.id, entry.file, entry.hash]);
 
   useEffect(() => {
     if (boot) send({ type: "data", overlay: overlay ?? null });

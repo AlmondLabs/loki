@@ -50,7 +50,7 @@ export interface HarnessEvent {
 export function extractHarnessEvents(text: string): HarnessEvent[] {
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
-    const desk = m[1] ?? null;
+    const desk = m.at(1) ?? null;
     const lines = m[2]
       .split("\n")
       .map((l) => l.trim())
@@ -75,11 +75,11 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   }
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
-    out.push({ text: "skill loaded", summary: m[1] ?? null, detail: body || null });
+    out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });
   }
   for (const m of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
     const body = m[1];
-    const tag = (name: string) => body.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`))?.[1]?.trim() ?? null;
+    const tag = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`).exec(body)?.[1]?.trim() ?? null;
     const id = tag("task-id");
     const status = tag("status");
     const summary = tag("summary");
@@ -107,11 +107,12 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
 }
 
 /** Text of a message's content (string or text parts). */
+const textOf = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : JSON.stringify(v));
 export function messageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
-    .map((p) => (typeof p === "object" && p !== null && (p as { type?: string }).type === "text" ? String((p as { text?: string }).text ?? "") : ""))
+    .map((p) => (typeof p === "object" && p !== null && (p as { type?: unknown }).type === "text" ? textOf((p as { text?: unknown }).text) : ""))
     .join("");
 }
 
@@ -182,7 +183,7 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
  */
 const ARG_KEYS = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
 const argOf = (args: Record<string, unknown>): string | undefined => {
-  const key = ARG_KEYS.find((k) => typeof args[k] === "string" && (args[k] as string).trim());
+  const key = ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
   return key ? (args[key] as string).trim() : undefined;
 };
 

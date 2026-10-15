@@ -53,7 +53,7 @@ export class StoreManager {
       return store;
     });
     // A store that fails to open is forgotten, so the next call tries again.
-    opening.catch((error) => {
+    opening.catch((error: unknown) => {
       this.open.delete(agentId);
       this.report(`store of ${agentId} did not open: ${String(error)}`);
     });

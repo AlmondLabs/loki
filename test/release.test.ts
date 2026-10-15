@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { must } from "./fixtures/must.ts";
 import {
   attachPreview,
   dayNumber,
@@ -202,8 +203,9 @@ describe("publish: the Mac's files, in one call", () => {
     const calls: string[][] = [];
     const gh = (...args: string[]) => {
       calls.push(args);
-      if (args[1] === "view" && body === null) throw new Error("release not found");
-      return args[1] === "view" ? body! : "";
+      if (args[1] !== "view") return "";
+      if (body === null) throw new Error("release not found");
+      return body;
     };
     return { calls, gh };
   };
@@ -290,7 +292,10 @@ describe("the Windows and Linux PR: their files on the newest stable", () => {
     const calls: string[][] = [];
     const gh = (...args: string[]) => (calls.push(args), args[1] === "view" ? "- **inbox: a priority queue** (aaaaaaa)" : "");
     attachPreview({ tag: "v2026.1011.0", files, repo: "owner/loki", gh });
-    const upload = calls.find((c) => c[1] === "upload")!;
+    const upload = must(
+      calls.find((c) => c[1] === "upload"),
+      "an upload call",
+    );
     expect(upload.slice(0, 3)).toEqual(["release", "upload", "v2026.1011.0"]);
     for (const f of files) expect(upload).toContain(f);
     expect(upload).toContain("--clobber");
@@ -331,14 +336,19 @@ describe("the Windows and Linux PR: their files on the newest stable", () => {
 });
 
 describe("the workflow: releases on merge, nothing on a schedule", () => {
-  type Step = { id?: string; uses?: string; with?: Record<string, unknown>; run?: string };
-  type Job = {
+  interface Step {
+    id?: string;
+    uses?: string;
+    with?: Record<string, unknown>;
+    run?: string;
+  }
+  interface Job {
     if?: string;
     needs?: string | string[];
     outputs?: Record<string, string>;
     concurrency?: { group?: string; "cancel-in-progress"?: unknown };
     steps: Step[];
-  };
+  }
   const wf = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "release.yml"), "utf8")) as {
     on: Record<string, unknown>;
     jobs: Record<string, Job>;
@@ -356,7 +366,10 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
     const build = wf.jobs.build;
     expect(build.concurrency?.group).toBe("build-${{ needs.plan.outputs.kind }}");
     expect(build.concurrency?.["cancel-in-progress"]).toBe("${{ needs.plan.outputs.kind == 'nightly' }}");
-    const decide = build.steps.find((s) => s.id === "version")!;
+    const decide = must(
+      build.steps.find((s) => s.id === "version"),
+      "the version step",
+    );
     expect(decide.run).toContain('npm run --silent release -- version "$KIND" "$GITHUB_SHA"');
     expect(decide.run).toContain('npm run release -- set "$VERSION"');
     expect(build.outputs?.version).toBe("${{ steps.version.outputs.version }}");
@@ -367,8 +380,11 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
   test("the release PR and the Windows and Linux PR are refreshed on an ordinary merge, and a new stable offers the Windows and Linux PR", () => {
     const prs = wf.jobs["release-prs"];
     expect(prs.if).toBe("needs.plan.outputs.kind == 'nightly'");
-    const release = prs.steps.find((s) => s.run?.includes("npm run release -- release-pr"))!;
-    const preview = prs.steps.find((s) => s.run?.includes('npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"'))!;
+    const release = prs.steps.find((s) => s.run?.includes("npm run release -- release-pr"));
+    const preview = must(
+      prs.steps.find((s) => s.run?.includes('npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"')),
+      "the preview-pr step",
+    );
     expect(release).toBeDefined();
     expect((preview as { if?: string }).if).toBe("${{ !cancelled() }}"); // one PR's trouble does not hold the other back
     const after = wf.jobs["preview-pr-after-stable"];
@@ -379,7 +395,10 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
 
   test("Windows and Linux build the merge commit, not a tag, and stamp the stable's version", () => {
     for (const job of ["windows", "linux"]) {
-      const checkout = wf.jobs[job].steps.find((s) => s.uses?.startsWith("actions/checkout"))!;
+      const checkout = must(
+        wf.jobs[job].steps.find((s) => s.uses?.startsWith("actions/checkout")),
+        `${job}'s checkout step`,
+      );
       expect(checkout.with?.ref).toBeUndefined();
       expect(wf.jobs[job].steps.some((s) => s.run?.includes('npm run release -- set "$VERSION"'))).toBe(true);
     }

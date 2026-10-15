@@ -8,13 +8,13 @@ import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
 import { formatKeys } from "./keymap";
 import { useAgentDraft, type CreateAgent } from "./useAgentDraft";
 
-type ProviderProps = {
+interface ProviderProps {
   providers: ConnectProvider[] | null;
   onLoadProviders: () => Promise<unknown>;
   onConnect: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
   onDisconnect: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
-};
+}
 
 /**
  * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then
@@ -125,10 +125,10 @@ function ProviderStep({
   return (
     <span className="loki-meta loki-meta--wrap">
       {connected
-        ? `${providers!
+        ? (providers ?? [])
             .filter(isConnected)
             .map((p) => p.display_name)
-            .join(", ")}`
+            .join(", ")
         : "none yet — Settings › providers, any time"}
     </span>
   );

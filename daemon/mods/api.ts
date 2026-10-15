@@ -12,7 +12,11 @@
 export const MOD_API_VERSION = 1;
 
 /** Which chat and agent a call, a section or an event belongs to: loki's own ids. */
-export type ChatRef = { chatId: string; agentId: string; agentName: string };
+export interface ChatRef {
+  chatId: string;
+  agentId: string;
+  agentName: string;
+}
 
 export type ToolContext = ChatRef & {
   signal: AbortSignal;
@@ -20,7 +24,7 @@ export type ToolContext = ChatRef & {
   output(text: string): void;
 };
 
-export type ModTool = {
+export interface ModTool {
   name: string;
   description: string;
   /** JSON Schema for the arguments, an object schema. */
@@ -28,7 +32,7 @@ export type ModTool = {
   /** Hints for permission modes (plan 017, U7): read-only tools never ask; destructive ones may. */
   annotations?: { readOnly?: boolean; destructive?: boolean };
   execute(args: Record<string, unknown>, ctx: ToolContext): unknown;
-};
+}
 
 export type SectionInput = ChatRef & { cwd: string | undefined };
 
@@ -39,7 +43,7 @@ export type BeforeToolResult = { block: string } | { args: Record<string, unknow
 /** The person's message as it is about to be sent: return new content to replace it, nothing to leave it. */
 export type OutgoingMessage = ChatRef & { content: string | Array<Record<string, unknown>>; typed: boolean };
 
-export type ModEvents = {
+export interface ModEvents {
   /** A chat was opened in a client (U5). */
   chat_open: ChatRef;
   /** A run ended with the model's final answer. */
@@ -49,7 +53,7 @@ export type ModEvents = {
   tool_end: ChatRef & { name: string; failed: boolean };
   /** A chat's context was compacted. */
   compact_end: ChatRef;
-};
+}
 
 type Unregister = () => void;
 
@@ -65,9 +69,12 @@ export interface ModApi {
   readonly signal: AbortSignal;
 }
 
-/** A mod as a module exports it. `activate` may return a function that undoes what it did. */
-export type LokiMod = {
+/**
+ * A mod as a module exports it. `activate` may return (or resolve to) a function that undoes what it did; loki
+ * ignores anything else it returns, since a mod is the person's own code.
+ */
+export interface LokiMod {
   name: string;
   apiVersion: number;
-  activate(api: ModApi): void | Unregister | Promise<void | Unregister>;
-};
+  activate(api: ModApi): unknown;
+}

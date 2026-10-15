@@ -193,7 +193,7 @@ describe("messages: copy under every message", () => {
 describe("desk pane: hidden behind other sections", () => {
   // The shell hides the whole pane with visibility while the Inbox or Tasks shows; a panel that set itself
   // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
-  test("the tab panels inherit visibility, never force it on", async () => {
+  test("the tab panels inherit visibility, never force it on", () => {
     const src = readFileSync(new URL("../app/src/desk/DeskPane.tsx", import.meta.url), "utf8");
     const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
     expect(panels).toHaveLength(2);

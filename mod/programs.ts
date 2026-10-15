@@ -82,6 +82,6 @@ export function execProgram(
 ): void {
   const c = commandFor(bin, args);
   execFile(c.file, c.args, { windowsHide: true, ...options, encoding: "utf8", ...(c.shell ? { shell: true } : {}) }, (err, stdout, stderr) =>
-    callback(err, String(stdout), String(stderr)),
+    callback(err, stdout, stderr),
   );
 }

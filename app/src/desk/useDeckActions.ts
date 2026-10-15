@@ -86,7 +86,7 @@ export function useDeckActions({
   const undo = () => {
     let at = decided.length - 1;
     while (at >= 0 && agent && decided[at].item.agentId !== agent) at--;
-    const last = decided[at];
+    const last = at >= 0 ? decided[at] : undefined;
     if (!last) return;
     if (last.action === "seen") onUnread(last.item);
     else onUnarchive(last.item);

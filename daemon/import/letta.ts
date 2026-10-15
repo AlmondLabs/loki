@@ -22,7 +22,7 @@ import { lettaLogCwd, lettaLogEntries } from "./convert.ts";
  * ran loki on Letta finds its agents without looking for a button; Settings › loki › Import runs it again.
  */
 
-export type ImportPaths = {
+export interface ImportPaths {
   /** Letta's home folder (`~/.letta`). */
   letta: string;
   /** The daemon's agents, in Letta's backend layout. */
@@ -33,9 +33,9 @@ export type ImportPaths = {
   pinsFile: string;
   /** Learn's worker state before the background passes (mod/recall.ts), whose cursors count Letta log lines; only read. */
   recallWorkerFile: string;
-};
+}
 
-export type ImportReport = {
+export interface ImportReport {
   agents: string[];
   chats: number;
   /** Chats already converted, or written by the daemon since, left as they are. */
@@ -43,14 +43,27 @@ export type ImportReport = {
   credentials: string[];
   schedules: number;
   notes: string[];
-};
+}
 
 /** The last time an import ran, by itself at start or from Settings, and how it went: what Settings shows. */
-export type ImportAttempt = { at: string; ok: boolean; message: string };
+export interface ImportAttempt {
+  at: string;
+  ok: boolean;
+  message: string;
+}
 /** Whether Letta is here, whether an import has finished with it, and the last attempt. */
-export type ImportStatus = { letta: boolean; complete: boolean; last: ImportAttempt | null };
+export interface ImportStatus {
+  letta: boolean;
+  complete: boolean;
+  last: ImportAttempt | null;
+}
 
-type Done = { agents: string[]; chats: string[]; complete?: boolean; last?: ImportAttempt };
+interface Done {
+  agents: string[];
+  chats: string[];
+  complete?: boolean;
+  last?: ImportAttempt;
+}
 
 export function importStatus(paths: Pick<ImportPaths, "letta" | "doneFile">): ImportStatus {
   const done = readJson<Done>(paths.doneFile, { agents: [], chats: [] });
@@ -103,7 +116,7 @@ export function runningLetta(commands: () => string[] = psCommands): string | nu
     if (/--loki-daemon\b/.test(line)) continue;
     const [program, script] = line.trim().split(/\s+/);
     if (letta(program)) return line.trim().slice(0, 120);
-    if (/(^|[/\\])(node|bun)(\.exe)?$/i.test(program ?? "") && letta(script)) return line.trim().slice(0, 120);
+    if (/(^|[/\\])(node|bun)(\.exe)?$/i.test(program) && letta(script)) return line.trim().slice(0, 120);
   }
   return null;
 }
@@ -130,11 +143,11 @@ function psCommands(): string[] {
  * left out (pi-ai presents itself as Claude Code for it, daemon/providers.ts), as is a provider pi-ai does not know.
  */
 export function lettaCredentials(authFile: string, known: ReadonlySet<string>): { credentials: Array<[string, Credential]>; skipped: string[] } {
-  type Entry = {
+  interface Entry {
     id?: string;
     provider_type?: string;
-    auth?: { type?: string; key?: string; access?: string; refresh?: string; expires?: number; [k: string]: unknown };
-  };
+    auth?: { type?: string; key?: string; access?: string; refresh?: string; expires?: unknown; [k: string]: unknown };
+  }
   const providers = readJson<{ providers?: Record<string, Entry> }>(authFile, {}).providers ?? {};
   const credentials: Array<[string, Credential]> = [];
   const skipped: string[] = [];
@@ -163,23 +176,27 @@ export function lettaCredentials(authFile: string, known: ReadonlySet<string>): 
 export function lettaSchedules(cronsFile: string, agents: ReadonlySet<string>): ScheduledTask[] {
   type LettaTask = Partial<ScheduledTask> & { status?: string; last_fired_at?: string | null };
   const tasks = readJson<{ tasks?: LettaTask[] }>(cronsFile, {}).tasks ?? [];
-  return tasks
-    .filter((t) => t.status === "active" && t.agent_id && agents.has(t.agent_id) && t.id && t.cron && t.prompt)
-    .map((t) => ({
-      id: t.id!,
-      agent_id: t.agent_id!,
-      conversation_id: t.conversation_id ?? "default",
-      name: t.name ?? t.id!,
-      description: t.description ?? null,
-      cron: t.cron!,
-      timezone: t.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-      recurring: t.recurring !== false,
-      prompt: t.prompt!,
-      status: "active",
-      created_at: t.created_at ?? new Date().toISOString(),
-      last_fired_at: t.last_fired_at ?? null,
-      fire_count: t.fire_count ?? 0,
-    }));
+  return tasks.flatMap(({ id, agent_id, cron, prompt, ...t }): ScheduledTask[] =>
+    t.status === "active" && agent_id && agents.has(agent_id) && id && cron && prompt
+      ? [
+          {
+            id,
+            agent_id,
+            conversation_id: t.conversation_id ?? "default",
+            name: t.name ?? id,
+            description: t.description ?? null,
+            cron,
+            timezone: t.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+            recurring: t.recurring !== false,
+            prompt,
+            status: "active",
+            created_at: t.created_at ?? new Date().toISOString(),
+            last_fired_at: t.last_fired_at ?? null,
+            fire_count: t.fire_count ?? 0,
+          },
+        ]
+      : [],
+  );
 }
 
 const isHelper = (record: Record<string, unknown> | null | undefined) =>
@@ -212,7 +229,15 @@ function lettaAgents(backend: string): Array<{ id: string; record: Record<string
   return out;
 }
 
-type LettaConversation = { id: string; agent_id: string; summary?: string | null; archived?: boolean; hidden?: boolean; created_at?: string; model?: string };
+interface LettaConversation {
+  id: string;
+  agent_id: string;
+  summary?: string | null;
+  archived?: boolean;
+  hidden?: boolean;
+  created_at?: string;
+  model?: string;
+}
 
 export async function importFromLetta(deps: {
   paths: ImportPaths;
@@ -250,9 +275,10 @@ export async function importFromLetta(deps: {
     // Letta's names for a model are not always pi-ai's (ChatGPT's provider is `chatgpt-plus-pro` there).
     const known = (provider: string) => deps.knownProviders.has(provider);
     writeRecord(paths.backendDir, id, typeof record.model === "string" ? { ...record, model: piHandle(record.model, known) } : record);
-    await (await deps.stores.get(id)).setAgent({ id, name: String(record.name ?? id) }, context);
+    const name = typeof record.name === "string" ? record.name : id;
+    await (await deps.stores.get(id)).setAgent({ id, name }, context);
     if (!done.agents.includes(id)) done.agents.push(id);
-    report.agents.push(String(record.name ?? id));
+    report.agents.push(name);
   }
   writeJson(paths.doneFile, done);
 
@@ -261,7 +287,7 @@ export async function importFromLetta(deps: {
     join(paths.letta, "remote-settings.json"),
     {},
   );
-  const desktopCwd = readJson<{ cwdMap?: Record<string, string> }>(join(paths.letta, "desktop-cwd-map.json"), {}).cwdMap ?? {};
+  const desktopCwd = readJson<{ cwdMap?: Partial<Record<string, string>> }>(join(paths.letta, "desktop-cwd-map.json"), {}).cwdMap ?? {};
   const worker = readJson<{ cursors?: Record<string, number> }>(paths.recallWorkerFile, {});
 
   // Conversations, each into its agent's store under its Letta id.
@@ -284,8 +310,8 @@ export async function importFromLetta(deps: {
     const text = existsSync(join(base, "messages.jsonl")) ? readFileSync(join(base, "messages.jsonl"), "utf8") : "";
     const settingsKey = permissionModeKey(record.agent_id, record.id);
     const cwd = desktopCwd[settingsKey] ?? remote.cwdMap?.[settingsKey] ?? lettaLogCwd(text);
-    const agentRecord = agents.find((a) => a.id === record.agent_id)!.record;
-    const model = modelRef(piHandle(record.model ?? (typeof agentRecord.model === "string" ? agentRecord.model : ""), (p) => deps.knownProviders.has(p)));
+    const agentModel = agents.find((a) => a.id === record.agent_id)?.record.model;
+    const model = modelRef(piHandle(record.model ?? (typeof agentModel === "string" ? agentModel : ""), (p) => deps.knownProviders.has(p)));
     const chat =
       existing ??
       (await store.createChat(
@@ -324,7 +350,7 @@ export async function importFromLetta(deps: {
   // Keys and sign-ins.
   const { credentials, skipped } = lettaCredentials(join(backend, "providers", "auth.json"), deps.knownProviders);
   for (const [providerId, credential] of credentials) {
-    await deps.credentials.modify(providerId, async () => credential);
+    await deps.credentials.modify(providerId, () => Promise.resolve(credential));
     report.credentials.push(providerId);
   }
   report.notes.push(...skipped);

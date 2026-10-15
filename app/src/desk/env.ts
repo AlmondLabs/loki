@@ -23,8 +23,8 @@ export type Platform = "macos" | "windows" | "linux";
  */
 export function platformFrom(os: unknown, userAgent: string): Platform {
   if (os === "macos" || os === "windows" || os === "linux") return os;
-  if (/Windows/.test(userAgent)) return "windows";
-  if (/Linux|X11|CrOS/.test(userAgent) && !/like Mac OS X/.test(userAgent)) return "linux";
+  if (userAgent.includes("Windows")) return "windows";
+  if (/Linux|X11|CrOS/.test(userAgent) && !userAgent.includes("like Mac OS X")) return "linux";
   return "macos";
 }
 
@@ -38,7 +38,7 @@ export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNA
 export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 
 const injectedOs = typeof window !== "undefined" ? window.__LOKI__?.os : undefined;
-const userAgent = typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "";
+const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
 /** The host: machine words, the extras it has (phone pairing, the system-wide key, Browse), its download. */
 export const platform: Platform = platformFrom(injectedOs, userAgent);
 /** The viewer's keyboard (and its own settings): how keys read and match, what the Appearance hint names. */
@@ -88,7 +88,7 @@ export function injectedDesk(): string | null {
 
 /** A web link, out to the default browser: the opener plugin in the shell (its webview blocks window.open), a new tab otherwise. */
 export function openExternal(href: string): void {
-  if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(href)).catch((err) => console.warn("loki: open link", err));
+  if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(href)).catch((err: unknown) => console.warn("loki: open link", err));
   else window.open(href, "_blank", "noopener,noreferrer");
 }
 
@@ -120,7 +120,7 @@ export function installShellLogging(): void {
     window.addEventListener("error", (e) => void invoke("client_log", { level: "error", message: `uncaught: ${e.message}` }).catch(() => {}));
     window.addEventListener(
       "unhandledrejection",
-      (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String((e as PromiseRejectionEvent).reason)}` }).catch(() => {}),
+      (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String(e.reason)}` }).catch(() => {}),
     );
     void invoke("client_log", { level: "info", message: `page booted at ${location.href}` }).catch(() => {});
   });

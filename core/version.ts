@@ -4,16 +4,13 @@
  * so every YYYY.MMDD.N stable is newer than every YYYY.M.D one.
  */
 export function parseVersion(v: string): [number, number, number] | null {
-  const m = v
-    .trim()
-    .replace(/^v/, "")
-    .match(/^(\d+)\.(\d+)\.(\d+)/);
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v.trim().replace(/^v/, ""));
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 
 /** Which channel a build is on, read off its version: a nightly carries the merge it was built from. */
 export type Channel = "stable" | "nightly";
-export const channelOf = (version: string): Channel => (/-nightly\./.test(version) ? "nightly" : "stable");
+export const channelOf = (version: string): Channel => (version.includes("-nightly.") ? "nightly" : "stable");
 
 /** The nightly version inside a release title such as "loki 2026.1011.1-nightly.a96ee85", or null. */
 export const nightlyVersionIn = (text: string | null | undefined): string | null => text?.match(/\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/)?.[0] ?? null;

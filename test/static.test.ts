@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
 
 // These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
@@ -79,7 +80,7 @@ describe("static app", () => {
     // What the browser evaluates is the original string, character for character.
     const json = jsonForScript(hostile);
     expect(JSON.parse(json)).toBe(hostile);
-    expect(new Function(`return ${json}`)()).toBe(hostile);
+    expect(runInNewContext(json)).toBe(hostile);
     expect(jsonForScript({ a: "<b>&c" })).toBe('{"a":"\\u003cb\\u003e\\u0026c"}');
     // A plain hex build id is untouched.
     expect(bootScript("abc123def456", "macos")).toBe('<script>window.__LOKI__={lan:true,build:"abc123def456",os:"macos"}</script>');

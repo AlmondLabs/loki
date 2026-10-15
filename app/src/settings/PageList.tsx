@@ -11,7 +11,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const list = ref.current;
-    if (!list || !list.contains(document.activeElement)) return;
+    if (!list?.contains(document.activeElement)) return;
     list.querySelector<HTMLElement>(`[data-page="${page}"]`)?.focus();
   }, [page]);
   return (

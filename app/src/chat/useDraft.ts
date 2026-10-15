@@ -4,7 +4,10 @@ import type { PendingQuestion } from "../../../core/attention/model.ts";
 import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /** What is in the box: the text and the images pasted, dropped or picked in. */
-export type DraftValue = { text: string; images: Attachment[] };
+export interface DraftValue {
+  text: string;
+  images: Attachment[];
+}
 
 /**
  * A draft the host keeps (the phone's per-conversation store, shared by an Inbox card and the desk page),
@@ -16,14 +19,14 @@ export interface ControlledDraft {
   onChange: (next: DraftValue) => void;
 }
 
-type SubmitContext = {
+interface SubmitContext {
   question: PendingQuestion | null;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onSend: (text: string, images?: Attachment[]) => void;
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
   onSent?: () => void;
-};
+}
 
 /**
  * What submitting a draft does, apart from React: nothing when it is empty; otherwise a known "/command"

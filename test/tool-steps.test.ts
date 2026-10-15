@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { TOOL_TEXT_MAX, toolInput, toolOutput, toolStep } from "../core/harness.ts";
+import { must } from "./fixtures/must.ts";
 import {
   withoutSkillCalls,
   isNamedStep,
@@ -88,7 +89,7 @@ describe("tool inputs and outputs are kept", () => {
         { type: "text", text: "two" },
       ]),
     ).toBe("one\ntwo");
-    const long = toolOutput("x".repeat(TOOL_TEXT_MAX + 10))!;
+    const long = must(toolOutput("x".repeat(TOOL_TEXT_MAX + 10)), "the tool's output");
     expect(long.startsWith("x".repeat(TOOL_TEXT_MAX))).toBe(true);
     expect(long.endsWith("10 more characters")).toBe(true);
   });

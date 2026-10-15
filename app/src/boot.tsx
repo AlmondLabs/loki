@@ -17,7 +17,7 @@ document.addEventListener(
   "click",
   (e) => {
     if (e.defaultPrevented || e.button !== 0) return;
-    const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+    const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
     if (!a) return;
     const url = new URL(a.href, location.href);
     if (!/^https?:$/.test(url.protocol)) return; // mailto:, etc. keep their default
@@ -29,4 +29,6 @@ document.addEventListener(
 );
 
 // Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk.
-createRoot(document.getElementById("root")!).render(<ThemeProvider>{inLan ? <Phone /> : <Shell />}</ThemeProvider>);
+const root = document.getElementById("root");
+if (!root) throw new Error("loki: index.html has no #root element");
+createRoot(root).render(<ThemeProvider>{inLan ? <Phone /> : <Shell />}</ThemeProvider>);

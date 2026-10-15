@@ -8,6 +8,7 @@ import { fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { must } from "./fixtures/must.ts";
 
 function setup() {
   const secrets = memorySecrets();
@@ -21,19 +22,25 @@ describe("providers on the daemon", () => {
   test("Anthropic offers a key and no subscription sign-in; ChatGPT offers its sign-in", async () => {
     const { providers } = setup();
     const list = await providers.list();
-    const anthropic = list.find((p) => p.id === "anthropic")!;
+    const anthropic = must(
+      list.find((p) => p.id === "anthropic"),
+      "the anthropic provider",
+    );
     expect(anthropic.auth_methods?.map((m) => m.id)).toEqual(["api_key"]);
-    expect(anthropic.auth_methods?.[0].fields).toEqual([{ key: "api_key", label: expect.any(String), secret: true, required: true }]);
+    expect(anthropic.auth_methods?.[0].fields).toEqual([{ key: "api_key", label: expect.any(String) as unknown, secret: true, required: true }]);
     expect(list.find((p) => p.id === "openai-codex")?.auth_methods?.map((m) => m.id)).toEqual(["oauth"]);
     await expect(providers.signIn("anthropic")).rejects.toThrow("does not sign in to anthropic");
   });
 
   test("a kept key connects its provider, in the keychain, and disconnecting forgets it", async () => {
     const { providers, secrets } = setup();
-    const before = (await providers.list()).find((p) => p.id === "anthropic")!;
+    const before = must(
+      (await providers.list()).find((p) => p.id === "anthropic"),
+      "the anthropic provider",
+    );
     if (before.connected.is_connected) return; // an ANTHROPIC_API_KEY in this environment connects it already
     await providers.connectKey("anthropic", "  sk-ant-test  ");
-    expect(JSON.parse(secrets.entries.get("provider:anthropic")!)).toEqual({ type: "api_key", key: "sk-ant-test" });
+    expect(JSON.parse(must(secrets.entries.get("provider:anthropic"), "the kept key"))).toEqual({ type: "api_key", key: "sk-ant-test" });
     expect((await providers.list()).find((p) => p.id === "anthropic")?.connected).toMatchObject({ is_connected: true, auth_type: "api_key" });
     await providers.disconnect("anthropic");
     expect(secrets.entries.has("provider:anthropic")).toBe(false);
@@ -51,13 +58,14 @@ describe("providers on the daemon", () => {
       auth: {
         apiKey: {
           name: "Fake key",
-          login: async () => ({ type: "api_key", key: "" }),
-          resolve: async ({ credential }: { credential?: { key?: string } }) => (credential?.key ? { auth: { apiKey: credential.key } } : undefined),
+          login: () => Promise.resolve({ type: "api_key", key: "" }),
+          resolve: ({ credential }: { credential?: { key?: string } }) => Promise.resolve(credential?.key ? { auth: { apiKey: credential.key } } : undefined),
         },
       },
-      refreshModels: async (context: { credential?: unknown }) => {
+      refreshModels: (context: { credential?: unknown }) => {
         const credential = context.credential as { key?: string } | undefined;
-        if (credential?.key !== "good") throw new Error("401 invalid key");
+        if (credential?.key !== "good") return Promise.reject(new Error("401 invalid key"));
+        return Promise.resolve();
       },
     } as never);
     const providers = new Providers(models, credentials);
@@ -65,7 +73,7 @@ describe("providers on the daemon", () => {
     expect(secrets.entries.has("provider:fake-key")).toBe(false);
     await providers.connectKey("fake-key", "good");
     await expect(providers.connectKey("fake-key", "typo")).rejects.toThrow("the one kept before is still in use");
-    expect(JSON.parse(secrets.entries.get("provider:fake-key")!)).toEqual({ type: "api_key", key: "good" });
+    expect(JSON.parse(must(secrets.entries.get("provider:fake-key"), "the kept key"))).toEqual({ type: "api_key", key: "good" });
   });
 
   test("an empty key, or one for a provider that takes none, is refused", async () => {
@@ -111,8 +119,8 @@ describe("signing in through the browser", () => {
             pasted.catch(() => {});
             return { type: "oauth", access: `access-for-${code}`, refresh: "r", expires: Date.now() + 3_600_000 };
           },
-          refresh: async (c: OAuthCredential) => c,
-          toAuth: async (c: OAuthCredential) => ({ apiKey: c.access }),
+          refresh: (c: OAuthCredential) => Promise.resolve(c),
+          toAuth: (c: OAuthCredential) => Promise.resolve({ apiKey: c.access }),
         },
       },
     } as never);
@@ -167,11 +175,11 @@ describe("signing in through the browser", () => {
             interaction.notify({ type: "device_code", userCode: "ABCD-1234", verificationUri: "https://github.com/login/device" });
             return new Promise<never>(() => {});
           },
-          refresh: async (c: OAuthCredential) => c,
-          toAuth: async (c: OAuthCredential) => ({ apiKey: c.access }),
+          refresh: (c: OAuthCredential) => Promise.resolve(c),
+          toAuth: (c: OAuthCredential) => Promise.resolve({ apiKey: c.access }),
         },
       },
-    } as never);
+    });
     const providers = new Providers(
       models,
       credentials,

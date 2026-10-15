@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, watch } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import type * as esbuild from "esbuild";
 import type { LokiMod } from "./api.ts";
 import type { ModRegistry } from "./registry.ts";
 
@@ -16,7 +17,7 @@ const MOD_FILES = new Set([".js", ".mjs", ".ts"]);
 let loads = 0;
 
 /** esbuild, when this install has it. */
-async function bundler(): Promise<typeof import("esbuild") | null> {
+async function bundler(): Promise<typeof esbuild | null> {
   try {
     return await import("esbuild");
   } catch {

@@ -52,12 +52,12 @@ export function downloadFor(release: Release, os: Platform = platform): string |
 export function newestWith(releases: Release[], os: Platform = platform): Release | null {
   const has = (r: Release) => SUFFIXES[os].some((suffix) => r.assets?.some((a) => a.name.endsWith(suffix)));
   const version = (r: Release) => parseVersion(r.tag_name ?? "");
-  const candidates = releases.filter((r) => !r.draft && !r.prerelease && version(r) && has(r));
-  candidates.sort((a, b) => {
-    const [x, y] = [version(a)!, version(b)!];
-    return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+  const candidates = releases.flatMap((r) => {
+    const v = version(r);
+    return !r.draft && !r.prerelease && v && has(r) ? [{ release: r, v }] : [];
   });
-  return candidates[0] ?? null;
+  candidates.sort(({ v: x }, { v: y }) => y[0] - x[0] || y[1] - x[1] || y[2] - x[2]);
+  return candidates.at(0)?.release ?? null;
 }
 
 /**

@@ -48,7 +48,7 @@ const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;
  */
 export function parseSlash(text: string): { id: string; args: string } | null {
   const m = HEAD.exec(text.trim());
-  return m ? { id: m[1], args: (m[2] ?? "").trim() } : null;
+  return m ? { id: m[1], args: (m.at(2) ?? "").trim() } : null;
 }
 
 /** While the command name is still being typed (no space yet): the partial name, so the palette can filter. Otherwise null. */

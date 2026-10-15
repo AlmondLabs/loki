@@ -28,12 +28,13 @@ import { bridgeWith, client, settled } from "./fixtures/frames.ts";
  */
 
 const reply = "Here's the plan:\n\n- migrate **staging** first\n- then prod";
-const row: TranscriptRow = { role: "assistant", text: reply, at: "2026-10-15T09:00:00.000Z" };
+const at = "2026-10-15T09:00:00.000Z";
+const row: TranscriptRow = { role: "assistant", text: reply, at };
 const source: TaskSource = {
   origin: "message",
   role: "assistant",
   key: messageKey("assistant", reply),
-  at: row.at!,
+  at,
   quote: "Here's the plan: - migrate **staging** first - then prod",
 };
 
@@ -79,7 +80,10 @@ describe("the source: which message a task came from", () => {
     expect(parseTaskSource({ ...source, origin: "inbox" })).toBeUndefined();
     expect(parseTaskSource({ ...source, role: "tool" })).toBeUndefined();
     expect(parseTaskSource({ ...source, key: "../../etc" })).toBeUndefined();
-    expect(parseTaskSource({ ...source, at: "yesterday", quote: "q".repeat(500) })).toMatchObject({ at: null, quote: expect.stringMatching(/^q{159}…$/) });
+    expect(parseTaskSource({ ...source, at: "yesterday", quote: "q".repeat(500) })).toMatchObject({
+      at: null,
+      quote: expect.stringMatching(/^q{159}…$/) as unknown,
+    });
   });
 
   test("the stamp is kept on the task's metadata, beside who filed it and from where", () => {
@@ -88,7 +92,7 @@ describe("the source: which message a task came from", () => {
       description: quoteBlock(reply),
       stamp: { by: "you", conversation: "c1", desk: "a1/c1", agentId: "a1", source },
     });
-    const md = JSON.parse(args[args.indexOf("--metadata") + 1]);
+    const md = JSON.parse(args[args.indexOf("--metadata") + 1]) as Record<string, string>;
     expect(md).toEqual({
       by: "you",
       agentId: "a1",
@@ -122,7 +126,7 @@ describe("the source: which message a task came from", () => {
 describe("filing it", () => {
   test("task_create stamps the source as yours; a source with no conversation is dropped", async () => {
     const made: unknown[] = [];
-    const store = { create: async (t: { stamp: unknown }) => (made.push(t.stamp), fromReply("lk-1")) } as unknown as TaskStore;
+    const store = { create: (t: { stamp: unknown }) => (made.push(t.stamp), Promise.resolve(fromReply("lk-1"))) } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
     bridge.onMessage(c, { type: "task_create", requestId: "r1", title: "migrate staging", conversationId: "c1", agentId: "a1", desk: "a1/c1", source });
@@ -134,7 +138,7 @@ describe("filing it", () => {
   });
 
   test("a paired phone may file one from a message's long press, and read the list for the chips", async () => {
-    const store = { create: async () => fromReply("lk-1"), list: async () => [fromReply("lk-1")] } as unknown as TaskStore;
+    const store = { create: () => Promise.resolve(fromReply("lk-1")), list: () => Promise.resolve([fromReply("lk-1")]) } as unknown as TaskStore;
     const { bridge } = bridgeWith({ tasks: store });
     const phone = { ...client("d1"), deviceId: "phone-1" };
     bridge.onMessage(phone, { type: "task_create", requestId: "r1", title: "migrate staging", conversationId: "c1", source });
@@ -147,9 +151,11 @@ describe("filing it", () => {
     const calls: string[][] = [];
     const store = new TaskStore({
       dir: "/nonexistent",
-      run: async (args) => {
+      run: (args) => {
         calls.push(args);
-        return args[0] === "update" ? JSON.stringify([{ id: "lk-1", title: "t", status: "open", metadata: { lastNote: "staging done" } }]) : "";
+        return Promise.resolve(
+          args[0] === "update" ? JSON.stringify([{ id: "lk-1", title: "t", status: "open", metadata: { lastNote: "staging done" } }]) : "",
+        );
       },
     });
     const [updated] = await store.comment("lk-1", "  staging done\n\nprod next  ");
@@ -185,7 +191,7 @@ describe("where the editor starts", () => {
 });
 
 describe("the chip on the message", () => {
-  const api: TaskApi = { tasks: null, create: async () => null, open: () => {}, confirm: () => {}, reopen: () => {} };
+  const api: TaskApi = { tasks: null, create: () => Promise.resolve(null), open: () => {}, confirm: () => {}, reopen: () => {} };
   const people = { user: { name: "You" }, assistant: { name: "friday" } };
   function thread(tasks: Task[], adding: MessageTasksValue["adding"] = null, rows: TranscriptRow[] = [row]) {
     const byKey = tasksByMessage(tasks, "c1");
@@ -196,7 +202,7 @@ describe("the chip on the message", () => {
       start: () => {},
       setTitle: () => {},
       cancel: () => {},
-      submit: async () => null,
+      submit: () => Promise.resolve(null),
       api: { ...api, tasks },
     };
     return renderToStaticMarkup(createElement(MessageTasks.Provider, { value: ctx }, createElement(Transcript, { rows, people })));
@@ -242,7 +248,7 @@ describe("the chip on the message", () => {
     const out = thread([], {
       key: source.key,
       role: "assistant",
-      at: row.at!,
+      at,
       text: "migrate staging first",
       origin: "selection",
       title: "migrate staging first",

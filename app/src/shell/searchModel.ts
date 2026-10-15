@@ -129,10 +129,10 @@ export const DESTINATIONS: readonly Page[] = [
     keywords: ["recall", "cards", "lessons", "review"],
   },
   { key: "prefs", target: { kind: "preferences", page: null }, icon: "settings", label: "Preferences", line: "Settings", keywords: ["settings"] },
-  ...PAGES.map(({ id }) => ({
+  ...PAGES.map(({ id }): Page => ({
     key: `prefs:${id}`,
-    target: { kind: "preferences", page: id } as SearchTarget,
-    icon: "settings" as IconName,
+    target: { kind: "preferences", page: id },
+    icon: "settings",
     label: pageTitle(id),
     line: "Preferences",
     keywords: PREF_WORDS[id] ?? [],
@@ -211,7 +211,7 @@ export type SearchIndex = CoreIndex<SearchHit>;
 /** The sources as searchable entries, fields folded: build once per sources, query per keystroke. */
 export function buildIndex(src: SearchSources): SearchIndex {
   const name = agentNamer(src);
-  const out: Indexed<SearchHit>[] = [];
+  const out: Array<Indexed<SearchHit>> = [];
   for (const d of src.desks)
     if (openable(d))
       out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });

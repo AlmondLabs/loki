@@ -7,8 +7,8 @@ export function formatInput(input: unknown): string {
     try {
       return JSON.stringify(o, null, 2);
     } catch {
-      return String(o);
+      return Object.prototype.toString.call(o);
     }
   }
-  return String(input ?? "");
+  return typeof input === "number" || typeof input === "boolean" || typeof input === "bigint" ? String(input) : "";
 }

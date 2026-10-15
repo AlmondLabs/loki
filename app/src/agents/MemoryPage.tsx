@@ -59,8 +59,9 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
     const m = new Map<string, MemoryFile[]>();
     for (const f of files) {
       const g = f.path.includes("/") ? f.path.split("/")[0] : "";
-      if (!m.has(g)) m.set(g, []);
-      m.get(g)!.push(f);
+      const group = m.get(g);
+      if (group) group.push(f);
+      else m.set(g, [f]);
     }
     return [...m.entries()];
   }, [files]);

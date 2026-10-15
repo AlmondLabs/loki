@@ -1,4 +1,15 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
@@ -168,17 +179,20 @@ export function Conversation({
     controlled: controlledDraft,
   });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });
+  const prefillTick = prefill?.tick ?? 0;
+  const takePrefill = useEffectEvent(() => {
+    if (prefill) setDraft(prefill.text);
+  });
   useEffect(() => {
-    if (!prefill || prefill.tick <= 0) return;
-    setDraft(prefill.text);
+    if (prefillTick <= 0) return;
+    takePrefill();
     const t = setTimeout(() => {
       const el = inputRef.current;
       el?.focus();
       el?.setSelectionRange(el.value.length, el.value.length);
     }, 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefill?.tick]);
+  }, [prefillTick, inputRef]);
   const controls = useModelAndMode({
     onLoadModels: actions.onLoadModels,
     onPickModel: actions.onPickModel,
@@ -193,18 +207,20 @@ export function Conversation({
   // The effort shows in the pill only when the model offers a choice of levels.
   const effort = effortEntriesFor(models ?? [], model).length > 1 ? reasoningEffort : null;
   const hasModeMenu = !!actions.onPickMode;
-  const canApprove = !!approval && !!actions.onApprove;
+  const onApprove = approval ? actions.onApprove : undefined;
+  const canApprove = !!onApprove;
   const hasFooter = canApprove || !!footer;
   const hasContent = !!draft.trim() || images.length > 0;
   // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
   const running = view.status !== "idle";
   const [stopping, setStopping] = useState(false);
   if (stopping && !running) setStopping(false);
-  const stop = actions.onStop
+  const onStop = actions.onStop;
+  const stop = onStop
     ? () => {
         setStopping(true);
         // Refused (the link down, the harness said no): the button comes back so it can be tried again.
-        void actions.onStop!().then((err) => err && setStopping(false));
+        void onStop().then((err) => err && setStopping(false));
       }
     : undefined;
   const waiting = !!approval || !!question;
@@ -328,7 +344,7 @@ export function Conversation({
 
           {hasFooter && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
-              {canApprove &&
+              {onApprove &&
                 (() => {
                   const approve = (
                     <Button
@@ -336,21 +352,14 @@ export function Conversation({
                       size={touch ? "touch" : "sm"}
                       tone="positive"
                       className="loki-approve"
-                      onClick={() => actions.onApprove!("allow")}
+                      onClick={() => onApprove("allow")}
                       kbd={hints?.approve}
                     >
                       approve
                     </Button>
                   );
                   const deny = (
-                    <Button
-                      key="deny"
-                      size={touch ? "touch" : "sm"}
-                      tone="negative"
-                      className="loki-deny"
-                      onClick={() => actions.onApprove!("deny")}
-                      kbd={hints?.deny}
-                    >
+                    <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => onApprove("deny")} kbd={hints?.deny}>
                       deny
                     </Button>
                   );
@@ -361,7 +370,7 @@ export function Conversation({
                       size={touch ? "touch" : "sm"}
                       tone="paper"
                       className="loki-approve-always"
-                      onClick={() => actions.onApprove!("always")}
+                      onClick={() => onApprove("always")}
                       title="allow this tool from now on, in every chat (Settings › Chat takes it back)"
                     >
                       always allow
@@ -521,7 +530,7 @@ export const Thread = forwardRef<
         }}
       >
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
-        {rows && rows.length === 0 && (
+        {rows?.length === 0 && (
           <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>
         )}
         {rows && (

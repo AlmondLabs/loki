@@ -20,7 +20,7 @@ const KEEP = 256 * 1024;
 const KEEP_FINISHED_MS = 60 * 60_000;
 const KEEP_FINISHED = 32;
 
-type Task = {
+interface Task {
   id: string;
   agentId: string;
   chatId: string;
@@ -34,7 +34,7 @@ type Task = {
   /** The signal a stop sent: Windows ends a tree with none of its own. */
   stopping?: NodeJS.Signals;
   waiters: Set<() => void>;
-};
+}
 
 export type Notify = (agentId: string, chatId: string, text: string) => void;
 
@@ -97,17 +97,17 @@ export class BackgroundTasks {
     // One decoder per stream, so a character split across two chunks is not garbled.
     const out = new StringDecoder("utf8");
     const err = new StringDecoder("utf8");
-    child.stdout?.on("data", (chunk: Buffer) => take(out.write(chunk)));
-    child.stderr?.on("data", (chunk: Buffer) => take(err.write(chunk)));
+    child.stdout.on("data", (chunk: Buffer) => take(out.write(chunk)));
+    child.stderr.on("data", (chunk: Buffer) => take(err.write(chunk)));
     child.on("error", (error) => take(`\n${error.message}\n`));
     // A write to a task whose input has closed (EPIPE) is the task's trouble, not the daemon's.
-    child.stdin?.on("error", (error) => take(`\n[input: ${error.message}]\n`));
+    child.stdin.on("error", (error) => take(`\n[input: ${error.message}]\n`));
     child.on("exit", () => {
       if (!task.stopping) return;
       setTimeout(() => {
         if (task.exit) return;
-        for (const stream of [child.stdin, child.stdout, child.stderr]) stream?.destroy();
-      }, STRAGGLER_MS).unref?.();
+        for (const stream of [child.stdin, child.stdout, child.stderr]) stream.destroy();
+      }, STRAGGLER_MS).unref();
     });
     child.on("close", (code, exitSignal) => {
       // Windows ends a tree without a signal; a task stopped there still reads as stopped.
@@ -134,7 +134,7 @@ export class BackgroundTasks {
 
   private get(id: string, agentId: string): Task {
     const task = this.tasks.get(id);
-    if (!task || task.agentId !== agentId) throw new Error(`no background task ${id} (tasks end when loki's daemon restarts)`);
+    if (task?.agentId !== agentId) throw new Error(`no background task ${id} (tasks end when loki's daemon restarts)`);
     return task;
   }
 
@@ -173,7 +173,7 @@ export class BackgroundTasks {
         // it answers or after WINDOWS_SHELL_MS, whichever comes first: the task then reads as stopped on time, and a
         // child taskkill missed is the straggler the exit handler lets go of.
         const shell = setTimeout(() => !task.exit && task.child.kill(), WINDOWS_SHELL_MS);
-        shell.unref?.();
+        shell.unref();
         execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {
           clearTimeout(shell);
           if (!task.exit) task.child.kill();
@@ -188,7 +188,7 @@ export class BackgroundTasks {
     };
     end(false);
     const timers = [setTimeout(() => end(false), RESIGNAL_MS), setTimeout(() => end(true), GRACE_MS)];
-    for (const t of timers) t.unref?.();
+    for (const t of timers) t.unref();
     task.child.once("close", () => timers.forEach(clearTimeout));
   }
 
@@ -204,7 +204,7 @@ export class BackgroundTasks {
   async wait(id: string, agentId: string, pattern: string | undefined, ms: number, signal?: AbortSignal): Promise<string> {
     const task = this.get(id, agentId);
     const re = pattern ? new RegExp(pattern) : null;
-    const done = () => Boolean(task.exit) || (re !== null && re.test(task.output.slice(task.read)));
+    const done = () => Boolean(task.exit) || (re?.test(task.output.slice(task.read)) ?? false);
     if (!done()) {
       await new Promise<void>((resolve) => {
         const finish = () => {

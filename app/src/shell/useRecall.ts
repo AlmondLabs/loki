@@ -20,15 +20,23 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
   /** A lead whose lesson is being created (the harness takes a moment). */
   const [starting, setStarting] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (desk.connection !== "open") return;
-    const s = await desk.recall.list();
-    if (s) {
-      setSnap(s);
-      setError(null);
-    } else setError("recall did not answer");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desk.connection]);
+  // `refresh` changes with the link only; desk.recall is a fresh object every render.
+  const recallApi = useRef(desk.recall);
+  useEffect(() => {
+    recallApi.current = desk.recall;
+  });
+  const refresh = useCallback(
+    () =>
+      desk.connection !== "open"
+        ? Promise.resolve()
+        : recallApi.current.list().then((s) => {
+            if (s) {
+              setSnap(s);
+              setError(null);
+            } else setError("recall did not answer");
+          }),
+    [desk.connection],
+  );
   useEffect(() => {
     if (desk.connection === "open") void refresh();
   }, [desk.recallVersion, desk.connection, refresh]);

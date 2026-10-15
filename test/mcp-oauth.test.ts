@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createHash } from "node:crypto";
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,7 @@ import { createRegistry } from "@earendil-works/pi-durable";
 import { McpTools } from "../daemon/mcp/index.ts";
 import { oauthCallbackRoute, oauthPage, startServer } from "../mod/server.ts";
 import { answer, TOOLS } from "./fixtures/fake-mcp.mjs";
+import { must } from "./fixtures/must.ts";
 
 const until = async (check: () => boolean, ms = 8000) => {
   const end = Date.now() + ms;
@@ -24,11 +25,11 @@ async function oauthServer() {
   const issued = new Set<string>();
   const seen = { registrations: 0, tokenRequests: 0, mcpWithToken: 0 };
   let base = "";
-  const server: Server = createServer(async (req, res) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", base);
     const body = await new Promise<string>((r) => {
       let b = "";
-      req.on("data", (c) => (b += c));
+      req.on("data", (c: Buffer) => (b += c.toString()));
       req.on("end", () => r(b));
     });
     const json = (status: number, value: unknown, headers: Record<string, string> = {}) =>
@@ -53,7 +54,7 @@ async function oauthServer() {
       // The person approves at once: back to loki's callback with a code bound to the PKCE challenge.
       const code = `code-${codes.size + 1}`;
       codes.set(code, { challenge: url.searchParams.get("code_challenge") ?? "", redirect: url.searchParams.get("redirect_uri") ?? "" });
-      const back = new URL(url.searchParams.get("redirect_uri")!);
+      const back = new URL(must(url.searchParams.get("redirect_uri"), "a redirect_uri"));
       back.searchParams.set("code", code);
       back.searchParams.set("state", url.searchParams.get("state") ?? "");
       return res.writeHead(302, { location: back.href }).end();
@@ -63,13 +64,11 @@ async function oauthServer() {
       const p = new URLSearchParams(body);
       const pending = codes.get(p.get("code") ?? "");
       const verified =
-        pending &&
         createHash("sha256")
           .update(p.get("code_verifier") ?? "")
-          .digest("base64url") === pending.challenge &&
-        p.get("redirect_uri") === pending.redirect;
+          .digest("base64url") === pending?.challenge && p.get("redirect_uri") === pending.redirect;
       if (!verified) return json(400, { error: "invalid_grant" });
-      codes.delete(p.get("code")!);
+      codes.delete(p.get("code") ?? "");
       const token = `token-${issued.size + 1}`;
       issued.add(token);
       return json(200, { access_token: token, token_type: "Bearer", expires_in: 3600, refresh_token: `refresh-${issued.size}` });
@@ -80,11 +79,12 @@ async function oauthServer() {
         return res.writeHead(401, { "www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` }).end();
       if (req.method !== "POST") return res.writeHead(405).end();
       seen.mcpWithToken++;
-      const reply = answer(JSON.parse(body));
+      const reply = answer(JSON.parse(body) as Record<string, unknown>);
       return reply ? json(200, reply) : res.writeHead(202).end();
     }
     res.writeHead(404).end();
-  });
+  };
+  const server: Server = createServer((req, res) => void handle(req, res));
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   return { base, seen, issued, close: () => new Promise<void>((r) => server.close(() => r())) };
@@ -100,7 +100,17 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       configPath: join(dir, "mcp.json"),
       lokiDir: dir,
       redirect: "http://127.0.0.1:41414/mcp/oauth/callback",
-      secrets: { get: async (a) => keychain.get(a) || null, set: async (a, v) => void keychain.set(a, v), delete: async (a) => void keychain.delete(a) },
+      secrets: {
+        get: (a) => Promise.resolve(keychain.get(a) || null),
+        set: (a, v) => {
+          keychain.set(a, v);
+          return Promise.resolve();
+        },
+        delete: (a) => {
+          keychain.delete(a);
+          return Promise.resolve();
+        },
+      },
     });
     try {
       mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
@@ -109,13 +119,13 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect(waiting).toMatchObject({ state: "signin", signIn: { signedIn: false } });
       expect(fake.seen.registrations).toBe(1); // loki registered itself, with its callback address
       expect(mcp.sectionText()).toContain("- issues: needs the person to sign in");
-      const page = new URL(waiting.signIn!.url!);
+      const page = new URL(must(waiting.signIn?.url, "the sign-in page"));
       expect(page.origin + page.pathname).toBe(`${fake.base}/authorize`);
       expect(page.searchParams.get("code_challenge_method")).toBe("S256");
       expect(page.searchParams.get("redirect_uri")).toBe("http://127.0.0.1:41414/mcp/oauth/callback");
 
       // The person signs in; the server sends the browser back with a code, which loki redeems.
-      const back = new URL((await fetch(page, { redirect: "manual" })).headers.get("location")!);
+      const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
       const params = Object.fromEntries(back.searchParams);
       expect(await mcp.finishAuth({ state: "not-ours", code: "x" })).toMatchObject({ ok: false, server: null });
       const done = await mcp.finishAuth(params);
@@ -126,7 +136,7 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect((await mcp.servers.call("mcp__issues__list_issues", { repo: "loki" })).content).toEqual([{ type: "text", text: 'list_issues {"repo":"loki"}' }]);
       expect(fake.seen.mcpWithToken).toBeGreaterThan(0);
       // The tokens are in the keychain, never in mcp.json; a used state does not work twice.
-      expect(JSON.parse(keychain.get("mcp-oauth.issues.tokens")!)).toMatchObject({ access_token: "token-1" });
+      expect(JSON.parse(must(keychain.get("mcp-oauth.issues.tokens"), "the stored tokens"))).toMatchObject({ access_token: "token-1" });
       expect(await mcp.finishAuth(params)).toMatchObject({ ok: false, server: null });
 
       // Signing out forgets the tokens and asks for a sign-in again; the registration stays.
@@ -157,7 +167,7 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       mcp.setServer("token", null);
       mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
       await until(() => mcp.view().servers[0]?.signIn?.url != null);
-      const state = new URL(mcp.view().servers[0].signIn!.url!).searchParams.get("state")!;
+      const state = must(new URL(must(mcp.view().servers[0].signIn?.url, "the sign-in page")).searchParams.get("state"), "a state");
       expect(await mcp.finishAuth({ state, error: "access_denied", error_description: "You said no" })).toEqual({
         ok: false,
         server: "issues",
@@ -175,7 +185,7 @@ describe("signing in to a remote MCP server (OAuth)", () => {
     const srv = await startServer({
       port: 0,
       token: "t",
-      routes: [oauthCallbackRoute("/mcp/oauth/callback", async (p) => (calls.push(p), { ok: p.code === "good", message: `<b>${p.code}</b>` }))],
+      routes: [oauthCallbackRoute("/mcp/oauth/callback", (p) => (calls.push(p), Promise.resolve({ ok: p.code === "good", message: `<b>${p.code}</b>` })))],
     });
     try {
       const base = `http://127.0.0.1:${srv.port}`;

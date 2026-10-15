@@ -51,7 +51,7 @@ export function scopeForCall(deps: ToolDeps, ctx: { args?: Record<string, unknow
 export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   const state = deps.store.get(scope);
   return deps.widgets.entries(scope).map((w) => {
-    const l = state.layout[w.id];
+    const l = Object.hasOwn(state.layout, w.id) ? state.layout[w.id] : undefined;
     return {
       id: w.id,
       file: `${deps.widgetsDir}/${w.file}`,
@@ -66,8 +66,21 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
 }
 
 /** What a tool's body is told about its call: the arguments, and the chat and agent making it. */
-type Call = { args: Record<string, unknown>; conversation: { id: string }; agent: { id: string; name: string } };
-type LokiTool = { name: string; description: string; parameters: object; annotations?: { readOnly?: boolean }; run(ctx: Call): unknown };
+interface Call {
+  args: Record<string, unknown>;
+  conversation: { id: string };
+  agent: { id: string; name: string };
+}
+interface LokiTool {
+  name: string;
+  description: string;
+  parameters: object;
+  annotations?: { readOnly?: boolean };
+  run(ctx: Call): unknown;
+}
+
+/** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
+const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
@@ -80,8 +93,10 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
         execute: async (args, c) => {
           const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName } });
-          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error")
-            throw new Error(String((out as { content?: unknown }).content ?? "the tool failed"));
+          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
+            const content = (out as { content?: unknown }).content;
+            throw new Error(content === undefined || content === null ? "the tool failed" : typeof content === "string" ? content : JSON.stringify(content));
+          }
           return out;
         },
       }),
@@ -111,7 +126,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         additionalProperties: false,
       },
       async run(ctx) {
-        const args = ctx?.args ?? {};
+        const args = ctx.args;
         log("tool:desk_state:start", args);
         // A scan must never hold a turn hostage; the manifest is at most one scan stale.
         await withTimeout(deps.widgets.rescan(), 2000, "desk_state rescan", undefined);
@@ -151,7 +166,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         additionalProperties: false,
       },
       async run(ctx) {
-        const args = ctx?.args ?? {};
+        const args = ctx.args;
         const ids = Array.isArray(args.widgetIds)
           ? (args.widgetIds as unknown[]).filter((x): x is string => typeof x === "string")
           : typeof args.widgetId === "string" && args.widgetId
@@ -209,16 +224,16 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           additionalProperties: false,
         },
         async run(ctx) {
-          const args = ctx?.args ?? {};
-          const action = String(args.action ?? "");
-          const conversation = ctx?.conversation?.id ?? null;
-          const agentId = ctx?.agent?.id ?? null;
-          const agent = ctx?.agent?.name ?? null;
+          const args = ctx.args;
+          const action = argText(args.action);
+          const conversation = ctx.conversation.id;
+          const agentId = ctx.agent.id;
+          const agent = ctx.agent.name;
           log("tool:loki_task", { action, agent, conversation });
           try {
             if (action === "create") {
               const task = await store.create({
-                title: String(args.title ?? ""),
+                title: argText(args.title),
                 description: typeof args.description === "string" ? args.description : undefined,
                 labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
                 priority: typeof args.priority === "number" ? args.priority : undefined,
@@ -237,7 +252,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
                   status: t.status,
                   priority: t.priority,
                   labels: t.labels,
-                  assignedTo: t.metadata.assignedTo ?? null,
+                  assignedTo: (t.metadata as Partial<Record<string, string>>).assignedTo ?? null,
                   description: t.description,
                 })),
                 null,

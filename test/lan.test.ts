@@ -3,7 +3,7 @@ import { createServer } from "node:net";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WebSocket as WsClient } from "ws";
+import { WebSocket as WsClient, type RawData } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
 import { LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
@@ -21,6 +21,10 @@ vi.setConfig({ testTimeout: 20_000 });
 const DESKTOP = "0123456789abcdef0123456789abcdef";
 const TAILNET = "my-macbook-pro.tail1234.ts.net";
 
+/** A frame from the listener: ws hands each message over as bytes, which here are JSON text. */
+const frameOf = (raw: RawData) =>
+  JSON.parse((Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8")) as Record<string, unknown>;
+
 /** A Tailscale whose CLI is recorded output: running (or stopped), with or without the https front on `port`. */
 function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number } = {}) {
   const port = opts.port ?? 41415;
@@ -28,10 +32,11 @@ function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number
   return new Tailscale({
     bin: "/fake/tailscale",
     port,
-    exec: async (_bin, args) => {
-      if (args[0] === "status") return opts.running === false ? JSON.stringify({ BackendState: "Stopped", Self: { DNSName: `${TAILNET}.` } }) : STATUS_RUNNING;
-      if (args[0] === "serve" && args[1] === "status") return serve ? SERVE_41415.replace("41415", String(port)) : "{}";
-      return "";
+    exec: (_bin, args) => {
+      if (args[0] === "status")
+        return Promise.resolve(opts.running === false ? JSON.stringify({ BackendState: "Stopped", Self: { DNSName: `${TAILNET}.` } }) : STATUS_RUNNING);
+      if (args[0] === "serve" && args[1] === "status") return Promise.resolve(serve ? SERVE_41415.replace("41415", String(port)) : "{}");
+      return Promise.resolve("");
     },
   });
 }
@@ -269,7 +274,7 @@ describe("LAN listener", () => {
       const reqs = [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => {
         const req = httpRequest({
           host: "127.0.0.1",
-          port: f.lan.status().port!,
+          port: f.lan.status().port,
           path: "/pair",
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -321,10 +326,10 @@ describe("LAN listener", () => {
       expect(f.lan.clientCount()).toBe(0);
 
       const good = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?t=${DESKTOP}&desk=conv%2F1`, { cookie: p.cookie });
-      const hello = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(JSON.parse(String(raw)))));
+      const hello = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       expect(hello).toEqual({ type: "hello", scope: "conv_1", deviceId: p.body.deviceId });
       good.send(JSON.stringify({ type: "list_desks" }));
-      const desks = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(JSON.parse(String(raw)))));
+      const desks = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       expect(desks).toEqual({ type: "desks", desks: [{ scope: "conv_1" }] });
       expect(f.lan.clientCount()).toBe(1);
 
@@ -333,7 +338,7 @@ describe("LAN listener", () => {
       expect(f.lan.clientCount()).toBe(2);
 
       // broadcast reaches phones
-      const got = new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(JSON.parse(String(raw)))));
+      const got = new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       f.lan.broadcast({ type: "ping" });
       expect(await got).toEqual({ type: "ping" });
 
@@ -367,7 +372,7 @@ describe("LAN listener", () => {
       await new Promise<void>((r) => phone.once("message", () => r()));
       const announced = new Promise<Record<string, unknown>>((r) =>
         phone.on("message", (raw) => {
-          const m = JSON.parse(String(raw));
+          const m = frameOf(raw);
           if (m.type === "app_build") r(m);
         }),
       );
@@ -497,9 +502,9 @@ describe("LAN listener", () => {
       bin: "/fake/tailscale",
       port: 41415,
       ttlMs: 0,
-      exec: async (_bin, args) => {
-        if (args[0] === "status") return running ? STATUS_RUNNING : JSON.stringify({ BackendState: "Stopped" });
-        return serve ? SERVE_41415 : "{}";
+      exec: (_bin, args) => {
+        if (args[0] === "status") return Promise.resolve(running ? STATUS_RUNNING : JSON.stringify({ BackendState: "Stopped" }));
+        return Promise.resolve(serve ? SERVE_41415 : "{}");
       },
     });
     const f = fixture({ port: 41415, tailscale: ts });
@@ -539,7 +544,7 @@ describe("LAN listener", () => {
     expect(isTailnetAddress("10.8.0.2")).toBe(false);
   });
 
-  test("the tailnet's 100.x address is not listed among the Wi‑Fi addresses", async () => {
+  test("the tailnet's 100.x address is not listed among the Wi‑Fi addresses", () => {
     const f = fixture({
       interfaces: () =>
         ({

@@ -37,7 +37,7 @@ const post = (msg: Out) => {
 // these go too in case a webview injects its scripts into every frame.
 for (const key of ["__LOKI__", "__TAURI_INTERNALS__", "__TAURI__", "__TAURI_IPC__", "__TAURI_METADATA__", "ipc"]) {
   try {
-    delete (window as unknown as Record<string, unknown>)[key];
+    Reflect.deleteProperty(window, key);
   } catch {
     // non-configurable: nothing to do
   }
@@ -49,7 +49,10 @@ Object.defineProperty(window, "__lokiShared", {
   configurable: false,
 });
 
-type WidgetProps = { data: Record<string, unknown>; onSet: (path: string, value: unknown) => void };
+interface WidgetProps {
+  data: Record<string, unknown>;
+  onSet: (path: string, value: unknown) => void;
+}
 const state: {
   hash: string | null;
   Comp: ComponentType<WidgetProps> | null;
@@ -59,7 +62,11 @@ const state: {
   maxWidth: number;
 } = { hash: null, Comp: null, moduleData: {}, overlay: null, fill: false, maxWidth: 734 };
 
-const rootEl = document.getElementById("root")!;
+const rootEl = ((): HTMLElement => {
+  const el = document.getElementById("root");
+  if (!el) throw new Error("loki: the widget frame has no #root element");
+  return el;
+})();
 const root = createRoot(rootEl);
 
 class Boundary extends Component<{ hash: string; children: ReactNode }, { failed: boolean }> {
@@ -115,9 +122,9 @@ async function load(hash: string, source: { url: string } | { code: string }) {
       }
     }
     if (state.hash !== hash) return; // a newer version arrived meanwhile
-    const C = mod?.default;
+    const C = mod.default;
     if (typeof C !== "function") throw new Error("module has no default-exported component");
-    const data = typeof mod?.data === "object" && mod.data !== null && !Array.isArray(mod.data) ? (mod.data as Record<string, unknown>) : {};
+    const data = typeof mod.data === "object" && mod.data !== null && !Array.isArray(mod.data) ? (mod.data as Record<string, unknown>) : {};
     state.Comp = C as ComponentType<WidgetProps>;
     state.moduleData = data;
     try {
@@ -185,7 +192,7 @@ document.addEventListener(
   "click",
   (e) => {
     if (e.defaultPrevented || e.button !== 0) return;
-    const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+    const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
     if (!a) return;
     const href = a.getAttribute("href") ?? "";
     if (href.startsWith("#")) return;

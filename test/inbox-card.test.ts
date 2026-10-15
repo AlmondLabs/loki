@@ -90,7 +90,7 @@ describe("the phone's decisions under a card", () => {
         toolName: "mcp__github__create_issue",
         input: {},
         at: "2026-09-25T10:00:00Z",
-      } as AttentionItem["pendingApproval"],
+      },
     });
     expect(out).toContain(">Deny<");
     expect(out).toContain(">Approve<");

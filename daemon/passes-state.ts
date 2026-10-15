@@ -11,7 +11,10 @@ import { dirname, join } from "node:path";
 export type JobName = "reflection" | "learn";
 export const JOBS: readonly JobName[] = ["reflection", "learn"];
 
-export type PassSettings = { reflection: { enabled: boolean }; learn: { enabled: boolean; dailyCap: number } };
+export interface PassSettings {
+  reflection: { enabled: boolean };
+  learn: { enabled: boolean; dailyCap: number };
+}
 
 /** Learn's cards a day unless the person says otherwise: a ceiling, not a target (plan 018, R13). */
 export const DEFAULT_DAILY_CAP = 5;
@@ -20,13 +23,18 @@ const OLD_DEFAULT_DAILY_CAP = 25;
 
 export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, dailyCap: DEFAULT_DAILY_CAP } };
 
-type Cursors = { cursors: Record<JobName, Record<string, number>>; learnWritten: { day: string; count: number }; learnLast?: { at: string; note: string } };
+interface Cursors {
+  cursors: Record<JobName, Record<string, number>>;
+  learnWritten: { day: string; count: number };
+  learnLast?: { at: string; note: string };
+}
 
 const key = (agentId: string, chatId: string) => `${agentId}/${chatId}`;
 
-function readJson<T>(file: string): T | null {
+/** A JSON file's contents, or null when it is missing or not JSON; the caller says what it holds. */
+function readJson(file: string): unknown {
   try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
+    return JSON.parse(readFileSync(file, "utf8")) as unknown;
   } catch {
     return null;
   }
@@ -57,7 +65,7 @@ export class PassState {
   constructor(stateDir: string) {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
-    const read = readJson<Partial<Cursors>>(this.cursorsFile);
+    const read = readJson(this.cursorsFile) as Partial<Cursors> | null;
     this.data = {
       cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
       learnWritten: read?.learnWritten ?? { day: "", count: 0 },
@@ -74,7 +82,7 @@ export class PassState {
   }
 
   settings(): PassSettings {
-    return normalSettings(readJson(this.settingsFile));
+    return normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
   }
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
@@ -124,15 +132,18 @@ export class PassState {
     old: { reflectionSettings: string; reflectionRoot: string; learnWorker: string },
     chats: ReadonlyArray<{ agentId: string; chatId: string; entries: number }>,
   ): void {
-    const reflection = readJson<{ trigger?: string }>(old.reflectionSettings);
-    const worker = readJson<{ enabled?: boolean; dailyCap?: number; cursors?: Record<string, number>; written?: { day?: string; count?: number } }>(
-      old.learnWorker,
-    );
+    const reflection = readJson(old.reflectionSettings) as { trigger?: string } | null;
+    const worker = readJson(old.learnWorker) as {
+      enabled?: boolean;
+      dailyCap?: number;
+      cursors?: Record<string, number>;
+      written?: { day?: string; count?: number };
+    } | null;
     for (const [k, at] of Object.entries(worker?.cursors ?? {})) if (typeof at === "number") this.data.cursors.learn[k] = at;
     if (worker?.written?.day) this.data.learnWritten = { day: worker.written.day, count: worker.written.count ?? 0 };
     for (const agentId of dirs(old.reflectionRoot)) {
       for (const chatId of dirs(join(old.reflectionRoot, agentId))) {
-        const at = readJson<{ reflected_through?: number }>(join(old.reflectionRoot, agentId, chatId, "state.json"))?.reflected_through;
+        const at = (readJson(join(old.reflectionRoot, agentId, chatId, "state.json")) as { reflected_through?: number } | null)?.reflected_through;
         if (typeof at === "number") this.data.cursors.reflection[key(agentId, chatId)] = at;
       }
     }

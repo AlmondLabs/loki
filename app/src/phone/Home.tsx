@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { previewLine } from "../shared/preview";
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
@@ -97,7 +97,8 @@ export function Home({
   const [sheet, setSheet] = useState<"menu" | "new" | null>(null);
   const [acting, setActing] = useState<DeskSummary | null>(null);
 
-  useEffect(onRefresh, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const refresh = useEffectEvent(onRefresh);
+  useEffect(() => refresh(), []);
 
   const marks = useMemo(() => {
     const m = new Map<string, AttentionItem>();
@@ -460,7 +461,7 @@ export function DeskRow({
   const fresh = m.kind === "waits" || m.kind === "finished" || m.kind === "failed";
   // A look (on either device) un-bolds a finished desk; its dot stays until it is done, as the desktop sidebar's ring does.
   const looked = m.kind === "finished" && !!mark && !unviewed(mark);
-  const doing = m.kind === "running" ? "running…" : m.kind === "waits" || m.kind === "failed" ? BADGE[mark!.status].label : null;
+  const doing = m.kind === "running" ? "running…" : (m.kind === "waits" || m.kind === "failed") && mark ? BADGE[mark.status].label : null;
   const said = doing ?? snippet(mark?.lastAssistantText) ?? (d.status !== "live" ? d.status : null);
   const main = d.conversationId === "default";
   const name = inAgent && main && !d.title ? "Main chat" : deskName(d);
@@ -655,7 +656,7 @@ function useNewDesk(
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>,
   onClose: () => void,
 ) {
-  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents.at(0)?.id ?? null);
   const [name, setName] = useState("");
   const recent = useRecentFolders(recentFolders);
   const [busy, setBusy] = useState(false);

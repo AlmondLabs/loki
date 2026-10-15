@@ -53,7 +53,7 @@ describe("skill install", () => {
     expect(validSkillSource("a b")).toMatch(/spaces/);
     expect(validSkillSource("--force")).toMatch(/cannot start/);
     let ran = false;
-    await expect(installSkill("", "a1", { run: async () => ((ran = true), "") })).rejects.toThrow(/required/);
+    await expect(installSkill("", "a1", { run: () => ((ran = true), Promise.resolve("")) })).rejects.toThrow(/required/);
     expect(ran).toBe(false);
   });
 

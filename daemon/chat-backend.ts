@@ -34,7 +34,7 @@ import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
  * canvas), and a message sent while the chat is busy waits its turn.
  */
 
-type Deps = {
+interface Deps {
   stores: StoreManager;
   approvals: Approvals;
   providers: Providers;
@@ -51,13 +51,19 @@ type Deps = {
   /** The import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
   importLetta?: () => Promise<ImportReport>;
   importStatus?: () => ImportStatus;
-};
+}
 
 /** A model handle (`provider/model`) as pi-durable's model reference. */
 export function modelRef(handle: string): { provider: string; modelId: string } | undefined {
   const slash = handle.indexOf("/");
   return slash > 0 && slash < handle.length - 1 ? { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) } : undefined;
 }
+
+/**
+ * A synchronous answer as the promise ChatBackend asks for: a throw becomes its rejection, as in an async method,
+ * so a caller's catch still sees it.
+ */
+const settled = <T>(work: () => T): Promise<T> => new Promise((resolve) => resolve(work()));
 
 /** loki's reasoning effort as pi's thinking level. */
 function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
@@ -106,16 +112,16 @@ export class DaemonChats implements ChatBackend {
     return state;
   }
 
-  async approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
-    return this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined, p.always);
+  approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
+    return settled(() => this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined, p.always));
   }
 
-  async approvals(): Promise<{ always: string[] }> {
-    return { always: this.deps.approvals.always() };
+  approvals(): Promise<{ always: string[] }> {
+    return settled(() => ({ always: this.deps.approvals.always() }));
   }
 
-  async setApproval(p: PayloadOf<"chat_approvals_set">): Promise<{ always: string[] }> {
-    return { always: this.deps.approvals.setAlways(p.tool, p.on) };
+  setApproval(p: PayloadOf<"chat_approvals_set">): Promise<{ always: string[] }> {
+    return settled(() => ({ always: this.deps.approvals.setAlways(p.tool, p.on) }));
   }
 
   private get mcpTools(): McpTools {
@@ -123,20 +129,20 @@ export class DaemonChats implements ChatBackend {
     return this.deps.mcp;
   }
 
-  async mcp(): Promise<McpView> {
-    return this.mcpTools.view();
+  mcp(): Promise<McpView> {
+    return settled(() => this.mcpTools.view());
   }
 
-  async mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<McpView> {
-    return this.mcpTools.setServer(p.entry, p.edit, p.rename ?? undefined);
+  mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<McpView> {
+    return settled(() => this.mcpTools.setServer(p.entry, p.edit, p.rename ?? undefined));
   }
 
-  async mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<McpView> {
-    return this.mcpTools.setAlwaysLoad(p.entry, p.tools);
+  mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<McpView> {
+    return settled(() => this.mcpTools.setAlwaysLoad(p.entry, p.tools));
   }
 
-  async mcpRestart(name: string): Promise<McpView> {
-    return this.mcpTools.restart(name);
+  mcpRestart(name: string): Promise<McpView> {
+    return settled(() => this.mcpTools.restart(name));
   }
 
   async mcpSignOut(name: string): Promise<McpView> {
@@ -148,16 +154,16 @@ export class DaemonChats implements ChatBackend {
     return this.deps.mcp.finishAuth(params);
   }
 
-  async mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<McpView> {
-    return this.mcpTools.setAgentServer(p.agentId, p.server, p.on);
+  mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<McpView> {
+    return settled(() => this.mcpTools.setAgentServer(p.agentId, p.server, p.on));
   }
 
   async mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<{ ref: string }> {
     return { ref: await this.mcpTools.storeSecret(p.name, p.value) };
   }
 
-  async answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
-    return this.deps.approvals.answer(p.questionId, p.input);
+  answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
+    return settled(() => this.deps.approvals.answer(p.questionId, p.input));
   }
 
   /**
@@ -265,8 +271,8 @@ export class DaemonChats implements ChatBackend {
     return this.deps.importLetta();
   }
 
-  async importStatus(): Promise<ImportStatus> {
-    return this.deps.importStatus?.() ?? { letta: false, complete: false, last: null };
+  importStatus(): Promise<ImportStatus> {
+    return settled(() => this.deps.importStatus?.() ?? { letta: false, complete: false, last: null });
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {
@@ -303,8 +309,8 @@ export class DaemonChats implements ChatBackend {
     return available.map((m) => ({ id: `${m.provider}/${m.id}`, handle: `${m.provider}/${m.id}`, label: m.name || m.id }));
   }
 
-  async agents(): Promise<Array<{ id: string; name: string }>> {
-    return listAgents(this.deps.backendDir).map((id) => ({ id, name: readLocalAgent(id, this.deps.backendDir)?.name ?? id }));
+  agents(): Promise<Array<{ id: string; name: string }>> {
+    return settled(() => listAgents(this.deps.backendDir).map((id) => ({ id, name: readLocalAgent(id, this.deps.backendDir)?.name ?? id })));
   }
 
   async createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }> {
@@ -349,14 +355,18 @@ export class DaemonChats implements ChatBackend {
     return { url: "", instructions: null };
   }
 
-  async passes() {
-    if (!this.deps.passes) throw new Error("the background passes are not running");
-    return this.deps.passes.state.settings();
+  passes() {
+    return settled(() => {
+      if (!this.deps.passes) throw new Error("the background passes are not running");
+      return this.deps.passes.state.settings();
+    });
   }
 
-  async setPasses(s: PayloadOf<"chat_passes_set">) {
-    if (!this.deps.passes) throw new Error("the background passes are not running");
-    return this.deps.passes.state.setSettings(s);
+  setPasses(s: PayloadOf<"chat_passes_set">) {
+    return settled(() => {
+      if (!this.deps.passes) throw new Error("the background passes are not running");
+      return this.deps.passes.state.setSettings(s);
+    });
   }
 
   /** Learn's "Run now": every settled chat it has new material in, whether Learn is on or not. */
@@ -405,21 +415,25 @@ export class DaemonChats implements ChatBackend {
   }
 
   /** A skill made global: a link to its folder in the global skills folder, ~/.agents/skills (mod/skills.ts). */
-  async enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
-    if (!existsSync(join(path, "SKILL.md"))) throw new Error(`${path} has no SKILL.md`);
-    const dir = globalSkillsDir();
-    mkdirSync(dir, { recursive: true });
-    const name = basename(path);
-    const linkPath = join(dir, name);
-    if (existsSync(linkPath)) throw new Error(`a global skill named ${name} is already there`);
-    symlinkSync(path, linkPath, "dir");
-    return { name, linkPath };
+  enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
+    return settled(() => {
+      if (!existsSync(join(path, "SKILL.md"))) throw new Error(`${path} has no SKILL.md`);
+      const dir = globalSkillsDir();
+      mkdirSync(dir, { recursive: true });
+      const name = basename(path);
+      const linkPath = join(dir, name);
+      if (existsSync(linkPath)) throw new Error(`a global skill named ${name} is already there`);
+      symlinkSync(path, linkPath, "dir");
+      return { name, linkPath };
+    });
   }
 
-  async disableSkill(name: string): Promise<void> {
-    const linkPath = join(globalSkillsDir(), name);
-    if (!lstatSync(linkPath, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${name} is not a linked global skill`);
-    unlinkSync(linkPath);
+  disableSkill(name: string): Promise<void> {
+    return settled(() => {
+      const linkPath = join(globalSkillsDir(), name);
+      if (!lstatSync(linkPath, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${name} is not a linked global skill`);
+      unlinkSync(linkPath);
+    });
   }
 
   async writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void> {

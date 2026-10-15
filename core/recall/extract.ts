@@ -242,7 +242,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 function extractJson(text: string): string | null {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
   const body = fenced ? fenced[1] : text;
   const start = body.indexOf("{");
   const end = body.lastIndexOf("}");

@@ -2,10 +2,9 @@ import { useState } from "react";
 
 import { Button, Chip, Field, Row, TextArea, sentence } from "../components";
 import { Head, ListPane, Pane, Prose } from "./bits";
-import type { AgentDetails } from "./types";
+import type { AgentDetails, AgentSkill } from "./types";
 import type { AgentStore } from "./useAgentDetails";
 import type { ReadingState } from "./useReading";
-import type { MemorySkillInfo } from "../../../core/frame-types.ts";
 
 /** The skills page's add form: write one here, or install from a source. */
 export type Adding = null | "write" | "install";
@@ -26,7 +25,7 @@ export function SkillsPage({
 }: {
   d: AgentDetails;
   store: AgentStore;
-  viewSkill: MemorySkillInfo | null;
+  viewSkill: AgentSkill | null;
   onPickSkill: (name: string) => void;
   adding: Adding;
   setAdding: (v: Adding) => void;
@@ -74,7 +73,7 @@ export function SkillsPage({
 }
 
 /** The skills in two groups, the agent's own and the installed ones; installed ones say where they came from. */
-function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown: MemorySkillInfo | null; onPick: (name: string) => void }) {
+function SkillList({ skills, shown, onPick }: { skills: AgentSkill[]; shown: AgentSkill | null; onPick: (name: string) => void }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }}>
       {(["self", "other"] as const).map((origin) => {
@@ -125,7 +124,7 @@ function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown
 }
 
 /** The picked skill, read: its path and actions above, where it came from, its description, then the SKILL.md. */
-function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: MemorySkillInfo | null; reading: ReadingState }) {
+function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: AgentSkill | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
   if (!skill) return <div className="loki-meta loki-meta--wrap">{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
   return (
@@ -144,7 +143,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
 }
 
 /** The line above a skill: its path, refresh (installed ones) and remove. */
-function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: MemorySkillInfo; loadingView: boolean }) {
+function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: AgentSkill; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
     <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -173,7 +172,7 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
 }
 
 /** Where the skill came from: written by the agent, from a source, or installed with the source unknown (in the accent, as a nudge). */
-function SkillOrigin({ skill, agentName }: { skill: MemorySkillInfo; agentName: string }) {
+function SkillOrigin({ skill, agentName }: { skill: AgentSkill; agentName: string }) {
   return (
     <div style={{ fontSize: 10.5, color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
       {skill.origin === "self" ? `written by ${agentName}` : skill.source ? `from ${skill.source.label}` : "installed · source unknown"}

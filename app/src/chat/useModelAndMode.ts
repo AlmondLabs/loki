@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { PermissionMode } from "./PermissionMode";
 import type { ModelSelection } from "../../../core/models.ts";
 
@@ -27,21 +27,28 @@ export function useModelAndMode({
   // The pill's name and effort come from list_models, so load it when a chat gains model controls instead
   // of waiting for a first trip through the picker — and again when the host's loader changes (a new harness
   // link: an ask made before the link was up came back empty).
+  // onPickModel is often a fresh scope-bound closure; the boolean capability is the stable trigger.
+  const canPickModel = !!onPickModel;
   useEffect(() => {
+    if (canPickModel) onLoadModels?.();
+  }, [canPickModel, onLoadModels]);
+  // A bumped tick opens its menu from the render that sees it; the picker also asks for the model list.
+  const [seenPickerTick, setSeenPickerTick] = useState(0);
+  if (modelPickerTick !== seenPickerTick) {
+    setSeenPickerTick(modelPickerTick);
+    if (modelPickerTick > 0 && onPickModel) setPickerOpen(true);
+  }
+  const loadForPicker = useEffectEvent(() => {
     if (onPickModel) onLoadModels?.();
-    // onPickModel is often a fresh scope-bound closure; the boolean capability is the stable trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!onPickModel, onLoadModels]);
+  });
   useEffect(() => {
-    if (modelPickerTick > 0 && onPickModel) {
-      onLoadModels?.();
-      setPickerOpen(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (modelPickerTick > 0) loadForPicker();
   }, [modelPickerTick]);
-  useEffect(() => {
+  const [seenModeTick, setSeenModeTick] = useState(0);
+  if (modeMenuTick !== seenModeTick) {
+    setSeenModeTick(modeMenuTick);
     if (modeMenuTick > 0 && onPickMode) setModeOpen(true);
-  }, [modeMenuTick, onPickMode]);
+  }
   const pickMode = async (m: PermissionMode) => {
     if (!onPickMode) return;
     setModeOpen(false);

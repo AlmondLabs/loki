@@ -13,8 +13,8 @@ describe("agent and phone-listener frames", () => {
       skills: () => [],
       hasProfile: () => false,
       read: () => null,
-      log: async () => [],
-      diff: async () => "",
+      log: () => Promise.resolve([]),
+      diff: () => Promise.resolve(""),
     } as unknown as NonNullable<AgentsDeps["agents"]>;
     const { bridge } = bridgeWith({ agents });
     const c = client("d1");
@@ -25,9 +25,7 @@ describe("agent and phone-listener frames", () => {
 
   test("a listener refresh that fails answers an error push", async () => {
     const lan = {
-      refresh: async () => {
-        throw new Error("tailscale hung");
-      },
+      refresh: () => Promise.reject(new Error("tailscale hung")),
     } as unknown as NonNullable<LanDeps["lan"]>;
     const { bridge } = bridgeWith({ lan });
     const c = client("d1");

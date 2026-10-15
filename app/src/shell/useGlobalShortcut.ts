@@ -31,15 +31,16 @@ export function useGlobalShortcut(): GlobalShortcut {
   useEffect(() => {
     if (!AVAILABLE) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("set_global_shortcut", { enabled });
-        if (!cancelled) setError(null);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      }
-    })();
+    void import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke("set_global_shortcut", { enabled }))
+      .then(
+        () => {
+          if (!cancelled) setError(null);
+        },
+        (e: unknown) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        },
+      );
     return () => {
       cancelled = true;
     };

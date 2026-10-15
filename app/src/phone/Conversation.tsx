@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { useInlineWidgets } from "../chat/useInlineWidgets";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
@@ -141,10 +141,8 @@ export function ConversationScreen({
     if (!archive.archived) onBack(); // archived: done with it, back to where you came from
   };
 
-  useEffect(() => {
-    onLoad(rt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thread.agentId, thread.conversationId]);
+  const load = useEffectEvent(() => onLoad(rt));
+  useEffect(() => load(), [thread.agentId, thread.conversationId]);
 
   const agentName = thread.agentName ?? "the agent";
   const people = useMemo(
@@ -175,6 +173,8 @@ export function ConversationScreen({
       </div>
     ));
   const canSee = waiting && !view.pending;
+  const asked = view.question;
+  const approval = view.pending;
   const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
 
   return (
@@ -203,8 +203,8 @@ export function ConversationScreen({
                 onLoadModels,
                 onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
                 onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-                onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
-                onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
+                onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
+                onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
                 onStop: onStop ? () => onStop(rt) : undefined,
               }}
               agentName={agentName}
@@ -222,7 +222,7 @@ export function ConversationScreen({
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">
             {canSee && <SheetRow icon="check" label="Mark as read" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
-            {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
+            {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone(item), setActionsOpen(false))} />}
             {pinned !== null && onPin && (
               <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />
             )}

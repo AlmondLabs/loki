@@ -45,7 +45,8 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   ghost.style.animation = "none";
   const card = ghost.querySelector<HTMLElement>(".loki-sheet-card");
   parent.appendChild(ghost);
-  const height = card?.offsetHeight || 400;
+  const measured = card?.offsetHeight ?? 0;
+  const height = measured > 0 ? measured : 400;
   const { easing, ms } = spring("smooth", velocity / Math.max(1, height - from));
   const done = () => ghost.remove();
   if (card) {
@@ -95,7 +96,7 @@ export function useSheetMotion(
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
     ro?.observe(card);
 
-    let drag: { id: number; x: number; y: number; on: boolean; samples: { y: number; t: number }[] } | null = null;
+    let drag: { id: number; x: number; y: number; on: boolean; samples: Array<{ y: number; t: number }> } | null = null;
     let dy = 0;
     const lift = (v: number) => parent.style.setProperty("--sheet-lift", String(v));
     const place = (d: number) => {
@@ -111,7 +112,7 @@ export function useSheetMotion(
       drag = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, samples: [{ y: e.clientY, t: e.timeStamp }] };
     };
     const move = (e: PointerEvent) => {
-      if (!drag || drag.id !== e.pointerId) return;
+      if (drag?.id !== e.pointerId) return;
       const ddy = e.clientY - drag.y;
       if (!drag.on) {
         if (ddy < SLOP || Math.abs(ddy) < Math.abs(e.clientX - drag.x) || scrolledAbove(e.target as Element, card)) return;
@@ -133,7 +134,7 @@ export function useSheetMotion(
     };
     const up = (e: PointerEvent) => {
       const d = drag;
-      if (!d || d.id !== e.pointerId) return;
+      if (d?.id !== e.pointerId) return;
       drag = null;
       if (!d.on) return;
       // The tap this drag started on is not a tap.

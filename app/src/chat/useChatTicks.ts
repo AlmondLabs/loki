@@ -15,9 +15,13 @@ export function useChatTicks({ focusTick, findTick, inputRef }: { focusTick: num
   // wrapping. Enter finds the next match, ⇧Enter the previous, Esc closes.
   const [findOpen, setFindOpen] = useState(false);
   const findRef = useRef<HTMLInputElement>(null);
+  const [seenFindTick, setSeenFindTick] = useState(0);
+  if (findTick !== seenFindTick) {
+    setSeenFindTick(findTick);
+    if (findTick > 0) setFindOpen(true);
+  }
   useEffect(() => {
     if (findTick <= 0) return;
-    setFindOpen(true);
     const t = setTimeout(() => findRef.current?.select(), 0);
     return () => clearTimeout(t);
   }, [findTick]);

@@ -66,7 +66,10 @@ export function motionFor(from: Route, to: Route, arrival: Arrival, zoomedHash: 
 /** The newest transition; an older one finishing late must not clear what the newer one set. */
 let seq = 0;
 
-type ViewTransition = { finished: Promise<void>; skipTransition: () => void };
+interface ViewTransition {
+  finished: Promise<void>;
+  skipTransition: () => void;
+}
 type StartViewTransition = (update: () => void) => ViewTransition;
 
 /**

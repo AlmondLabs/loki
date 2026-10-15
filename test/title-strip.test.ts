@@ -7,11 +7,12 @@ import { KEYMAP, labelOf, menuSpec, registerActions, resolve } from "../app/src/
 import { guardBrowserKey } from "../app/src/shell/useShellKeys.ts";
 import { LAYER } from "../app/src/kit/layers.ts";
 import type { Platform } from "../app/src/desk/env.ts";
+import { must } from "./fixtures/must.ts";
 
 const strip = (os: Platform, shell = true) => renderToStaticMarkup(createElement(TitleStrip, { os, shell }));
 
 /** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
-function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
   const el = node as ReactElement<Record<string, unknown>>;
@@ -85,7 +86,10 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
       for (const g of groups) expect(out).toContain(`>${g.title}<`);
       expect(out).toContain(
         labelOf(
-          KEYMAP.find((b) => b.id === "window.hide")!,
+          must(
+            KEYMAP.find((b) => b.id === "window.hide"),
+            "the window.hide binding",
+          ),
           os,
         ),
       );
@@ -100,7 +104,10 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
       for (const g of groups) {
         const out = renderToStaticMarkup(createElement(TitleMenuPanel, { groups, open: g.title, onOpen: () => {}, onPick: () => {}, os }));
         expect(out).not.toMatch(/[⌘⇧⌥]/);
-        const mac = spec.find((m) => m.title === g.title)!;
+        const mac = must(
+          spec.find((m) => m.title === g.title),
+          `the Mac's ${g.title} menu`,
+        );
         for (const it of mac.items) {
           if ("separator" in it) continue;
           expect(out).toContain(it.label.replace(/&/g, "&amp;"));
@@ -108,7 +115,10 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
           expect(mine && !("separator" in mine) && mine.keys !== null).toBe(it.accelerator !== null);
         }
       }
-      const go = groups.find((g) => g.title === "Go")!;
+      const go = must(
+        groups.find((g) => g.title === "Go"),
+        "the Go menu",
+      );
       expect(go.items).toContainEqual({ id: "search.open", label: "Search", keys: "Ctrl K" });
     }
   });
@@ -120,7 +130,13 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
       const groups = titleMenus("windows");
       const picked: string[] = [];
       const tree = TitleMenuPanel({ groups, os: "windows", open: "Go", onOpen: () => {}, onPick: (id) => (picked.push(id), runMenuItem(id)) });
-      const click = (id: string) => (elements(tree).find((el) => el.props["data-menu-id"] === id)!.props.onClick as () => void)();
+      const click = (id: string) =>
+        (
+          must(
+            elements(tree).find((el) => el.props["data-menu-id"] === id),
+            `the ${id} item`,
+          ).props.onClick as () => void
+        )();
       click("desk.new");
       click("window.hide");
       expect(picked).toEqual(["desk.new", "window.hide"]);
@@ -133,7 +149,12 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
   test("a menu title opens its menu", () => {
     const opened: Array<string | null> = [];
     const tree = TitleMenuPanel({ groups: titleMenus("linux"), os: "linux", open: null, onOpen: (t) => opened.push(t), onPick: () => {} });
-    (elements(tree).find((el) => el.props["data-menu"] === "Tasks")!.props.onClick as () => void)();
+    (
+      must(
+        elements(tree).find((el) => el.props["data-menu"] === "Tasks"),
+        "the Tasks menu title",
+      ).props.onClick as () => void
+    )();
     expect(opened).toEqual(["Tasks"]);
   });
 });

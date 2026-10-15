@@ -152,7 +152,12 @@ export function DeskSidebar({
     scrollRef.current.scrollTop = savedScroll.current;
   }, [hasRows]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => void (saveTimer.current && clearTimeout(saveTimer.current)), []);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
   const onScroll = () => {
     measure();
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -246,7 +251,7 @@ export function DeskSidebar({
       e.stopPropagation();
       setQuery("");
     } else if (e.key === "Enter") {
-      const first = model.sections[0]?.rows[0] ?? model.archived[0];
+      const first = model.sections.at(0)?.rows.at(0) ?? model.archived.at(0);
       if (first) {
         e.preventDefault();
         onOpen(first.desk.scope);
@@ -462,8 +467,7 @@ function RowMenu({
       if (!a || a === document.body || node?.contains(a))
         document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [d.scope]);
   const archived = d.status === "archived";
   const done = doneAction(item);
   const pick = (fn: () => void) => () => {

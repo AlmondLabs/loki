@@ -100,7 +100,7 @@ export function pickFolder(defaultPath?: string): Promise<string | null> {
   return new Promise((resolveP) => {
     execFile("/usr/bin/osascript", ["-e", script], { timeout: 120_000 }, (err, stdout) => {
       if (err) return resolveP(null); // cancelled (osascript exits 1) or no UI session
-      const out = String(stdout).trim().replace(/\/$/, "");
+      const out = stdout.trim().replace(/\/$/, "");
       resolveP(out || null);
     });
   });

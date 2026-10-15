@@ -28,7 +28,11 @@ import type { JobName, PassSettings, PassState } from "./passes-state.ts";
  */
 
 /** A memory review's result: how it ended, what it changed, and its report for the person. */
-export type DoctorResult = { outcome: RunOutcome; changes: number; report: string };
+export interface DoctorResult {
+  outcome: RunOutcome;
+  changes: number;
+  report: string;
+}
 
 /** How long a chat must be quiet before a job reads it. */
 export const QUIET_MS = 30 * 60_000;
@@ -46,17 +50,36 @@ export const BATCH_EVERY_MS = 2 * 60 * 60_000;
 export const RUN_TIMEOUT_MS = 10 * 60_000;
 
 /** One chat's new stretch in a run: its transcript from the job's cursor up to `lines`. */
-export type PassPart = { chatId: string; title: string | null; rows: TranscriptRow[]; material: string; from: number; lines: number };
+export interface PassPart {
+  chatId: string;
+  title: string | null;
+  rows: TranscriptRow[];
+  material: string;
+  from: number;
+  lines: number;
+}
 /** A run's material: one agent's due chats, each a part, and all of them as one labelled text (batchText). */
-export type PassInput = { agentId: string; agentName: string | null; parts: PassPart[]; material: string; now: Date };
+export interface PassInput {
+  agentId: string;
+  agentName: string | null;
+  parts: PassPart[];
+  material: string;
+  now: Date;
+}
 
 /** The parts as one text: each chat in its own tag, named and numbered, so the job can tell them apart and cite them. */
 export function batchText(parts: readonly PassPart[]): string {
   return parts.map((p, i) => `<conversation n="${i + 1}"${p.title ? ` title=${JSON.stringify(p.title)}` : ""}>\n${p.material}\n</conversation>`).join("\n\n");
 }
-export type PassAnswer = { text: string; toolCalls: string[] };
+export interface PassAnswer {
+  text: string;
+  toolCalls: string[];
+}
 /** What a run did: `items` counts what it wrote by kind; `capped` keeps the cursor for another day. */
-export type PassResult = { items: Record<string, number>; capped?: boolean };
+export interface PassResult {
+  items: Record<string, number>;
+  capped?: boolean;
+}
 
 export interface PassJob {
   name: JobName;
@@ -74,7 +97,7 @@ export interface PassJob {
   apply(input: PassInput, answer: PassAnswer): Promise<PassResult> | PassResult;
 }
 
-type Deps = {
+interface Deps {
   stores: StoreManager;
   chats: ChatProjection;
   registry: Registry;
@@ -92,7 +115,7 @@ type Deps = {
   sweepMs?: number;
   runTimeoutMs?: number;
   batchEveryMs?: number;
-};
+}
 
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
 
@@ -130,7 +153,7 @@ export class PassRunner {
       () => void this.sweep().catch((e: unknown) => this.deps.report?.(`background passes: ${String(e)}`)),
       this.deps.sweepMs ?? SWEEP_MS,
     );
-    this.timer.unref?.();
+    this.timer.unref();
   }
 
   stop(): void {
@@ -218,8 +241,7 @@ export class PassRunner {
     this.draining ??= (async () => {
       await Promise.resolve(); // `draining` is set before the loop can end and clear it
       try {
-        while (this.queue.length) {
-          const next = this.queue.shift()!;
+        for (let next = this.queue.shift(); next; next = this.queue.shift()) {
           try {
             await next.work();
           } finally {

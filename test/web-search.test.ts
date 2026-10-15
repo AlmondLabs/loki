@@ -42,7 +42,7 @@ describe("web search", () => {
     const models = createModels();
     models.setProvider(faux.provider);
     const registry = createRegistry();
-    registry.install(webSearchExtension(async (q) => (q === "pi" ? parseResults(PAGE) : [])));
+    registry.install(webSearchExtension((q) => Promise.resolve(q === "pi" ? parseResults(PAGE) : [])));
     const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
     const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
     faux.setResponses([

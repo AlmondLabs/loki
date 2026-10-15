@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { Reading } from "./reading";
 import type { AgentsApi } from "./types";
 
@@ -8,14 +8,22 @@ import type { AgentsApi } from "./types";
  * (binary, too large, or gone); `loadingView` while a fetch is out.
  */
 export function useReading(selected: string | null, view: Reading, api: AgentsApi) {
+  const kind = view?.kind;
+  const target = view?.kind === "file" ? view.path : view?.sha;
+  const wanted = selected && view ? JSON.stringify([selected, kind, target]) : null;
   const [content, setContent] = useState<string | null>(null);
-  const [loadingView, setLoadingView] = useState(false);
+  const [loadingView, setLoadingView] = useState(wanted !== null);
+  // A new file or commit to read is loading from the render that names it.
+  const [prevWanted, setPrevWanted] = useState(wanted);
+  if (wanted !== prevWanted) {
+    setPrevWanted(wanted);
+    if (wanted !== null) setLoadingView(true);
+  }
+  const fetchReading = useEffectEvent((id: string, k: "file" | "commit", t: string) => (k === "file" ? api.read(id, t) : api.diff(id, t)));
   useEffect(() => {
-    if (!selected || !view) return;
+    if (!selected || !kind || target === undefined) return;
     let cancelled = false;
-    setLoadingView(true);
-    const p = view.kind === "file" ? api.read(selected, view.path) : api.diff(selected, view.sha);
-    void p.then((c) => {
+    void fetchReading(selected, kind, target).then((c) => {
       if (cancelled) return;
       setContent(c);
       setLoadingView(false);
@@ -23,8 +31,7 @@ export function useReading(selected: string | null, view: Reading, api: AgentsAp
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, view?.kind, view?.kind === "file" ? view.path : view?.sha]);
+  }, [selected, kind, target]);
   return { content, loadingView };
 }
 

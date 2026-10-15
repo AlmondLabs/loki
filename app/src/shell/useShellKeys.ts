@@ -49,7 +49,7 @@ const BROWSER_KEYS = new Set([
 export function guardBrowserKey(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
   os: Platform = keyboard,
-  release: boolean = inTauri && import.meta.env.PROD === true,
+  release: boolean = inTauri && import.meta.env.PROD,
 ): void {
   if (!release || os === "macos" || e.metaKey || !e.key) return;
   const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");
@@ -115,7 +115,7 @@ export function useShellKeys(
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e) => console.warn("loki: menu", e));
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e: unknown) => console.warn("loki: menu", e));
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen<string>("loki:menu", (ev) => {
         const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;

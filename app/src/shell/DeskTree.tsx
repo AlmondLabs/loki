@@ -19,8 +19,9 @@ export function agentChips(agents: Array<{ id: string; name: string }>, desks: D
   for (const a of agents) byId.set(a.id, { id: a.id, name: a.name, count: 0 });
   for (const d of desks) {
     if (d.status !== "live" || !d.agentId) continue;
-    if (!byId.has(d.agentId)) byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 0 });
-    byId.get(d.agentId)!.count++;
+    const chip = byId.get(d.agentId);
+    if (chip) chip.count++;
+    else byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 1 });
   }
   return [...byId.values()];
 }
@@ -125,7 +126,11 @@ function buildRows(ordered: DeskSummary[], archive: DeskSummary[], newRow: Row |
 
 const plural = (n: number) => `${n} chat${n === 1 ? "" : "s"}`;
 
-type Chip = { id: string; name: string | null; count: number };
+interface Chip {
+  id: string;
+  name: string | null;
+  count: number;
+}
 
 /** What the hidden live region says: the agent filter (Tab changes it silently otherwise) and, while typing, how many desks match. */
 export function statusLine(agentFilter: string | null, chips: Chip[], q: string, matching: number): string {
@@ -214,9 +219,9 @@ function TreeSheet({
     const t = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(t);
   }, []);
-  useEffect(() => {
-    if (index >= rows.length) setIndex(Math.max(0, rows.length - 1));
-  }, [rows.length, index]);
+  // The list shrank under the highlight: it moves to the last row.
+  const lastIndex = Math.max(0, rows.length - 1);
+  if (index >= rows.length && index !== lastIndex) setIndex(lastIndex);
   useEffect(() => {
     if (!keyboardMove.current) return;
     keyboardMove.current = false;
@@ -250,7 +255,7 @@ function TreeSheet({
       setIndex((i) => (action === "down" ? Math.min(rows.length - 1, i + 1) : Math.max(0, i - 1)));
     } else if (action === "agent-next" || action === "agent-prev") cycleAgent(action === "agent-next" ? 1 : -1);
     else if (action === "choose") choose(r);
-    else if (action === "close") onClose();
+    else onClose();
   };
 
   // Each option's place in `rows`, top to bottom: the sections' desks, the "new desk" row, then the archive.
@@ -410,7 +415,11 @@ function NewRowLabel({ name, agentFilter, agentName }: { name: string; agentFilt
   );
 }
 
-type RowHandlers = { optionId: (i: number) => string; selected: number; onHover: (i: number) => void };
+interface RowHandlers {
+  optionId: (i: number) => string;
+  selected: number;
+  onHover: (i: number) => void;
+}
 
 /** The folded group at the bottom: archived and deleted conversations. Its rows take the indices after the live ones, from `startIndex`. */
 /** Where each section's desks start among the options (a counter bumped in render keeps the React Compiler off). */

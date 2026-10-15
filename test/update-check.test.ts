@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Platform } from "../app/src/desk/env.ts";
 import { LokiVersionFact } from "../app/src/settings/Settings.tsx";
 import { downloadFor, newestWith, type LokiUpdate, type Release } from "../app/src/shell/useLokiUpdate.ts";
+import { must } from "./fixtures/must.ts";
 
 /**
  * The update check links this system's file from the release (plan 014 U10, KTD13, R11), else the release page.
@@ -37,7 +38,7 @@ describe("the download for this system", () => {
   });
 
   test("Linux takes the .deb when the release has no AppImage", () => {
-    const noAppImage = { ...release, assets: release.assets!.filter((a) => !a.name.endsWith(".AppImage")) };
+    const noAppImage = { ...release, assets: must(release.assets, "the release's assets").filter((a) => !a.name.endsWith(".AppImage")) };
     expect(downloadFor(noAppImage, "linux")).toBe(asset(`loki_${v}_amd64.deb`).browser_download_url);
   });
 
@@ -69,7 +70,7 @@ describe("the release Windows and Linux follow: the newest with their file", () 
   test("Windows and Linux take the newest stable carrying their file, skipping a Mac-only one and the nightly", () => {
     expect(newestWith(list, "windows")?.tag_name).toBe("v2026.9.29");
     expect(newestWith(list, "linux")?.tag_name).toBe("v2026.9.29");
-    expect(downloadFor(newestWith(list, "windows")!, "windows")).toContain("loki_2026.9.29_x64-setup.exe");
+    expect(downloadFor(must(newestWith(list, "windows"), "a release with a Windows file"), "windows")).toContain("loki_2026.9.29_x64-setup.exe");
   });
 
   test("the order is by version, not by the list's; drafts and prereleases never count; a file on one system only counts there", () => {

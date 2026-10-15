@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import type { useAttention } from "../../../core/attention/useAttention.ts";
 
 /**
@@ -21,14 +21,14 @@ export function useDeskChat({
   const deskChat = deskRuntime ? catchUp.conversation(deskRuntime.agent_id, deskRuntime.conversation_id) : null;
   const pendingApproval = deskChat?.pending ?? null;
   const pendingQuestion = deskChat?.question ?? null;
-  useEffect(() => {
+  const subscribe = useEffectEvent(() => {
     if (deskRuntime && catchUp.status === "open") void catchUp.subscribe(deskRuntime);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, conversationId, catchUp.status]);
-  useEffect(() => {
+  });
+  const loadThread = useEffectEvent(() => {
     if (showing && deskRuntime && catchUp.status === "open") void catchUp.loadThread(deskRuntime);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showing, agentId, conversationId, catchUp.status]);
+  });
+  useEffect(() => subscribe(), [agentId, conversationId, catchUp.status]);
+  useEffect(() => loadThread(), [showing, agentId, conversationId, catchUp.status]);
 
   return { deskRuntime, deskChat, pendingApproval, pendingQuestion };
 }

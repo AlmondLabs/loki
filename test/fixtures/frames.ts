@@ -27,7 +27,7 @@ export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { 
       return true;
     },
     rescan: async () => {},
-    close() {},
+    close: () => {},
   };
 }
 

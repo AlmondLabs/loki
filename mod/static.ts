@@ -12,7 +12,7 @@ import { appDistCandidates } from "./paths.ts";
  */
 
 /** The host in the page's words (`__LOKI__.os`, read as `platform` in app/src/desk/env.ts), as the shell names it too. */
-export function hostOs(p: NodeJS.Platform | string = process.platform): "macos" | "windows" | "linux" {
+export function hostOs(p: string = process.platform): "macos" | "windows" | "linux" {
   return p === "darwin" ? "macos" : p === "win32" ? "windows" : "linux";
 }
 
@@ -90,26 +90,26 @@ export function createStaticApp(dist: string | null): StaticHandler {
     try {
       pathname = decodeURIComponent(url.pathname);
     } catch {
-      return void notFound(res);
+      return notFound(res);
     }
     const ext = extname(pathname);
     // Routes have no extension; an explicit /index.html is the same page and must carry the boot script too.
-    if (!ext || pathname === "/index.html") return void serveIndex(root, res);
+    if (!ext || pathname === "/index.html") return serveIndex(root, res);
     // Resolve inside the dist and refuse anything that escapes it (".." in any encoding).
     const file = resolve(root, `.${pathname}`);
     const rel = relative(root, file);
-    if (!rel || rel.startsWith("..") || rel.split(sep).includes("..") || resolve(root, rel) !== file) return void notFound(res);
+    if (!rel || rel.startsWith("..") || rel.split(sep).includes("..") || resolve(root, rel) !== file) return notFound(res);
     const immutable = rel.startsWith(`assets${sep}`); // Vite hashes everything under assets/
     let body: Buffer;
     try {
-      if (!statSync(file).isFile()) return void notFound(res);
+      if (!statSync(file).isFile()) return notFound(res);
       body = readFileSync(file);
     } catch {
       // A hashed script from an earlier build: the page that asked for it is stale (a home-screen app on iOS
       // launches from its cached start page when the network is slow to wake). Answer with a reload instead of
       // a 404, so the phone picks up the current build rather than sitting on a blank screen.
-      if (immutable && (ext === ".js" || ext === ".mjs")) return void serveStaleReload(res);
-      return void notFound(res);
+      if (immutable && (ext === ".js" || ext === ".mjs")) return serveStaleReload(res);
+      return notFound(res);
     }
     res.writeHead(200, {
       "content-type": TYPES[ext.toLowerCase()] ?? "application/octet-stream",
@@ -125,7 +125,7 @@ function serveIndex(root: string, res: ServerResponse): void {
   try {
     html = readFileSync(join(root, "index.html"), "utf8");
   } catch {
-    return void serveMissing(undefined, res);
+    return serveMissing(undefined, res);
   }
   const boot = bootScript(createHash("sha256").update(html).digest("hex").slice(0, 12));
   const i = html.indexOf("</head>");

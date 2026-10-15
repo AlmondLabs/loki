@@ -15,10 +15,7 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const T0 = Date.parse("2026-09-20T08:00:00Z");
 const thread = (n: number): TranscriptRow[] =>
-  Array.from(
-    { length: n },
-    (_, i) => ({ role: i % 2 ? "assistant" : "user", text: `message ${i}`, at: new Date(T0 + i * 60_000).toISOString() }) as TranscriptRow,
-  );
+  Array.from({ length: n }, (_, i) => ({ role: i % 2 ? "assistant" : "user", text: `message ${i}`, at: new Date(T0 + i * 60_000).toISOString() }));
 const people = { user: { name: "You" }, assistant: { name: "ira" } };
 const rowsIn = (html: string) => html.match(/data-row="(user|assistant|tool|event)"/g)?.length ?? 0;
 
@@ -118,7 +115,7 @@ describe("streaming touches only the tail", () => {
     for (const layout of [{}, { people }]) {
       const els = rowElements({ rows, streaming: true, ...layout });
       expect(els.length).toBe(12);
-      expect(els.map((e) => e.props.streaming)).toEqual([...Array(11).fill(false), true]);
+      expect(els.map((e) => e.props.streaming)).toEqual([...new Array<boolean>(11).fill(false), true]);
     }
   });
 
@@ -146,7 +143,7 @@ describe("the clock and day formatters", () => {
       built++;
       return new Real(...args);
     } as unknown as typeof Intl.DateTimeFormat;
-    Counting.supportedLocalesOf = Real.supportedLocalesOf;
+    Counting.supportedLocalesOf = Real.supportedLocalesOf.bind(Real);
     Intl.DateTimeFormat = Counting;
     const now = Date.parse("2026-09-23T12:00:00Z");
     const first = {

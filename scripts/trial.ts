@@ -31,7 +31,7 @@ const { values: args } = parseArgs({
   },
 });
 if (!process.env.OPENROUTER_API_KEY) throw new Error("set OPENROUTER_API_KEY");
-const MODEL = args.model!;
+const MODEL = args.model;
 const RUNS = Number(args.runs);
 const ctx = BACKGROUND_CONTEXT;
 
@@ -39,7 +39,10 @@ const ctx = BACKGROUND_CONTEXT;
 
 const LONG_DOC = Array.from({ length: 1400 }, (_, i) => `Line ${i + 1}: the quick brown fox ${i % 7 === 0 ? "naps" : "jumps"} over the lazy dog.`).join("\n");
 
-type Prompt = { name: string; text: string };
+interface Prompt {
+  name: string;
+  text: string;
+}
 const PROMPTS: Prompt[] = [
   { name: "plain", text: "In one sentence, what is a monad? Do not use any tools." },
   {
@@ -61,10 +64,21 @@ function workDir(): string {
 
 // ---- shared ------------------------------------------------------------------------------------------------------
 
-type Result = { backend: "daemon"; prompt: string; run: number; ok: boolean; error?: string; timings?: TurnTimings };
+interface Result {
+  backend: "daemon";
+  prompt: string;
+  run: number;
+  ok: boolean;
+  error?: string;
+  timings?: TurnTimings;
+}
 
 /** Spans from pi-ai messages as the store saved them: start, end, and whether it is a model response or a tool. */
-type Saved = { role: string; start: number; end: number };
+interface Saved {
+  role: string;
+  start: number;
+  end: number;
+}
 
 function spansOf(saved: Saved[]): { models: Span[]; tools: Span[] } {
   return {
@@ -159,7 +173,7 @@ let eventLoopP99Ms: number | null = null;
 
 type Summary = Record<string, number | null>;
 function summarise(backend: string, prompt?: string): Summary {
-  const ok = results.filter((r) => r.backend === backend && r.ok && (!prompt || r.prompt === prompt)).map((r) => r.timings!);
+  const ok = results.filter((r) => r.backend === backend && r.ok && (!prompt || r.prompt === prompt)).flatMap((r) => (r.timings ? [r.timings] : []));
   return {
     turns: ok.length,
     ttftMs: median(ok.flatMap((t) => (t.ttftMs === null ? [] : [t.ttftMs]))),

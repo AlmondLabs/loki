@@ -12,6 +12,7 @@ import { ChatProjection } from "../daemon/chats.ts";
 import { PassRunner, type PassInput, type PassJob } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 /** Long enough to count as new material (MIN_NEW_CHARS). */
@@ -57,7 +58,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean } = {}) {
     backendDir: dir,
     context: ctx,
     jobs: [job],
-    busy: async () => opts.busy?.() ?? false,
+    busy: () => Promise.resolve(opts.busy?.() ?? false),
     isSubagent: () => false,
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
@@ -229,7 +230,7 @@ describe("background passes", () => {
       s.faux.appendResponses([fauxAssistantMessage("kept")]);
       await s.runner.sweep();
       expect(s.events.at(-1)).toMatchObject({ outcome: "changed", items: { kept: 1 } });
-      expect(s.events.at(-1)!.request_id).not.toBe(s.events.at(-2)!.request_id);
+      expect(must(s.events.at(-1), "the last event").request_id).not.toBe(must(s.events.at(-2), "the event before").request_id);
       expect(s.faux.getPendingResponseCount()).toBe(0);
     } finally {
       await s.cleanup();
@@ -262,9 +263,7 @@ describe("background passes", () => {
     try {
       s.faux.setResponses([fauxAssistantMessage("one")]);
       await s.say("c", LONG);
-      s.runner["deps"].busy = async () => {
-        throw new Error("no doc");
-      };
+      s.runner["deps"].busy = () => Promise.reject(new Error("no doc"));
       expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("failed");
       expect(s.events.at(-1)).toMatchObject({ outcome: "failed" });
     } finally {
@@ -326,7 +325,7 @@ describe("background passes", () => {
       ]);
       const HUGE = LONG.repeat(150);
       await s.say("c", HUGE, HUGE, HUGE, HUGE, HUGE, HUGE);
-      const chat = (await s.store.chat("c", ctx))!;
+      const chat = must(await s.store.chat("c", ctx), "chat c");
       await s.store.harness.waitForTask(await chat.compact(undefined, ctx), ctx);
       await s.runner.sweep();
       expect(s.seen).toHaveLength(1);
@@ -340,7 +339,8 @@ describe("background passes", () => {
     try {
       let open = 0;
       let most = 0;
-      const prompt = s.runner["deps"].jobs[0].prompt;
+      const job = s.runner["deps"].jobs[0];
+      const prompt = job.prompt.bind(job);
       s.runner["deps"].jobs[0].prompt = async (input) => {
         open++;
         most = Math.max(most, open);
@@ -366,8 +366,9 @@ describe("background passes", () => {
     let busyChat: string | null = null;
     const s = await setup({ quietMs: 60 * 60_000, busy: () => false });
     try {
-      s.runner["deps"].busy = async (_a: string, chat: string) => chat === busyChat;
-      const prompt = s.runner["deps"].jobs[0].prompt;
+      s.runner["deps"].busy = (_a: string, chat: string) => Promise.resolve(chat === busyChat);
+      const job = s.runner["deps"].jobs[0];
+      const prompt = job.prompt.bind(job);
       s.runner["deps"].jobs[0].prompt = async (input) => {
         busyChat = "b"; // the person comes back to b while a is being read
         return prompt(input);
@@ -406,7 +407,7 @@ describe("background passes", () => {
     const s = await setup({ quietMs: 60 * 60_000 });
     try {
       s.state.setSettings({ reflection: { enabled: false } });
-      s.runner["deps"].busy = async (_a: string, chat: string) => chat === "b";
+      s.runner["deps"].busy = (_a: string, chat: string) => Promise.resolve(chat === "b");
       s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
       await s.say("a", LONG);
       await s.say("b", LONG);

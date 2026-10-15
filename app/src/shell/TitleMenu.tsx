@@ -15,6 +15,12 @@ export interface TitleMenuGroup {
 }
 
 const HIDE = "window.hide";
+/** Hide's line in the keymap, which every build has. */
+const HIDE_BINDING: Binding = (() => {
+  const b = KEYMAP.find((x) => x.id === HIDE);
+  if (!b) throw new Error(`the keymap has no ${HIDE}`);
+  return b;
+})();
 
 /**
  * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
@@ -79,12 +85,7 @@ export function TitleMenuPanel({
         ))}
         <hr className="loki-title-menu-sep" />
         <Row dense role="menuitem" data-menu-id={HIDE} className="loki-title-menu-item" onClick={() => onPick(HIDE)} onPointerEnter={() => onOpen(null)}>
-          <span>
-            {labelOf(
-              KEYMAP.find((b) => b.id === HIDE)!,
-              os,
-            )}
-          </span>
+          <span>{labelOf(HIDE_BINDING, os)}</span>
           <Kbd>{keyFor(HIDE, os)}</Kbd>
         </Row>
       </div>

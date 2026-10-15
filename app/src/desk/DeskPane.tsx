@@ -22,7 +22,7 @@ import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
-const TABS: readonly Tab<DeskTab>[] = [
+const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "messages", label: "Messages" },
   { id: "desk", label: "Canvas" },
 ];
@@ -227,7 +227,11 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
 }
 
 /** A line of the header's menu: a keymap action, run through runAction, its key shown. */
-type MenuItem = { id: string; label: string; keys?: string };
+interface MenuItem {
+  id: string;
+  label: string;
+  keys?: string;
+}
 const DONE = "desk.done";
 
 /** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */

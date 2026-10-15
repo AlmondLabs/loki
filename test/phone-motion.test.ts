@@ -4,6 +4,7 @@ import { edgeCommits } from "../app/src/phone/edgeSwipe.ts";
 import { dismisses, rubberBand } from "../app/src/components/sheetMotion.ts";
 import { armed, flingVelocity } from "../app/src/phone/deck.ts";
 import type { Route } from "../app/src/phone/router.ts";
+import { must } from "./fixtures/must.ts";
 
 const home: Route = { kind: "tab", tab: "home" };
 const inbox: Route = { kind: "tab", tab: "inbox" };
@@ -76,11 +77,18 @@ describe("gestures", () => {
 import { rehypeWords } from "../app/src/chat/Transcript.tsx";
 
 describe("streaming words (Transcript's rehypeWords)", () => {
-  type N = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: N[] };
+  interface N {
+    type: string;
+    tagName?: string;
+    value?: string;
+    properties?: Record<string, unknown>;
+    children?: N[];
+  }
   const text = (value: string): N => ({ type: "text", value });
   const el = (tagName: string, children: N[]): N => ({ type: "element", tagName, children });
   const run = (tree: N) => (rehypeWords()(tree), tree);
-  const words = (n: N): string[] => (n.tagName === "span" ? [n.children![0].value!] : (n.children ?? []).flatMap(words));
+  const words = (n: N): string[] =>
+    n.tagName === "span" ? [must(must(n.children, "a span's children")[0].value, "a span's text")] : (n.children ?? []).flatMap(words);
 
   test("each word becomes its own span, its trailing space with it, so an added word is a new span", () => {
     const tree = run({ type: "root", children: [el("p", [text("Let me look")])] });
@@ -99,6 +107,6 @@ describe("streaming words (Transcript's rehypeWords)", () => {
 
   test("space alone stays text", () => {
     const tree = run({ type: "root", children: [el("p", [text("  ")])] });
-    expect(tree.children![0].children).toEqual([text("  ")]);
+    expect(must(tree.children, "the root's children")[0].children).toEqual([text("  ")]);
   });
 });

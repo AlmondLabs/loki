@@ -12,7 +12,11 @@ import { memoryRoot } from "./memory.ts";
  * brings its AGENTS.md (or CLAUDE.md) as a section of its own.
  */
 
-type Skill = { name: string; description: string | null; file: string };
+interface Skill {
+  name: string;
+  description: string | null;
+  file: string;
+}
 
 /** An agent's skills, its own before the global ones of the same name. */
 export function skillsOf(backendDir: string, agentId: string | undefined, globalDir?: string): Skill[] {

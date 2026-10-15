@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { createHash } from "node:crypto";
+import type * as esbuild from "esbuild";
 import { join } from "node:path";
 import type { Scope, WidgetKind, WidgetManifestEntry } from "../core/desk-core.ts";
 import { KIT } from "../core/desk-core.ts";
@@ -43,7 +44,7 @@ export function parseJsonWidget(text: string): {
   const title = typeof obj.title === "string" ? obj.title : undefined;
   const data = typeof obj.data === "object" && obj.data !== null && !Array.isArray(obj.data) ? (obj.data as Record<string, unknown>) : {};
   if (!type) return { title, data, error: `missing "type" — one of: ${Object.keys(KIT).join(", ")}` };
-  if (!KIT[type]) return { title, type, data, error: `unknown type "${type}" — one of: ${Object.keys(KIT).join(", ")}` };
+  if (!Object.hasOwn(KIT, type)) return { title, type, data, error: `unknown type "${type}" — one of: ${Object.keys(KIT).join(", ")}` };
   if (!title) return { type, data, error: 'missing "title"' };
   return { title, type, data };
 }
@@ -59,7 +60,7 @@ export function titleFromModule(source: string): string | null {
  * without node_modules, so the checker loads it lazily and does without when it is absent (the
  * app's own transpiler still reports a broken file inside the widget's frame).
  */
-type Esbuild = typeof import("esbuild");
+type Esbuild = typeof esbuild;
 let esbuildPromise: Promise<Esbuild | null> | undefined;
 const loadEsbuild = (): Promise<Esbuild | null> => (esbuildPromise ??= import("esbuild").catch(() => null));
 
@@ -113,7 +114,7 @@ async function readEntry(root: string, scope: Scope, fileName: string, cache?: S
     mtime = st.mtimeMs;
     size = st.size;
     const seen = cache?.get(abs);
-    if (seen && seen.mtime === mtime && seen.size === size) return seen.entry;
+    if (seen?.mtime === mtime && seen.size === size) return seen.entry;
     text = readFileSync(abs, "utf8");
   } catch {
     return null;

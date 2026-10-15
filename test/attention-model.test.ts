@@ -1,6 +1,7 @@
 import { applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
-import { buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
+import { buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo, type Live } from "../core/attention/model.ts";
+import { must } from "./fixtures/must.ts";
 
 describe("attention model (browser)", () => {
   test("buildItems classifies approval / question / done / running / idle and orders by score", () => {
@@ -18,7 +19,7 @@ describe("attention model (browser)", () => {
       [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news.", lastAsk: null }],
       [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null, lastAsk: null }],
     ]);
-    const live = new Map();
+    const live = new Map<string, Live>();
     const appr = emptyLive();
     applyEvent(
       appr,
@@ -38,7 +39,12 @@ describe("attention model (browser)", () => {
     const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" }, new Date("2026-09-05T10:00:00Z").getTime());
     // by score (priority.ts): the two blocked cards first, the one waiting longest (the question, from 07:00) ahead; then the finished one; the rest by age
     expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["q:question", "appr:approval", "done:done", "seen:idle", "run:running"]);
-    expect(items.find((i) => i.id === "appr")!.pendingApproval).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
+    expect(
+      must(
+        items.find((i) => i.id === "appr"),
+        "the approval card",
+      ).pendingApproval,
+    ).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
   });
 
   test("applyEvent: streaming text lands on stop, user speaking resets and reports", () => {
@@ -96,10 +102,10 @@ describe("a finished reply re-queues a decided card", () => {
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.thread.rows()!.at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
+    expect(must(l.thread.rows(), "the thread's rows").at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
     applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.thread.rows()!.length).toBe(1);
+    expect(must(l.thread.rows(), "the thread's rows").length).toBe(1);
   });
 });
 
@@ -138,7 +144,7 @@ describe("messages typed mid-turn", () => {
     expect(takeQueued(l)).toBeNull();
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(takeQueued(l)).toEqual({ text: "first", images: [] });
-    expect(l.thread.rows()!.map((r) => [r.text, r.queued === true])).toEqual([
+    expect(must(l.thread.rows(), "the thread's rows").map((r) => [r.text, r.queued === true])).toEqual([
       ["first", false],
       ["second", true],
     ]);
@@ -155,7 +161,7 @@ describe("messages typed mid-turn", () => {
     expect(cancelQueued(l, "nope")).toBe(false);
     expect(cancelQueued(l, "oops")).toBe(true);
     expect(l.queued).toEqual([]);
-    expect(l.thread.rows()!.map((r) => r.text)).toEqual(["kept"]);
+    expect(must(l.thread.rows(), "the thread's rows").map((r) => r.text)).toEqual(["kept"]);
   });
 });
 

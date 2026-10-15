@@ -5,7 +5,11 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
  * used. A result is its title, link and snippet; the tool keeps the first few.
  */
 
-export type SearchResult = { title: string; url: string; snippet: string };
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'", "&nbsp;": " " };
 /** A numeric entity's character; one past Unicode (a malformed page) stays as written rather than throwing. */
@@ -38,10 +42,10 @@ export function parseResults(html: string, limit = 8): SearchResult[] {
     if (out.length >= limit) break;
     if (/result--ad\b/.test(block.slice(0, 200))) continue;
     const link =
-      block.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/) ??
-      block.match(/<a[^>]+href="([^"]+)"[^>]+class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>/);
+      /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/.exec(block) ??
+      /<a[^>]+href="([^"]+)"[^>]+class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>/.exec(block);
     if (!link) continue;
-    const snippet = block.match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/);
+    const snippet = /class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/.exec(block);
     const url = realUrl(link[1]);
     if (url.includes("duckduckgo.com/y.js")) continue; // an ad's tracker
     out.push({ title: plain(link[2]), url, snippet: snippet ? plain(snippet[1]) : "" });

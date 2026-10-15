@@ -111,7 +111,7 @@ export function modelName(entries: ModelEntry[] | null, handle: string | null | 
 export function modelLists(entries: ModelEntry[] | null, current: string | null): { short: ModelGroup[]; more: ModelGroup[] } {
   const groups = groupModelEntries(entries ?? []);
   const reachable = groups.filter((group) => group.available);
-  const recent = reachable.filter((group) => group.recent !== undefined).sort((a, b) => a.recent! - b.recent!);
+  const recent = reachable.filter((group) => group.recent !== undefined).sort((a, b) => (a.recent ?? 0) - (b.recent ?? 0));
   const featured = reachable.filter((group) => group.isFeatured && !recent.includes(group));
   const picks = [...recent, ...featured].slice(0, SHORT_MAX);
   const base = picks.length ? picks : reachable.slice(0, SHORT_FALLBACK);
@@ -247,11 +247,10 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
   else if (view === "effort") {
     content = (
       <div className="loki-model-card" role="group" aria-label="Effort">
-        {efforts.map((entry) =>
-          option(entry.reasoningEffort!, sentence(effortLabel(entry.reasoningEffort!)), null, entry.reasoningEffort === currentEffort, () =>
-            onPick(selectionOf(entry)),
-          ),
-        )}
+        {efforts.map((entry) => {
+          const effort = entry.reasoningEffort;
+          return effort && option(effort, sentence(effortLabel(effort)), null, effort === currentEffort, () => onPick(selectionOf(entry)));
+        })}
       </div>
     );
   } else if (view === "more") {

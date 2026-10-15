@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 import { Button, Field, TextArea } from "../components";
 import { formatKeys } from "../shell/keymap";
@@ -27,7 +27,8 @@ export function NewAgent({
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(onLoadModels, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadModels = useEffectEvent(onLoadModels);
+  useEffect(() => loadModels(), []);
   const submit = async () => {
     if (busy || !name.trim()) return;
     setBusy(true);

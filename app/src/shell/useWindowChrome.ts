@@ -43,7 +43,7 @@ export function useWindowTitle(
     if (inTauri)
       void import("@tauri-apps/api/window")
         .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name))
-        .catch((e) => console.warn("loki: window title", e));
+        .catch((e: unknown) => console.warn("loki: window title", e));
   }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, openTasks, dueCards]);
 }
 
@@ -60,7 +60,7 @@ export function hideWindow(win: { hide: () => Promise<void>; minimize: () => Pro
  * level, because one inside a component keeps the React Compiler off the whole component.
  */
 export function hideCurrentWindow(): void {
-  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e) => console.warn("loki: hide", e));
+  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e: unknown) => console.warn("loki: hide", e));
 }
 
 const SHELL_ON_MAC = inTauri && platform === "macos";

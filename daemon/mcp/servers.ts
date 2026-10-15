@@ -19,7 +19,7 @@ import { sameServer, type ServerConfig } from "./config.ts";
  */
 
 /** One tool of one server, as loki names it to the model: `mcp__<server>__<tool>`, at most 64 characters. */
-export type McpTool = {
+export interface McpTool {
   key: string;
   server: string;
   name: string;
@@ -28,11 +28,18 @@ export type McpTool = {
   inputSchema: Record<string, unknown>;
   readOnly: boolean;
   destructive: boolean;
-};
+}
 
 /** `signin`: a remote server that wants an OAuth sign-in, which waits for the person rather than retrying. */
 export type ServerState = "starting" | "connected" | "down" | "signin";
-export type ServerStatus = { name: string; kind: ServerConfig["kind"]; state: ServerState; error: string | null; tools: number; purpose: string | null };
+export interface ServerStatus {
+  name: string;
+  kind: ServerConfig["kind"];
+  state: ServerState;
+  error: string | null;
+  tools: number;
+  purpose: string | null;
+}
 
 /**
  * Opens a connection to a server (its stderr, if any, goes to `stderr`; a remote one signs in with `auth` when it
@@ -76,7 +83,7 @@ export const connectServer: Connector = async (config, client, stderr, auth) => 
   await client.connect(transport);
 };
 
-type Entry = {
+interface Entry {
   config: ServerConfig;
   state: ServerState;
   error: string | null;
@@ -89,7 +96,7 @@ type Entry = {
   retry: ReturnType<typeof setTimeout> | null;
   /** Bumped on every (re)start and stop: a connection from an older start that finishes late is closed, not kept. */
   generation: number;
-};
+}
 
 export class McpServers {
   private readonly entries = new Map<string, Entry>();
@@ -113,7 +120,7 @@ export class McpServers {
     } = {},
   ) {
     this.connect = opts.connect ?? connectServer;
-    this.resolve = opts.resolve ?? (async (c) => c);
+    this.resolve = opts.resolve ?? ((c) => Promise.resolve(c));
     this.oauthFor = opts.oauthFor ?? (() => undefined);
     this.report = opts.report ?? (() => {});
     this.version = opts.version ?? "0";
@@ -196,7 +203,10 @@ export class McpServers {
     };
     try {
       await this.connect(await this.resolve(entry.config), client, stderr, this.oauthFor(entry.config));
-      if (generation !== entry.generation) return void (await client.close().catch(() => {}));
+      if (generation !== entry.generation) {
+        await client.close().catch(() => {});
+        return;
+      }
       entry.client = client;
       const listed = await client.listTools();
       if (generation !== entry.generation) return;
@@ -242,7 +252,7 @@ export class McpServers {
     entry.retry = setTimeout(() => {
       if (generation === entry.generation && !this.closed) void this.start(entry);
     }, wait);
-    entry.retry.unref?.();
+    entry.retry.unref();
   }
 
   private setTools(entry: Entry, generation: number, tools: readonly Tool[]): void {
@@ -253,7 +263,7 @@ export class McpServers {
       name: t.name,
       title: t.title ?? t.annotations?.title ?? null,
       description: (t.description ?? "").trim(),
-      inputSchema: (t.inputSchema ?? { type: "object", properties: {} }) as Record<string, unknown>,
+      inputSchema: t.inputSchema,
       readOnly: t.annotations?.readOnlyHint === true,
       destructive: t.annotations?.destructiveHint === true,
     }));
@@ -304,10 +314,7 @@ export class McpServers {
     const client = this.entries.get(tool.server)?.client;
     if (!client) throw new Error(`the ${tool.server} MCP server is not connected`);
     // A long tool (a build, a crawl) is not cut off at the SDK's default minute; Stop still ends it.
-    return client.callTool(
-      { name: tool.name, arguments: args },
-      { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true },
-    ) as Promise<CallToolResult>;
+    return client.callTool({ name: tool.name, arguments: args }, { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true });
   }
 
   /** Stop every server (the daemon is stopping). */

@@ -69,7 +69,7 @@ function applyTheme(preference: ThemePreference, palette: Palette): void {
   if (inTauri) {
     void import("@tauri-apps/api/window")
       .then(({ getCurrentWindow }) => getCurrentWindow().setTheme(preference === "system" ? null : preference))
-      .catch((error) => console.warn("loki: set native theme", error));
+      .catch((error: unknown) => console.warn("loki: set native theme", error));
   }
 }
 

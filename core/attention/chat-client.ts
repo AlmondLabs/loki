@@ -47,7 +47,12 @@ export type ChatClient = Pick<
 > & { onStatus?: (s: "connecting" | "open" | "closed") => void };
 
 /** A new agent as the person describes it: its name, a line about it, who it is (its persona), and its model. */
-export type NewAgentOptions = { name: string; description?: string; persona?: string; model?: string };
+export interface NewAgentOptions {
+  name: string;
+  description?: string;
+  persona?: string;
+  model?: string;
+}
 
 /** The mod socket's request, as the app's useDesk makes it. */
 export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number) => Promise<RequestResult<ReplyOf<N>>>;
@@ -132,8 +137,8 @@ export class FrameChatClient {
   }
 
   /** The daemon's commands: the palette offers these and loki's own (core/attention/commands.ts). */
-  async serverInfo() {
-    return { version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect", "doctor"], exclusive: true };
+  serverInfo() {
+    return Promise.resolve({ version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect", "doctor"], exclusive: true });
   }
 
   close(): void {
@@ -200,10 +205,10 @@ export class FrameChatClient {
     await this.call("chat_update", {
       agentId: this.agentFor(conversationId),
       conversationId,
-      ...(typeof body.summary === "string" || body.summary === null ? { title: body.summary as string | null } : {}),
+      ...(typeof body.summary === "string" || body.summary === null ? { title: body.summary } : {}),
       ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
       ...(typeof body.hidden === "boolean" ? { hidden: body.hidden } : {}),
-    } as InputOf<"chat_update">);
+    });
   }
 
   async renameConversation(conversationId: string, name: string): Promise<void> {
@@ -214,7 +219,7 @@ export class FrameChatClient {
     const handle = typeof choice === "string" ? choice : choice.handle;
     const reasoningEffort = typeof choice === "string" ? null : (choice.reasoningEffort ?? null);
     await this.call("chat_model", { agentId: rt.agent_id, conversationId: rt.conversation_id, handle, reasoningEffort });
-    return { handle, reasoningEffort } as AppliedModel;
+    return { handle, reasoningEffort };
   }
 
   async listModels(): Promise<ModelEntry[]> {
@@ -240,7 +245,7 @@ export class FrameChatClient {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.description === "string" ? { description: body.description } : {}),
       ...(typeof body.model === "string" ? { model: body.model } : {}),
-    } as InputOf<"chat_agent_update">);
+    });
   }
 
   async deleteAgent(agentId: string): Promise<void> {
@@ -273,7 +278,7 @@ export class FrameChatClient {
    * An API key goes to the daemon, which keeps it once the provider accepts it. Signing in opens the provider's page
    * in the browser and waits (up to five minutes) for the daemon to report the provider connected.
    */
-  async connectProvider(providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<ConnectProvider[]> {
+  async connectProvider(providerId: string, fields: Partial<Record<string, string>>, authMethodId?: string): Promise<ConnectProvider[]> {
     // The address the browser ended on, for a sign-in that is waiting: the daemon finishes it, and the wait below sees it.
     if (authMethodId === "oauth_code") {
       await this.call("chat_provider_signin", { providerId, code: fields.redirect_url ?? "" }, 30_000);

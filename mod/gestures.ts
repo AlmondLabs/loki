@@ -18,8 +18,8 @@ export class GestureLog {
   /** Append a line. Consecutive entries with the same key collapse (a drag is one move). */
   record(scope: Scope, line: string, key = line): void {
     const arr = this.logs.get(scope) ?? [];
-    const last = arr[arr.length - 1];
-    if (last && last.key === key) arr[arr.length - 1] = { key, line };
+    const last = arr.at(-1);
+    if (last?.key === key) arr[arr.length - 1] = { key, line };
     else arr.push({ key, line });
     if (arr.length > 60) arr.splice(0, arr.length - 60);
     this.logs.set(scope, arr);

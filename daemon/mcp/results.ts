@@ -15,24 +15,32 @@ export const START_CHARS = 4_000;
 export const ERROR_KEEP = 5_000;
 
 export type Part = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
-export type Mapped = { content: Part[]; isError: boolean; spilled: string | null; chars: number };
+export interface Mapped {
+  content: Part[];
+  isError: boolean;
+  spilled: string | null;
+  chars: number;
+}
 
 /** Roughly how many tokens a text is (four characters a token). */
 const tokensOf = (chars: number) => Math.ceil(chars / 4);
 
-function parts(result: CallToolResult): Part[] {
+/** A field of a server's content block as text: a string or number as it is, anything else nothing. */
+const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+
+function parts(result: Partial<CallToolResult>): Part[] {
   const out: Part[] = [];
   for (const block of result.content ?? []) {
     const b = block as Record<string, unknown> & { type: string };
     if (b.type === "text" && typeof b.text === "string") out.push({ type: "text", text: b.text });
     else if (b.type === "image" && typeof b.data === "string")
       out.push({ type: "image", data: b.data, mimeType: typeof b.mimeType === "string" ? b.mimeType : "image/png" });
-    else if (b.type === "resource_link") out.push({ type: "text", text: `[resource] ${String(b.name ?? b.title ?? "")} ${String(b.uri ?? "")}`.trim() });
+    else if (b.type === "resource_link") out.push({ type: "text", text: `[resource] ${text(b.name ?? b.title)} ${text(b.uri)}`.trim() });
     else if (b.type === "resource") {
       const r = (b.resource ?? {}) as { uri?: string; text?: string; blob?: string; mimeType?: string };
       if (typeof r.text === "string") out.push({ type: "text", text: r.text });
       else out.push({ type: "text", text: `[resource ${r.mimeType ?? "binary"}] ${r.uri ?? ""}`.trim() });
-    } else if (b.type === "audio") out.push({ type: "text", text: `[audio ${String(b.mimeType ?? "")}, not shown]` });
+    } else if (b.type === "audio") out.push({ type: "text", text: `[audio ${text(b.mimeType)}, not shown]` });
   }
   // A result with only structured content still says something.
   if (!out.length && result.structuredContent !== undefined) out.push({ type: "text", text: JSON.stringify(result.structuredContent, null, 2) });

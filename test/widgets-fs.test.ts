@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { must } from "./fixtures/must.ts";
 import { checkModule, parseJsonWidget, scanWidgets, titleFromModule, watchWidgets, type ScanCache, type WidgetsDiff } from "../mod/widgets-fs.ts";
 
 describe("parseJsonWidget", () => {
@@ -41,7 +42,7 @@ describe("scan + watch", () => {
       writeFileSync(join(root, "shared", "notes.txt"), "ignored");
       const scanned = await scanWidgets(root);
       expect([...scanned.keys()]).toEqual(["shared/welcome"]);
-      expect(scanned.get("shared/welcome")!.title).toBe("hi");
+      expect(must(scanned.get("shared/welcome"), "the welcome widget").title).toBe("hi");
 
       const diffs: WidgetsDiff[] = [];
       const w = watchWidgets(root, (d) => diffs.push(d), { debounceMs: 20 });
@@ -61,11 +62,11 @@ describe("scan + watch", () => {
 
       // runtime error merges into entries and clears when the file changes
       expect(w.setRuntimeError("conv1/trip", "boom")).toBe(true);
-      expect(w.get("conv1/trip")!.error).toBe("boom");
+      expect(must(w.get("conv1/trip"), "the trip widget").error).toBe("boom");
       writeFileSync(join(root, "conv1", "trip.tsx"), "export default function T() { return <i/> }");
       await w.rescan();
-      expect(w.get("conv1/trip")!.error).toBeUndefined();
-      expect(w.get("conv1/trip")!.title).toBe("trip");
+      expect(must(w.get("conv1/trip"), "the trip widget").error).toBeUndefined();
+      expect(must(w.get("conv1/trip"), "the trip widget").title).toBe("trip");
 
       rmSync(join(root, "conv1"), { recursive: true });
       await w.rescan();
@@ -85,7 +86,7 @@ describe("scan + watch", () => {
       mkdirSync(join(root, "d"));
       writeFileSync(join(root, "d", "bad.tsx"), "export default function B() { return <div> }");
       const scanned = await scanWidgets(root);
-      expect(scanned.get("d/bad")!.error).toMatch(/d\/bad\.tsx:1/);
+      expect(must(scanned.get("d/bad"), "the bad widget").error).toMatch(/d\/bad\.tsx:1/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

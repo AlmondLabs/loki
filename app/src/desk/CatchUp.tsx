@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -119,11 +119,13 @@ function CatchUpDeck(props: DeckProps) {
   // Analytics: each card that comes to the top, once per stay there (a card gets there many ways: an effect, not a handler).
   const seenCards = useRef(new Set<string>());
   const currentId = current ? idOf(current) : null;
-  useEffect(() => {
-    if (!current || !currentId) return;
-    seenCards.current.add(currentId);
+  const cardShown = useEffectEvent((id: string) => {
+    if (!current) return;
+    seenCards.current.add(id);
     props.onShown?.(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    if (currentId) cardShown(currentId);
   }, [currentId]);
   const actions = useDeckActions({
     current,
@@ -151,23 +153,27 @@ function CatchUpDeck(props: DeckProps) {
   });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
-  useEffect(() => {
+  const currentAgentId = current?.agentId;
+  const currentCardId = current?.id;
+  const loadCurrent = useEffectEvent(() => {
     if (current) loadHistory(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.agentId, current?.id]);
+  });
+  useEffect(() => loadCurrent(), [currentAgentId, currentCardId]);
 
   // Each card arrives with the reply box focused, so you can just type — except approvals,
   // where the decision is the point: A and D must work at once, so the box waits for R or a click.
+  const hasCard = current !== undefined;
+  const asksApproval = !!current?.pendingApproval;
+  const asksQuestion = !!current?.pendingQuestion;
   useEffect(() => {
-    if (!current) return;
-    if (current.pendingApproval || current.pendingQuestion) {
+    if (!hasCard) return;
+    if (asksApproval || asksQuestion) {
       replyRef.current?.blur();
       return;
     }
     const t = setTimeout(() => replyRef.current?.focus(), 0); // after the keystroke that brought this card has finished
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
+  }, [hasCard, currentAgentId, currentCardId, asksApproval, asksQuestion]);
 
   // The visit's tally, read when the deck unmounts (closing it is what ends a visit).
   const [openedAt] = useState(() => Date.now());
@@ -270,7 +276,8 @@ function Card({
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agentId, id } = current;
-  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor } = deck;
+  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop } = deck;
+  const question = current.pendingQuestion;
   // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agentName ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
@@ -304,8 +311,8 @@ function Card({
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),
-          onStop: deck.onStop ? () => deck.onStop!(current) : undefined,
-          onAnswer: current.pendingQuestion ? (answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers) : undefined,
+          onStop: onStop ? () => onStop(current) : undefined,
+          onAnswer: question ? (answers) => deck.onAnswer(current, question.requestId, answers) : undefined,
           onApprove: current.pendingApproval ? actions.approve : undefined,
           commands: deck.commands,
           onCommand,

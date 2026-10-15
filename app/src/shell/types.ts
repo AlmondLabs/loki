@@ -6,4 +6,7 @@ export type Desk = ReturnType<typeof useDesk>;
 /** The attention model (useAttention()): the link to loki's daemon, the inbox items, agents and providers. */
 export type CatchUp = ReturnType<typeof useAttention>;
 /** The chat (agent and conversation) a message or a model switch addresses. */
-export type Runtime = { agent_id: string; conversation_id: string };
+export interface Runtime {
+  agent_id: string;
+  conversation_id: string;
+}

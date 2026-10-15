@@ -18,8 +18,8 @@ describe("reflection state", () => {
       { sha: "c3", message: "feat(reflection): capture the estate", at: "2026-09-09T08:38:36Z", files: ["reference/aws.md"], author: "Reflection" },
     ];
     expect(isReflectionCommit(commits[0])).toBe(false);
-    expect((await reflectionState(AGENT, { log: async () => commits })).lastCommit?.sha).toBe("b2");
-    expect((await reflectionState(AGENT, { log: async () => [commits[0]] })).lastCommit).toBeNull();
+    expect((await reflectionState(AGENT, { log: () => Promise.resolve(commits) })).lastCommit?.sha).toBe("b2");
+    expect((await reflectionState(AGENT, { log: () => Promise.resolve([commits[0]]) })).lastCommit).toBeNull();
     expect((await reflectionState(AGENT, { log: async () => Promise.reject(new Error("no repo")) })).lastCommit).toBeNull();
   });
 });

@@ -39,7 +39,7 @@ describe("springs", () => {
   });
 
   test("durations are whole milliseconds and the curve has enough points to read as one", () => {
-    for (const name of Object.keys(SPRINGS) as (keyof typeof SPRINGS)[]) {
+    for (const name of Object.keys(SPRINGS) as Array<keyof typeof SPRINGS>) {
       const { easing, ms } = spring(name);
       expect(Number.isInteger(ms)).toBe(true);
       expect(points(easing).length).toBeGreaterThanOrEqual(21);

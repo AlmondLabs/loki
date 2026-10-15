@@ -43,7 +43,8 @@ export function WidgetFrame({
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const lastSent = useRef(0);
-  const sized = layout.sized === true && !!layout.size;
+  const pinnedSize = layout.sized === true ? layout.size : undefined;
+  const sized = !!pinnedSize;
   // The measurement observer reads these live, so a resize in progress (or just committed) never lets a
   // trailing content measurement overwrite the width the human just pinned.
   const sizedRef = useRef(sized);
@@ -182,7 +183,7 @@ export function WidgetFrame({
         zIndex: layout.z,
         // A human-sized frame keeps its width and height. Otherwise it sizes to its content up to a
         // reading width, then the content scrolls — never clipped, never a fixed measurement of itself.
-        ...(sized ? { width: layout.size!.w, height: layout.size!.h } : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
+        ...(pinnedSize ? { width: pinnedSize.w, height: pinnedSize.h } : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
         background: "var(--loki-panel)",
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
         borderRadius: "var(--loki-radius)",

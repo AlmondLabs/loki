@@ -237,7 +237,9 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    g.HTMLElement ??= class {}; // no DOM here; restoreFocus only asks whether a launcher is one
+    g.HTMLElement ??= function HTMLElement() {
+      // no DOM here; restoreFocus only asks whether a launcher is one
+    };
     try {
       restoreFocus(root, "#/agents", false, createFocusMemory());
     } finally {
@@ -301,7 +303,7 @@ describe("drafts through the shared composer", () => {
     const k2 = draftKey("a1", "c2");
     d.set(k1, { text: "  reply one ", images: [img("x")] });
     d.set(k2, { text: "still typing", images: [] });
-    const sent: [string, number][] = [];
+    const sent: Array<[string, number]> = [];
     let after = 0;
     const went = submitDraft(d.get(k1), { question: null, onSend: (t, imgs = []) => sent.push([t, imgs.length]), onSent: () => after++ }, () => d.clear(k1));
     expect(went).toBe(true);

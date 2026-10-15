@@ -76,7 +76,7 @@ export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
       const mt = d?.message_type;
       const step = protocolStep(d, now, true);
       if (step) return [{ kind: "step", step }];
-      if (mt === "error_message" || mt === "loop_error") return [{ kind: "error", message: String((d as { message?: string })?.message ?? "the turn failed") }];
+      if (mt === "error_message" || mt === "loop_error") return [{ kind: "error", message: typeof d?.message === "string" ? d.message : "the turn failed" }];
       if (mt === "slash_command_start" || mt === "slash_command_end") {
         const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
         const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;

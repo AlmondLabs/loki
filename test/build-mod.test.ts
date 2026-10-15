@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * The release bundle (src-tauri/resources/mod/loki-mod.mjs) is what every Homebrew and .dmg install runs; a
@@ -44,7 +45,6 @@ describe("sign-in flows in a bundle", () => {
     const { build } = await import("esbuild");
     const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const { pathToFileURL } = await import("node:url");
     expect(readFileSync(new URL("../daemon/main.ts", import.meta.url), "utf8")).toMatch(/registerBunOAuthFlows\(\);\s*const models = builtinModels/);
     const dir = mkdtempSync(join(tmpdir(), "loki-oauth-bundle-"));

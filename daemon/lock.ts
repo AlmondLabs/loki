@@ -26,7 +26,9 @@ function alive(pid: number): boolean {
 const TAKEOVER_STALE_MS = 10_000;
 const ATTEMPTS = 50;
 
-export type Lock = { release(): void };
+export interface Lock {
+  release(): void;
+}
 
 const code = (error: unknown) => (error as NodeJS.ErrnoException).code;
 const readPid = (file: string): number => {

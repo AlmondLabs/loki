@@ -39,11 +39,11 @@ export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
 /** Where `${keychain:…}` secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend), under mcp.<name>. */
-export type Secrets = {
+export interface Secrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
-};
+}
 
 /** A remote server signs in with OAuth unless its headers carry its own Authorization. */
 export const usesOAuth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
@@ -109,7 +109,7 @@ export class McpTools {
         this.installTimer = null;
         this.install();
       }, 0);
-      this.installTimer.unref?.();
+      this.installTimer.unref();
     });
     this.install();
   }
@@ -205,7 +205,8 @@ export class McpTools {
         required: ["query"],
       } as never,
       execute: async (args, api, context) => {
-        const query = String((args as { query?: unknown }).query ?? "");
+        const asked = (args as { query?: unknown }).query;
+        const query = typeof asked === "string" ? asked : "";
         const all = this.toolsFor((await api.snapshot(AgentInfoDoc, context))?.id);
         const found = selected(query, all) ?? rank(query, all, SEARCH_LIMIT);
         this.capture("mcp_search", { hits: found.length, loaded: found.map((t) => t.key), select: query.trim().toLowerCase().startsWith("select:") });
@@ -241,7 +242,8 @@ export class McpTools {
         const started = Date.now();
         const chat = (await api.snapshot(ChatDoc, api.conversationId, context))?.id || `conversation-${api.conversationId}`;
         try {
-          const result = await this.servers.call(t.key, (args ?? {}) as Record<string, unknown>, context.abortSignal);
+          const input: unknown = args; // the model's arguments, as JSON: the schema is the server's, not typed here
+          const result = await this.servers.call(t.key, (input ?? {}) as Record<string, unknown>, context.abortSignal);
           const mapped = mapResult(result, { spillDir: join(this.resultsDir, chat.replace(/[^A-Za-z0-9_.-]+/g, "_")), name: t.key });
           this.capture("mcp_call", {
             server: t.server,
@@ -418,7 +420,7 @@ export class McpTools {
     const named = config?.entry ?? server;
     if (params.error) return { ok: false, server, message: `${named} did not sign in: ${params.error_description || params.error}` };
     const provider = config && this.oauthFor(config);
-    if (!config || config.kind !== "remote" || !provider || !params.code) return { ok: false, server, message: `${named} sent no code to sign in with.` };
+    if (config?.kind !== "remote" || !provider || !params.code) return { ok: false, server, message: `${named} sent no code to sign in with.` };
     try {
       const result = await auth(provider, { serverUrl: config.url, authorizationCode: params.code, ...(params.iss ? { iss: params.iss } : {}) });
       if (result !== "AUTHORIZED") return { ok: false, server, message: `${named} asked to sign in again.` };
@@ -444,7 +446,10 @@ export class McpTools {
     if (on) next.delete(server);
     else next.add(server);
     if (next.size) this.off[agentId] = [...next].sort();
-    else delete this.off[agentId];
+    else {
+      const { [agentId]: _was, ...others } = this.off;
+      this.off = others;
+    }
     mkdirSync(dirname(this.offPath), { recursive: true });
     writeFileSync(this.offPath, `${JSON.stringify({ off: this.off }, null, 2)}\n`);
     this.install(); // the section reads the switches
@@ -464,7 +469,7 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.lengt
 
 /** A found tool in one line: what it does, then its parameters (required ones bare, optional ones with ?). */
 function summary(t: McpTool): string {
-  const props = Object.keys((t.inputSchema.properties ?? {}) as Record<string, unknown>);
+  const props = Object.keys(t.inputSchema.properties ?? {});
   const required = new Set(Array.isArray(t.inputSchema.required) ? (t.inputSchema.required as string[]) : []);
   const desc = (t.description || t.title || t.name).split("\n")[0].slice(0, 200);
   return `${desc}${props.length ? ` (${props.map((p) => (required.has(p) ? p : `${p}?`)).join(", ")})` : ""}`;

@@ -15,7 +15,12 @@ import { prefersReducedMotion } from "./motion";
  * The container must be the scroller, positioned (phone.css), so a leaving row's picture scrolls with the rows.
  */
 
-type Spot = { top: number; left: number; width: number; el: HTMLElement };
+interface Spot {
+  top: number;
+  left: number;
+  width: number;
+  el: HTMLElement;
+}
 
 const keyOf = (el: HTMLElement): string | null => {
   if (el.hasAttribute("data-flip-ghost")) return null;

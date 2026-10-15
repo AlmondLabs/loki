@@ -5,7 +5,10 @@
  */
 
 /** One remembered thing: a search's text or a destination's hash, and when. */
-export type RecentEntry = { v: string; at: number };
+export interface RecentEntry {
+  v: string;
+  at: number;
+}
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** A new entry first; a repeat moves up rather than doubling; blank is nothing; at most `max`. */

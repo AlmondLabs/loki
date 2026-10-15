@@ -6,7 +6,10 @@ import { runAction } from "../shell/keymap";
 import type { useDesk } from "./useDesk";
 import type { DeskChatModel } from "./useDeskChat";
 
-type Rt = { agent_id: string; conversation_id: string };
+interface Rt {
+  agent_id: string;
+  conversation_id: string;
+}
 
 export interface DeskConversationHandlers {
   onLoadModels?: () => void;

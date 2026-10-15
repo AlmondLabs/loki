@@ -10,6 +10,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { ChatEventConverter } from "../daemon/chat-events.ts";
 import { TurnTelemetry, harnessVersion, originOf, turnIdOf, turnProperties, type FinishedTurn } from "../daemon/telemetry.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const T0 = 1_000_000;
@@ -121,7 +122,9 @@ describe("turn telemetry: one turn's event", () => {
       stop_reason: null,
     });
     expect(turnProperties(turn({ failure: "Provider said: rate limited (429)" })).error_code).toBe("other");
-    const aborted = turn().entries.map((e, i) => (i === 3 ? { ...e, model: [{ ...(e.model![0] as object), stopReason: "aborted" } as never] } : e));
+    const aborted = turn().entries.map((e, i) =>
+      i === 3 ? { ...e, model: [{ ...(must(e.model, "the entry's model")[0] as object), stopReason: "aborted" } as never] } : e,
+    );
     expect(turnProperties(turn({ entries: aborted }))).toMatchObject({ error: true, error_code: "aborted", stop_reason: "aborted" });
   });
 
@@ -199,9 +202,7 @@ describe("turn telemetry: the daemon's turns", () => {
             name: "boom",
             description: "fails",
             parameters: { type: "object", properties: {} } as never,
-            execute: async () => {
-              throw new Error("no");
-            },
+            execute: () => Promise.reject(new Error("no")),
           }),
         ],
       }),
@@ -213,7 +214,10 @@ describe("turn telemetry: the daemon's turns", () => {
       const stream = await watchEvents(store.harness, chat.id, ctx);
       const converter = new ChatEventConverter("agent-local-a");
       const events: ChatEvent[] = [];
-      stream.start(async (batch) => void events.push(...batch.flatMap((ev) => converter.convert(ev))));
+      stream.start((batch) => {
+        events.push(...batch.flatMap((ev) => converter.convert(ev)));
+        return Promise.resolve();
+      });
       await (await chat.submit({ type: "input", content: "hello", requestId: "send-1" }, ctx)).wait(ctx);
       await until(() => captured.length > 0 && events.some((e) => e.kind === "turn_end"));
       await stream.stop();

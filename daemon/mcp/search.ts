@@ -15,7 +15,7 @@ export function words(text: string): string[] {
     .filter((w) => w.length > 1 || /\d/.test(w));
 }
 
-const params = (schema: Record<string, unknown>): string[] => Object.keys(((schema.properties ?? {}) as Record<string, unknown>) ?? {});
+const params = (schema: Record<string, unknown>): string[] => Object.keys(schema.properties ?? {});
 
 /** The words a tool is found by, weighted by repetition. */
 function document(t: McpTool): string[] {
@@ -35,7 +35,7 @@ function document(t: McpTool): string[] {
 
 /** `select:github.list_issues, linear.update_issue` as the tools it names; null when the query is not a selection. */
 export function selected(query: string, tools: readonly McpTool[]): McpTool[] | null {
-  const m = query.trim().match(/^select:(.+)$/i);
+  const m = /^select:(.+)$/i.exec(query.trim());
   if (!m) return null;
   const wanted = m[1]
     .split(",")

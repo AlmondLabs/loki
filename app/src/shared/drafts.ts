@@ -8,8 +8,11 @@ import type { Attachment } from "../../../core/attention/content.ts";
  * The factory is pure enough for a test without a DOM (test/phone-session.test.ts); the hook wires it to React.
  */
 
-export type Draft = { text: string; images: Attachment[] };
-export const EMPTY_DRAFT: Draft = Object.freeze({ text: "", images: [] }) as Draft;
+export interface Draft {
+  text: string;
+  images: Attachment[];
+}
+export const EMPTY_DRAFT: Draft = Object.freeze({ text: "", images: [] });
 
 /** One conversation's key: the same one for its Inbox card and its desk page. */
 export const draftKey = (agentId: string, conversationId: string): string => `${agentId}\u0000${conversationId}`;

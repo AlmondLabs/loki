@@ -88,7 +88,7 @@ let built = 0;
  */
 function format(locale: string | undefined, options: Intl.DateTimeFormatOptions, d: Date): string {
   let byLocale = formatters.get(options);
-  if (!byLocale) formatters.set(options, (byLocale = new Map()));
+  if (!byLocale) formatters.set(options, (byLocale = new Map<string, Intl.DateTimeFormat>()));
   let f = byLocale.get(locale ?? "");
   if (!f) {
     f = new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" });

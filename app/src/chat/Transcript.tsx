@@ -66,10 +66,11 @@ export const Transcript = memo(function Transcript({
   // A day that opens on a widget row breaks the run too; the widget row already does.
   let pills: Array<string | null> | null = null;
   if (items && itemPills) {
-    pills = rows.map(() => null);
+    const dayOf: Array<string | null> = rows.map(() => null);
     items.forEach((it, k) => {
-      if (it.row) pills![it.i] = itemPills[k];
+      if (it.row) dayOf[it.i] = itemPills[k];
     });
+    pills = dayOf;
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
   // A stretch of work (tool calls, background tasks, skills loaded) reads as one line (chat/ToolSteps.tsx); a widget
@@ -438,7 +439,7 @@ function Message({
         {(copyable || time) && (
           <div className="loki-msg-actions">
             {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
-            {addable && <AddTaskButton onClick={() => tasks!.start(m)} />}
+            {addable && tasks && <AddTaskButton onClick={() => tasks.start(m)} />}
             {time && (
               <time className="loki-msg-time" dateTime={m.at}>
                 {time}
@@ -597,7 +598,13 @@ export function useArrivedFrom(rows: TranscriptRow[] | undefined): number {
 }
 
 /** A node of the rendered markdown (hast), as much of it as wrapping words needs. */
-type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
 
 /**
  * While a reply streams, each word is its own span, so a word that arrives mounts and fades in (the phone's
@@ -659,7 +666,7 @@ function FileChip({ file }: { file: FileRef }) {
       onClick={() =>
         void import("@tauri-apps/plugin-opener")
           .then(({ revealItemInDir }) => revealItemInDir(file.path))
-          .catch((err) => console.warn("loki: reveal file", err))
+          .catch((err: unknown) => console.warn("loki: reveal file", err))
       }
     >
       {body}

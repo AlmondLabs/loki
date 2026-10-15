@@ -63,7 +63,7 @@ export function CardEditor({ c, onSave, onCancel }: { c: CardWithSchedule; onSav
 
 /** The earlier wording of a card, when the worker rewrote it. */
 export function PreviousText({ c }: { c: CardWithSchedule }) {
-  const prev = c.card.previous[c.card.previous.length - 1];
+  const prev = c.card.previous.at(-1);
   if (!prev) return null;
   return (
     <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
@@ -480,7 +480,14 @@ export function LeadList({
               not this
             </Button>
             {l.source.agentId && l.source.conversationId && (
-              <Button size="sm" bare onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>
+              <Button
+                size="sm"
+                bare
+                onClick={() => {
+                  const { agentId, conversationId } = l.source;
+                  if (agentId && conversationId) onOpen(agentId, conversationId);
+                }}
+              >
                 where it came up
               </Button>
             )}

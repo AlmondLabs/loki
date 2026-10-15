@@ -24,7 +24,7 @@ async function until(check: () => boolean, ms = 3000) {
   while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 25));
 }
 
-test("a mod file is loaded, loaded again when it changes, and unloaded when it is removed", async () => {
+void test("a mod file is loaded, loaded again when it changes, and unloaded when it is removed", async () => {
   const dir = mkdtempSync(join(tmpdir(), "loki-mods-"));
   const mods = new ModRegistry(() => {});
   const stop = await loadModFolder(mods, dir, () => {});

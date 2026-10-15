@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { join } from "node:path";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { clockLabel, dayPills, holdMark, unreadBoundary } from "../app/src/shared/thread.ts";
+import { must } from "./fixtures/must.ts";
 
 describe("day pills", () => {
   // Restored to the zone itself: with TZ unset, assigning the undefined back left Los Angeles in place, and the
@@ -132,7 +134,6 @@ describe("the mod's local history", () => {
   test("rows carry the log line's timestamp; lines without one give rows without", async () => {
     const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const { readLocalTranscript } = await import("../daemon/import/letta-log.ts");
     const { conversationDirName } = await import("../core/desk-core.ts");
     const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
@@ -186,7 +187,7 @@ describe("Transcript draws the times in the message layout only", () => {
     expect(html).toContain(">Today</span>");
     expect(html.match(/<time class="loki-msg-time"/g)?.length).toBe(3); // every timed message, beside its copy button; "untimed" has none
     expect(html.match(/class="loki-msg-actions"><button[^]*?<\/button><time class="loki-msg-time"/g)?.length).toBe(3);
-    expect(html).toContain(clockLabel(today.toISOString())!);
+    expect(html).toContain(must(clockLabel(today.toISOString()), "today's clock label"));
     expect(html).not.toContain("loki-msg-divider-day");
     expect(html).toContain("loki-msg-divider-new");
   });

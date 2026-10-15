@@ -410,11 +410,11 @@ export function tauriAccelerator(spec: string): string {
 
 export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): MenuSpec[] {
   return MENUS.map((title) => {
-    const mine = map.filter((b) => b.menu && b.menu.split("/")[0] === title);
+    const mine = map.filter((b): b is Binding & { menu: string } => b.menu?.split("/")[0] === title);
     const items: MenuSpec["items"] = [];
     let lastGroup: string | undefined;
     for (const b of mine) {
-      const group = b.menu!.split("/")[1];
+      const group = b.menu.split("/")[1];
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
       const key = keysOf(b, os)[0];

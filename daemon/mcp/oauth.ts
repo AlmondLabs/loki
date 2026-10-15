@@ -16,11 +16,11 @@ export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_P
 
 /** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
-export type OAuthSecrets = {
+export interface OAuthSecrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
-};
+}
 
 export class OAuthStore {
   private readonly memory = new Map<string, string>();

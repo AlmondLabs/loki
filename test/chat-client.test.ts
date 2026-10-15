@@ -6,10 +6,10 @@ describe("the daemon's chat client", () => {
   test("when the socket comes back after a drop, every chat it follows is opened again, and its state now arrives", async () => {
     const opened: string[] = [];
     let loop: "running" | "idle" = "running";
-    const request = (async (type: string, payload: Record<string, unknown>) => {
-      if (type !== "chat_open") return { ok: false, error: "unexpected" };
+    const request = ((type: string, payload: Record<string, unknown>) => {
+      if (type !== "chat_open") return Promise.resolve({ ok: false, error: "unexpected" });
       opened.push(String(payload.conversationId));
-      return { ok: true, reply: { agentId: payload.agentId, conversationId: payload.conversationId, loop, mode: "unrestricted", cwd: null } };
+      return Promise.resolve({ ok: true, reply: { agentId: payload.agentId, conversationId: payload.conversationId, loop, mode: "unrestricted", cwd: null } });
     }) as unknown as FrameRequest;
     let reconnect = () => {};
     const client = new FrameChatClient({ request, onChatEvent: () => () => {}, onReconnect: (fn) => ((reconnect = fn), () => {}) });

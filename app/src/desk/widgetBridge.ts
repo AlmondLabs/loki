@@ -54,7 +54,7 @@ export function isJsonValue(value: unknown): boolean {
     if (typeof v === "number") return Number.isFinite(v);
     if (Array.isArray(v)) return v.every((x) => walk(x, depth + 1));
     if (typeof v === "object") {
-      const proto = Object.getPrototypeOf(v);
+      const proto: unknown = Object.getPrototypeOf(v);
       if (proto !== Object.prototype && proto !== null) return false;
       return Object.values(v as Record<string, unknown>).every((x) => walk(x, depth + 1));
     }
@@ -88,7 +88,7 @@ export function readFrameMessage(event: { source: unknown; data: unknown }, fram
       return { type: "focus" };
     case "loaded":
       if (!isHash(m.hash)) return null;
-      return { type: "loaded", hash: m.hash, data: isRecord(m.data) && isJsonValue(m.data) ? (m.data as Record<string, unknown>) : {} };
+      return { type: "loaded", hash: m.hash, data: isRecord(m.data) && isJsonValue(m.data) ? m.data : {} };
     case "error":
       if (!isHash(m.hash) || typeof m.message !== "string") return null;
       return { type: "error", hash: m.hash, message: m.message.slice(0, 4000) };

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { FOCUS_CUSHION, FOCUS_OPEN_GAP_MS, SKIP_FACTOR, addFocus, decayed, focusShares, pruneFocus, type FocusEntry } from "../core/attention/focus.ts";
 import { SeenStore } from "../mod/seen.ts";
 import { skipsFocus } from "../core/attention/useAttention.ts";
+import { must } from "./fixtures/must.ts";
 
 /** Focus (core/attention/focus.ts): each chat's share of what you have been doing lately, fading by half every 12 hours. */
 
@@ -14,7 +15,7 @@ const T0 = new Date("2026-09-20T09:00:00Z").getTime();
 function run(actions: Array<[number, "message" | "answer" | "decide" | "open"]>): FocusEntry {
   let e: FocusEntry | undefined;
   for (const [h, a] of actions) e = addFocus(e, a, T0 + h * H) ?? e;
-  return e!;
+  return must(e, "a focus entry");
 }
 
 describe("focus weights", () => {
@@ -30,9 +31,9 @@ describe("focus weights", () => {
   test("opening the same chat again within half an hour adds nothing", () => {
     const e = run([[0, "open"]]);
     expect(addFocus(e, "open", T0 + FOCUS_OPEN_GAP_MS - 1)).toBeNull();
-    expect(addFocus(e, "open", T0 + FOCUS_OPEN_GAP_MS)!.w).toBeGreaterThan(0.25);
+    expect(must(addFocus(e, "open", T0 + FOCUS_OPEN_GAP_MS), "the open's entry").w).toBeGreaterThan(0.25);
     // a message is never throttled
-    expect(addFocus(e, "message", T0 + 60_000)!.w).toBeCloseTo(1.25, 2);
+    expect(must(addFocus(e, "message", T0 + 60_000), "the message's entry").w).toBeCloseTo(1.25, 2);
   });
 
   test("the share is the chat's weight over everyone's plus the cushion", () => {
@@ -79,7 +80,7 @@ describe("a skip", () => {
     const t0 = Date.parse("2026-09-29T06:00:00Z");
     const worked: FocusEntry = { w: 3, t: new Date(t0).toISOString() };
     const later = t0 + 12 * 3_600_000; // one half-life: 1.5 left
-    const skipped = addFocus(worked, "skip", later)!;
+    const skipped = must(addFocus(worked, "skip", later), "the skip's entry");
     expect(skipped.w).toBeCloseTo(1.5 * SKIP_FACTOR);
     expect(skipped.t).toBe(new Date(later).toISOString());
     expect(addFocus(undefined, "skip", later)).toBeNull();
@@ -91,8 +92,8 @@ describe("a skip", () => {
     const other: FocusEntry = { w: 1.0, t: new Date(now).toISOString() };
     const share = () => focusShares({ top, other }, now).top;
     expect(share()).toBeCloseTo(2.2 / (3.2 + FOCUS_CUSHION));
-    top = addFocus(top, "skip", now)!;
-    top = addFocus(top, "skip", now)!;
+    top = must(addFocus(top, "skip", now), "the skip's entry");
+    top = must(addFocus(top, "skip", now), "the skip's entry");
     expect(share()).toBeLessThan(focusShares({ top, other }, now).other);
   });
 });
@@ -122,6 +123,6 @@ describe("the mod's focus store", () => {
     expect(Object.keys(store.focusAll())).toEqual(["ag/c1"]);
     const reread = new SeenStore(path);
     expect(reread.focusAll()["ag/c1"].w).toBeGreaterThan(1.2);
-    expect(JSON.parse(readFileSync(path, "utf8")).focus["ag/c1"]).toBeDefined();
+    expect((JSON.parse(readFileSync(path, "utf8")) as { focus: Record<string, unknown> }).focus["ag/c1"]).toBeDefined();
   });
 });

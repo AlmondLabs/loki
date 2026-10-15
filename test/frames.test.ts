@@ -135,7 +135,7 @@ describe("the frame table", () => {
       "recall_lead_start",
     ] as const)
       for (const id of ["../../settings", "a/b", "..", "", "x".repeat(65), 7, undefined])
-        expect(FRAMES[name].parse({ id, grade: 3 } as never)).toBe("a card or lead id required");
+        expect(FRAMES[name].parse({ id, grade: 3 })).toBe("a card or lead id required");
     expect(FRAMES.recall_reject.parse({ id: "20261010-abc123" })).toEqual({ id: "20261010-abc123" });
     expect(FRAMES.recall_edit.parse({ id: "c_1", front: "f" })).toEqual({ id: "c_1", front: "f", back: undefined, tags: undefined });
   });
@@ -228,35 +228,41 @@ describe("every frame in the table, through the real router", () => {
       recent: () => ({ byAgent: {}, byConversation: {} }),
       complete: () => [],
       check: (path) => ({ ok: true, path, branch: null }),
-      pick: async () => null,
+      pick: () => Promise.resolve(null),
     },
     recall: {
       store: new RecallStore(join(dir, "recall")),
       status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }),
       setSettings: async () => {},
-      run: async () => ({ note: "ran" }),
-      startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }),
+      run: () => Promise.resolve({ note: "ran" }),
+      startLesson: () => Promise.resolve({ agentId: "agent-1", conversationId: "conv-1" }),
     },
-    tasks: { list: async () => [], create: async () => ({}), assign: async () => [], close: async () => [], setStatus: async () => [] } as never,
+    tasks: {
+      list: () => Promise.resolve([]),
+      create: () => Promise.resolve({}),
+      assign: () => Promise.resolve([]),
+      close: () => Promise.resolve([]),
+      setStatus: () => Promise.resolve([]),
+    } as never,
     agents: {
       get: () => ({ id: "agent-1" }) as never,
       tree: () => [],
       skills: () => [],
       hasProfile: () => false,
       read: () => null,
-      log: async () => [],
-      diff: async () => "",
-      reflection: async () => ({ lastCommit: null }),
+      log: () => Promise.resolve([]),
+      diff: () => Promise.resolve(""),
+      reflection: () => Promise.resolve({ lastCommit: null }),
       globalSkills: () => [],
-      install: async () => "ok",
-      refreshSkill: async () => ({ outcome: "current", label: "x" }),
+      install: () => Promise.resolve("ok"),
+      refreshSkill: () => Promise.resolve({ outcome: "current", label: "x" }),
     },
     lan: {
       status: () => lanStatus,
-      refresh: async () => lanStatus,
-      setEnabled: async () => lanStatus,
+      refresh: () => Promise.resolve(lanStatus),
+      setEnabled: () => Promise.resolve(lanStatus),
       setVia: () => lanStatus,
-      setServe: async () => lanStatus,
+      setServe: () => Promise.resolve(lanStatus),
       pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expiresAt: "" }),
       devices: () => [],
       forget: () => true,
@@ -355,7 +361,7 @@ describe("how the app reads a request's answer", () => {
 
 describe("a parser that throws", () => {
   test("is answered like any failure: the request still gets error with its requestId", () => {
-    const bridge = bridgeOf({ tasks: { list: async () => [] } as never });
+    const bridge = bridgeOf({ tasks: { list: () => Promise.resolve([]) } as never });
     const c = client("d1");
     bridge.onMessage(c, { type: "task_status", requestId: "r1", ids: ["t"], status: { toString: 1 } });
     expect(c.sent.at(-1)).toMatchObject({ type: "error", requestId: "r1" });

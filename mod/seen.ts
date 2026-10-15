@@ -30,7 +30,7 @@ export class SeenStore {
     this.debounceMs = opts.debounceMs ?? PERSIST_DEBOUNCE_MS;
     this.now = opts.now ?? (() => new Date().toISOString());
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown> | null;
       if (parsed && typeof parsed.seen === "object" && parsed.seen) {
         this.seen = parsed.seen as Record<string, string>;
         if (parsed.viewed && typeof parsed.viewed === "object") this.viewed = parsed.viewed as Record<string, string>;
@@ -83,7 +83,7 @@ export class SeenStore {
   }
 
   unmark(agentId: string | null | undefined, conversationId: string): boolean {
-    return this.drop(this.seen, SeenStore.key(agentId, conversationId));
+    return this.unsee(SeenStore.key(agentId, conversationId));
   }
 
   /** Write now what is waiting on the debounce (the mod's shutdown; a test before it reads the file). */
@@ -101,9 +101,10 @@ export class SeenStore {
     return true;
   }
 
-  private drop(map: Record<string, unknown>, key: string): boolean {
-    if (!(key in map)) return false;
-    delete map[key];
+  private unsee(key: string): boolean {
+    if (!(key in this.seen)) return false;
+    const { [key]: _, ...rest } = this.seen;
+    this.seen = rest;
     this.persist();
     return true;
   }

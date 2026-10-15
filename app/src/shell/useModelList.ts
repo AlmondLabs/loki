@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withRecent, type ModelEntry } from "../../../core/models.ts";
 
 /**
@@ -23,17 +23,21 @@ export function useModelList({
 }) {
   const harnessKey = `${open}:${version}`;
   const [models, setModels] = useState<{ key: string; list: ModelEntry[] } | null>(null);
-  const fetched = models && models.key === harnessKey ? models.list : null;
+  const fetched = models?.key === harnessKey ? models.list : null;
   const list = useMemo(() => (fetched ? withRecent(fetched, recent) : null), [fetched, recent]);
   const loading = useRef<string | null>(null);
+  // `load` stays the same function for a harness while the host's loader may be a fresh closure each render.
+  const listRef = useRef(listModels);
+  useEffect(() => {
+    listRef.current = listModels;
+  });
   const load = useCallback(() => {
     if (fetched || loading.current === harnessKey) return;
     loading.current = harnessKey;
-    void listModels().then((m) => {
+    void listRef.current().then((m) => {
       setModels({ key: harnessKey, list: m });
       if (loading.current === harnessKey) loading.current = null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetched, harnessKey]);
   const forget = useCallback(() => setModels(null), []);
   return { list, load, forget };

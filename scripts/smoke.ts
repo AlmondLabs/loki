@@ -45,7 +45,12 @@ function freePort(): Promise<number> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type Daemon = { child: ChildProcess; port: number; log: () => string; stop: () => Promise<void> };
+interface Daemon {
+  child: ChildProcess;
+  port: number;
+  log: () => string;
+  stop: () => Promise<void>;
+}
 
 async function start(home: string): Promise<Daemon> {
   const port = await freePort();
@@ -65,14 +70,15 @@ async function start(home: string): Promise<Daemon> {
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  child.stdout!.on("data", (d: Buffer) => (output += d.toString()));
-  child.stderr!.on("data", (d: Buffer) => (output += d.toString()));
+  child.stdout.on("data", (d: Buffer) => (output += d.toString()));
+  child.stderr.on("data", (d: Buffer) => (output += d.toString()));
   const exited = new Promise<void>((r) => child.once("exit", () => r()));
+  const running = () => child.exitCode === null && child.signalCode === null;
   const stop = async () => {
-    if (child.exitCode !== null || child.signalCode !== null) return;
+    if (!running()) return;
     child.kill();
     await Promise.race([exited, sleep(5000)]);
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    if (running()) child.kill("SIGKILL");
   };
   const deadline = Date.now() + START_MS;
   while (Date.now() < deadline) {
@@ -98,8 +104,9 @@ async function connect(home: string, port: number) {
   const waiting = new Map<string, (r: Reply) => void>();
   ws.addEventListener("message", (e) => {
     const m = JSON.parse(String(e.data)) as Reply;
-    if (m.requestId && waiting.has(m.requestId)) {
-      waiting.get(m.requestId)!(m);
+    const answer = m.requestId ? waiting.get(m.requestId) : undefined;
+    if (m.requestId && answer) {
+      answer(m);
       waiting.delete(m.requestId);
     }
   });
@@ -191,7 +198,7 @@ async function main(): Promise<void> {
       ok(`${all.length} providers listed, ${signsIn.length} sign in`);
       if (signsIn.length === 0) fail("no provider offers sign-in: the sign-in flows did not load");
       for (const p of signsIn) {
-        const r = await sock.request("chat_provider_signin", { providerId: p.id }).catch((e: unknown) => ({ type: "error", message: String(e) }) as Reply);
+        const r = await sock.request("chat_provider_signin", { providerId: p.id }).catch((e: unknown): Reply => ({ type: "error", message: String(e) }));
         if (r.type === "chat_signin" && typeof r.url === "string" && /^https?:\/\//.test(r.url)) ok(`sign-in to ${p.id} names its page`);
         else if (OURS.test(String(r.message))) fail(`sign-in to ${p.id}: ${r.message}`);
         else warn(`sign-in to ${p.id} did not name a page from this runner: ${r.message ?? r.type}`);

@@ -6,6 +6,7 @@ import { MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import type { LokiMod, ModTool } from "../daemon/mods/api.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -39,7 +40,7 @@ const toolTurn = (word: string) => fauxAssistantMessage(fauxToolCall("echo", { w
 
 /** The text of every tool result in a chat. */
 async function results(store: AgentStore, chatId: string) {
-  const chat = (await store.chat(chatId, ctx))!;
+  const chat = must(await store.chat(chatId, ctx), `chat ${chatId}`);
   return (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
 }
 
@@ -112,7 +113,7 @@ describe("mod registry", () => {
     const reports: string[] = [];
     const mods = new ModRegistry((m) => reports.push(m));
     const result = await mods.load({ name: "future", apiVersion: 2, activate: () => {} });
-    expect(result).toEqual({ refused: expect.stringContaining("needs mod API 2") });
+    expect(result).toEqual({ refused: expect.stringContaining("needs mod API 2") as unknown });
     expect(reports[0]).toContain("future");
     expect(mods.names()).toEqual([]);
   });
@@ -128,7 +129,7 @@ describe("mod registry", () => {
         throw new Error("boom");
       },
     });
-    expect(result).toEqual({ refused: expect.stringContaining("boom") });
+    expect(result).toEqual({ refused: expect.stringContaining("boom") as unknown });
     expect(mods.names()).toEqual(["good"]);
     expect(
       mods.registry
@@ -141,7 +142,7 @@ describe("mod registry", () => {
   test("one load reaches the chats of two agents' stores", async () => {
     const mods = new ModRegistry(() => {});
     const seen: Array<{ agentId: string }> = [];
-    await mods.load({ name: "demo", apiVersion: 1, activate: (api) => void api.tools.register(echoTool(seen as unknown[])) });
+    await mods.load({ name: "demo", apiVersion: 1, activate: (api) => void api.tools.register(echoTool(seen)) });
     const a = await setup(mods, { id: "agent-local-a", name: "Ada" });
     const b = await setup(mods, { id: "agent-local-b", name: "Bo" });
     try {
@@ -160,12 +161,16 @@ describe("mod registry", () => {
   test("message transforms run in load order, and turn_end reaches listeners when a run answers", async () => {
     const mods = new ModRegistry(() => {});
     const ended: string[] = [];
-    await mods.load({ name: "one", apiVersion: 1, activate: (api) => void api.message.transform((m) => `${String(m.content)} +one`) });
+    await mods.load({
+      name: "one",
+      apiVersion: 1,
+      activate: (api) => void api.message.transform((m) => `${typeof m.content === "string" ? m.content : JSON.stringify(m.content)} +one`),
+    });
     await mods.load({
       name: "two",
       apiVersion: 1,
       activate: (api) => {
-        api.message.transform((m) => `${String(m.content)} +two`);
+        api.message.transform((m) => `${typeof m.content === "string" ? m.content : JSON.stringify(m.content)} +two`);
         api.events.on("turn_end", (e) => ended.push(e.chatId));
       },
     });

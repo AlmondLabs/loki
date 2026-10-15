@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 import { AgentFace } from "../desk/AgentChip";
 import { Button, Field, Row, Switch } from "../components";
@@ -185,14 +185,16 @@ function Identity({
   const [name, setName] = useState(d.agent.name);
   const [description, setDescription] = useState(d.agent.description ?? "");
   const [model, setModel] = useState(d.agent.model ?? "");
-  useEffect(() => {
+  const [shownD, setShownD] = useState(d);
+  if (shownD !== d) {
+    setShownD(d);
     setName(d.agent.name);
     setDescription(d.agent.description ?? "");
     setModel(d.agent.model ?? "");
-  }, [d]);
+  }
   const settings = d.agent.modelSettings;
   const bits = [
-    settings.effort ? `effort ${String(settings.effort)}` : null,
+    settings.effort ? `effort ${typeof settings.effort === "string" ? settings.effort : JSON.stringify(settings.effort)}` : null,
     settings.thinking ? "thinking" : null,
     settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null,
   ].filter(Boolean);
@@ -260,7 +262,8 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
   const [view, setView] = useState<McpView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const apply = (r: McpView | string) => (typeof r === "string" ? setError(r) : (setError(null), setView(r)));
-  useEffect(() => void mcp.get().then(apply), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const load = useEffectEvent(() => void mcp.get().then(apply));
+  useEffect(() => load(), []);
   if (!view?.servers.length && !error) return null;
   return (
     <section>

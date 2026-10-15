@@ -5,13 +5,22 @@ import { parse as parseYaml } from "yaml";
 
 /** The CI workflows' shape (docs/CONTRIBUTING.md, Checks): each check once, where the system matters, and only when it can say something. */
 
-type Step = { id?: string; uses?: string; run?: string; with?: Record<string, unknown> };
-type Job = { "runs-on": string; strategy?: { matrix?: { os?: string[] } }; steps: Step[] };
-type Workflow = {
+interface Step {
+  id?: string;
+  uses?: string;
+  run?: string;
+  with?: Record<string, unknown>;
+}
+interface Job {
+  "runs-on": string;
+  strategy?: { matrix?: { os?: string[] } };
+  steps: Step[];
+}
+interface Workflow {
   on: Record<string, { paths?: string[]; "paths-ignore"?: string[] } | null>;
   concurrency?: { group: string; "cancel-in-progress": boolean };
   jobs: Record<string, Job>;
-};
+}
 const workflow = (name: string) => parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", `${name}.yml`), "utf8")) as Workflow;
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 

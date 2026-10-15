@@ -20,7 +20,7 @@ export const isPermissionMode = (m: unknown): m is PermissionMode => m === "stri
 export type ToolKind = "read" | "edit" | "command";
 
 /** The built-in tools and loki's own, by kind; a mod's tool says what it is in its annotations (daemon/mods/api.ts). */
-const KINDS: Record<string, ToolKind> = {
+const KINDS: Partial<Record<string, ToolKind>> = {
   read: "read",
   grep: "read",
   find: "read",
@@ -48,7 +48,8 @@ const KINDS: Record<string, ToolKind> = {
 const NEVER_ASK = new Set(["AskUserQuestion"]);
 
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
-  if (KINDS[name]) return KINDS[name];
+  const known = KINDS[name];
+  if (known) return known;
   if (annotations?.readOnly) return "read";
   return "command";
 }
@@ -78,8 +79,14 @@ function insideFolder(path: unknown, folder: string, cwd: string | undefined): b
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a tool task's result must be a JsonValue, and an interface with an optional field cannot extend JsonObject
 type Decision = { allow: boolean; message?: string };
-type Pending = { agentId: string; conversationId: string; event: ChatEvent; settle: (d: Decision | { answers: Record<string, unknown> }) => void };
+interface Pending {
+  agentId: string;
+  conversationId: string;
+  event: ChatEvent;
+  settle: (d: Decision | { answers: Record<string, unknown> }) => void;
+}
 
 export class Approvals {
   private readonly pending = new Map<string, Pending>();
@@ -115,7 +122,7 @@ export class Approvals {
    */
   decide(requestId: string, allow: boolean, message?: string, always = false): boolean {
     const p = this.pending.get(requestId);
-    if (!p || p.event.kind !== "approval") return false;
+    if (p?.event.kind !== "approval") return false;
     if (allow && always && p.event.toolName) this.setAlways(p.event.toolName, true);
     p.settle({ allow, ...(message ? { message } : {}) });
     return true;
@@ -140,7 +147,7 @@ export class Approvals {
   /** The person's answers to a question card. */
   answer(requestId: string, answers: Record<string, unknown>): boolean {
     const p = this.pending.get(requestId);
-    if (!p || p.event.kind !== "question") return false;
+    if (p?.event.kind !== "question") return false;
     p.settle({ answers });
     return true;
   }
@@ -181,7 +188,7 @@ export class Approvals {
           beforeTool: async (call, api, context) => {
             const memoName = `approval:${call.id}`;
             const decided = await api.memo<Decision>(memoName, context);
-            const decision = decided ?? (await this.decideCall(call.name, call.arguments as Record<string, unknown>, call.id, api, context));
+            const decision = decided ?? (await this.decideCall(call.name, call.arguments, call.id, api, context));
             if (!decision) return undefined;
             if (!decided) await api.memo(memoName, decision, context);
             return decision.allow ? undefined : { block: decision.message || "The person declined this tool call." };

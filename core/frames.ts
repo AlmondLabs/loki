@@ -3,6 +3,7 @@ import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } f
 import type { ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
+import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
@@ -116,7 +117,9 @@ const chatRef = (m: Raw) =>
   isAgentId(m.agentId) && str(m.conversationId) && m.conversationId
     ? { agentId: m.agentId, conversationId: m.conversationId }
     : "agentId and conversationId required";
-const nothing = (): Record<never, never> => ({});
+/** The payload of a frame that carries nothing beside `type` (and a reply's `requestId`). */
+type NoPayload = object;
+const nothing = (): NoPayload => ({});
 const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = () => ({}) as T): ({ id: string } & T) | string => {
   if (!isRecallId(m.id)) return "a card or lead id required";
   const r = rest(m.id);
@@ -153,7 +156,7 @@ export interface Replies {
   chat_models: { entries: ModelEntry[] };
   chat_agents: { agents: Array<{ id: string; name: string }> };
   chat_agent_created: { id: string; name: string };
-  chat_done: Record<never, never>;
+  chat_done: NoPayload;
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
@@ -214,10 +217,10 @@ export interface Pushes {
   desks: { desks: DeskSummary[] };
   seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry> };
   models_recent: { recent: string[] };
-  recall_changed: Record<never, never>;
-  tasks_changed: Record<never, never>;
+  recall_changed: NoPayload;
+  tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
-  agents_changed: Record<never, never>;
+  agents_changed: NoPayload;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expiresAt: string };
@@ -290,7 +293,7 @@ export const FRAMES = {
   ),
   desk_get: send(
     "another desk's state and widgets, for widgets shown inline in a thread; no switch",
-    (m) => (str(m.scope) && m.scope ? { scope: m.scope as Scope } : "scope required"),
+    (m) => (str(m.scope) && m.scope ? { scope: m.scope } : "scope required"),
     { phone: PHONE, causes: ["desk"] },
   ),
   list_desks: send("every desk, for the sidebar and search", nothing, { phone: PHONE, causes: ["desks"] }),
@@ -319,7 +322,7 @@ export const FRAMES = {
       if (typeof c === "string") return c;
       const action = m.action;
       return action === "answer" || action === "decide" || action === "skip"
-        ? { ...c, action: action as "answer" | "decide" | "skip" }
+        ? ({ ...c, action } satisfies { action: "answer" | "decide" | "skip" })
         : "action must be answer, decide or skip";
     },
     { phone: PHONE, causes: ["seen"] },
@@ -412,7 +415,7 @@ export const FRAMES = {
       if (typeof c === "string") return c;
       return {
         ...c,
-        title: m.title === null || str(m.title) ? (m.title as string | null) : undefined,
+        title: m.title === null || str(m.title) ? m.title : undefined,
         archived: typeof m.archived === "boolean" ? m.archived : undefined,
         hidden: typeof m.hidden === "boolean" ? m.hidden : undefined,
       };
@@ -464,12 +467,12 @@ export const FRAMES = {
     if (l?.enabled !== undefined && typeof l.enabled !== "boolean") return "learn.enabled must be true or false";
     if (l?.dailyCap !== undefined && !(isNum(l.dailyCap) && l.dailyCap >= 0)) return "learn.dailyCap must be a number, 0 or more";
     return {
-      ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled as boolean } } : {}),
+      ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled } } : {}),
       ...(l
         ? {
             learn: {
-              ...(l.enabled !== undefined ? { enabled: l.enabled as boolean } : {}),
-              ...(l.dailyCap !== undefined ? { dailyCap: Math.floor(l.dailyCap as number) } : {}),
+              ...(l.enabled !== undefined ? { enabled: l.enabled } : {}),
+              ...(l.dailyCap !== undefined ? { dailyCap: Math.floor(l.dailyCap) } : {}),
             },
           }
         : {}),
@@ -549,7 +552,7 @@ export const FRAMES = {
     "grade a card, 1 (again) to 4 (easy)",
     (m) =>
       recallId(m, () =>
-        m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? { grade: m.grade as 1 | 2 | 3 | 4 } : "a grade is 1 (again) to 4 (easy)",
+        m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? ({ grade: m.grade } satisfies { grade: Grade }) : "a grade is 1 (again) to 4 (easy)",
       ),
     PHONE,
   ),
@@ -584,7 +587,7 @@ export const FRAMES = {
     "task_created",
     "a task filed from the app, stamped with its chat and folder, and the message it came from (Add task)",
     (m) => ({
-      title: String(m.title ?? ""),
+      title: strOr(m.title, ""),
       description: strOr(m.description, undefined),
       labels: Array.isArray(m.labels) ? strings(m.labels) : undefined,
       priority: typeof m.priority === "number" ? m.priority : undefined,
@@ -612,7 +615,7 @@ export const FRAMES = {
   task_reopen: request("tasks_updated", "not done after all: an agent's done? taken back, or done tasks opened again", (m) => ({ ids: taskIds(m) })),
   task_status: request("tasks_updated", "move tasks to open, in progress, blocked or deferred", (m) =>
     m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred"
-      ? { ids: taskIds(m), status: m.status as "open" | "in_progress" | "blocked" | "deferred" }
+      ? ({ ids: taskIds(m), status: m.status } satisfies { ids: string[]; status: "open" | "in_progress" | "blocked" | "deferred" })
       : `unknown status ${String(m.status)}`,
   ),
 

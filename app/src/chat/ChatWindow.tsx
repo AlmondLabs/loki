@@ -68,7 +68,7 @@ export function ChatWindow({
       onPointerLeave={() => setHover(false)}
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
       }}
       data-attentive={attentive ? "true" : "false"}
       style={panelStyle(placement, width, attentive)}

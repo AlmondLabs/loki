@@ -14,7 +14,7 @@ interface RecognitionAlternative {
 interface RecognitionResult {
   isFinal: boolean;
   length: number;
-  [i: number]: RecognitionAlternative;
+  [i: number]: RecognitionAlternative | undefined;
 }
 interface RecognitionEvent {
   resultIndex: number;
@@ -90,7 +90,7 @@ export function useDictation({
     const Ctor = recognitionCtor();
     if (!Ctor || rec.current) return;
     const r = new Ctor();
-    r.lang = lang ?? navigator.language ?? "en-US";
+    r.lang = lang ?? navigator.language;
     r.continuous = true;
     r.interimResults = true;
     r.onstart = () => {

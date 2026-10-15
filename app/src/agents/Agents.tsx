@@ -215,7 +215,7 @@ export function Agents({
       />
     ),
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
-    changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} onRevert={store.revertCommit} />,
+    changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} onRevert={(sha) => void store.revertCommit(sha)} />,
     reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} api={api} reflect={reflect} />,
     skills: <SkillsPage d={d} store={store} viewSkill={shownSkill} onPickSkill={setSkillName} adding={adding} setAdding={setAdding} reading={reading} />,
   };
@@ -238,7 +238,7 @@ export function Agents({
 const NO_ITEMS: AttentionItem[] = [];
 
 /** The pages as the header's tabs. */
-const PAGE_TABS: readonly Tab<AgentPage>[] = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
+const PAGE_TABS: ReadonlyArray<Tab<AgentPage>> = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
 
 /** Before the first agent: an invitation, as the pane's empty state. */
 function NoAgents({ onNew }: { onNew: () => void }) {

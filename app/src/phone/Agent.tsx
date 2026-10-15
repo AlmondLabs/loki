@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
@@ -26,13 +26,13 @@ function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   const [commits, setCommits] = useState<MemoryCommit[] | null>(null);
   const [openSha, setOpenSha] = useState<string | null>(null);
   const [diffs, setDiffs] = useState<Record<string, string | null>>({});
+  const readLog = useEffectEvent((id: string) => api.log(id, undefined, 10));
   useEffect(() => {
     let live = true;
-    void api.log(agentId, undefined, 10).then((c) => live && setCommits(c));
+    void readLog(agentId).then((c) => live && setCommits(c));
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
   const showDiff = (sha: string) => {
     if (openSha === sha) return setOpenSha(null);
@@ -131,7 +131,7 @@ function Hero({
 }) {
   const live = liveDeskCount(desks, agentId);
   const main = desks.find((x) => x.agentId === agentId && x.conversationId === "default");
-  const bits = d ? modelBits(d.agent.model, d.agent.modelSettings ?? {}) : [];
+  const bits = d ? modelBits(d.agent.model, d.agent.modelSettings) : [];
   return (
     <section className="loki-phone-hero" aria-label={`${name}'s profile`}>
       <Avatar name={name} src={avatarUrl(agentId)} size={72} presence={running} />
@@ -161,7 +161,7 @@ function Conversations({ agentId, desks, items }: { agentId: string; desks: Desk
     <RowSection icon="desk" title="Conversations" count={mine.length}>
       <ul className="loki-phone-list" aria-label="conversations">
         {mine.map((x) => (
-          <DeskRow key={x.scope} desk={x} mark={marks.get(x.conversationId!)} onActions={null} />
+          <DeskRow key={x.scope} desk={x} mark={x.conversationId ? marks.get(x.conversationId) : undefined} onActions={null} />
         ))}
       </ul>
       {mine.length === 0 && <p className="loki-phone-empty">No live chats. Message opens its main chat.</p>}
@@ -184,7 +184,7 @@ function MemoryTree({
   return (
     <RowSection icon="folder" title="Memory" count={folders.reduce((n, f) => n + f.files.length, 0)}>
       {folders.map((f) => {
-        const closed = folded[f.name] === true;
+        const closed = folded[f.name];
         return (
           <div key={f.name || "root"}>
             {f.name && (
@@ -254,6 +254,7 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
       <ul className="loki-phone-list" aria-label="changes">
         {(commits ?? []).map((c) => {
           const open = openSha === c.sha;
+          const diff = diffs[c.sha];
           return (
             <li key={c.sha} className="loki-phone-change" data-open={open || undefined}>
               <button type="button" className="loki-phone-row loki-phone-change-row" aria-expanded={open} onClick={() => showDiff(c.sha)}>
@@ -267,8 +268,8 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
               {open && (
                 <div className="loki-phone-diff">
                   {!(c.sha in diffs) && <p className="loki-phone-meta">Reading the diff…</p>}
-                  {diffs[c.sha] === null && <p className="loki-phone-meta">Nothing to show.</p>}
-                  {diffs[c.sha] && <Diff text={diffs[c.sha]!} />}
+                  {diff === null && <p className="loki-phone-meta">Nothing to show.</p>}
+                  {diff && <Diff text={diff} />}
                 </div>
               )}
             </li>
@@ -303,14 +304,19 @@ export function FilePage({
 }) {
   const d = useAgentDetails(api, agentId);
   const [content, setContent] = useState<string | null | undefined>(undefined);
+  // Another file is unread from the render that names it.
+  const [shownFile, setShownFile] = useState({ agentId, path });
+  if (shownFile.agentId !== agentId || shownFile.path !== path) {
+    setShownFile({ agentId, path });
+    setContent(undefined);
+  }
+  const readFile = useEffectEvent((id: string, file: string) => api.read(id, file));
   useEffect(() => {
     let live = true;
-    setContent(undefined);
-    void api.read(agentId, path).then((c) => live && setContent(c));
+    void readFile(agentId, path).then((c) => live && setContent(c));
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, path]);
   const agentName = d?.agent.name ?? name ?? "the agent";
   const markdown = /\.(md|markdown)$/i.test(path);

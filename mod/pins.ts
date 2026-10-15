@@ -43,7 +43,10 @@ export function setPin(agentId: string, conversationId: string, pinned: boolean,
   const has = list.includes(conversationId);
   if (pinned && !has) doc.agents[agentId] = [...list, conversationId];
   if (!pinned && has) doc.agents[agentId] = list.filter((c) => c !== conversationId);
-  if (doc.agents[agentId]?.length === 0) delete doc.agents[agentId];
+  if (Object.hasOwn(doc.agents, agentId) && doc.agents[agentId].length === 0) {
+    const { [agentId]: _, ...others } = doc.agents;
+    doc.agents = others;
+  }
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\n");
