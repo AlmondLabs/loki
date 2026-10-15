@@ -35,6 +35,14 @@ export interface ChatBackend {
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
+  approvals(): Promise<Replies["chat_approvals"]>;
+  setApproval(p: PayloadOf<"chat_approvals_set">): Promise<Replies["chat_approvals"]>;
+  mcp(): Promise<Replies["chat_mcp"]>;
+  mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<Replies["chat_mcp"]>;
+  mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<Replies["chat_mcp"]>;
+  mcpRestart(name: string): Promise<Replies["chat_mcp"]>;
+  mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<Replies["chat_mcp"]>;
+  mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<Replies["chat_mcp_secret"]>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
   disableSkill(name: string): Promise<void>;
   importLetta(): Promise<Replies["chat_imported"]>;
@@ -93,6 +101,14 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_skill_disable: ({ name }) => served(b, async (x) => (await x.disableSkill(name), DONE)),
     chat_memory_write: (p) => served(b, async (x) => (await x.writeMemory(p), DONE)),
     chat_memory_revert: (p) => served(b, async (x) => (await x.revertMemory(p), DONE)),
+    chat_approvals_get: () => served(b, (x) => x.approvals()),
+    chat_approvals_set: (p) => served(b, (x) => x.setApproval(p)),
+    chat_mcp_get: () => served(b, (x) => x.mcp()),
+    chat_mcp_server: (p) => served(b, (x) => x.mcpServer(p)),
+    chat_mcp_always_load: (p) => served(b, (x) => x.mcpAlwaysLoad(p)),
+    chat_mcp_restart: ({ name }) => served(b, (x) => x.mcpRestart(name)),
+    chat_mcp_agent: (p) => served(b, (x) => x.mcpAgent(p)),
+    chat_mcp_secret: (p) => served(b, (x) => x.mcpSecret(p)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
     chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
     chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),

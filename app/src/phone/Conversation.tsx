@@ -109,7 +109,7 @@ export function ConversationScreen({
   folder?: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null> } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
-  onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
+  onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always") => void;
   /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;

@@ -44,7 +44,7 @@ export interface ConversationView {
 export interface ConversationActions {
   onSend: (text: string, images?: Attachment[]) => void;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
-  onApprove?: (behavior: "allow" | "deny") => void;
+  onApprove?: (behavior: "allow" | "deny" | "always") => void;
   /** Slash commands the box offers (see core/attention/commands.ts) and their runner. */
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
@@ -272,8 +272,10 @@ export function Conversation({
                 (() => {
                   const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;
                   const deny = <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>;
+                  // Allows this call and every later one of the same tool, in any chat, until taken back in Settings › Chat (not in strict mode).
+                  const always = <Button key="always" size={touch ? "touch" : "sm"} tone="paper" className="loki-approve-always" onClick={() => actions.onApprove!("always")} title="allow this tool from now on, in every chat (Settings › Chat takes it back)">always allow</Button>;
                   // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
-                  return touch ? [deny, approve] : [approve, deny];
+                  return touch ? [deny, always, approve] : [approve, always, deny];
                 })()}
               {footer}
             </div>

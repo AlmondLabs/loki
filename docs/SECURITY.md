@@ -72,12 +72,15 @@ Mac's MagicDNS name. The model changes in one place:
 - **What loki starts.** Exactly the local servers listed in `~/.loki/mcp.json` (`command` and `args`, run as you,
   with the usual environment plus the entry's `env`), for as long as the daemon runs, and nothing else. A server is
   as trusted as any program you run: it gets your permissions and whatever its `env` holds. loki installs none.
-- **Where secrets live.** In `~/.loki/mcp.json` itself, as you write them (a token in `env` or `headers`); keep the
-  file to yourself (`chmod 600`). Keychain-held secrets come with the Settings page.
+- **Where secrets live.** Either in the system keychain (Settings › MCP's "keep values in this computer's keychain";
+  the file then holds `${keychain:<name>}` and the value is read only when the server starts), or in
+  `~/.loki/mcp.json` itself, as you write them. loki writes the file readable by you alone (mode 600).
 - **What reaches a server.** Only the arguments of the tool calls your agents make to it. A remote server is
   reached only at the `url` you gave.
-- **Permissions.** A tool runs without asking in standard mode only when its server marks it read-only; a server
-  can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode.
+- **Permissions.** A tool runs without asking in standard mode only when its server marks it read-only, or when you
+  answered "always allow" for it (kept in `~/.loki/state/approvals.json`, taken back in Settings › Chat); a server
+  can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode,
+  which asks for everything, always-allowed tools included.
 
 ## Agent-written code
 

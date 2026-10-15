@@ -86,10 +86,8 @@ process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
-const credentials = await keychain().then(
-  (backend) => new KeychainCredentials(backend),
-  (error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined),
-);
+const secrets = await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
+const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
 // path so a bundler cannot follow it, and in the release bundle (daemon.mjs) that path pointed beside the bundle at
 // files that are not there: every sign-in failed with "Cannot find module …/openai-chatgpt.js". Its Bun helper is
@@ -99,8 +97,9 @@ const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
 // The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
 // MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
-const mcp = new McpTools({ registry: mods.registry, configPath: join(args.dir, "mcp.json"), lokiDir: args.dir, report, version: appVersion(paths.root) ?? undefined });
-const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)) });
+const mcp = new McpTools({ registry: mods.registry, configPath: join(args.dir, "mcp.json"), lokiDir: args.dir, report, version: appVersion(paths.root) ?? undefined, ...(secrets ? { secrets } : {}) });
+// "Always allow" answers are kept beside the other state, for every chat.
+const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)), alwaysPath: join(args.dir, "state", "approvals.json") });
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
 // The tools every chat has: pi-durable's own (read, write, edit, bash), loki's file tools, memory, skills and the

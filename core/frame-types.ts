@@ -206,3 +206,39 @@ export interface DeviceSummary {
   /** Which route the phone's last request came in by (mod/lan.ts requestVia); absent for a phone not seen since this field existed. */
   lastVia?: DeviceVia;
 }
+
+/** One MCP tool as Settings shows it (daemon/mcp/): its hints, whether it skips search, and its definition's cost. */
+export interface McpToolView {
+  name: string;
+  description: string;
+  readOnly: boolean;
+  destructive: boolean;
+  alwaysLoad: boolean;
+  /** About how many tokens its definition costs when loaded (name, description and schema, four characters a token). */
+  tokens: number;
+}
+
+/** One MCP server as Settings shows and edits it. Secrets show as the `${keychain:…}` names the file holds. */
+export interface McpServerView {
+  /** Safe for tool names (`mcp__<name>__…`). */
+  name: string;
+  /** The key as written in mcp.json, which edits name. */
+  entry: string;
+  kind: "local" | "remote";
+  state: "starting" | "connected" | "down";
+  error: string | null;
+  purpose: string | null;
+  tools: McpToolView[];
+  /** About how many tokens loading every tool would cost. */
+  tokens: number;
+  config: { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
+  /** The agents it is switched off for. */
+  offFor: string[];
+}
+
+export interface McpView {
+  servers: McpServerView[];
+  /** Entries in mcp.json that could not be read, one line each. */
+  problems: string[];
+  configPath: string;
+}

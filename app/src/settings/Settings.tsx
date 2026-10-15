@@ -1,3 +1,4 @@
+import { AlwaysAllowed, Mcp, type McpApi } from "./Mcp";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
 import { useEffect, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
@@ -70,6 +71,7 @@ export function Settings({
   daemon,
   phone,
   globalSkills,
+  mcp,
   update,
   shortcut,
   recall,
@@ -96,6 +98,8 @@ export function Settings({
   phone: PhoneApi;
   /** ~/.agents/skills, which every agent reads (Settings › skills). */
   globalSkills: GlobalSkillsApi;
+  /** Settings › MCP, and Settings › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
+  mcp: McpApi;
   /** Newer loki releases, from GitHub (Settings › loki). */
   update: LokiUpdate;
   /** ⌥Space, held or released (Settings › keys). */
@@ -142,11 +146,12 @@ export function Settings({
           {page === "loki" && <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} importLetta={importLetta} importStatus={importStatus} />}
           {page === "inbox" && <InboxPage />}
           {page === "providers" && <ProvidersPage chatLink={chatLink} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
+          {page === "mcp" && <McpPage mcp={mcp} chatLink={chatLink} />}
           {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
           {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
           {page === "learn" && <RecallPage recall={recall} />}
           {page === "appearance" && <AppearancePage />}
-          {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
+          {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} approvals={chatLink === "open" ? mcp.approvals : null} />}
           {page === "files" && <FilesPage />}
           {page === "keys" && <KeysPage shortcut={shortcut} />}
           <div className="loki-label" style={{ textAlign: "center", paddingTop: 12 }}>
@@ -351,12 +356,25 @@ function RecallPage({ recall }: { recall: RecallModel }) {
   );
 }
 
-function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void }) {
+function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement, approvals }: { chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; approvals: McpApi["approvals"] | null }) {
   return (
-    <Section title="Chat" hint="how the panel sits on the sheet">
-      <Fact label="Position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
-      <Fact label="Side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
-      <Fact label="Empty canvas" value="opens the chat centred until the first widget lands" />
+    <>
+      <Section title="Chat" hint="how the panel sits on the sheet">
+        <Fact label="Position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
+        <Fact label="Side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
+        <Fact label="Empty canvas" value="opens the chat centred until the first widget lands" />
+      </Section>
+      <Section title="Always allowed" hint="tools that run without asking, in every chat and mode but strict">
+        {approvals ? <AlwaysAllowed api={approvals} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
+      </Section>
+    </>
+  );
+}
+
+function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
+  return (
+    <Section title="MCP" hint="servers your agents can use; their tools load only when an agent searches for them">
+      {chatLink === "open" ? <Mcp api={mcp} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
     </Section>
   );
 }

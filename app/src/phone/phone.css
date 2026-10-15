@@ -960,6 +960,19 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-decide-btn:active { background: var(--loki-selection); }
 .loki-phone-decide-btn--affirm, .loki-phone-decide-btn--affirm:active { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
 .loki-phone-decide-btn--deny { color: var(--loki-negative); }
+/* "Always allow <tool>": under the two decisions, quieter than either; it allows this tool from now on, in every chat. */
+.loki-phone-decide-always {
+  grid-column: 1 / -1;
+  min-height: var(--phone-touch);
+  border: 0;
+  background: none;
+  color: var(--loki-muted);
+  font: inherit;
+  font-size: var(--phone-text-meta);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.loki-phone-decide-always:active { color: var(--loki-fg); }
 /* A deferred card's row: Bring back beside it, visible, not behind a long press. */
 .loki-phone-row-action {
   flex: none;
@@ -1107,8 +1120,18 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-model-line, .loki-phone .loki-model-aside, .loki-phone .loki-model-status { font-size: var(--phone-text-meta); }
 .loki-phone .loki-model-provider { padding: var(--phone-space-2) var(--phone-space-4) 0; }
 
-/* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour. */
-.loki-phone .loki-conversation-footer { flex-wrap: nowrap; }
+/* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour; "always allow"
+   takes a quiet row of its own under them, as under an Inbox card. */
+.loki-phone .loki-conversation-footer { flex-wrap: wrap; }
+.loki-phone .loki-conversation-footer .loki-approve-always {
+  order: 3;
+  flex: 1 0 100%;
+  min-height: var(--phone-touch);
+  border: 0;
+  background: none;
+  color: var(--loki-muted);
+  font-size: var(--phone-text-meta);
+}
 .loki-phone .loki-conversation-footer .loki-approve, .loki-phone .loki-conversation-footer .loki-deny {
   flex: 1;
   min-height: var(--phone-touch);

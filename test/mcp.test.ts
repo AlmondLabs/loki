@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTransport, type Transport } from "@modelcontextprotocol/client";
@@ -8,7 +8,7 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
-import { parseConfig, readConfig, serverKey } from "../daemon/mcp/config.ts";
+import { editServer, parseConfig, readConfig, serverKey, setAlwaysLoad, withSecrets } from "../daemon/mcp/config.ts";
 import { backoffMs, McpServers, toolKey, type Connector, type McpTool } from "../daemon/mcp/servers.ts";
 import { rank, selected, words } from "../daemon/mcp/search.ts";
 import { ERROR_KEEP, mapResult, START_CHARS } from "../daemon/mcp/results.ts";
@@ -48,8 +48,8 @@ describe("MCP config", () => {
       }),
     );
     expect(c.servers).toEqual([
-      { kind: "local", name: "github", command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: "t" }, cwd: null, alwaysLoad: ["list_issues"] },
-      { kind: "remote", name: "my_linear", url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer x" }, alwaysLoad: [] },
+      { kind: "local", name: "github", entry: "github", command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: "t" }, cwd: null, alwaysLoad: ["list_issues"] },
+      { kind: "remote", name: "my_linear", entry: "my linear", url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer x" }, alwaysLoad: [] },
     ]);
     expect(c.problems).toEqual(['nothing: needs a "command" (a local server) or a "url" (a remote one)', 'ftp: "ftp://nope" is not an http(s) URL']);
     expect(parseConfig("{not json").problems[0]).toMatch(/not valid JSON/);
@@ -122,7 +122,7 @@ describe("MCP servers", () => {
     const mem = inMemory();
     const servers = new McpServers({ connect: mem.connect });
     try {
-      servers.configure([{ kind: "local", name: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: ["list_issues"] }]);
+      servers.configure([{ kind: "local", name: "fake", entry: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: ["list_issues"] }]);
       await until(() => servers.status()[0]?.state === "connected");
       expect(servers.status()[0]).toMatchObject({ name: "fake", state: "connected", tools: TOOLS.length, purpose: "A fake issue tracker for tests" });
       const list = servers.tools().find((t) => t.name === "list_issues")!;
@@ -152,8 +152,8 @@ describe("MCP servers", () => {
     const servers = new McpServers();
     try {
       servers.configure([
-        { kind: "local", name: "fake", command: process.execPath, args: [script], env: {}, cwd: null, alwaysLoad: [] },
-        { kind: "local", name: "missing", command: join(tmpdir(), "no-such-mcp-server"), args: [], env: {}, cwd: null, alwaysLoad: [] },
+        { kind: "local", name: "fake", entry: "fake", command: process.execPath, args: [script], env: {}, cwd: null, alwaysLoad: [] },
+        { kind: "local", name: "missing", entry: "missing", command: join(tmpdir(), "no-such-mcp-server"), args: [], env: {}, cwd: null, alwaysLoad: [] },
       ]);
       await until(() => servers.status().every((s) => s.state !== "starting"), 10_000);
       const [fake, missing] = servers.status();
@@ -293,6 +293,102 @@ describe("loki.mcp in a chat", () => {
       expect(kindOf("mcp_search", s.mcp.annotations("mcp_search"))).toBe("read");
     } finally {
       await s.cleanup();
+    }
+  });
+});
+
+describe("MCP settings: the file, secrets, and per-agent switches", () => {
+  test("an edit keeps what loki does not know; renames, removes, and refuses a file that is not JSON", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-edit-"));
+    const path = join(dir, "mcp.json");
+    try {
+      writeFileSync(path, JSON.stringify({ note: "mine", mcpServers: { gh: { command: "old", timeout: 30, alwaysLoad: ["a"] } } }));
+      editServer(path, "gh", { command: "github-mcp-server", args: ["stdio"], env: { T: "x" }, cwd: null });
+      let raw = JSON.parse(readFileSync(path, "utf8"));
+      expect(raw).toEqual({ note: "mine", mcpServers: { gh: { timeout: 30, alwaysLoad: ["a"], command: "github-mcp-server", args: ["stdio"], env: { T: "x" } } } });
+      editServer(path, "gh", { url: "https://x.example/mcp", headers: {} }, { rename: "github" });
+      raw = JSON.parse(readFileSync(path, "utf8"));
+      expect(raw.mcpServers).toEqual({ github: { timeout: 30, alwaysLoad: ["a"], url: "https://x.example/mcp" } });
+      setAlwaysLoad(path, "github", ["b", "b"]);
+      expect(JSON.parse(readFileSync(path, "utf8")).mcpServers.github.alwaysLoad).toEqual(["b"]);
+      editServer(path, "linear", { url: "https://l.example/mcp", headers: { A: "1" } });
+      expect(() => editServer(path, "linear", { url: "https://l.example/mcp", headers: {} }, { rename: "github" })).toThrow(/already a server named github/);
+      editServer(path, "github", null);
+      expect(Object.keys(JSON.parse(readFileSync(path, "utf8")).mcpServers)).toEqual(["linear"]);
+      expect(() => editServer(path, "x", { url: "ftp://nope", headers: {} })).toThrow(/not an http/);
+      if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600);
+      writeFileSync(path, "{broken");
+      expect(() => editServer(path, "x", null)).toThrow();
+      expect(readFileSync(path, "utf8")).toBe("{broken"); // left for you to fix, not overwritten
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("${keychain:…} values are filled in when a server connects; a missing secret says which", async () => {
+    const config = { kind: "local" as const, name: "gh", entry: "gh", command: "x", args: [], env: { TOKEN: "Bearer ${keychain:gh.TOKEN}", PLAIN: "p" }, cwd: null, alwaysLoad: [] };
+    const filled = await withSecrets(config, async (n) => (n === "gh.TOKEN" ? "s3cret" : null));
+    expect(filled).toMatchObject({ env: { TOKEN: "Bearer s3cret", PLAIN: "p" } });
+    await expect(withSecrets(config, async () => null)).rejects.toThrow(/no secret named gh.TOKEN/);
+    const seen: Array<Record<string, string>> = [];
+    const mem = inMemory();
+    const servers = new McpServers({ connect: async (c, client, err) => (seen.push(c.kind === "local" ? c.env : c.headers), mem.connect(c, client, err)), resolve: (c) => withSecrets(c, async () => "s3cret") });
+    try {
+      servers.configure([config]);
+      await until(() => servers.status()[0]?.state === "connected");
+      expect(seen[0].TOKEN).toBe("Bearer s3cret");
+      expect(servers.configs()[0]).toMatchObject({ env: { TOKEN: "Bearer ${keychain:gh.TOKEN}" } }); // the file's form is what is kept
+    } finally {
+      await servers.close();
+    }
+  });
+
+  test("Settings sees each server with its tools and costs; edits, always-load and secrets go through; a switched-off server is gone for that agent", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-view-"));
+    const secrets = new Map<string, string>();
+    const registry = createRegistry();
+    const mem = inMemory();
+    const mcp = new McpTools({ registry, configPath: join(dir, "mcp.json"), lokiDir: dir, servers: new McpServers({ connect: mem.connect }), secrets: { get: async (a) => secrets.get(a) ?? null, set: async (a, v) => void secrets.set(a, v) } });
+    try {
+      mcp.setServer("fake", { command: "x", args: [], env: {}, cwd: null });
+      await until(() => mcp.view().servers[0]?.state === "connected");
+      const v = mcp.view();
+      expect(v.servers[0]).toMatchObject({ name: "fake", entry: "fake", kind: "local", purpose: "A fake issue tracker for tests", offFor: [] });
+      expect(v.servers[0].tools).toHaveLength(6);
+      expect(v.servers[0].tools[0]).toMatchObject({ name: "list_issues", readOnly: true, alwaysLoad: false });
+      expect(v.servers[0].tokens).toBe(v.servers[0].tools.reduce((n, t) => n + t.tokens, 0));
+      expect(v.servers[0].tools[0].tokens).toBeGreaterThan(10);
+      mcp.setAlwaysLoad("fake", ["list_issues"]);
+      await until(() => mcp.view().servers[0]?.tools[0]?.alwaysLoad === true);
+      expect(await mcp.storeSecret("fake.TOKEN", "s3cret")).toBe("${keychain:fake.TOKEN}");
+      expect(secrets.get("mcp.fake.TOKEN")).toBe("s3cret");
+      // Switched off for one agent: out of that agent's section, while another agent still sees it.
+      mcp.setAgentServer("agent-local-a", "fake", false);
+      expect(mcp.view().servers[0].offFor).toEqual(["agent-local-a"]);
+      expect(mcp.sectionText("agent-local-a")).toBeUndefined();
+      expect(mcp.sectionText("agent-local-b")).toContain("- fake");
+      expect(JSON.parse(readFileSync(join(dir, "state", "mcp-agents.json"), "utf8"))).toEqual({ off: { "agent-local-a": ["fake"] } });
+      // …and out of that agent's chats: hidden by the filter, always-load tools too.
+      const faux = fauxProvider();
+      const models = createModels();
+      models.setProvider(faux.provider);
+      const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
+      await store.setAgent({ id: "agent-local-a", name: "Ada" }, ctx);
+      const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+      await mcp.prepare(store, chat, ctx);
+      const hidden = ((await store.agentSettings(chat.id, ctx)) as { tools: { remove: string[] } }).tools.remove;
+      expect(hidden).toContain("mcp__fake__list_issues");
+      mcp.setAgentServer("agent-local-a", "fake", true);
+      await mcp.prepare(store, chat, ctx);
+      const after = ((await store.agentSettings(chat.id, ctx)) as { tools: { remove: string[] } }).tools.remove;
+      expect(after).not.toContain("mcp__fake__list_issues"); // always loaded again
+      expect(after).toContain("mcp__fake__create_issue");
+      await store.close(ctx);
+      mcp.setServer("fake", null);
+      expect(mcp.view().servers).toEqual([]);
+    } finally {
+      await mcp.close();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

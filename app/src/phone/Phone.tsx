@@ -470,7 +470,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
           onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
         }}
-        onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny", "tap"), catchUp.approve(item, requestId, behavior))}
+        onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", "tap"), catchUp.approve(item, requestId, behavior))}
         onSeen={(item, how) => (catchUp.decided(item, "next", how), catchUp.seen(item))}
         onShown={catchUp.shown}
         onArchive={(item) => {

@@ -19,6 +19,9 @@ export type ChatClient = Pick<
   | "deleteAgent"
   | "deleteMemoryFile"
   | "revertMemoryCommit"
+  | "approvalsAlways"
+  | "setApprovalAlways"
+  | "mcp"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -226,8 +229,9 @@ export class FrameChatClient {
   }
 
   /** The thread comes from the mod's history (history_get) on the daemon; there is no second source. */
-  async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
-    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, approvalId: requestId, allow: behavior === "allow", message: null })).accepted;
+  /** "always" allows this call and every later one of the same tool (daemon/approvals.ts), but in strict mode. */
+  async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always"): Promise<boolean> {
+    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, approvalId: requestId, allow: behavior !== "deny", always: behavior === "always", message: null })).accepted;
   }
 
   async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
@@ -279,6 +283,22 @@ export class FrameChatClient {
   async revertMemoryCommit(agentId: string, sha: string): Promise<void> {
     await this.call("chat_memory_revert", { agentId, sha });
   }
+  /** The tools that run without asking (but in strict mode), and taking one back or adding one. */
+  async approvalsAlways(): Promise<string[]> {
+    return (await this.call("chat_approvals_get", {})).always;
+  }
+  async setApprovalAlways(tool: string, on: boolean): Promise<string[]> {
+    return (await this.call("chat_approvals_set", { tool, on })).always;
+  }
+  /** Settings › MCP and Agents › Profile: each call answers with the servers as they now are. */
+  readonly mcp = {
+    get: () => this.call("chat_mcp_get", {}),
+    server: (entry: string, edit: InputOf<"chat_mcp_server">["edit"], rename?: string) => this.call("chat_mcp_server", { entry, edit, rename: rename ?? null }),
+    alwaysLoad: (entry: string, tools: string[]) => this.call("chat_mcp_always_load", { entry, tools }),
+    restart: (name: string) => this.call("chat_mcp_restart", { name }),
+    agent: (agentId: string, server: string, on: boolean) => this.call("chat_mcp_agent", { agentId, server, on }),
+    secret: async (name: string, value: string) => (await this.call("chat_mcp_secret", { name, value })).ref,
+  };
   async skillEnable(skillPath: string): Promise<{ name: string; linkPath: string }> {
     return this.call("chat_skill_enable", { path: skillPath });
   }

@@ -8,6 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
+import type { McpView } from "../core/frame-types.ts";
 import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
@@ -39,8 +40,8 @@ type Deps = {
   providers: Providers;
   /** The background passes (daemon/passes.ts): reflection and Learn. Absent in tests that run none. */
   passes?: { runner: PassRunner; state: PassState };
-  /** MCP's tools (daemon/mcp/): each chat's filter is set before it runs, and emptied by /clear and a compaction. */
-  mcp?: Pick<McpTools, "prepare" | "forget">;
+  /** MCP (daemon/mcp/): each chat's filter is set before it runs and emptied by /clear and a compaction; Settings edits it. */
+  mcp?: McpTools;
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -106,7 +107,44 @@ export class DaemonChats implements ChatBackend {
   }
 
   async approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
-    return this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined);
+    return this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined, p.always);
+  }
+
+  async approvals(): Promise<{ always: string[] }> {
+    return { always: this.deps.approvals.always() };
+  }
+
+  async setApproval(p: PayloadOf<"chat_approvals_set">): Promise<{ always: string[] }> {
+    return { always: this.deps.approvals.setAlways(p.tool, p.on) };
+  }
+
+  private get mcpTools(): McpTools {
+    if (!this.deps.mcp) throw new Error("MCP is not running in this daemon");
+    return this.deps.mcp;
+  }
+
+  async mcp(): Promise<McpView> {
+    return this.mcpTools.view();
+  }
+
+  async mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<McpView> {
+    return this.mcpTools.setServer(p.entry, p.edit, p.rename ?? undefined);
+  }
+
+  async mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<McpView> {
+    return this.mcpTools.setAlwaysLoad(p.entry, p.tools);
+  }
+
+  async mcpRestart(name: string): Promise<McpView> {
+    return this.mcpTools.restart(name);
+  }
+
+  async mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<McpView> {
+    return this.mcpTools.setAgentServer(p.agentId, p.server, p.on);
+  }
+
+  async mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<{ ref: string }> {
+    return { ref: await this.mcpTools.storeSecret(p.name, p.value) };
   }
 
   async answer(p: PayloadOf<"chat_answer">): Promise<boolean> {

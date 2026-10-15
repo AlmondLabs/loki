@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { CardConversation, type CardActions } from "../app/src/phone/Inbox.tsx";
+import { CardConversation, Decisions, type CardActions } from "../app/src/phone/Inbox.tsx";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
@@ -70,5 +70,22 @@ describe("the Inbox card's message box", () => {
     expect(render(item(), actions(model))).not.toContain("loki-phone-notice");
     expect(render(item({ status: "approval" }), actions(model))).toContain("friday needs your approval");
     expect(render(item(), actions(model), "streaming")).toContain("friday is writing");
+  });
+});
+
+describe("the phone's decisions under a card", () => {
+  const html = (over: Partial<AttentionItem>) => renderToStaticMarkup(createElement(Decisions, { item: item(over), onOpen: () => {}, onSeen: () => {}, onApprove: () => {} }));
+
+  test("an approval offers deny, approve, and always allowing the tool", () => {
+    const out = html({ pendingApproval: { requestId: "approval-t1", toolName: "mcp__github__create_issue", input: {}, at: "2026-09-25T10:00:00Z" } as AttentionItem["pendingApproval"] });
+    expect(out).toContain(">Deny<");
+    expect(out).toContain(">Approve<");
+    expect(out).toContain("Always allow mcp__github__create_issue");
+  });
+
+  test("anything else offers open and next, and no always", () => {
+    const out = html({});
+    expect(out).toContain(">Open chat<");
+    expect(out).not.toContain("Always allow");
   });
 });

@@ -1,4 +1,7 @@
 import { describe, expect, test } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
@@ -32,11 +35,11 @@ describe("the permission modes", () => {
 });
 
 /** A store whose chats run through the gate, with a command tool and an edit tool that record their runs. */
-async function setup(mode: PermissionMode) {
+async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);
-  const approvals = new Approvals();
+  const approvals = new Approvals(opts.alwaysPath ? { alwaysPath: opts.alwaysPath } : {});
   const pushed: ChatEvent[] = [];
   approvals.attach((_a, _c, events) => pushed.push(...events));
   const ran: string[] = [];
@@ -68,6 +71,42 @@ const until = async (check: () => boolean, ms = 2000) => {
 const approvalIds = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.requestId] : []));
 
 describe("approvals in a chat", () => {
+  test("always allow: the tool stops asking (but in strict mode), in every chat, kept across a restart, until taken back", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-always-"));
+    const alwaysPath = join(dir, "state", "approvals.json");
+    const s = await setup("standard", { alwaysPath });
+    try {
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "1" }, { id: "t1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "2" }, { id: "t2" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      expect(s.approvals.decide("approval-t1", true, undefined, true)).toBe(true);
+      await run;
+      expect(s.ran).toEqual(["bash:1", "bash:2"]); // the second call never asked
+      expect(approvalIds(s.pushed)).toEqual(["approval-t1"]);
+      expect(JSON.parse(readFileSync(alwaysPath, "utf8"))).toEqual({ always: ["bash"] });
+      // Strict mode asks for everything, always-allowed tools too.
+      await s.store.updateChat("c", { mode: "strict" }, ctx);
+      s.faux.setResponses([s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "3" }, { id: "t3" }), { stopReason: "toolUse" })), s.reply(fauxAssistantMessage("ok"))]);
+      const strict = (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 2);
+      s.approvals.decide("approval-t3", true);
+      await strict;
+    } finally {
+      await s.store.close(ctx);
+    }
+    // A new gate (the daemon restarted) reads what was kept; taken back, the tool asks again.
+    const again = new Approvals({ alwaysPath });
+    expect(again.always()).toEqual(["bash"]);
+    expect(again.setAlways("bash", false)).toEqual([]);
+    expect(new Approvals({ alwaysPath }).always()).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+
   test("a command waits for the person; allowed, it runs; the client following the chat sees the ask and the loop", async () => {
     const s = await setup("standard");
     try {

@@ -69,7 +69,7 @@ describe("the frame table", () => {
     expect(FRAMES.history_get.parse({ agentId: "a" })).toBe("conversationId required");
     // A payload never names its own `requestId`: the app spreads it after the frame's, and its reply would go unmatched.
     const approve = { requestId: "frame-1", agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true };
-    expect(FRAMES.chat_approve.parse(approve)).toEqual({ agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true, message: null });
+    expect(FRAMES.chat_approve.parse(approve)).toEqual({ agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true, message: null, always: false });
     expect(FRAMES.chat_answer.parse({ requestId: "frame-2", agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} })).toEqual({ agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} });
     expect(FRAMES.history_get.parse({ conversationId: "c", limit: 99999 })).toEqual({ agentId: null, conversationId: "c", limit: 99999 });
     expect(FRAMES.task_assign.parse({ ids: ["t1"], conversationId: "c" })).toBe("assign needs a conversation and a chat");
@@ -194,5 +194,32 @@ describe("a parser that throws", () => {
     const c = client("d1");
     bridge.onMessage(c, { type: "task_status", requestId: "r1", ids: ["t"], status: { toString: 1 } });
     expect(c.sent.at(-1)).toMatchObject({ type: "error", requestId: "r1" });
+  });
+});
+
+describe("frames: approvals and MCP settings", () => {
+  const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) => (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
+  const chat = { agentId: "agent-local-a", conversationId: "c" };
+
+  test("an approval carries 'always' only when it says so", () => {
+    expect(parse("chat_approve", { ...chat, approvalId: "approval-t1", allow: true, always: true })).toMatchObject({ allow: true, always: true });
+    expect(parse("chat_approve", { ...chat, approvalId: "approval-t1", allow: true, always: "yes" })).toMatchObject({ always: false });
+    expect(parse("chat_approvals_set", { tool: "bash", on: false })).toEqual({ tool: "bash", on: false });
+    expect(parse("chat_approvals_set", { tool: "bash" })).toBe("tool and on required");
+  });
+
+  test("an MCP server edit is a local or a remote server, or null to remove; anything else is refused before the daemon", () => {
+    expect(parse("chat_mcp_server", { entry: "gh", edit: { command: "x", args: ["a", 1], env: { T: "v" } } })).toEqual({ entry: "gh", edit: { command: "x", args: ["a"], env: { T: "v" }, cwd: null }, rename: null });
+    expect(parse("chat_mcp_server", { entry: "gh", edit: { url: "https://x", headers: { A: "1" } }, rename: "github" })).toEqual({ entry: "gh", edit: { url: "https://x", headers: { A: "1" } }, rename: "github" });
+    expect(parse("chat_mcp_server", { entry: "gh", edit: null })).toEqual({ entry: "gh", edit: null, rename: null });
+    expect(parse("chat_mcp_server", { entry: "gh", edit: { command: "x", env: { T: 1 } } })).toBe("env must map names to strings");
+    expect(parse("chat_mcp_server", { entry: "gh", edit: {} })).toBe("a server needs a command or a url");
+    expect(parse("chat_mcp_server", { entry: " ", edit: null })).toBe("entry required");
+    expect(parse("chat_mcp_agent", { agentId: "agent-local-a", server: "gh", on: true })).toEqual({ agentId: "agent-local-a", server: "gh", on: true });
+    expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
+  });
+
+  test("none of the MCP or always-allow frames reach a phone", () => {
+    for (const n of ["chat_mcp_get", "chat_mcp_server", "chat_mcp_secret", "chat_mcp_agent", "chat_approvals_set"] as const) expect(PHONE_FRAMES.has(n)).toBe(false);
   });
 });

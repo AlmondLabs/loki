@@ -416,7 +416,7 @@ export function useAttention(opts: UseAttentionOptions) {
     [live, older, loadOlder],
   );
 
-  const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny") => {
+  const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always") => {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
     const was = l?.pending?.requestId === requestId ? l.pending : null;
     if (l && was) l.pending = null; // optimistic: the card clears at once
@@ -430,7 +430,7 @@ export function useAttention(opts: UseAttentionOptions) {
       bump();
     });
   }, [bump]);
-  const approve = useCallback((item: AttentionItem, requestId: string, behavior: "allow" | "deny") => decide(item.runtime, requestId, behavior), [decide]);
+  const approve = useCallback((item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => decide(item.runtime, requestId, behavior), [decide]);
 
   /** Answer a pending AskUserQuestion; the card clears at once and comes back if the server refuses. */
   const answer = useCallback((rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => {
@@ -608,6 +608,27 @@ export function useAttention(opts: UseAttentionOptions) {
     }),
     [],
   );
+  /** Settings › MCP, Agents › Profile and Settings › Chat's always-allowed tools; each resolves to its result or an error message. */
+  const mcp = useMemo(() => {
+    const via = async <T,>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      return work(sock).catch((err: unknown) => (err instanceof Error ? err.message : String(err)));
+    };
+    return {
+      get: () => via((s) => s.mcp.get()),
+      server: (entry: string, edit: Parameters<ChatClient["mcp"]["server"]>[1], rename?: string) => via((s) => s.mcp.server(entry, edit, rename)),
+      alwaysLoad: (entry: string, tools: string[]) => via((s) => s.mcp.alwaysLoad(entry, tools)),
+      restart: (name: string) => via((s) => s.mcp.restart(name)),
+      agent: (agentId: string, server: string, on: boolean) => via((s) => s.mcp.agent(agentId, server, on)),
+      // A reference on success, an error message otherwise: never confusable, since one would land in mcp.json.
+      secret: (name: string, value: string) => via(async (s) => ({ ref: await s.mcp.secret(name, value) })),
+      approvals: {
+        list: () => via((s) => s.approvalsAlways()),
+        set: (tool: string, on: boolean) => via((s) => s.setApprovalAlways(tool, on)),
+      },
+    };
+  }, []);
   const skills = useMemo(
     () => ({
       enable: async (path: string): Promise<string | null> => {
@@ -804,6 +825,7 @@ export function useAttention(opts: UseAttentionOptions) {
     createAgent,
     deleteAgent,
     memory,
+    mcp,
     skills,
     updateAgent,
     reflection,
