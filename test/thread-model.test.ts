@@ -16,23 +16,31 @@ const tools = (rows: TranscriptRow[] | undefined) => (rows ?? []).filter((r) => 
 
 describe("app-server history as a thread", () => {
   test("protocol messages fold into a readable thread: markup stripped, machinery as events, reasoning and returns dropped", () => {
-    const t = foldSteps(historySteps([
-      msg("user_message", { content: "<system-reminder>x</system-reminder>go" }),
-      msg("reasoning_message", { reasoning: "hmm" }),
-      msg("tool_call_message", { tool_call: { name: "Bash" } }),
-      msg("tool_return_message", { tool_return: "ok" }),
-      msg("user_message", { content: "<task-notification><task-id>b1</task-id><status>completed</status><summary>ran</summary><result>a &gt; b</result></task-notification>" }),
-      msg("assistant_message", { content: "Done." }),
-    ]));
+    const t = foldSteps(
+      historySteps([
+        msg("user_message", { content: "<system-reminder>x</system-reminder>go" }),
+        msg("reasoning_message", { reasoning: "hmm" }),
+        msg("tool_call_message", { tool_call: { name: "Bash" } }),
+        msg("tool_return_message", { tool_return: "ok" }),
+        msg("user_message", {
+          content: "<task-notification><task-id>b1</task-id><status>completed</status><summary>ran</summary><result>a &gt; b</result></task-notification>",
+        }),
+        msg("assistant_message", { content: "Done." }),
+      ]),
+    );
     expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:go", "tool:Bash", "event:background task b1 completed", "assistant:Done."]);
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
   });
 
   test("history with times yields rows with times; history without yields rows without", () => {
-    expect(foldSteps(historySteps([
-      { message_type: "user_message", content: "hi", date: "2026-09-23T08:00:00Z" },
-      { message_type: "assistant_message", content: "hello", date: "2026-09-23T08:00:05Z" },
-    ]))).toEqual([
+    expect(
+      foldSteps(
+        historySteps([
+          { message_type: "user_message", content: "hi", date: "2026-09-23T08:00:00Z" },
+          { message_type: "assistant_message", content: "hello", date: "2026-09-23T08:00:05Z" },
+        ]),
+      ),
+    ).toEqual([
       { role: "user", text: "hi", at: "2026-09-23T08:00:00Z" },
       { role: "assistant", text: "hello", at: "2026-09-23T08:00:05Z" },
     ]);
@@ -42,11 +50,13 @@ describe("app-server history as a thread", () => {
   });
 
   test("a call is paired with its return by id; its approval request with the same id is the same row", () => {
-    const rows = foldSteps(historySteps([
-      { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-      { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-      { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "error" },
-    ]));
+    const rows = foldSteps(
+      historySteps([
+        { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
+        { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
+        { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "error" },
+      ]),
+    );
     expect(rows).toEqual([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a.ts", failed: true } }]);
   });
 });
@@ -68,8 +78,16 @@ describe("one row per tool call", () => {
   });
 
   test("a second call of the same tool straight after the first is its own row, and gets its own result", () => {
-    const rows = foldSteps([call("Read", "r1", { path: "a.ts" }), call("Read", "r2", { path: "b.ts" }), { kind: "result", id: "r2", output: "b", failed: false }, { kind: "result", id: "r1", output: "a", failed: false }]);
-    expect(rows.map((r) => [r.text, r.tool?.output])).toEqual([["Read · a.ts", "a"], ["Read · b.ts", "b"]]);
+    const rows = foldSteps([
+      call("Read", "r1", { path: "a.ts" }),
+      call("Read", "r2", { path: "b.ts" }),
+      { kind: "result", id: "r2", output: "b", failed: false },
+      { kind: "result", id: "r1", output: "a", failed: false },
+    ]);
+    expect(rows.map((r) => [r.text, r.tool?.output])).toEqual([
+      ["Read · a.ts", "a"],
+      ["Read · b.ts", "b"],
+    ]);
   });
 
   test("an approval with no open call is a call; once something was said after a call, it is no longer open", () => {
@@ -109,7 +127,11 @@ describe("the live thread", () => {
     expect(chatStatusOf(l)).toBe("streaming");
     applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } }));
     applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } })); // same call, more deltas
-    expect(l.thread.rows()).toMatchObject([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
+    expect(l.thread.rows()).toMatchObject([
+      { role: "user", text: "hello" },
+      { role: "assistant", text: "Let me" },
+      { role: "tool", text: "Bash" },
+    ]);
     applyEvent(l, delta("assistant_message", { content: "done." }));
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(l.thread.rows()!.at(-1)).toMatchObject({ role: "assistant", text: "done." });
@@ -225,8 +247,20 @@ describe("slash command rows", () => {
     expect(l.thread.rows()![1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
     // A short failure says why on the row itself.
     applyEvent(l, d({ message_type: "slash_command_start", command_id: "doctor", input: "/doctor" }));
-    applyEvent(l, d({ message_type: "slash_command_end", command_id: "doctor", input: "/doctor", output: "a memory review of this agent is already running", success: false }));
-    expect(l.thread.rows()!.find((r) => r.text === "/doctor")).toMatchObject({ summary: "failed: a memory review of this agent is already running", detail: null });
+    applyEvent(
+      l,
+      d({
+        message_type: "slash_command_end",
+        command_id: "doctor",
+        input: "/doctor",
+        output: "a memory review of this agent is already running",
+        success: false,
+      }),
+    );
+    expect(l.thread.rows()!.find((r) => r.text === "/doctor")).toMatchObject({
+      summary: "failed: a memory review of this agent is already running",
+      detail: null,
+    });
     // An end without a start still lands as a row.
     applyEvent(l, d({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
     expect(l.thread.rows()!.find((r) => r.text === "/clear")).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
@@ -243,8 +277,17 @@ describe("a history page arriving", () => {
     const t = new ThreadModel();
     t.apply({ kind: "call", name: "Bash", args: { command: "ls" }, id: "c7", at: t1001 });
     t.apply({ kind: "assistant", text: "a2", at: t1003 });
-    t.load([{ role: "user", text: "u1", at: "2026-10-09T10:00:00.000Z" }, { role: "assistant", text: "a1", at: t1002 }, { ...call7, at: null }]);
-    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([["u1", "2026-10-09T10:00:00.000Z"], ["a1", t1002], ["Bash · ls", t1001], ["a2", t1003]]);
+    t.load([
+      { role: "user", text: "u1", at: "2026-10-09T10:00:00.000Z" },
+      { role: "assistant", text: "a1", at: t1002 },
+      { ...call7, at: null },
+    ]);
+    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([
+      ["u1", "2026-10-09T10:00:00.000Z"],
+      ["a1", t1002],
+      ["Bash · ls", t1001],
+      ["a2", t1003],
+    ]);
   });
 
   test("a row Letta never echoes (the answers to a question) goes once the page is newer than it", () => {
@@ -258,8 +301,16 @@ describe("a history page arriving", () => {
     const t = new ThreadModel();
     t.beginCommand("/compact", t1001);
     t.queue({ role: "user", text: "and also", at: t1001 });
-    t.load([{ role: "user", text: "and also", at: "2026-10-09T09:00:00.000Z" }, { role: "assistant", text: "a1", at: t1002 }]);
-    expect(t.rows()!.map((r) => [r.text, r.queued === true])).toEqual([["and also", false], ["a1", false], ["/compact", false], ["and also", true]]);
+    t.load([
+      { role: "user", text: "and also", at: "2026-10-09T09:00:00.000Z" },
+      { role: "assistant", text: "a1", at: t1002 },
+    ]);
+    expect(t.rows()!.map((r) => [r.text, r.queued === true])).toEqual([
+      ["and also", false],
+      ["a1", false],
+      ["/compact", false],
+      ["and also", true],
+    ]);
   });
 
   test("a page with no times keeps only what is pending, and takes the times the thread knew", () => {
@@ -267,30 +318,55 @@ describe("a history page arriving", () => {
     t.apply({ kind: "user", raw: "ok", at: t1001 });
     t.apply({ kind: "assistant", text: "unseen by the page", at: t1003 });
     t.queue({ role: "user", text: "later", at: t1003 });
-    t.load([{ role: "user", text: "ok" }, { role: "assistant", text: "earlier" }]);
-    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([["ok", t1001], ["earlier", undefined], ["later", t1003]]);
+    t.load([
+      { role: "user", text: "ok" },
+      { role: "assistant", text: "earlier" },
+    ]);
+    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([
+      ["ok", t1001],
+      ["earlier", undefined],
+      ["later", t1003],
+    ]);
   });
 
   test("rows are paired from the end: an older repeat does not take the newest one's time; a second load keeps the times", () => {
     const t = new ThreadModel();
     t.apply({ kind: "user", raw: "ok", at: t1001 });
     t.apply({ kind: "assistant", text: "done", at: t1002 });
-    t.load([{ role: "user", text: "ok" }, { role: "assistant", text: "earlier" }, { role: "user", text: "ok" }, { role: "assistant", text: "done" }]);
+    t.load([
+      { role: "user", text: "ok" },
+      { role: "assistant", text: "earlier" },
+      { role: "user", text: "ok" },
+      { role: "assistant", text: "done" },
+    ]);
     expect(t.rows()!.map((r) => r.at)).toEqual([undefined, undefined, t1001, t1002]);
-    t.load([{ role: "user", text: "ok" }, { role: "assistant", text: "done" }]);
+    t.load([
+      { role: "user", text: "ok" },
+      { role: "assistant", text: "done" },
+    ]);
     expect(t.rows()!.map((r) => r.at)).toEqual([t1001, t1002]);
     // a page's own time wins
-    t.load([{ role: "user", text: "ok", at: "2026-10-09T09:59:59Z" }, { role: "assistant", text: "done" }]);
+    t.load([
+      { role: "user", text: "ok", at: "2026-10-09T09:59:59Z" },
+      { role: "assistant", text: "done" },
+    ]);
     expect(t.rows()!.map((r) => r.at)).toEqual(["2026-10-09T09:59:59Z", t1002]);
   });
 
   test("a message you repeat while the page is stale stays: it pairs only with a row newer than the last page", () => {
     const t = new ThreadModel();
-    const page = [{ role: "user" as const, text: "yes", at: "2026-10-09T10:00:00.000Z" }, { role: "assistant" as const, text: "done A", at: "2026-10-09T10:00:05.000Z" }];
+    const page = [
+      { role: "user" as const, text: "yes", at: "2026-10-09T10:00:00.000Z" },
+      { role: "assistant" as const, text: "done A", at: "2026-10-09T10:00:05.000Z" },
+    ];
     t.load(page);
     t.own({ role: "user", text: "yes", at: "2026-10-09T10:05:00.000Z" }, "yes");
     t.load(page); // read before the log held the new "yes"
-    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([["yes", "2026-10-09T10:00:00.000Z"], ["done A", "2026-10-09T10:00:05.000Z"], ["yes", "2026-10-09T10:05:00.000Z"]]);
+    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([
+      ["yes", "2026-10-09T10:00:00.000Z"],
+      ["done A", "2026-10-09T10:00:05.000Z"],
+      ["yes", "2026-10-09T10:05:00.000Z"],
+    ]);
     // once the log holds it, it pairs and goes
     t.load([...page, { role: "user", text: "yes", at: "2026-10-09T10:05:01.000Z" }]);
     expect(t.rows()!.map((r) => r.text)).toEqual(["yes", "done A", "yes"]);
@@ -325,7 +401,14 @@ describe("a history page arriving", () => {
 
 describe("every source makes the same thread", () => {
   const report = '<attachment kind="file" local_path="/tmp/r.pdf" name="r.pdf" />';
-  const dates = ["2026-10-09T10:00:00.000Z", "2026-10-09T10:00:01.000Z", "2026-10-09T10:00:02.000Z", "2026-10-09T10:00:03.000Z", "2026-10-09T10:00:04.000Z", "2026-10-09T10:00:05.000Z"];
+  const dates = [
+    "2026-10-09T10:00:00.000Z",
+    "2026-10-09T10:00:01.000Z",
+    "2026-10-09T10:00:02.000Z",
+    "2026-10-09T10:00:03.000Z",
+    "2026-10-09T10:00:04.000Z",
+    "2026-10-09T10:00:05.000Z",
+  ];
   const args = '{"command":"rm -rf build","description":"Clean the build"}';
   const backend = mkdtempSync(join(tmpdir(), "loki-thread-"));
   afterEach(() => rmSync(backend, { recursive: true, force: true }));
@@ -336,24 +419,53 @@ describe("every source makes the same thread", () => {
     mkdirSync(dir, { recursive: true });
     const lines = [
       { type: "message", timestamp: dates[0], message: { role: "user", content: [{ type: "text", text: `read this ${report}` }] } },
-      { type: "message", timestamp: dates[1], message: { role: "assistant", content: [{ type: "text", text: "On it." }, { type: "toolCall", id: "c1", name: "Bash", arguments: JSON.parse(args) }] } },
+      {
+        type: "message",
+        timestamp: dates[1],
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "On it." },
+            { type: "toolCall", id: "c1", name: "Bash", arguments: JSON.parse(args) },
+          ],
+        },
+      },
       { type: "message", message: { role: "toolResult", toolCallId: "c1", content: [{ type: "text", text: "permission denied" }], isError: true } },
       { type: "message", timestamp: dates[3], message: { role: "user", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } },
-      { type: "message", timestamp: dates[4], message: { role: "assistant", content: [{ type: "text", text: "Two parts," }, { type: "text", text: "one reply." }] } },
+      {
+        type: "message",
+        timestamp: dates[4],
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Two parts," },
+            { type: "text", text: "one reply." },
+          ],
+        },
+      },
     ];
     writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
     const fromLog = readLocalTranscriptPage("conv-same", null, 400, backend).rows;
 
     // Letta's message list for the same conversation.
-    const fromHistory = foldSteps(historySteps([
-      { message_type: "user_message", content: [{ type: "text", text: `read this ${report}` }], date: dates[0] },
-      { message_type: "assistant_message", content: "On it.", date: dates[1] },
-      { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
-      { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
-      { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "permission denied", status: "error", date: dates[2] },
-      { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>', date: dates[3] },
-      { message_type: "assistant_message", content: [{ type: "text", text: "Two parts," }, { type: "text", text: "one reply." }], date: dates[4] },
-    ]));
+    const fromHistory = foldSteps(
+      historySteps([
+        { message_type: "user_message", content: [{ type: "text", text: `read this ${report}` }], date: dates[0] },
+        { message_type: "assistant_message", content: "On it.", date: dates[1] },
+        { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
+        { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
+        { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "permission denied", status: "error", date: dates[2] },
+        { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>', date: dates[3] },
+        {
+          message_type: "assistant_message",
+          content: [
+            { type: "text", text: "Two parts," },
+            { type: "text", text: "one reply." },
+          ],
+          date: dates[4],
+        },
+      ]),
+    );
 
     // The same turn as it streams in, the reply in pieces.
     const l = emptyLive();
@@ -371,9 +483,22 @@ describe("every source makes the same thread", () => {
 
     expect(fromHistory).toEqual(fromLog);
     expect(live).toEqual(fromLog);
-    expect(fromLog.map((r) => `${r.role}:${r.text}`)).toEqual(["user:read this", "assistant:On it.", "tool:Bash · rm -rf build", "event:skill loaded", "assistant:Two parts,\none reply."]);
+    expect(fromLog.map((r) => `${r.role}:${r.text}`)).toEqual([
+      "user:read this",
+      "assistant:On it.",
+      "tool:Bash · rm -rf build",
+      "event:skill loaded",
+      "assistant:Two parts,\none reply.",
+    ]);
     expect(fromLog[0].files).toEqual([{ path: "/tmp/r.pdf", name: "r.pdf" }]);
-    expect(fromLog[2].tool).toEqual({ name: "Bash", id: "c1", input: "rm -rf build", description: "Clean the build", output: "permission denied", failed: true });
+    expect(fromLog[2].tool).toEqual({
+      name: "Bash",
+      id: "c1",
+      input: "rm -rf build",
+      description: "Clean the build",
+      output: "permission denied",
+      failed: true,
+    });
   });
 });
 

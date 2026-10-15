@@ -10,7 +10,10 @@ import { SheetRow } from "./Home";
  * the message on its own where the browser's selection works again (the thread keeps it off so the long press
  * is ours), and Add task where the host files tasks. `wrap` goes round the thread; `sheet` is drawn beside it.
  */
-export function useMessageActions(names: { user: string; assistant: string }, onAddTask?: ((row: TranscriptRow) => void) | null): { wrap: (thread: ReactNode) => ReactNode; sheet: ReactNode } {
+export function useMessageActions(
+  names: { user: string; assistant: string },
+  onAddTask?: ((row: TranscriptRow) => void) | null,
+): { wrap: (thread: ReactNode) => ReactNode; sheet: ReactNode } {
   const [held, setHeld] = useState<{ row: TranscriptRow; selecting: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
   const close = () => {

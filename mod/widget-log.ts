@@ -31,7 +31,14 @@ export const WIDGET_LOG_EXPECT_MS = 5_000;
 
 const isEntry = (v: unknown): v is WidgetLogEntry => {
   const e = v as WidgetLogEntry;
-  return typeof e === "object" && e !== null && typeof e.id === "string" && typeof e.at === "number" && typeof e.widgetId === "string" && typeof e.change === "string";
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    typeof e.id === "string" &&
+    typeof e.at === "number" &&
+    typeof e.widgetId === "string" &&
+    typeof e.change === "string"
+  );
 };
 
 export class WidgetLog {

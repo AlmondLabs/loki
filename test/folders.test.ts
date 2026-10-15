@@ -70,7 +70,9 @@ describe("folders", () => {
     expect(completeFolder("C:\\Users\\x\\Docu", home, 12, win)).toEqual(["C:\\Users\\x\\Documents"]);
     expect(completeFolder("~\\Pic", home, 12, win)).toEqual(["C:\\Users\\x\\Pictures"]);
     expect(completeFolder("~/Pic", home, 12, win)).toEqual(["C:\\Users\\x\\Pictures"]);
-    expect(completeFolder("~\\", home, 12, win)).toEqual(["C:\\Users\\x\\Documents", "C:\\Users\\x\\Downloads", "C:\\Users\\x\\Pictures", "C:\\Users\\x\\docker"].sort());
+    expect(completeFolder("~\\", home, 12, win)).toEqual(
+      ["C:\\Users\\x\\Documents", "C:\\Users\\x\\Downloads", "C:\\Users\\x\\Pictures", "C:\\Users\\x\\docker"].sort(),
+    );
     expect(completeFolder("C:/Users/x/Down", home, 12, win)).toEqual(["C:\\Users\\x\\Downloads"]);
     expect(completeFolder("C:\\", home, 12, win)).toEqual(["C:\\Users", "C:\\Windows"]);
     expect(completeFolder("C:\\W", home, 12, win)).toEqual(["C:\\Windows"]);
@@ -104,13 +106,32 @@ describe("folders", () => {
     expect(await dialogPick(undefined, chose(["C:\\a", "C:\\b"]))).toBe("C:\\a");
     expect(await dialogPick(undefined, chose([]))).toBeNull();
     expect(await dialogPick(undefined, chose(""))).toBeNull();
-    expect(await dialogPick(undefined, async () => { throw new Error("no dialog"); })).toBeNull();
+    expect(
+      await dialogPick(undefined, async () => {
+        throw new Error("no dialog");
+      }),
+    ).toBeNull();
   });
 
   test("the folder row shows Browse only where there is a chooser", () => {
     const html = (browser: BrowseWith) =>
       renderToStaticMarkup(
-        createElement(FolderPicker, { inputRef: createRef<HTMLInputElement>(), folder: "", onType: () => {}, onChoose: () => {}, status: null, options: [], listOpen: false, setListOpen: () => {}, busy: false, onBrowse: () => {}, agentName: null, source: null, canBrowse: true, browser }),
+        createElement(FolderPicker, {
+          inputRef: createRef<HTMLInputElement>(),
+          folder: "",
+          onType: () => {},
+          onChoose: () => {},
+          status: null,
+          options: [],
+          listOpen: false,
+          setListOpen: () => {},
+          busy: false,
+          onBrowse: () => {},
+          agentName: null,
+          source: null,
+          canBrowse: true,
+          browser,
+        }),
       );
     expect(html("dialog")).toContain("browse…");
     expect(html("mod")).toContain("browse…");

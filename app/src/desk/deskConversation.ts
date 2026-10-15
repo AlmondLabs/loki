@@ -20,13 +20,18 @@ export interface DeskConversationHandlers {
  * The desk's conversation as the shared Conversation takes it: what it looks like and what can be done to
  * it. One builder for both views of a desk (the Messages tab and the Desk tab's inset), so they never drift.
  */
-export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: ReturnType<typeof useAttention>, chat: DeskChatModel, { onLoadModels, onPickModel, onPickMode }: DeskConversationHandlers): { view: ConversationView; actions: ConversationActions } {
+export function deskConversation(
+  desk: ReturnType<typeof useDesk>,
+  catchUp: ReturnType<typeof useAttention>,
+  chat: DeskChatModel,
+  { onLoadModels, onPickModel, onPickMode }: DeskConversationHandlers,
+): { view: ConversationView; actions: ConversationActions } {
   const { scope, title, attention } = desk;
   const { deskRuntime, deskChat, pendingApproval, pendingQuestion } = chat;
   const view: ConversationView = {
     rows: deskChat?.rows ?? [],
     status: deskChat?.status ?? "idle",
-    error: !attention.available ? "chat needs loki's daemon — is it running?" : deskChat?.error ?? null,
+    error: !attention.available ? "chat needs loki's daemon — is it running?" : (deskChat?.error ?? null),
     model: desk.model,
     reasoningEffort: desk.reasoningEffort,
     mode: deskChat?.mode ?? desk.mode,

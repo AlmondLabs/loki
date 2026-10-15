@@ -46,7 +46,10 @@ export function ProfilePage({
   onRemove: () => Promise<void>;
 }) {
   const myDesks = useMemo(() => desks.filter((x) => x.agentId === selected && x.status === "live"), [desks, selected]);
-  const myTasks = useMemo(() => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assignedAgentId === selected || t.assignee === d.agent.name)), [tasks, selected, d]);
+  const myTasks = useMemo(
+    () => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assignedAgentId === selected || t.assignee === d.agent.name)),
+    [tasks, selected, d],
+  );
   return (
     <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
       <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
@@ -55,7 +58,13 @@ export function ProfilePage({
         <TasksSection count={myTasks.length} onShowTasks={onShowTasks} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
         <div style={{ paddingTop: 8 }}>
-          {confirmDelete ? <ConfirmDelete d={d} myDesks={myDesks} taskCount={myTasks.length} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} /> : <Button tone="negative" onClick={() => setConfirmDelete(true)}>delete this agent…</Button>}
+          {confirmDelete ? (
+            <ConfirmDelete d={d} myDesks={myDesks} taskCount={myTasks.length} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
+          ) : (
+            <Button tone="negative" onClick={() => setConfirmDelete(true)}>
+              delete this agent…
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -68,18 +77,28 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       <Head>
         Desks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
       </Head>
-      {myDesks.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>no live chats</div>}
+      {myDesks.length === 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
+          no live chats
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
           <Row dense key={x.scope} onClick={() => onOpen(x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
-            <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
+            <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
+              {x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}
+            </span>
           </Row>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
-        <Button tone="brass" onClick={() => onOpen("default")}>main chat</Button>
-        <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>chats</Button>
+        <Button tone="brass" onClick={() => onOpen("default")}>
+          main chat
+        </Button>
+        <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>
+          chats
+        </Button>
       </div>
     </section>
   );
@@ -93,29 +112,76 @@ function TasksSection({ count, onShowTasks }: { count: number; onShowTasks: () =
       </Head>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
         <span>{count === 0 ? "nothing assigned" : `${count} assigned in Tasks`}</span>
-        <Button onClick={onShowTasks} kbd={keyFor("segment.tasks")}>tasks</Button>
+        <Button onClick={onShowTasks} kbd={keyFor("segment.tasks")}>
+          tasks
+        </Button>
       </div>
     </section>
   );
 }
 
 /** The last step before deleting: what closes (live desks) and what stays (open tasks, unassigned). */
-function ConfirmDelete({ d, myDesks, taskCount, onRemove, onKeep }: { d: AgentDetails; myDesks: DeskSummary[]; taskCount: number; onRemove: () => Promise<void>; onKeep: () => void }) {
+function ConfirmDelete({
+  d,
+  myDesks,
+  taskCount,
+  onRemove,
+  onKeep,
+}: {
+  d: AgentDetails;
+  myDesks: DeskSummary[];
+  taskCount: number;
+  onRemove: () => Promise<void>;
+  onKeep: () => void;
+}) {
   return (
-    <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: "var(--loki-radius-md)", fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
+    <div
+      role="alertdialog"
+      aria-label={`delete ${d.agent.name}`}
+      style={{
+        display: "grid",
+        gap: 8,
+        padding: "10px 12px",
+        border: "1px solid var(--loki-negative)",
+        borderRadius: "var(--loki-radius-md)",
+        fontSize: 12,
+        color: "var(--loki-fg)",
+        lineHeight: 1.5,
+      }}
+    >
       <span>
-        Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live chat${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.` : ""}
+        Delete <b>{d.agent.name}</b> and its memory.{" "}
+        {myDesks.length
+          ? `${myDesks.length} live chat${myDesks.length === 1 ? "" : "s"} (${myDesks
+              .slice(0, 3)
+              .map((x) => x.title ?? "main chat")
+              .join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.`
+          : ""}
         {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay in Tasks, unassigned.` : ""}
       </span>
       <div style={{ display: "flex", gap: 8 }}>
-        <Button tone="negative" onClick={() => void onRemove()}>delete {d.agent.name}</Button>
+        <Button tone="negative" onClick={() => void onRemove()}>
+          delete {d.agent.name}
+        </Button>
         <Button onClick={onKeep}>keep</Button>
       </div>
     </div>
   );
 }
 
-function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails; avatar: string; models: string[] | null; onLoadModels: () => void; onSave: (body: AgentEdit) => Promise<void> }) {
+function Identity({
+  d,
+  avatar,
+  models,
+  onLoadModels,
+  onSave,
+}: {
+  d: AgentDetails;
+  avatar: string;
+  models: string[] | null;
+  onLoadModels: () => void;
+  onSave: (body: AgentEdit) => Promise<void>;
+}) {
   const [name, setName] = useState(d.agent.name);
   const [description, setDescription] = useState(d.agent.description ?? "");
   const [model, setModel] = useState(d.agent.model ?? "");
@@ -125,7 +191,11 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
     setModel(d.agent.model ?? "");
   }, [d]);
   const settings = d.agent.modelSettings;
-  const bits = [settings.effort ? `effort ${String(settings.effort)}` : null, settings.thinking ? "thinking" : null, settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null].filter(Boolean);
+  const bits = [
+    settings.effort ? `effort ${String(settings.effort)}` : null,
+    settings.thinking ? "thinking" : null,
+    settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null,
+  ].filter(Boolean);
   return (
     <section style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 14, alignItems: "start" }}>
       <AgentFace name={d.agent.name} src={avatar} size={64} />
@@ -162,7 +232,11 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
             aria-label="model"
             style={{ width: 240, fontSize: 12 }}
           />
-          <datalist id="loki-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
+          <datalist id="loki-models">
+            {(models ?? []).map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           {bits.map((b) => (
             <span key={b}>· {b}</span>
           ))}
@@ -191,7 +265,11 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
   return (
     <section>
       <Head>MCP servers</Head>
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ padding: "0 8px" }}>{error}</div>}
+      {error && (
+        <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ padding: "0 8px" }}>
+          {error}
+        </div>
+      )}
       <div style={{ display: "grid", gap: 6, padding: "0 8px" }}>
         {view?.servers.map((s) => {
           const on = !s.offFor.includes(agentId);

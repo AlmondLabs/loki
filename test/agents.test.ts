@@ -14,7 +14,15 @@ beforeAll(() => {
   mkdirSync(join(dir, "agents"), { recursive: true });
   writeFileSync(
     join(dir, "agents", `${backendName(AGENT)}.json`),
-    JSON.stringify({ id: AGENT, name: " ira ", description: "The memory-first agent", model: "anthropic/claude-fable-5", model_settings: { provider_type: "anthropic", effort: "high" }, tags: ["favorite:user:local", "origin:letta-code"], system: "You are a Letta Code agent.\nMore." }),
+    JSON.stringify({
+      id: AGENT,
+      name: " ira ",
+      description: "The memory-first agent",
+      model: "anthropic/claude-fable-5",
+      model_settings: { provider_type: "anthropic", effort: "high" },
+      tags: ["favorite:user:local", "origin:letta-code"],
+      system: "You are a Letta Code agent.\nMore.",
+    }),
   );
   const mem = join(dir, "memfs", AGENT, "memory");
   mkdirSync(join(mem, "system"), { recursive: true });
@@ -52,7 +60,10 @@ describe("agents: the record", () => {
 
   test("a role:subagent record is Letta's helper, not the user's agent", () => {
     const helper = "agent-local-helper-0001";
-    writeFileSync(join(dir, "agents", `${backendName(helper)}.json`), JSON.stringify({ id: helper, name: "Letta Code", tags: ["origin:letta-code", "role:subagent", "type:general-purpose", `parent:${AGENT}`] }));
+    writeFileSync(
+      join(dir, "agents", `${backendName(helper)}.json`),
+      JSON.stringify({ id: helper, name: "Letta Code", tags: ["origin:letta-code", "role:subagent", "type:general-purpose", `parent:${AGENT}`] }),
+    );
     expect(isSubagent(helper, dir)).toBe(true);
     expect(isSubagent(AGENT, dir)).toBe(false);
     expect(isSubagent("agent-local-nobody", dir)).toBe(false);
@@ -95,10 +106,17 @@ describe("agents: memory", () => {
     expect(profilePath("agent-local-nope", dir)).toBeNull();
   });
   test("git log parsing keeps message, time and touched files", () => {
-    const out = "\x1eabc123\x1fmemory: learned a thing\x1f2026-09-06T10:00:00+05:30\nsystem/human.md\nreference/life/notes.md\n\x1edef456\x1ffix: typo\x1f2026-09-05T09:00:00+05:30\nsystem/persona.md\n";
+    const out =
+      "\x1eabc123\x1fmemory: learned a thing\x1f2026-09-06T10:00:00+05:30\nsystem/human.md\nreference/life/notes.md\n\x1edef456\x1ffix: typo\x1f2026-09-05T09:00:00+05:30\nsystem/persona.md\n";
     const log = parseGitLog(out);
     expect(log).toHaveLength(2);
-    expect(log[0]).toEqual({ sha: "abc123", message: "memory: learned a thing", at: "2026-09-06T10:00:00+05:30", files: ["system/human.md", "reference/life/notes.md"], author: "" });
+    expect(log[0]).toEqual({
+      sha: "abc123",
+      message: "memory: learned a thing",
+      at: "2026-09-06T10:00:00+05:30",
+      files: ["system/human.md", "reference/life/notes.md"],
+      author: "",
+    });
     expect(log[1].files).toEqual(["system/persona.md"]);
   });
 });

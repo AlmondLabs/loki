@@ -60,7 +60,9 @@ function applyTheme(preference: ThemePreference, palette: Palette): void {
   root.style.colorScheme = theme;
   requestAnimationFrame(() => {
     // the phone redeclares --loki-bg on its own root (phone/phone.css); the status bar strip follows that
-    const background = getComputedStyle(document.querySelector(".loki-phone") ?? root).getPropertyValue("--loki-bg").trim();
+    const background = getComputedStyle(document.querySelector(".loki-phone") ?? root)
+      .getPropertyValue("--loki-bg")
+      .trim();
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (background && meta) meta.content = background;
   });

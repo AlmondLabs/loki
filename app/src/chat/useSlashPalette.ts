@@ -7,7 +7,19 @@ import { matchCommands, slashQuery, type SlashCommand } from "../../../core/atte
  * ↑↓ move, ⇥ fills the name in, ↵ runs (or fills in a command that takes arguments), esc puts it away for
  * this draft. `aria` goes on the textarea so a screen reader follows the list.
  */
-export function useSlashPalette({ draft, onDraft, commands, onCommand, inputRef }: { draft: string; onDraft: (text: string) => void; commands: SlashCommand[]; onCommand?: (id: string, args: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
+export function useSlashPalette({
+  draft,
+  onDraft,
+  commands,
+  onCommand,
+  inputRef,
+}: {
+  draft: string;
+  onDraft: (text: string) => void;
+  commands: SlashCommand[];
+  onCommand?: (id: string, args: string) => void;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
+}) {
   const query = slashQuery(draft);
   const [index, setIndex] = useState(0);
   /** Esc put the palette away for this draft; typing brings it back. */

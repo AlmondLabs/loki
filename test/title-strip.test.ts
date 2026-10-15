@@ -19,13 +19,26 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 
 const key = (k: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}, typing = false) => {
-  const e = { key: k, metaKey: !!mods.meta, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" }, prevented: false, preventDefault() { this.prevented = true; } };
+  const e = {
+    key: k,
+    metaKey: !!mods.meta,
+    ctrlKey: !!mods.ctrl,
+    shiftKey: !!mods.shift,
+    altKey: !!mods.alt,
+    target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" },
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   return e as unknown as KeyboardEvent & { prevented: boolean };
 };
 
 describe("the title strip (plan 014 U4, KTD4)", () => {
   test("the Mac's strip is the bare drag region it always was: no buttons, the lights are the system's", () => {
-    expect(strip("macos")).toBe(`<div data-tauri-drag-region="true" aria-hidden="true" class="loki-title-strip" style="height:28px;z-index:${LAYER.rail}"></div>`);
+    expect(strip("macos")).toBe(
+      `<div data-tauri-drag-region="true" aria-hidden="true" class="loki-title-strip" style="height:28px;z-index:${LAYER.rail}"></div>`,
+    );
     expect(titlebarHeight(true, "macos")).toBe(28);
   });
 
@@ -70,7 +83,12 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
       expect(groups.map((g) => g.title)).toEqual(menuSpec(undefined, os).map((m) => m.title));
       const out = renderToStaticMarkup(createElement(TitleMenuPanel, { groups, open: null, onOpen: () => {}, onPick: () => {}, os }));
       for (const g of groups) expect(out).toContain(`>${g.title}<`);
-      expect(out).toContain(labelOf(KEYMAP.find((b) => b.id === "window.hide")!, os));
+      expect(out).toContain(
+        labelOf(
+          KEYMAP.find((b) => b.id === "window.hide")!,
+          os,
+        ),
+      );
       expect(out).toContain("Ctrl Shift W");
     }
   });
@@ -158,7 +176,13 @@ describe("the webview's own browser keys off the Mac (plan 014 U4)", () => {
   });
 
   test("the text's own keys, the Mac, a browser tab and a development build are left alone", () => {
-    for (const [k, mods] of [["c", { ctrl: true }], ["v", { ctrl: true }], ["a", { ctrl: true }], ["r", {}], ["i", { ctrl: true }]] as const) {
+    for (const [k, mods] of [
+      ["c", { ctrl: true }],
+      ["v", { ctrl: true }],
+      ["a", { ctrl: true }],
+      ["r", {}],
+      ["i", { ctrl: true }],
+    ] as const) {
       const e = key(k, mods, true);
       guardBrowserKey(e, "windows", true);
       expect([k, e.prevented]).toEqual([k, false]);

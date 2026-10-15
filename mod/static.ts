@@ -24,7 +24,10 @@ export function hostOs(p: NodeJS.Platform | string = process.platform): "macos" 
 export function buildIdOf(dist: string | null): string | null {
   if (!dist) return null;
   try {
-    return createHash("sha256").update(readFileSync(join(dist, "index.html"))).digest("hex").slice(0, 12);
+    return createHash("sha256")
+      .update(readFileSync(join(dist, "index.html")))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return null;
   }

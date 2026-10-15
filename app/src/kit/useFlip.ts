@@ -42,7 +42,16 @@ function ghost(box: HTMLElement, spot: Spot): void {
   g.setAttribute("data-flip-ghost", "");
   g.setAttribute("aria-hidden", "true");
   g.inert = true;
-  Object.assign(g.style, { position: "absolute", top: `${spot.top}px`, left: `${spot.left}px`, width: `${spot.width}px`, margin: "0", pointerEvents: "none", listStyle: "none", zIndex: "0" });
+  Object.assign(g.style, {
+    position: "absolute",
+    top: `${spot.top}px`,
+    left: `${spot.left}px`,
+    width: `${spot.width}px`,
+    margin: "0",
+    pointerEvents: "none",
+    listStyle: "none",
+    zIndex: "0",
+  });
   box.appendChild(g);
   const done = () => g.remove();
   g.animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }], { duration: 200, easing: "ease-out", fill: "forwards" }).finished.then(done, done);

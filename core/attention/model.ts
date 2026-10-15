@@ -117,7 +117,11 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
  * in: "moved" when a device status shows the new folder (or, the folder before being known, any other), the
  * error's words when the daemon refused it, null when the event says nothing about it.
  */
-export function folderMoveAnswer(events: ChatEvent[], cwd: string | undefined, move: { from: string | undefined; to: string }): "moved" | { error: string } | null {
+export function folderMoveAnswer(
+  events: ChatEvent[],
+  cwd: string | undefined,
+  move: { from: string | undefined; to: string },
+): "moved" | { error: string } | null {
   for (const e of events) {
     if (e.kind === "device") return cwd && (cwd === move.to || (move.from !== undefined && cwd !== move.from)) ? "moved" : null;
     if (e.kind === "error") return { error: e.message || "the folder did not change" };
@@ -132,7 +136,19 @@ const TEXT_LIMIT = 700;
  * re-queues a decided card on exactly that.
  */
 export function emptyLive(): Live {
-  const l: Live = { pending: null, pendingAsk: null, error: null, lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, thread: new ThreadModel((text) => (l.lastAssistantText = text.slice(-TEXT_LIMIT))), turns: 0, inTurn: false, queued: [] };
+  const l: Live = {
+    pending: null,
+    pendingAsk: null,
+    error: null,
+    lastAssistantText: null,
+    lastRole: null,
+    lastMessageAt: null,
+    lastAsk: null,
+    thread: new ThreadModel((text) => (l.lastAssistantText = text.slice(-TEXT_LIMIT))),
+    turns: 0,
+    inTurn: false,
+    queued: [],
+  };
   return l;
 }
 
@@ -283,7 +299,8 @@ const instant = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Num
  */
 export function unviewed(item: Pick<AttentionItem, "unread" | "lastMessageAt" | "viewedAt">): boolean {
   if (!item.unread) return false;
-  const last = instant(item.lastMessageAt), looked = instant(item.viewedAt);
+  const last = instant(item.lastMessageAt),
+    looked = instant(item.viewedAt);
   return !(Number.isFinite(last) && Number.isFinite(looked) && looked >= last);
 }
 

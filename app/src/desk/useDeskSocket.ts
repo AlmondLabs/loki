@@ -210,7 +210,8 @@ export function useDeskSocket() {
             break;
           }
           case "pair_code":
-            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expiresAt === "string") setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expiresAt });
+            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expiresAt === "string")
+              setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expiresAt });
             break;
           case "devices":
             setDevices(Array.isArray(msg.devices) ? (msg.devices as PairedDevice[]) : []);
@@ -301,13 +302,19 @@ export function useDeskSocket() {
   /** A send (core/frames.ts), typed by its name. False while the socket is not open. */
   const send = useCallback(<N extends SendName>(frame: { type: N } & InputOf<N>): boolean => sendRaw(frame), [sendRaw]);
 
-  const reportWidgetError = useCallback((id: string, error: string | null) => {
-    send({ type: "widget_status", id, error });
-  }, [send]);
+  const reportWidgetError = useCallback(
+    (id: string, error: string | null) => {
+      send({ type: "widget_status", id, error });
+    },
+    [send],
+  );
 
-  const measure = useCallback((id: string, size: Size) => {
-    if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
-  }, [send]);
+  const measure = useCallback(
+    (id: string, size: Size) => {
+      if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
+    },
+    [send],
+  );
 
   /** Keep another desk's widgets and state at hand (a thread shows them inline); asked for at once the first time. */
   const watchDesk = (s: Scope) => {
@@ -374,7 +381,8 @@ export function withScope<T>(current: Record<Scope, T>, scope: Scope, value: T):
 function sameData(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
-  const ka = Object.keys(a), kb = Object.keys(b);
+  const ka = Object.keys(a),
+    kb = Object.keys(b);
   if (ka.length !== kb.length) return false;
   return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }

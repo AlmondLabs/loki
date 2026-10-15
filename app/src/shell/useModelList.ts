@@ -10,7 +10,17 @@ import { withRecent, type ModelEntry } from "../../../core/models.ts";
  */
 const NONE: readonly string[] = [];
 
-export function useModelList({ open, version, listModels, recent = NONE }: { open: boolean; version: string; listModels: () => Promise<ModelEntry[]>; recent?: readonly string[] }) {
+export function useModelList({
+  open,
+  version,
+  listModels,
+  recent = NONE,
+}: {
+  open: boolean;
+  version: string;
+  listModels: () => Promise<ModelEntry[]>;
+  recent?: readonly string[];
+}) {
   const harnessKey = `${open}:${version}`;
   const [models, setModels] = useState<{ key: string; list: ModelEntry[] } | null>(null);
   const fetched = models && models.key === harnessKey ? models.list : null;

@@ -93,7 +93,22 @@ export interface PhoneRowProps {
 }
 
 /** One row inside a `<ul className="loki-phone-list">`. */
-export function PhoneRow({ lead, title, preview, time, badge, unread = false, flags, label, onOpen, onActions, actionsLabel, dim = false, launch, flip }: PhoneRowProps) {
+export function PhoneRow({
+  lead,
+  title,
+  preview,
+  time,
+  badge,
+  unread = false,
+  flags,
+  label,
+  onOpen,
+  onActions,
+  actionsLabel,
+  dim = false,
+  launch,
+  flip,
+}: PhoneRowProps) {
   const hold = useHold(onActions);
   const count = typeof badge === "number" && badge > 0 ? badge : null;
   const dot = badge === true;
@@ -135,7 +150,13 @@ export function PhoneRow({ lead, title, preview, time, badge, unread = false, fl
         ) : null}
       </button>
       {onActions && (
-        <button type="button" className="loki-phone-row-more loki-phone-icon-btn" aria-label={actionsLabel ?? "Actions"} aria-haspopup="dialog" onClick={onActions}>
+        <button
+          type="button"
+          className="loki-phone-row-more loki-phone-icon-btn"
+          aria-label={actionsLabel ?? "Actions"}
+          aria-haspopup="dialog"
+          onClick={onActions}
+        >
           <Icon name="more" size={20} />
         </button>
       )}
@@ -148,13 +169,39 @@ export function PhoneRow({ lead, title, preview, time, badge, unread = false, fl
  * list (`open` + `onToggle`) or one that opens the section's own page (`onTitle`). Folded, the list is
  * not rendered, and the header says so with aria-expanded.
  */
-export function RowSection({ icon, lead, title, count, open = true, onToggle, onTitle, titleLabel, children }: { icon: IconName; /** In the icon's place: an agent's face, for its section of desks. */ lead?: ReactNode; title: string; count?: number | null; open?: boolean; onToggle?: () => void; onTitle?: () => void; /** The header button's name when it opens a page. */ titleLabel?: string; children: ReactNode }) {
+export function RowSection({
+  icon,
+  lead,
+  title,
+  count,
+  open = true,
+  onToggle,
+  onTitle,
+  titleLabel,
+  children,
+}: {
+  icon: IconName;
+  /** In the icon's place: an agent's face, for its section of desks. */ lead?: ReactNode;
+  title: string;
+  count?: number | null;
+  open?: boolean;
+  onToggle?: () => void;
+  onTitle?: () => void;
+  /** The header button's name when it opens a page. */ titleLabel?: string;
+  children: ReactNode;
+}) {
   const inner = (
     <>
       {lead ?? <Icon name={icon} size={18} />}
       <span className="loki-phone-section-title">{title}</span>
       {count != null && count > 0 && <span className="loki-phone-section-count">{badgeCount(count)}</span>}
-      {(onTitle || onToggle) && <Icon name={onTitle ? "chevron-right" : "chevron-down"} size={18} className={onToggle && !open ? "loki-phone-section-chev loki-phone-section-chev--folded" : "loki-phone-section-chev"} />}
+      {(onTitle || onToggle) && (
+        <Icon
+          name={onTitle ? "chevron-right" : "chevron-down"}
+          size={18}
+          className={onToggle && !open ? "loki-phone-section-chev loki-phone-section-chev--folded" : "loki-phone-section-chev"}
+        />
+      )}
     </>
   );
   return (
@@ -181,7 +228,15 @@ export function RowSection({ icon, lead, title, count, open = true, onToggle, on
  * A group of utility rows, Slack's You and Preferences grammar: an optional quiet heading, then rows on
  * hairlines. More, Preferences, the connection and About are built from these and the rows below.
  */
-export function RowGroup({ title, radio = false, children }: { title?: string; /** The rows are one choice (MenuRow `checked`): the list is a radio group named by the title. */ radio?: boolean; children: ReactNode }) {
+export function RowGroup({
+  title,
+  radio = false,
+  children,
+}: {
+  title?: string;
+  /** The rows are one choice (MenuRow `checked`): the list is a radio group named by the title. */ radio?: boolean;
+  children: ReactNode;
+}) {
   return (
     <section className="loki-phone-group" aria-label={title}>
       {title && <h2 className="loki-phone-group-title">{title}</h2>}
@@ -197,11 +252,42 @@ export function RowGroup({ title, radio = false, children }: { title?: string; /
  * opens a sheet says so with aria-haspopup; `danger` draws a destructive one in the negative colour, and
  * `checked` turns the row into one choice of a radio group. `launch` brings focus back to it (session.ts).
  */
-export function MenuRow({ icon, label, aside = null, page = false, sheet = false, danger = false, checked, disabled = false, launch, onClick }: { icon: IconName; label: string; aside?: ReactNode; page?: boolean; sheet?: boolean; danger?: boolean; checked?: boolean; disabled?: boolean; launch?: string; onClick: () => void }) {
+export function MenuRow({
+  icon,
+  label,
+  aside = null,
+  page = false,
+  sheet = false,
+  danger = false,
+  checked,
+  disabled = false,
+  launch,
+  onClick,
+}: {
+  icon: IconName;
+  label: string;
+  aside?: ReactNode;
+  page?: boolean;
+  sheet?: boolean;
+  danger?: boolean;
+  checked?: boolean;
+  disabled?: boolean;
+  launch?: string;
+  onClick: () => void;
+}) {
   const cls = danger ? "loki-phone-menu-row loki-phone-menu-row--danger" : "loki-phone-menu-row";
   return (
     <li role={checked === undefined ? undefined : "none"}>
-      <button type="button" className={cls} data-launch={launch} role={checked === undefined ? undefined : "radio"} aria-checked={checked} aria-haspopup={sheet ? "dialog" : undefined} disabled={disabled} onClick={onClick}>
+      <button
+        type="button"
+        className={cls}
+        data-launch={launch}
+        role={checked === undefined ? undefined : "radio"}
+        aria-checked={checked}
+        aria-haspopup={sheet ? "dialog" : undefined}
+        disabled={disabled}
+        onClick={onClick}
+      >
         <Icon name={icon} size={22} />
         <span className="loki-phone-menu-row-label">{label}</span>
         {aside != null && aside !== false && <span className="loki-phone-menu-row-aside">{aside}</span>}

@@ -18,7 +18,12 @@ export function skillDescription(text: string): string | null {
   const fm = text.match(/^---\n([\s\S]*?)\n---/);
   const d = fm?.[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
   if (d) return d.replace(/^["']|["']$/g, "");
-  return text.replace(/^---[\s\S]*?---/, "").match(/^#+\s*(.+)$/m)?.[1]?.trim() ?? null;
+  return (
+    text
+      .replace(/^---[\s\S]*?---/, "")
+      .match(/^#+\s*(.+)$/m)?.[1]
+      ?.trim() ?? null
+  );
 }
 
 export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
@@ -68,7 +73,8 @@ export type SkillOrigin = { kind: "folder"; path: string } | { kind: "git"; url:
 
 export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   const s = source.trim();
-  if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s)) return { kind: "folder", path: resolve(s.replace(/^~(?=$|[\\/])/, home)) };
+  if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s))
+    return { kind: "folder", path: resolve(s.replace(/^~(?=$|[\\/])/, home)) };
   const web = s.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/(?:tree|blob)\/([^/]+)(?:\/(.*))?)?\/?$/);
   if (web) return { kind: "git", url: `https://github.com/${web[1]}/${web[2]}.git`, ref: web[3] ?? null, path: (web[4] ?? "").replace(/\/SKILL\.md$/, "") };
   if (/^(https?|git|ssh):\/\/|^git@/.test(s)) return { kind: "git", url: s, ref: null, path: "" };
@@ -82,7 +88,16 @@ export type Runner = (program: string, args: string[], cwd?: string) => Promise<
 const runProgram: Runner = (program, args, cwd) =>
   new Promise((done, fail) => {
     execProgram(program, args, { cwd, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) fail(new Error(String(stderr || stdout || err.message).trim().split("\n").slice(-3).join(" ")));
+      if (err)
+        fail(
+          new Error(
+            String(stderr || stdout || err.message)
+              .trim()
+              .split("\n")
+              .slice(-3)
+              .join(" "),
+          ),
+        );
       else done(String(stdout).trim());
     });
   });
@@ -103,7 +118,8 @@ export async function installSkill(source: string, agentId: string, opts: { forc
     let folder = origin.kind === "folder" ? origin.path : join(scratch, "repo", origin.path);
     if (origin.kind === "git") await run("git", ["clone", "--depth", "1", ...(origin.ref ? ["--branch", origin.ref] : []), origin.url, join(scratch, "repo")]);
     folder = resolve(folder);
-    if (!existsSync(join(folder, "SKILL.md"))) throw new Error(`no SKILL.md in ${origin.kind === "folder" ? folder : `${origin.url}${origin.path ? ` at ${origin.path}` : ""}`}`);
+    if (!existsSync(join(folder, "SKILL.md")))
+      throw new Error(`no SKILL.md in ${origin.kind === "folder" ? folder : `${origin.url}${origin.path ? ` at ${origin.path}` : ""}`}`);
     const name = basename(folder) === "repo" && origin.kind === "git" ? basename(origin.url, ".git") : basename(folder);
     const target = join(memory, "skills", name);
     if (existsSync(target) && !opts.force) throw new Error(`the agent already has a skill named ${name}; install again with force to replace it`);
@@ -112,7 +128,8 @@ export async function installSkill(source: string, agentId: string, opts: { forc
     cpSync(folder, target, { recursive: true, filter: (p) => basename(p) !== ".git" });
     await run("git", ["add", "--all", join("skills", name)], memory);
     // The same skill installed again changes nothing, and is not a commit.
-    if (!(await run("git", ["status", "--porcelain", "--", join("skills", name)], memory)).trim()) return `${name} is already installed as it is at ${source.trim()}`;
+    if (!(await run("git", ["status", "--porcelain", "--", join("skills", name)], memory)).trim())
+      return `${name} is already installed as it is at ${source.trim()}`;
     await run("git", ["commit", "--quiet", "-m", `Install skill: ${name}`, "--", join("skills", name)], memory);
     return `installed ${name} from ${source.trim()}`;
   } finally {

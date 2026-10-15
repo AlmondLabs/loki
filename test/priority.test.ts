@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { AGE_POINTS_PER_HOUR, BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS, WAITING_POINTS_PER_HOUR, byScore, reasonOf, scoreOf, scored } from "../core/attention/priority.ts";
+import {
+  AGE_POINTS_PER_HOUR,
+  BLOCKED_POINTS,
+  FOCUS_POINTS,
+  NEW_POINTS,
+  WAITING_POINTS_PER_HOUR,
+  byScore,
+  reasonOf,
+  scoreOf,
+  scored,
+} from "../core/attention/priority.ts";
 import { isScheduledPrompt } from "../core/harness.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
@@ -21,9 +31,13 @@ describe("the score", () => {
     }
     expect(scoreOf(item("f", { status: "failed", lastMessageAt: at(30) }), NOW)).toBeCloseTo(-AGE_POINTS_PER_HOUR / 2, 5);
     // among blocked cards the one that has waited longest comes first
-    expect(scored([item("new", { status: "approval", lastMessageAt: at(6) }), item("old", { status: "approval", lastMessageAt: at(50) })], NOW).map((i) => i.id)).toEqual(["old", "new"]);
+    expect(
+      scored([item("new", { status: "approval", lastMessageAt: at(6) }), item("old", { status: "approval", lastMessageAt: at(50) })], NOW).map((i) => i.id),
+    ).toEqual(["old", "new"]);
     // a day-old approval in a chat you left still beats the chat with all your focus
-    expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(24 * 60) }), NOW, 0)).toBeGreaterThan(scoreOf(item("f", { lastMessageAt: at(0) }), NOW, 1));
+    expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(24 * 60) }), NOW, 0)).toBeGreaterThan(
+      scoreOf(item("f", { lastMessageAt: at(0) }), NOW, 1),
+    );
   });
 
   test("new: the agent said something since you last looked, +10; a blocked card does not add it", () => {

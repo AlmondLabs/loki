@@ -6,19 +6,53 @@ import type { ModApi, ModTool } from "../daemon/mods/api.ts";
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
 
 const sleep: WidgetManifestEntry = {
-  id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",
-  data: { value: 6 }, hash: "h", updatedAt: 0, error: "missing \"title\"",
+  id: "c1/sleep",
+  scope: "c1",
+  name: "sleep",
+  kind: "json",
+  file: "c1/sleep.json",
+  title: "Sleep",
+  type: "slider-control",
+  data: { value: 6 },
+  hash: "h",
+  updatedAt: 0,
+  error: 'missing "title"',
 };
-const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loki", type: "info-card", data: { lines: ["a"] }, error: undefined };
+const welcome: WidgetManifestEntry = {
+  ...sleep,
+  id: "shared/welcome",
+  scope: "shared",
+  name: "welcome",
+  file: "shared/welcome.json",
+  title: "loki",
+  type: "info-card",
+  data: { lines: ["a"] },
+  error: undefined,
+};
 
 function harness(deps?: Partial<ToolDeps>) {
   /** Each tool as the test calls it: a call's args and, when it has one, its chat and agent. A failed call throws. */
-  type Called = { name: string; description: string; run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown> };
+  type Called = {
+    name: string;
+    description: string;
+    run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown>;
+  };
   const tools = new Map<string, Called>();
   const api = {
     tools: {
       register: (t: ModTool) => {
-        tools.set(t.name, { name: t.name, description: t.description, run: async (c) => t.execute(c.args ?? {}, { chatId: c.conversation?.id ?? "", agentId: c.agent?.id ?? "", agentName: c.agent?.name ?? "", signal: new AbortController().signal, output: () => {} }) });
+        tools.set(t.name, {
+          name: t.name,
+          description: t.description,
+          run: async (c) =>
+            t.execute(c.args ?? {}, {
+              chatId: c.conversation?.id ?? "",
+              agentId: c.agent?.id ?? "",
+              agentName: c.agent?.name ?? "",
+              signal: new AbortController().signal,
+              output: () => {},
+            }),
+        });
         return () => tools.delete(t.name);
       },
     },
@@ -107,7 +141,19 @@ describe("loki_camera", () => {
 });
 
 describe("loki_task: a chat's own tasks, and only you close yours", () => {
-  const task = (id: string, metadata: Record<string, string>, status = "open") => ({ id, title: id, description: "", status, priority: 2, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata });
+  const task = (id: string, metadata: Record<string, string>, status = "open") => ({
+    id,
+    title: id,
+    description: "",
+    status,
+    priority: 2,
+    labels: [],
+    assignee: null,
+    createdAt: "",
+    updatedAt: "",
+    closedAt: null,
+    metadata,
+  });
   function withTasks() {
     const tasks = [
       task("lk-mine", { by: "you", assignedTo: "c1" }),
@@ -121,11 +167,15 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
       find: async (id: string) => tasks.find((t) => t.id === id) ?? null,
       list: async () => tasks.filter((t) => t.status !== "closed"),
       comment: async (id: string) => void calls.push(`comment ${id}`),
-      close: async (ids: string[], reason?: string, as?: { actor?: string | null }) => (calls.push(`close ${ids.join(",")} ${reason ?? ""}${as?.actor ? ` as ${as.actor}` : ""}`), []),
+      close: async (ids: string[], reason?: string, as?: { actor?: string | null }) => (
+        calls.push(`close ${ids.join(",")} ${reason ?? ""}${as?.actor ? ` as ${as.actor}` : ""}`),
+        []
+      ),
       askDone: async (id: string, ask: { reason?: string | null; by?: string | null }) => (calls.push(`askDone ${id} ${ask.reason} by ${ask.by}`), []),
     };
     const h = harness({ tasks: store as unknown as ToolDeps["tasks"] });
-    const run = (args: Record<string, unknown>, conversation = "c1") => h.tools.get("loki_task")!.run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
+    const run = (args: Record<string, unknown>, conversation = "c1") =>
+      h.tools.get("loki_task")!.run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
     return { run, calls, broadcasts: h.broadcasts };
   }
 

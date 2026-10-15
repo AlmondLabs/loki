@@ -16,7 +16,14 @@ import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, thr
  * arrive above the old first row, which is found again so the window and the reader stay where they were.
  * Layout is read in scroll handlers and animation frames, not after every update.
  */
-export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>, messages: TranscriptRow[], status: string, dividerAt: number | null = null, marks?: ReadonlyArray<{ before: number; who: string; change: string; title: string }>, older: (() => void) | null = null) {
+export function useTranscriptScroll(
+  scrollRef: RefObject<HTMLDivElement | null>,
+  messages: TranscriptRow[],
+  status: string,
+  dividerAt: number | null = null,
+  marks?: ReadonlyArray<{ before: number; who: string; change: string; title: string }>,
+  older: (() => void) | null = null,
+) {
   const pinnedRef = useRef(true);
   const [unpinned, setUnpinned] = useState(false);
   // How many rows there were when the reader scrolled away: past it, the chip counts what came in since.

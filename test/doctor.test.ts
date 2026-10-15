@@ -34,7 +34,18 @@ async function setup() {
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
   const events: Array<Record<string, unknown>> = [];
-  const runner = new PassRunner({ stores, chats, registry, state: new PassState(join(dir, "state")), backendDir: dir, context: ctx, jobs: [], busy: async () => false, isSubagent: () => false, capture: (_e, p) => events.push(p) });
+  const runner = new PassRunner({
+    stores,
+    chats,
+    registry,
+    state: new PassState(join(dir, "state")),
+    backendDir: dir,
+    context: ctx,
+    jobs: [],
+    busy: async () => false,
+    isSubagent: () => false,
+    capture: (_e, p) => events.push(p),
+  });
   const asked: Array<{ systemPrompt?: string; messages: unknown[] }> = [];
   const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { systemPrompt?: string; messages: unknown[] }) => (asked.push(c), m);
   const cleanup = async () => {
@@ -52,8 +63,22 @@ describe("the memory review (/doctor)", () => {
       await editMemoryFile(s.dir, s.agentId, "reference/deploy-day.md", "We deploy every Friday.\n");
       await editMemoryFile(s.dir, s.agentId, "reference/launch.md", "Launch on 30 Sept 2026.\n");
       s.faux.setResponses([
-        s.reply(fauxAssistantMessage(fauxToolCall("memory_delete", { path: "reference/deploy-day.md", message: "Merge the two deploy notes" }), { stopReason: "toolUse" })),
-        s.reply(fauxAssistantMessage(fauxToolCall("memory_edit", { path: "reference/launch.md", old_text: "Launch on 30 Sept 2026.", new_text: "Launched on 30 Sept 2026.", message: "The launch date has passed" }), { stopReason: "toolUse" })),
+        s.reply(
+          fauxAssistantMessage(fauxToolCall("memory_delete", { path: "reference/deploy-day.md", message: "Merge the two deploy notes" }), {
+            stopReason: "toolUse",
+          }),
+        ),
+        s.reply(
+          fauxAssistantMessage(
+            fauxToolCall("memory_edit", {
+              path: "reference/launch.md",
+              old_text: "Launch on 30 Sept 2026.",
+              new_text: "Launched on 30 Sept 2026.",
+              message: "The launch date has passed",
+            }),
+            { stopReason: "toolUse" },
+          ),
+        ),
         s.reply(fauxAssistantMessage("- merged the two deploy notes\n- the launch has happened")),
       ]);
       const r = await s.runner.runDoctor(s.agentId);
@@ -91,9 +116,11 @@ describe("the memory review (/doctor)", () => {
   test("a review that fails says why, and asks nothing when there is no memory", async () => {
     const s = await setup();
     try {
-      s.faux.setResponses([() => {
-        throw new Error("model down");
-      }]);
+      s.faux.setResponses([
+        () => {
+          throw new Error("model down");
+        },
+      ]);
       const failed = await s.runner.runDoctor(s.agentId);
       expect(failed.outcome).toBe("failed");
       expect(failed.report).toMatch(/did not finish/);

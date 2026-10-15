@@ -27,7 +27,16 @@ function put(file: string, value: unknown): void {
 }
 
 function agent(id: string, name: string, tags: string[] = ["origin:letta-code"], model = "openrouter/some-model") {
-  put(join(letta, "lc-local-backend", "agents", `${backendName(id)}.json`), { id, name, description: null, system: "", tags, model, model_settings: {}, hidden: false });
+  put(join(letta, "lc-local-backend", "agents", `${backendName(id)}.json`), {
+    id,
+    name,
+    description: null,
+    system: "",
+    tags,
+    model,
+    model_settings: {},
+    hidden: false,
+  });
   put(join(letta, "lc-local-backend", "memfs", id, "memory", "system", "persona.md"), `I am ${name}`);
 }
 
@@ -63,7 +72,13 @@ function paths(): ImportPaths {
 function setup() {
   const models = createModels();
   const registry = createRegistry();
-  const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
+  const stores = new StoreManager(
+    join(dir, "stores"),
+    { models, registry },
+    ctx,
+    () => {},
+    () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx),
+  );
   const secrets = memorySecrets();
   const credentials = new KeychainCredentials(secrets);
   const imported: string[] = [];
@@ -76,7 +91,15 @@ function setup() {
     },
   };
   const run = (running: () => string | null = () => null) =>
-    importFromLetta({ paths: paths(), stores, credentials, knownProviders: new Set(["openrouter", "openai-codex", "anthropic"]), context: ctx, running, passes });
+    importFromLetta({
+      paths: paths(),
+      stores,
+      credentials,
+      knownProviders: new Set(["openrouter", "openai-codex", "anthropic"]),
+      context: ctx,
+      running,
+      passes,
+    });
   return { stores, credentials, run, imported };
 }
 
@@ -87,7 +110,12 @@ beforeEach(() => {
   agent(B, "Bo", undefined, "chatgpt-plus-pro/chatgpt-plus-pro/openai-codex/gpt-test");
   agent(HELPER, "helper", ["origin:letta-code", "role:subagent"]);
   mkdirSync(join(letta, "lc-local-backend", "memfs", "agent-local-orphan", "memory"), { recursive: true }); // no record
-  conversation(A, "default", {}, logText([headerLine(), userLine("x1", null, "2026-10-01T09:00:00.000Z", "hi"), assistantLine("x2", "x1", "2026-10-01T09:00:01.000Z", "hello")]));
+  conversation(
+    A,
+    "default",
+    {},
+    logText([headerLine(), userLine("x1", null, "2026-10-01T09:00:00.000Z", "hi"), assistantLine("x2", "x1", "2026-10-01T09:00:01.000Z", "hello")]),
+  );
   conversation(A, "local-conv-long", { summary: "Plans", archived: true }, LONG);
   conversation(B, "default", {}, logText([headerLine()]));
   conversation(HELPER, "default", {}, logText([headerLine(), userLine("h1", null, "2026-10-01T09:00:00.000Z", "task")]));
@@ -97,16 +125,54 @@ beforeEach(() => {
     version: 1,
     providers: {
       openrouter: { id: "openrouter", provider_type: "openrouter", auth: { type: "api", key: "sk-or-test" } },
-      "chatgpt-plus-pro": { id: "chatgpt-plus-pro", provider_type: "chatgpt_oauth", auth: { type: "oauth", access: "acc", refresh: "ref", expires: 123, accountId: "acct" } },
+      "chatgpt-plus-pro": {
+        id: "chatgpt-plus-pro",
+        provider_type: "chatgpt_oauth",
+        auth: { type: "oauth", access: "acc", refresh: "ref", expires: 123, accountId: "acct" },
+      },
       "claude-pro-max": { id: "claude-pro-max", provider_type: "anthropic", auth: { type: "oauth", access: "a", refresh: "r", expires: 1 } },
     },
   });
   put(join(letta, "crons.json"), {
     version: 1,
     tasks: [
-      { id: "t1", name: "standup", description: null, agent_id: A, conversation_id: "default", cron: "0 9 * * *", timezone: "UTC", recurring: true, status: "active", prompt: "post it", created_at: "2026-10-01T00:00:00Z", fire_count: 3 },
-      { id: "t2", name: "old", agent_id: A, conversation_id: "default", cron: "0 9 1 1 *", timezone: "UTC", recurring: false, status: "fired", prompt: "done", created_at: "2026-01-01T00:00:00Z" },
-      { id: "t3", name: "helper's", agent_id: HELPER, conversation_id: "default", cron: "* * * * *", timezone: "UTC", recurring: true, status: "active", prompt: "x" },
+      {
+        id: "t1",
+        name: "standup",
+        description: null,
+        agent_id: A,
+        conversation_id: "default",
+        cron: "0 9 * * *",
+        timezone: "UTC",
+        recurring: true,
+        status: "active",
+        prompt: "post it",
+        created_at: "2026-10-01T00:00:00Z",
+        fire_count: 3,
+      },
+      {
+        id: "t2",
+        name: "old",
+        agent_id: A,
+        conversation_id: "default",
+        cron: "0 9 1 1 *",
+        timezone: "UTC",
+        recurring: false,
+        status: "fired",
+        prompt: "done",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "t3",
+        name: "helper's",
+        agent_id: HELPER,
+        conversation_id: "default",
+        cron: "* * * * *",
+        timezone: "UTC",
+        recurring: true,
+        status: "active",
+        prompt: "x",
+      },
     ],
   });
   put(join(letta, "pinned-conversations.json"), { version: 1, agents: { [A]: ["local-conv-long"] } });
@@ -210,7 +276,14 @@ describe("importing from Letta", () => {
     expect(runningLetta(() => ["node /opt/homebrew/lib/node_modules/@letta-ai/letta-code/dist/cli.js"])).toContain("letta-code");
     expect(runningLetta(() => ["letta.exe"])).toBe("letta.exe");
     // Mentions are not Letta: a shell in a letta-code checkout, an editor, a search, a loki checkout's own scripts.
-    expect(runningLetta(() => ["/bin/zsh -c cd ~/code/letta-code && npm test", "/Applications/Cursor.app/Contents/MacOS/Cursor /Users/x/letta-code", "rg letta-code /Users/x", "node /Users/x/letta-code/scripts/dev.ts"])).toBeNull();
+    expect(
+      runningLetta(() => [
+        "/bin/zsh -c cd ~/code/letta-code && npm test",
+        "/Applications/Cursor.app/Contents/MacOS/Cursor /Users/x/letta-code",
+        "rg letta-code /Users/x",
+        "node /Users/x/letta-code/scripts/dev.ts",
+      ]),
+    ).toBeNull();
   });
 
   test("agents with no memory folder: said so, and the import is not marked finished when nothing came over", async () => {
@@ -249,7 +322,11 @@ describe("importing from Letta", () => {
       await run();
       expect(importNeeded(paths())).toBe(false); // finished: the daemon no longer imports at start
       const { chat, store } = await rows(stores, A, "default");
-      await store.importEntries(chat, [{ kind: "pi.user", sourceId: "new", line: 99, model: [{ role: "user", content: "written by the daemon", timestamp: 1 }] } as never], ctx);
+      await store.importEntries(
+        chat,
+        [{ kind: "pi.user", sourceId: "new", line: 99, model: [{ role: "user", content: "written by the daemon", timestamp: 1 }] } as never],
+        ctx,
+      );
       const before = (await rows(stores, A, "default")).entries.length;
       const again = await run();
       expect(again.chats).toBe(0);

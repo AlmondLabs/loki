@@ -75,25 +75,30 @@ describe("daemon lock", () => {
         const at = Date.now() + 1500;
         const script = `import { acquire } from ${JSON.stringify(lock)}; while (Date.now() < ${at}); const l = acquire(${JSON.stringify(file)}); console.log("release" in l ? "won" : "held"); setTimeout(() => {}, 3000);`;
         const children: Array<ReturnType<typeof spawn>> = [];
-        const runs = Array.from({ length: 12 }, () =>
-          new Promise<string>((resolve) => {
-            const c = spawn(process.execPath, ["--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--input-type=module", "-e", script]);
-            children.push(c);
-            let out = "";
-            let err = "";
-            c.stderr!.on("data", (b: Buffer) => (err += b.toString()));
-            // Each stays alive until all have answered: a winner that exited would leave a leftover to take over.
-            c.stdout!.on("data", (b: Buffer) => {
-              out += b.toString();
-              if (out.includes("\n")) resolve(out.trim());
-            });
-            c.on("exit", () => resolve(out.trim() || `exited: ${err.trim().split("\n")[0]}`));
-          }),
+        const runs = Array.from(
+          { length: 12 },
+          () =>
+            new Promise<string>((resolve) => {
+              const c = spawn(process.execPath, ["--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--input-type=module", "-e", script]);
+              children.push(c);
+              let out = "";
+              let err = "";
+              c.stderr!.on("data", (b: Buffer) => (err += b.toString()));
+              // Each stays alive until all have answered: a winner that exited would leave a leftover to take over.
+              c.stdout!.on("data", (b: Buffer) => {
+                out += b.toString();
+                if (out.includes("\n")) resolve(out.trim());
+              });
+              c.on("exit", () => resolve(out.trim() || `exited: ${err.trim().split("\n")[0]}`));
+            }),
         );
         const results = await Promise.all(runs);
         for (const c of children) c.kill();
         await Promise.all(children.map((c) => new Promise((r) => (c.exitCode !== null || c.signalCode !== null ? r(null) : c.once("exit", r)))));
-        expect(results.filter((r) => r === "won"), results.join(",")).toHaveLength(1);
+        expect(
+          results.filter((r) => r === "won"),
+          results.join(","),
+        ).toHaveLength(1);
       }
     } finally {
       rmSync(d, { recursive: true, force: true });

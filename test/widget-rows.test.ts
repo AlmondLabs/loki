@@ -49,7 +49,13 @@ describe("widget rows: merge by time", () => {
   test("a thread with no times at all: this session's entries follow it in arrival order, the older log is one summary row", () => {
     const rows = [row("user"), row("assistant")];
     const since = T0 + 60 * 60_000;
-    const log = [entry({ id: "o1", at: T0 }), entry({ id: "o2", at: T0 + 1 }), entry({ id: "o3", at: T0 + 2 }), entry({ id: "n1", at: since + 5 }), entry({ id: "n2", at: since + 9 })];
+    const log = [
+      entry({ id: "o1", at: T0 }),
+      entry({ id: "o2", at: T0 + 1 }),
+      entry({ id: "o3", at: T0 + 2 }),
+      entry({ id: "n1", at: since + 5 }),
+      entry({ id: "n2", at: since + 9 }),
+    ];
     const marks = widgetMarks(rows, log, "friday", since);
     expect(marks.map((m) => [m.id, m.before, m.earlier ?? null])).toEqual([
       ["earlier", 2, 3],

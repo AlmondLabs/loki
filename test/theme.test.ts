@@ -1,5 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { isPalette, isThemePreference, PALETTE_STORAGE_KEY, PALETTES, resolvedTheme, storedPalette, storedTheme, THEME_STORAGE_KEY } from "../app/src/theme.tsx";
+import {
+  isPalette,
+  isThemePreference,
+  PALETTE_STORAGE_KEY,
+  PALETTES,
+  resolvedTheme,
+  storedPalette,
+  storedTheme,
+  THEME_STORAGE_KEY,
+} from "../app/src/theme.tsx";
 
 describe("theme preference", () => {
   test("accepts only the three preferences", () => {
@@ -11,7 +20,13 @@ describe("theme preference", () => {
   test("reads storage and falls back to system", () => {
     expect(storedTheme({ getItem: (key) => (key === THEME_STORAGE_KEY ? "light" : null) })).toBe("light");
     expect(storedTheme({ getItem: () => "sepia" })).toBe("system");
-    expect(storedTheme({ getItem: () => { throw new Error("blocked"); } })).toBe("system");
+    expect(
+      storedTheme({
+        getItem: () => {
+          throw new Error("blocked");
+        },
+      }),
+    ).toBe("system");
     expect(storedTheme(null)).toBe("system");
   });
 
@@ -20,7 +35,13 @@ describe("theme preference", () => {
     expect(isPalette("dracula")).toBe(false);
     expect(storedPalette({ getItem: (key) => (key === PALETTE_STORAGE_KEY ? "tokyo-night" : null) })).toBe("tokyo-night");
     expect(storedPalette({ getItem: () => "dracula" })).toBe("loki");
-    expect(storedPalette({ getItem: () => { throw new Error("blocked"); } })).toBe("loki");
+    expect(
+      storedPalette({
+        getItem: () => {
+          throw new Error("blocked");
+        },
+      }),
+    ).toBe("loki");
     expect(storedPalette(null)).toBe("loki");
   });
 

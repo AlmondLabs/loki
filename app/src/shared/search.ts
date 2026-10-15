@@ -87,7 +87,13 @@ export interface HitGroup<H, G extends string> {
 }
 
 /** Ranked hits into groups, in a fixed order, empty ones left out, each keeping the rank order. */
-export function groupHits<H, G extends string>(hits: readonly H[], groupOf: (h: H) => G, order: readonly G[], titles: Record<G, string>, max: number): HitGroup<H, G>[] {
+export function groupHits<H, G extends string>(
+  hits: readonly H[],
+  groupOf: (h: H) => G,
+  order: readonly G[],
+  titles: Record<G, string>,
+  max: number,
+): HitGroup<H, G>[] {
   const groups: HitGroup<H, G>[] = [];
   for (const id of order) {
     const all = hits.filter((h) => groupOf(h) === id);

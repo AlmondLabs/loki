@@ -35,7 +35,10 @@ export function onPath(name: string, look: Look = {}): string[] {
     .split(p.delimiter)
     .map((d) => d.replace(/^"(.*)"$/, "$1"))
     .filter(Boolean);
-  const exts = (envVar("PATHEXT", look) ?? DEFAULT_PATHEXT).split(";").filter(Boolean).map((e) => e.toLowerCase());
+  const exts = (envVar("PATHEXT", look) ?? DEFAULT_PATHEXT)
+    .split(";")
+    .filter(Boolean)
+    .map((e) => e.toLowerCase());
   const names = windows && !exts.includes(p.extname(name).toLowerCase()) ? exts.map((e) => name + e) : [name];
   return dirs.flatMap((d) => names.map((n) => p.join(d, n)));
 }
@@ -71,7 +74,14 @@ export function commandFor(bin: string, args: string[], platform: NodeJS.Platfor
 }
 
 /** execFile, but a Windows `.cmd` runs through the shell (commandFor). Output as text. */
-export function execProgram(bin: string, args: string[], options: ExecFileOptions, callback: (err: ExecFileException | null, stdout: string, stderr: string) => void): void {
+export function execProgram(
+  bin: string,
+  args: string[],
+  options: ExecFileOptions,
+  callback: (err: ExecFileException | null, stdout: string, stderr: string) => void,
+): void {
   const c = commandFor(bin, args);
-  execFile(c.file, c.args, { windowsHide: true, ...options, encoding: "utf8", ...(c.shell ? { shell: true } : {}) }, (err, stdout, stderr) => callback(err, String(stdout), String(stderr)));
+  execFile(c.file, c.args, { windowsHide: true, ...options, encoding: "utf8", ...(c.shell ? { shell: true } : {}) }, (err, stdout, stderr) =>
+    callback(err, String(stdout), String(stderr)),
+  );
 }

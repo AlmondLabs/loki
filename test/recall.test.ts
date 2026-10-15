@@ -8,8 +8,16 @@ import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/vie
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const card = (id: string, over: Partial<Card> = {}): Card => ({
-  id, front: `q ${id}`, back: `a ${id}`, tags: ["t"], createdAt: new Date(T0).toISOString(), updatedAt: new Date(T0).toISOString(), updatedBy: "recall", previous: [],
-  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null }, ...over,
+  id,
+  front: `q ${id}`,
+  back: `a ${id}`,
+  tags: ["t"],
+  createdAt: new Date(T0).toISOString(),
+  updatedAt: new Date(T0).toISOString(),
+  updatedBy: "recall",
+  previous: [],
+  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
+  ...over,
 });
 
 let dir: string;
@@ -112,11 +120,23 @@ describe("recall store", () => {
 });
 
 describe("leads and lessons", () => {
-  const lead = (id: string, title = `topic ${id}`): Lead => ({ id, title, why: "it went by", depth: "primer", source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null }, createdAt: new Date(T0).toISOString() });
+  const lead = (id: string, title = `topic ${id}`): Lead => ({
+    id,
+    title,
+    why: "it went by",
+    depth: "primer",
+    source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
+    createdAt: new Date(T0).toISOString(),
+  });
   test("a lead is added, dismissed to its pile, and restored", () => {
     store.addLead(lead("l1"));
     store.addLead(lead("l2"));
-    expect(store.leads().map((l) => l.id).sort()).toEqual(["l1", "l2"]);
+    expect(
+      store
+        .leads()
+        .map((l) => l.id)
+        .sort(),
+    ).toEqual(["l1", "l2"]);
     expect(store.dismissLead("l1", T0)?.lead.title).toBe("topic l1");
     expect(store.leads().map((l) => l.id)).toEqual(["l2"]);
     expect(store.dismissedLeads()).toHaveLength(1);
@@ -143,10 +163,26 @@ describe("leads and lessons", () => {
 });
 
 describe("learn: the views in the list column", () => {
-  const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({ cards: [], rejected: [], leads: [], dismissedLeads: [], lessons: [], worker: { enabled: true, dailyCap: 20, lastRunAt: null, lastRunNote: null, writtenToday: 0 }, ...over });
+  const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({
+    cards: [],
+    rejected: [],
+    leads: [],
+    dismissedLeads: [],
+    lessons: [],
+    worker: { enabled: true, dailyCap: 20, lastRunAt: null, lastRunNote: null, writtenToday: 0 },
+    ...over,
+  });
 
   test("the four views in order, each with what it shows: due cards, leads, every card, and the deleted cards and leads", () => {
-    const rows = learnViews(snap({ cards: [{}, {}, {}] as RecallSnapshot["cards"], leads: [{}] as RecallSnapshot["leads"], rejected: [{}] as RecallSnapshot["rejected"], dismissedLeads: [{}, {}] as RecallSnapshot["dismissedLeads"] }), 2);
+    const rows = learnViews(
+      snap({
+        cards: [{}, {}, {}] as RecallSnapshot["cards"],
+        leads: [{}] as RecallSnapshot["leads"],
+        rejected: [{}] as RecallSnapshot["rejected"],
+        dismissedLeads: [{}, {}] as RecallSnapshot["dismissedLeads"],
+      }),
+      2,
+    );
     expect(rows.map((r) => [r.view, r.label, r.count])).toEqual([
       ["review", "Review", 2],
       ["leads", "Leads", 1],

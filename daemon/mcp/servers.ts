@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { Client, StreamableHTTPClientTransport, UnauthorizedError, type CallToolResult, type OAuthClientProvider, type Tool, type Transport } from "@modelcontextprotocol/client";
+import {
+  Client,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+  type CallToolResult,
+  type OAuthClientProvider,
+  type Tool,
+  type Transport,
+} from "@modelcontextprotocol/client";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { sameServer, type ServerConfig } from "./config.ts";
 
@@ -53,7 +61,13 @@ export const connectServer: Connector = async (config, client, stderr, auth) => 
   if (config.kind === "local") {
     // The given env adds to the safe defaults (PATH, HOME …) rather than replacing them: a server started with only
     // its token in its environment could not find its own runtime.
-    const stdio = new StdioClientTransport({ command: config.command, args: config.args, env: { ...getDefaultEnvironment(), ...config.env }, ...(config.cwd ? { cwd: config.cwd } : {}), stderr: "pipe" });
+    const stdio = new StdioClientTransport({
+      command: config.command,
+      args: config.args,
+      env: { ...getDefaultEnvironment(), ...config.env },
+      ...(config.cwd ? { cwd: config.cwd } : {}),
+      stderr: "pipe",
+    });
     stdio.stderr?.on("data", (chunk: Buffer) => stderr(chunk.toString("utf8")));
     transport = stdio;
   } else {
@@ -89,7 +103,15 @@ export class McpServers {
   private readonly version: string;
   private closed = false;
 
-  constructor(opts: { connect?: Connector; resolve?: (config: ServerConfig) => Promise<ServerConfig>; oauthFor?: (config: ServerConfig) => OAuthClientProvider | undefined; report?: (message: string) => void; version?: string } = {}) {
+  constructor(
+    opts: {
+      connect?: Connector;
+      resolve?: (config: ServerConfig) => Promise<ServerConfig>;
+      oauthFor?: (config: ServerConfig) => OAuthClientProvider | undefined;
+      report?: (message: string) => void;
+      version?: string;
+    } = {},
+  ) {
     this.connect = opts.connect ?? connectServer;
     this.resolve = opts.resolve ?? (async (c) => c);
     this.oauthFor = opts.oauthFor ?? (() => undefined);
@@ -122,7 +144,18 @@ export class McpServers {
     }
     for (const config of servers) {
       if (this.entries.has(config.name)) continue;
-      const entry: Entry = { config, state: "starting", error: null, tools: [], purpose: null, client: null, stderr: "", failures: 0, retry: null, generation: 0 };
+      const entry: Entry = {
+        config,
+        state: "starting",
+        error: null,
+        tools: [],
+        purpose: null,
+        client: null,
+        stderr: "",
+        failures: 0,
+        retry: null,
+        generation: 0,
+      };
       this.entries.set(config.name, entry);
       void this.start(entry);
     }
@@ -148,7 +181,14 @@ export class McpServers {
     this.changed();
     const client = new Client(
       { name: "loki", version: this.version },
-      { listChanged: { tools: { onChanged: (error, tools) => (error ? this.report(`mcp ${entry.config.name}: tools did not refresh: ${String(error)}`) : this.setTools(entry, generation, tools ?? [])) } } },
+      {
+        listChanged: {
+          tools: {
+            onChanged: (error, tools) =>
+              error ? this.report(`mcp ${entry.config.name}: tools did not refresh: ${String(error)}`) : this.setTools(entry, generation, tools ?? []),
+          },
+        },
+      },
     );
     entry.stderr = "";
     const stderr = (text: string) => {
@@ -247,7 +287,14 @@ export class McpServers {
   }
 
   status(): ServerStatus[] {
-    return [...this.entries.values()].map((e) => ({ name: e.config.name, kind: e.config.kind, state: e.state, error: e.error, tools: e.tools.length, purpose: e.purpose }));
+    return [...this.entries.values()].map((e) => ({
+      name: e.config.name,
+      kind: e.config.kind,
+      state: e.state,
+      error: e.error,
+      tools: e.tools.length,
+      purpose: e.purpose,
+    }));
   }
 
   /** Call a tool by its key. A server that is down, or a tool it no longer has, is an error the model reads. */
@@ -257,7 +304,10 @@ export class McpServers {
     const client = this.entries.get(tool.server)?.client;
     if (!client) throw new Error(`the ${tool.server} MCP server is not connected`);
     // A long tool (a build, a crawl) is not cut off at the SDK's default minute; Stop still ends it.
-    return client.callTool({ name: tool.name, arguments: args }, { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true }) as Promise<CallToolResult>;
+    return client.callTool(
+      { name: tool.name, arguments: args },
+      { ...(signal ? { signal } : {}), timeout: 10 * 60_000, resetTimeoutOnProgress: true },
+    ) as Promise<CallToolResult>;
   }
 
   /** Stop every server (the daemon is stopping). */

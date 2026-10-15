@@ -60,13 +60,11 @@ describe("background tasks", () => {
     tasks.stop(id, "agent-a");
   });
 
-
   test("a character split across two chunks of output arrives whole", async () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "printf '\\303'; sleep 0.1; printf '\\251\\n'");
     expect(await tasks.wait(id, "agent-a", undefined, 3000)).toContain("é");
   });
-
 
   test("finished tasks are forgotten after a while; a running one is kept", async () => {
     const tasks = new BackgroundTasks(() => {});
@@ -135,15 +133,42 @@ describe("scheduled tasks", () => {
       const fired: string[] = [];
       const schedules = new Schedules(join(dir, "crons.json"), async (_a, chatId, text) => void fired.push(`${chatId}: ${text}`));
       const made = new Date("2026-10-10T00:00:00Z");
-      schedules.create({ agent_id: "agent-a", conversation_id: "default", name: "standup", description: null, cron: "0 9 * * *", timezone: "UTC", recurring: true, prompt: "post the standup" }, made);
-      schedules.create({ agent_id: "agent-a", conversation_id: "c", name: "once", description: null, cron: "30 9 10 10 *", timezone: "UTC", recurring: false, prompt: "remind me" }, made);
+      schedules.create(
+        {
+          agent_id: "agent-a",
+          conversation_id: "default",
+          name: "standup",
+          description: null,
+          cron: "0 9 * * *",
+          timezone: "UTC",
+          recurring: true,
+          prompt: "post the standup",
+        },
+        made,
+      );
+      schedules.create(
+        {
+          agent_id: "agent-a",
+          conversation_id: "c",
+          name: "once",
+          description: null,
+          cron: "30 9 10 10 *",
+          timezone: "UTC",
+          recurring: false,
+          prompt: "remind me",
+        },
+        made,
+      );
       expect(await schedules.tick(new Date("2026-10-10T08:59:00Z"))).toBe(0);
       expect(await schedules.tick(new Date("2026-10-10T09:00:00Z"))).toBe(1);
       expect(fired).toEqual(['default: Scheduled task "standup": post the standup']);
       // Closed for three days: each task fires once, not once per missed slot.
       expect(await schedules.tick(new Date("2026-10-13T12:00:00Z"))).toBe(2);
       expect(fired.slice(1).sort()).toEqual(['c: Scheduled task "once": remind me', 'default: Scheduled task "standup": post the standup']);
-      expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([["standup", "active", 2], ["once", "done", 1]]);
+      expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([
+        ["standup", "active", 2],
+        ["once", "done", 1],
+      ]);
       expect(schedules.cancel("agent-a", "standup")).toBe(true);
       expect(schedules.cancel("agent-b", "once")).toBe(false);
       expect(await schedules.tick(new Date("2026-10-14T09:00:00Z"))).toBe(0);
@@ -187,7 +212,11 @@ describe("scheduled tasks", () => {
       release();
       expect(await first).toBe(1);
       expect(fired).toHaveLength(1);
-      expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([["standup", "active", 1], ["other", "cancelled", 0], ["later", "active", 0]]);
+      expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([
+        ["standup", "active", 1],
+        ["other", "cancelled", 0],
+        ["later", "active", 0],
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

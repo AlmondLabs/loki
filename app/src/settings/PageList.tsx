@@ -33,7 +33,16 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
         const on = p.id === page;
         // aria-selected is the tab's state; the list's highlight keys off it (aria-current is for links).
         return (
-          <NavButton key={p.id} role="tab" data-page={p.id} current={on} aria-current={undefined} aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => onPick(p.id)}>
+          <NavButton
+            key={p.id}
+            role="tab"
+            data-page={p.id}
+            current={on}
+            aria-current={undefined}
+            aria-selected={on}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onPick(p.id)}
+          >
             {pageTitle(p.id)}
             {extra?.(p.id)}
           </NavButton>

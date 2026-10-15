@@ -21,7 +21,12 @@ export interface NodeMissing {
 /** The usual way to get Node on each system, for Welcome: one command where there is one, and a line around it. */
 export function nodeHelp(os: NodeMissing["os"]): { command: string; also?: string; note: string } {
   if (os === "windows") return { command: "winget install OpenJS.NodeJS.LTS", note: "in PowerShell or Windows Terminal." };
-  if (os === "linux") return { command: "sudo apt install nodejs npm", also: "sudo dnf install nodejs", note: "on Debian or Ubuntu, or on Fedora, when the distribution's Node is 22 or newer." };
+  if (os === "linux")
+    return {
+      command: "sudo apt install nodejs npm",
+      also: "sudo dnf install nodejs",
+      note: "on Debian or Ubuntu, or on Fedora, when the distribution's Node is 22 or newer.",
+    };
   return { command: "brew install node", note: "with Homebrew (the loki cask brings it)." };
 }
 

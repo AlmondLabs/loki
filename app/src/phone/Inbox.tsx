@@ -183,7 +183,21 @@ const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(
  * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
  * puts the last one back.
  */
-function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem, how: "swipe" | "tap") => void; onArchive: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
+function usePass({
+  deck,
+  reduced,
+  onSeen,
+  onArchive,
+  onUndo,
+  onCommit,
+}: {
+  deck: Deck;
+  reduced: boolean;
+  onSeen: (item: AttentionItem, how: "swipe" | "tap") => void;
+  onArchive: (item: AttentionItem) => void;
+  onUndo: (item: AttentionItem, via: Swipe) => void;
+  onCommit: () => void;
+}) {
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [refused, setRefused] = useState(false);
@@ -240,7 +254,19 @@ const OWN_GESTURE = "textarea, input, select, button, a, pre, summary, [data-att
  * vertical pans to the browser, which then cancels our pointer), and never from the message box or a
  * control. Owns the drag offset and the velocity samples.
  */
-function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: number; approval: boolean; current: AttentionItem | undefined; onCommit: (item: AttentionItem, via: Swipe) => void; onRefuse: () => void }) {
+function useSwipe({
+  width,
+  approval,
+  current,
+  onCommit,
+  onRefuse,
+}: {
+  width: number;
+  approval: boolean;
+  current: AttentionItem | undefined;
+  onCommit: (item: AttentionItem, via: Swipe) => void;
+  onRefuse: () => void;
+}) {
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   // Where and how fast the last drag was let go: the spring home, or off, carries that speed.
   const [release, setRelease] = useState<Release | null>(null);
@@ -423,12 +449,38 @@ export function Inbox({
       </div>
 
       {!current ? (
-        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} passedOver={catchUpQueue(items).length} onAgain={deck.again} pass={deck.pass} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
+        <EmptyDeck
+          available={available}
+          loaded={loaded}
+          banner={banner}
+          running={running}
+          passedOver={catchUpQueue(items).length}
+          onAgain={deck.again}
+          pass={deck.pass}
+          backLabel={backLabel}
+          onClose={onClose}
+          onConnection={onConnection}
+        />
       ) : (
         <>
           <div ref={deckRef} className="loki-phone-deck">
             <Reveal dx={swipe.drag?.dx ?? 0} width={width} approval={approval} />
-            <Stack visible={visible} leaving={leaving} drag={swipe.drag} release={swipe.release} width={width} approval={approval} refused={refused} reduced={reduced} conversation={conversation} handlers={swipe.handlers} deck={deck} banner={banner} card={card} onOpen={onOpen} />
+            <Stack
+              visible={visible}
+              leaving={leaving}
+              drag={swipe.drag}
+              release={swipe.release}
+              width={width}
+              approval={approval}
+              refused={refused}
+              reduced={reduced}
+              conversation={conversation}
+              handlers={swipe.handlers}
+              deck={deck}
+              banner={banner}
+              card={card}
+              onOpen={onOpen}
+            />
           </div>
           <Decisions
             item={current}
@@ -450,7 +502,29 @@ export function Inbox({
  * No card up: still reading (a card's shape), or why (loki not running, the Mac unreachable, every chat moved past), what
  * this visit did, and what to do next.
  */
-function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Chats this visit went past; the badge still counts the ones that need you. */ passedOver: number; onAgain: () => void; pass: PassSummary; backLabel: string; onClose: () => void; onConnection: () => void }) {
+function EmptyDeck({
+  available,
+  loaded,
+  banner,
+  running,
+  passedOver,
+  onAgain,
+  pass,
+  backLabel,
+  onClose,
+  onConnection,
+}: {
+  available: boolean;
+  loaded: boolean;
+  banner?: ReactNode;
+  running: number;
+  /** Chats this visit went past; the badge still counts the ones that need you. */ passedOver: number;
+  onAgain: () => void;
+  pass: PassSummary;
+  backLabel: string;
+  onClose: () => void;
+  onConnection: () => void;
+}) {
   const summary = summaryLine(pass);
   const macProblem = !available || !!banner;
   if (!loaded && !macProblem)
@@ -461,7 +535,13 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
   const again = loaded && !macProblem && passedOver > 0;
-  const title = !available ? "loki is not running on the Mac" : banner ? "The Mac is out of reach" : again ? "You've been through every chat" : "You're caught up";
+  const title = !available
+    ? "loki is not running on the Mac"
+    : banner
+      ? "The Mac is out of reach"
+      : again
+        ? "You've been through every chat"
+        : "You're caught up";
   const line = !available
     ? "Open loki on the Mac."
     : banner
@@ -527,7 +607,37 @@ interface CardHandlers {
 }
 
 /** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
-function Stack({ visible, leaving, drag, release, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: Leaving | null; drag: { dx: number } | null; release: Release | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
+function Stack({
+  visible,
+  leaving,
+  drag,
+  release,
+  width,
+  approval,
+  refused,
+  reduced,
+  conversation,
+  handlers,
+  deck,
+  banner,
+  card,
+  onOpen,
+}: {
+  visible: AttentionItem[];
+  leaving: Leaving | null;
+  drag: { dx: number } | null;
+  release: Release | null;
+  width: number;
+  approval: boolean;
+  refused: boolean;
+  reduced: boolean;
+  conversation: (agentId: string, conversationId: string) => CardView;
+  handlers: CardHandlers;
+  deck: Deck;
+  banner?: ReactNode;
+  card: CardActions;
+  onOpen: (item: AttentionItem) => void;
+}) {
   const dx = drag?.dx ?? 0;
   // Every move is a spring (kit/spring.ts): the cards behind rise on the smooth one; a card let go springs
   // home on the snappy one, or flies off on the smooth one, either way carrying the finger's speed.
@@ -537,11 +647,22 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
   // Only the card that was let go carries the speed: a card sent off by a button, or rising into the top place, starts still.
   const flung = leaving && release?.committed && release.id === idOf(leaving.item) ? release : null;
   const fly = spring("smooth", flung ? flingVelocity(flung.dx, flyTo, flung.v) : 0);
-  const homeFrom = (item: AttentionItem) => (release && !release.committed && release.id === idOf(item) ? spring("snappy", flingVelocity(release.dx, 0, release.v)) : rise);
+  const homeFrom = (item: AttentionItem) =>
+    release && !release.committed && release.id === idOf(item) ? spring("snappy", flingVelocity(release.dx, 0, release.v)) : rise;
   return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
     if (role === "leaving")
       return (
-        <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in` }}>
+        <Card
+          key={idOf(item)}
+          item={item}
+          role={role}
+          style={{
+            zIndex: 3,
+            transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`,
+            opacity: 0,
+            transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
+          }}
+        >
           <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
         </Card>
       );
@@ -553,7 +674,11 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
           item={item}
           role={role}
           refused={refused}
-          style={{ zIndex: 2, transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none", transition: drag || reduced ? "none" : `transform ${homeFrom(item).ms}ms ${homeFrom(item).easing}` }}
+          style={{
+            zIndex: 2,
+            transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none",
+            transition: drag || reduced ? "none" : `transform ${homeFrom(item).ms}ms ${homeFrom(item).easing}`,
+          }}
           handlers={handlers}
           onOpen={() => {
             openFromCard(); // the conversation grows out of the card (transitions.ts)
@@ -565,7 +690,15 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
       );
     }
     const pose = stackPose(index);
-    return <Card key={idOf(item)} item={item} role={role} veil={1 - pose.opacity} style={{ zIndex: 1 - index, transform: `translateY(${pose.offsetY}px) scale(${pose.scale})`, transition: move }} />;
+    return (
+      <Card
+        key={idOf(item)}
+        item={item}
+        role={role}
+        veil={1 - pose.opacity}
+        style={{ zIndex: 1 - index, transform: `translateY(${pose.offsetY}px) scale(${pose.scale})`, transition: move }}
+      />
+    );
   });
 }
 
@@ -573,13 +706,46 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
  * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
  * the ones behind are its frame and head under a veil, and the one flying off is inert.
  */
-function Card({ item, role, refused = false, veil = 0, style, handlers, onOpen, children }: { item: AttentionItem; role: Role; refused?: boolean; /** 0..1: how much of the veil sits over a card behind the top one. */ veil?: number; style: CSSProperties; handlers?: CardHandlers; onOpen?: () => void; children?: ReactNode }) {
+function Card({
+  item,
+  role,
+  refused = false,
+  veil = 0,
+  style,
+  handlers,
+  onOpen,
+  children,
+}: {
+  item: AttentionItem;
+  role: Role;
+  refused?: boolean;
+  /** 0..1: how much of the veil sits over a card behind the top one. */ veil?: number;
+  style: CSSProperties;
+  handlers?: CardHandlers;
+  onOpen?: () => void;
+  children?: ReactNode;
+}) {
   const top = role === "top";
   const title = item.title ?? item.id;
   return (
-    <article className="loki-phone-card" data-role={role} data-refused={refused || undefined} aria-label={top ? `${title}, with ${item.agentName ?? "the agent"}` : undefined} aria-hidden={!top || undefined} inert={!top} {...(top ? handlers : {})} style={style}>
+    <article
+      className="loki-phone-card"
+      data-role={role}
+      data-refused={refused || undefined}
+      aria-label={top ? `${title}, with ${item.agentName ?? "the agent"}` : undefined}
+      aria-hidden={!top || undefined}
+      inert={!top}
+      {...(top ? handlers : {})}
+      style={style}
+    >
       <header className="loki-phone-card-head">
-        <button type="button" className="loki-phone-card-who" onClick={onOpen} aria-label={`Open ${title} with ${item.agentName ?? "the agent"}`} tabIndex={top ? undefined : -1}>
+        <button
+          type="button"
+          className="loki-phone-card-who"
+          onClick={onOpen}
+          aria-label={`Open ${title} with ${item.agentName ?? "the agent"}`}
+          tabIndex={top ? undefined : -1}
+        >
           <Avatar name={item.agentName} src={avatarUrl(item.agentId)} size={28} />
           <span className="loki-phone-ellipsis">{item.agentName ?? "agent"}</span>
           <Icon name="chevron-down" size={16} />
@@ -603,14 +769,32 @@ function Card({ item, role, refused = false, veil = 0, style, handlers, onOpen, 
  * session.ts under this conversation's key — the same draft the desk page shows. A message or an answer
  * from here holds the card on top until you decide it. Approve and deny are the buttons under the card.
  */
-export function CardConversation({ item, view, banner, card, onHold }: { item: AttentionItem; view: CardView; banner?: ReactNode; card: CardActions; onHold: () => void }) {
+export function CardConversation({
+  item,
+  view,
+  banner,
+  card,
+  onHold,
+}: {
+  item: AttentionItem;
+  view: CardView;
+  banner?: ReactNode;
+  card: CardActions;
+  onHold: () => void;
+}) {
   const [draft, setDraft] = useDraft(draftKey(item.agentId, item.id));
   const agentName = item.agentName ?? "the agent";
-  const people = useMemo(() => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }), [item.agentName, item.agentId]);
+  const people = useMemo(
+    () => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }),
+    [item.agentName, item.agentId],
+  );
   const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt, item.viewedAt);
   // The chat's widgets, drawn under the rows that made them; read only here (the phone may not change a desk).
   const { widgets, inline } = useInlineWidgets(undefined, scopeFor(item.id, item.agentId), view.rows, item.agentName ?? null, { readOnly: true });
-  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt), widgets, inline }), [people, dividerAt, item.lastMessageAt, widgets, inline]);
+  const layout = useMemo(
+    () => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt), widgets, inline }),
+    [people, dividerAt, item.lastMessageAt, widgets, inline],
+  );
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;
   const said = cardNotice(item, view.status);
@@ -629,7 +813,16 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
       <Conversation
         touch
         dim={false}
-        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null, older: view.older ?? null }}
+        view={{
+          rows: view.rows,
+          status: view.status,
+          error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null),
+          approval,
+          question,
+          model: model?.modelOf(item) ?? null,
+          reasoningEffort: model?.effortOf(item) ?? null,
+          older: view.older ?? null,
+        }}
         models={model?.models ?? null}
         actions={{
           onLoadModels: model?.onLoad,
@@ -665,18 +858,43 @@ function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView })
  * sheet can archive it) and Next, or — for an approval, which leaves only by its decision — Deny and Approve. The same two elements in both cases, so focus stays put as the
  * next card comes up.
  */
-export function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; onOpen: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny" | "always") => void }) {
+export function Decisions({
+  item,
+  onOpen,
+  onSeen,
+  onApprove,
+}: {
+  item: AttentionItem;
+  onOpen: () => void;
+  onSeen: () => void;
+  onApprove: (behavior: "allow" | "deny" | "always") => void;
+}) {
   const approval = !!item.pendingApproval;
   return (
     <div className="loki-phone-decide">
-      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onOpen} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Open chat"}>
+      <button
+        type="button"
+        className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"}
+        onClick={approval ? () => onApprove("deny") : onOpen}
+        aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Open chat"}
+      >
         {approval ? "Deny" : "Open chat"}
       </button>
-      <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
+      <button
+        type="button"
+        className="loki-phone-decide-btn loki-phone-decide-btn--affirm"
+        onClick={approval ? () => onApprove("allow") : onSeen}
+        aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}
+      >
         {approval ? "Approve" : "Next"}
       </button>
       {approval && (
-        <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${item.pendingApproval!.toolName}`}>
+        <button
+          type="button"
+          className="loki-phone-decide-always"
+          onClick={() => onApprove("always")}
+          aria-label={`Always allow ${item.pendingApproval!.toolName}`}
+        >
           Always allow {item.pendingApproval!.toolName}
         </button>
       )}

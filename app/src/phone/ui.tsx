@@ -16,7 +16,21 @@ import { useScrollMemory } from "./session";
  * the fill are inline, since they come from the caller. The title is the screen's heading: the one
  * element focus moves to when a route opens (session.ts restoreFocus), hence tabIndex -1.
  */
-export function TopBar({ left, title, sub, right, progress = null, height = 48 }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode; progress?: number | null; /** The row's height; 44 for a bar with no second line. */ height?: number }) {
+export function TopBar({
+  left,
+  title,
+  sub,
+  right,
+  progress = null,
+  height = 48,
+}: {
+  left?: ReactNode;
+  title: ReactNode;
+  sub?: ReactNode;
+  right?: ReactNode;
+  progress?: number | null;
+  /** The row's height; 44 for a bar with no second line. */ height?: number;
+}) {
   return (
     <header className={progress === null ? "loki-phone-topbar" : "loki-phone-topbar loki-phone-topbar--progress"}>
       <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
@@ -43,7 +57,19 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
  * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
  * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
  */
-export function Scroll({ children, style, memory, flush = false, flip }: { children: ReactNode; style?: CSSProperties; memory?: string; /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean; /** The rows' arrangement: when it changes, rows glide to their new places (kit/useFlip.ts). */ flip?: string }) {
+export function Scroll({
+  children,
+  style,
+  memory,
+  flush = false,
+  flip,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+  memory?: string;
+  /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean;
+  /** The rows' arrangement: when it changes, rows glide to their new places (kit/useFlip.ts). */ flip?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useScrollMemory(ref, memory);
   useFlip(ref, flip);
@@ -69,7 +95,27 @@ export function BackButton({ onClick, label }: { onClick: () => void; label: str
  * it runs the action says so and both stay put; a failure keeps the sheet open with the error and the
  * action to try again.
  */
-export function ConfirmSheet({ title, children, action, busyAction, tone = "negative", busy = false, error = null, onConfirm, onClose }: { title: string; children: ReactNode; action: string; busyAction?: string; tone?: "negative" | "brass"; busy?: boolean; error?: string | null; onConfirm: () => void; onClose: () => void }) {
+export function ConfirmSheet({
+  title,
+  children,
+  action,
+  busyAction,
+  tone = "negative",
+  busy = false,
+  error = null,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  action: string;
+  busyAction?: string;
+  tone?: "negative" | "brass";
+  busy?: boolean;
+  error?: string | null;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
   return (
     <Sheet label={title} onClose={busy ? undefined : onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-copy">

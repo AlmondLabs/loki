@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { describeGap, isDue, isNew } from "../../../core/recall/fsrs.ts";
-import { updatedSinceReview, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected, type WorkerStatus } from "../../../core/recall/model.ts";
+import {
+  updatedSinceReview,
+  type CardWithSchedule,
+  type DismissedLead,
+  type Lead,
+  type Lesson,
+  type Rejected,
+  type WorkerStatus,
+} from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/CatchUpParts";
 
@@ -11,7 +19,10 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
       {source.agentName && <Chip static>{source.agentName}</Chip>}
-      <Meta>{source.title ?? "a conversation"}{source.at ? ` · ${ago(source.at)}` : ""}</Meta>
+      <Meta>
+        {source.title ?? "a conversation"}
+        {source.at ? ` · ${ago(source.at)}` : ""}
+      </Meta>
       {isNew(c.schedule) && <Meta brass>new</Meta>}
       {updatedSinceReview(c) && <Meta brass>updated by recall · {ago(c.card.updatedAt)}</Meta>}
       {c.card.tags.map((t) => (
@@ -39,8 +50,12 @@ export function CardEditor({ c, onSave, onCancel }: { c: CardWithSchedule; onSav
       <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="front" autoFocus />
       <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="back" />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <Button size="sm" onClick={onCancel}>cancel</Button>
-        <Button size="sm" tone="positive" onClick={() => onSave({ front, back })} disabled={!front.trim() || !back.trim()}>save</Button>
+        <Button size="sm" onClick={onCancel}>
+          cancel
+        </Button>
+        <Button size="sm" tone="positive" onClick={() => onSave({ front, back })} disabled={!front.trim() || !back.trim()}>
+          save
+        </Button>
       </div>
     </div>
   );
@@ -52,7 +67,9 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   if (!prev) return null;
   return (
     <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
-      <Meta>before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}</Meta>
+      <Meta>
+        before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
+      </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
       <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
     </div>
@@ -60,16 +77,35 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
 }
 
 /** Every card, searchable, with its standing; a row opens for editing or deleting. */
-export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[]; onEdit: (id: string, text: { front: string; back: string }) => void; onDelete: (id: string) => void }) {
+export function CardList({
+  cards,
+  onEdit,
+  onDelete,
+}: {
+  cards: CardWithSchedule[];
+  onEdit: (id: string, text: { front: string; back: string }) => void;
+  onDelete: (id: string) => void;
+}) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const needle = q.trim().toLowerCase();
-  const shown = cards.filter((c) => !needle || c.card.front.toLowerCase().includes(needle) || c.card.back.toLowerCase().includes(needle) || c.card.tags.some((t) => t.includes(needle)));
+  const shown = cards.filter(
+    (c) => !needle || c.card.front.toLowerCase().includes(needle) || c.card.back.toLowerCase().includes(needle) || c.card.tags.some((t) => t.includes(needle)),
+  );
   const sorted = [...shown].sort((a, b) => b.card.updatedAt.localeCompare(a.card.updatedAt));
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <Field value={q} onChange={(e) => setQ(e.target.value)} placeholder={`search ${cards.length} card${cards.length === 1 ? "" : "s"}…`} aria-label="search cards" />
-      {sorted.length === 0 && <Empty title={needle ? "No card matches." : "No cards yet."}>{needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}</Empty>}
+      <Field
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={`search ${cards.length} card${cards.length === 1 ? "" : "s"}…`}
+        aria-label="search cards"
+      />
+      {sorted.length === 0 && (
+        <Empty title={needle ? "No card matches." : "No cards yet."}>
+          {needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}
+        </Empty>
+      )}
       <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
         {sorted.map((c) => (
           <li key={c.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", padding: open === c.card.id ? 14 : 0 }}>
@@ -85,17 +121,29 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
                   onCancel={() => setOpen(null)}
                 />
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Meta>{dueWord(c)} · {c.schedule.reps} review{c.schedule.reps === 1 ? "" : "s"} · {c.schedule.lapses} forgotten</Meta>
+                  <Meta>
+                    {dueWord(c)} · {c.schedule.reps} review{c.schedule.reps === 1 ? "" : "s"} · {c.schedule.lapses} forgotten
+                  </Meta>
                   <span style={{ flex: 1 }} />
-                  <Button size="sm" tone="negative" onClick={() => onDelete(c.card.id)}>delete</Button>
+                  <Button size="sm" tone="negative" onClick={() => onDelete(c.card.id)}>
+                    delete
+                  </Button>
                 </div>
                 <PreviousText c={c} />
               </div>
             ) : (
-              <Row flush onClick={() => setOpen(c.card.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 12px" }}>
+              <Row
+                flush
+                onClick={() => setOpen(c.card.id)}
+                style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 12px" }}
+              >
                 <span style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.card.front}</div>
-                  <div className="loki-meta" style={{ marginTop: 2 }}>{c.card.back}</div>
+                  <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.card.front}
+                  </div>
+                  <div className="loki-meta" style={{ marginTop: 2 }}>
+                    {c.card.back}
+                  </div>
                 </span>
                 <Meta brass={isDue(c.schedule)}>{dueWord(c)}</Meta>
               </Row>
@@ -109,24 +157,46 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
 
 /** Deleted cards: what the worker learns from. Restore one that was a mistake; forget one for good. */
 export function RejectedList({ rejected, onRestore, onForget }: { rejected: Rejected[]; onRestore: (id: string) => void; onForget: (id: string) => void }) {
-  if (!rejected.length) return <Empty title="Nothing deleted.">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
+  if (!rejected.length)
+    return <Empty title="Nothing deleted.">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
   return (
     <div style={{ display: "grid", gap: 4 }}>
-      <Meta wrap>These teach the worker: a card deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back reworded.</Meta>
+      <Meta wrap>
+        These teach the worker: a card deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back reworded.
+      </Meta>
       <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
-      {rejected.map((r) => (
-        <li key={r.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
-          <span style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.card.front}</div>
-            <div className="loki-meta" style={{ marginTop: 2 }}>{r.card.back}</div>
-            <Meta>deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}</Meta>
-          </span>
-          <span style={{ display: "flex", gap: 6 }}>
-            <Button size="sm" onClick={() => onRestore(r.card.id)}>restore</Button>
-            <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="drop it from the pile too — the worker stops seeing it">forget</Button>
-          </span>
-        </li>
-      ))}
+        {rejected.map((r) => (
+          <li
+            key={r.card.id}
+            style={{
+              border: "1px solid var(--loki-border)",
+              borderRadius: "var(--loki-radius-md)",
+              padding: "10px 12px",
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <span style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.card.front}</div>
+              <div className="loki-meta" style={{ marginTop: 2 }}>
+                {r.card.back}
+              </div>
+              <Meta>
+                deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
+              </Meta>
+            </span>
+            <span style={{ display: "flex", gap: 6 }}>
+              <Button size="sm" onClick={() => onRestore(r.card.id)}>
+                restore
+              </Button>
+              <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="drop it from the pile too — the worker stops seeing it">
+                forget
+              </Button>
+            </span>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -139,7 +209,21 @@ function writtenLine(worker: WorkerStatus): string {
 }
 
 /** The worker's knobs and its last word, plus the export. */
-export function WorkerStrip({ worker, running, onSettings, onRun, onExport, cardCount }: { worker: WorkerStatus; running: boolean; onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void; onRun: () => void; onExport: () => void; cardCount: number }) {
+export function WorkerStrip({
+  worker,
+  running,
+  onSettings,
+  onRun,
+  onExport,
+  cardCount,
+}: {
+  worker: WorkerStatus;
+  running: boolean;
+  onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void;
+  onRun: () => void;
+  onExport: () => void;
+  cardCount: number;
+}) {
   const [cap, setCap] = useState(String(worker.dailyCap));
   return (
     <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
@@ -152,12 +236,29 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
           {worker.lastRunAt ? `last run ${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}
         </Meta>
         <span style={{ flex: 1 }} />
-        <Button size="sm" onClick={onRun} disabled={running} title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour">{running ? "running…" : "run now"}</Button>
-        <Button size="sm" onClick={onExport} disabled={!cardCount} title="copies every card as Anki's plain-text import: front, back, tags">export for Anki</Button>
+        <Button
+          size="sm"
+          onClick={onRun}
+          disabled={running}
+          title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
+        >
+          {running ? "running…" : "run now"}
+        </Button>
+        <Button size="sm" onClick={onExport} disabled={!cardCount} title="copies every card as Anki's plain-text import: front, back, tags">
+          export for Anki
+        </Button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="loki-label">Cards a day</span>
-        <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
+        <Field
+          size="sm"
+          mono
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })}
+          style={{ width: 64 }}
+          aria-label="cards a day"
+        />
       </div>
     </div>
   );
@@ -167,7 +268,9 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {revealed ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
+      {revealed
+        ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back"
+        : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
     </div>
   );
 }
@@ -178,29 +281,42 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
  */
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   return (
-    <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
+    <section
+      aria-label="about learn"
+      style={{
+        background: "var(--loki-panel)",
+        border: "1px solid var(--loki-border)",
+        borderRadius: "var(--loki-radius-lg)",
+        padding: "22px 24px",
+        display: "grid",
+        gap: 14,
+        fontSize: 13.5,
+        lineHeight: 1.55,
+      }}
+    >
       <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
-        Learn is a writer that runs in the background. Once conversations have been quiet for half an hour, it hands what was new in them to
-        the agent, several at a time, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of
-        your field that will still be true in months, never the details of a task: a question that stands alone, an answer in a line or two. Most
-        conversations give none. You meet them here, on a schedule that spaces the ones you know and brings back the ones you miss.
-        Deleting a card is the feedback — the writer reads the pile of deleted ones before writing again.
+        Learn is a writer that runs in the background. Once conversations have been quiet for half an hour, it hands what was new in them to the agent, several
+        at a time, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of your field that will
+        still be true in months, never the details of a task: a question that stands alone, an answer in a line or two. Most conversations give none. You meet
+        them here, on a schedule that spaces the ones you know and brings back the ones you miss. Deleting a card is the feedback — the writer reads the pile of
+        deleted ones before writing again.
       </p>
       <p style={{ margin: 0 }}>
-        In the same call it also names <b>leads</b>: concepts that went by in a conversation without being understood. Each waits under the
-        leads tab until you start it — a <code style={{ fontFamily: "var(--loki-mono)" }}>[Learn]</code> conversation with the agent that was
-        there, which teaches by asking, in a chat whose canvas it furnishes with the outline — or say "not this", which it remembers.
+        In the same call it also names <b>leads</b>: concepts that went by in a conversation without being understood. Each waits under the leads tab until you
+        start it — a <code style={{ fontFamily: "var(--loki-mono)" }}>[Learn]</code> conversation with the agent that was there, which teaches by asking, in a
+        chat whose canvas it furnishes with the outline — or say "not this", which it remembers.
       </p>
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
-        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
-        all while no conversation has new text.
-        Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until you turn it on,
-        and Settings › learn turns it off again.
+        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at all while no
+        conversation has new text. Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until
+        you turn it on, and Settings › learn turns it off again.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {onEnable ? (
-          <Button tone="brass" onClick={onEnable}>turn the writer on</Button>
+          <Button tone="brass" onClick={onEnable}>
+            turn the writer on
+          </Button>
         ) : (
           <Meta>turn it on from the Mac: Learn, or Settings › learn</Meta>
         )}
@@ -210,26 +326,63 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
 }
 
 /** Settings › learn: the writer's switch and knobs, in Settings' fact grid. */
-export function RecallSettings({ worker, onSettings, onRun, running }: { worker: WorkerStatus; onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void; onRun: () => void; running: boolean }) {
+export function RecallSettings({
+  worker,
+  onSettings,
+  onRun,
+  running,
+}: {
+  worker: WorkerStatus;
+  onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void;
+  onRun: () => void;
+  running: boolean;
+}) {
   const [cap, setCap] = useState(String(worker.dailyCap));
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <Line label="Writer">
         <span style={{ display: "inline-grid", gap: 4 }}>
-          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? "on — reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping" : "off — no conversation is read, nothing is written"} />
+          <Switch
+            on={worker.enabled}
+            onToggle={() => onSettings({ enabled: !worker.enabled })}
+            label={
+              worker.enabled
+                ? "on — reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping"
+                : "off — no conversation is read, nothing is written"
+            }
+          />
           <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
         </span>
       </Line>
       <Line label="Cards a day">
-        <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
+        <Field
+          size="sm"
+          mono
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })}
+          style={{ width: 64 }}
+          aria-label="cards a day"
+        />
       </Line>
       <Line label="Last run">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Meta wrap>{worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}</Meta>
-          <Button size="sm" onClick={onRun} disabled={running} title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour">{running ? "running…" : "run now"}</Button>
+          <Meta wrap>
+            {worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}
+          </Meta>
+          <Button
+            size="sm"
+            onClick={onRun}
+            disabled={running}
+            title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
+          >
+            {running ? "running…" : "run now"}
+          </Button>
         </span>
       </Line>
-      <Line label="Files"><Meta>~/.loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
+      <Line label="Files">
+        <Meta>~/.loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta>
+      </Line>
     </div>
   );
 }
@@ -238,7 +391,9 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
 function Line({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ paddingTop: 4 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 4 }}>
+        {label}
+      </span>
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
   );
@@ -252,7 +407,25 @@ const DEPTH: Record<Lead["depth"], string> = { primer: "a primer · one sitting"
  * lesson opens as a [Learn] desk) and "not this" (the dismissed pile the writer reads). Under them, the
  * lessons under way, each a link to its desk.
  */
-export function LeadList({ leads, lessons, worker, starting, onStart, onResume, onDismiss, onOpen }: { leads: Lead[]; lessons: Lesson[]; worker: WorkerStatus; starting: string | null; onStart: (id: string) => void; onResume: (lesson: Lesson) => void; onDismiss: (id: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
+export function LeadList({
+  leads,
+  lessons,
+  worker,
+  starting,
+  onStart,
+  onResume,
+  onDismiss,
+  onOpen,
+}: {
+  leads: Lead[];
+  lessons: Lesson[];
+  worker: WorkerStatus;
+  starting: string | null;
+  onStart: (id: string) => void;
+  onResume: (lesson: Lesson) => void;
+  onDismiss: (id: string) => void;
+  onOpen: (agentId: string, conversationId: string) => void;
+}) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {leads.length === 0 && (
@@ -263,23 +436,53 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
         </Empty>
       )}
       {leads.map((l) => (
-        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", overflow: "hidden", display: "grid" }}>
+        <section
+          key={l.id}
+          aria-label={`lead: ${l.title}`}
+          style={{
+            background: "var(--loki-panel)",
+            border: "1px solid var(--loki-border)",
+            borderRadius: "var(--loki-radius-lg)",
+            overflow: "hidden",
+            display: "grid",
+          }}
+        >
           {/* The card is the start: one click opens the lesson's chat with the chat and sends the brief. */}
-          <Row flush onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins" style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}>
+          <Row
+            flush
+            onClick={() => onStart(l.id)}
+            disabled={starting !== null}
+            title="a [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins"
+            style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}
+          >
             <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
-              <Meta>{l.source.title ?? "a conversation"} · {ago(l.createdAt)}</Meta>
+              <Meta>
+                {l.source.title ?? "a conversation"} · {ago(l.createdAt)}
+              </Meta>
               <span style={{ flex: 1 }} />
               <Meta>{DEPTH[l.depth]}</Meta>
             </span>
-            <span style={{ display: "block", fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</span>
-            <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</span>
-            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>{starting === l.id ? "furnishing the canvas…" : "start the lesson →"}</span>
+            <span style={{ display: "block", fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>
+              {l.title}
+            </span>
+            <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>
+              {l.why}
+            </span>
+            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>
+              {starting === l.id ? "furnishing the canvas…" : "start the lesson →"}
+            </span>
           </Row>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}>
-            <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">not this</Button>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}
+          >
+            <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">
+              not this
+            </Button>
             {l.source.agentId && l.source.conversationId && (
-              <Button size="sm" bare onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>where it came up</Button>
+              <Button size="sm" bare onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>
+                where it came up
+              </Button>
             )}
           </div>
         </section>
@@ -290,7 +493,20 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
           {lessons.map((s) => (
             <div key={s.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
               <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's chat" style={{ minWidth: 0 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
+                <span
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "var(--loki-fg)",
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1,
+                  }}
+                >
+                  {s.lead.title}
+                </span>
                 {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
                 <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.startedAt)}`}</Meta>
               </Row>
@@ -315,9 +531,13 @@ export function DismissedLeadList({ dismissed, onRestore }: { dismissed: Dismiss
       <Meta>dismissed leads</Meta>
       {dismissed.map((d) => (
         <Row key={d.lead.id}>
-          <span style={{ fontSize: 13.5, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{d.lead.title}</span>
+          <span style={{ fontSize: 13.5, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+            {d.lead.title}
+          </span>
           <Meta>{ago(d.at)}</Meta>
-          <Button size="sm" bare onClick={() => onRestore(d.lead.id)}>restore</Button>
+          <Button size="sm" bare onClick={() => onRestore(d.lead.id)}>
+            restore
+          </Button>
         </Row>
       ))}
     </div>

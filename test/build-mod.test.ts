@@ -17,7 +17,9 @@ describe("the release bundle's build", () => {
   test("the daemon is bundled beside the mod, for Node, with the same `require` banner (plan 017)", () => {
     expect(src).toContain('entryPoints: [here("../daemon/main.ts")]');
     expect(src).toContain("outfile: `${out}/daemon/daemon.mjs`");
-    expect(src.match(/banner:\s*\{\s*js:\s*'import \{ createRequire as \w+ \} from "node:module"; const require = \w+\(import\.meta\.url\);'/g)).toHaveLength(2);
+    expect(src.match(/banner:\s*\{\s*js:\s*'import \{ createRequire as \w+ \} from "node:module"; const require = \w+\(import\.meta\.url\);'/g)).toHaveLength(
+      2,
+    );
   });
 
   test("the mod takes ws from one module, the package esbuild inlines", () => {
@@ -50,9 +52,22 @@ describe("sign-in flows in a bundle", () => {
       const entry = join(dir, "entry.ts");
       // the loader the providers call is internal to pi-ai: imported by its file, the one the helper registers into
       const loader = join(import.meta.dirname, "..", "node_modules", "@earendil-works", "pi-ai", "dist", "auth", "oauth", "load.js");
-      writeFileSync(entry, `import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";\nimport { loadOpenAIChatGPTOAuth } from ${JSON.stringify(loader)};\nregisterBunOAuthFlows();\nexport const flow = await loadOpenAIChatGPTOAuth();\n`);
+      writeFileSync(
+        entry,
+        `import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";\nimport { loadOpenAIChatGPTOAuth } from ${JSON.stringify(loader)};\nregisterBunOAuthFlows();\nexport const flow = await loadOpenAIChatGPTOAuth();\n`,
+      );
       const outfile = join(dir, "out", "bundle.mjs");
-      await build({ entryPoints: [entry], bundle: true, platform: "node", format: "esm", target: "node22", outfile, nodePaths: [join(import.meta.dirname, "..", "node_modules")], banner: { js: 'import { createRequire as __r } from "node:module"; const require = __r(import.meta.url);' }, logLevel: "silent" });
+      await build({
+        entryPoints: [entry],
+        bundle: true,
+        platform: "node",
+        format: "esm",
+        target: "node22",
+        outfile,
+        nodePaths: [join(import.meta.dirname, "..", "node_modules")],
+        banner: { js: 'import { createRequire as __r } from "node:module"; const require = __r(import.meta.url);' },
+        logLevel: "silent",
+      });
       const mod = (await import(pathToFileURL(outfile).href)) as { flow: unknown };
       expect(mod.flow).toBeTruthy();
     } finally {

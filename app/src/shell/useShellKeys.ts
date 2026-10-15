@@ -20,14 +20,47 @@ import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, 
  * refresh. A development build keeps them (a reload and devtools are the point there), as does a browser tab, and
  * the Mac's webview has none.
  */
-const BROWSER_KEYS = new Set(["f3", "shift+f3", "f5", "ctrl+f5", "shift+f5", "ctrl+shift+f5", "f7", "f12", "ctrl+r", "ctrl+shift+r", "ctrl+p", "ctrl+shift+p", "ctrl+f", "ctrl+g", "ctrl+shift+g", "ctrl+u", "ctrl+shift+i", "ctrl+shift+j", "ctrl+shift+c", "alt+arrowleft", "alt+arrowright", "browserback", "browserforward", "browserrefresh"]);
-export function guardBrowserKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">, os: Platform = keyboard, release: boolean = inTauri && import.meta.env.PROD === true): void {
+const BROWSER_KEYS = new Set([
+  "f3",
+  "shift+f3",
+  "f5",
+  "ctrl+f5",
+  "shift+f5",
+  "ctrl+shift+f5",
+  "f7",
+  "f12",
+  "ctrl+r",
+  "ctrl+shift+r",
+  "ctrl+p",
+  "ctrl+shift+p",
+  "ctrl+f",
+  "ctrl+g",
+  "ctrl+shift+g",
+  "ctrl+u",
+  "ctrl+shift+i",
+  "ctrl+shift+j",
+  "ctrl+shift+c",
+  "alt+arrowleft",
+  "alt+arrowright",
+  "browserback",
+  "browserforward",
+  "browserrefresh",
+]);
+export function guardBrowserKey(
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
+  os: Platform = keyboard,
+  release: boolean = inTauri && import.meta.env.PROD === true,
+): void {
   if (!release || os === "macos" || e.metaKey || !e.key) return;
   const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");
   if (BROWSER_KEYS.has(chord)) e.preventDefault();
 }
 
-export function useShellKeys(view: { segment: Segment }, actions: Record<string, () => void>, escape: { toDesk: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void }): void {
+export function useShellKeys(
+  view: { segment: Segment },
+  actions: Record<string, () => void>,
+  escape: { toDesk: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void },
+): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
     ref.current = { view, actions, escape };

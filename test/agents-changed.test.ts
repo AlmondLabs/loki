@@ -7,7 +7,12 @@ import { FrameChatClient } from "../core/attention/chat-client.ts";
 
 const ctx = () => {
   const broadcasts: Array<{ type: string }> = [];
-  const c = { client: { scope: "s", send: () => {} }, push: () => {}, broadcast: (f: { type: string }) => broadcasts.push(f), track: () => {} } as unknown as FrameContext;
+  const c = {
+    client: { scope: "s", send: () => {} },
+    push: () => {},
+    broadcast: (f: { type: string }) => broadcasts.push(f),
+    track: () => {},
+  } as unknown as FrameContext;
   return { c, broadcasts };
 };
 

@@ -42,7 +42,18 @@ export function useLeave(ref: RefObject<HTMLElement | null>, frames: LeaveFrames
         if (!parent.isConnected || !host.isConnected) return;
         g.setAttribute("aria-hidden", "true");
         g.inert = true;
-        Object.assign(g.style, { position: "fixed", top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`, height: `${r.height}px`, margin: "0", pointerEvents: "none", zIndex: "var(--phone-layer-toast, 300)", animation: "none", boxSizing: "border-box" });
+        Object.assign(g.style, {
+          position: "fixed",
+          top: `${r.top}px`,
+          left: `${r.left}px`,
+          width: `${r.width}px`,
+          height: `${r.height}px`,
+          margin: "0",
+          pointerEvents: "none",
+          zIndex: "var(--phone-layer-toast, 300)",
+          animation: "none",
+          boxSizing: "border-box",
+        });
         host.appendChild(g);
         const done = () => g.remove();
         g.animate(play, { duration: ms, easing, fill: "forwards" }).finished.then(done, done);

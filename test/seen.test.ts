@@ -28,7 +28,15 @@ describe("seen store", () => {
     try {
       const path = join(dir, "attention.json");
       const snooze = { "a/c2": { skips: 2, until: "2026-09-05T10:15:00Z", stamp: "s", at: "2026-09-05T10:00:00Z" } };
-      writeFileSync(path, JSON.stringify({ seen: { "a/c1": "2026-09-05T10:00:00Z" }, viewed: { "a/c1": "2026-09-05T10:01:00Z" }, snooze, ladder: { firstMinutes: 5, growth: 3 } }));
+      writeFileSync(
+        path,
+        JSON.stringify({
+          seen: { "a/c1": "2026-09-05T10:00:00Z" },
+          viewed: { "a/c1": "2026-09-05T10:01:00Z" },
+          snooze,
+          ladder: { firstMinutes: 5, growth: 3 },
+        }),
+      );
       const store = new SeenStore(path);
       expect(store.all()).toEqual({ "a/c1": "2026-09-05T10:00:00Z" });
       expect(store.viewedAll()).toEqual({ "a/c1": "2026-09-05T10:01:00Z" });

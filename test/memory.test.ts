@@ -62,8 +62,14 @@ describe("an agent's memory", () => {
       const sent: string[] = [];
       const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { systemPrompt?: string; messages: unknown[] }) => (sent.push(JSON.stringify(c)), m);
       faux.setResponses([
-        reply(fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Likes tea.\n", message: "Note the tea" }), { stopReason: "toolUse" })),
-        reply(fauxAssistantMessage(fauxToolCall("memory_edit", { path: "system/human.md", old_text: "tea", new_text: "green tea" }), { stopReason: "toolUse" })),
+        reply(
+          fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Likes tea.\n", message: "Note the tea" }), {
+            stopReason: "toolUse",
+          }),
+        ),
+        reply(
+          fauxAssistantMessage(fauxToolCall("memory_edit", { path: "system/human.md", old_text: "tea", new_text: "green tea" }), { stopReason: "toolUse" }),
+        ),
         reply(fauxAssistantMessage(fauxToolCall("memory_read", { path: "../../etc/passwd" }), { stopReason: "toolUse" })),
         reply(fauxAssistantMessage("noted")),
       ]);
@@ -111,7 +117,16 @@ describe("an agent's memory", () => {
       const agentId = await createAgent(dir, { name: "Ada" });
       const root = memoryRoot(dir, agentId);
       const config = readFileSync(join(root, ".git", "config"), "utf8");
-      for (const path of [".git/config", ".GIT/config", ".Git/hooks/pre-commit", "notes/.git/config", ".gitattributes", "notes/.GitAttributes", ".gitmodules", "../outside.md"])
+      for (const path of [
+        ".git/config",
+        ".GIT/config",
+        ".Git/hooks/pre-commit",
+        "notes/.git/config",
+        ".gitattributes",
+        "notes/.GitAttributes",
+        ".gitmodules",
+        "../outside.md",
+      ])
         await expect(editMemoryFile(dir, agentId, path, "x")).rejects.toThrow("is not a memory file");
       expect(readFileSync(join(root, ".git", "config"), "utf8")).toBe(config);
     } finally {

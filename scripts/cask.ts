@@ -20,7 +20,8 @@ export function dmgName(version: string): string {
 export function renderCask({ owner, version, sha256, channel = "stable" }: CaskInput): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)) throw new Error(`not a GitHub owner: ${owner}`);
   if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.1011.0, no v)`);
-  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version)) throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.a96ee85)`);
+  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version))
+    throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.a96ee85)`);
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   const nightly = channel === "nightly";
   const tag = nightly ? "nightly" : "v#{version}";
@@ -33,14 +34,16 @@ export function renderCask({ owner, version, sha256, channel = "stable" }: CaskI
   desc "Agents with a canvas, an inbox, a task list and recall cards${nightly ? " — built from every merge" : ""}"
   homepage "https://github.com/${owner}/loki"
 
-${nightly
+${
+  nightly
     ? `  livecheck do
     skip "a rolling prerelease; the cask is rewritten on every merge"
   end`
     : `  livecheck do
     url :url
     strategy :github_latest
-  end`}
+  end`
+}
 
   # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"

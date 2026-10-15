@@ -193,7 +193,11 @@ export class Approvals {
 
   /** null when the mode lets the call run without asking. */
   private async decideCall(name: string, args: Record<string, unknown>, callId: string, api: HookApi, context: Context): Promise<Decision | null> {
-    const [chat, agent, settings] = await Promise.all([api.snapshot(ChatDoc, api.conversationId, context), api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
+    const [chat, agent, settings] = await Promise.all([
+      api.snapshot(ChatDoc, api.conversationId, context),
+      api.snapshot(AgentInfoDoc, context),
+      api.snapshot(PiAgentDoc, api.conversationId, context),
+    ]);
     const mode = isPermissionMode(chat?.mode) ? chat.mode : DEFAULT_MODE;
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;

@@ -62,7 +62,7 @@ export function withHistoryLog(store: WidgetLogs, scope: Scope, entries: unknown
 export const SESSION_START = Date.now();
 
 /** Who the row names: you, loki, or the desk's agent (rows logged before `by` existed are the agent's). */
-const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ? "You" : e.by === "loki" ? "loki" : agentName ?? "the agent");
+const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ? "You" : e.by === "loki" ? "loki" : (agentName ?? "the agent"));
 
 /**
  * The thread's widget rows: each log entry placed before the first message timed after it (after the
@@ -72,7 +72,12 @@ const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ?
  * session's) follow the last row in arrival order, after one quiet summary row counting the older ones
  * (`earlier`). A row is `gone` when it removed the widget or a later entry did: choosing it frames nothing.
  */
-export function widgetMarks(rows: TranscriptRow[] | undefined, log: WidgetLogEntry[] | undefined, agentName: string | null, liveSince: number = SESSION_START): WidgetMark[] {
+export function widgetMarks(
+  rows: TranscriptRow[] | undefined,
+  log: WidgetLogEntry[] | undefined,
+  agentName: string | null,
+  liveSince: number = SESSION_START,
+): WidgetMark[] {
   if (!rows || !log?.length) return [];
   const times = rows.map((r) => (r.at ? Date.parse(r.at) : Number.NaN));
   const latest = new Map<string, WidgetLogEntry>();

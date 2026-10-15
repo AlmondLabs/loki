@@ -20,7 +20,23 @@ const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "mo
  * is written into this entry first, so Back comes back to the same query and scroll. Clearing the field
  * keeps focus there and never leaves — Back does.
  */
-export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: { q: string; /** Opened anew (not come back to): start at the top. */ fresh: boolean; sources: SearchSources; link: LinkState; /** The agent list has arrived from the Mac. */ loaded: boolean; onBack: () => void; backLabel: string }) {
+export function Search({
+  q,
+  fresh,
+  sources,
+  link,
+  loaded,
+  onBack,
+  backLabel,
+}: {
+  q: string;
+  /** Opened anew (not come back to): start at the top. */ fresh: boolean;
+  sources: SearchSources;
+  link: LinkState;
+  /** The agent list has arrived from the Mac. */ loaded: boolean;
+  onBack: () => void;
+  backLabel: string;
+}) {
   const [query, setQuery] = useState(q);
   const [recent, setRecent] = useState(() => recentSearches.read());
   // The stored places, read once and again only after a Clear; what still resolves is checked against sources below.
@@ -64,7 +80,12 @@ export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: {
     input.current?.focus();
   };
 
-  const partial = link === "online" && !loaded ? "Still loading from the Mac; more may show up." : link === "connecting" ? "Connecting to the Mac; showing what this phone already has." : null;
+  const partial =
+    link === "online" && !loaded
+      ? "Still loading from the Mac; more may show up."
+      : link === "connecting"
+        ? "Connecting to the Mac; showing what this phone already has."
+        : null;
   return (
     <div className="loki-phone-page">
       <header className="loki-phone-search-bar">
@@ -158,7 +179,11 @@ export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: {
               >
                 {recent.map((r) => (
                   <li key={r} className="loki-phone-row-item">
-                    <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={() => (setQuery(r), recentSearches.add(r), setRecent(recentSearches.read()))}>
+                    <button
+                      type="button"
+                      className="loki-phone-row loki-phone-row--quiet"
+                      onClick={() => (setQuery(r), recentSearches.add(r), setRecent(recentSearches.read()))}
+                    >
                       <RowIcon name="clock" />
                       <span className="loki-phone-row-copy">
                         <span className="loki-phone-row-title">

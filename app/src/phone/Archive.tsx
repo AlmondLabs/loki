@@ -13,19 +13,54 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
  * press (or a row's actions button) restores one to Desks while loki's daemon is reachable — offline,
  * the action stays visible and says why it cannot run. Back returns to wherever the page was opened from.
  */
-export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, onRename }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the daemon cannot take it. */ onArchive: ArchiveDesk | null; onRename: RenameDeskName | null }) {
+export function Archive({
+  desks,
+  loaded,
+  banner,
+  backLabel,
+  onBack,
+  onArchive,
+  onRename,
+}: {
+  desks: DeskSummary[];
+  /** The mod has answered with the desk list. */ loaded: boolean;
+  banner?: ReactNode;
+  backLabel: string;
+  onBack: () => void;
+  /** Null while the daemon cannot take it. */ onArchive: ArchiveDesk | null;
+  onRename: RenameDeskName | null;
+}) {
   const [query, setQuery] = useState("");
   const [acting, setActing] = useState<DeskSummary | null>(null);
   const all = useMemo(() => archiveList(desks, null, ""), [desks]);
   const shown = useMemo(() => archiveList(desks, null, query), [desks, query]);
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Archived chats" sub={all.length ? <span>{all.length === 1 ? "1 chat" : `${all.length} chats`}</span> : undefined} />
+      <TopBar
+        left={<BackButton onClick={onBack} label={backLabel} />}
+        title="Archived chats"
+        sub={all.length ? <span>{all.length === 1 ? "1 chat" : `${all.length} chats`}</span> : undefined}
+      />
       {banner}
       <Scroll memory="archive" flush>
         {all.length > 0 && (
           <div className="loki-phone-filter">
-            <Field type="search" size="touch" name="archive-filter" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter archived chats" aria-label="Filter archived chats" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} enterKeyHint="search" data-1p-ignore data-form-type="other" />
+            <Field
+              type="search"
+              size="touch"
+              name="archive-filter"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter archived chats"
+              aria-label="Filter archived chats"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="search"
+              data-1p-ignore
+              data-form-type="other"
+            />
           </div>
         )}
         <ul aria-label="archived chats" className="loki-phone-list">
@@ -51,7 +86,15 @@ export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, o
           )
         )}
       </Scroll>
-      {acting && <DeskActions desk={acting} onClose={() => setActing(null)} onPin={null} onArchive={onArchive ? (archived) => onArchive(acting, archived) : null} onRename={onRename ? (name) => onRename(acting, name) : null} />}
+      {acting && (
+        <DeskActions
+          desk={acting}
+          onClose={() => setActing(null)}
+          onPin={null}
+          onArchive={onArchive ? (archived) => onArchive(acting, archived) : null}
+          onRename={onRename ? (name) => onRename(acting, name) : null}
+        />
+      )}
     </div>
   );
 }

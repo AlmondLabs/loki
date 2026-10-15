@@ -14,7 +14,13 @@ const ids = (hits: Thing[]) => hits.map((h) => h.id);
 
 describe("shared search core", () => {
   test("ranks exact, prefix, word start and substring matches in that order", () => {
-    const idx = buildSearchIndex([entry("substring", ["automobile"]), entry("word", ["loki mobile"]), entry("prefix", ["mobile budget"]), entry("exact", ["Mobile"]), entry("none", ["banana"])]);
+    const idx = buildSearchIndex([
+      entry("substring", ["automobile"]),
+      entry("word", ["loki mobile"]),
+      entry("prefix", ["mobile budget"]),
+      entry("exact", ["Mobile"]),
+      entry("none", ["banana"]),
+    ]);
     expect(ids(rankHits(idx, "mobile"))).toEqual(["exact", "prefix", "word", "substring"]);
   });
   test("a title beats a secondary field at the same tier; any field's better tier wins", () => {

@@ -74,7 +74,10 @@ type StartViewTransition = (update: () => void) => ViewTransition;
  * flushSync, so the new screen is in the DOM when the browser takes its second picture).
  */
 export function transition(from: Route, to: Route, arrival: Arrival, apply: () => void): void {
-  const start = typeof document !== "undefined" ? ((document as unknown as { startViewTransition?: StartViewTransition }).startViewTransition?.bind(document) ?? null) : null;
+  const start =
+    typeof document !== "undefined"
+      ? ((document as unknown as { startViewTransition?: StartViewTransition }).startViewTransition?.bind(document) ?? null)
+      : null;
   let motion: NavMotion | null = motionFor(from, to, arrival);
   const wasZoom = zoomNext;
   zoomNext = false;

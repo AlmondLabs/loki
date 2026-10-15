@@ -42,7 +42,15 @@ export function sameSecret(given: string | null | undefined, secret: string): bo
 /** A route of the mod's own beyond the server's: true when it took the request. */
 export type Route = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
 
-export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize; uploads?: string; routes?: Route[] }): Promise<LokiServer> {
+export async function startServer(opts: {
+  port: number;
+  health?: () => object;
+  token?: string;
+  profile?: (agentId: string) => string | null;
+  authorize?: Authorize;
+  uploads?: string;
+  routes?: Route[];
+}): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
   const server = createServer((req, res) => {
     try {
@@ -70,7 +78,14 @@ export async function startServer(opts: { port: number; health?: () => object; t
  * Returns false when the URL is not this route. `denied` is the status for a failed authorize
  * (403 on loopback, where the token is the only credential; 401 on the LAN, where the page can pair).
  */
-export function profileRoute(req: IncomingMessage, res: ServerResponse, url: URL, authorize: Authorize, profile: ((agentId: string) => string | null) | undefined, denied: 401 | 403): boolean {
+export function profileRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  authorize: Authorize,
+  profile: ((agentId: string) => string | null) | undefined,
+  denied: 401 | 403,
+): boolean {
   const face = url.pathname.match(/^\/agents\/([^/]+)\/profile\.png$/);
   if (!face) return false;
   if (!authorize(req, url).ok) {

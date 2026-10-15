@@ -82,7 +82,19 @@ describe("the message box's bottom row", () => {
 
   test("the mic sits between the pill and send, only where dictation works", () => {
     const bar = (dictation: boolean) =>
-      barLabels(renderToStaticMarkup(createElement(ComposerBar, { touch: false, attach: { onClick: () => {} }, tools: null, dictation: dictation ? { listening: false, pending: false, title: "dictate", onToggle: () => {} } : null, canSend: false, sendLabel: "Send", onSend: () => {} })));
+      barLabels(
+        renderToStaticMarkup(
+          createElement(ComposerBar, {
+            touch: false,
+            attach: { onClick: () => {} },
+            tools: null,
+            dictation: dictation ? { listening: false, pending: false, title: "dictate", onToggle: () => {} } : null,
+            canSend: false,
+            sendLabel: "Send",
+            onSend: () => {},
+          }),
+        ),
+      );
     expect(bar(true)).toEqual(["Attach files", "Dictate", "Send"]);
     expect(bar(false)).toEqual(["Attach files", "Send"]);
   });
@@ -138,7 +150,18 @@ describe("the model pill", () => {
 });
 
 describe("select model", () => {
-  const props = { entries: MODELS, current: CURRENT, currentEffort: "medium" as const, loading: false, query: "", touch: false, onView: () => {}, onQuery: () => {}, onPick: () => {}, onClose: () => {} };
+  const props = {
+    entries: MODELS,
+    current: CURRENT,
+    currentEffort: "medium" as const,
+    loading: false,
+    query: "",
+    touch: false,
+    onView: () => {},
+    onQuery: () => {},
+    onPick: () => {},
+    onClose: () => {},
+  };
 
   test("the short list is the featured models (and the current one); the rest are More models", () => {
     const { short, more } = modelLists(MODELS, CURRENT);
@@ -161,21 +184,34 @@ describe("select model", () => {
     ];
     // gpt and llama were used lately (gpt the latest); the featured ones fill the rest, the unreachable one never
     const used = withRecent(many, ["openai/gpt-6", "ollama/llama-5"]);
-    expect(modelLists(used, null).short.map((g) => g.handle)).toEqual(["openai/gpt-6", "ollama/llama-5", "anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5", "letta/f1"]);
+    expect(modelLists(used, null).short.map((g) => g.handle)).toEqual([
+      "openai/gpt-6",
+      "ollama/llama-5",
+      "anthropic/claude-opus-5-5",
+      "anthropic/claude-sonnet-5",
+      "letta/f1",
+    ]);
     // the unreachable model is still in More models, where the filter finds it
     expect(modelLists(used, null).more.map((g) => g.handle)).toContain("letta/gated");
     // an unreachable recent model is left out of the quick picks too
     const gatedRecent = withRecent(many, ["letta/gated", "openai/gpt-6"]);
     expect(modelLists(gatedRecent, null).short[0].handle).toBe("openai/gpt-6");
     // the current model outside the picks is added after them, so its check is in view
-    expect(modelLists(used, "letta/f3").short.map((g) => g.handle).at(-1)).toBe("letta/f3");
+    expect(
+      modelLists(used, "letta/f3")
+        .short.map((g) => g.handle)
+        .at(-1),
+    ).toBe("letta/f3");
     // nothing recent or featured: the first few the account can reach
     const plain = many.map(({ isFeatured: _f, ...e }) => e);
     expect(modelLists(plain, null).short.map((g) => g.handle)).not.toContain("letta/gated");
   });
 
   test("list_models' available_handles marks the rest unreachable; null or absent marks none", () => {
-    const wire = [{ id: "a", handle: "anthropic/a", label: "A" }, { id: "b", handle: "letta/b", label: "B" }];
+    const wire = [
+      { id: "a", handle: "anthropic/a", label: "A" },
+      { id: "b", handle: "letta/b", label: "B" },
+    ];
     expect(modelEntriesFromWire(wire, ["anthropic/a"]).map((e) => e.available)).toEqual([undefined, false]);
     expect(modelEntriesFromWire(wire, null).some((e) => e.available === false)).toBe(false);
     expect(modelEntriesFromWire(wire).some((e) => e.available === false)).toBe(false);

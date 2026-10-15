@@ -97,7 +97,8 @@ export function permissionModeKey(agentId: string, conversationId: string): stri
  * letta-code checkout, an editor with a file of it open, a grep) held the import back for as long as it ran.
  */
 export function runningLetta(commands: () => string[] = psCommands): string | null {
-  const letta = (word: string | undefined) => !!word && (/(^|[/\\])letta(-code)?(\.(exe|cmd|js|mjs))?$/i.test(word) || /[/\\]@letta-ai[/\\]letta-code[/\\]/i.test(word));
+  const letta = (word: string | undefined) =>
+    !!word && (/(^|[/\\])letta(-code)?(\.(exe|cmd|js|mjs))?$/i.test(word) || /[/\\]@letta-ai[/\\]letta-code[/\\]/i.test(word));
   for (const line of commands()) {
     if (/--loki-daemon\b/.test(line)) continue;
     const [program, script] = line.trim().split(/\s+/);
@@ -110,7 +111,9 @@ export function runningLetta(commands: () => string[] = psCommands): string | nu
 function psCommands(): string[] {
   if (process.platform === "win32") {
     try {
-      return execFileSync("tasklist", ["/fo", "csv", "/nh"], { encoding: "utf8" }).split("\n").map((l) => l.split(",")[0]?.replace(/"/g, "") ?? "");
+      return execFileSync("tasklist", ["/fo", "csv", "/nh"], { encoding: "utf8" })
+        .split("\n")
+        .map((l) => l.split(",")[0]?.replace(/"/g, "") ?? "");
     } catch {
       return [];
     }
@@ -127,7 +130,11 @@ function psCommands(): string[] {
  * left out (pi-ai presents itself as Claude Code for it, daemon/providers.ts), as is a provider pi-ai does not know.
  */
 export function lettaCredentials(authFile: string, known: ReadonlySet<string>): { credentials: Array<[string, Credential]>; skipped: string[] } {
-  type Entry = { id?: string; provider_type?: string; auth?: { type?: string; key?: string; access?: string; refresh?: string; expires?: number; [k: string]: unknown } };
+  type Entry = {
+    id?: string;
+    provider_type?: string;
+    auth?: { type?: string; key?: string; access?: string; refresh?: string; expires?: number; [k: string]: unknown };
+  };
   const providers = readJson<{ providers?: Record<string, Entry> }>(authFile, {}).providers ?? {};
   const credentials: Array<[string, Credential]> = [];
   const skipped: string[] = [];
@@ -176,7 +183,9 @@ export function lettaSchedules(cronsFile: string, agents: ReadonlySet<string>): 
 }
 
 const isHelper = (record: Record<string, unknown> | null | undefined) =>
-  (Array.isArray(record?.tags) ? (record.tags as unknown[]) : []).some((t) => typeof t === "string" && (t === "role:subagent" || t.startsWith("role:subagent:")));
+  (Array.isArray(record?.tags) ? (record.tags as unknown[]) : []).some(
+    (t) => typeof t === "string" && (t === "role:subagent" || t.startsWith("role:subagent:")),
+  );
 
 /** How many of the person's agents Letta has records of, helpers aside, memory folder or not. */
 function lettaRecords(backend: string): number {
@@ -230,10 +239,14 @@ export async function importFromLetta(deps: {
   // Agents and their memory.
   const agents = lettaAgents(backend);
   const records = lettaRecords(backend);
-  if (records > agents.length) report.notes.push(`${records - agents.length} of Letta's ${records} agents have no memory folder (lc-local-backend/memfs/<id>/memory) and were not imported`);
+  if (records > agents.length)
+    report.notes.push(
+      `${records - agents.length} of Letta's ${records} agents have no memory folder (lc-local-backend/memfs/<id>/memory) and were not imported`,
+    );
   const ids = new Set(agents.map((a) => a.id));
   for (const { id, record } of agents) {
-    if (!existsSync(join(paths.backendDir, "memfs", id, "memory"))) cpSync(join(backend, "memfs", id, "memory"), join(paths.backendDir, "memfs", id, "memory"), { recursive: true, verbatimSymlinks: true });
+    if (!existsSync(join(paths.backendDir, "memfs", id, "memory")))
+      cpSync(join(backend, "memfs", id, "memory"), join(paths.backendDir, "memfs", id, "memory"), { recursive: true, verbatimSymlinks: true });
     // Letta's names for a model are not always pi-ai's (ChatGPT's provider is `chatgpt-plus-pro` there).
     const known = (provider: string) => deps.knownProviders.has(provider);
     writeRecord(paths.backendDir, id, typeof record.model === "string" ? { ...record, model: piHandle(record.model, known) } : record);
@@ -244,7 +257,10 @@ export async function importFromLetta(deps: {
   writeJson(paths.doneFile, done);
 
   // Settings kept per chat in Letta's files.
-  const remote = readJson<{ permissionModeMap?: Record<string, { mode?: string }>; cwdMap?: Record<string, string> }>(join(paths.letta, "remote-settings.json"), {});
+  const remote = readJson<{ permissionModeMap?: Record<string, { mode?: string }>; cwdMap?: Record<string, string> }>(
+    join(paths.letta, "remote-settings.json"),
+    {},
+  );
   const desktopCwd = readJson<{ cwdMap?: Record<string, string> }>(join(paths.letta, "desktop-cwd-map.json"), {}).cwdMap ?? {};
   const worker = readJson<{ cursors?: Record<string, number> }>(paths.recallWorkerFile, {});
 
@@ -270,7 +286,18 @@ export async function importFromLetta(deps: {
     const cwd = desktopCwd[settingsKey] ?? remote.cwdMap?.[settingsKey] ?? lettaLogCwd(text);
     const agentRecord = agents.find((a) => a.id === record.agent_id)!.record;
     const model = modelRef(piHandle(record.model ?? (typeof agentRecord.model === "string" ? agentRecord.model : ""), (p) => deps.knownProviders.has(p)));
-    const chat = existing ?? (await store.createChat(record.id, { title: record.summary?.trim() || null, hidden: record.hidden === true, createdAt: record.created_at, agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) } }, context));
+    const chat =
+      existing ??
+      (await store.createChat(
+        record.id,
+        {
+          title: record.summary?.trim() || null,
+          hidden: record.hidden === true,
+          createdAt: record.created_at,
+          agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) },
+        },
+        context,
+      ));
     const mode = remote.permissionModeMap?.[settingsKey]?.mode;
     await store.updateChat(record.id, { archived: record.archived === true, ...(isPermissionMode(mode) ? { mode } : {}) }, context);
     const entries = lettaLogEntries(text);

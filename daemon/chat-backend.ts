@@ -198,7 +198,15 @@ export class DaemonChats implements ChatBackend {
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
     // The answer in flight so far: the client that opens now missed its first pieces (they went out before it listened).
     const streaming = view?.run ? (this.converters.get(`${agentId}\u0000${conversationId}`)?.inFlight() ?? null) : null;
-    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null, mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null, ...(streaming ? { streaming } : {}) };
+    return {
+      agentId,
+      conversationId,
+      loop: waiting ? "approval" : view?.run ? "running" : "idle",
+      turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
+      mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted",
+      cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,
+      ...(streaming ? { streaming } : {}),
+    };
   }
 
   async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {
@@ -223,9 +231,19 @@ export class DaemonChats implements ChatBackend {
     await this.deps.mcp?.prepare(store, chat, this.deps.context);
     await this.watch(store, chat, p.agentId, p.conversationId);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mediaType }));
-    const parts = [...(p.context ? [{ type: "text" as const, text: p.context }] : []), ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []), ...images];
+    const parts = [
+      ...(p.context ? [{ type: "text" as const, text: p.context }] : []),
+      ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []),
+      ...images,
+    ];
     const agentName = readLocalAgent(p.agentId, this.deps.backendDir)?.name ?? "";
-    const content = this.deps.mods.transformMessage({ chatId: p.conversationId, agentId: p.agentId, agentName, content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts, typed: p.text.trim() !== "" });
+    const content = this.deps.mods.transformMessage({
+      chatId: p.conversationId,
+      agentId: p.agentId,
+      agentName,
+      content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts,
+      typed: p.text.trim() !== "",
+    });
     await chat.submit({ type: "input", content: content as never, ...(p.sendId ? { requestId: p.sendId } : {}) }, this.deps.context);
     return true;
   }
@@ -257,7 +275,11 @@ export class DaemonChats implements ChatBackend {
 
   async update(p: PayloadOf<"chat_update">): Promise<void> {
     const store = await this.deps.stores.get(p.agentId);
-    const change = { ...(p.title !== undefined ? { title: p.title } : {}), ...(p.archived !== undefined ? { archived: p.archived } : {}), ...(p.hidden !== undefined ? { hidden: p.hidden } : {}) };
+    const change = {
+      ...(p.title !== undefined ? { title: p.title } : {}),
+      ...(p.archived !== undefined ? { archived: p.archived } : {}),
+      ...(p.hidden !== undefined ? { hidden: p.hidden } : {}),
+    };
     if (!(await store.updateChat(p.conversationId, change, this.deps.context))) throw new Error(`no chat ${p.conversationId}`);
   }
 
@@ -286,7 +308,12 @@ export class DaemonChats implements ChatBackend {
   }
 
   async createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }> {
-    const id = await createAgent(this.deps.backendDir, { name: p.name, ...(p.description ? { description: p.description } : {}), ...(p.persona ? { persona: p.persona } : {}), ...(p.model ? { model: p.model } : {}) });
+    const id = await createAgent(this.deps.backendDir, {
+      name: p.name,
+      ...(p.description ? { description: p.description } : {}),
+      ...(p.persona ? { persona: p.persona } : {}),
+      ...(p.model ? { model: p.model } : {}),
+    });
     const store = await this.deps.stores.get(id);
     await store.setAgent({ id, name: p.name }, this.deps.context);
     const model = p.model ? modelRef(p.model) : undefined;
@@ -351,7 +378,9 @@ export class DaemonChats implements ChatBackend {
         return { success: true, output: "the agent starts this chat afresh; what was said stays in the thread" };
       case "remember": {
         const what = p.args?.trim();
-        const text = what ? `Please remember this in your memory: ${what}` : "Look back over this conversation and save to your memory whatever is worth keeping.";
+        const text = what
+          ? `Please remember this in your memory: ${what}`
+          : "Look back over this conversation and save to your memory whatever is worth keeping.";
         await this.deps.mcp?.prepare(await this.deps.stores.get(p.agentId), chat, this.deps.context);
         await chat.submit({ type: "input", content: text }, this.deps.context);
         return { success: true, output: "asked the agent to remember" };
@@ -365,7 +394,9 @@ export class DaemonChats implements ChatBackend {
         if (!this.deps.passes) return { success: false, output: "the background passes are not running" };
         // Waits for the review: its report is the command's answer, and each change is a commit on the agent's Changes page.
         const r = await this.deps.passes.runner.runDoctor(p.agentId);
-        const tail = r.changes ? `\n\n${r.changes} change${r.changes === 1 ? "" : "s"} committed by Doctor; Agents › Changes shows each, and Revert undoes one.` : "";
+        const tail = r.changes
+          ? `\n\n${r.changes} change${r.changes === 1 ? "" : "s"} committed by Doctor; Agents › Changes shows each, and Revert undoes one.`
+          : "";
         return { success: r.outcome !== "failed" && r.outcome !== "skipped", output: `${r.report}${tail}` };
       }
       default:
@@ -402,7 +433,13 @@ export class DaemonChats implements ChatBackend {
 
   async deleteAgent(agentId: string): Promise<void> {
     await this.deps.stores.close(agentId);
-    for (const path of [this.deps.stores.file(agentId), `${this.deps.stores.file(agentId)}-wal`, `${this.deps.stores.file(agentId)}-shm`, join(this.deps.backendDir, "memfs", agentId), join(this.deps.backendDir, "agents", `${backendName(agentId)}.json`)]) {
+    for (const path of [
+      this.deps.stores.file(agentId),
+      `${this.deps.stores.file(agentId)}-wal`,
+      `${this.deps.stores.file(agentId)}-shm`,
+      join(this.deps.backendDir, "memfs", agentId),
+      join(this.deps.backendDir, "agents", `${backendName(agentId)}.json`),
+    ]) {
       rmSync(path, { recursive: true, force: true });
     }
   }

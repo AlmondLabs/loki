@@ -56,7 +56,15 @@ describe("focus weights", () => {
   });
 
   test("after a quiet week every share falls toward 0, not one chat taking the list", () => {
-    const shares = focusShares({ only: run([[0, "message"], [0.5, "message"]]) }, T0 + 7 * 24 * H);
+    const shares = focusShares(
+      {
+        only: run([
+          [0, "message"],
+          [0.5, "message"],
+        ]),
+      },
+      T0 + 7 * 24 * H,
+    );
     expect(shares.only).toBeLessThan(0.01);
   });
 

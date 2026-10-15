@@ -14,7 +14,18 @@ import {
   type Registry,
 } from "@earendil-works/pi-durable";
 import { AgentInfoDoc, ChatDoc } from "../kernel/index.ts";
-import { MOD_API_VERSION, type BeforeToolResult, type ChatRef, type LokiMod, type ModApi, type ModEvents, type ModTool, type OutgoingMessage, type SectionInput, type ToolCall } from "./api.ts";
+import {
+  MOD_API_VERSION,
+  type BeforeToolResult,
+  type ChatRef,
+  type LokiMod,
+  type ModApi,
+  type ModEvents,
+  type ModTool,
+  type OutgoingMessage,
+  type SectionInput,
+  type ToolCall,
+} from "./api.ts";
 
 /**
  * Mods in the daemon (plan 017, U4). Each mod is activated once against a ModApi and becomes one pi-durable extension
@@ -197,7 +208,11 @@ export class ModRegistry {
         parameters: tool.parameters as never,
         execute: async (args, api, context) => {
           const ref = await chatRef(api, api.conversationId, context);
-          const value = await tool.execute(args as Record<string, unknown>, { ...ref, signal: context.abortSignal ?? NO_SIGNAL, output: (text) => api.output(text) });
+          const value = await tool.execute(args as Record<string, unknown>, {
+            ...ref,
+            signal: context.abortSignal ?? NO_SIGNAL,
+            output: (text) => api.output(text),
+          });
           const text = resultText(value);
           return text === undefined ? {} : { content: [{ type: "text", text }] };
         },

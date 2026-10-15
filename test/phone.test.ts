@@ -1,7 +1,34 @@
 import { describe, expect, test } from "vitest";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
-import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, HOME_ATTENTION_MAX, archiveList, homeCounts, homeSections, linkState, shortcutLine, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import {
+  AUTO_RELOAD_HIDDEN_MS,
+  CODE_ALPHABET,
+  HOME_ATTENTION_MAX,
+  archiveList,
+  homeCounts,
+  homeSections,
+  linkState,
+  shortcutLine,
+  CODE_LENGTH,
+  codeFromUrl,
+  countdown,
+  deviceKind,
+  deviceName,
+  lanStatusFromFrame,
+  lastSeen,
+  liveDeskCount,
+  liveDesksLabel,
+  memoryFolders,
+  needsReload,
+  normalizeCode,
+  pairOrigin,
+  pairUrlFor,
+  routeOf,
+  viaLabel,
+  shouldAutoReload,
+  stripFrontmatter,
+} from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
 
@@ -127,7 +154,16 @@ describe("the route the phone is on (Phone › Settings)", () => {
 });
 
 describe("lan_status with the route fields (addendum 3)", () => {
-  const base = { type: "lan_status", enabled: true, address: "172.20.0.90", addresses: ["172.20.0.90"], host: "my-macbook-pro.local", port: 41415, appServed: true, error: null };
+  const base = {
+    type: "lan_status",
+    enabled: true,
+    address: "172.20.0.90",
+    addresses: ["172.20.0.90"],
+    host: "my-macbook-pro.local",
+    port: 41415,
+    appServed: true,
+    error: null,
+  };
   const running = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
   test("an older mod sends neither field: no Tailscale, the Wi‑Fi route", () => {
     const s = lanStatusFromFrame(base);
@@ -157,7 +193,9 @@ describe("lan_status with the route fields (addendum 3)", () => {
     // The mod built pair_code.url at minting; Settings rebuilds it from the current status, so switching
     // the route never leaves a Tailscale pill over a .local QR.
     expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }), "K9HF6D")).toBe("http://my-macbook-pro.local:41415/?code=K9HF6D");
-    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe("http://my-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D");
+    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe(
+      "http://my-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D",
+    );
     expect(pairUrlFor(lanStatusFromFrame({ enabled: true }), "K9HF6D")).toBeNull();
   });
   test("a phone's route reads as a word, or nothing when the mod never recorded one", () => {
@@ -167,9 +205,20 @@ describe("lan_status with the route fields (addendum 3)", () => {
     expect(viaLabel("funnel")).toBeNull();
   });
   test("wrong shapes become their defaults; the CLI's error comes through verbatim", () => {
-    const s = lanStatusFromFrame({ ...base, addresses: ["a", 3, null], tailscale: { installed: "yes", running: 1, ip: 7, error: "tailscale serve: HTTPS is not enabled for this tailnet" } });
+    const s = lanStatusFromFrame({
+      ...base,
+      addresses: ["a", 3, null],
+      tailscale: { installed: "yes", running: 1, ip: 7, error: "tailscale serve: HTTPS is not enabled for this tailnet" },
+    });
     expect(s.addresses).toEqual(["a"]);
-    expect(s.tailscale).toEqual({ installed: false, running: false, ip: null, name: null, serveUrl: null, error: "tailscale serve: HTTPS is not enabled for this tailnet" });
+    expect(s.tailscale).toEqual({
+      installed: false,
+      running: false,
+      ip: null,
+      name: null,
+      serveUrl: null,
+      error: "tailscale serve: HTTPS is not enabled for this tailnet",
+    });
     expect(pairOrigin(lanStatusFromFrame({ enabled: true }))).toBeNull();
   });
 });
@@ -213,7 +262,21 @@ describe("agents on the phone", () => {
 
 describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)", () => {
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({
+      id: "c",
+      agentId: "a",
+      agentName: "ira",
+      title: "t",
+      status: "done",
+      unread: false,
+      lastMessageAt: null,
+      lastAssistantText: null,
+      pendingApproval: null,
+      pendingQuestion: null,
+      error: null,
+      runtime: { agent_id: "a", conversation_id: "c" },
+      ...over,
+    }) as AttentionItem;
   test("waits on you: the red attention dot, filled", () => {
     const m = deskMark(item({ status: "approval" }), "live");
     expect(m.kind).toBe("waits");
@@ -273,9 +336,36 @@ describe("reloading a newer canvas", () => {
 
 describe("Home: shortcuts, attention and desks (U3)", () => {
   const desk = (over: Partial<DeskSummary>): DeskSummary =>
-    ({ scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`, title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
+    ({
+      scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`,
+      title: "t",
+      status: "live",
+      agentName: "ira",
+      agentId: "a1",
+      conversationId: "c",
+      model: null,
+      reasoningEffort: null,
+      widgets: 0,
+      active: false,
+      lastActive: null,
+      ...over,
+    }) as DeskSummary;
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({
+      id: "c",
+      agentId: "a1",
+      agentName: "ira",
+      title: "t",
+      status: "done",
+      unread: true,
+      lastMessageAt: null,
+      lastAssistantText: null,
+      pendingApproval: null,
+      pendingQuestion: null,
+      error: null,
+      runtime: { agent_id: "a1", conversation_id: "c" },
+      ...over,
+    }) as AttentionItem;
   const desks = [
     desk({ conversationId: "c1", title: "Loki mobile", lastActive: "2026-09-20T10:00:00Z" }),
     desk({ conversationId: "c2", title: "QuizUp", agentId: "a2", agentName: "jira", lastActive: "2026-09-21T10:00:00Z" }),
@@ -355,9 +445,36 @@ describe("Home's presence dot: the paired Mac's link in one word", () => {
 
 describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   const desk = (over: Partial<DeskSummary>): DeskSummary =>
-    ({ scope: "s", title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
+    ({
+      scope: "s",
+      title: "t",
+      status: "live",
+      agentName: "ira",
+      agentId: "a1",
+      conversationId: "c",
+      model: null,
+      reasoningEffort: null,
+      widgets: 0,
+      active: false,
+      lastActive: null,
+      ...over,
+    }) as DeskSummary;
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({
+      id: "c",
+      agentId: "a1",
+      agentName: "ira",
+      title: "t",
+      status: "done",
+      unread: true,
+      lastMessageAt: null,
+      lastAssistantText: null,
+      pendingApproval: null,
+      pendingQuestion: null,
+      error: null,
+      runtime: { agent_id: "a1", conversation_id: "c" },
+      ...over,
+    }) as AttentionItem;
   const agents = [
     { id: "a1", name: "ira" },
     { id: "a2", name: "jira" },
@@ -418,8 +535,23 @@ describe("More: the profile, the paired Mac, then named rows for every secondary
   });
   test("asides carry the counts and states, and fall quiet when there is nothing", () => {
     const aside = (over: Partial<typeof base>) => Object.fromEntries(all(moreSections({ ...base, ...over })).map((r) => [r.id, r.aside]));
-    expect(aside({})).toMatchObject({ mac: "Online", agents: "1 running", learn: "31 due", archive: "85", preferences: "System", updates: "Up to date", about: null, connection: null });
-    expect(aside({ link: "offline", running: 0, due: 0, archived: 0, update: "ready" })).toMatchObject({ mac: "Unreachable", agents: "3", learn: null, archive: null, updates: "Update ready" });
+    expect(aside({})).toMatchObject({
+      mac: "Online",
+      agents: "1 running",
+      learn: "31 due",
+      archive: "85",
+      preferences: "System",
+      updates: "Up to date",
+      about: null,
+      connection: null,
+    });
+    expect(aside({ link: "offline", running: 0, due: 0, archived: 0, update: "ready" })).toMatchObject({
+      mac: "Unreachable",
+      agents: "3",
+      learn: null,
+      archive: null,
+      updates: "Update ready",
+    });
     expect(aside({ update: "unknown" }).updates).toBeNull();
   });
   test("the paired Mac in one word, never by colour alone", () => {

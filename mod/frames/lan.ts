@@ -32,12 +32,21 @@ export function lanFrames({ lan }: LanDeps): FrameHandlers {
   const status = (s: LanStatus) => ({ type: "lan_status" as const, ...s });
   return {
     // Settings just opened: ask Tailscale again (cached inside its ttl) before answering.
-    lan_get: (_, ctx) => need().refresh().then((s) => ctx.push(status(s))),
+    lan_get: (_, ctx) =>
+      need()
+        .refresh()
+        .then((s) => ctx.push(status(s))),
     // Persisted first, then bound or closed.
-    lan_set: ({ enabled }, ctx) => need().setEnabled(enabled).then((s) => ctx.push(status(s))),
+    lan_set: ({ enabled }, ctx) =>
+      need()
+        .setEnabled(enabled)
+        .then((s) => ctx.push(status(s))),
     lan_via_set: ({ via }, ctx) => ctx.push(status(need().setVia(via))),
     // The CLI's complaint, if any, rides in tailscale.error: Settings shows it beside the switch.
-    lan_serve_set: ({ enabled }, ctx) => need().setServe(enabled).then((s) => ctx.push(status(s))),
+    lan_serve_set: ({ enabled }, ctx) =>
+      need()
+        .setServe(enabled)
+        .then((s) => ctx.push(status(s))),
     pair_begin: (_, ctx) => ctx.push({ type: "pair_code", ...need().pairBegin() }),
     devices_list: (_, ctx) => ctx.push({ type: "devices", devices: need().devices() }),
     device_forget: ({ id }, ctx) => {

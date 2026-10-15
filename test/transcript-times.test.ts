@@ -53,7 +53,10 @@ describe("the New line", () => {
   });
 
   test("the streaming reply after read rows is the first unread one", () => {
-    const rows: TranscriptRow[] = [{ role: "assistant", text: "read", at: "2026-09-23T08:59:00Z" }, { role: "assistant", text: "streaming" }];
+    const rows: TranscriptRow[] = [
+      { role: "assistant", text: "read", at: "2026-09-23T08:59:00Z" },
+      { role: "assistant", text: "streaming" },
+    ];
     expect(unreadBoundary(rows, true, seen)).toBe(1);
   });
 
@@ -68,10 +71,19 @@ describe("the New line", () => {
   });
 
   test("without times it falls back to the phone's turn-based rule", () => {
-    const rows: TranscriptRow[] = [{ role: "assistant", text: "a" }, { role: "user", text: "q" }, { role: "assistant", text: "b" }];
+    const rows: TranscriptRow[] = [
+      { role: "assistant", text: "a" },
+      { role: "user", text: "q" },
+      { role: "assistant", text: "b" },
+    ];
     expect(unreadBoundary(rows, true, seen)).toBe(2);
     // untimed history under timed live rows: nothing proves the old rows were read, so the turn rule stands
-    const mixed: TranscriptRow[] = [{ role: "assistant", text: "a" }, { role: "user", text: "q" }, { role: "assistant", text: "b" }, { role: "assistant", text: "c", at: "2026-09-23T09:05:00Z" }];
+    const mixed: TranscriptRow[] = [
+      { role: "assistant", text: "a" },
+      { role: "user", text: "q" },
+      { role: "assistant", text: "b" },
+      { role: "assistant", text: "c", at: "2026-09-23T09:05:00Z" },
+    ];
     expect(unreadBoundary(mixed, true, seen)).toBe(2);
   });
 });
@@ -96,7 +108,10 @@ describe("the New line after a look", () => {
     expect(unreadBoundary(rows, true, seen, "2026-09-23T08:45:00Z")).toBe(1);
     expect(unreadBoundary(rows, true, seen, null)).toBe(1);
     expect(unreadBoundary(rows, true, null, "2026-09-23T09:15:00Z")).toBe(3);
-    const untimed: TranscriptRow[] = [{ role: "user", text: "q" }, { role: "assistant", text: "a" }];
+    const untimed: TranscriptRow[] = [
+      { role: "user", text: "q" },
+      { role: "assistant", text: "a" },
+    ];
     expect(unreadBoundary(untimed, true, seen, "2026-09-23T09:15:00Z")).toBe(1);
   });
   test("holdMark: the look from before this open is held while the desk stays open, dropped when it closes", () => {
@@ -126,7 +141,17 @@ describe("the mod's local history", () => {
       mkdirSync(dir, { recursive: true });
       const lines = [
         { type: "message", timestamp: "2026-09-22T17:48:21.948Z", message: { role: "user", content: "hi" } },
-        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "hello" }, { type: "toolCall", name: "Bash", arguments: {} }], metadata: { created_at: "2026-09-22T17:48:30.000Z" } } },
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "hello" },
+              { type: "toolCall", name: "Bash", arguments: {} },
+            ],
+            metadata: { created_at: "2026-09-22T17:48:30.000Z" },
+          },
+        },
         { type: "message", message: { role: "user", content: "untimed" } },
       ];
       writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
@@ -172,7 +197,16 @@ describe("Transcript draws the times in the message layout only", () => {
     late.setHours(23, 50, 0, 0);
     const early = new Date(today);
     early.setHours(0, 10, 0, 0);
-    const mark = (id: string, at: Date, before: number) => ({ id, before, at: at.toISOString(), who: "ira", change: "added" as const, title: `w-${id}`, widgetId: `d/${id}`, gone: false });
+    const mark = (id: string, at: Date, before: number) => ({
+      id,
+      before,
+      at: at.toISOString(),
+      who: "ira",
+      change: "added" as const,
+      title: `w-${id}`,
+      widgetId: `d/${id}`,
+      gone: false,
+    });
     const timed: TranscriptRow[] = [
       { role: "user", text: "old", at: yesterday.toISOString() },
       { role: "assistant", text: "morning", at: early.toISOString() },

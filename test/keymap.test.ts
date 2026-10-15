@@ -1,5 +1,24 @@
 import { describe, expect, test } from "vitest";
-import { KEYMAP, conflicts, takenBy, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds, dialogState, keySegment, shellKeyAllowed, keysOf, keyFor, keyRows, wasFor, cmdHeld, type Binding } from "../app/src/shell/keymap.ts";
+import {
+  KEYMAP,
+  conflicts,
+  takenBy,
+  formatKeys,
+  matches,
+  menuSpec,
+  resolve,
+  tauriAccelerator,
+  chordIds,
+  dialogState,
+  keySegment,
+  shellKeyAllowed,
+  keysOf,
+  keyFor,
+  keyRows,
+  wasFor,
+  cmdHeld,
+  type Binding,
+} from "../app/src/shell/keymap.ts";
 import { keysFor, keysSheetNote } from "../app/src/shell/KeysSheet.tsx";
 import { hideWindow } from "../app/src/shell/useWindowChrome.ts";
 import { SEGMENTS } from "../app/src/shell/shortcuts.ts";
@@ -8,7 +27,14 @@ import { platform, platformFrom, type Platform } from "../app/src/desk/env.ts";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 
 const ev = (key: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}, typing = false) =>
-  ({ key, metaKey: !!mods.meta, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" } }) as unknown as KeyboardEvent;
+  ({
+    key,
+    metaKey: !!mods.meta,
+    ctrlKey: !!mods.ctrl,
+    shiftKey: !!mods.shift,
+    altKey: !!mods.alt,
+    target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" },
+  }) as unknown as KeyboardEvent;
 
 describe("keymap: table hygiene", () => {
   test("no two bindings share a key in one scope", () => {
@@ -92,9 +118,16 @@ describe("keymap: presentation", () => {
     expect(takenBy(toggle)).toEqual([{ where: "inbox", key: "cmd+shift+d", id: "inbox.deny", label: "Deny" }]);
     // no other key that works everywhere is taken by a view
     for (const b of KEYMAP.filter((b) => b.where === "anywhere" && b.id !== "column.toggle")) expect(takenBy(b)).toEqual([]);
-    const everywhere = (segment: Parameters<typeof keysFor>[0]) => keysFor(segment).find((g) => g.where === "anywhere")!.rows.map((b) => b.id);
+    const everywhere = (segment: Parameters<typeof keysFor>[0]) =>
+      keysFor(segment)
+        .find((g) => g.where === "anywhere")!
+        .rows.map((b) => b.id);
     expect(everywhere("inbox")).not.toContain("column.toggle");
-    expect(keysFor("inbox").find((g) => g.where === "inbox")!.rows.map((b) => b.id)).toContain("inbox.deny");
+    expect(
+      keysFor("inbox")
+        .find((g) => g.where === "inbox")!
+        .rows.map((b) => b.id),
+    ).toContain("inbox.deny");
     for (const s of ["desk", "tasks", "agents", "learn"] as const) expect(everywhere(s)).toContain("column.toggle");
   });
   test("formats chords with Mac symbols", () => {
@@ -120,7 +153,14 @@ describe("keymap: presentation", () => {
     expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
   });
   test("a chord names every binding it could mean, so the menu's echo of the other one is dropped", () => {
-    expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["agents.next", "desk.next", "inbox.next", "learn.nextView", "settings.nextPage", "tasks.nextColumn"]);
+    expect(chordIds(ev("]", { meta: true })).sort()).toEqual([
+      "agents.next",
+      "desk.next",
+      "inbox.next",
+      "learn.nextView",
+      "settings.nextPage",
+      "tasks.nextColumn",
+    ]);
     expect(chordIds(ev("k", { meta: true }))).toEqual(["search.open"]);
   });
   test("Tasks' own letters: R reopens (the Inbox's R is its reply), L switches Board and Table, G the grouping", () => {
@@ -162,7 +202,16 @@ describe("keymap: Preferences over the shell (KTD11)", () => {
     expect(dialogState(root(["data-preferences"], []))).toBe("other"); // a confirmation sheet over Preferences
   });
   test("Preferences lets ⌘, ⌘1-6 and ⌘[ ⌘] through; every other dialog blocks every shell key", () => {
-    for (const id of ["segment.desk", "segment.inbox", "segment.tasks", "segment.agents", "segment.learn", "segment.settings", "settings.prevPage", "settings.nextPage"]) {
+    for (const id of [
+      "segment.desk",
+      "segment.inbox",
+      "segment.tasks",
+      "segment.agents",
+      "segment.learn",
+      "segment.settings",
+      "settings.prevPage",
+      "settings.nextPage",
+    ]) {
       expect(shellKeyAllowed("preferences", id)).toBe(true);
       expect(shellKeyAllowed("other", id)).toBe(false);
       expect(shellKeyAllowed("none", id)).toBe(true);
@@ -198,8 +247,27 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
   const PC: Platform[] = ["windows", "linux"];
   const MAC_KEYS = /[⌘⌥⇧⌃⌫↵⏎⇥]/;
   /** formatKeys as it was before per-system keys: the Mac's rendering must not move by a byte. */
-  const MAC_BEFORE: Record<string, string> = { cmd: "⌘", shift: "⇧", alt: "⌥", ctrl: "⌃", enter: "↵", backspace: "⌫", escape: "esc", space: "space", left: "←", right: "→", up: "↑", down: "↓" };
-  const macBefore = (spec: string) => (spec === "shift+/" ? "?" : spec.split("+").map((p) => MAC_BEFORE[p] ?? (p.length === 1 ? p.toUpperCase() : p)).join(""));
+  const MAC_BEFORE: Record<string, string> = {
+    cmd: "⌘",
+    shift: "⇧",
+    alt: "⌥",
+    ctrl: "⌃",
+    enter: "↵",
+    backspace: "⌫",
+    escape: "esc",
+    space: "space",
+    left: "←",
+    right: "→",
+    up: "↑",
+    down: "↓",
+  };
+  const macBefore = (spec: string) =>
+    spec === "shift+/"
+      ? "?"
+      : spec
+          .split("+")
+          .map((p) => MAC_BEFORE[p] ?? (p.length === 1 ? p.toUpperCase() : p))
+          .join("");
 
   test("covers AE5: Ctrl words on Windows and Linux, the Mac's symbols unchanged", () => {
     expect(formatKeys("cmd+k", "windows")).toBe("Ctrl K");
@@ -230,14 +298,18 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       for (const k of b.keys) expect(formatKeys(k, "macos")).toBe(macBefore(k));
     }
     expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6"]);
-    expect(wasFor({ ...KEYMAP.find((b) => b.id === "search.open")!, was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe("moved (⌘⇧D shows the sidebar)");
+    expect(wasFor({ ...KEYMAP.find((b) => b.id === "search.open")!, was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe(
+      "moved (⌘⇧D shows the sidebar)",
+    );
     expect(menuSpec(KEYMAP, "macos")).toEqual(menuSpec());
   });
   test("covers AE5: Ctrl+K opens search on Windows, from the message box too, and the keys sheet lists it as Ctrl K", () => {
     expect(matches(ev("k", { ctrl: true }), "cmd+k")).toBe(true);
     expect(resolve(ev("k", { ctrl: true }), "desk", "windows")?.id).toBe("search.open");
     expect(resolve(ev("k", { ctrl: true }, true), "inbox", "windows")?.id).toBe("search.open");
-    const row = keysFor("desk", KEYMAP, "windows").find((g) => g.where === "anywhere")!.rows.find((b) => b.id === "search.open")!;
+    const row = keysFor("desk", KEYMAP, "windows")
+      .find((g) => g.where === "anywhere")!
+      .rows.find((b) => b.id === "search.open")!;
     expect(row.keys.map((k) => formatKeys(k, "windows"))).toEqual(["Ctrl K"]);
     expect(keyFor("search.open", "windows")).toBe("Ctrl K");
     expect(keyFor("search.open", "linux")).toBe("Ctrl K");
@@ -293,7 +365,11 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(keyRows("macos").map((b) => b.id)).toContain("global.inbox");
     // the table's order is WHERE_ORDER's, the same on every system, less the Mac's extras (U3: dictation too)
     const macOnly = ["global.inbox", "chat.dictate"];
-    expect(keyRows("windows").map((b) => b.id)).toEqual(keyRows("macos").map((b) => b.id).filter((id) => !macOnly.includes(id)));
+    expect(keyRows("windows").map((b) => b.id)).toEqual(
+      keyRows("macos")
+        .map((b) => b.id)
+        .filter((id) => !macOnly.includes(id)),
+    );
   });
   test("conflicts() and takenBy() read each system's keys", () => {
     for (const os of ["macos", "windows", "linux"] as const) expect(conflicts(KEYMAP, os)).toEqual([]);
@@ -331,7 +407,12 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
   test("a was line names the key it points to on each system", () => {
     const search = { ...KEYMAP.find((b) => b.id === "search.open")!, was: "moved ({column.toggle} shows the sidebar)" };
     expect(wasFor(search, "windows")).toBe("moved (Ctrl Shift D shows the sidebar)");
-    expect(wasFor(KEYMAP.find((b) => b.id === "desk.new")!, "windows")).toBeUndefined();
+    expect(
+      wasFor(
+        KEYMAP.find((b) => b.id === "desk.new")!,
+        "windows",
+      ),
+    ).toBeUndefined();
   });
   test("⌘ held means ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box) and Ctrl alone elsewhere", () => {
     expect(cmdHeld(ev("d", { meta: true }), "macos")).toBe(true);
@@ -393,7 +474,11 @@ describe("Hide loki and the system-wide key off the Mac (plan 014 U3, KTD4)", ()
     expect(keyRows("macos").some((b) => b.id === "chat.dictate")).toBe(true);
     for (const os of ["windows", "linux"] as const) {
       expect(keyRows(os).some((b) => b.id === "chat.dictate")).toBe(false);
-      expect(keysFor("desk", KEYMAP, os).flatMap((g) => g.rows).some((b) => b.id === "chat.dictate")).toBe(false);
+      expect(
+        keysFor("desk", KEYMAP, os)
+          .flatMap((g) => g.rows)
+          .some((b) => b.id === "chat.dictate"),
+      ).toBe(false);
     }
   });
   test("the keys sheet sends the system-wide key to Preferences on the Mac only", () => {

@@ -18,7 +18,13 @@ describe("user message content", () => {
 });
 
 describe("AskUserQuestion", () => {
-  const input = { questions: [{ question: "Which db?", header: "DB", options: [{ label: "Postgres", description: "boring" }, { label: "Mongo" }], multiSelect: false }, { question: "Regions?", options: [{ label: "eu" }, { label: "us" }], multiSelect: true }, { question: "   ", options: [] }] };
+  const input = {
+    questions: [
+      { question: "Which db?", header: "DB", options: [{ label: "Postgres", description: "boring" }, { label: "Mongo" }], multiSelect: false },
+      { question: "Regions?", options: [{ label: "eu" }, { label: "us" }], multiSelect: true },
+      { question: "   ", options: [] },
+    ],
+  };
   test("askQuestions keeps well-formed questions only", () => {
     const qs = askQuestions(input);
     expect(qs.map((q) => q.question)).toEqual(["Which db?", "Regions?"]);
@@ -73,4 +79,3 @@ describe("environment note: only when the agent's picture would be wrong", () =>
     expect(environmentNote(renamed.told, { now: at(23, 56), desk: "Supplier ledger", zone }).text).toBeNull();
   });
 });
-

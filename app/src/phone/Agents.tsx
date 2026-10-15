@@ -63,7 +63,23 @@ const kept = new Map<"filter", AgentFilter>();
  * list to the agents running or waiting on you. A row opens the agent's profile; the list's place and the
  * filter survive the trip.
  */
-export function Agents({ agents, loaded, link, desks, items, api, banner }: { agents: Array<{ id: string; name: string }>; loaded: boolean; link: LinkState; desks: DeskSummary[]; items: AttentionItem[]; api: PhoneAgentsApi; banner?: ReactNode }) {
+export function Agents({
+  agents,
+  loaded,
+  link,
+  desks,
+  items,
+  api,
+  banner,
+}: {
+  agents: Array<{ id: string; name: string }>;
+  loaded: boolean;
+  link: LinkState;
+  desks: DeskSummary[];
+  items: AttentionItem[];
+  api: PhoneAgentsApi;
+  banner?: ReactNode;
+}) {
   const [filter, setFilterState] = useState<AgentFilter>(() => kept.get("filter") ?? "all");
   const setFilter = (f: AgentFilter) => {
     kept.set("filter", f);
@@ -74,7 +90,17 @@ export function Agents({ agents, loaded, link, desks, items, api, banner }: { ag
   const running = rows.filter((r) => r.running).length;
   return (
     <div className="loki-phone-page">
-      <TopBar title="Agents" sub={rows.length ? <span>{rows.length === 1 ? "1 agent" : `${rows.length} agents`}{running ? ` · ${running} running` : ""}</span> : undefined} />
+      <TopBar
+        title="Agents"
+        sub={
+          rows.length ? (
+            <span>
+              {rows.length === 1 ? "1 agent" : `${rows.length} agents`}
+              {running ? ` · ${running} running` : ""}
+            </span>
+          ) : undefined
+        }
+      />
       {banner}
       <Scroll memory="agents" flush>
         {rows.length > 0 && (

@@ -44,7 +44,6 @@ export function protocolStep(m: Record<string, unknown> | undefined, at: string 
   }
 }
 
-
 /** One Letta app-server event as chat events. */
 export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
   switch (ev.type) {
@@ -52,11 +51,19 @@ export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
       const req = ev.request as { subtype?: string; tool_name?: string; input?: unknown } | undefined;
       if (req?.subtype !== "can_use_tool") return [];
       const requestId = String(ev.request_id);
-      return req.tool_name === "AskUserQuestion" ? [{ kind: "question", requestId, input: req.input }] : [{ kind: "approval", requestId, toolName: req.tool_name ?? "tool", input: req.input }];
+      return req.tool_name === "AskUserQuestion"
+        ? [{ kind: "question", requestId, input: req.input }]
+        : [{ kind: "approval", requestId, toolName: req.tool_name ?? "tool", input: req.input }];
     }
     case "update_device_status": {
       const status = ev.device_status as { current_permission_mode?: string; current_working_directory?: string } | undefined;
-      return [{ kind: "device", ...(status?.current_permission_mode ? { mode: status.current_permission_mode } : {}), ...(status?.current_working_directory ? { cwd: status.current_working_directory } : {}) }];
+      return [
+        {
+          kind: "device",
+          ...(status?.current_permission_mode ? { mode: status.current_permission_mode } : {}),
+          ...(status?.current_working_directory ? { cwd: status.current_working_directory } : {}),
+        },
+      ];
     }
     case "update_loop_status": {
       const status = (ev.loop_status as { status?: string } | undefined)?.status;
@@ -73,7 +80,11 @@ export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
       if (mt === "slash_command_start" || mt === "slash_command_end") {
         const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
         const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
-        return [mt === "slash_command_start" ? { kind: "command", phase: "start", input } : { kind: "command", phase: "end", input, success: c.success !== false, output: typeof c.output === "string" ? c.output : "" }];
+        return [
+          mt === "slash_command_start"
+            ? { kind: "command", phase: "start", input }
+            : { kind: "command", phase: "end", input, success: c.success !== false, output: typeof c.output === "string" ? c.output : "" },
+        ];
       }
       if (mt === "stop_reason") return [{ kind: "settle" }];
       return [];
@@ -96,4 +107,3 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
   }
   return { changed, userSpoke };
 }
-

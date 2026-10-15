@@ -21,7 +21,11 @@ let global: string;
 let checkout: string;
 let sources: SkillSources;
 
-const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", ...args], { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString();
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", ...args], {
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+  }).toString();
 const skill = (dir: string, name: string, body: string, extra: Record<string, string> = {}) => {
   mkdirSync(join(dir, name), { recursive: true });
   writeFileSync(join(dir, name, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} does things\n---\n\n${body}\n`);
@@ -62,7 +66,10 @@ beforeAll(() => {
   skill(join(memory, "skills"), "fmt-typed", "v1 of the typed skill");
   git(memory, "add", "-A");
   git(memory, "commit", "-q", "-m", "chore(skills): install fmt-typed");
-  writeFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), readFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), "utf8") + "\nWhat I learned: always check twice.\n");
+  writeFileSync(
+    join(memory, "skills", "fmt-typed", "SKILL.md"),
+    readFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), "utf8") + "\nWhat I learned: always check twice.\n",
+  );
   git(memory, "add", "-A");
   git(memory, "commit", "-q", "-m", "feat(reflection): extend fmt-typed with a lesson");
   skill(join(memory, "skills"), "my-own", "I wrote this myself");
@@ -73,8 +80,28 @@ beforeAll(() => {
   git(memory, "commit", "-q", "-m", "Install skill: mystery");
 
   const lock = join(root, ".skill-lock.json");
-  writeFileSync(lock, JSON.stringify({ version: 3, skills: [{ name: "copied-in", source: "someone/skills", sourceType: "github", sourceUrl: "https://github.com/someone/skills.git", skillPath: "skills/copied-in/SKILL.md" }] }));
-  sources = new SkillSources({ backendDir: backend, globalDir: global, lockFile: lock, sourcesFile: join(root, "state", "skill-sources.json"), stagingDir: join(root, "state", "upstream") });
+  writeFileSync(
+    lock,
+    JSON.stringify({
+      version: 3,
+      skills: [
+        {
+          name: "copied-in",
+          source: "someone/skills",
+          sourceType: "github",
+          sourceUrl: "https://github.com/someone/skills.git",
+          skillPath: "skills/copied-in/SKILL.md",
+        },
+      ],
+    }),
+  );
+  sources = new SkillSources({
+    backendDir: backend,
+    globalDir: global,
+    lockFile: lock,
+    sourcesFile: join(root, "state", "skill-sources.json"),
+    stagingDir: join(root, "state", "upstream"),
+  });
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -99,7 +126,13 @@ describe("origin: self or other", () => {
       expect(linked.repo).toBe(checkout);
       expect(linked.rel).toBe("fmt-linked");
     }
-    expect(sources.sourceOf(AGENT, "copied-in")).toEqual({ kind: "github", url: "https://github.com/someone/skills.git", path: "skills/copied-in", ref: null, label: "someone/skills" });
+    expect(sources.sourceOf(AGENT, "copied-in")).toEqual({
+      kind: "github",
+      url: "https://github.com/someone/skills.git",
+      path: "skills/copied-in",
+      ref: null,
+      label: "someone/skills",
+    });
     expect(sources.sourceOf(AGENT, "fmt-typed")).toBeNull();
   });
   test("the install pattern is loki's and Letta's installers and our refresh", () => {
@@ -130,7 +163,9 @@ describe("refresh", () => {
     if (r.outcome !== "replaced") return;
     expect(r.changed).toEqual(["references/a.md"]);
     expect(existsSync(join(memory, "skills", "fmt-linked", "references", "a.md"))).toBe(true);
-    expect(git(memory, "log", "-1", "--format=%an <%ae> %s")).toContain(`tester <${AGENT}@loki.local> chore(skills): refresh fmt-linked from team-skills checkout`);
+    expect(git(memory, "log", "-1", "--format=%an <%ae> %s")).toContain(
+      `tester <${AGENT}@loki.local> chore(skills): refresh fmt-linked from team-skills checkout`,
+    );
     expect(git(memory, "status", "--short").trim()).toBe("");
     // And now it is current, still other, still unedited.
     expect((await sources.refresh(AGENT, "fmt-linked")).outcome).toBe("current");
@@ -165,8 +200,20 @@ describe("refresh", () => {
 
 describe("sources and trees", () => {
   test("parseSource: GitHub URLs with a tree path, owner/repo/path shorthand, folders; junk is null", () => {
-    expect(parseSource("https://github.com/anthropics/skills/tree/main/skills/pptx")).toEqual({ kind: "github", url: "https://github.com/anthropics/skills.git", path: "skills/pptx", ref: "main", label: "anthropics/skills/skills/pptx" });
-    expect(parseSource("https://github.com/anthropics/skills")).toEqual({ kind: "github", url: "https://github.com/anthropics/skills.git", path: ".", ref: null, label: "anthropics/skills" });
+    expect(parseSource("https://github.com/anthropics/skills/tree/main/skills/pptx")).toEqual({
+      kind: "github",
+      url: "https://github.com/anthropics/skills.git",
+      path: "skills/pptx",
+      ref: "main",
+      label: "anthropics/skills/skills/pptx",
+    });
+    expect(parseSource("https://github.com/anthropics/skills")).toEqual({
+      kind: "github",
+      url: "https://github.com/anthropics/skills.git",
+      path: ".",
+      ref: null,
+      label: "anthropics/skills",
+    });
     expect(parseSource("mattpocock/skills/skills/productivity/grill-me")).toMatchObject({ kind: "github", path: "skills/productivity/grill-me" });
     expect(parseSource(join(checkout, "fmt-linked"))).toMatchObject({ kind: "checkout", rel: "fmt-linked" });
     expect(parseSource(join(global, "copied-in"))).toMatchObject({ kind: "folder" });
@@ -177,11 +224,32 @@ describe("sources and trees", () => {
   });
   test("readLock reads the CLI's object-by-name form and an array form, keeping well-formed entries only", () => {
     const f = join(root, "lock2.json");
-    writeFileSync(f, JSON.stringify({ skills: [{ name: "ok", source: "a/b", sourceUrl: "https://github.com/a/b.git", skillPath: "skills/ok/SKILL.md" }, { name: 3 }, "x"] }));
+    writeFileSync(
+      f,
+      JSON.stringify({ skills: [{ name: "ok", source: "a/b", sourceUrl: "https://github.com/a/b.git", skillPath: "skills/ok/SKILL.md" }, { name: 3 }, "x"] }),
+    );
     expect(readLock(f).map((e) => e.name)).toEqual(["ok"]);
     // What the `skills` CLI actually writes (version 3): keyed by name.
-    writeFileSync(f, JSON.stringify({ version: 3, skills: { pptx: { source: "anthropics/skills", sourceType: "github", sourceUrl: "https://github.com/anthropics/skills.git", skillPath: "skills/pptx/SKILL.md" }, broken: { source: "x" }, junk: 4 } }));
-    expect(readLock(f)).toEqual([{ name: "pptx", source: "anthropics/skills", sourceType: "github", sourceUrl: "https://github.com/anthropics/skills.git", skillPath: "skills/pptx/SKILL.md" } as never]);
+    writeFileSync(
+      f,
+      JSON.stringify({
+        version: 3,
+        skills: {
+          pptx: { source: "anthropics/skills", sourceType: "github", sourceUrl: "https://github.com/anthropics/skills.git", skillPath: "skills/pptx/SKILL.md" },
+          broken: { source: "x" },
+          junk: 4,
+        },
+      }),
+    );
+    expect(readLock(f)).toEqual([
+      {
+        name: "pptx",
+        source: "anthropics/skills",
+        sourceType: "github",
+        sourceUrl: "https://github.com/anthropics/skills.git",
+        skillPath: "skills/pptx/SKILL.md",
+      } as never,
+    ]);
     expect(readLock(join(root, "missing.json"))).toEqual([]);
   });
   test("compareTrees lists added, removed and changed files, ignoring .git and .DS_Store", () => {

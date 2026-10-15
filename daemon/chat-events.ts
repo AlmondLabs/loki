@@ -104,14 +104,24 @@ export class ChatEventConverter {
       case "tool_execution_end": {
         const result = ev.entry?.model?.[0] as { content?: unknown; isError?: boolean } | undefined;
         // No entry: the tool task faulted or was orphaned; the model is told, and the call shows as failed.
-        return [{ kind: "step", step: { kind: "result", id: ev.toolCallId, output: result?.content ?? "the tool did not finish", failed: result ? result.isError === true : true } }];
+        return [
+          {
+            kind: "step",
+            step: { kind: "result", id: ev.toolCallId, output: result?.content ?? "the tool did not finish", failed: result ? result.isError === true : true },
+          },
+        ];
       }
       case "task_failed":
         return [{ kind: "error", message: ev.message }];
       // A message the agent could not take up at all (no model to run it on, say): the turn ends here, and says why.
       case "submission":
         if (ev.record.status !== "unanswered") return [];
-        return [{ kind: "error", message: unanswered(ev.record.reason) }, { kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id])! }];
+        return [
+          { kind: "error", message: unanswered(ev.record.reason) },
+          { kind: "settle" },
+          { kind: "loop", state: "idle" },
+          { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id])! },
+        ];
       default:
         return [];
     }
@@ -119,7 +129,10 @@ export class ChatEventConverter {
 
   /** The text blocks joined as the written answer joins them (contentText). */
   private joined(): string {
-    return [...this.blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join("\n");
+    return [...this.blocks.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([, text]) => text)
+      .join("\n");
   }
 
   /** An answer written: the stored message as a history page has it (its words whole, then its tool calls). */

@@ -3,7 +3,10 @@
  * headings, quotes, list bullets, link targets), runs of space as one. "Use **Next** to step" reads "Use Next to step".
  */
 export function previewLine(text: string | null | undefined, max = 160): string | null {
-  const line = (text ?? "").split("\n").map((l) => l.trim()).find(Boolean);
+  const line = (text ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .find(Boolean);
   if (!line) return null;
   const plain = line
     .replace(/^#{1,6}\s+/, "")

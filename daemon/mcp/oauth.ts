@@ -16,7 +16,11 @@ export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_P
 
 /** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
-export type OAuthSecrets = { get(account: string): Promise<string | null>; set(account: string, value: string): Promise<void>; delete?(account: string): Promise<void> };
+export type OAuthSecrets = {
+  get(account: string): Promise<string | null>;
+  set(account: string, value: string): Promise<void>;
+  delete?(account: string): Promise<void>;
+};
 
 export class OAuthStore {
   private readonly memory = new Map<string, string>();
@@ -49,7 +53,9 @@ export class OAuthStore {
     for (const kind of kinds) this.memory.delete(this.account(server, kind));
     if (!secrets) return;
     // Each kind is its own keychain item, so they go together. A keychain without delete gets an empty value, which reads as nothing.
-    await Promise.all(kinds.map((kind) => (secrets.delete ? secrets.delete(this.account(server, kind)) : secrets.set(this.account(server, kind), "")).catch(() => {})));
+    await Promise.all(
+      kinds.map((kind) => (secrets.delete ? secrets.delete(this.account(server, kind)) : secrets.set(this.account(server, kind), "")).catch(() => {})),
+    );
   }
 }
 
@@ -74,7 +80,13 @@ export class ServerOAuth implements OAuthClientProvider {
   }
 
   get clientMetadata(): OAuthClientMetadata {
-    return { client_name: "loki", redirect_uris: [this.redirect], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" };
+    return {
+      client_name: "loki",
+      redirect_uris: [this.redirect],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    };
   }
 
   state(): string {

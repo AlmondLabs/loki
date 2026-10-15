@@ -3,7 +3,20 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Task } from "../core/frame-types.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { chipState, fromMessage, messageKey, parseTaskSource, quoteBlock, quoteOf, sourceMetadata, taskSource, tasksByMessage, tasksForRow, titleFrom, type TaskSource } from "../core/task-source.ts";
+import {
+  chipState,
+  fromMessage,
+  messageKey,
+  parseTaskSource,
+  quoteBlock,
+  quoteOf,
+  sourceMetadata,
+  taskSource,
+  tasksByMessage,
+  tasksForRow,
+  titleFrom,
+  type TaskSource,
+} from "../core/task-source.ts";
 import { createArgs, noteArgs, TaskStore } from "../mod/tasks.ts";
 import { MessageTasks, addingFrom, type MessageTasksValue, type TaskApi } from "../app/src/tasks/messageTasks.tsx";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
@@ -16,10 +29,29 @@ import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
 const reply = "Here's the plan:\n\n- migrate **staging** first\n- then prod";
 const row: TranscriptRow = { role: "assistant", text: reply, at: "2026-10-15T09:00:00.000Z" };
-const source: TaskSource = { origin: "message", role: "assistant", key: messageKey("assistant", reply), at: row.at!, quote: "Here's the plan: - migrate **staging** first - then prod" };
+const source: TaskSource = {
+  origin: "message",
+  role: "assistant",
+  key: messageKey("assistant", reply),
+  at: row.at!,
+  quote: "Here's the plan: - migrate **staging** first - then prod",
+};
 
-const task = (id: string, metadata: Record<string, string>, status = "open"): Task => ({ id, title: `title ${id}`, description: "", status, priority: 2, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: status === "closed" ? "2026-10-15T10:00:00Z" : null, metadata });
-const fromReply = (id: string, extra: Record<string, string> = {}, status = "open") => task(id, { by: "you", conversation: "c1", agentId: "a1", ...sourceMetadata(source), ...extra }, status);
+const task = (id: string, metadata: Record<string, string>, status = "open"): Task => ({
+  id,
+  title: `title ${id}`,
+  description: "",
+  status,
+  priority: 2,
+  labels: [],
+  assignee: null,
+  createdAt: "",
+  updatedAt: "",
+  closedAt: status === "closed" ? "2026-10-15T10:00:00Z" : null,
+  metadata,
+});
+const fromReply = (id: string, extra: Record<string, string> = {}, status = "open") =>
+  task(id, { by: "you", conversation: "c1", agentId: "a1", ...sourceMetadata(source), ...extra }, status);
 
 describe("the source: which message a task came from", () => {
   test("a message is named by its role and its text's hash, the same however its edges or line endings read", () => {
@@ -51,15 +83,33 @@ describe("the source: which message a task came from", () => {
   });
 
   test("the stamp is kept on the task's metadata, beside who filed it and from where", () => {
-    const args = createArgs({ title: "migrate staging", description: quoteBlock(reply), stamp: { by: "you", conversation: "c1", desk: "a1/c1", agentId: "a1", source } });
+    const args = createArgs({
+      title: "migrate staging",
+      description: quoteBlock(reply),
+      stamp: { by: "you", conversation: "c1", desk: "a1/c1", agentId: "a1", source },
+    });
     const md = JSON.parse(args[args.indexOf("--metadata") + 1]);
-    expect(md).toEqual({ by: "you", agentId: "a1", conversation: "c1", desk: "a1/c1", origin: "message", msgRole: "assistant", msgKey: source.key, msgAt: source.at, quote: source.quote });
+    expect(md).toEqual({
+      by: "you",
+      agentId: "a1",
+      conversation: "c1",
+      desk: "a1/c1",
+      origin: "message",
+      msgRole: "assistant",
+      msgKey: source.key,
+      msgAt: source.at,
+      quote: source.quote,
+    });
     expect(taskSource(task("lk-1", md))).toMatchObject({ ...source, conversation: "c1", agentId: "a1" });
     expect(taskSource(task("lk-2", { by: "you" }))).toBeNull();
   });
 
   test("a task finds its message by the hash, or (the text read back differently) by role and time; other chats' tasks stay out", () => {
-    const tasks = [fromReply("lk-1"), task("lk-2", { by: "you", conversation: "c2", ...sourceMetadata(source) }), task("lk-3", { by: "you", conversation: "c1" })];
+    const tasks = [
+      fromReply("lk-1"),
+      task("lk-2", { by: "you", conversation: "c2", ...sourceMetadata(source) }),
+      task("lk-3", { by: "you", conversation: "c1" }),
+    ];
     const byKey = tasksByMessage(tasks, "c1");
     expect(tasksForRow(byKey, row).map((t) => t.id)).toEqual(["lk-1"]);
     expect(tasksForRow(byKey, { ...row, text: `${reply} (edited)` }).map((t) => t.id)).toEqual(["lk-1"]);
@@ -116,7 +166,14 @@ describe("where the editor starts", () => {
     expect(addingFrom(row)).toEqual({ key: source.key, role: "assistant", at: row.at, text: reply, origin: "message", title: "Here's the plan:" });
   });
   test("⌘⇧T files just the selected words, still linked to the whole message", () => {
-    expect(addingFrom(row, "  migrate **staging** first ")).toEqual({ key: source.key, role: "assistant", at: row.at, text: "migrate **staging** first", origin: "selection", title: "migrate staging first" });
+    expect(addingFrom(row, "  migrate **staging** first ")).toEqual({
+      key: source.key,
+      role: "assistant",
+      at: row.at,
+      text: "migrate **staging** first",
+      origin: "selection",
+      title: "migrate staging first",
+    });
     // An empty selection is the whole message.
     expect(addingFrom(row, "   ")?.origin).toBe("message");
   });
@@ -132,7 +189,16 @@ describe("the chip on the message", () => {
   const people = { user: { name: "You" }, assistant: { name: "friday" } };
   function thread(tasks: Task[], adding: MessageTasksValue["adding"] = null, rows: TranscriptRow[] = [row]) {
     const byKey = tasksByMessage(tasks, "c1");
-    const ctx: MessageTasksValue = { conversationId: "c1", tasksFor: (r) => tasksForRow(byKey, r), adding, start: () => {}, setTitle: () => {}, cancel: () => {}, submit: async () => null, api: { ...api, tasks } };
+    const ctx: MessageTasksValue = {
+      conversationId: "c1",
+      tasksFor: (r) => tasksForRow(byKey, r),
+      adding,
+      start: () => {},
+      setTitle: () => {},
+      cancel: () => {},
+      submit: async () => null,
+      api: { ...api, tasks },
+    };
     return renderToStaticMarkup(createElement(MessageTasks.Provider, { value: ctx }, createElement(Transcript, { rows, people })));
   }
 
@@ -173,7 +239,14 @@ describe("the chip on the message", () => {
   });
 
   test("the editor opens under the message it is adding to, with the title to start from and where it files from", () => {
-    const out = thread([], { key: source.key, role: "assistant", at: row.at!, text: "migrate staging first", origin: "selection", title: "migrate staging first" });
+    const out = thread([], {
+      key: source.key,
+      role: "assistant",
+      at: row.at!,
+      text: "migrate staging first",
+      origin: "selection",
+      title: "migrate staging first",
+    });
     expect(out).toContain('aria-label="add a task from this message"');
     expect(out).toContain('value="migrate staging first"');
     expect(out).toContain("from the selected text");

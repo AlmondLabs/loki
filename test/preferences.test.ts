@@ -70,7 +70,11 @@ describe("Preferences: the section list is a vertical tablist (focus follows the
 });
 
 describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
-  const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const text = (html: string) =>
+    html
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
   const status = { ...lanStatusFromFrame({ enabled: true, address: "192.168.1.20", appServed: true }), via: "lan" as const };
   const phone: PhoneApi = {
     status,
@@ -100,7 +104,9 @@ describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
     expect(out).toContain("phones can reach this Mac");
     expect(out).toContain("K7PQ2M");
     expect(out).not.toContain("isn't on");
-    expect(renderToStaticMarkup(createElement(Phone, { phone, connected: true }))).toBe(renderToStaticMarkup(createElement(Phone, { phone, connected: true, os: "macos" })));
+    expect(renderToStaticMarkup(createElement(Phone, { phone, connected: true }))).toBe(
+      renderToStaticMarkup(createElement(Phone, { phone, connected: true, os: "macos" })),
+    );
   });
   test("the global-shortcut row on Windows says it is not there yet, with no switch and no Mac key", () => {
     const out = text(renderToStaticMarkup(createElement(GlobalKeyRow, { shortcut, os: "windows" })));

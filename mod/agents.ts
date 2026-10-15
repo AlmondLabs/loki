@@ -92,7 +92,12 @@ export function memorySkills(agentId: string, dir = backendDir()): MemorySkill[]
         const text = readFileSync(join(memoryRoot(agentId, dir), f.path), "utf8");
         const fm = text.match(/^---\n([\s\S]*?)\n---/);
         const d = fm?.[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
-        description = d ? d.replace(/^["']|["']$/g, "") : (text.replace(/^---[\s\S]*?---/, "").match(/^#+\s*(.+)$/m)?.[1]?.trim() ?? null);
+        description = d
+          ? d.replace(/^["']|["']$/g, "")
+          : (text
+              .replace(/^---[\s\S]*?---/, "")
+              .match(/^#+\s*(.+)$/m)?.[1]
+              ?.trim() ?? null);
       } catch {
         // unreadable: name only
       }
@@ -130,7 +135,9 @@ function containedFile(rootPath: string, path: string): { path: string; bytes: n
 
 function git(args: string[], cwd: string): Promise<string> {
   return new Promise((res, rej) => {
-    execFile("git", args, { cwd, timeout: 10_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => (err ? rej(new Error(String(stderr || err.message).trim())) : res(stdout)));
+    execFile("git", args, { cwd, timeout: 10_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) =>
+      err ? rej(new Error(String(stderr || err.message).trim())) : res(stdout),
+    );
   });
 }
 
@@ -163,4 +170,3 @@ export async function memoryDiff(agentId: string, sha: string, dir = backendDir(
   const out = await git(["show", sha, "--format=%s%n%cI%n", "--no-color", "--stat=80", "-p"], memoryRoot(agentId, dir));
   return out.length > 200_000 ? `${out.slice(0, 200_000)}\n… (diff truncated)` : out;
 }
-

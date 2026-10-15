@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { TOOL_TEXT_MAX, toolInput, toolOutput, toolStep } from "../core/harness.ts";
-import { withoutSkillCalls, isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
+import {
+  withoutSkillCalls,
+  isNamedStep,
+  isWorkRow,
+  lastFailure,
+  stepFailed,
+  stepTarget,
+  stepVerb,
+  toolRuns,
+  workSummary,
+} from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const bash = (failed = false): TranscriptRow => ({ role: "tool", text: "Bash · ls", tool: { name: "Bash", ...(failed ? { failed: true } : {}) } });
@@ -72,20 +82,40 @@ describe("tool inputs and outputs are kept", () => {
     expect(toolInput("Bash", { command: "ls -la\nwc -l x" })).toBe("ls -la\nwc -l x");
     expect(toolInput("Custom", '{"a":1}')).toBe('{\n  "a": 1\n}');
     expect(toolInput("Bash", '{"comm')).toBeUndefined(); // still streaming
-    expect(toolOutput([{ type: "text", text: "one" }, { type: "text", text: "two" }])).toBe("one\ntwo");
+    expect(
+      toolOutput([
+        { type: "text", text: "one" },
+        { type: "text", text: "two" },
+      ]),
+    ).toBe("one\ntwo");
     const long = toolOutput("x".repeat(TOOL_TEXT_MAX + 10))!;
     expect(long.startsWith("x".repeat(TOOL_TEXT_MAX))).toBe(true);
     expect(long.endsWith("10 more characters")).toBe(true);
   });
-
 });
 
 describe("a stretch of work", () => {
   const at = (m: number) => new Date(Date.UTC(2026, 8, 30, 16, m)).toISOString();
-  const bg = (name: string, m: number, failed = false): TranscriptRow => ({ role: "event", text: `background task exec_${m} ${failed ? "failed" : "completed"}`, summary: `Exec command "${name}" ${failed ? "failed" : "completed"}`, detail: failed ? "tasks failed ELB health checks" : "ok", at: at(m) });
+  const bg = (name: string, m: number, failed = false): TranscriptRow => ({
+    role: "event",
+    text: `background task exec_${m} ${failed ? "failed" : "completed"}`,
+    summary: `Exec command "${name}" ${failed ? "failed" : "completed"}`,
+    detail: failed ? "tasks failed ELB health checks" : "ok",
+    at: at(m),
+  });
   const tool = (name: string, m: number): TranscriptRow => ({ role: "tool", text: `${name} · x`, tool: { name }, at: at(m) });
   const skill: TranscriptRow = { role: "event", text: "skill loaded", summary: "fmt-data-analyst", detail: "# skill", at: at(1) };
-  const rows = [bg("Revalidate approved dev deployment targets", 0), tool("Read", 1), skill, tool("Grep", 2), tool("Read", 2), bg("Create scoped Dealshield task security group", 5), tool("Bash", 6), bg("Deploy approved Dealshield image and ECS routing", 14, true), tool("Read", 14)];
+  const rows = [
+    bg("Revalidate approved dev deployment targets", 0),
+    tool("Read", 1),
+    skill,
+    tool("Grep", 2),
+    tool("Read", 2),
+    bg("Create scoped Dealshield task security group", 5),
+    tool("Bash", 6),
+    bg("Deploy approved Dealshield image and ECS routing", 14, true),
+    tool("Read", 14),
+  ];
 
   test("background tasks and skills are part of it; canvas activity and compactions are not", () => {
     expect(rows.every(isWorkRow)).toBe(true);

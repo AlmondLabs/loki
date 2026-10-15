@@ -1,6 +1,20 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { EMPTY_PANE, EMPTY_ROUTE, agentState, chatKeyTarget, chooseTab, escapeTab, nextFrame, openTab, paneView, routeTick, sidebarHidden, tabOf, tickFor } from "../app/src/desk/pane.ts";
+import {
+  EMPTY_PANE,
+  EMPTY_ROUTE,
+  agentState,
+  chatKeyTarget,
+  chooseTab,
+  escapeTab,
+  nextFrame,
+  openTab,
+  paneView,
+  routeTick,
+  sidebarHidden,
+  tabOf,
+  tickFor,
+} from "../app/src/desk/pane.ts";
 import { createDrafts, draftKey } from "../app/src/shared/drafts.ts";
 import { draftWriter } from "../app/src/chat/useDraft.ts";
 

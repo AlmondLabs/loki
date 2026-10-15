@@ -40,8 +40,17 @@ describe("model effort metadata", () => {
     ]);
 
     expect(parsed.filter((entry) => entry.handle === "openai-codex/future").map((entry) => entry.reasoningEffort)).toEqual(["none", "low", "high"]);
-    expect(parsed.filter((entry) => entry.handle === "openai-codex/gpt-5.6-sol").map((entry) => entry.reasoningEffort)).toEqual(["none", "low", "medium", "high", "xhigh", "max"]);
-    expect(parsed.filter((entry) => entry.handle === "anthropic/claude-opus-5")).toEqual([{ id: "claude", handle: "anthropic/claude-opus-5", label: "Claude Opus 5" }]);
+    expect(parsed.filter((entry) => entry.handle === "openai-codex/gpt-5.6-sol").map((entry) => entry.reasoningEffort)).toEqual([
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ]);
+    expect(parsed.filter((entry) => entry.handle === "anthropic/claude-opus-5")).toEqual([
+      { id: "claude", handle: "anthropic/claude-opus-5", label: "Claude Opus 5" },
+    ]);
   });
 
   test("reads persisted effort across provider-specific settings", () => {
@@ -60,4 +69,3 @@ describe("model effort metadata", () => {
     expect(preferredModelEntry(groups[0], "max").id).toBe("gpt-high");
   });
 });
-

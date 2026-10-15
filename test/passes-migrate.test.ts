@@ -6,7 +6,11 @@ import { PassState } from "../daemon/passes-state.ts";
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "loki-passes-migrate-"));
-  const old = { reflectionSettings: join(dir, "state", "reflection.json"), reflectionRoot: join(dir, "reflection"), learnWorker: join(dir, "recall", "worker.json") };
+  const old = {
+    reflectionSettings: join(dir, "state", "reflection.json"),
+    reflectionRoot: join(dir, "reflection"),
+    learnWorker: join(dir, "recall", "worker.json"),
+  };
   const write = (file: string, value: unknown) => {
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(file, JSON.stringify(value));
@@ -16,7 +20,11 @@ function setup() {
 
 describe("background passes: the first start carries over what reflection and Learn kept", () => {
   test("reflection off stays off, any other trigger is on", () => {
-    for (const [trigger, enabled] of [["off", false], ["step-count", true], ["compaction-event", true]] as const) {
+    for (const [trigger, enabled] of [
+      ["off", false],
+      ["step-count", true],
+      ["compaction-event", true],
+    ] as const) {
       const s = setup();
       try {
         s.write(s.old.reflectionSettings, { trigger, stepCount: 25 });
@@ -30,7 +38,11 @@ describe("background passes: the first start carries over what reflection and Le
   });
 
   test("Learn's old default cap of 25 becomes 5, a cap the person chose stays, and Learn on stays on", () => {
-    for (const [cap, expected] of [[25, 5], [8, 8], [undefined, 5]] as const) {
+    for (const [cap, expected] of [
+      [25, 5],
+      [8, 8],
+      [undefined, 5],
+    ] as const) {
       const s = setup();
       try {
         s.write(s.old.learnWorker, { enabled: true, ...(cap === undefined ? {} : { dailyCap: cap }) });
@@ -49,7 +61,12 @@ describe("background passes: the first start carries over what reflection and Le
       s.write(join(s.old.reflectionRoot, "agent-a", "c1", "state.json"), { reflected_through: 40, total_completed_steps: 30 });
       // Letta's state files carry counters but no cursor.
       s.write(join(s.old.reflectionRoot, "agent-a", "c2", "state.json"), { total_completed_steps: 12 });
-      s.write(s.old.learnWorker, { enabled: false, cursors: { "agent-a/c1": 33 }, leadCursors: { "agent-a/c1": 50 }, written: { day: "2026-10-10", count: 3 } });
+      s.write(s.old.learnWorker, {
+        enabled: false,
+        cursors: { "agent-a/c1": 33 },
+        leadCursors: { "agent-a/c1": 50 },
+        written: { day: "2026-10-10", count: 3 },
+      });
       const state = s.state();
       state.migrate(s.old, [
         { agentId: "agent-a", chatId: "c1", entries: 60 },

@@ -25,7 +25,19 @@ export interface DesksDeps {
 /** One desk in full: its conversation's title, status, agent and model, its geometry, and its widgets. */
 export function deskFrame(deps: DesksDeps, scope: Scope): { type: "desk" } & Pushes["desk"] {
   const info = deps.deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
-  return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null, state: deps.store.get(scope), widgets: deps.widgets.entries(scope) };
+  return {
+    type: "desk",
+    scope,
+    title: info.title,
+    status: info.status,
+    agentName: info.agentName,
+    agentId: info.agentId,
+    model: info.model,
+    reasoningEffort: info.reasoningEffort,
+    mode: info.mode ?? null,
+    state: deps.store.get(scope),
+    widgets: deps.widgets.entries(scope),
+  };
 }
 
 /** A push to the tabs on one desk, or to every socket for the shared desk. */
@@ -56,7 +68,9 @@ export function desksFrames(deps: DesksDeps): FrameHandlers {
       const before = store.get(scope);
       const after = store.arrange(scope);
       if (after === before) return;
-      const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
+      const ids = Object.entries(after.layout)
+        .filter(([, l]) => !l.hidden)
+        .map(([id]) => id);
       gestures.record(scope, `tidied the canvas (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
       ctx.track("desk_arranged");
       ctx.broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, audience(scope));

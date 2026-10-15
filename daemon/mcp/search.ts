@@ -20,14 +20,27 @@ const params = (schema: Record<string, unknown>): string[] => Object.keys(((sche
 /** The words a tool is found by, weighted by repetition. */
 function document(t: McpTool): string[] {
   const name = words(t.name);
-  return [...name, ...name, ...name, ...words(t.server), ...words(t.server), ...words(t.title ?? ""), ...words(t.title ?? ""), ...words(t.description), ...params(t.inputSchema).flatMap(words)];
+  return [
+    ...name,
+    ...name,
+    ...name,
+    ...words(t.server),
+    ...words(t.server),
+    ...words(t.title ?? ""),
+    ...words(t.title ?? ""),
+    ...words(t.description),
+    ...params(t.inputSchema).flatMap(words),
+  ];
 }
 
 /** `select:github.list_issues, linear.update_issue` as the tools it names; null when the query is not a selection. */
 export function selected(query: string, tools: readonly McpTool[]): McpTool[] | null {
   const m = query.trim().match(/^select:(.+)$/i);
   if (!m) return null;
-  const wanted = m[1].split(",").map((s) => s.trim()).filter(Boolean);
+  const wanted = m[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return wanted.flatMap((w) => {
     const [server, ...rest] = w.includes(".") ? w.split(".") : ["", w];
     const name = rest.join(".");

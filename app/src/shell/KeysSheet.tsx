@@ -38,8 +38,16 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                 </span>
                 <span style={{ color: "var(--loki-fg)" }}>
                   {b.label}
-                  {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>not while typing</span>}
-                  {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{wasFor(b)}</span>}
+                  {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && (
+                    <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>
+                      not while typing
+                    </span>
+                  )}
+                  {b.was && (
+                    <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
+                      {wasFor(b)}
+                    </span>
+                  )}
                 </span>
               </div>
             ))}
@@ -48,7 +56,9 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Meta wrap>{keysSheetNote()}</Meta>
           <span style={{ flex: 1 }} />
-          <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", keyboard, 1)}>open</Button>
+          <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", keyboard, 1)}>
+            open
+          </Button>
         </div>
       </div>
     </Sheet>
@@ -69,12 +79,30 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
     const own = keysOf(b, os);
-    const taken = b.where === "anywhere" ? new Set(takenBy(b, map, os).filter((t) => wheres.includes(t.where)).map((t) => t.key)) : new Set<string>();
+    const taken =
+      b.where === "anywhere"
+        ? new Set(
+            takenBy(b, map, os)
+              .filter((t) => wheres.includes(t.where))
+              .map((t) => t.key),
+          )
+        : new Set<string>();
     const keys = own.filter((k) => !taken.has(k));
     const label = labelOf(b, os);
     return keys.length === 0 ? null : own === b.keys && keys.length === own.length && label === b.label ? b : { ...b, keys, label };
   };
-  return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) })).filter((g) => g.rows.length > 0);
+  return wheres
+    .map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) }))
+    .filter((g) => g.rows.length > 0);
 }
 
-const TITLE: Partial<Record<Where, string>> = { anywhere: "Everywhere in loki", chat: "The message box", desk: "In a chat", inbox: "In the inbox", tasks: "In Tasks", learn: "In Learn", agents: "In Agents", settings: "In Settings" };
+const TITLE: Partial<Record<Where, string>> = {
+  anywhere: "Everywhere in loki",
+  chat: "The message box",
+  desk: "In a chat",
+  inbox: "In the inbox",
+  tasks: "In Tasks",
+  learn: "In Learn",
+  agents: "In Agents",
+  settings: "In Settings",
+};

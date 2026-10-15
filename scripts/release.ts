@@ -52,7 +52,10 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 function repoName(): string {
   if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY;
   const { repository } = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { repository?: string };
-  return (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
+  return (repository ?? "")
+    .replace(/^github:/, "")
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\.git$/, "");
 }
 
 /** The line the Windows and Linux PR and a release carrying their files open with while those builds are unconfirmed (plan 014 R12). */
@@ -101,17 +104,40 @@ const stablesIn = (tags: string[]): string[] => tags.filter((t) => STABLE_TAG.te
  * and nowhere when it does not. Everything else with commits since the last stable is a nightly; nothing new is
  * nothing to do. `shipped` is the stables the Mac has: releases with a `.dmg` (by default every stable tag).
  */
-export function plan({ today, sha, tags, shipped = stablesIn(tags), commitsSinceStable, releaseMerged = false, previewMerged = null }: { today: Date; sha: string; tags: string[]; shipped?: string[]; commitsSinceStable: number; releaseMerged?: boolean; previewMerged?: string | null }): Plan {
+export function plan({
+  today,
+  sha,
+  tags,
+  shipped = stablesIn(tags),
+  commitsSinceStable,
+  releaseMerged = false,
+  previewMerged = null,
+}: {
+  today: Date;
+  sha: string;
+  tags: string[];
+  shipped?: string[];
+  commitsSinceStable: number;
+  releaseMerged?: boolean;
+  previewMerged?: string | null;
+}): Plan {
   const latest = latestStable(shipped.map((v) => `v${v}`));
   const nextPreview = latest ?? "";
   const marker = previewMerged?.trim() ?? "";
   if (STABLE_TAG.test(marker)) {
-    if (tags.includes(marker)) return { kind: "preview", version: marker.slice(1), nextPreview, reason: `the Windows and Linux PR for ${marker} landed; its files join that release` };
+    if (tags.includes(marker))
+      return { kind: "preview", version: marker.slice(1), nextPreview, reason: `the Windows and Linux PR for ${marker} landed; its files join that release` };
     return { kind: "none", version: "", nextPreview, reason: `the Windows and Linux PR named ${marker}, which has no release; nothing is built` };
   }
-  if (releaseMerged) return { kind: "stable", version: nextStable(today, tags), nextPreview, reason: "the release PR landed; the build numbers the stable when it starts" };
+  if (releaseMerged)
+    return { kind: "stable", version: nextStable(today, tags), nextPreview, reason: "the release PR landed; the build numbers the stable when it starts" };
   if (commitsSinceStable === 0) return { kind: "none", version: latest ?? "", nextPreview, reason: "nothing since the last stable" };
-  return { kind: "nightly", version: nightlyVersion(today, tags, sha), nextPreview, reason: `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}` };
+  return {
+    kind: "nightly",
+    version: nightlyVersion(today, tags, sha),
+    nextPreview,
+    reason: `${commitsSinceStable} commit${commitsSinceStable === 1 ? "" : "s"} since ${latest === null ? "the beginning" : `v${latest}`}`,
+  };
 }
 
 export interface Commit {
@@ -127,16 +153,22 @@ export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !
 
 /** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
 export function releaseNotes(version: string, commits: Commit[]): string {
-  const entries = shipping(commits)
-    .map((c) => {
-      const body = c.body
-        .split("\n")
-        .map((l) => l.trimEnd())
-        .filter((l) => !TRAILER.test(l))
-        .join("\n")
-        .trim();
-      return `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})${body ? `\n${body.split("\n").map((l) => (l ? `  ${l}` : "")).join("\n")}` : ""}`;
-    });
+  const entries = shipping(commits).map((c) => {
+    const body = c.body
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .filter((l) => !TRAILER.test(l))
+      .join("\n")
+      .trim();
+    return `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})${
+      body
+        ? `\n${body
+            .split("\n")
+            .map((l) => (l ? `  ${l}` : ""))
+            .join("\n")}`
+        : ""
+    }`;
+  });
   return `## ${version}\n\n${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
 }
 
@@ -166,7 +198,8 @@ export function setVersion(version: string, dir = root): string[] {
 
 // --- the command line -------------------------------------------------------------------------------------
 
-const run = (cmd: string, args: string[], input?: string): string => execFileSync(cmd, args, { cwd: root, encoding: "utf8", input, stdio: ["pipe", "pipe", "inherit"] }).trim();
+const run = (cmd: string, args: string[], input?: string): string =>
+  execFileSync(cmd, args, { cwd: root, encoding: "utf8", input, stdio: ["pipe", "pipe", "inherit"] }).trim();
 const git = (...args: string[]) => run("git", args);
 const gh = (...args: string[]) => run("gh", args);
 
@@ -176,7 +209,15 @@ function tags(): string[] {
 /** The stables the Mac has shipped: the versions of the releases carrying a `.dmg`, from GitHub (the tags cannot tell). */
 let shippedCache: string[] | null = null;
 function shipped(): string[] {
-  shippedCache ??= stablesIn(gh("api", "--paginate", `repos/${repoName()}/releases?per_page=100`, "--jq", '.[] | select(.draft | not) | select(any(.assets[]; .name | endswith(".dmg"))) | .tag_name').split("\n"));
+  shippedCache ??= stablesIn(
+    gh(
+      "api",
+      "--paginate",
+      `repos/${repoName()}/releases?per_page=100`,
+      "--jq",
+      '.[] | select(.draft | not) | select(any(.assets[]; .name | endswith(".dmg"))) | .tag_name',
+    ).split("\n"),
+  );
   return shippedCache;
 }
 /** The last stable the Mac shipped, which the notes and the nightly count from. */
@@ -221,7 +262,15 @@ function previewMergedAtHead(): string | null {
 function cmdPlan(): void {
   // Only a push is a merge; a manual run refreshes the two PRs and ships nothing.
   const pushed = (process.env.GITHUB_EVENT_NAME ?? "push") === "push";
-  const p = plan({ today: new Date(), sha: git("rev-parse", "HEAD"), tags: tags(), shipped: shipped(), commitsSinceStable: shipping(commitsSince(lastStable())).length, releaseMerged: pushed && changedAtHead(RELEASE_FILE), previewMerged: pushed ? previewMergedAtHead() : null });
+  const p = plan({
+    today: new Date(),
+    sha: git("rev-parse", "HEAD"),
+    tags: tags(),
+    shipped: shipped(),
+    commitsSinceStable: shipping(commitsSince(lastStable())).length,
+    releaseMerged: pushed && changedAtHead(RELEASE_FILE),
+    previewMerged: pushed ? previewMergedAtHead() : null,
+  });
   console.error(`release: ${p.kind} — ${p.reason}`);
   output({ kind: p.kind, version: p.version, preview: p.nextPreview });
 }
@@ -242,7 +291,11 @@ function cmdNotes(version: string): string {
 }
 
 /** The release PR's title, body and the file its one commit writes. */
-export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; mainSha: string; ifMergedNow: string }): { title: string; body: string; marker: string } {
+export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; mainSha: string; ifMergedNow: string }): {
+  title: string;
+  body: string;
+  marker: string;
+} {
   return {
     title: "release: the next stable",
     marker: `${mainSha}\n`,
@@ -271,7 +324,12 @@ function cmdReleasePr(): void {
   git("checkout", "-B", RELEASE_BRANCH, "origin/main");
   writeFileSync(join(root, RELEASE_FILE), marker);
   git("add", RELEASE_FILE);
-  git("commit", "--quiet", "-m", `${title}\n\nThe release PR: merge it and main ships as the next stable, numbered at the build. Rebuilt from main on every merge; do not edit.`);
+  git(
+    "commit",
+    "--quiet",
+    "-m",
+    `${title}\n\nThe release PR: merge it and main ships as the next stable, numbered at the build. Rebuilt from main on every merge; do not edit.`,
+  );
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${RELEASE_BRANCH}`);
   if (open) gh("pr", "edit", open, "--title", title, "--body", body);
   else gh("pr", "create", "--base", "main", "--head", RELEASE_BRANCH, "--title", title, "--body", body);
@@ -292,7 +350,22 @@ function releaseBody(tag: string, gh: (...args: string[]) => string): string | n
  * number some earlier run already took fails loudly rather than mixing two builds' files; a nightly replaces the
  * rolling one, only now that the build is in hand. The Mac's files only.
  */
-export function publish({ kind, version, files, sha, notesFile, gh }: { kind: string; version: string; files: string[]; sha: string; notesFile: string; repo?: string; gh: (...args: string[]) => string }): void {
+export function publish({
+  kind,
+  version,
+  files,
+  sha,
+  notesFile,
+  gh,
+}: {
+  kind: string;
+  version: string;
+  files: string[];
+  sha: string;
+  notesFile: string;
+  repo?: string;
+  gh: (...args: string[]) => string;
+}): void {
   if (!files.length) throw new Error("publish: no files");
   if (kind === "stable") {
     if (!isStableVersion(version)) throw new Error(`a stable looks like 2026.1011.0, not ${version}`);
@@ -321,7 +394,8 @@ function cmdPublish(kind: string, version: string, files: string[]): void {
 // --- the Windows and Linux PR ------------------------------------------------------------------------------
 
 /** Whether a release's asset names include every preview file: the -setup.exe, the AppImage and the .deb. */
-export const hasPreviewFiles = (assets: string[]): boolean => ["_x64-setup.exe", "_amd64.AppImage", "_amd64.deb"].every((s) => assets.some((a) => a.endsWith(s)));
+export const hasPreviewFiles = (assets: string[]): boolean =>
+  ["_x64-setup.exe", "_amd64.AppImage", "_amd64.deb"].every((s) => assets.some((a) => a.endsWith(s)));
 
 /**
  * What the Windows and Linux PR should do now, from the stable it targets, that release's asset names (null: no such
@@ -395,12 +469,20 @@ function cmdPreviewPr(version: string): void {
     if (open) gh("pr", "close", open, "--comment", `${why}.`);
     return console.error(`release: ${why}${open ? `; PR #${open} closed` : ""}`);
   }
-  if (action === "wait") return console.error(`release: the Windows and Linux PR for ${tag} is merged but its files are not on the release yet — it is building, or re-run its failed jobs`);
+  if (action === "wait")
+    return console.error(
+      `release: the Windows and Linux PR for ${tag} is merged but its files are not on the release yet — it is building, or re-run its failed jobs`,
+    );
   const { title, body, marker: text } = previewPr(version, repoName());
   git("checkout", "-B", PREVIEW_BRANCH, "origin/main");
   writeFileSync(join(root, PREVIEW_FILE), text);
   git("add", PREVIEW_FILE);
-  git("commit", "--quiet", "-m", `${title}\n\nThe Windows and Linux PR: merge it and main is built on Windows and Linux and published on ${tag}. Rebuilt from main on every merge; do not edit.`);
+  git(
+    "commit",
+    "--quiet",
+    "-m",
+    `${title}\n\nThe Windows and Linux PR: merge it and main is built on Windows and Linux and published on ${tag}. Rebuilt from main on every merge; do not edit.`,
+  );
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${PREVIEW_BRANCH}`);
   if (open) gh("pr", "edit", open, "--title", title, "--body", body);
   else gh("pr", "create", "--base", "main", "--head", PREVIEW_BRANCH, "--title", title, "--body", body);
@@ -442,7 +524,9 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         cmdAttach(args[0] ?? "", args.slice(1));
         break;
       default:
-        console.error("usage: npm run release -- plan | version <stable|nightly> [sha] | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | preview-pr [version] | attach <tag> <files…>");
+        console.error(
+          "usage: npm run release -- plan | version <stable|nightly> [sha] | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | preview-pr [version] | attach <tag> <files…>",
+        );
         process.exit(2);
     }
   } catch (err) {

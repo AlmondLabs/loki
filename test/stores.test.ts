@@ -11,10 +11,16 @@ const ctx = BACKGROUND_CONTEXT;
 function manager(reports: string[] = []) {
   const options = { models: createModels(), registry: createRegistry() };
   const opened: string[] = [];
-  const stores = new StoreManager("/nowhere", options, ctx, (m) => reports.push(m), (file) => {
-    opened.push(file);
-    return AgentStore.open({ storage: new MemoryStorage() }, options, ctx);
-  });
+  const stores = new StoreManager(
+    "/nowhere",
+    options,
+    ctx,
+    (m) => reports.push(m),
+    (file) => {
+      opened.push(file);
+      return AgentStore.open({ storage: new MemoryStorage() }, options, ctx);
+    },
+  );
   return { stores, opened };
 }
 

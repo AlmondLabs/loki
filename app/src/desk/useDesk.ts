@@ -17,7 +17,16 @@ import type { TranscriptRow } from "../chat/Transcript";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
 import { requestResult, type InputOf, type Replies, type ReplyOf, type RequestName, type RequestResult } from "../../../core/frames.ts";
-import type { DeskStatus, GlobalSkill, InboxRow as InboxConversation, LanVia, MemoryCommit, ReflectionState, RefreshOutcome, Task } from "../../../core/frame-types.ts";
+import type {
+  DeskStatus,
+  GlobalSkill,
+  InboxRow as InboxConversation,
+  LanVia,
+  MemoryCommit,
+  ReflectionState,
+  RefreshOutcome,
+  Task,
+} from "../../../core/frame-types.ts";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -30,7 +39,6 @@ export interface CameraTarget {
 
 export type { VisibleWidget } from "./view";
 
-
 /**
  * The tab's view of the desk: manifest + geometry per scope, synced from the
  * mod over WebSocket. Gestures apply optimistically with the same pure
@@ -38,7 +46,16 @@ export type { VisibleWidget } from "./view";
  */
 /** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
 const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null =>
-  r.ok ? { cards: r.reply.cards, rejected: r.reply.rejected, worker: r.reply.worker, leads: r.reply.leads ?? [], dismissedLeads: r.reply.dismissedLeads ?? [], lessons: r.reply.lessons ?? [] } : null;
+  r.ok
+    ? {
+        cards: r.reply.cards,
+        rejected: r.reply.rejected,
+        worker: r.reply.worker,
+        leads: r.reply.leads ?? [],
+        dismissedLeads: r.reply.dismissedLeads ?? [],
+        lessons: r.reply.lessons ?? [],
+      }
+    : null;
 
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
@@ -190,7 +207,10 @@ export function useDesk() {
   };
 
   /** The task list, through the mod. Every call resolves to tasks or an error message; never throws. */
-  const taskCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_reopen" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
+  const taskCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_reopen" | "task_status">(
+    type: N,
+    payload: InputOf<N>,
+  ): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
     request(type, payload, 25_000).then((r) => {
       if (!r.ok) return { ok: false, message: r.error };
       const reply = r.reply as Replies["tasks"] | Replies["task_created"];
@@ -198,15 +218,29 @@ export function useDesk() {
     });
   const tasks = {
     list: (all = true) => taskCall("tasks_list", { all }),
-    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null; source?: TaskSource }) => taskCall("task_create", t),
-    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => taskCall("task_assign", { ids, ...target, start }),
+    create: (t: {
+      title: string;
+      description?: string;
+      labels?: string[];
+      priority?: number;
+      desk?: string | null;
+      agentId?: string | null;
+      agentName?: string | null;
+      conversationId?: string | null;
+      source?: TaskSource;
+    }) => taskCall("task_create", t),
+    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) =>
+      taskCall("task_assign", { ids, ...target, start }),
     close: (ids: string[], reason?: string) => taskCall("task_close", { ids, reason }),
     reopen: (ids: string[]) => taskCall("task_reopen", { ids }),
     setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => taskCall("task_status", { ids, status }),
   };
 
   /** Recall, through the mod (mod/recall.ts): the cards, a review, a delete and its undo, the worker's knobs. */
-  const recallCall = <N extends "recall_grade" | "recall_edit" | "recall_reject" | "recall_restore" | "recall_forget">(type: N, payload: InputOf<N>): Promise<{ ok: true; card: CardWithSchedule | null } | { ok: false; message: string }> =>
+  const recallCall = <N extends "recall_grade" | "recall_edit" | "recall_reject" | "recall_restore" | "recall_forget">(
+    type: N,
+    payload: InputOf<N>,
+  ): Promise<{ ok: true; card: CardWithSchedule | null } | { ok: false; message: string }> =>
     request(type, payload, 15_000).then((r) => (r.ok ? { ok: true, card: (r.reply as Replies["recall_card"]).card ?? null } : { ok: false, message: r.error }));
   const recall = {
     list: () => request("recall_list", {}, 15_000).then(recallSnapshot),
@@ -224,24 +258,42 @@ export function useDesk() {
     leadDismiss: (id: string) => request("recall_lead_dismiss", { id }, 15_000).then(recallSnapshot),
     leadRestore: (id: string) => request("recall_lead_restore", { id }, 15_000).then(recallSnapshot),
     leadStart: (id: string): Promise<{ ok: true; agentId: string; conversationId: string } | { ok: false; message: string }> =>
-      request("recall_lead_start", { id }, 60_000).then((r) => (r.ok ? { ok: true, agentId: r.reply.agentId, conversationId: r.reply.conversationId } : { ok: false, message: r.timedOut ? "the lesson did not start" : r.error })),
+      request("recall_lead_start", { id }, 60_000).then((r) =>
+        r.ok
+          ? { ok: true, agentId: r.reply.agentId, conversationId: r.reply.conversationId }
+          : { ok: false, message: r.timedOut ? "the lesson did not start" : r.error },
+      ),
   };
 
   /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */
   const agents = {
     get: (agentId: string) =>
-      request("agent_get", { agentId }, 10_000).then((r) => (r.ok ? ({ agent: r.reply.agent, files: r.reply.files, skills: r.reply.skills, hasProfile: r.reply.hasProfile, lastCommit: r.reply.lastCommit } as AgentDetails) : null)),
+      request("agent_get", { agentId }, 10_000).then((r) =>
+        r.ok
+          ? ({
+              agent: r.reply.agent,
+              files: r.reply.files,
+              skills: r.reply.skills,
+              hasProfile: r.reply.hasProfile,
+              lastCommit: r.reply.lastCommit,
+            } as AgentDetails)
+          : null,
+      ),
     read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
-    log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
+    log: (agentId: string, path?: string, limit?: number) =>
+      request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
     diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
-    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { lastCommit: r.reply.lastCommit } : null)),
+    reflection: (agentId: string) =>
+      request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { lastCommit: r.reply.lastCommit } : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
     /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
       request("skill_install", { agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timedOut ? "install timed out" : r.error)),
     /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
     refreshSkill: (agentId: string, name: string, source?: string) =>
-      request("skill_refresh", { agentId, name, source }, 130_000).then((r): RefreshOutcome | { error: string } => (r.ok ? r.reply : { error: r.timedOut ? "refresh timed out" : r.error })),
+      request("skill_refresh", { agentId, name, source }, 130_000).then((r): RefreshOutcome | { error: string } =>
+        r.ok ? r.reply : { error: r.timedOut ? "refresh timed out" : r.error },
+      ),
   };
 
   // Analytics (core/analytics.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
@@ -272,27 +324,27 @@ export function useDesk() {
     importStatus: () => request("chat_import_status", {}, 10_000),
     /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts). */
     makeClient: () =>
-          new FrameChatClient({
-            request,
-            onChatEvent: (fn) => {
-              chatListeners.current.add(fn);
-              return () => chatListeners.current.delete(fn);
-            },
-            onReconnect: (fn) => {
-              reconnectListeners.current.add(fn);
-              return () => reconnectListeners.current.delete(fn);
-            },
-            onListsStale: (fn) => {
-              staleListeners.current.add(fn);
-              return () => staleListeners.current.delete(fn);
-            },
-            agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
-            // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
-            openUrl: (url) => {
-              if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
-              else window.open(url, "_blank", "noopener,noreferrer");
-            },
-          }),
+      new FrameChatClient({
+        request,
+        onChatEvent: (fn) => {
+          chatListeners.current.add(fn);
+          return () => chatListeners.current.delete(fn);
+        },
+        onReconnect: (fn) => {
+          reconnectListeners.current.add(fn);
+          return () => reconnectListeners.current.delete(fn);
+        },
+        onListsStale: (fn) => {
+          staleListeners.current.add(fn);
+          return () => staleListeners.current.delete(fn);
+        },
+        agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
+        // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
+        openUrl: (url) => {
+          if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
+          else window.open(url, "_blank", "noopener,noreferrer");
+        },
+      }),
     capture,
     seen: seenMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
@@ -317,9 +369,15 @@ export function useDesk() {
       }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
-      recent: () => request("folders_get", {}, 4000).then((r) => (r.ok ? { byAgent: r.reply.byAgent, byConversation: r.reply.byConversation } : { byAgent: {}, byConversation: {} })),
+      recent: () =>
+        request("folders_get", {}, 4000).then((r) =>
+          r.ok ? { byAgent: r.reply.byAgent, byConversation: r.reply.byConversation } : { byAgent: {}, byConversation: {} },
+        ),
       complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
-      check: (path: string) => request("folder_check", { path }, 3000).then((r) => (r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error })),
+      check: (path: string) =>
+        request("folder_check", { path }, 3000).then((r) =>
+          r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error },
+        ),
       pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),
     },
   };

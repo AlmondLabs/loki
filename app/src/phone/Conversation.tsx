@@ -147,13 +147,24 @@ export function ConversationScreen({
   }, [thread.agentId, thread.conversationId]);
 
   const agentName = thread.agentName ?? "the agent";
-  const people = useMemo(() => ({ assistant: { name: thread.agentName ?? "agent", avatar: avatarUrl(thread.agentId) }, user: { name: "You" } }), [thread.agentName, thread.agentId]);
+  const people = useMemo(
+    () => ({ assistant: { name: thread.agentName ?? "agent", avatar: avatarUrl(thread.agentId) }, user: { name: "You" } }),
+    [thread.agentName, thread.agentId],
+  );
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), view.rows, thread.agentName ?? null, { readOnly: true });
-  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline }), [people, dividerAt, item?.lastMessageAt, widgets, inline]);
-  const messageTasks = useMessageTasksScope({ agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) }, taskApi);
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), view.rows, thread.agentName ?? null, {
+    readOnly: true,
+  });
+  const layout = useMemo(
+    () => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline }),
+    [people, dividerAt, item?.lastMessageAt, widgets, inline],
+  );
+  const messageTasks = useMessageTasksScope(
+    { agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) },
+    taskApi,
+  );
   const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" }, messageTasks?.start);
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
@@ -173,27 +184,36 @@ export function ConversationScreen({
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
           <MessageTasks.Provider value={messageTasks}>
-          <Conversation
-            touch
-            dim={false}
-            gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question, older: view.older ?? null }}
-            models={models}
-            actions={{
-              onLoadModels,
-              onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-              onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
-              onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
-              onStop: onStop ? () => onStop(rt) : undefined,
-            }}
-            agentName={agentName}
-            prefill={prefill}
-            layout={layout}
-            notice={notice || null}
-            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
-            draft={{ value: draft, onChange: setDraft }}
-          />
+            <Conversation
+              touch
+              dim={false}
+              gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+              view={{
+                rows: view.rows,
+                status: view.status,
+                error: view.error,
+                model,
+                reasoningEffort,
+                approval: view.pending,
+                question: view.question,
+                older: view.older ?? null,
+              }}
+              models={models}
+              actions={{
+                onLoadModels,
+                onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
+                onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+                onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
+                onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
+                onStop: onStop ? () => onStop(rt) : undefined,
+              }}
+              agentName={agentName}
+              prefill={prefill}
+              layout={layout}
+              notice={notice || null}
+              placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+              draft={{ value: draft, onChange: setDraft }}
+            />
           </MessageTasks.Provider>,
         )}
       </div>
@@ -203,11 +223,33 @@ export function ConversationScreen({
           <ul className="loki-phone-list">
             {canSee && <SheetRow icon="check" label="Mark as read" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
             {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
-            {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
-            {rename && <SheetRow icon="pencil" label="Rename" aside={rename.onRename ? null : "Not connected"} disabled={!rename.onRename} onClick={() => (setActionsOpen(false), setRenaming(true))} />}
+            {pinned !== null && onPin && (
+              <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />
+            )}
+            {rename && (
+              <SheetRow
+                icon="pencil"
+                label="Rename"
+                aside={rename.onRename ? null : "Not connected"}
+                disabled={!rename.onRename}
+                onClick={() => (setActionsOpen(false), setRenaming(true))}
+              />
+            )}
             {folder && <SheetRow icon="folder" label="Change folder" onClick={() => (setActionsOpen(false), setMoving(true))} />}
-            {archive && <SheetRow icon="archive" label={archiving.busy ? (archive.archived ? "Restoring…" : "Archiving…") : archive.archived ? "Restore" : "Archive"} aside={archive.onArchive ? null : "Not connected"} disabled={!archive.onArchive || archiving.busy} onClick={() => void toggleArchive()} />}
-            <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />
+            {archive && (
+              <SheetRow
+                icon="archive"
+                label={archiving.busy ? (archive.archived ? "Restoring…" : "Archiving…") : archive.archived ? "Restore" : "Archive"}
+                aside={archive.onArchive ? null : "Not connected"}
+                disabled={!archive.onArchive || archiving.busy}
+                onClick={() => void toggleArchive()}
+              />
+            )}
+            <SheetRow
+              icon="person"
+              label={`${thread.agentName ?? "Agent"}'s profile`}
+              onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))}
+            />
           </ul>
           {archiving.error && (
             <p role="alert" className="loki-phone-error">
@@ -230,7 +272,21 @@ export function ConversationScreen({
  * name, and "working · <desk>" under it; a tap opens the agent's profile), and a circle for the actions sheet.
  * The heading wraps the pill so focus lands on the conversation's name when the page opens.
  */
-function ThreadHeader({ thread, view, waiting, backLabel, onBack, onActions }: { thread: Thread; view: ThreadView; waiting: boolean; backLabel: string; onBack: () => void; onActions: () => void }) {
+function ThreadHeader({
+  thread,
+  view,
+  waiting,
+  backLabel,
+  onBack,
+  onActions,
+}: {
+  thread: Thread;
+  view: ThreadView;
+  waiting: boolean;
+  backLabel: string;
+  onBack: () => void;
+  onActions: () => void;
+}) {
   const name = thread.agentName ?? "agent";
   const line = threadLine({ status: view.status, approval: view.pending, question: view.question, waiting, desk: thread.title });
   const working = view.status !== "idle";
@@ -240,7 +296,12 @@ function ThreadHeader({ thread, view, waiting, backLabel, onBack, onActions }: {
         <Icon name="back" size={22} />
       </button>
       <h1 className="loki-phone-convo-heading" data-phone-heading tabIndex={-1}>
-        <button type="button" className="loki-phone-convo-who" onClick={() => navigate({ kind: "agent", agentId: thread.agentId })} aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}>
+        <button
+          type="button"
+          className="loki-phone-convo-who"
+          onClick={() => navigate({ kind: "agent", agentId: thread.agentId })}
+          aria-label={`${name}${line ? `, ${line}` : ""}. Open profile`}
+        >
           <Avatar name={thread.agentName} src={avatarUrl(thread.agentId)} size={32} presence={working} />
           <span className="loki-phone-convo-copy">
             <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>

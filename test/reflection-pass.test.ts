@@ -28,14 +28,33 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
   const agentId = await createAgent(dir, { name: "Ada", model: handle });
   const registry = createRegistry();
   registry.install(memoryExtension(dir));
-  const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
+  const stores = new StoreManager(
+    join(dir, "stores"),
+    { models, registry },
+    ctx,
+    () => {},
+    () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx),
+  );
   const chats = new ChatProjection(ctx, () => "Ada");
   chats.follow(stores);
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: opts.enabled ?? true } });
   const reports: string[] = [];
   const events: Array<Record<string, unknown>> = [];
-  const runner = new PassRunner({ stores, chats, registry, state, backendDir: dir, context: ctx, jobs: [reflectionJob], busy: async () => false, isSubagent: () => false, capture: (_e, p) => events.push(p), report: (m) => reports.push(m), quietMs: opts.quietMs ?? 0 });
+  const runner = new PassRunner({
+    stores,
+    chats,
+    registry,
+    state,
+    backendDir: dir,
+    context: ctx,
+    jobs: [reflectionJob],
+    busy: async () => false,
+    isSubagent: () => false,
+    capture: (_e, p) => events.push(p),
+    report: (m) => reports.push(m),
+    quietMs: opts.quietMs ?? 0,
+  });
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
   const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
@@ -50,11 +69,12 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
   return { dir, faux, agentId, store, chat, chats, state, runner, reports, events, say, log, cleanup };
 }
 
-const remember = (seen: { text: string }) =>
-  (c: { messages: unknown }) => {
-    seen.text = JSON.stringify(c.messages);
-    return fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Prefers strong tea.\n", message: "Remember the tea" }), { stopReason: "toolUse" });
-  };
+const remember = (seen: { text: string }) => (c: { messages: unknown }) => {
+  seen.text = JSON.stringify(c.messages);
+  return fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Prefers strong tea.\n", message: "Remember the tea" }), {
+    stopReason: "toolUse",
+  });
+};
 
 describe("reflection on the background passes", () => {
   test("a short chat that has gone quiet is reflected on, and what it keeps is committed to memory as Reflection", async () => {

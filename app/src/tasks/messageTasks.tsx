@@ -17,7 +17,15 @@ import type { useDesk } from "../desk/useDesk";
 /** What the window can do with tasks; the desktop's comes from useTasks, the phone's from useTaskList. */
 export interface TaskApi {
   tasks: Task[] | null;
-  create: (t: { title: string; description: string; source: TaskSource; desk: string | null; agentId: string | null; agentName: string | null; conversationId: string }) => Promise<string | null>;
+  create: (t: {
+    title: string;
+    description: string;
+    source: TaskSource;
+    desk: string | null;
+    agentId: string | null;
+    agentName: string | null;
+    conversationId: string;
+  }) => Promise<string | null>;
   /** The task in Tasks (the desktop); without it the chip only shows. */
   open?: (task: Task) => void;
   /** An agent's done?, answered from the chip (the desktop). */
@@ -61,7 +69,8 @@ export const MessageTasks = createContext<MessageTasksValue | null>(null);
 export const useMessageTasks = () => useContext(MessageTasks);
 
 /** The rows Add task works on: a message with words, yours or the agent's. */
-const canAdd = <R extends Pick<TranscriptRow, "role" | "text">>(row: R): row is R & { role: "user" | "assistant" } => (row.role === "user" || row.role === "assistant") && !!row.text.trim();
+const canAdd = <R extends Pick<TranscriptRow, "role" | "text">>(row: R): row is R & { role: "user" | "assistant" } =>
+  (row.role === "user" || row.role === "assistant") && !!row.text.trim();
 
 /**
  * The editor's start: the message (or the words selected in it) to file from, named by the whole message's key, and a
@@ -129,7 +138,10 @@ export function useMessageTasksScope(conversation: TaskConversation, api: TaskAp
  * Tasks where useTasks does not run (the phone): the list for the chips, fetched again whenever the mod says Tasks
  * changed, and Add task's filing. A mod that refuses (one from before the phone could read Tasks) leaves no chips.
  */
-export function useTaskList(desk: Pick<ReturnType<typeof useDesk>, "connection" | "tasksVersion" | "tasks">, capture?: (event: string, properties?: Record<string, unknown>) => void): TaskApi {
+export function useTaskList(
+  desk: Pick<ReturnType<typeof useDesk>, "connection" | "tasksVersion" | "tasks">,
+  capture?: (event: string, properties?: Record<string, unknown>) => void,
+): TaskApi {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const { connection, tasksVersion } = desk;
   const deskRef = useRef(desk);
@@ -187,7 +199,12 @@ function selectedMessage(conversationId: string): { role: "user" | "assistant"; 
  * The thread's side of "open the message" (revealMessage.ts): once this conversation's rows are in, mount the rows
  * above the window that hold the message, scroll it to the middle and mark it a moment. Rows still loading try again.
  */
-export function useRevealMessage(scrollRef: RefObject<HTMLElement | null>, rows: TranscriptRow[] | undefined, reveal: (query: string) => void, unpin: () => void): void {
+export function useRevealMessage(
+  scrollRef: RefObject<HTMLElement | null>,
+  rows: TranscriptRow[] | undefined,
+  reveal: (query: string) => void,
+  unpin: () => void,
+): void {
   const ctx = useMessageTasks();
   const ask = useRevealAsk(ctx?.conversationId ?? null);
   // The thread's handlers change every render; the frame below calls the latest. Reveal flushes the rows it mounts at
@@ -207,7 +224,9 @@ export function useRevealMessage(scrollRef: RefObject<HTMLElement | null>, rows:
         handlers.current.reveal(quote.replace(/…$/, "").slice(0, 40));
       }
       const root = scrollRef.current;
-      const el = root?.querySelector<HTMLElement>(`[data-msg-key="${CSS.escape(key)}"]`) ?? (at ? root?.querySelector<HTMLElement>(`[data-row="${role}"][data-msg-at="${CSS.escape(at)}"]`) : null);
+      const el =
+        root?.querySelector<HTMLElement>(`[data-msg-key="${CSS.escape(key)}"]`) ??
+        (at ? root?.querySelector<HTMLElement>(`[data-row="${role}"][data-msg-at="${CSS.escape(at)}"]`) : null);
       if (!el) return; // not loaded yet: the next rows try again, and a newer ask replaces this one
       handlers.current.unpin();
       el.scrollIntoView({ block: "center" });
@@ -320,7 +339,12 @@ export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
   return (
     <div className="loki-msg-task" data-state={state}>
       {api.open ? (
-        <button type="button" className="loki-msg-task-open" onClick={() => api.open!(t)} aria-label={`${CHIP_LABEL[state]}: ${t.title}${note ? ` — ${note}` : ""}. Open in Tasks`}>
+        <button
+          type="button"
+          className="loki-msg-task-open"
+          onClick={() => api.open!(t)}
+          aria-label={`${CHIP_LABEL[state]}: ${t.title}${note ? ` — ${note}` : ""}. Open in Tasks`}
+        >
           {body}
         </button>
       ) : (
@@ -328,8 +352,12 @@ export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
       )}
       {state === "waiting" && api.confirm && api.reopen && (
         <span className="loki-msg-task-answer">
-          <Button size="sm" tone="positive" onClick={() => api.confirm!(t)}>confirm</Button>
-          <Button size="sm" tone="paper" onClick={() => api.reopen!(t)}>reopen</Button>
+          <Button size="sm" tone="positive" onClick={() => api.confirm!(t)}>
+            confirm
+          </Button>
+          <Button size="sm" tone="paper" onClick={() => api.reopen!(t)}>
+            reopen
+          </Button>
         </span>
       )}
     </div>

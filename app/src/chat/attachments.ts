@@ -89,7 +89,14 @@ export function uploadFile(file: File, onProgress?: (share: number) => void): Pr
         // not JSON: the status says enough
       }
       if (xhr.status !== 200 || !body.path) return reject(new Error(body.error ?? `upload failed (${xhr.status})`));
-      resolve({ id: `file-${Math.random().toString(36).slice(2, 9)}`, kind: "file", path: body.path, name: body.name ?? file.name, size: body.size ?? file.size, mime: body.mime ?? file.type });
+      resolve({
+        id: `file-${Math.random().toString(36).slice(2, 9)}`,
+        kind: "file",
+        path: body.path,
+        name: body.name ?? file.name,
+        size: body.size ?? file.size,
+        mime: body.mime ?? file.type,
+      });
     };
     xhr.onerror = () => reject(new Error("couldn't reach loki on the Mac"));
     xhr.send(file);

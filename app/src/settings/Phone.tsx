@@ -46,8 +46,16 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
     <div style={{ display: "grid", gap: 12 }}>
       <Row label="Phone">
         <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" />
-        {status.error && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>{status.error}</div>}
-        {on && !status.appServed && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>the canvas build is missing; run npm run build:app</div>}
+        {status.error && (
+          <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>
+            {status.error}
+          </div>
+        )}
+        {on && !status.appServed && (
+          <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>
+            the canvas build is missing; run npm run build:app
+          </div>
+        )}
       </Row>
 
       {on && (
@@ -81,8 +89,30 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
             {devices.map((d) => {
               const via = viaLabel(d.lastVia);
               return (
-                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+                <div
+                  key={d.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "6px 10px",
+                    border: "1px solid var(--loki-border)",
+                    borderRadius: "var(--loki-radius-md)",
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: 13.5,
+                      color: "var(--loki-fg)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {d.name}
+                  </span>
                   {via && (
                     <Chip static label title="the route this phone's last request came in by">
                       via {via}
@@ -101,7 +131,10 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
 
       {on && (
         <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-muted)" }}>
-          Anyone on the lit route can open the page; only a paired phone can act. {status.via === "lan" ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale." : "The tailnet is yours alone; Funnel is never used."}
+          Anyone on the lit route can open the page; only a paired phone can act.{" "}
+          {status.via === "lan"
+            ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale."
+            : "The tailnet is yours alone; Funnel is never used."}
         </div>
       )}
     </div>
@@ -118,7 +151,11 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
   const running = !!ts?.running;
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div role="radiogroup" aria-label="route" style={{ display: "grid", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}>
+      <div
+        role="radiogroup"
+        aria-label="route"
+        style={{ display: "grid", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", overflow: "hidden" }}
+      >
         {(ts?.installed || running) && (
           <RouteRow
             via="tailscale"
@@ -142,7 +179,11 @@ function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: 
   return (
     <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
       <Switch on={!!ts.serveUrl} onToggle={() => onServe(!ts.serveUrl)} label="https on the tailnet" small />
-      {ts.error && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ overflowWrap: "anywhere" }}>{ts.error}</div>}
+      {ts.error && (
+        <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ overflowWrap: "anywhere" }}>
+          {ts.error}
+        </div>
+      )}
     </div>
   );
 }
@@ -151,13 +192,28 @@ function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: 
 function NoTailscale() {
   return (
     <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-      Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network — <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
+      Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network —{" "}
+      <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
     </span>
   );
 }
 
 /** One route: a dot, the name, the address a phone uses, and a word on where it works. The lit one (the header tint) is what the QR carries; its dot is the accent. */
-function RouteRow({ via, lit, disabled = false, address, hint, onPick }: { via: LanVia; lit: boolean; disabled?: boolean; address: string | null; hint: string; onPick: (via: LanVia) => void }) {
+function RouteRow({
+  via,
+  lit,
+  disabled = false,
+  address,
+  hint,
+  onPick,
+}: {
+  via: LanVia;
+  lit: boolean;
+  disabled?: boolean;
+  address: string | null;
+  hint: string;
+  onPick: (via: LanVia) => void;
+}) {
   return (
     <PickRow
       role="radio"
@@ -174,7 +230,11 @@ function RouteRow({ via, lit, disabled = false, address, hint, onPick }: { via: 
           <span style={{ fontSize: 13.5, color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{ROUTE_NAME[via]}</span>
           <span className="loki-meta loki-meta--wrap">{hint}</span>
         </span>
-        {address && <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: lit ? "var(--loki-fg)" : "var(--loki-muted)", overflowWrap: "anywhere" }}>{address}</span>}
+        {address && (
+          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: lit ? "var(--loki-fg)" : "var(--loki-muted)", overflowWrap: "anywhere" }}>
+            {address}
+          </span>
+        )}
       </span>
     </PickRow>
   );
@@ -188,7 +248,9 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
   useEffect(() => {
     let live = true;
     // Dark on light, whatever the page: cameras read that; the SVG carries its own quiet zone as the plate.
-    void QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2 }).then((s) => live && setSvg(s)).catch((err) => console.warn("loki: qr", err));
+    void QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2 })
+      .then((s) => live && setSvg(s))
+      .catch((err) => console.warn("loki: qr", err));
     return () => {
       live = false;
     };
@@ -201,14 +263,23 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
   const expired = left === "expired";
   return (
     <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <div aria-label={`QR code for ${url}`} role="img" style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", flex: "0 0 auto", opacity: expired ? 0.35 : 1 }} dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />
+      <div
+        aria-label={`QR code for ${url}`}
+        role="img"
+        style={{ width: 168, height: 168, borderRadius: "var(--loki-radius-md)", overflow: "hidden", flex: "0 0 auto", opacity: expired ? 0.35 : 1 }}
+        dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
+      />
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         <div style={{ fontFamily: "var(--loki-mono)", fontSize: 22, color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>{code.code}</div>
-        <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>{url}</div>
+        <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+          {url}
+        </div>
         <div style={{ fontSize: 12, color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
           {expired ? "expired" : `${left} left`} · over {ROUTE_NAME[status.via]}
         </div>
-        <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>Scan with the phone's camera, then Add to Home Screen. The new icon asks for this code once.</div>
+        <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+          Scan with the phone's camera, then Add to Home Screen. The new icon asks for this code once.
+        </div>
         <div>
           <Button size="sm" tone={expired ? "brass" : "quiet"} onClick={onNew}>
             new code
@@ -223,7 +294,9 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ paddingTop: 4 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 4 }}>
+        {label}
+      </span>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );

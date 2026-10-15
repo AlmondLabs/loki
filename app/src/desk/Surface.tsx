@@ -177,16 +177,39 @@ function ConnectionLabel({ connection, left }: { connection: ReturnType<typeof u
 }
 
 /** Minimised widgets as chips along the bottom; a click restores one. */
-function MinimisedTray({ closed, connection, left, gesture }: { closed: WidgetManifestEntry[]; connection: ReturnType<typeof useDesk>["connection"]; left: number; gesture: (g: Gesture) => void }) {
+function MinimisedTray({
+  closed,
+  connection,
+  left,
+  gesture,
+}: {
+  closed: WidgetManifestEntry[];
+  connection: ReturnType<typeof useDesk>["connection"];
+  left: number;
+  gesture: (g: Gesture) => void;
+}) {
   if (!(closed.length > 0 && connection === "open")) return null;
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
       // Moved by transform as the chat opens or closes beside it, so the move never lays the sheet out again.
-      style={{ position: "absolute", bottom: 16, left: 0, transform: `translateX(${left}px)`, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%", transition: "transform 220ms ease-out" }}
+      style={{
+        position: "absolute",
+        bottom: 16,
+        left: 0,
+        transform: `translateX(${left}px)`,
+        display: "flex",
+        gap: 6,
+        alignItems: "center",
+        flexWrap: "wrap",
+        maxWidth: "60%",
+        transition: "transform 220ms ease-out",
+      }}
       aria-label="minimised widgets"
     >
-      <span className="loki-label" style={{ marginRight: 4 }}>Minimised</span>
+      <span className="loki-label" style={{ marginRight: 4 }}>
+        Minimised
+      </span>
       {closed.map((entry) => (
         <Chip key={entry.id} onClick={() => gesture({ kind: "open", id: entry.id })} title={`restore ${entry.title}`} float>
           {entry.title}
@@ -203,7 +226,9 @@ function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: strin
     <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
       <Empty title="Nothing on this canvas yet.">
         <p>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</p>
-        <div className="loki-label" style={{ marginTop: 14 }}>Widgets are files · ~/.loki/widgets/{scope}/</div>
+        <div className="loki-label" style={{ marginTop: 14 }}>
+          Widgets are files · ~/.loki/widgets/{scope}/
+        </div>
       </Empty>
     </div>
   );

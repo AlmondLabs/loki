@@ -54,7 +54,25 @@ const mainChat = (agentId: string, prefill: string | null = null) => navigate({ 
  * that fold, its skills (its own, then installed ones), and what it learned recently (the last ten memory
  * commits, each opening its diff). A file or skill row opens the file on its own page. Read-only, as before.
  */
-export function AgentPage({ agentId, name, desks, items, api, banner, backLabel = "agents", onBack }: { agentId: string; name: string | null; desks: DeskSummary[]; items: AttentionItem[]; api: PhoneAgentsApi; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
+export function AgentPage({
+  agentId,
+  name,
+  desks,
+  items,
+  api,
+  banner,
+  backLabel = "agents",
+  onBack,
+}: {
+  agentId: string;
+  name: string | null;
+  desks: DeskSummary[];
+  items: AttentionItem[];
+  api: PhoneAgentsApi;
+  banner?: ReactNode;
+  backLabel?: string;
+  onBack: () => void;
+}) {
   const d = useAgentDetails(api, agentId);
   const log = useMemoryLog(api, agentId);
   const [folded, setFoldedState] = useState<Record<string, boolean>>(() => foldedByAgent.get(agentId) ?? {});
@@ -77,7 +95,11 @@ export function AgentPage({ agentId, name, desks, items, api, banner, backLabel 
         <Hero agentId={agentId} name={title} details={d} desks={desks} running={running} />
         <Conversations agentId={agentId} desks={desks} items={items} />
         {d === undefined && <p className="loki-phone-empty">Reading the agent…</p>}
-        {d === null && <p className="loki-phone-empty">This agent has no local record on the Mac (a remote or hidden agent), so its memory and skills are not readable here. Its conversations still work.</p>}
+        {d === null && (
+          <p className="loki-phone-empty">
+            This agent has no local record on the Mac (a remote or hidden agent), so its memory and skills are not readable here. Its conversations still work.
+          </p>
+        )}
         {d && (
           <>
             <MemoryTree folders={folders} folded={folded} onFold={setFolded} onOpen={openFile} />
@@ -94,7 +116,19 @@ export function AgentPage({ agentId, name, desks, items, api, banner, backLabel 
 }
 
 /** The top of the profile: face with presence, name, description, the model line, live desks and the main chat's mode. */
-function Hero({ agentId, name, details: d, desks, running }: { agentId: string; name: string; details: AgentDetails | null | undefined; desks: DeskSummary[]; running: boolean }) {
+function Hero({
+  agentId,
+  name,
+  details: d,
+  desks,
+  running,
+}: {
+  agentId: string;
+  name: string;
+  details: AgentDetails | null | undefined;
+  desks: DeskSummary[];
+  running: boolean;
+}) {
   const live = liveDeskCount(desks, agentId);
   const main = desks.find((x) => x.agentId === agentId && x.conversationId === "default");
   const bits = d ? modelBits(d.agent.model, d.agent.modelSettings ?? {}) : [];
@@ -136,7 +170,17 @@ function Conversations({ agentId, desks, items }: { agentId: string; desks: Desk
 }
 
 /** The memory files by folder: a folder's head folds its files; the root's files come last, with no head. */
-function MemoryTree({ folders, folded, onFold, onOpen }: { folders: MemoryFolder[]; folded: Record<string, boolean>; onFold: (name: string, closed: boolean) => void; onOpen: (path: string) => void }) {
+function MemoryTree({
+  folders,
+  folded,
+  onFold,
+  onOpen,
+}: {
+  folders: MemoryFolder[];
+  folded: Record<string, boolean>;
+  onFold: (name: string, closed: boolean) => void;
+  onOpen: (path: string) => void;
+}) {
   return (
     <RowSection icon="folder" title="Memory" count={folders.reduce((n, f) => n + f.files.length, 0)}>
       {folders.map((f) => {
@@ -145,7 +189,11 @@ function MemoryTree({ folders, folded, onFold, onOpen }: { folders: MemoryFolder
           <div key={f.name || "root"}>
             {f.name && (
               <button type="button" className="loki-phone-subhead" aria-expanded={!closed} onClick={() => onFold(f.name, !closed)}>
-                <Icon name="chevron-down" size={16} className={closed ? "loki-phone-section-chev loki-phone-section-chev--folded" : "loki-phone-section-chev"} />
+                <Icon
+                  name="chevron-down"
+                  size={16}
+                  className={closed ? "loki-phone-section-chev loki-phone-section-chev--folded" : "loki-phone-section-chev"}
+                />
                 <span className="loki-phone-ellipsis">{f.name}</span>
                 <span className="loki-phone-section-count">{f.files.length}</span>
               </button>
@@ -153,7 +201,15 @@ function MemoryTree({ folders, folded, onFold, onOpen }: { folders: MemoryFolder
             {!closed && (
               <ul className="loki-phone-list" aria-label={f.name || "memory"}>
                 {f.files.map((x) => (
-                  <PhoneRow key={x.path} lead={<RowIcon name="file" />} title={x.name} time={ago(x.modifiedAt)} label={`${x.path}, changed ${ago(x.modifiedAt)}`} launch={`file:${x.path}`} onOpen={() => onOpen(x.path)} />
+                  <PhoneRow
+                    key={x.path}
+                    lead={<RowIcon name="file" />}
+                    title={x.name}
+                    time={ago(x.modifiedAt)}
+                    label={`${x.path}, changed ${ago(x.modifiedAt)}`}
+                    launch={`file:${x.path}`}
+                    onOpen={() => onOpen(x.path)}
+                  />
                 ))}
               </ul>
             )}
@@ -173,7 +229,14 @@ function Skills({ origin, skills, onOpen }: { origin: "self" | "other"; skills: 
     <RowSection icon="skill" title={origin === "self" ? "Skills" : "Installed skills"} count={list.length}>
       <ul className="loki-phone-list" aria-label={origin === "self" ? "skills" : "installed skills"}>
         {list.map((s) => (
-          <PhoneRow key={s.name} lead={<RowIcon name="skill" />} title={s.name} preview={s.description || null} launch={`file:${s.path}`} onOpen={() => onOpen(s.path)} />
+          <PhoneRow
+            key={s.name}
+            lead={<RowIcon name="skill" />}
+            title={s.name}
+            preview={s.description || null}
+            launch={`file:${s.path}`}
+            onOpen={() => onOpen(s.path)}
+          />
         ))}
       </ul>
       {list.length === 0 && <p className="loki-phone-empty">None in memory.</p>}
@@ -223,7 +286,21 @@ const SHIFTED_HEADINGS = { ...MARKDOWN_COMPONENTS, h1: "h2", h2: "h3", h3: "h4",
  * One memory file. Markdown renders the way the desktop viewer draws it; anything else is shown as code.
  * The only action is to hand the change to the agent: the button opens its main chat with the request started.
  */
-export function FilePage({ agentId, path, name, api, banner, onBack }: { agentId: string; path: string; name: string | null; api: PhoneAgentsApi; banner?: ReactNode; onBack: () => void }) {
+export function FilePage({
+  agentId,
+  path,
+  name,
+  api,
+  banner,
+  onBack,
+}: {
+  agentId: string;
+  path: string;
+  name: string | null;
+  api: PhoneAgentsApi;
+  banner?: ReactNode;
+  onBack: () => void;
+}) {
   const d = useAgentDetails(api, agentId);
   const [content, setContent] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -249,14 +326,22 @@ export function FilePage({ agentId, path, name, api, banner, onBack }: { agentId
           {content === null && <p className="loki-phone-meta">Nothing to show here (binary, too large, or gone).</p>}
           {typeof content === "string" && markdown && (
             <div className="loki-phone-md loki-phone-body">
-              <Markdown remarkPlugins={[remarkGfm]} components={SHIFTED_HEADINGS}>{stripFrontmatter(content)}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={SHIFTED_HEADINGS}>
+                {stripFrontmatter(content)}
+              </Markdown>
             </div>
           )}
           {typeof content === "string" && !markdown && <pre className="loki-phone-file-code">{content}</pre>}
         </div>
       </Scroll>
       <div className="loki-phone-file-bar">
-        <Button size="touch" tone="brass" block onClick={() => mainChat(agentId, `Please update ${path}: `)} title="Opens the agent's main chat with the request started">
+        <Button
+          size="touch"
+          tone="brass"
+          block
+          onClick={() => mainChat(agentId, `Please update ${path}: `)}
+          title="Opens the agent's main chat with the request started"
+        >
           Ask {agentName} to update this
         </Button>
       </div>

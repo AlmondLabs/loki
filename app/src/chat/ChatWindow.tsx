@@ -111,9 +111,15 @@ export function ChatWindow({
 /** A panel outline with its divider on the side the toggle will move it to. */
 function WidthIcon({ wide }: { wide: boolean }) {
   return wide ? (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M6.5 2.5v11" /></svg>
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <path d="M6.5 2.5v11" />
+    </svg>
   ) : (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M10.5 2.5v11" /></svg>
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <path d="M10.5 2.5v11" />
+    </svg>
   );
 }
 
@@ -125,7 +131,16 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
   return {
     position: "absolute",
     ...(placement === "center"
-      ? { top: 20, bottom: 16, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }
+      ? {
+          top: 20,
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: CHAT_CENTER_WIDTH,
+          maxWidth: "calc(100% - 48px)",
+          border: "1px solid var(--loki-border)",
+          borderRadius: "var(--loki-radius-lg)",
+        }
       : placement === "right"
         ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
         : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border)" }),
@@ -142,7 +157,17 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
   };
 }
 
-export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { open: boolean; onToggle: () => void; alert?: boolean; side?: "left" | "right" }) {
+export function ChatBubble({
+  open,
+  onToggle,
+  alert = false,
+  side = "left",
+}: {
+  open: boolean;
+  onToggle: () => void;
+  alert?: boolean;
+  side?: "left" | "right";
+}) {
   return (
     <button
       data-alert={alert || undefined}
@@ -169,7 +194,16 @@ export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { o
       {alert && !open && (
         <span
           aria-label="permission waiting"
-          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: "var(--loki-attention)", border: "2px solid var(--loki-bg)" }}
+          style={{
+            position: "absolute",
+            top: -2,
+            right: -2,
+            width: 12,
+            height: 12,
+            borderRadius: "var(--loki-radius-sm)",
+            background: "var(--loki-attention)",
+            border: "2px solid var(--loki-bg)",
+          }}
         />
       )}
     </button>

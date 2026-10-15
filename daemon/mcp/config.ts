@@ -8,7 +8,16 @@ import { dirname } from "node:path";
  */
 
 /** `entry` is the server's key as written in the file (`name` is it made safe for tool names), for edits to find it. */
-export type LocalServer = { kind: "local"; name: string; entry: string; command: string; args: string[]; env: Record<string, string>; cwd: string | null; alwaysLoad: string[] };
+export type LocalServer = {
+  kind: "local";
+  name: string;
+  entry: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string | null;
+  alwaysLoad: string[];
+};
 export type RemoteServer = { kind: "remote"; name: string; entry: string; url: string; headers: Record<string, string>; alwaysLoad: string[] };
 export type ServerConfig = LocalServer | RemoteServer;
 
@@ -48,7 +57,16 @@ export function parseConfig(text: string): McpConfig {
     }
     const alwaysLoad = strings(v.alwaysLoad);
     if (typeof v.command === "string" && v.command.trim()) {
-      servers.push({ kind: "local", name, entry: given, command: v.command, args: strings(v.args), env: record(v.env), cwd: typeof v.cwd === "string" ? v.cwd : null, alwaysLoad });
+      servers.push({
+        kind: "local",
+        name,
+        entry: given,
+        command: v.command,
+        args: strings(v.args),
+        env: record(v.env),
+        cwd: typeof v.cwd === "string" ? v.cwd : null,
+        alwaysLoad,
+      });
     } else if (typeof v.url === "string" && v.url.trim()) {
       try {
         const url = new URL(v.url);
@@ -83,7 +101,8 @@ export function readConfig(path: string): McpConfig {
 export const sameServer = (a: ServerConfig, b: ServerConfig): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /** What Settings edits about a server: the fields loki knows. Anything else in the entry is kept as it is. */
-export type ServerEdit = { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
+export type ServerEdit =
+  { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
 
 /** The file's JSON as an object, or a fresh one; a file that is not JSON is refused rather than overwritten. */
 function readRaw(path: string): Record<string, unknown> {
@@ -125,7 +144,12 @@ export function editServer(path: string, entry: string, edit: ServerEdit | null,
     for (const k of ["command", "args", "env", "cwd", "url", "headers"]) delete next[k];
     if ("command" in edit) {
       if (!edit.command.trim()) throw new Error("a local server needs a command");
-      Object.assign(next, { command: edit.command.trim(), ...(edit.args.length ? { args: edit.args } : {}), ...(Object.keys(edit.env).length ? { env: edit.env } : {}), ...(edit.cwd ? { cwd: edit.cwd } : {}) });
+      Object.assign(next, {
+        command: edit.command.trim(),
+        ...(edit.args.length ? { args: edit.args } : {}),
+        ...(Object.keys(edit.env).length ? { env: edit.env } : {}),
+        ...(edit.cwd ? { cwd: edit.cwd } : {}),
+      });
     } else {
       const url = new URL(edit.url);
       if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(`"${edit.url}" is not an http(s) URL`);
@@ -153,7 +177,9 @@ export const keychainRef = (name: string): string => `\${keychain:${name}}`;
 /** The server with every `${keychain:…}` in its env and headers replaced by the secret; a missing one is an error. */
 export async function withSecrets(config: ServerConfig, get: (name: string) => Promise<string | null>): Promise<ServerConfig> {
   // Every reference in every value is read at once (the reads do not depend on each other), then put in its place.
-  const names = [...new Set(Object.values(config.kind === "local" ? config.env : config.headers).flatMap((v) => [...v.matchAll(KEYCHAIN_REF)].map((m) => m[1])))];
+  const names = [
+    ...new Set(Object.values(config.kind === "local" ? config.env : config.headers).flatMap((v) => [...v.matchAll(KEYCHAIN_REF)].map((m) => m[1]))),
+  ];
   const found = new Map(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
   const fill = (values: Record<string, string>): Record<string, string> =>
     Object.fromEntries(

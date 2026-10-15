@@ -19,7 +19,9 @@ export const edgeCommits = (dx: number, width: number, velocity: number): boolea
 
 /** Opened from the home screen (standalone), not in a browser tab. */
 export const standalone = (): boolean =>
-  typeof window !== "undefined" && ((typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  typeof window !== "undefined" &&
+  ((typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
 export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolean, onBack: () => void): void {
   const backRef = useRef(onBack);

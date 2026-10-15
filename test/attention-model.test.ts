@@ -20,7 +20,17 @@ describe("attention model (browser)", () => {
     ]);
     const live = new Map();
     const appr = emptyLive();
-    applyEvent(appr, { type: "control_request", request_id: "perm-1", request: { subtype: "can_use_tool", tool_name: "Bash", input: { command: "ls" } }, agent_id: "a", conversation_id: "appr" }, "2026-09-05T09:30:00Z");
+    applyEvent(
+      appr,
+      {
+        type: "control_request",
+        request_id: "perm-1",
+        request: { subtype: "can_use_tool", tool_name: "Bash", input: { command: "ls" } },
+        agent_id: "a",
+        conversation_id: "appr",
+      },
+      "2026-09-05T09:30:00Z",
+    );
     live.set(keyOf("a", "appr"), appr);
     const run = emptyLive();
     applyEvent(run, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "run" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
@@ -38,21 +48,38 @@ describe("attention model (browser)", () => {
     expect(l.lastAssistantText).toBeNull();
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "stop_reason", stop_reason: "end_turn" } });
     expect(l.lastAssistantText).toBe("Hello.");
-    const r = applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "thanks" } });
+    const r = applyEvent(l, {
+      type: "stream_delta",
+      runtime: { agent_id: "a", conversation_id: "c" },
+      delta: { message_type: "user_message", content: "thanks" },
+    });
     expect(r.userSpoke).toBe(true);
     expect(l.lastRole).toBe("user");
   });
-
 });
 
 describe("AskUserQuestion as a pending question", () => {
   test("a can_use_tool for AskUserQuestion becomes a question, not an approval, and clears when the loop moves on", () => {
     const l = emptyLive();
-    applyEvent(l, { type: "control_request", request_id: "perm-q1", runtime: { agent_id: "a", conversation_id: "c" }, request: { subtype: "can_use_tool", tool_name: "AskUserQuestion", input: { questions: [{ question: "Ship it?", options: [{ label: "yes" }, { label: "no" }] }] } } });
+    applyEvent(l, {
+      type: "control_request",
+      request_id: "perm-q1",
+      runtime: { agent_id: "a", conversation_id: "c" },
+      request: {
+        subtype: "can_use_tool",
+        tool_name: "AskUserQuestion",
+        input: { questions: [{ question: "Ship it?", options: [{ label: "yes" }, { label: "no" }] }] },
+      },
+    });
     expect(l.pending).toBeNull();
     expect(l.pendingAsk?.requestId).toBe("perm-q1");
     expect(l.pendingAsk?.questions[0].options.map((o) => o.label)).toEqual(["yes", "no"]);
-    const items = buildItems([{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }], new Map(), new Map([[keyOf("a", "c"), l]]), {});
+    const items = buildItems(
+      [{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }],
+      new Map(),
+      new Map([[keyOf("a", "c"), l]]),
+      {},
+    );
     expect(items[0].status).toBe("question");
     expect(items[0].pendingQuestion?.requestId).toBe("perm-q1");
     applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
@@ -90,7 +117,12 @@ describe("a turn that ends in a tool call still counts as new", () => {
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
     applyEvent(l, { type: "turn_finished", runtime: rt });
     expect(l.turns).toBe(2);
-    const items = buildItems([{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }], new Map(), new Map([[keyOf("a", "c"), l]]), {});
+    const items = buildItems(
+      [{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }],
+      new Map(),
+      new Map([[keyOf("a", "c"), l]]),
+      {},
+    );
     expect(items[0].turns).toBe(2);
   });
 });
@@ -106,7 +138,10 @@ describe("messages typed mid-turn", () => {
     expect(takeQueued(l)).toBeNull();
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(takeQueued(l)).toEqual({ text: "first", images: [] });
-    expect(l.thread.rows()!.map((r) => [r.text, r.queued === true])).toEqual([["first", false], ["second", true]]);
+    expect(l.thread.rows()!.map((r) => [r.text, r.queued === true])).toEqual([
+      ["first", false],
+      ["second", true],
+    ]);
     expect(l.queued.map((q) => q.text)).toEqual(["second"]);
     expect(takeQueued(l)).toEqual({ text: "second", images: [] }); // the caller marks inTurn again before the next; here the turn is over
     expect(takeQueued(l)).toBeNull();

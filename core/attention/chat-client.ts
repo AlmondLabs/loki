@@ -74,15 +74,23 @@ export class FrameChatClient {
    * state now (a finished turn stops showing as running) and its events from here on. `onListsStale`: told when the
    * lists a client holds may be out of date (an agent changed, the socket came back, the page came back from hiding).
    */
-  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; onReconnect?: (fn: () => void) => () => void; onListsStale?: (fn: () => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
+  constructor(opts: {
+    request: FrameRequest;
+    onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void;
+    onReconnect?: (fn: () => void) => () => void;
+    onListsStale?: (fn: () => void) => () => void;
+    agentOf?: (conversationId: string) => string | null;
+    openUrl?: (url: string) => void;
+  }) {
     this.request = opts.request;
     this.openUrl = opts.openUrl ?? (() => {});
     this.agentOf = opts.agentOf ?? (() => null);
     const offEvents = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
     const offReconnect = opts.onReconnect?.(() => void this.reopen()) ?? (() => {});
-    const offStale = opts.onListsStale?.(() => {
-      for (const fn of this.staleListeners) fn();
-    }) ?? (() => {});
+    const offStale =
+      opts.onListsStale?.(() => {
+        for (const fn of this.staleListeners) fn();
+      }) ?? (() => {});
     this.unsubscribe = () => {
       offEvents();
       offReconnect();
@@ -168,7 +176,14 @@ export class FrameChatClient {
   async sendUserMessage(rt: Runtime, text: string, images: ImageAttachment[] = [], context?: string): Promise<boolean> {
     this.remember(rt);
     const sendId = `send-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const r = await this.call("chat_send", { agentId: rt.agent_id, conversationId: rt.conversation_id, text, images: images.map((i) => ({ mediaType: i.mediaType, data: i.data })), sendId, context: context ?? null });
+    const r = await this.call("chat_send", {
+      agentId: rt.agent_id,
+      conversationId: rt.conversation_id,
+      text,
+      images: images.map((i) => ({ mediaType: i.mediaType, data: i.data })),
+      sendId,
+      context: context ?? null,
+    });
     return r.accepted;
   }
 
@@ -211,7 +226,11 @@ export class FrameChatClient {
   }
 
   async createAgent(opts: NewAgentOptions): Promise<{ id: string; name: string; model: string | null }> {
-    const created = await this.call("chat_agent_create", { name: opts.name, description: opts.description ?? null, persona: opts.persona ?? null, model: opts.model ?? null }, 30_000);
+    const created = await this.call(
+      "chat_agent_create",
+      { name: opts.name, description: opts.description ?? null, persona: opts.persona ?? null, model: opts.model ?? null },
+      30_000,
+    );
     return { id: created.id, name: created.name, model: opts.model ?? null };
   }
 
@@ -231,7 +250,16 @@ export class FrameChatClient {
   /** The thread comes from the mod's history (history_get) on the daemon; there is no second source. */
   /** "always" allows this call and every later one of the same tool (daemon/approvals.ts), but in strict mode. */
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always"): Promise<boolean> {
-    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, approvalId: requestId, allow: behavior !== "deny", always: behavior === "always", message: null })).accepted;
+    return (
+      await this.call("chat_approve", {
+        agentId: rt.agent_id,
+        conversationId: rt.conversation_id,
+        approvalId: requestId,
+        allow: behavior !== "deny",
+        always: behavior === "always",
+        message: null,
+      })
+    ).accepted;
   }
 
   async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
@@ -312,7 +340,11 @@ export class FrameChatClient {
     const input = `/${commandId}${args ? ` ${args}` : ""}`;
     this.emit(rt, [{ kind: "command", phase: "start", input }]);
     // A memory review reads all of memory and may edit a lot of it: it gets the pass's own time limit (daemon/passes.ts), and a little more.
-    const r = await this.call("chat_command", { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null }, commandId === "doctor" ? 11 * 60_000 : 180_000).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
+    const r = await this.call(
+      "chat_command",
+      { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null },
+      commandId === "doctor" ? 11 * 60_000 : 180_000,
+    ).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
     this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
     return r;
   }

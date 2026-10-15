@@ -22,7 +22,10 @@ const here = import.meta.dirname;
 /** Run the crash child until it says the turn is under way, then SIGKILL it. */
 function crashMidTurn(file: string, phase: "generation" | "tool"): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", join(here, "crash-child.ts"), file, phase], { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, LOKI_CRASH_SIGNAL: "1" } });
+    const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", join(here, "crash-child.ts"), file, phase], {
+      stdio: ["ignore", "pipe", "inherit"],
+      env: { ...process.env, LOKI_CRASH_SIGNAL: "1" },
+    });
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error("the child never got under way"));

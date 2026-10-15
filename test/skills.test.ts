@@ -10,7 +10,7 @@ describe("global skills", () => {
     const root = mkdtempSync(join(tmpdir(), "loki-skills-"));
     const dir = join(root, "skills");
     mkdirSync(join(dir, "plain"), { recursive: true });
-    writeFileSync(join(dir, "plain", "SKILL.md"), "---\nname: plain\ndescription: \"Does a thing\"\n---\n# plain\n");
+    writeFileSync(join(dir, "plain", "SKILL.md"), '---\nname: plain\ndescription: "Does a thing"\n---\n# plain\n');
     mkdirSync(join(root, "elsewhere", "linked"), { recursive: true });
     writeFileSync(join(root, "elsewhere", "linked", "SKILL.md"), "# Linked skill\ntext\n");
     // a junction on Windows (no privilege needed); the type is ignored elsewhere
@@ -36,7 +36,12 @@ describe("skill install", () => {
   test("a source names a folder here, a GitHub path or URL (at a branch, down to a folder), or any git URL", () => {
     expect(skillOrigin("owner/repo/skills/pdf")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: null, path: "skills/pdf" });
     expect(skillOrigin("owner/repo")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: null, path: "" });
-    expect(skillOrigin("https://github.com/owner/repo/tree/main/skills/pdf")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: "main", path: "skills/pdf" });
+    expect(skillOrigin("https://github.com/owner/repo/tree/main/skills/pdf")).toEqual({
+      kind: "git",
+      url: "https://github.com/owner/repo.git",
+      ref: "main",
+      path: "skills/pdf",
+    });
     expect(skillOrigin("https://github.com/owner/repo/blob/v2/skills/pdf/SKILL.md")).toMatchObject({ ref: "v2", path: "skills/pdf" });
     expect(skillOrigin("git@example.com:team/skills.git")).toEqual({ kind: "git", url: "git@example.com:team/skills.git", ref: null, path: "" });
     expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: resolve("/home/x", "skills/mine") }); // D:\home\x\… on Windows

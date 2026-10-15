@@ -277,7 +277,12 @@ export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, ch
  * The same line over the full page's box: the card's words while the conversation waits on you, what the
  * agent is doing while it works, and nothing on a quiet conversation.
  */
-export function threadNotice(item: Pick<AttentionItem, "status" | "agentName"> | null | undefined, waiting: boolean, chat: "idle" | "thinking" | "streaming", agentName: string | null): string | null {
+export function threadNotice(
+  item: Pick<AttentionItem, "status" | "agentName"> | null | undefined,
+  waiting: boolean,
+  chat: "idle" | "thinking" | "streaming",
+  agentName: string | null,
+): string | null {
   if (item && waiting) return cardNotice(item, chat);
   if (chat !== "idle") return cardNotice({ status: "done", agentName: item?.agentName ?? agentName }, chat);
   return null;

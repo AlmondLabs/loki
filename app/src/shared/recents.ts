@@ -20,7 +20,10 @@ export function pushRecent(list: RecentEntry[], value: string, at: number, max: 
  * than `maxAgeMs`, duplicates, and anything `valid` no longer recognises (a desk since deleted, an
  * agent gone) — a stale entry disappears instead of becoming a broken row.
  */
-export function sanitizeRecents(raw: string | null, { max, maxAgeMs, now, valid }: { max: number; maxAgeMs: number; now: number; valid?: (v: string) => boolean }): RecentEntry[] {
+export function sanitizeRecents(
+  raw: string | null,
+  { max, maxAgeMs, now, valid }: { max: number; maxAgeMs: number; now: number; valid?: (v: string) => boolean },
+): RecentEntry[] {
   if (!raw) return [];
   let parsed: unknown;
   try {
@@ -55,7 +58,19 @@ function safeStorage(): StorageLike | null {
 const DAY = 86_400_000;
 
 /** One bounded history under one storage key. Every storage call is guarded: a failure is an empty list, never a throw. */
-export function createRecents({ storage = safeStorage(), key, max, maxAgeMs = 30 * DAY, now = Date.now }: { storage?: StorageLike | null; key: string; max: number; maxAgeMs?: number; now?: () => number }) {
+export function createRecents({
+  storage = safeStorage(),
+  key,
+  max,
+  maxAgeMs = 30 * DAY,
+  now = Date.now,
+}: {
+  storage?: StorageLike | null;
+  key: string;
+  max: number;
+  maxAgeMs?: number;
+  now?: () => number;
+}) {
   const load = (valid?: (v: string) => boolean): RecentEntry[] => {
     try {
       return sanitizeRecents(storage?.getItem(key) ?? null, { max, maxAgeMs, now: now(), valid });

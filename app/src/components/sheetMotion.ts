@@ -50,13 +50,24 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   const done = () => ghost.remove();
   if (card) {
     card.style.animation = "none";
-    card.animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(100%)" }], { duration: ms, easing, fill: "forwards" }).finished.then(done, done);
+    card
+      .animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(100%)" }], { duration: ms, easing, fill: "forwards" })
+      .finished.then(done, done);
   }
-  ghost.animate([{ opacity: Number(getComputedStyle(veil).opacity) || 1 }, { opacity: 0 }], { duration: Math.min(ms, 320), easing: "ease-out", fill: "forwards" });
+  ghost.animate([{ opacity: Number(getComputedStyle(veil).opacity) || 1 }, { opacity: 0 }], {
+    duration: Math.min(ms, 320),
+    easing: "ease-out",
+    fill: "forwards",
+  });
   if (!card) setTimeout(done, ms);
 }
 
-export function useSheetMotion(veilRef: RefObject<HTMLDivElement | null>, cardRef: RefObject<HTMLDivElement | null>, onClose: (() => void) | undefined, on: boolean): void {
+export function useSheetMotion(
+  veilRef: RefObject<HTMLDivElement | null>,
+  cardRef: RefObject<HTMLDivElement | null>,
+  onClose: (() => void) | undefined,
+  on: boolean,
+): void {
   // Callers pass a fresh closure each render; the sheet's life is its mount, not that closure's.
   const closeRef = useRef(onClose);
   useLayoutEffect(() => {

@@ -132,7 +132,19 @@ function seedLetta(home: string): void {
   const memory = join(home, ".letta", "lc-local-backend", "memfs", LETTA_AGENT, "memory");
   mkdirSync(memory, { recursive: true });
   writeFileSync(join(memory, "persona.md"), "I came over from Letta.\n");
-  writeFileSync(file, JSON.stringify({ id: LETTA_AGENT, name: "From Letta", description: null, system: "", tags: ["origin:letta-code"], model: "openrouter/some-model", model_settings: {}, hidden: false }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      id: LETTA_AGENT,
+      name: "From Letta",
+      description: null,
+      system: "",
+      tags: ["origin:letta-code"],
+      model: "openrouter/some-model",
+      model_settings: {},
+      hidden: false,
+    }),
+  );
 }
 
 /** Errors in loki's own code, as opposed to a provider this runner cannot reach. */
@@ -192,7 +204,10 @@ async function main(): Promise<void> {
     daemon = await start(home);
     sock = await connect(home, daemon.port);
     const after = await agents(sock);
-    for (const [id, name] of [[LETTA_AGENT, "the Letta-era agent"], [created.id, "the agent made before"]] as const)
+    for (const [id, name] of [
+      [LETTA_AGENT, "the Letta-era agent"],
+      [created.id, "the agent made before"],
+    ] as const)
       if (typeof id === "string" && after.some((a) => a.id === id)) ok(`${name} is there after a restart`);
       else fail(`${name} is gone after a restart (agents: ${JSON.stringify(after)})`);
     sock.close();

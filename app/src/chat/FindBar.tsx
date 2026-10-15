@@ -8,7 +8,19 @@ import { formatKeys } from "../shell/keymap";
  * focus back to the message box; a hit unpins the transcript so streaming does not pull it away.
  * `onFind` runs first, with the query, so rows outside the transcript's window are on the page to be found.
  */
-export function FindBar({ fieldRef, onFind, onFound, onEscape, onClose }: { fieldRef: RefObject<HTMLInputElement | null>; onFind?: (query: string) => void; onFound: () => void; onEscape: () => void; onClose: () => void }) {
+export function FindBar({
+  fieldRef,
+  onFind,
+  onFound,
+  onEscape,
+  onClose,
+}: {
+  fieldRef: RefObject<HTMLInputElement | null>;
+  onFind?: (query: string) => void;
+  onFound: () => void;
+  onEscape: () => void;
+  onClose: () => void;
+}) {
   const [findQuery, setFindQuery] = useState("");
   const findNext = (backwards = false) => {
     const q = findQuery.trim();
@@ -27,7 +39,16 @@ export function FindBar({ fieldRef, onFind, onFound, onEscape, onClose }: { fiel
     fieldRef.current?.focus();
   };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderBottom: "1px solid var(--loki-border)", background: "var(--loki-panel-header)" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 10px",
+        borderBottom: "1px solid var(--loki-border)",
+        background: "var(--loki-panel-header)",
+      }}
+    >
       <Field
         ref={fieldRef}
         size="sm"
@@ -52,9 +73,15 @@ export function FindBar({ fieldRef, onFind, onFound, onEscape, onClose }: { fiel
         aria-label="find in transcript"
         style={{ flex: 1 }}
       />
-      <IconButton size={24} onClick={() => findNext(true)} label="previous match">↑</IconButton>
-      <IconButton size={24} onClick={() => findNext(false)} label="next match">↓</IconButton>
-      <IconButton size={24} onClick={onClose} label="close find">×</IconButton>
+      <IconButton size={24} onClick={() => findNext(true)} label="previous match">
+        ↑
+      </IconButton>
+      <IconButton size={24} onClick={() => findNext(false)} label="next match">
+        ↓
+      </IconButton>
+      <IconButton size={24} onClick={onClose} label="close find">
+        ×
+      </IconButton>
     </div>
   );
 }

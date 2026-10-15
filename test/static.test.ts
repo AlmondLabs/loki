@@ -70,7 +70,7 @@ describe("static app", () => {
   });
 
   test("the boot script cannot be broken out of: `</script>` and friends survive as JavaScript escapes", () => {
-    const hostile = '</script><script>alert(1)</script>&\u2028\u2029';
+    const hostile = "</script><script>alert(1)</script>&\u2028\u2029";
     const script = bootScript(hostile);
     // One script element, opened and closed exactly once: nothing inside it reads as markup.
     expect(script.match(/<\/?script>/g)).toEqual(["<script>", "</script>"]);

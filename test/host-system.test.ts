@@ -86,7 +86,9 @@ describe("the System fact says where loki runs", () => {
     expect(out).toContain("System");
     expect(out).toContain("loki runs on this Mac (macOS)");
     expect(out).toContain(osWords("macos").system);
-    expect(text(renderToStaticMarkup(createElement(SystemFact, { os: "windows", shell: false })))).toContain("loki runs on a PC (Windows); you're viewing it in a browser");
+    expect(text(renderToStaticMarkup(createElement(SystemFact, { os: "windows", shell: false })))).toContain(
+      "loki runs on a PC (Windows); you're viewing it in a browser",
+    );
   });
   test("the phone's connection page names the host's system", () => {
     expect(text(renderToStaticMarkup(createElement(HostSystemRow, { os: "macos" })))).toBe("SystemmacOS");

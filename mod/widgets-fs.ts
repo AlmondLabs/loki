@@ -41,10 +41,7 @@ export function parseJsonWidget(text: string): {
   const obj = parsed as Record<string, unknown>;
   const type = typeof obj.type === "string" ? obj.type : undefined;
   const title = typeof obj.title === "string" ? obj.title : undefined;
-  const data =
-    typeof obj.data === "object" && obj.data !== null && !Array.isArray(obj.data)
-      ? (obj.data as Record<string, unknown>)
-      : {};
+  const data = typeof obj.data === "object" && obj.data !== null && !Array.isArray(obj.data) ? (obj.data as Record<string, unknown>) : {};
   if (!type) return { title, data, error: `missing "type" — one of: ${Object.keys(KIT).join(", ")}` };
   if (!KIT[type]) return { title, type, data, error: `unknown type "${type}" — one of: ${Object.keys(KIT).join(", ")}` };
   if (!title) return { type, data, error: 'missing "title"' };
@@ -76,9 +73,7 @@ export async function checkModule(source: string, file: string): Promise<string 
   } catch (err) {
     const e = err as { errors?: Array<{ text: string; location?: { line: number; column: number } | null }> };
     if (e.errors?.length) {
-      return e.errors
-        .map((x) => (x.location ? `${file}:${x.location.line}:${x.location.column}: ${x.text}` : x.text))
-        .join("\n");
+      return e.errors.map((x) => (x.location ? `${file}:${x.location.line}:${x.location.column}: ${x.text}` : x.text)).join("\n");
     }
     return err instanceof Error ? err.message : String(err);
   }
@@ -184,11 +179,7 @@ export interface WidgetsWatcher {
   close(): void;
 }
 
-export function watchWidgets(
-  root: string,
-  onDiff: (diff: WidgetsDiff) => void,
-  opts: { debounceMs?: number } = {},
-): WidgetsWatcher {
+export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, opts: { debounceMs?: number } = {}): WidgetsWatcher {
   const debounceMs = opts.debounceMs ?? 80;
   mkdirSync(root, { recursive: true });
 
@@ -249,8 +240,7 @@ export function watchWidgets(
   void rescan();
 
   return {
-    entries: (scope) =>
-      [...index.values()].filter((e) => !scope || e.scope === scope).map(merged),
+    entries: (scope) => [...index.values()].filter((e) => !scope || e.scope === scope).map(merged),
     get: (id) => {
       const e = index.get(id);
       return e ? merged(e) : undefined;

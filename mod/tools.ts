@@ -31,7 +31,8 @@ export interface ToolDeps {
 }
 
 /** A conversation's own tasks, the ones it may comment on and close: assigned to it, or filed from it and assigned nowhere. */
-export const ownTask = (t: Task, conversation: string | null): boolean => !!conversation && (t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
+export const ownTask = (t: Task, conversation: string | null): boolean =>
+  !!conversation && (t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
 
 /**
  * The desk a tool call is about: the explicit `desk` argument, else the desk of
@@ -79,7 +80,8 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
         execute: async (args, c) => {
           const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName } });
-          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") throw new Error(String((out as { content?: unknown }).content ?? "the tool failed"));
+          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error")
+            throw new Error(String((out as { content?: unknown }).content ?? "the tool failed"));
           return out;
         },
       }),
@@ -190,9 +192,13 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           type: "object",
           properties: {
             action: { type: "string", enum: ["create", "list", "comment", "close"], description: "What to do." },
-            title: { type: "string", description: "create: one line, imperative (\"rotate the SSO creds before the audit\")." },
+            title: { type: "string", description: 'create: one line, imperative ("rotate the SSO creds before the audit").' },
             description: { type: "string", description: "create: what, why, where to look. Enough for someone starting cold." },
-            labels: { type: "array", items: { type: "string" }, description: "create: short tags (aws, security, docs). The project's folder name is added for you." },
+            labels: {
+              type: "array",
+              items: { type: "string" },
+              description: "create: short tags (aws, security, docs). The project's folder name is added for you.",
+            },
             priority: { type: "number", description: "create: 0 (urgent) to 4 (someday); default 2." },
             id: { type: "string", description: "comment / close: the task id (lk-…)." },
             text: { type: "string", description: "comment: the progress note." },
@@ -224,14 +230,30 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
             if (action === "list") {
               const tasks = await store.list();
               const mine = args.all === true ? tasks : tasks.filter((t) => ownTask(t, conversation));
-              return JSON.stringify(mine.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, labels: t.labels, assignedTo: t.metadata.assignedTo ?? null, description: t.description })), null, 2);
+              return JSON.stringify(
+                mine.map((t) => ({
+                  id: t.id,
+                  title: t.title,
+                  status: t.status,
+                  priority: t.priority,
+                  labels: t.labels,
+                  assignedTo: t.metadata.assignedTo ?? null,
+                  description: t.description,
+                })),
+                null,
+                2,
+              );
             }
             if (action === "comment" || action === "close") {
               if (typeof args.id !== "string") return { status: "error", content: `${action} needs id` };
               if (action === "comment" && typeof args.text !== "string") return { status: "error", content: "comment needs id and text" };
               const task = await store.find(args.id);
               if (!task) return { status: "error", content: `no task ${args.id} in Tasks` };
-              if (!ownTask(task, conversation)) return { status: "error", content: `${args.id} is not this conversation's task${task.metadata.assignedTo ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here` };
+              if (!ownTask(task, conversation))
+                return {
+                  status: "error",
+                  content: `${args.id} is not this conversation's task${task.metadata.assignedTo ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here`,
+                };
               if (action === "comment") {
                 await store.comment(args.id, String(args.text));
                 // The note shows on the message the task came from (its chip), so other tabs refetch.

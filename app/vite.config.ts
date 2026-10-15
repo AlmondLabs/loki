@@ -18,7 +18,10 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
 const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
 /** "owner/name": what the app asks GitHub about for newer releases (Settings › loki). */
-const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
+const repo = (repository ?? "")
+  .replace(/^github:/, "")
+  .replace(/^https?:\/\/github\.com\//, "")
+  .replace(/\.git$/, "");
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
@@ -56,12 +59,21 @@ function compilerOptions() {
   return {
     ...base,
     logger: {
-      logEvent(filename: string, event: { kind: string; fnLoc?: { start?: { line: number } } | null; detail?: { reason?: string; description?: string | null } | { options?: { reason?: string } } }) {
+      logEvent(
+        filename: string,
+        event: {
+          kind: string;
+          fnLoc?: { start?: { line: number } } | null;
+          detail?: { reason?: string; description?: string | null } | { options?: { reason?: string } };
+        },
+      ) {
         if (event.kind !== "CompileError") return;
         const d = event.detail as { reason?: string; description?: string | null; options?: { reason?: string; description?: string | null } } | undefined;
         const reason = d?.reason ?? d?.options?.reason ?? "";
         const description = d?.description ?? d?.options?.description ?? "";
-        console.error(`react-compiler skipped ${relative(here(".."), filename)}:${event.fnLoc?.start?.line ?? "?"} — ${reason}${description ? ` (${description})` : ""}`);
+        console.error(
+          `react-compiler skipped ${relative(here(".."), filename)}:${event.fnLoc?.start?.line ?? "?"} — ${reason}${description ? ` (${description})` : ""}`,
+        );
       },
     },
   };

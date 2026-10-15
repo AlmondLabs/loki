@@ -4,7 +4,10 @@
  * so every YYYY.MMDD.N stable is newer than every YYYY.M.D one.
  */
 export function parseVersion(v: string): [number, number, number] | null {
-  const m = v.trim().replace(/^v/, "").match(/^(\d+)\.(\d+)\.(\d+)/);
+  const m = v
+    .trim()
+    .replace(/^v/, "")
+    .match(/^(\d+)\.(\d+)\.(\d+)/);
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 

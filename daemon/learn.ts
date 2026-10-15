@@ -39,7 +39,9 @@ export function learnJob(deps: Deps): PassJob {
     prompt: (input) => {
       const cards = store.cards();
       const failing = cards
-        .filter((c) => c.card.source.agentId === input.agentId && keepsFailing(c.schedule) && (!c.schedule.lastReview || c.card.updatedAt < c.schedule.lastReview))
+        .filter(
+          (c) => c.card.source.agentId === input.agentId && keepsFailing(c.schedule) && (!c.schedule.lastReview || c.card.updatedAt < c.schedule.lastReview),
+        )
         .slice(0, FAILING_PER_RUN);
       // Each chat of the batch is a new slice (s1, s2 …), in the batch's order; replays of failing cards come after.
       const slices: Slice[] = input.parts.map((part, i) => ({ id: `s${i + 1}`, title: part.title, mode: "new", text: part.material }));
@@ -55,11 +57,22 @@ export function learnJob(deps: Deps): PassJob {
       return buildPrompt({
         agentName: input.agentName,
         slices,
-        existing: overlappingCards(cards.map((c) => ({ id: c.card.id, front: c.card.front, back: c.card.back, tags: c.card.tags })), slices.map((s) => s.text)),
-        rejected: store.rejected().slice(0, 40).map((r) => ({ front: r.card.front, back: r.card.back, reps: r.reps })),
+        existing: overlappingCards(
+          cards.map((c) => ({ id: c.card.id, front: c.card.front, back: c.card.back, tags: c.card.tags })),
+          slices.map((s) => s.text),
+        ),
+        rejected: store
+          .rejected()
+          .slice(0, 40)
+          .map((r) => ({ front: r.card.front, back: r.card.back, reps: r.reps })),
         room: room(input.now),
         failing: failing.map((c) => ({ id: c.card.id, front: c.card.front, back: c.card.back })),
-        leads: { open: openLeads.map((l) => l.title), started: store.lessons().map((l) => l.lead.title), dismissed: store.dismissedLeads().map((d) => d.lead.title), room: MAX_OPEN_LEADS - openLeads.length },
+        leads: {
+          open: openLeads.map((l) => l.title),
+          started: store.lessons().map((l) => l.lead.title),
+          dismissed: store.dismissedLeads().map((d) => d.lead.title),
+          room: MAX_OPEN_LEADS - openLeads.length,
+        },
       });
     },
     apply: (input, answer) => {
@@ -87,7 +100,17 @@ export function learnJob(deps: Deps): PassJob {
           capped = true; // the rest wait for tomorrow: the cursor stays and this stretch is read again
           break;
         }
-        const card: Card = { id: newCardId(now), front: cand.front, back: cand.back, tags: cand.tags, source: sourceOf(cand.slice), createdAt: at, updatedAt: at, updatedBy: "recall", previous: [] };
+        const card: Card = {
+          id: newCardId(now),
+          front: cand.front,
+          back: cand.back,
+          tags: cand.tags,
+          source: sourceOf(cand.slice),
+          createdAt: at,
+          updatedAt: at,
+          updatedBy: "recall",
+          previous: [],
+        };
         store.add(card);
         fronts.push(card.front);
         written += 1;

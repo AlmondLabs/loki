@@ -148,7 +148,12 @@ describe("velocity", () => {
   test("px per ms over the last stretch of samples", () => {
     expect(velocityOf([])).toBe(0);
     expect(velocityOf([{ x: 0, t: 0 }])).toBe(0);
-    expect(velocityOf([{ x: 0, t: 0 }, { x: 60, t: 100 }])).toBeCloseTo(0.6);
+    expect(
+      velocityOf([
+        { x: 0, t: 0 },
+        { x: 60, t: 100 },
+      ]),
+    ).toBeCloseTo(0.6);
     // uses the sample at least 60 ms back, not the whole drag: a slow start then a flick
     const samples = [
       { x: 0, t: 0 },
@@ -186,7 +191,8 @@ describe("pass summary", () => {
 
 describe("dismissed unless the stamp changed", () => {
   test("a swiped card stays out while its content holds, even if the list re-sorts or timestamps move", () => {
-    const a = item("a"), b = item("b");
+    const a = item("a"),
+      b = item("b");
     const d = dismiss(new Map(), a);
     expect(visibleQueue([a, b], d).map((i) => i.id)).toEqual(["b"]);
     expect(visibleQueue([b, a], d).map((i) => i.id)).toEqual(["b"]);
@@ -198,11 +204,16 @@ describe("dismissed unless the stamp changed", () => {
     const a = item("a");
     const d = dismiss(new Map(), a);
     expect(visibleQueue([item("a", { lastAssistantText: "something new" })], d).map((i) => i.id)).toEqual(["a"]);
-    expect(visibleQueue([item("a", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } })], d).map((i) => i.id)).toEqual(["a"]);
+    expect(
+      visibleQueue([item("a", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } })], d).map(
+        (i) => i.id,
+      ),
+    ).toEqual(["a"]);
     expect(visibleQueue([item("a", { turns: 1 })], d).map((i) => i.id)).toEqual(["a"]);
   });
   test("undo restores; pruning drops entries the live list has outgrown", () => {
-    const a = item("a"), b = item("b");
+    const a = item("a"),
+      b = item("b");
     let d = dismiss(dismiss(new Map(), a), b);
     expect(visibleQueue([a, b], d)).toEqual([]);
     d = restore(d, a);
@@ -224,7 +235,9 @@ describe("dismissed unless the stamp changed", () => {
 
 describe("the top card stays on top", () => {
   test("the pinned id comes first; the rest keep their order; an unknown or null pin changes nothing", () => {
-    const a = item("a"), b = item("b"), c = item("c");
+    const a = item("a"),
+      b = item("b"),
+      c = item("c");
     expect(toFront([a, b, c], "a1/c").map((i) => i.id)).toEqual(["c", "a", "b"]);
     expect(toFront([a, b, c], "a1/a").map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(toFront([a, b, c], null).map((i) => i.id)).toEqual(["a", "b", "c"]);

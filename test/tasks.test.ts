@@ -2,7 +2,23 @@ import { describe, expect, test } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { INIT_ARGS, TaskStore, taskIds, bdBinary, assignArgs, askDoneArgs, closeArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority, tasksDir } from "../mod/tasks.ts";
+import {
+  INIT_ARGS,
+  TaskStore,
+  taskIds,
+  bdBinary,
+  assignArgs,
+  askDoneArgs,
+  closeArgs,
+  createArgs,
+  formatTasksContext,
+  TASKS_CLEARED,
+  TasksNotice,
+  parseTasks,
+  projectLabel,
+  clampPriority,
+  tasksDir,
+} from "../mod/tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
@@ -36,7 +52,13 @@ describe("tasks: parsing", () => {
 
 describe("tasks: bd arguments", () => {
   test("create stamps the source and adds the project label", () => {
-    const args = createArgs({ title: "  write the quiz plan ", description: "outline first", labels: ["almonds", "plan"], priority: 1, stamp: { by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" } });
+    const args = createArgs({
+      title: "  write the quiz plan ",
+      description: "outline first",
+      labels: ["almonds", "plan"],
+      priority: 1,
+      stamp: { by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" },
+    });
     expect(args[0]).toBe("create");
     expect(args.slice(-2)).toEqual(["--", "write the quiz plan"]); // last, after --: never read as an option
     expect(args).toContain("--json");
@@ -73,10 +95,27 @@ describe("tasks: bd arguments", () => {
 });
 
 describe("tasks: turn-start block", () => {
-  const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 1, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata: {}, ...over });
+  const t = (over: Partial<Task>): Task => ({
+    id: "lk-a1",
+    title: "rotate SSO creds",
+    description: "",
+    status: "open",
+    priority: 1,
+    labels: [],
+    assignee: null,
+    createdAt: "",
+    updatedAt: "",
+    closedAt: null,
+    metadata: {},
+    ...over,
+  });
   test("only tasks assigned to this conversation, never closed ones", () => {
     const block = formatTasksContext(
-      [t({ metadata: { assignedTo: "c1", by: "agent", agent: "friday" } }), t({ id: "lk-b2", metadata: { assignedTo: "c2" } }), t({ id: "lk-c3", status: "closed", metadata: { assignedTo: "c1" } })],
+      [
+        t({ metadata: { assignedTo: "c1", by: "agent", agent: "friday" } }),
+        t({ id: "lk-b2", metadata: { assignedTo: "c2" } }),
+        t({ id: "lk-c3", status: "closed", metadata: { assignedTo: "c1" } }),
+      ],
       { conversation: "c1" },
     );
     expect(block).toContain("<loki-tasks>");
@@ -91,7 +130,20 @@ describe("tasks: turn-start block", () => {
 });
 
 describe("tasks: told once, again only on a change", () => {
-  const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 1, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata: { assignedTo: "c1" }, ...over });
+  const t = (over: Partial<Task>): Task => ({
+    id: "lk-a1",
+    title: "rotate SSO creds",
+    description: "",
+    status: "open",
+    priority: 1,
+    labels: [],
+    assignee: null,
+    createdAt: "",
+    updatedAt: "",
+    closedAt: null,
+    metadata: { assignedTo: "c1" },
+    ...over,
+  });
   const deliver = (n: TasksNotice, conv: string, tasks: Task[]) => {
     const block = n.pending(conv, tasks);
     if (block) n.sent(conv, block);
@@ -231,7 +283,17 @@ describe("tasks: an agent's done?, and reopening", () => {
 
   test("done? sets the agent's reason, who and when; no reason reads yes", () => {
     const now = new Date("2026-10-13T10:00:00Z");
-    expect(askDoneArgs("lk-a1", { reason: "migrated staging", by: "friday" }, now)).toEqual(["update", "lk-a1", "--set-metadata", "doneAsked=migrated staging", "--set-metadata", "doneAskedAt=2026-10-13T10:00:00.000Z", "--set-metadata", "doneAskedBy=friday", "--json"]);
+    expect(askDoneArgs("lk-a1", { reason: "migrated staging", by: "friday" }, now)).toEqual([
+      "update",
+      "lk-a1",
+      "--set-metadata",
+      "doneAsked=migrated staging",
+      "--set-metadata",
+      "doneAskedAt=2026-10-13T10:00:00.000Z",
+      "--set-metadata",
+      "doneAskedBy=friday",
+      "--json",
+    ]);
     expect(askDoneArgs("lk-a1", {}, now)).toContain("doneAsked=yes");
   });
 
@@ -251,6 +313,9 @@ describe("tasks: an agent's done?, and reopening", () => {
       ["update", "lk-a1", "lk-b2", "--unset-metadata", "doneAsked", "--unset-metadata", "doneAskedBy", "--unset-metadata", "doneAskedAt", "--json"],
       ["reopen", "lk-b2", "--json"],
     ]);
-    expect(tasks.map((t) => [t.id, t.status])).toEqual([["lk-a1", "in_progress"], ["lk-b2", "open"]]);
+    expect(tasks.map((t) => [t.id, t.status])).toEqual([
+      ["lk-a1", "in_progress"],
+      ["lk-b2", "open"],
+    ]);
   });
 });

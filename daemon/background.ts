@@ -56,7 +56,11 @@ const STRAGGLER_MS = 500;
  * The shell a task runs in: the person's own, else /bin/sh. Windows has neither, so there it is Git Bash where Git for
  * Windows puts it, else a bash.exe on PATH: where pi-durable's own bash tool looks (@earendil-works/pi-durable/env/node).
  */
-export function shell(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, exists: (path: string) => boolean = existsSync): string {
+export function shell(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  exists: (path: string) => boolean = existsSync,
+): string {
   if (platform !== "win32") return env.SHELL || "/bin/sh";
   for (const root of [env.ProgramFiles, env["ProgramFiles(x86)"]]) {
     const bash = root ? join(root, "Git", "bin", "bash.exe") : null;
@@ -118,7 +122,11 @@ export class BackgroundTasks {
       if (watched) return;
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
       const tail = task.output.slice(-2000).trim();
-      this.notify(agentId, chatId, `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(command)}</summary>\n<result>${escape(tail)}</result>\n</task-notification>`);
+      this.notify(
+        agentId,
+        chatId,
+        `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(command)}</summary>\n<result>${escape(tail)}</result>\n</task-notification>`,
+      );
     });
     this.tasks.set(id, task);
     return id;
@@ -221,7 +229,11 @@ export class BackgroundTasks {
 }
 
 async function caller(api: ToolExecutionApi, context: Context) {
-  const [agent, chat, resolved] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(ChatDoc, api.conversationId, context), api.agent(context)]);
+  const [agent, chat, resolved] = await Promise.all([
+    api.snapshot(AgentInfoDoc, context),
+    api.snapshot(ChatDoc, api.conversationId, context),
+    api.agent(context),
+  ]);
   return { agentId: agent?.id ?? "", chatId: chat?.id || `conversation-${api.conversationId}`, cwd: resolved.cwd ?? process.cwd() };
 }
 
@@ -234,7 +246,8 @@ export function backgroundExtension(tasks: BackgroundTasks): Extension {
     tools: [
       defineTool({
         name: "bash_background",
-        description: "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
+        description:
+          "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
         parameters: { type: "object", properties: { command: { type: "string" }, description: { type: "string" } }, required: ["command"] } as never,
         execute: async (args, api, context) => {
           const { agentId, chatId, cwd } = await caller(api, context);
@@ -264,7 +277,15 @@ export function backgroundExtension(tasks: BackgroundTasks): Extension {
         parameters: { type: "object", properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" } }, required: ["task_id"] } as never,
         execute: async (args, api, context) => {
           const a = args as { task_id: string; pattern?: string; timeout_ms?: number };
-          return text(await tasks.wait(a.task_id, (await caller(api, context)).agentId, a.pattern, Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000), context.abortSignal));
+          return text(
+            await tasks.wait(
+              a.task_id,
+              (await caller(api, context)).agentId,
+              a.pattern,
+              Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000),
+              context.abortSignal,
+            ),
+          );
         },
       }),
       defineTool({

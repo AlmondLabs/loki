@@ -42,7 +42,11 @@ describe("file tools", () => {
       writeFileSync(join(dir, "node_modules", "x.ts"), "answer");
       const t = await chatWith(dir, [fileToolsExtension()]);
       t.faux.setResponses([
-        t.reply(fauxAssistantMessage([fauxToolCall("ls", {}), fauxToolCall("find", { pattern: "**/*.ts" }), fauxToolCall("grep", { pattern: "answer" })], { stopReason: "toolUse" })),
+        t.reply(
+          fauxAssistantMessage([fauxToolCall("ls", {}), fauxToolCall("find", { pattern: "**/*.ts" }), fauxToolCall("grep", { pattern: "answer" })], {
+            stopReason: "toolUse",
+          }),
+        ),
         t.reply(fauxAssistantMessage("seen")),
       ]);
       await (await t.chat.submit({ type: "input", content: "look" }, ctx)).wait(ctx);
@@ -79,9 +83,15 @@ describe("skills and project instructions", () => {
       const project = join(dir, "project");
       mkdirSync(project);
       writeFileSync(join(project, "AGENTS.md"), "Use bun, never npm.\n");
-      expect(skillsOf(dir, agentId, globalDir).map((s) => [s.name, s.description])).toEqual([["tea", "brew tea properly"], ["unslop", "write plainly"]]);
+      expect(skillsOf(dir, agentId, globalDir).map((s) => [s.name, s.description])).toEqual([
+        ["tea", "brew tea properly"],
+        ["unslop", "write plainly"],
+      ]);
       const t = await chatWith(project, [skillsExtension(dir, globalDir)], { id: agentId, name: "Ada" });
-      t.faux.setResponses([t.reply(fauxAssistantMessage(fauxToolCall("Skill", { skill: "tea" }), { stopReason: "toolUse" })), t.reply(fauxAssistantMessage("ok"))]);
+      t.faux.setResponses([
+        t.reply(fauxAssistantMessage(fauxToolCall("Skill", { skill: "tea" }), { stopReason: "toolUse" })),
+        t.reply(fauxAssistantMessage("ok")),
+      ]);
       await (await t.chat.submit({ type: "input", content: "tea please" }, ctx)).wait(ctx);
       expect(t.sent[0]).toContain("- tea: brew tea properly");
       expect(t.sent[0]).toContain("- unslop: write plainly");

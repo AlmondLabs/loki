@@ -133,7 +133,26 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
   };
 
   const due = snap ? dueCount(snap.cards) : 0;
-  return { snap, error, due, running, starting, refresh, grade, remove, undo, restore, forget, edit, settings, run, exportCards, startLead, dismissLead, restoreLead };
+  return {
+    snap,
+    error,
+    due,
+    running,
+    starting,
+    refresh,
+    grade,
+    remove,
+    undo,
+    restore,
+    forget,
+    edit,
+    settings,
+    run,
+    exportCards,
+    startLead,
+    dismissLead,
+    restoreLead,
+  };
 }
 
 export type Recall = ReturnType<typeof useRecall>;

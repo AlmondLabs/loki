@@ -138,16 +138,18 @@ export class Providers {
         },
         { getDeviceId: this.deviceId, agentName: "loki" },
       );
-      done.then(
-        () => this.report(`signed in to ${providerId}`),
-        (error: unknown) => {
-          this.report(`sign-in to ${providerId} ended: ${String(error)}`);
-          if (!named) reject(error instanceof Error ? error : new Error(String(error)));
-        },
-      ).finally(() => {
-        clearTimeout(timer);
-        if (this.waiting.get(providerId) === entry) this.waiting.delete(providerId);
-      });
+      done
+        .then(
+          () => this.report(`signed in to ${providerId}`),
+          (error: unknown) => {
+            this.report(`sign-in to ${providerId} ended: ${String(error)}`);
+            if (!named) reject(error instanceof Error ? error : new Error(String(error)));
+          },
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          if (this.waiting.get(providerId) === entry) this.waiting.delete(providerId);
+        });
     });
   }
 

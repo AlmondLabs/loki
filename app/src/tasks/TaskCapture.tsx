@@ -40,7 +40,15 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
     setBusy(true);
     setError(null);
     try {
-      const err = await onCreate({ title: title.trim(), description: description.trim() || undefined, labels: labels.split(",").map((l) => l.trim()).filter(Boolean), priority });
+      const err = await onCreate({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        labels: labels
+          .split(",")
+          .map((l) => l.trim())
+          .filter(Boolean),
+        priority,
+      });
       if (err) setError(err);
       else onClose();
     } finally {
@@ -115,7 +123,9 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
         </span>
         {error && <span style={{ color: "var(--loki-negative)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <Button size="sm" kbd={formatKeys("escape")} onClick={onClose}>cancel</Button>
+        <Button size="sm" kbd={formatKeys("escape")} onClick={onClose}>
+          cancel
+        </Button>
         <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void submit()} disabled={!title.trim() || busy}>
           {busy ? "filing…" : "file"}
         </Button>

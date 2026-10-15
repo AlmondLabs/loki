@@ -11,7 +11,21 @@ import type { MemoryFile } from "../../../core/frame-types.ts";
  * The memory page: the files as a tree on the left (skills and the face left out), the picked one read
  * on the right. Memory is read-only here: to change a fact you hand the request to the agent in its own chat.
  */
-export function MemoryPage({ d, selected, filePath, onPickFile, reading, onAskToUpdate }: { d: AgentDetails; selected: string; filePath: string; onPickFile: (path: string) => void; reading: ReadingState; onAskToUpdate: (agentId: string, text: string) => void }) {
+export function MemoryPage({
+  d,
+  selected,
+  filePath,
+  onPickFile,
+  reading,
+  onAskToUpdate,
+}: {
+  d: AgentDetails;
+  selected: string;
+  filePath: string;
+  onPickFile: (path: string) => void;
+  reading: ReadingState;
+  onAskToUpdate: (agentId: string, text: string) => void;
+}) {
   const { content, loadingView } = reading;
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
@@ -24,7 +38,12 @@ export function MemoryPage({ d, selected, filePath, onPickFile, reading, onAskTo
           <span style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)" }}>{filePath}</span>
           {loadingView && <span>Loading…</span>}
           <span style={{ flex: 1 }} />
-          <Button size="sm" tone="brass" onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)} title="opens the agent's main chat with the request started">
+          <Button
+            size="sm"
+            tone="brass"
+            onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)}
+            title="opens the agent's main chat with the request started"
+          >
             ask {d.agent.name} to update this
           </Button>
         </div>
@@ -49,11 +68,24 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
       {groups.map(([g, fs]) => (
         <div key={g || "root"} style={{ minWidth: 0 }}>
-          {g && <div className="loki-label" style={{ padding: "2px 8px" }}>{g}</div>}
+          {g && (
+            <div className="loki-label" style={{ padding: "2px 8px" }}>
+              {g}
+            </div>
+          )}
           {fs.map((f) => (
-            <Row dense key={f.path} selected={current === f.path} onClick={() => onPick(f.path)} title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`} style={{ justifyContent: "space-between", gap: 8, fontSize: 12 }}>
+            <Row
+              dense
+              key={f.path}
+              selected={current === f.path}
+              onClick={() => onPick(f.path)}
+              title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`}
+              style={{ justifyContent: "space-between", gap: 8, fontSize: 12 }}
+            >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g ? f.path.slice(g.length + 1) : f.path}</span>
-              <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>{ago(f.modifiedAt)}</span>
+              <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
+                {ago(f.modifiedAt)}
+              </span>
             </Row>
           ))}
         </div>

@@ -27,12 +27,17 @@ export function agentChips(agents: Array<{ id: string; name: string }>, desks: D
 
 /** The filter: one agent (or null for all) and a lowercased query against title, scope and agent name. */
 export function deskMatches(d: DeskSummary, agentFilter: string | null, q: string): boolean {
-  return (!agentFilter || d.agentId === agentFilter) && (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q));
+  return (
+    (!agentFilter || d.agentId === agentFilter) &&
+    (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q))
+  );
 }
 
 /** The tree's main list: live desks (the shared sheet aside), pinned first, then by recency. */
 export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
-  return desks.filter((d) => d.status === "live" && d.scope !== "shared" && deskMatches(d, agentFilter, q)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
+  return desks
+    .filter((d) => d.status === "live" && d.scope !== "shared" && deskMatches(d, agentFilter, q))
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
 }
 
 export type SectionId = "waiting" | "pinned" | "rest";
@@ -144,14 +149,33 @@ export function treeKey(e: Pick<KeyboardEvent, "key" | "shiftKey">): TreeKeyActi
   return null;
 }
 
-function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onPickDesk, showArchive, onToggleArchive }: TreeProps & { showArchive: boolean; onToggleArchive: () => void }) {
+function TreeSheet({
+  onClose,
+  desks,
+  agents,
+  items,
+  current,
+  onNew,
+  heading,
+  onPickDesk,
+  showArchive,
+  onToggleArchive,
+}: TreeProps & { showArchive: boolean; onToggleArchive: () => void }) {
   const [query, setQuery] = useState("");
   /** null: every agent. */
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
   /** Where the highlight starts: the current desk among the rows as they are with nothing typed, else the top. */
   const [index, setIndex] = useState(() => {
-    const start = buildRows(sectionDesks(desks, null, items).flatMap((sec) => sec.desks), archivedDesks(desks, null, ""), onNew ? { kind: "new", agentId: null, name: "" } : null, showArchive);
-    return Math.max(0, start.findIndex((r) => r.kind === "desk" && r.desk.scope === current));
+    const start = buildRows(
+      sectionDesks(desks, null, items).flatMap((sec) => sec.desks),
+      archivedDesks(desks, null, ""),
+      onNew ? { kind: "new", agentId: null, name: "" } : null,
+      showArchive,
+    );
+    return Math.max(
+      0,
+      start.findIndex((r) => r.kind === "desk" && r.desk.scope === current),
+    );
   });
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -174,10 +198,17 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
   const live = useMemo(() => liveDesks(desks, agentFilter, q), [desks, q, agentFilter]);
   const archive = useMemo(() => archivedDesks(desks, agentFilter, q), [desks, q, agentFilter]);
   /** Nothing typed: the sectioned order. Typing: one flat list of matches. */
-  const sections = useMemo<Section[]>(() => (q ? [{ id: "rest", label: "", desks: live }] : sectionDesks(desks, agentFilter, items)), [q, live, desks, agentFilter, items]);
+  const sections = useMemo<Section[]>(
+    () => (q ? [{ id: "rest", label: "", desks: live }] : sectionDesks(desks, agentFilter, items)),
+    [q, live, desks, agentFilter, items],
+  );
   const ordered = useMemo(() => sections.flatMap((sec) => sec.desks), [sections]);
 
-  const rows = useMemo<Row[]>(() => buildRows(ordered, archive, onNew ? { kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" } : null, showArchive || !!q), [ordered, live, archive, q, query, showArchive, onNew, agentFilter]);
+  const rows = useMemo<Row[]>(
+    () =>
+      buildRows(ordered, archive, onNew ? { kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" } : null, showArchive || !!q),
+    [ordered, live, archive, q, query, showArchive, onNew, agentFilter],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 0);
@@ -234,7 +265,11 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
   return (
     // Escape is the input's (below) and the shell's (window-level, when nothing is typing); the sheet stays out of it.
     <Sheet label="chats" onClose={onClose} width={TREE_WIDTH} top="6vh" escape={false} cardProps={{ "data-tree": true }}>
-      {heading && <div className="loki-label" style={{ padding: "12px 16px 0", color: "var(--loki-fg)" }}>{heading}</div>}
+      {heading && (
+        <div className="loki-label" style={{ padding: "12px 16px 0", color: "var(--loki-fg)" }}>
+          {heading}
+        </div>
+      )}
       <Field
         bare
         ref={inputRef}
@@ -271,9 +306,24 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
         {sections.map((sec, si) => (
           // A labelled section is a group the listbox may hold; its visible heading is the group's name, so it hides from the tree.
           <div key={sec.id} role={sec.label ? "group" : "presentation"} aria-label={sec.label || undefined}>
-            {sec.label && <div aria-hidden className="loki-label" style={{ padding: "8px 10px 3px", color: sec.id === "waiting" ? "var(--loki-fg)" : undefined }}>{sec.label}</div>}
+            {sec.label && (
+              <div aria-hidden className="loki-label" style={{ padding: "8px 10px 3px", color: sec.id === "waiting" ? "var(--loki-fg)" : undefined }}>
+                {sec.label}
+              </div>
+            )}
             {sec.desks.map((d, i) => (
-              <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={starts[si] + i} optionId={optionId} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} />
+              <DeskRow
+                key={d.scope}
+                desk={d}
+                mark={marks.get(`${d.agentId}/${d.conversationId}`)}
+                here={d.scope === current}
+                showFace={!agentFilter}
+                index={starts[si] + i}
+                optionId={optionId}
+                selected={index}
+                onHover={setIndex}
+                onChoose={() => choose({ kind: "desk", desk: d })}
+              />
             ))}
           </div>
         ))}
@@ -287,10 +337,30 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
             label={<NewRowLabel name={newName} agentFilter={agentFilter} agentName={pickName(agentFilter)} />}
           />
         )}
-        {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={archiveStart} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} />}
-        {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no chats match</div>}
+        {archive.length > 0 && (
+          <ArchiveGroup
+            archive={archive}
+            open={showArchive || !!q}
+            onToggle={onToggleArchive}
+            startIndex={archiveStart}
+            current={current}
+            showFace={!agentFilter}
+            optionId={optionId}
+            selected={index}
+            onHover={setIndex}
+            onChoose={(d) => choose({ kind: "desk", desk: d })}
+          />
+        )}
+        {rows.length === 0 && (
+          <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>
+            no chats match
+          </div>
+        )}
       </div>
-      <div className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
+      <div
+        className="loki-meta loki-meta--wrap"
+        style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}
+      >
         {`↑↓ move · tab agent · ${formatKeys("enter")} choose · ${formatKeys("escape")} cancel`}
       </div>
     </Sheet>
@@ -298,9 +368,23 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
 }
 
 /** The agent filter: "all" with the live count, then one chip per agent; a chip pressed again clears it. */
-function AgentChips({ chips, liveCount, agentFilter, onPick }: { chips: Chip[]; liveCount: number; agentFilter: string | null; onPick: (id: string | null) => void }) {
+function AgentChips({
+  chips,
+  liveCount,
+  agentFilter,
+  onPick,
+}: {
+  chips: Chip[];
+  liveCount: number;
+  agentFilter: string | null;
+  onPick: (id: string | null) => void;
+}) {
   return (
-    <div role="group" aria-label="filter by agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto", flex: "0 0 auto" }}>
+    <div
+      role="group"
+      aria-label="filter by agent"
+      style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto", flex: "0 0 auto" }}
+    >
       <Chip label aria-pressed={agentFilter === null} active={agentFilter === null} onClick={() => onPick(null)}>
         all <span style={{ opacity: 0.7 }}>{liveCount}</span>
       </Chip>
@@ -340,20 +424,60 @@ function sectionStarts(sections: ReadonlyArray<{ desks: readonly unknown[] }>): 
   return out;
 }
 
-function ArchiveGroup({ archive, open, onToggle, startIndex, current, showFace, onChoose, ...row }: RowHandlers & { archive: DeskSummary[]; open: boolean; onToggle: () => void; startIndex: number; current: Scope; showFace: boolean; onChoose: (d: DeskSummary) => void }) {
+function ArchiveGroup({
+  archive,
+  open,
+  onToggle,
+  startIndex,
+  current,
+  showFace,
+  onChoose,
+  ...row
+}: RowHandlers & {
+  archive: DeskSummary[];
+  open: boolean;
+  onToggle: () => void;
+  startIndex: number;
+  current: Scope;
+  showFace: boolean;
+  onChoose: (d: DeskSummary) => void;
+}) {
   return (
     <div role="group" aria-label="archive" style={{ marginTop: 10 }}>
       <button
         onClick={onToggle}
         className="loki-label"
         aria-expanded={open}
-        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "4px 8px", border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", textAlign: "left" }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          width: "100%",
+          padding: "4px 8px",
+          border: "none",
+          background: "transparent",
+          color: "var(--loki-muted)",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
       >
         <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
         Archive
         <span style={{ marginLeft: "auto" }}>{archive.length}</span>
       </button>
-      {open && archive.map((d, i) => <DeskRow key={d.scope} desk={d} mark={undefined} here={d.scope === current} showFace={showFace} index={startIndex + i} onChoose={() => onChoose(d)} {...row} />)}
+      {open &&
+        archive.map((d, i) => (
+          <DeskRow
+            key={d.scope}
+            desk={d}
+            mark={undefined}
+            here={d.scope === current}
+            showFace={showFace}
+            index={startIndex + i}
+            onChoose={() => onChoose(d)}
+            {...row}
+          />
+        ))}
     </div>
   );
 }
@@ -374,7 +498,17 @@ export function Mark({ item, status, size = 7 }: { item: AttentionItem | undefin
   return <Dot aria-label={title || undefined} title={title || undefined} pulse={pulse} size={size} color={border} ring={color === "transparent"} />;
 }
 
-function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onHover, onChoose }: RowHandlers & { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; onChoose: () => void }) {
+function DeskRow({
+  desk: d,
+  mark,
+  here,
+  showFace,
+  index,
+  optionId,
+  selected,
+  onHover,
+  onChoose,
+}: RowHandlers & { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; onChoose: () => void }) {
   // Something new in it (it waits on you, or it finished unread): the name goes bold, like Slack's unread.
   const fresh = ["waits", "finished"].includes(deskMark(mark, d.status).kind);
   return (
@@ -385,12 +519,36 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: "var(--loki-radius-md)", cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "7px 10px",
+        borderRadius: "var(--loki-radius-md)",
+        cursor: "pointer",
+        background: index === selected ? "var(--loki-selection)" : "transparent",
+        opacity: d.status === "live" ? 1 : 0.7,
+      }}
     >
       <Mark item={mark} status={d.status} />
       {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9.5} />)}
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: fresh ? 700 : undefined, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {d.pinned && <span aria-label="pinned" title="pinned" style={{ color: "var(--loki-accent)", marginRight: 6, fontSize: 10.5 }}>⌖</span>}
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: 13.5,
+          fontWeight: fresh ? 700 : undefined,
+          color: "var(--loki-fg)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {d.pinned && (
+          <span aria-label="pinned" title="pinned" style={{ color: "var(--loki-accent)", marginRight: 6, fontSize: 10.5 }}>
+            ⌖
+          </span>
+        )}
         {d.title ?? (d.status === "live" ? "new chat" : d.scope)}
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
       </span>
@@ -399,7 +557,21 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
   );
 }
 
-function NewRow({ index, optionId, selected, onHover, onChoose, label }: { index: number; optionId: (i: number) => string; selected: number; onHover: (i: number) => void; onChoose: () => void; label: React.ReactNode }) {
+function NewRow({
+  index,
+  optionId,
+  selected,
+  onHover,
+  onChoose,
+  label,
+}: {
+  index: number;
+  optionId: (i: number) => string;
+  selected: number;
+  onHover: (i: number) => void;
+  onChoose: () => void;
+  label: React.ReactNode;
+}) {
   return (
     <div
       id={optionId(index)}
@@ -408,7 +580,18 @@ function NewRow({ index, optionId, selected, onHover, onChoose, label }: { index
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: "var(--loki-radius-md)", cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "7px 10px",
+        marginTop: 4,
+        borderRadius: "var(--loki-radius-md)",
+        cursor: "pointer",
+        background: index === selected ? "var(--loki-selection)" : "transparent",
+        color: "var(--loki-muted)",
+        fontSize: 12,
+      }}
     >
       <span style={{ width: 7, textAlign: "center", color: "var(--loki-accent)", fontSize: 13.5, lineHeight: 1 }}>+</span>
       <span>{label}</span>

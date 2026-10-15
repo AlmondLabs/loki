@@ -15,7 +15,10 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const T0 = Date.parse("2026-09-20T08:00:00Z");
 const thread = (n: number): TranscriptRow[] =>
-  Array.from({ length: n }, (_, i) => ({ role: i % 2 ? "assistant" : "user", text: `message ${i}`, at: new Date(T0 + i * 60_000).toISOString() }) as TranscriptRow);
+  Array.from(
+    { length: n },
+    (_, i) => ({ role: i % 2 ? "assistant" : "user", text: `message ${i}`, at: new Date(T0 + i * 60_000).toISOString() }) as TranscriptRow,
+  );
 const people = { user: { name: "You" }, assistant: { name: "ira" } };
 const rowsIn = (html: string) => html.match(/data-row="(user|assistant|tool|event)"/g)?.length ?? 0;
 
@@ -130,7 +133,6 @@ describe("streaming touches only the tail", () => {
       expect(pb.row).toBe(pa.row);
     }
   });
-
 });
 
 describe("the clock and day formatters", () => {
@@ -147,7 +149,12 @@ describe("the clock and day formatters", () => {
     Counting.supportedLocalesOf = Real.supportedLocalesOf;
     Intl.DateTimeFormat = Counting;
     const now = Date.parse("2026-09-23T12:00:00Z");
-    const first = { clock: clockLabel(new Date(now).toISOString()), week: dayLabel("2026-09-20T12:00:00Z", now), month: dayLabel("2026-08-03T12:00:00Z", now), year: dayLabel("2025-01-02T12:00:00Z", now) };
+    const first = {
+      clock: clockLabel(new Date(now).toISOString()),
+      week: dayLabel("2026-09-20T12:00:00Z", now),
+      month: dayLabel("2026-08-03T12:00:00Z", now),
+      year: dayLabel("2025-01-02T12:00:00Z", now),
+    };
     const once = built;
     for (let i = 0; i < 200; i++) {
       clockLabel(new Date(now - i * 60_000).toISOString());

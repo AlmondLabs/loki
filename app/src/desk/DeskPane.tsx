@@ -93,7 +93,10 @@ export function DeskPane(props: DeskPaneProps) {
 
   const { view, actions } = deskConversation(desk, catchUp, chat, props);
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
-  const people = useMemo(() => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }), [agentName, agentId]);
+  const people = useMemo(
+    () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
+    [agentName, agentId],
+  );
   // Viewed, not done: the thread on screen (Messages, or the Desk tab's open chat) looks at each new message once;
   // the New line goes before what came since the look held from before this open.
   const looking = visible === "messages" || (visible === "inset" && chatOpen);
@@ -148,27 +151,42 @@ export function DeskPane(props: DeskPaneProps) {
       />
       {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
       <div className="loki-desk-pane-body">
-        <div id={panelId("messages")} role="tabpanel" aria-label="Messages" className="loki-desk-pane-panel loki-desk-pane-messages" style={{ visibility: tab === "messages" ? "inherit" : "hidden" }} aria-hidden={tab !== "messages"} onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}>
+        <div
+          id={panelId("messages")}
+          role="tabpanel"
+          aria-label="Messages"
+          className="loki-desk-pane-panel loki-desk-pane-messages"
+          style={{ visibility: tab === "messages" ? "inherit" : "hidden" }}
+          aria-hidden={tab !== "messages"}
+          onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
+        >
           <MessageTasks.Provider value={messageTasks}>
-          <Conversation
-            key={scope}
-            view={view}
-            actions={actions}
-            models={models}
-            agentName={agentName}
-            layout={layout}
-            draft={draft}
-            composer={onMessages}
-            dim={false}
-            focusTick={tickFor(focus, "messages")}
-            findTick={tickFor(find, "messages")}
-            modelPickerTick={tickFor(model, "messages")}
-            modeMenuTick={tickFor(mode, "messages")}
-            prefill={prefillFor("messages")}
-          />
+            <Conversation
+              key={scope}
+              view={view}
+              actions={actions}
+              models={models}
+              agentName={agentName}
+              layout={layout}
+              draft={draft}
+              composer={onMessages}
+              dim={false}
+              focusTick={tickFor(focus, "messages")}
+              findTick={tickFor(find, "messages")}
+              modelPickerTick={tickFor(model, "messages")}
+              modeMenuTick={tickFor(mode, "messages")}
+              prefill={prefillFor("messages")}
+            />
           </MessageTasks.Provider>
         </div>
-        <div id={panelId("desk")} role="tabpanel" aria-label="Canvas" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "inherit" : "hidden" }} aria-hidden={tab !== "desk"}>
+        <div
+          id={panelId("desk")}
+          role="tabpanel"
+          aria-label="Canvas"
+          className="loki-desk-pane-panel"
+          style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
+          aria-hidden={tab !== "desk"}
+        >
           <Surface
             {...props}
             chat={chat}
@@ -200,8 +218,10 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
     if (!el || was === visible) return;
     const active = document.activeElement as HTMLElement | null;
     // The panel just hidden may still hold the focus until the browser moves it off: count that as dropped too.
-    const inPanel = (t: DeskTab) => !active || active === document.body || !!document.getElementById(panelId(t))?.contains(active) || active.getAttribute("aria-controls") === panelId(t);
-    if (was === "messages" && visible === "inset" && inPanel("messages")) el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    const inPanel = (t: DeskTab) =>
+      !active || active === document.body || !!document.getElementById(panelId(t))?.contains(active) || active.getAttribute("aria-controls") === panelId(t);
+    if (was === "messages" && visible === "inset" && inPanel("messages"))
+      el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
     else if (was === "inset" && visible === "messages" && inPanel("desk") && last.current?.isConnected) last.current.focus({ preventScroll: true });
   }, [visible, root, last]);
 }

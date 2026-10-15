@@ -24,7 +24,14 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
           {TABS.map((t) => {
             const n = t === "inbox" ? waiting : 0;
             return (
-              <button key={t} type="button" className="loki-phone-nav-item" onClick={() => navigate({ kind: "tab", tab: t })} aria-label={navLabel(t, n)} aria-current={t === active ? "page" : undefined}>
+              <button
+                key={t}
+                type="button"
+                className="loki-phone-nav-item"
+                onClick={() => navigate({ kind: "tab", tab: t })}
+                aria-label={navLabel(t, n)}
+                aria-current={t === active ? "page" : undefined}
+              >
                 <span className="loki-phone-nav-icon">
                   <Icon name={TAB_ICON[t]} size={24} />
                   {n > 0 && (
@@ -65,7 +72,8 @@ function useNavClearance() {
     const el = ref.current;
     const shell = el?.closest<HTMLElement>(".loki-phone-shell");
     if (!el || !shell) return;
-    const measure = () => shell.style.setProperty("--phone-nav-clearance", `${Math.max(0, Math.ceil(shell.getBoundingClientRect().bottom - el.getBoundingClientRect().top))}px`);
+    const measure = () =>
+      shell.style.setProperty("--phone-nav-clearance", `${Math.max(0, Math.ceil(shell.getBoundingClientRect().bottom - el.getBoundingClientRect().top))}px`);
     measure();
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     ro?.observe(el);

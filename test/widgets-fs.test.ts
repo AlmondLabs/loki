@@ -62,7 +62,7 @@ describe("scan + watch", () => {
       // runtime error merges into entries and clears when the file changes
       expect(w.setRuntimeError("conv1/trip", "boom")).toBe(true);
       expect(w.get("conv1/trip")!.error).toBe("boom");
-      writeFileSync(join(root, "conv1", "trip.tsx"), 'export default function T() { return <i/> }');
+      writeFileSync(join(root, "conv1", "trip.tsx"), "export default function T() { return <i/> }");
       await w.rescan();
       expect(w.get("conv1/trip")!.error).toBeUndefined();
       expect(w.get("conv1/trip")!.title).toBe("trip");

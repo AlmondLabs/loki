@@ -1,4 +1,14 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  HTMLAttributes,
+  InputHTMLAttributes,
+  KeyboardEvent,
+  MouseEvent,
+  ReactNode,
+  Ref,
+  TextareaHTMLAttributes,
+} from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSheetMotion } from "./sheetMotion";
@@ -31,7 +41,13 @@ export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const FOCUSABLE = 'a[href], button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])';
 
 const BTN_SIZE: Record<Size, string> = { sm: "loki-btn--sm", md: "loki-btn--md", touch: "loki-btn--touch" };
-const BTN_TONE: Record<Tone, string | null> = { quiet: null, paper: "loki-btn--paper", brass: "loki-btn--brass", positive: "loki-btn--positive", negative: "loki-btn--negative" };
+const BTN_TONE: Record<Tone, string | null> = {
+  quiet: null,
+  paper: "loki-btn--paper",
+  brass: "loki-btn--brass",
+  positive: "loki-btn--positive",
+  negative: "loki-btn--negative",
+};
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tone?: Tone;
@@ -46,9 +62,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). */
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", ...rest }, ref) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", ...rest },
+  ref,
+) {
   return (
-    <button ref={ref} type={type} className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)} {...rest}>
+    <button
+      ref={ref}
+      type={type}
+      className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
+      {...rest}
+    >
       {children}
       {kbd != null && <Kbd>{kbd}</Kbd>}
     </button>
@@ -69,8 +93,21 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 }
 
 /** A glyph in a square, no hairline until hovered. */
-export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({ label, size = 28, tone = "quiet", hairline, danger, className, style, type = "button", title, ...rest }, ref) {
-  return <button ref={ref} type={type} aria-label={label} title={title ?? label} className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)} style={{ width: size, height: size, ...style }} {...rest} />;
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { label, size = 28, tone = "quiet", hairline, danger, className, style, type = "button", title, ...rest },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      aria-label={label}
+      title={title ?? label}
+      className={cx("loki-btn", !hairline && "loki-btn--bare", "loki-btn--icon", BTN_TONE[tone], danger && "loki-btn--danger", className)}
+      style={{ width: size, height: size, ...style }}
+      {...rest}
+    />
+  );
 });
 
 /** A page down the left of Settings or Agents; `current` marks the one showing. */
@@ -101,14 +138,49 @@ export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** A pill: a filter, a choice, a badge. Sans 12. */
-export function Chip({ active, brass, attention, tone, static: isStatic, touch, label, float, tag, className, style, children, type = "button", ...rest }: ChipProps) {
-  const cls = cx("loki-chip", active && "loki-chip--active", brass && "loki-chip--brass", attention && "loki-chip--attention", tone && "loki-chip--tone", (isStatic || tone) && "loki-chip--static", touch && "loki-chip--touch", label && "loki-chip--label", float && "loki-chip--float", tag && "loki-chip--tag", className);
+export function Chip({
+  active,
+  brass,
+  attention,
+  tone,
+  static: isStatic,
+  touch,
+  label,
+  float,
+  tag,
+  className,
+  style,
+  children,
+  type = "button",
+  ...rest
+}: ChipProps) {
+  const cls = cx(
+    "loki-chip",
+    active && "loki-chip--active",
+    brass && "loki-chip--brass",
+    attention && "loki-chip--attention",
+    tone && "loki-chip--tone",
+    (isStatic || tone) && "loki-chip--static",
+    touch && "loki-chip--touch",
+    label && "loki-chip--label",
+    float && "loki-chip--float",
+    tag && "loki-chip--tag",
+    className,
+  );
   const st = tone ? ({ "--chip-tone": tone, ...style } as CSSProperties) : style;
   if (isStatic || tone) {
     const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
-    return <span className={cls} style={st} {...(span as HTMLAttributes<HTMLSpanElement>)}>{children}</span>;
+    return (
+      <span className={cls} style={st} {...(span as HTMLAttributes<HTMLSpanElement>)}>
+        {children}
+      </span>
+    );
   }
-  return <button type={type} className={cls} style={st} {...rest}>{children}</button>;
+  return (
+    <button type={type} className={cls} style={st} {...rest}>
+      {children}
+    </button>
+  );
 }
 
 type FieldMods = {
@@ -123,7 +195,16 @@ type FieldMods = {
   inline?: boolean;
 };
 const FIELD_SIZE: Record<Size, string | null> = { sm: "loki-field--sm", md: null, touch: "loki-field--touch" };
-const fieldClass = ({ size = "md", mono, bare, large, inline }: FieldMods, className?: string) => cx("loki-field", FIELD_SIZE[size], mono && "loki-field--mono", bare && "loki-field--bare", large && "loki-field--title", inline && "loki-field--inline", className);
+const fieldClass = ({ size = "md", mono, bare, large, inline }: FieldMods, className?: string) =>
+  cx(
+    "loki-field",
+    FIELD_SIZE[size],
+    mono && "loki-field--mono",
+    bare && "loki-field--bare",
+    large && "loki-field--title",
+    inline && "loki-field--inline",
+    className,
+  );
 
 /** `size` is ours (the native character-count attribute is never used here). */
 export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & FieldMods;
@@ -149,7 +230,15 @@ export interface RowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 /** A pickable line in a list. Neutral tints on hover and when selected; never the accent or the badge. */
 export const Row = forwardRef<HTMLButtonElement, RowProps>(function Row({ selected, dense, touch, flush, className, type = "button", ...rest }, ref) {
-  return <button ref={ref} type={type} data-selected={selected || undefined} className={cx("loki-row", dense && "loki-row--dense", touch && "loki-row--touch", flush && "loki-row--flush", className)} {...rest} />;
+  return (
+    <button
+      ref={ref}
+      type={type}
+      data-selected={selected || undefined}
+      className={cx("loki-row", dense && "loki-row--dense", touch && "loki-row--touch", flush && "loki-row--flush", className)}
+      {...rest}
+    />
+  );
 });
 
 export interface SheetProps {
@@ -182,7 +271,21 @@ export interface SheetProps {
  * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
  * screen can recede under it, and moves as an iOS sheet does (sheetMotion.ts).
  */
-export function Sheet({ label, onClose, width = 560, height, top, placement = "top", scroll, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
+export function Sheet({
+  label,
+  onClose,
+  width = 560,
+  height,
+  top,
+  placement = "top",
+  scroll,
+  zIndex = LAYER.modal,
+  escape = !!onClose,
+  className,
+  style,
+  cardProps,
+  children,
+}: SheetProps) {
   const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const veilRef = useRef<HTMLDivElement>(null);
@@ -223,7 +326,9 @@ export function Sheet({ label, onClose, width = 560, height, top, placement = "t
           // Focus stays inside the sheet: from the last control Tab wraps to the first, and back.
           const card = cardRef.current;
           if (!card) return;
-          const stops = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.hasAttribute("disabled") && el.tabIndex >= 0 && el.getClientRects().length > 0);
+          const stops = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+            (el) => !el.hasAttribute("disabled") && el.tabIndex >= 0 && el.getClientRects().length > 0,
+          );
           if (stops.length === 0) return;
           const first = stops[0];
           const last = stops[stops.length - 1];
@@ -238,7 +343,16 @@ export function Sheet({ label, onClose, width = 560, height, top, placement = "t
         }
       }}
     >
-      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)} style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }} {...cardProps}>
+      <div
+        ref={cardRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)}
+        style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
+        {...cardProps}
+      >
         {children}
       </div>
     </div>
@@ -261,7 +375,10 @@ export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
  * Opened by a click it grows out of the corner it hangs from, quickly (components.css); opened by a key it
  * is simply there, as anything a key starts is.
  */
-export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover({ anchor = "left", side = "below", width = 320, instant = false, className, style, onPointerDown, ...rest }, ref) {
+export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover(
+  { anchor = "left", side = "below", width = 320, instant = false, className, style, onPointerDown, ...rest },
+  ref,
+) {
   const [grows] = useState(() => !instant && lastInput() === "pointer");
   return (
     <div
@@ -280,7 +397,11 @@ export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover
 
 /** A shortcut hint: mono (keys are data), muted, hairlined. */
 export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
-  return <span aria-hidden className={cx("loki-kbd", className)} {...rest}>{children}</span>;
+  return (
+    <span aria-hidden className={cx("loki-kbd", className)} {...rest}>
+      {children}
+    </span>
+  );
 }
 
 /** Meta: agent, time, model — sans 12, muted. `brass` (kept name) tints it the accent blue, `negative` the red ink for a small error; `wrap` for a sentence. */
@@ -294,8 +415,29 @@ export function Title({ page, className, ...rest }: HTMLAttributes<HTMLDivElemen
 }
 
 /** The status dot, coloured by the caller: attention red filled waits on you, a ring finished unread, muted ring running, negative failed. */
-export function Dot({ size = 6, color, ring, pulse, halo, className, style, ...rest }: HTMLAttributes<HTMLSpanElement> & { size?: number; color: string; ring?: boolean; pulse?: boolean; /** A panel-coloured ring, to sit on an icon. */ halo?: boolean }) {
-  return <span className={cx("loki-dot", pulse && "loki-pulse", halo && "loki-dot--halo", className)} style={{ width: size, height: size, background: ring ? "transparent" : color, border: `1px solid ${color}`, ...style }} {...rest} />;
+export function Dot({
+  size = 6,
+  color,
+  ring,
+  pulse,
+  halo,
+  className,
+  style,
+  ...rest
+}: HTMLAttributes<HTMLSpanElement> & {
+  size?: number;
+  color: string;
+  ring?: boolean;
+  pulse?: boolean;
+  /** A panel-coloured ring, to sit on an icon. */ halo?: boolean;
+}) {
+  return (
+    <span
+      className={cx("loki-dot", pulse && "loki-pulse", halo && "loki-dot--halo", className)}
+      style={{ width: size, height: size, background: ring ? "transparent" : color, border: `1px solid ${color}`, ...style }}
+      {...rest}
+    />
+  );
 }
 
 /** Nothing here yet, said usefully: a title, a line that says what would put something here, an action. */
@@ -309,7 +451,13 @@ export function Empty({ title, children, card, className, ...rest }: HTMLAttribu
 }
 
 /** On the phone a banner slides back up where it came from as it goes (it slides down as it comes, phone.css); the desktop's just goes. */
-const bannerLeave = (el: HTMLElement) => (el.closest(".loki-phone") ? [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-100%)" }] : null);
+const bannerLeave = (el: HTMLElement) =>
+  el.closest(".loki-phone")
+    ? [
+        { opacity: 1, transform: "none" },
+        { opacity: 0, transform: "translateY(-100%)" },
+      ]
+    : null;
 
 /** A line across the top of a surface: the Mac is unreachable, an update is ready. Tone is a dot, not a stripe. */
 export function Banner({ tone = "var(--loki-negative)", children, className, ...rest }: HTMLAttributes<HTMLDivElement> & { tone?: string }) {
@@ -325,15 +473,58 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
 
 /** A notice, briefly, at the bottom centre of the window. */
 export function Toast({ children, className, style, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div role="status" className={cx("loki-toast", className)} style={{ zIndex: LAYER.toast, boxShadow: "var(--loki-shadow-float)", ...style }} {...rest}>{children}</div>;
+  return (
+    <div role="status" className={cx("loki-toast", className)} style={{ zIndex: LAYER.toast, boxShadow: "var(--loki-shadow-float)", ...style }} {...rest}>
+      {children}
+    </div>
+  );
 }
 
 /** An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). */
 export function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {
   return (
-    <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: small ? 12 : 13.5 }}>
-      <span aria-hidden style={{ width: 28, height: 16, borderRadius: "var(--loki-radius-pill)", background: on ? "var(--loki-accent)" : "var(--loki-control-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
-        <span style={{ position: "absolute", top: 2, left: 2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: on ? "var(--loki-bg)" : "var(--loki-muted)", transform: on ? "translateX(12px)" : "none", transition: "transform 160ms ease-out, background-color 160ms ease-out" }} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        color: on ? "var(--loki-fg)" : "var(--loki-muted)",
+        fontSize: small ? 12 : 13.5,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 28,
+          height: 16,
+          borderRadius: "var(--loki-radius-pill)",
+          background: on ? "var(--loki-accent)" : "var(--loki-control-border)",
+          position: "relative",
+          transition: "background 160ms ease-out",
+          flex: "0 0 auto",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 2,
+            left: 2,
+            width: 12,
+            height: 12,
+            borderRadius: "var(--loki-radius-sm)",
+            background: on ? "var(--loki-bg)" : "var(--loki-muted)",
+            transform: on ? "translateX(12px)" : "none",
+            transition: "transform 160ms ease-out, background-color 160ms ease-out",
+          }}
+        />
       </span>
       {label}
     </button>
@@ -350,7 +541,19 @@ export const countText = (n: number): string => (n > 99 ? "99+" : String(n));
  * title apart: "unread, 3 waiting, working". A `note` says more than "unread" and takes its place ("viewed, not done").
  * Empty when there is nothing to say.
  */
-export function rowStatus({ unread, badge, badgeNoun = "waiting", live, note }: { unread?: boolean; badge?: number | null; badgeNoun?: string; live?: boolean; note?: string }): string {
+export function rowStatus({
+  unread,
+  badge,
+  badgeNoun = "waiting",
+  live,
+  note,
+}: {
+  unread?: boolean;
+  badge?: number | null;
+  badgeNoun?: string;
+  live?: boolean;
+  note?: string;
+}): string {
   return [note || (unread && "unread"), badge != null && badge > 0 && `${countText(badge)} ${badgeNoun}`, live && "working"].filter(Boolean).join(", ");
 }
 
@@ -403,7 +606,25 @@ export interface ListRowProps {
  * preview, and on the right the time or the red badge. The whole row is one button; `actions` sit beside
  * it, not inside, so they are their own tab stops. Goes inside a ListSection or a `<ul className="loki-list">`.
  */
-export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread = false, note, live = false, current = false, dim = false, flags, label, onOpen, onMenu, actions, launch }: ListRowProps) {
+export function ListRow({
+  lead,
+  title,
+  preview,
+  time,
+  badge,
+  badgeNoun,
+  unread = false,
+  note,
+  live = false,
+  current = false,
+  dim = false,
+  flags,
+  label,
+  onOpen,
+  onMenu,
+  actions,
+  launch,
+}: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
   const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
   // The badge springs in when something new needs you (its count goes up), not when the list first draws.
@@ -466,7 +687,23 @@ export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread =
  * quiet count, and header actions on the right (new desk, a section menu). Folded, the list is not rendered
  * and the toggle says so with aria-expanded. Without `onToggle` the heading is plain text.
  */
-export function ListSection({ title, icon, count, open = true, onToggle, actions, children }: { title: string; icon?: IconName; count?: number | null; open?: boolean; onToggle?: () => void; actions?: ReactNode; children?: ReactNode }) {
+export function ListSection({
+  title,
+  icon,
+  count,
+  open = true,
+  onToggle,
+  actions,
+  children,
+}: {
+  title: string;
+  icon?: IconName;
+  count?: number | null;
+  open?: boolean;
+  onToggle?: () => void;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
   const inner = (
     <>
       {onToggle && <Icon name="chevron-down" size={12} className={cx("loki-list-section-chev", !open && "loki-list-section-chev--folded")} />}
@@ -508,7 +745,19 @@ export interface Tab<T extends string = string> {
  * 2px rule. An ARIA tablist with a roving tab stop: Tab lands on the chosen tab, the arrow keys, Home and
  * End move and choose. `panelId` names the panel each tab controls, when the host gives it an id.
  */
-export function TabRow<T extends string>({ label, tabs, current, onChange, panelId }: { label: string; tabs: readonly Tab<T>[]; current: T; onChange: (id: T) => void; panelId?: (id: T) => string }) {
+export function TabRow<T extends string>({
+  label,
+  tabs,
+  current,
+  onChange,
+  panelId,
+}: {
+  label: string;
+  tabs: readonly Tab<T>[];
+  current: T;
+  onChange: (id: T) => void;
+  panelId?: (id: T) => string;
+}) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === current);
     const to = e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
@@ -523,7 +772,17 @@ export function TabRow<T extends string>({ label, tabs, current, onChange, panel
       {tabs.map((t) => {
         const on = t.id === current;
         return (
-          <button key={t.id} type="button" role="tab" data-tab={t.id} aria-selected={on} tabIndex={on ? 0 : -1} aria-controls={panelId?.(t.id)} className="loki-tab" onClick={() => onChange(t.id)}>
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            data-tab={t.id}
+            aria-selected={on}
+            tabIndex={on ? 0 : -1}
+            aria-controls={panelId?.(t.id)}
+            className="loki-tab"
+            onClick={() => onChange(t.id)}
+          >
             {t.icon && <Icon name={t.icon} size={14} />}
             {t.label}
             {t.count != null && t.count > 0 && <span className="loki-tab-count">{countText(t.count)}</span>}

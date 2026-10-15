@@ -41,7 +41,9 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
       <span>Inbox</span>
       <span>
         <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
-        <span style={{ marginLeft: 14 }}>{chats} {chats === 1 ? "chat" : "chats"}</span>
+        <span style={{ marginLeft: 14 }}>
+          {chats} {chats === 1 ? "chat" : "chats"}
+        </span>
       </span>
     </div>
   );
@@ -65,7 +67,8 @@ export function agentPills(items: AttentionItem[]): { agentId: string; name: str
  */
 export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
   const pills = agentPills(items);
-  if (agent && !pills.some((p) => p.agentId === agent)) pills.push({ agentId: agent, name: items.find((i) => i.agentId === agent)?.agentName ?? "agent", count: 0 });
+  if (agent && !pills.some((p) => p.agentId === agent))
+    pills.push({ agentId: agent, name: items.find((i) => i.agentId === agent)?.agentName ?? "agent", count: 0 });
   if (pills.length < 2 && !agent) return null;
   const all = pills.reduce((n, p) => n + p.count, 0);
   return (
@@ -87,12 +90,18 @@ export function CaughtUp({ items, decided, replies }: { items: AttentionItem[]; 
   const running = items.filter((i) => i.status === "running").length;
   return (
     <Empty card title={decided.length ? "You've been through every chat." : "Nothing in the Inbox."}>
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>{running > 0 ? `${running} still running` : "no agent is working right now"}</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>
+        {running > 0 ? `${running} still running` : "no agent is working right now"}
+      </div>
       {(decided.length > 0 || replies > 0) && (
         <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>anything new lands here while this stays open</div>
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
+        anything new lands here while this stays open
+      </div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>
+        {decided.length ? "z undo · " : ""}esc close
+      </div>
     </Empty>
   );
 }
@@ -127,7 +136,21 @@ export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
   return (
-    <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={needsYou(current.status) ? <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}><Dot color={badge.color} />{flash ?? badge.label}</Chip> : (flash ?? badge.label) ? <Chip tone={badge.color}>{flash ?? badge.label}</Chip> : null}>
+    <ConversationHeader
+      title={current.title ?? current.id}
+      agentName={current.agentName}
+      agentId={current.agentId}
+      right={
+        needsYou(current.status) ? (
+          <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
+            <Dot color={badge.color} />
+            {flash ?? badge.label}
+          </Chip>
+        ) : (flash ?? badge.label) ? (
+          <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
+        ) : null
+      }
+    >
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
@@ -144,14 +167,47 @@ export function deckKey(id: string, typing: boolean): string {
  * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
  * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
  */
-export function CardActions({ current, typing, next, archive, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; next: () => void; archive: () => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
+export function CardActions({
+  current,
+  typing,
+  next,
+  archive,
+  onOpenDesk,
+  onClose,
+}: {
+  current: AttentionItem;
+  typing: boolean;
+  next: () => void;
+  archive: () => void;
+  onOpenDesk: (agentId: string, conversationId: string) => void;
+  onClose: () => void;
+}) {
   const main = current.id === "default";
   return (
     <>
-      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open chat</Button>
-      <Button size="sm" onClick={archive} disabled={main} title={main ? "a main chat cannot be archived" : "done with this chat: it leaves the Inbox"} kbd={deckKey("inbox.archive", typing)}>archive</Button>
+      <Button
+        size="sm"
+        onClick={() => {
+          onOpenDesk(current.agentId, current.id);
+          onClose();
+        }}
+        kbd={deckKey("inbox.open", typing)}
+      >
+        open chat
+      </Button>
+      <Button
+        size="sm"
+        onClick={archive}
+        disabled={main}
+        title={main ? "a main chat cannot be archived" : "done with this chat: it leaves the Inbox"}
+        kbd={deckKey("inbox.archive", typing)}
+      >
+        archive
+      </Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>next →</Button>
+      <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>
+        next →
+      </Button>
     </>
   );
 }
@@ -160,7 +216,9 @@ export function CardActions({ current, typing, next, archive, onOpenDesk, onClos
 export function KeysHint({ typing }: { typing: boolean }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {typing ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.archive")} archive · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys` : "→ next · E archive · A approve · D deny · R reply · O open · Z undo · esc close"}
+      {typing
+        ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.archive")} archive · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
+        : "→ next · E archive · A approve · D deny · R reply · O open · Z undo · esc close"}
     </div>
   );
 }

@@ -1,9 +1,27 @@
 /* The desk sidebar (DeskSidebar.tsx, plan 013 U4): the filter under the column header, the list, the "needs you" pills, the row menu. */
-.loki-sidebar-filter { flex: none; padding: 8px 10px 4px; }
-.loki-sidebar-filter .loki-field { width: 100%; box-sizing: border-box; }
+.loki-sidebar-filter {
+  flex: none;
+  padding: 8px 10px 4px;
+}
+.loki-sidebar-filter .loki-field {
+  width: 100%;
+  box-sizing: border-box;
+}
 /* The list and its pills: the pills float over the list's top and bottom edges. */
-.loki-sidebar-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.loki-sidebar-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 10px; }
+.loki-sidebar-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.loki-sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 10px;
+}
 /* Slack's "Unread mentions" pill: the red of the badge, at the edge the waiting desk hides past. */
 .loki-sidebar-pill {
   position: absolute;
@@ -25,10 +43,18 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.loki-sidebar-pill--up { top: 8px; }
-.loki-sidebar-pill--down { bottom: 8px; }
+.loki-sidebar-pill--up {
+  top: 8px;
+}
+.loki-sidebar-pill--down {
+  bottom: 8px;
+}
 /* Settles on the fg, not muted: a muted ring would vanish against the red pill. */
-.loki-sidebar-pill:focus-visible { outline: 2px solid var(--loki-fg); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
+.loki-sidebar-pill:focus-visible {
+  outline: 2px solid var(--loki-fg);
+  outline-offset: 2px;
+  animation: loki-focus-flash 1s ease-out;
+}
 /* The row's context menu, at the pointer. */
 .loki-sidebar-menu {
   position: fixed;
@@ -42,4 +68,12 @@
   box-shadow: var(--loki-shadow-float);
 }
 /* A finished desk's ring after its name: bold with it is new since your last look, the ring alone is looked at but not done. */
-.loki-sidebar-ring { flex: none; width: 7px; height: 7px; box-sizing: border-box; margin-left: 2px; border: 1.5px solid var(--loki-fg); border-radius: var(--loki-radius-pill); }
+.loki-sidebar-ring {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  margin-left: 2px;
+  border: 1.5px solid var(--loki-fg);
+  border-radius: var(--loki-radius-pill);
+}

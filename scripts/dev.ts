@@ -61,7 +61,9 @@ function rustPreflight(): string | null {
     [
       "loki dev: the Tauri window is a Rust program and this machine has no Rust toolchain (no `cargo` on PATH, none in ~/.cargo/bin).",
       `  Install it, then open a new terminal${windows ? "" : " (or `source ~/.cargo/env`)"} and run \`npm start\` again:`,
-      windows ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)" : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
+      windows
+        ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)"
+        : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
       ...(mac ? ["  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing."] : []),
       "  Without Rust, `npm run dev` serves the canvas alone at " + DEV_URL + " for a browser tab.",
     ].join("\n"),
@@ -112,7 +114,9 @@ const children: ChildProcess[] = [];
 let env = process.env;
 /** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts; on Windows `bin` names their JS entries, so this Node runs them. */
 function run(cmd: string, args: string[]): ChildProcess {
-  const child = windows ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
+  const child = windows
+    ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env })
+    : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
   children.push(child);
   return child;
 }
@@ -132,25 +136,50 @@ if (process.argv.includes("--check")) {
   const homeCargo = onPath("cargo", join(home, ".cargo", "bin"));
   const cargo = onPath("cargo") ?? (homeCargo ? homeCargo + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `npm start` would stop and say how to install it");
-  if (mac) console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `npm start` would stop and say to run `xcode-select --install`");
+  if (mac)
+    console.log(
+      xcodeToolsPresent()
+        ? "xcode: command line tools present"
+        : "xcode: no command line tools — `npm start` would stop and say to run `xcode-select --install`",
+    );
   console.log(`node: ${process.version} at ${process.execPath}`);
-  console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`npm start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
+  console.log(
+    vite === "ours"
+      ? `vite: loki's, already answering at ${DEV_URL} — would reuse it`
+      : vite === "other"
+        ? `vite: something else answers at ${DEV_URL} — \`npm start\` would stop`
+        : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`,
+  );
   console.log(`phone: would run ${bin("vite")} build --watch --emptyOutDir=false --config app/vite.config.ts, so app/dist follows the code`);
-  console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
-  console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts the daemon`);
+  console.log(
+    `tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`,
+  );
+  console.log(
+    `mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts the daemon`,
+  );
   process.exit(0);
 }
 
 const path = rustPreflight();
 if (!path) process.exit(1);
 if (mac && !xcodeToolsPresent()) {
-  console.error(["loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.", "  Run `xcode-select --install`, finish the dialog, then `npm start` again."].join("\n"));
+  console.error(
+    [
+      "loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.",
+      "  Run `xcode-select --install`, finish the dialog, then `npm start` again.",
+    ].join("\n"),
+  );
   process.exit(1);
 }
 env = { ...process.env, PATH: path };
 
 if (vite === "other") {
-  console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `npm start` again."].join("\n"));
+  console.error(
+    [
+      `loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`,
+      "  The window would show that page. Stop that server, or start it on another port, then `npm start` again.",
+    ].join("\n"),
+  );
   process.exit(1);
 }
 if (vite === "ours") {

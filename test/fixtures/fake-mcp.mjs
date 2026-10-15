@@ -7,9 +7,23 @@ import { fileURLToPath } from "node:url";
 
 /** The tools it offers: a reader, a writer, a big one, a failing one, and one that kills the process. */
 export const TOOLS = [
-  { name: "list_issues", description: "List the open issues of a repository", inputSchema: { type: "object", properties: { repo: { type: "string" }, state: { type: "string" } }, required: ["repo"] }, annotations: { readOnlyHint: true } },
-  { name: "create_issue", description: "Open a new issue in a repository", inputSchema: { type: "object", properties: { repo: { type: "string" }, title: { type: "string" } }, required: ["repo", "title"] } },
-  { name: "delete_repo", description: "Delete a repository for good", inputSchema: { type: "object", properties: { repo: { type: "string" } }, required: ["repo"] }, annotations: { destructiveHint: true } },
+  {
+    name: "list_issues",
+    description: "List the open issues of a repository",
+    inputSchema: { type: "object", properties: { repo: { type: "string" }, state: { type: "string" } }, required: ["repo"] },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: "create_issue",
+    description: "Open a new issue in a repository",
+    inputSchema: { type: "object", properties: { repo: { type: "string" }, title: { type: "string" } }, required: ["repo", "title"] },
+  },
+  {
+    name: "delete_repo",
+    description: "Delete a repository for good",
+    inputSchema: { type: "object", properties: { repo: { type: "string" } }, required: ["repo"] },
+    annotations: { destructiveHint: true },
+  },
   { name: "dump_logs", description: "Every log line of the last deploy", inputSchema: { type: "object", properties: {} } },
   { name: "always_fails", description: "A tool that reports an error", inputSchema: { type: "object", properties: {} } },
   { name: "crash", description: "Stops the server", inputSchema: { type: "object", properties: {} } },
@@ -21,7 +35,11 @@ export function answer(msg, opts = {}) {
   const ok = (result) => ({ jsonrpc: "2.0", id: msg.id, result });
   switch (msg.method) {
     case "initialize":
-      return ok({ protocolVersion: msg.params?.protocolVersion ?? "2025-06-18", capabilities: { tools: { listChanged: true } }, serverInfo: { name: "fake", version: "1.0.0", description: "A fake issue tracker for tests" } });
+      return ok({
+        protocolVersion: msg.params?.protocolVersion ?? "2025-06-18",
+        capabilities: { tools: { listChanged: true } },
+        serverInfo: { name: "fake", version: "1.0.0", description: "A fake issue tracker for tests" },
+      });
     case "ping":
       return ok({});
     case "tools/list":

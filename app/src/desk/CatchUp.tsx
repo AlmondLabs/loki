@@ -40,7 +40,10 @@ interface CatchUpProps {
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
   /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; older?: (() => void) | null };
+  conversation: (
+    agentId: string,
+    conversationId: string,
+  ) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; older?: (() => void) | null };
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -72,7 +75,16 @@ interface CatchUpProps {
   widgetSource?: InlineWidgetSource;
 }
 
-export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number; shown: number; duration_ms: number }) => void;
+export type PassSummaryHandler = (pass: {
+  decided: number;
+  next: number;
+  archive: number;
+  approve: number;
+  deny: number;
+  replies: number;
+  shown: number;
+  duration_ms: number;
+}) => void;
 
 type DeckProps = CatchUpProps;
 
@@ -113,8 +125,30 @@ function CatchUpDeck(props: DeckProps) {
     props.onShown?.(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
-  const actions = useDeckActions({ current, decided: allDecided, agent, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onArchive: props.onArchive, onUnarchive: props.onUnarchive, onApprove: props.onApprove });
-  useDeckKeys({ typing, current, decided, replyRef, next: actions.next, archive: actions.archive, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose });
+  const actions = useDeckActions({
+    current,
+    decided: allDecided,
+    agent,
+    setDecided,
+    setQueue,
+    onSeen: props.onSeen,
+    onUnread: props.onUnread,
+    onArchive: props.onArchive,
+    onUnarchive: props.onUnarchive,
+    onApprove: props.onApprove,
+  });
+  useDeckKeys({
+    typing,
+    current,
+    decided,
+    replyRef,
+    next: actions.next,
+    archive: actions.archive,
+    approve: actions.approve,
+    undo: actions.undo,
+    onOpenDesk,
+    onClose,
+  });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
   useEffect(() => {
@@ -146,7 +180,16 @@ function CatchUpDeck(props: DeckProps) {
       const { decided: d, replies, onPass, openedAt: began } = passRef.current;
       if (!onPass || (!d.length && !replies)) return;
       const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
-      onPass({ decided: d.length, next: by("next"), archive: by("archive"), approve: by("approve"), deny: by("deny"), replies, shown: seenCards.current.size, duration_ms: Date.now() - began });
+      onPass({
+        decided: d.length,
+        next: by("next"),
+        archive: by("archive"),
+        approve: by("approve"),
+        deny: by("deny"),
+        replies,
+        shown: seenCards.current.size,
+        duration_ms: Date.now() - began,
+      });
     },
     [],
   );
@@ -155,7 +198,18 @@ function CatchUpDeck(props: DeckProps) {
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", gridTemplateColumns: "minmax(0, 1fr)", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "var(--loki-bg)",
+        display: "grid",
+        gridTemplateRows: "100%",
+        gridTemplateColumns: "minmax(0, 1fr)",
+        justifyItems: "center",
+        padding: "20px 24px 16px",
+        boxSizing: "border-box",
+        animation: "loki-veil 160ms ease-out both",
+      }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
         <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown).length} />
@@ -163,7 +217,20 @@ function CatchUpDeck(props: DeckProps) {
         {!current ? (
           <CaughtUp items={shown} decided={decided} replies={actions.replies} />
         ) : (
-          <Card key={idOf(current)} current={current} thread={thread} decided={decided} typing={typing} setTyping={setTyping} replyRef={replyRef} actions={actions} deck={props} onCommand={(id, args) => runCommand(current, id, args)} modelTick={modelTick} modeTick={modeTick} />
+          <Card
+            key={idOf(current)}
+            current={current}
+            thread={thread}
+            decided={decided}
+            typing={typing}
+            setTyping={setTyping}
+            replyRef={replyRef}
+            actions={actions}
+            deck={props}
+            onCommand={(id, args) => runCommand(current, id, args)}
+            modelTick={modelTick}
+            modeTick={modeTick}
+          />
         )}
         <KeysHint typing={typing} />
       </div>
@@ -175,7 +242,31 @@ function CatchUpDeck(props: DeckProps) {
  * One card: the shared Conversation in the card's frame — its header on top, the deck's moves in the
  * last row. Keyed on the card by the deck, so the box and the chips start fresh with each conversation.
  */
-function Card({ current, thread, decided, typing, setTyping, replyRef, actions, deck, onCommand, modelTick, modeTick }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void; modelTick: number; modeTick: number }) {
+function Card({
+  current,
+  thread,
+  decided,
+  typing,
+  setTyping,
+  replyRef,
+  actions,
+  deck,
+  onCommand,
+  modelTick,
+  modeTick,
+}: {
+  current: AttentionItem;
+  thread: ReturnType<CatchUpProps["conversation"]> | undefined;
+  decided: Decision[];
+  typing: boolean;
+  setTyping: (v: boolean) => void;
+  replyRef: RefObject<HTMLTextAreaElement | null>;
+  actions: ReturnType<typeof useDeckActions>;
+  deck: DeckProps;
+  onCommand: (id: string, args: string) => void;
+  modelTick: number;
+  modeTick: number;
+}) {
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agentId, id } = current;
@@ -226,7 +317,9 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
         layout={layout}
         agentName={current.agentName}
         header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
-        footer={<CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}
+        footer={
+          <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
+        }
         hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
         inputRef={replyRef}
         onTyping={setTyping}

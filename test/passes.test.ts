@@ -49,7 +49,20 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean } = {}) {
   };
   const events: Array<Record<string, unknown>> = [];
   const reports: string[] = [];
-  const runner = new PassRunner({ stores, chats, registry, state, backendDir: dir, context: ctx, jobs: [job], busy: async () => opts.busy?.() ?? false, isSubagent: () => false, capture: (_e, p) => events.push(p), report: (m) => reports.push(m), quietMs: opts.quietMs ?? 0 });
+  const runner = new PassRunner({
+    stores,
+    chats,
+    registry,
+    state,
+    backendDir: dir,
+    context: ctx,
+    jobs: [job],
+    busy: async () => opts.busy?.() ?? false,
+    isSubagent: () => false,
+    capture: (_e, p) => events.push(p),
+    report: (m) => reports.push(m),
+    quietMs: opts.quietMs ?? 0,
+  });
   const say = async (chatId: string, ...texts: string[]) => {
     const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, { agent: { model } }, ctx));
     for (const t of texts) await (await chat.submit({ type: "input", content: t }, ctx)).wait(ctx);
@@ -234,7 +247,10 @@ describe("background passes", () => {
       await s.say("b", LONG);
       const outcomes = await Promise.all([s.runner.runNow("reflection", s.agentId, "a"), s.runner.runNow("reflection", s.agentId, "b")]);
       expect(outcomes).toEqual(["failed", "changed"]);
-      expect(s.events.map((e) => [e.chat, e.outcome])).toEqual([["a", "failed"], ["b", "changed"]]);
+      expect(s.events.map((e) => [e.chat, e.outcome])).toEqual([
+        ["a", "failed"],
+        ["b", "changed"],
+      ]);
       expect(s.reports.some((r) => r.includes("did not finish within"))).toBe(true);
     } finally {
       await s.cleanup();
@@ -303,7 +319,11 @@ describe("background passes", () => {
     const s = await setup({ quietMs: 60 * 60_000 });
     try {
       s.runner["deps"].jobs[0].onCompaction = true;
-      s.faux.setResponses([...["1", "2", "3", "4", "5", "6"].map((t) => fauxAssistantMessage(t)), fauxAssistantMessage("a summary"), fauxAssistantMessage("kept")]);
+      s.faux.setResponses([
+        ...["1", "2", "3", "4", "5", "6"].map((t) => fauxAssistantMessage(t)),
+        fauxAssistantMessage("a summary"),
+        fauxAssistantMessage("kept"),
+      ]);
       const HUGE = LONG.repeat(150);
       await s.say("c", HUGE, HUGE, HUGE, HUGE, HUGE, HUGE);
       const chat = (await s.store.chat("c", ctx))!;

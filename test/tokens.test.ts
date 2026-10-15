@@ -28,6 +28,11 @@ const files = walk(APP, (n) => /\.(tsx|ts|css)$/.test(n) && !n.endsWith(".d.ts")
 const code = files.filter((f) => !f.path.endsWith(".css"));
 const css = files.filter((f) => f.path.endsWith(".css"));
 const tokens = readFileSync(TOKENS, "utf8");
+/**
+ * A stylesheet on one line, every run of whitespace one space and none just inside parentheses: the rules however
+ * Prettier lays them out, matched as rules.
+ */
+const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")");
 
 type Rgb = [number, number, number];
 type Theme = "dark" | "light";
@@ -35,14 +40,17 @@ type Theme = "dark" | "light";
 const PALETTES = ["loki", "tokyo-night"] as const;
 type Palette = (typeof PALETTES)[number];
 const THEMES: Theme[] = ["dark", "light"];
-const selectorFor = (palette: Palette, theme: Theme) => `:root${palette === "loki" ? "" : `[data-palette="${palette}"]`}${theme === "light" ? '[data-theme="light"]' : ""}`;
+const selectorFor = (palette: Palette, theme: Theme) =>
+  `:root${palette === "loki" ? "" : `[data-palette="${palette}"]`}${theme === "light" ? '[data-theme="light"]' : ""}`;
 const themeBlock = (palette: Palette, theme: Theme) => {
   const start = tokens.indexOf(`${selectorFor(palette, theme)} {`);
   if (start < 0) throw new Error(`no block for ${selectorFor(palette, theme)}`);
   return tokens.slice(start, tokens.indexOf("\n}", start));
 };
 const themeColor = (palette: Palette, theme: Theme, name: string): Rgb => {
-  const raw = themeBlock(palette, theme).match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1].trim();
+  const raw = themeBlock(palette, theme)
+    .match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1]
+    .trim();
   if (!raw) throw new Error(`missing --loki-${name} in ${palette} ${theme}`);
   return parseColor(raw);
 };
@@ -61,10 +69,15 @@ const parseColor = (raw: string): Rgb => {
   const l = l0 ** 3;
   const m = m0 ** 3;
   const s = s0 ** 3;
-  const linear = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
   return linear.map((v) => Math.max(0, Math.min(1, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))) as Rgb;
 };
-const luminance = (rgb: Rgb) => rgb.reduce((sum, value, i) => sum + [0.2126, 0.7152, 0.0722][i] * (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4), 0);
+const luminance = (rgb: Rgb) =>
+  rgb.reduce((sum, value, i) => sum + [0.2126, 0.7152, 0.0722][i] * (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4), 0);
 const contrast = (a: Rgb, b: Rgb) => {
   const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (high + 0.05) / (low + 0.05);
@@ -128,21 +141,33 @@ describe("design tokens: every style stays on the scales", () => {
     expect([...inline, ...inCss]).toEqual([]);
   });
   test("inline faces are the reading face or mono — never the retired display or label aliases", () => {
-    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$|^mono \? "var\(--loki-mono\)" : undefined$/.test(value(h)));
+    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter(
+      (h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$|^mono \? "var\(--loki-mono\)" : undefined$/.test(value(h)),
+    );
     expect(off).toEqual([]);
     expect(findAll(code, /var\(--loki-(display|label)\)/g, (m) => m[0])).toEqual([]);
   });
   test("labels are shown as written: no uppercase transform inline, nor in a desktop stylesheet", () => {
     const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => /uppercase/.test(value(h)));
     // the phone keeps two of its own: a pairing code typed in capitals, and a kicker's first letter
-    const inCss = findAll(css.filter((f) => !f.path.startsWith("phone/")), /text-transform:\s*uppercase/g, (m) => m[0]);
+    const inCss = findAll(
+      css.filter((f) => !f.path.startsWith("phone/")),
+      /text-transform:\s*uppercase/g,
+      (m) => m[0],
+    );
     expect([...inline, ...inCss]).toEqual([]);
   });
   test("stylesheets never name the retired display or label faces, and keep mono for code, data and keys", () => {
-    const aliases = findAll(css.filter((f) => f.path !== "kit/tokens.css"), /font-family:\s*(var\(--loki-(?:display|label)\))/g, (m) => m[1]);
+    const aliases = findAll(
+      css.filter((f) => f.path !== "kit/tokens.css"),
+      /font-family:\s*(var\(--loki-(?:display|label)\))/g,
+      (m) => m[1],
+    );
     expect(aliases).toEqual([]);
     const desktopCss = css.filter((f) => !f.path.startsWith("phone/"));
-    const mono = desktopCss.flatMap((f) => [...f.text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => `${f.path}: ${m[1].trim()}`));
+    const mono = desktopCss.flatMap((f) =>
+      [...f.text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => `${f.path}: ${m[1].trim()}`),
+    );
     // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing
     expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$/.test(value(h)))).toEqual([]);
   });
@@ -165,12 +190,21 @@ describe("design tokens: definitions and uses agree", () => {
     expect([...used].filter((t) => !defined.has(t))).toEqual([]);
   });
   test("every token defined is used somewhere", () => {
-    const rest = files.filter((f) => f.path !== "kit/tokens.css").map((f) => f.text).join("\n");
+    const rest = files
+      .filter((f) => f.path !== "kit/tokens.css")
+      .map((f) => f.text)
+      .join("\n");
     expect([...defined].filter((t) => !rest.includes(`var(${t})`))).toEqual([]);
   });
   test("every loki-* class a component names has a rule", () => {
     // Components name classes in className=…; the primitives in ui/ build them from string maps, so every loki-* string there counts.
-    const named = new Set(code.flatMap((f) => [...f.text.matchAll(f.path.startsWith("ui/") ? /"(loki-[a-z0-9-]+)"/g : /className=(?:"[^"]*"|\{[^}]*\})/g)].flatMap((m) => [...m[0].matchAll(/loki-[a-z0-9-]+/g)].map((c) => c[0]))));
+    const named = new Set(
+      code.flatMap((f) =>
+        [...f.text.matchAll(f.path.startsWith("ui/") ? /"(loki-[a-z0-9-]+)"/g : /className=(?:"[^"]*"|\{[^}]*\})/g)].flatMap((m) =>
+          [...m[0].matchAll(/loki-[a-z0-9-]+/g)].map((c) => c[0]),
+        ),
+      ),
+    );
     const ruled = new Set(files.flatMap((f) => [...f.text.matchAll(/\.(loki-[a-z0-9-]+)/g)].map((m) => m[1])));
     expect([...named].filter((c) => !ruled.has(c))).toEqual([]);
   });
@@ -224,20 +258,24 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   });
   test("focus flashes: a 2px accent ring that fades in a second, to a muted ring on controls and to nothing on text fields", () => {
     // the flash is the ring's colour animating from the accent; what it settles to is the rule's own outline
-    expect(tokens).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
-    const control = tokens.match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(flat(tokens)).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
+    const control = flat(tokens).match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(control).toMatch(/outline: 2px solid var\(--loki-muted\)/);
     expect(control).toMatch(/animation: loki-focus-flash 1s ease-out/);
-    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
   });
   test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
-    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(field).toMatch(/animation: none/);
-    const phone = readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8");
-    const chat = readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8");
-    for (const [css, sel] of [[phone, ".loki-phone :is(input, textarea):focus-visible"], [phone, ".loki-phone-search-field:focus-within"], [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"]] as const) {
+    const phone = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8"));
+    const chat = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8"));
+    for (const [css, sel] of [
+      [phone, ".loki-phone :is(input, textarea):focus-visible"],
+      [phone, ".loki-phone-search-field:focus-within"],
+      [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"],
+    ] as const) {
       const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
       expect(rule, sel).toMatch(/animation: none/);
     }
@@ -253,7 +291,9 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
 });
 
 describe("design tokens: every family remains readable on both sides", () => {
-  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
+    .map((m) => m[1])
+    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles beside the accent: the red unread / needs-you badge and the green affirmative fill, each with its ink. */
   const ROLES = ["attention", "on-attention", "affirm", "on-affirm"];
   for (const palette of PALETTES) {
@@ -279,7 +319,9 @@ describe("design tokens: every family remains readable on both sides", () => {
       test(`${palette} ${theme}: text and semantic colors meet AA on working surfaces`, () => {
         const surfaces = ["bg", "panel", "panel-header", "well"];
         const inks = ["fg", "muted", "accent", "positive", "negative"];
-        const failures = inks.flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(ink), color(surface)) }))).filter(({ ratio }) => ratio < 4.5);
+        const failures = inks
+          .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(ink), color(surface)) })))
+          .filter(({ ratio }) => ratio < 4.5);
         expect(failures).toEqual([]);
       });
 
@@ -311,12 +353,16 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     return phone.slice(start, phone.indexOf("\n}", start + 1));
   };
   const raw = (theme: Theme, name: string) => {
-    const hit = phoneBlock(theme).match(new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`))?.[2].trim();
+    const hit = phoneBlock(theme)
+      .match(new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`))?.[2]
+      .trim();
     if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
     return hit;
   };
   const color = (theme: Theme, name: string) => parseColor(raw(theme, name));
-  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
+    .map((m) => m[1])
+    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
   const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
 
@@ -338,9 +384,12 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     test(`${theme}: text, links and states meet AA on every working surface`, () => {
       const surfaces = ["bg", "panel", "panel-header", "well"];
       const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
-      const failures = inks.flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) }))).filter(({ ratio }) => ratio < 4.5);
+      const failures = inks
+        .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
+        .filter(({ ratio }) => ratio < 4.5);
       expect(failures).toEqual([]);
-      for (const surface of ["bubble", "user-bubble", "hover", "selection"]) expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
+      for (const surface of ["bubble", "user-bubble", "hover", "selection"])
+        expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
@@ -350,7 +399,6 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
       for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
       for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
     });
-
   }
 
   test("the display and label faces are the sans stack for both sides — no serif, condensed or mono presentation", () => {
@@ -373,7 +421,8 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   });
 
   test("presentation classes drop mono and condensed caps inside the phone; mono stays for code", () => {
-    for (const cls of ["loki-label", "loki-meta", "loki-chip", "loki-banner", "loki-title"]) expect(phone).toMatch(new RegExp(`\\.loki-phone \\.${cls}\\b[^{]*\\{[^}]*font-family: var\\(--loki-font\\)`));
+    for (const cls of ["loki-label", "loki-meta", "loki-chip", "loki-banner", "loki-title"])
+      expect(phone).toMatch(new RegExp(`\\.loki-phone \\.${cls}\\b[^{]*\\{[^}]*font-family: var\\(--loki-font\\)`));
     expect(phone).toMatch(/\.loki-phone \.loki-label\b[^{]*\{[^}]*text-transform: none/);
     const monoRules = [...phone.matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => m[1].trim());
     expect(monoRules.filter((sel) => !/\b(code|pre|kbd)\b/.test(sel))).toEqual([]);
@@ -400,7 +449,10 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   test("the page pinning, shell height, focus and motion rules exist, and none of them reach the desktop", () => {
     // the document never scrolls on the phone, but only while a phone shell is on the page
     expect(phone).toMatch(/html:has\(\.loki-phone-shell\)/);
-    const bare = [...phone.matchAll(/(?:^|\n|\})\s*([^{}@/]+?)\s*\{/g)].map((m) => m[1].trim()).flatMap((sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim())).filter((s) => s && !s.startsWith("from") && !s.startsWith("to") && !/^\d+%$/.test(s));
+    const bare = [...phone.matchAll(/(?:^|\n|\})\s*([^{}@/]+?)\s*\{/g)]
+      .map((m) => m[1].trim())
+      .flatMap((sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim()))
+      .filter((s) => s && !s.startsWith("from") && !s.startsWith("to") && !/^\d+%$/.test(s));
     expect(bare.filter((s) => !s.includes(".loki-phone") && !s.startsWith("@"))).toEqual([]);
     expect(phone).toContain("100svh");
     expect(phone).toContain("100dvh");
@@ -408,7 +460,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     // the phone flashes in its own link colour, through the same keyframes
     expect(phone).toMatch(/--loki-focus-flash: var\(--phone-focus\)/);
     // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring and no flash
-    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
+    expect(flat(phone)).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
     // an animation beats a plain declaration, so every ring turned off must stop the flash too
     const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
     expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
@@ -430,7 +482,16 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
     const out: string[] = [];
     const visit = (n: ts.Node, inTable: boolean) => {
       const table = inTable || (path === TABLE.file && ts.isVariableDeclaration(n) && n.name.getText(src) === TABLE.name);
-      if (!table && (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && MAC_KEYS.test(n.text)) {
+      if (
+        !table &&
+        (ts.isStringLiteral(n) ||
+          ts.isNoSubstitutionTemplateLiteral(n) ||
+          ts.isTemplateHead(n) ||
+          ts.isTemplateMiddle(n) ||
+          ts.isTemplateTail(n) ||
+          ts.isJsxText(n)) &&
+        MAC_KEYS.test(n.text)
+      ) {
         out.push(`${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text.trim()}`);
       }
       ts.forEachChild(n, (c) => visit(c, table));
@@ -439,7 +500,14 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
     return out;
   };
   test("the scan sees strings, templates and JSX text, and skips comments and the table", () => {
-    const sample = ['// ⌘K in a comment', '/** ⌘K */', 'const MAC_SYMBOL = { cmd: "⌘" };', 'const a = "⌘K";', "const b = `x ${a} ⌥`;", "const c = <b title=\"⇧\">↵ send</b>;"].join("\n");
+    const sample = [
+      "// ⌘K in a comment",
+      "/** ⌘K */",
+      'const MAC_SYMBOL = { cmd: "⌘" };',
+      'const a = "⌘K";',
+      "const b = `x ${a} ⌥`;",
+      'const c = <b title="⇧">↵ send</b>;',
+    ].join("\n");
     expect(strings("x.tsx", sample).map((s) => s.split(": ")[1])).toEqual(["⌘", "⌘K", "⌥", "⇧", "↵ send"]);
     expect(strings(TABLE.file, 'const MAC_SYMBOL = { cmd: "⌘" };')).toEqual([]);
   });

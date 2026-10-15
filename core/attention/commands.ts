@@ -33,7 +33,6 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "chats", description: "search chats, agents and pages", where: "loki", action: "search.open", withKey: true },
 ];
 
-
 /** Every command the box offers: loki's, the harness's, then whatever else the harness advertised. */
 /** loki's commands and the harness's; `only`, when the backend names exactly what it runs (loki's daemon), keeps those. */
 export function allCommands(advertised: SlashCommand[] = [], only?: string[]): SlashCommand[] {

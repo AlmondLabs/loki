@@ -15,21 +15,56 @@ export type Adding = null | "write" | "install";
  * them; the picked skill's SKILL.md on the right, with refresh and remove. Global skills are not an
  * agent's and live in Settings › skills.
  */
-export function SkillsPage({ d, store, viewSkill, onPickSkill, adding, setAdding, reading }: { d: AgentDetails; store: AgentStore; viewSkill: MemorySkillInfo | null; onPickSkill: (name: string) => void; adding: Adding; setAdding: (v: Adding) => void; reading: ReadingState }) {
+export function SkillsPage({
+  d,
+  store,
+  viewSkill,
+  onPickSkill,
+  adding,
+  setAdding,
+  reading,
+}: {
+  d: AgentDetails;
+  store: AgentStore;
+  viewSkill: MemorySkillInfo | null;
+  onPickSkill: (name: string) => void;
+  adding: Adding;
+  setAdding: (v: Adding) => void;
+  reading: ReadingState;
+}) {
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
       <ListPane>
         <Head>
           Skills
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-            <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>write</Chip>
-            <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>install</Chip>
+            <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>
+              write
+            </Chip>
+            <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>
+              install
+            </Chip>
           </span>
         </Head>
-        {adding && <SkillAdd key={adding} mode={adding} onWrite={store.addSkill} onInstall={store.installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
-        {d.skills.length === 0 && !adding && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>none in memory</div>}
+        {adding && (
+          <SkillAdd
+            key={adding}
+            mode={adding}
+            onWrite={store.addSkill}
+            onInstall={store.installSkill}
+            onClose={() => setAdding(null)}
+            agentName={d.agent.name}
+          />
+        )}
+        {d.skills.length === 0 && !adding && (
+          <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
+            none in memory
+          </div>
+        )}
         <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
-        <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
+        <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>
+          Skills every agent reads are in Settings › skills.
+        </div>
       </ListPane>
       <Pane>
         <SkillView d={d} store={store} skill={viewSkill} reading={reading} />
@@ -47,14 +82,35 @@ function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown
         if (list.length === 0) return null;
         return (
           <div key={origin} style={{ minWidth: 0 }}>
-            <div className="loki-label" style={{ padding: "2px 8px" }}>{sentence(origin)} · {list.length}</div>
+            <div className="loki-label" style={{ padding: "2px 8px" }}>
+              {sentence(origin)} · {list.length}
+            </div>
             {list.map((x) => {
               const on = shown?.name === x.name;
               return (
-                <Row dense key={x.name} selected={on} onClick={() => onPick(x.name)} title={x.description ?? x.name} style={{ justifyContent: "space-between", gap: 8, fontSize: 13.5 }}>
+                <Row
+                  dense
+                  key={x.name}
+                  selected={on}
+                  onClick={() => onPick(x.name)}
+                  title={x.description ?? x.name}
+                  style={{ justifyContent: "space-between", gap: 8, fontSize: 13.5 }}
+                >
                   <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.name}</span>
                   {origin === "other" && (
-                    <span style={{ fontSize: 10.5, color: x.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 1 auto", minWidth: 0, maxWidth: "50%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x.source ? `from ${x.source.label}` : "source unknown"}>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        color: x.source ? "var(--loki-muted)" : "var(--loki-accent)",
+                        flex: "0 1 auto",
+                        minWidth: 0,
+                        maxWidth: "50%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={x.source ? `from ${x.source.label}` : "source unknown"}
+                    >
                       {x.source ? x.source.label : "source?"}
                     </span>
                   )}
@@ -78,7 +134,9 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
       <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
         <SkillOrigin skill={skill} agentName={d.agent.name} />
         {skill.description && <div style={{ fontSize: 13.5, color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{skill.description}</div>}
-        {store.needsSource === skill.name && <SourceAsk name={skill.name} onGo={(src) => store.refreshSkill(skill, src)} onCancel={() => store.setNeedsSource(null)} />}
+        {store.needsSource === skill.name && (
+          <SourceAsk name={skill.name} onGo={(src) => store.refreshSkill(skill, src)} onCancel={() => store.setNeedsSource(null)} />
+        )}
       </div>
       <Prose content={content} loadingView={loadingView} empty="nothing to show here" />
     </>
@@ -94,7 +152,16 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
       {loadingView && <span>Loading…</span>}
       <span style={{ flex: 1 }} />
       {skill.origin === "other" && (
-        <Button tone="brass" onClick={() => void refreshSkill(skill).then((err) => err && flash(err))} disabled={refreshing === skill.name} title={skill.source ? `pull the latest from ${skill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"}>
+        <Button
+          tone="brass"
+          onClick={() => void refreshSkill(skill).then((err) => err && flash(err))}
+          disabled={refreshing === skill.name}
+          title={
+            skill.source
+              ? `pull the latest from ${skill.source.label} and reconcile with ${d.agent.name}'s copy`
+              : "say where this skill came from, then pull the latest"
+          }
+        >
           {refreshing === skill.name ? "refreshing…" : "refresh"}
         </Button>
       )}
@@ -116,20 +183,50 @@ function SkillOrigin({ skill, agentName }: { skill: MemorySkillInfo; agentName: 
 }
 
 /** Add a skill to this agent: write one here, or install from a source the CLI knows. */
-function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "write" | "install"; onWrite: (name: string, markdown: string) => Promise<string | null>; onInstall: (source: string) => Promise<string | null>; onClose: () => void; agentName: string }) {
+function SkillAdd({
+  mode,
+  onWrite,
+  onInstall,
+  onClose,
+  agentName,
+}: {
+  mode: "write" | "install";
+  onWrite: (name: string, markdown: string) => Promise<string | null>;
+  onInstall: (source: string) => Promise<string | null>;
+  onClose: () => void;
+  agentName: string;
+}) {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   const go = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
     let err: string | null;
     try {
-      err = mode === "write" ? (slug && text.trim() ? await onWrite(slug, `---\nname: ${slug}\ndescription: ${text.trim().split("\n")[0].replace(/^#+\s*/, "").slice(0, 120)}\n---\n\n${text.trim()}\n`) : "a name and some text") : source.trim() ? await onInstall(source) : "a source";
+      err =
+        mode === "write"
+          ? slug && text.trim()
+            ? await onWrite(
+                slug,
+                `---\nname: ${slug}\ndescription: ${text
+                  .trim()
+                  .split("\n")[0]
+                  .replace(/^#+\s*/, "")
+                  .slice(0, 120)}\n---\n\n${text.trim()}\n`,
+              )
+            : "a name and some text"
+          : source.trim()
+            ? await onInstall(source)
+            : "a source";
     } finally {
       setBusy(false);
     }
@@ -137,15 +234,50 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
     onClose();
   };
   return (
-    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 6,
+        margin: "0 0 10px",
+        padding: "8px 10px",
+        border: "1px solid var(--loki-border)",
+        borderRadius: "var(--loki-radius-md)",
+      }}
+    >
       {mode === "write" ? (
         <>
-          <Field size="sm" mono autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" />
-          <TextArea size="sm" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={`# When to use\n\nWhat ${agentName} should do, step by step. The first line becomes the description.`} style={{ lineHeight: 1.5 }} />
+          <Field
+            size="sm"
+            mono
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="skill name (becomes skills/<name>/SKILL.md)"
+            autoComplete="off"
+            data-form-type="other"
+          />
+          <TextArea
+            size="sm"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={6}
+            placeholder={`# When to use\n\nWhat ${agentName} should do, step by step. The first line becomes the description.`}
+            style={{ lineHeight: 1.5 }}
+          />
         </>
       ) : (
         <>
-          <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · a GitHub or git URL · a folder" autoComplete="off" data-form-type="other" />
+          <Field
+            size="sm"
+            mono
+            autoFocus
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void go()}
+            placeholder="owner/repo/path · a GitHub or git URL · a folder"
+            autoComplete="off"
+            data-form-type="other"
+          />
           <span className="loki-meta loki-meta--wrap">copies it into {agentName}'s memory; can take a minute</span>
         </>
       )}
@@ -153,7 +285,9 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onClose}>cancel</Button>
-        <Button tone="positive" onClick={() => void go()} disabled={busy}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</Button>
+        <Button tone="positive" onClick={() => void go()} disabled={busy}>
+          {busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}
+        </Button>
       </div>
     </div>
   );
@@ -177,13 +311,27 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
   };
   return (
     <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
-      <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
-      <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" />
+      <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
+        Nobody wrote down where {name} came from. Say once; it is remembered.
+      </span>
+      <Field
+        size="sm"
+        mono
+        autoFocus
+        value={source}
+        onChange={(e) => setSource(e.target.value)}
+        onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)}
+        placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder"
+        autoComplete="off"
+        data-form-type="other"
+      />
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onCancel}>cancel</Button>
-        <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>{busy ? "refreshing…" : "refresh"}</Button>
+        <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>
+          {busy ? "refreshing…" : "refresh"}
+        </Button>
       </div>
     </div>
   );

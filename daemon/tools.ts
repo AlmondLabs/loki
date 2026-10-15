@@ -53,7 +53,14 @@ async function walk(dir: string, limit: number, out: string[] = []): Promise<str
 export function globTest(glob: string): (rel: string) => boolean {
   const source = glob
     .split("/")
-    .map((part) => (part === "**" ? "(?:.*/)?" : part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]") + "/"))
+    .map((part) =>
+      part === "**"
+        ? "(?:.*/)?"
+        : part
+            .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+            .replace(/\*/g, "[^/]*")
+            .replace(/\?/g, "[^/]") + "/",
+    )
     .join("")
     .replace(/\/$/, "")
     .replace(/\(\?:\.\*\/\)\?$/, ".*");
@@ -95,12 +102,31 @@ export function fileToolsExtension(): Extension {
       defineTool({
         name: "grep",
         description: "Search file contents with a regular expression, under a folder; optionally only files matching a glob.",
-        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" }, glob: { type: "string" } }, required: ["pattern"] } as never,
+        parameters: {
+          type: "object",
+          properties: { pattern: { type: "string" }, path: { type: "string" }, glob: { type: "string" } },
+          required: ["pattern"],
+        } as never,
         execute: async (args, api, context) => {
           const a = args as { pattern: string; path?: string; glob?: string };
           const root = at(await folderOf(api, context), a.path);
           try {
-            const { stdout } = await run("rg", ["--line-number", "--no-heading", "--color=never", "--max-count=50", "--glob", "!**/node_modules/**", ...(a.glob ? ["--glob", a.glob] : []), "--", a.pattern, root], { maxBuffer: 8 * 1024 * 1024 });
+            const { stdout } = await run(
+              "rg",
+              [
+                "--line-number",
+                "--no-heading",
+                "--color=never",
+                "--max-count=50",
+                "--glob",
+                "!**/node_modules/**",
+                ...(a.glob ? ["--glob", a.glob] : []),
+                "--",
+                a.pattern,
+                root,
+              ],
+              { maxBuffer: 8 * 1024 * 1024 },
+            );
             const lines = stdout.split("\n").filter(Boolean);
             return text(lines.slice(0, LIMIT).join("\n") + (lines.length > LIMIT ? `\n… and ${lines.length - LIMIT} more` : ""));
           } catch (error) {

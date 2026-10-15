@@ -37,7 +37,6 @@ describe("desk registry", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-
 });
 
 describe("desk registry fallback", () => {
@@ -66,9 +65,21 @@ describe("DeskRegistry: one scope per conversation", () => {
     const { DeskRegistry } = await import("../mod/desks.ts");
     const dir = mkdtempSync(j(tmpdir(), "loki-registry-"));
     const file = j(dir, "desks.json");
-    w(file, JSON.stringify({ default: { agent_id: "agent-1", conversation_id: "default" }, "default-agent-1": { agent_id: "agent-1", conversation_id: "default" }, "local-conv-9": { agent_id: "agent-1", conversation_id: "local-conv-9" } }));
+    w(
+      file,
+      JSON.stringify({
+        default: { agent_id: "agent-1", conversation_id: "default" },
+        "default-agent-1": { agent_id: "agent-1", conversation_id: "default" },
+        "local-conv-9": { agent_id: "agent-1", conversation_id: "local-conv-9" },
+      }),
+    );
     const reg = new DeskRegistry(file, () => null);
-    expect(reg.all().map((d) => d.scope).sort()).toEqual(["default-agent-1", "local-conv-9"]);
+    expect(
+      reg
+        .all()
+        .map((d) => d.scope)
+        .sort(),
+    ).toEqual(["default-agent-1", "local-conv-9"]);
     expect(Object.keys(JSON.parse(r(file, "utf8"))).sort()).toEqual(["default-agent-1", "local-conv-9"]);
     rmSync(dir, { recursive: true, force: true });
   });

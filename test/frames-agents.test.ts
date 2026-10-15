@@ -5,7 +5,17 @@ import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
 describe("agent and phone-listener frames", () => {
   test("an agent page whose memory tree cannot be read answers error, not silence", async () => {
-    const agents = { get: () => ({ id: "agent-1", name: "ira" }), tree: () => { throw new Error("memory is not a git repo"); }, skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "" } as unknown as NonNullable<AgentsDeps["agents"]>;
+    const agents = {
+      get: () => ({ id: "agent-1", name: "ira" }),
+      tree: () => {
+        throw new Error("memory is not a git repo");
+      },
+      skills: () => [],
+      hasProfile: () => false,
+      read: () => null,
+      log: async () => [],
+      diff: async () => "",
+    } as unknown as NonNullable<AgentsDeps["agents"]>;
     const { bridge } = bridgeWith({ agents });
     const c = client("d1");
     bridge.onMessage(c, { type: "agent_get", requestId: "r1", agentId: "agent-1" });
@@ -14,7 +24,11 @@ describe("agent and phone-listener frames", () => {
   });
 
   test("a listener refresh that fails answers an error push", async () => {
-    const lan = { refresh: async () => { throw new Error("tailscale hung"); } } as unknown as NonNullable<LanDeps["lan"]>;
+    const lan = {
+      refresh: async () => {
+        throw new Error("tailscale hung");
+      },
+    } as unknown as NonNullable<LanDeps["lan"]>;
     const { bridge } = bridgeWith({ lan });
     const c = client("d1");
     bridge.onMessage(c, { type: "lan_get" });

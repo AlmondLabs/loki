@@ -121,10 +121,21 @@ describe("mod registry", () => {
     const reports: string[] = [];
     const mods = new ModRegistry((m) => reports.push(m));
     await mods.load({ name: "good", apiVersion: 1, activate: (api) => void api.tools.register(echoTool([])) });
-    const result = await mods.load({ name: "bad", apiVersion: 1, activate: () => { throw new Error("boom"); } });
+    const result = await mods.load({
+      name: "bad",
+      apiVersion: 1,
+      activate: () => {
+        throw new Error("boom");
+      },
+    });
     expect(result).toEqual({ refused: expect.stringContaining("boom") });
     expect(mods.names()).toEqual(["good"]);
-    expect(mods.registry.snapshot().tools().map((t) => t.tool.name)).toEqual(["echo"]);
+    expect(
+      mods.registry
+        .snapshot()
+        .tools()
+        .map((t) => t.tool.name),
+    ).toEqual(["echo"]);
   });
 
   test("one load reaches the chats of two agents' stores", async () => {

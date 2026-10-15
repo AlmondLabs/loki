@@ -27,7 +27,11 @@ export type Prefill = { key: string; text: string; tick: number };
  * conversation, its address tidied, keeps it; anywhere else drops it, so no other conversation — nor this
  * one opened again later — gets it written over its draft.
  */
-export function nextPrefill(held: Prefill | null, conv: { agentId: string; conversationId: string; prefill: string | null } | null, tick: number): Prefill | null {
+export function nextPrefill(
+  held: Prefill | null,
+  conv: { agentId: string; conversationId: string; prefill: string | null } | null,
+  tick: number,
+): Prefill | null {
   if (!conv) return null;
   const key = draftKey(conv.agentId, conv.conversationId);
   if (conv.prefill) return { key, text: conv.prefill, tick };
@@ -73,11 +77,14 @@ export function useScrollMemory(ref: RefObject<HTMLElement | null>, key: string 
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     let shown = el.clientHeight > 0;
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-      const now = el.clientHeight > 0;
-      if (now && !shown) restore();
-      shown = now;
-    });
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            const now = el.clientHeight > 0;
+            if (now && !shown) restore();
+            shown = now;
+          });
     ro?.observe(el);
     return () => {
       el.removeEventListener("scroll", onScroll);

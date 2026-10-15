@@ -1,5 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canMove, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
+import {
+  DESK_NAME_MAX,
+  SIDEBAR_KEY,
+  canArchive,
+  canMove,
+  canPin,
+  canRename,
+  cleanDeskName,
+  deskRowState,
+  doneAction,
+  loadSidebar,
+  offscreenWaits,
+  parseSidebar,
+  saveSidebar,
+  sidebarModel,
+  toggleFold,
+} from "../app/src/shell/sidebarModel.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
@@ -11,8 +27,23 @@ import type { DeskSummary } from "../core/frame-types.ts";
  */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
-  ({ scope: scope as DeskSummary["scope"], title: scope, status: "live", agentName: "friday", agentId: "a1", conversationId: scope, model: null, reasoningEffort: null, pinned: false, widgets: 0, active: false, lastActive: "2026-09-08T10:00:00Z", ...over }) as DeskSummary;
-const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem => ({ id, agentId, status, unread: false, ...over }) as unknown as AttentionItem;
+  ({
+    scope: scope as DeskSummary["scope"],
+    title: scope,
+    status: "live",
+    agentName: "friday",
+    agentId: "a1",
+    conversationId: scope,
+    model: null,
+    reasoningEffort: null,
+    pinned: false,
+    widgets: 0,
+    active: false,
+    lastActive: "2026-09-08T10:00:00Z",
+    ...over,
+  }) as DeskSummary;
+const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem =>
+  ({ id, agentId, status, unread: false, ...over }) as unknown as AttentionItem;
 
 const desks = [
   desk("default-a1", { conversationId: "default", title: "friday", lastActive: "2026-09-01T09:00:00Z" }),
@@ -90,17 +121,34 @@ describe("marks (scenario 3)", () => {
     expect(deskRowState(item("a1", "jira", "question"), desk("jira")).badgeNoun).toBe("asked you");
   });
   test("finished unread: bold, no badge", () => {
-    expect(deskRowState(item("a1", "jira", "done", { unread: true }), desk("jira"))).toMatchObject({ kind: "finished", badge: null, unread: true, live: false });
+    expect(deskRowState(item("a1", "jira", "done", { unread: true }), desk("jira"))).toMatchObject({
+      kind: "finished",
+      badge: null,
+      unread: true,
+      live: false,
+    });
   });
   test("finished, looked at since the last message: not bold, the ring stays, the words say viewed", () => {
-    const fresh = deskRowState(item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }), desk("jira"));
+    const fresh = deskRowState(
+      item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }),
+      desk("jira"),
+    );
     expect(fresh).toMatchObject({ kind: "finished", unread: true, note: "new messages" });
-    const looked = deskRowState(item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira"));
+    const looked = deskRowState(
+      item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }),
+      desk("jira"),
+    );
     expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false, note: "viewed, not done" });
     // waiting stays bold with its badge whatever the look: it needs you to act
-    expect(deskRowState(item("a1", "jira", "approval", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira"))).toMatchObject({ kind: "waits", badge: 1, unread: true });
+    expect(
+      deskRowState(item("a1", "jira", "approval", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
+    ).toMatchObject({ kind: "waits", badge: 1, unread: true });
     // done: neither
-    expect(deskRowState(item("a1", "jira", "idle", { unread: false, lastMessageAt: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({ kind: "none", unread: false, note: undefined });
+    expect(deskRowState(item("a1", "jira", "idle", { unread: false, lastMessageAt: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({
+      kind: "none",
+      unread: false,
+      note: undefined,
+    });
   });
   test("doneAction: Mark as done while unread, Mark as not done once done with a reply, nothing for approvals or your own last word", () => {
     expect(doneAction(item("a1", "jira", "done", { unread: true }))).toBe("done");
@@ -180,14 +228,47 @@ describe("rename rules", () => {
 describe("the needs-you pills (scenario 5, AE4)", () => {
   const view = { top: 100, bottom: 400 };
   test("a waiting desk below the fold: the bottom pill, aimed at the nearest one below", () => {
-    expect(offscreenWaits([{ id: "a", top: 150, bottom: 180 }, { id: "b", top: 600, bottom: 630 }, { id: "c", top: 450, bottom: 480 }], view)).toEqual({ up: null, down: "c" });
+    expect(
+      offscreenWaits(
+        [
+          { id: "a", top: 150, bottom: 180 },
+          { id: "b", top: 600, bottom: 630 },
+          { id: "c", top: 450, bottom: 480 },
+        ],
+        view,
+      ),
+    ).toEqual({ up: null, down: "c" });
   });
   test("above the fold: the top pill, aimed at the nearest one above", () => {
-    expect(offscreenWaits([{ id: "a", top: 10, bottom: 40 }, { id: "b", top: 50, bottom: 80 }], view)).toEqual({ up: "b", down: null });
+    expect(
+      offscreenWaits(
+        [
+          { id: "a", top: 10, bottom: 40 },
+          { id: "b", top: 50, bottom: 80 },
+        ],
+        view,
+      ),
+    ).toEqual({ up: "b", down: null });
   });
   test("in view or partly in view: no pill; both sides at once: both pills", () => {
-    expect(offscreenWaits([{ id: "a", top: 390, bottom: 420 }, { id: "b", top: 80, bottom: 110 }], view)).toEqual({ up: null, down: null });
-    expect(offscreenWaits([{ id: "a", top: 0, bottom: 30 }, { id: "b", top: 500, bottom: 530 }], view)).toEqual({ up: "a", down: "b" });
+    expect(
+      offscreenWaits(
+        [
+          { id: "a", top: 390, bottom: 420 },
+          { id: "b", top: 80, bottom: 110 },
+        ],
+        view,
+      ),
+    ).toEqual({ up: null, down: null });
+    expect(
+      offscreenWaits(
+        [
+          { id: "a", top: 0, bottom: 30 },
+          { id: "b", top: 500, bottom: 530 },
+        ],
+        view,
+      ),
+    ).toEqual({ up: "a", down: "b" });
     expect(offscreenWaits([], view)).toEqual({ up: null, down: null });
   });
 });
@@ -208,7 +289,11 @@ describe("what survives a reload (scenario 6)", () => {
     const fresh = { collapsed: [], archivedOpen: false, scroll: 0 };
     expect(parseSidebar(null)).toEqual(fresh);
     expect(parseSidebar("{not json")).toEqual(fresh);
-    expect(parseSidebar(JSON.stringify({ collapsed: [1, "pinned"], archivedOpen: "yes", scroll: -5 }))).toEqual({ collapsed: ["pinned"], archivedOpen: false, scroll: 0 });
+    expect(parseSidebar(JSON.stringify({ collapsed: [1, "pinned"], archivedOpen: "yes", scroll: -5 }))).toEqual({
+      collapsed: ["pinned"],
+      archivedOpen: false,
+      scroll: 0,
+    });
   });
   test("a blocked store costs only the preference", () => {
     const blocked = {
@@ -236,7 +321,21 @@ describe("the sidebar, rendered", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { DeskSidebar } = await import("../app/src/shell/DeskSidebar.tsx");
     const noop = () => {};
-    const html = renderToStaticMarkup(createElement(DeskSidebar, { desks, agents: [], items: [item("a1", "jira", "approval")], current: "aws", connected: false, onOpen: noop, onNew: noop, onPin: noop, onArchive: noop, onRename: async () => null, avatar: () => null }));
+    const html = renderToStaticMarkup(
+      createElement(DeskSidebar, {
+        desks,
+        agents: [],
+        items: [item("a1", "jira", "approval")],
+        current: "aws",
+        connected: false,
+        onOpen: noop,
+        onNew: noop,
+        onPin: noop,
+        onArchive: noop,
+        onRename: async () => null,
+        avatar: () => null,
+      }),
+    );
     expect(html).toContain('aria-label="New chat"');
     expect(html).toContain('placeholder="Find a chat…"');
     expect(html.indexOf(">Pinned<")).toBeLessThan(html.indexOf(">ira<"));

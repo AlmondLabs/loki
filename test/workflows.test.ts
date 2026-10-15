@@ -7,7 +7,11 @@ import { parse as parseYaml } from "yaml";
 
 type Step = { id?: string; uses?: string; run?: string; with?: Record<string, unknown> };
 type Job = { "runs-on": string; strategy?: { matrix?: { os?: string[] } }; steps: Step[] };
-type Workflow = { on: Record<string, { paths?: string[]; "paths-ignore"?: string[] } | null>; concurrency?: { group: string; "cancel-in-progress": boolean }; jobs: Record<string, Job> };
+type Workflow = {
+  on: Record<string, { paths?: string[]; "paths-ignore"?: string[] } | null>;
+  concurrency?: { group: string; "cancel-in-progress": boolean };
+  jobs: Record<string, Job>;
+};
 const workflow = (name: string) => parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", `${name}.yml`), "utf8")) as Workflow;
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 
@@ -27,7 +31,8 @@ describe("ci: a PR's checks", () => {
 
   test("types, lint, the Node runner's tests and both bundles once, on Linux; the suite on all three systems", () => {
     const checks = runs(ci.jobs.checks);
-    for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod", "npm run smoke"]) expect(checks).toContain(c);
+    for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod", "npm run smoke"])
+      expect(checks).toContain(c);
     expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-14", "windows-latest"]);
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
@@ -80,7 +85,10 @@ describe("supply chain", () => {
   test("release grants nothing by default; only the jobs that publish or open PRs can write", () => {
     const rel = workflow("release") as Workflow & { permissions?: unknown; jobs: Record<string, Job & { permissions?: Record<string, string> }> };
     expect(rel.permissions).toEqual({});
-    const writers = Object.entries(rel.jobs).filter(([, j]) => Object.values(j.permissions ?? {}).includes("write")).map(([k]) => k).sort();
+    const writers = Object.entries(rel.jobs)
+      .filter(([, j]) => Object.values(j.permissions ?? {}).includes("write"))
+      .map(([k]) => k)
+      .sort();
     expect(writers).toEqual(["attach", "build", "preview-pr-after-stable", "release-prs"]);
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });

@@ -9,12 +9,23 @@ describe("the frame router", () => {
     const { bridge } = bridgeWith({ modules: [skills] });
     const c = client("d1");
     bridge.onMessage(c, { type: "skills_global", requestId: "r1" });
-    expect(c.sent.at(-1)).toEqual({ type: "skills_global", requestId: "r1", skills: [{ name: "unslop", path: "/skills/unslop", isLink: false, description: null }] });
+    expect(c.sent.at(-1)).toEqual({
+      type: "skills_global",
+      requestId: "r1",
+      skills: [{ name: "unslop", path: "/skills/unslop", isLink: false, description: null }],
+    });
   });
 
   test("every way a request can fail answers error with its requestId: refused, malformed, failed, thrown, rejected", async () => {
     const agents: FrameHandlers = {
-      memory_read: ({ agentId, path }) => (path === "gone.md" ? fail("no such file") : path === "boom.md" ? (() => { throw new Error("disk on fire"); })() : reply({ agentId, path, content: "x" })),
+      memory_read: ({ agentId, path }) =>
+        path === "gone.md"
+          ? fail("no such file")
+          : path === "boom.md"
+            ? (() => {
+                throw new Error("disk on fire");
+              })()
+            : reply({ agentId, path, content: "x" }),
       skill_install: async () => {
         throw new Error("the installer crashed");
       },
@@ -36,7 +47,11 @@ describe("the frame router", () => {
   });
 
   test("a send that is malformed, or whose handler fails, answers an error push without a requestId", () => {
-    const lan: FrameHandlers = { lan_via_set: () => { throw new Error("the listener is closing"); } };
+    const lan: FrameHandlers = {
+      lan_via_set: () => {
+        throw new Error("the listener is closing");
+      },
+    };
     const { bridge } = bridgeWith({ modules: [lan] });
     const c = client("d1");
     bridge.onMessage(c, { type: "lan_via_set", via: "bluetooth" });

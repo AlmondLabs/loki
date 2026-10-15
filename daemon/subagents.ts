@@ -16,7 +16,11 @@ export function subagentExtension(): Extension {
         name: "Agent",
         description:
           "Hand a self-contained task to a helper agent and get its final answer back. Give it everything it needs in the prompt: it does not see this conversation.",
-        parameters: { type: "object", properties: { description: { type: "string", description: "A few words naming the task" }, prompt: { type: "string" } }, required: ["prompt"] } as never,
+        parameters: {
+          type: "object",
+          properties: { description: { type: "string", description: "A few words naming the task" }, prompt: { type: "string" } },
+          required: ["prompt"],
+        } as never,
         replay: "safe",
         execute: async (args, api, context) => {
           const { prompt } = args as { prompt: string };
@@ -40,7 +44,11 @@ export function subagentExtension(): Extension {
             for (const entry of (await tx.scanEntries({ conversationId: child }, 50)).items) {
               const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
               if (entry.kind === "pi.assistant" && m?.role === "assistant") {
-                const text = (m.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join("").trim();
+                const text = (m.content ?? [])
+                  .filter((p) => p.type === "text")
+                  .map((p) => p.text)
+                  .join("")
+                  .trim();
                 if (text) return text;
               }
             }

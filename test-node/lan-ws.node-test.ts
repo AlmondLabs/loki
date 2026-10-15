@@ -45,7 +45,11 @@ test("an upgrade from a page on another site is refused, even with the phone's c
   try {
     await lan.setEnabled(true);
     const base = `127.0.0.1:${lan.status().port}`;
-    const res = await fetch(`http://${base}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: codes.mint().code, name: "phone" }) });
+    const res = await fetch(`http://${base}/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: codes.mint().code, name: "phone" }),
+    });
     assert.equal(res.status, 200);
     const cookie = /loki_device=[a-f0-9]+/.exec(res.headers.get("set-cookie") ?? "")?.[0] ?? "";
     assert.ok(cookie);

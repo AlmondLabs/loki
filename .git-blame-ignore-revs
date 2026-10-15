@@ -1,0 +1,5 @@
+# Commits that only reformat, which `git blame` skips (GitHub reads this file on its own; locally run
+# `git config blame.ignoreRevsFile .git-blame-ignore-revs` once). docs/STYLE.md §1.
+
+# style: format the tree with prettier
+dff3a1b14be228480b66634e9f7b574d02f32bef

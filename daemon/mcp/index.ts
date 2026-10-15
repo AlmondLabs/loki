@@ -1,5 +1,14 @@
 import type { Context } from "@earendil-works/chord";
-import { configure, defineExtension, defineTool, section, type Conversation, type Extension, type Registry, type ToolRegistration } from "@earendil-works/pi-durable";
+import {
+  configure,
+  defineExtension,
+  defineTool,
+  section,
+  type Conversation,
+  type Extension,
+  type Registry,
+  type ToolRegistration,
+} from "@earendil-works/pi-durable";
 import { existsSync, mkdirSync, readFileSync, unwatchFile, watchFile, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { McpServerView, McpView } from "../../core/frame-types.ts";
@@ -30,7 +39,11 @@ export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
 /** Where `${keychain:…}` secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend), under mcp.<name>. */
-export type Secrets = { get(account: string): Promise<string | null>; set(account: string, value: string): Promise<void>; delete?(account: string): Promise<void> };
+export type Secrets = {
+  get(account: string): Promise<string | null>;
+  set(account: string, value: string): Promise<void>;
+  delete?(account: string): Promise<void>;
+};
 
 /** A remote server signs in with OAuth unless its headers carry its own Authorization. */
 export const usesOAuth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
@@ -61,7 +74,16 @@ export class McpTools {
   private readonly signedIn = new Set<string>();
   private readonly redirect: string;
 
-  constructor(opts: { registry: Registry; configPath: string; lokiDir: string; report?: (message: string) => void; servers?: McpServers; version?: string; secrets?: Secrets; redirect?: string }) {
+  constructor(opts: {
+    registry: Registry;
+    configPath: string;
+    lokiDir: string;
+    report?: (message: string) => void;
+    servers?: McpServers;
+    version?: string;
+    secrets?: Secrets;
+    redirect?: string;
+  }) {
     this.registry = opts.registry;
     this.configPath = opts.configPath;
     this.resultsDir = join(opts.lokiDir, "tool-results");
@@ -72,7 +94,14 @@ export class McpTools {
     this.oauthStore = new OAuthStore(this.secrets);
     this.redirect = opts.redirect ?? callbackUrl();
     const secrets = this.secrets;
-    this.servers = opts.servers ?? new McpServers({ report: this.report, ...(opts.version ? { version: opts.version } : {}), resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))), oauthFor: (c) => this.oauthFor(c) });
+    this.servers =
+      opts.servers ??
+      new McpServers({
+        report: this.report,
+        ...(opts.version ? { version: opts.version } : {}),
+        resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))),
+        oauthFor: (c) => this.oauthFor(c),
+      });
     // A server connecting, failing or changing its tools re-registers the extension (once per burst of changes).
     this.servers.onChange(() => {
       if (this.installTimer) return;
@@ -169,16 +198,30 @@ export class McpTools {
     return defineTool({
       name: SEARCH_TOOL,
       description:
-        "Load MCP tools before using them. Describe what you want to do (\"open pull requests on GitHub\") and the best matching tools are loaded, or name exact ones with \"select:server.tool\" (comma-separated). Loaded tools are available from your next step and stay for this chat.",
-      parameters: { type: "object", properties: { query: { type: "string", description: 'What you need, or "select:server.tool, …"' } }, required: ["query"] } as never,
+        'Load MCP tools before using them. Describe what you want to do ("open pull requests on GitHub") and the best matching tools are loaded, or name exact ones with "select:server.tool" (comma-separated). Loaded tools are available from your next step and stay for this chat.',
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: 'What you need, or "select:server.tool, …"' } },
+        required: ["query"],
+      } as never,
       execute: async (args, api, context) => {
         const query = String((args as { query?: unknown }).query ?? "");
         const all = this.toolsFor((await api.snapshot(AgentInfoDoc, context))?.id);
         const found = selected(query, all) ?? rank(query, all, SEARCH_LIMIT);
         this.capture("mcp_search", { hits: found.length, loaded: found.map((t) => t.key), select: query.trim().toLowerCase().startsWith("select:") });
         if (!found.length) {
-          const servers = this.servers.status().map((s) => `${s.name} (${s.state === "connected" ? `${s.tools} tools` : s.state})`).join(", ");
-          return { content: [{ type: "text", text: `No MCP tool matches "${query}". Servers: ${servers || "none"}. Try other words, or "select:server.tool" with a name from the mcp section.` }] };
+          const servers = this.servers
+            .status()
+            .map((s) => `${s.name} (${s.state === "connected" ? `${s.tools} tools` : s.state})`)
+            .join(", ");
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No MCP tool matches "${query}". Servers: ${servers || "none"}. Try other words, or "select:server.tool" with a name from the mcp section.`,
+              },
+            ],
+          };
         }
         const lines = found.map((t) => `- ${t.key}: ${summary(t)}`);
         return {
@@ -200,7 +243,14 @@ export class McpTools {
         try {
           const result = await this.servers.call(t.key, (args ?? {}) as Record<string, unknown>, context.abortSignal);
           const mapped = mapResult(result, { spillDir: join(this.resultsDir, chat.replace(/[^A-Za-z0-9_.-]+/g, "_")), name: t.key });
-          this.capture("mcp_call", { server: t.server, tool: t.name, ms: Date.now() - started, error: mapped.isError, spilled: mapped.spilled !== null, chars: mapped.chars });
+          this.capture("mcp_call", {
+            server: t.server,
+            tool: t.name,
+            ms: Date.now() - started,
+            error: mapped.isError,
+            spilled: mapped.spilled !== null,
+            chars: mapped.chars,
+          });
           return { content: mapped.content, isError: mapped.isError };
         } catch (error) {
           this.capture("mcp_call", { server: t.server, tool: t.name, ms: Date.now() - started, error: true, spilled: false, chars: 0 });
@@ -221,7 +271,12 @@ export class McpTools {
     const all = this.servers.tools().map((t) => t.key);
     // A switched-off server's tools are hidden whatever the chat loaded, and count as unknown, so switching it back
     // on does not bring back what the chat had: it searches again.
-    const usable = new Set(this.servers.tools().filter((t) => !off.has(t.server)).map((t) => t.key));
+    const usable = new Set(
+      this.servers
+        .tools()
+        .filter((t) => !off.has(t.server))
+        .map((t) => t.key),
+    );
     const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
     const removed = settings?.tools?.remove ?? [];
@@ -235,7 +290,12 @@ export class McpTools {
     const nowKnown = all.filter((k) => usable.has(k));
     const unchanged = sameSet(next, removed) && sameSet(nowKnown, [...known]);
     if (unchanged) return;
-    const registered = new Map(this.registry.snapshot().tools().map(({ tool }) => [tool.name, tool]));
+    const registered = new Map(
+      this.registry
+        .snapshot()
+        .tools()
+        .map(({ tool }) => [tool.name, tool]),
+    );
     await chat.commit(async (tx) => {
       await configure(tx, chat.id, { tools: { remove: next.map((n) => registered.get(n) ?? ({ name: n } as ToolRegistration)) } });
       const doc = await tx.doc(ChatDoc, chat.id);
@@ -251,7 +311,16 @@ export class McpTools {
     const tools = this.servers.tools();
     const servers: McpServerView[] = this.servers.configs().map((c) => {
       const s = status.get(c.name);
-      const mine = tools.filter((t) => t.server === c.name).map((t) => ({ name: t.name, description: t.description, readOnly: t.readOnly, destructive: t.destructive, alwaysLoad: c.alwaysLoad.includes(t.name), tokens: toolTokens(t) }));
+      const mine = tools
+        .filter((t) => t.server === c.name)
+        .map((t) => ({
+          name: t.name,
+          description: t.description,
+          readOnly: t.readOnly,
+          destructive: t.destructive,
+          alwaysLoad: c.alwaysLoad.includes(t.name),
+          tokens: toolTokens(t),
+        }));
       return {
         name: c.name,
         entry: c.entry,
@@ -263,7 +332,9 @@ export class McpTools {
         tokens: mine.reduce((n, t) => n + t.tokens, 0),
         config: c.kind === "local" ? { command: c.command, args: c.args, env: c.env, cwd: c.cwd } : { url: c.url, headers: c.headers },
         signIn: usesOAuth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signedIn: this.signedIn.has(c.name) } : null,
-        offFor: Object.entries(this.off).filter(([, servers]) => servers.includes(c.name)).map(([agent]) => agent),
+        offFor: Object.entries(this.off)
+          .filter(([, servers]) => servers.includes(c.name))
+          .map(([agent]) => agent),
       };
     });
     return { servers, problems: this.problems, configPath: this.configPath };
@@ -339,7 +410,8 @@ export class McpTools {
    */
   async finishAuth(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
     const server = params.state ? this.pendingStates.get(params.state) : undefined;
-    if (!server) return { ok: false, server: null, message: "This sign-in is not one loki started, or it was already used. Start it again from Settings › MCP." };
+    if (!server)
+      return { ok: false, server: null, message: "This sign-in is not one loki started, or it was already used. Start it again from Settings › MCP." };
     this.pendingStates.delete(params.state);
     const config = this.servers.configs().find((c) => c.name === server);
     // The page the browser shows names the server as you wrote it (its tool-safe name only when it is gone).
@@ -404,7 +476,8 @@ function readOff(path: string): Record<string, string[]> {
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as { off?: unknown };
     const out: Record<string, string[]> = {};
-    if (raw.off && typeof raw.off === "object") for (const [k, v] of Object.entries(raw.off)) if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
+    if (raw.off && typeof raw.off === "object")
+      for (const [k, v] of Object.entries(raw.off)) if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
     return out;
   } catch {
     return {};

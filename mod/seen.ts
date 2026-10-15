@@ -120,7 +120,18 @@ export class SeenStore {
   private write(): void {
     try {
       mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}), ...(Object.keys(this.focus).length ? { focus: this.focus } : {}) }, null, 2));
+      writeFileSync(
+        `${this.path}.tmp`,
+        JSON.stringify(
+          {
+            seen: this.seen,
+            ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}),
+            ...(Object.keys(this.focus).length ? { focus: this.focus } : {}),
+          },
+          null,
+          2,
+        ),
+      );
       renameSync(`${this.path}.tmp`, this.path);
     } catch {
       // best effort
