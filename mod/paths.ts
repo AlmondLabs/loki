@@ -37,6 +37,8 @@ export const paths = {
 } as const;
 
 export const DEFAULT_MOD_PORT = 41414;
+/** Where a browser comes back after signing in to a remote MCP server (daemon/mcp/oauth.ts), on the loopback server only. */
+export const MCP_OAUTH_CALLBACK = "/mcp/oauth/callback";
 /** The LAN listener for phones (mod/lan.ts): a second port, never the first. */
 export const DEFAULT_LAN_PORT = 41415;
 

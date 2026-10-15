@@ -76,7 +76,13 @@ Mac's MagicDNS name. The model changes in one place:
   the file then holds `${keychain:<name>}` and the value is read only when the server starts), or in
   `~/.loki/mcp.json` itself, as you write them. loki writes the file readable by you alone (mode 600).
 - **What reaches a server.** Only the arguments of the tool calls your agents make to it. A remote server is
-  reached only at the `url` you gave.
+  reached only at the `url` you gave, and, when it asks for a sign-in, the authorization server its own metadata names.
+- **OAuth sign-ins.** A remote server without an Authorization header of its own may ask for one (PKCE, as MCP's
+  authorization spec has it). loki registers itself as a client with the callback
+  `http://127.0.0.1:41414/mcp/oauth/callback`, a route on the loopback server only (never the LAN listener) that
+  takes no token, since a browser redirect carries none: it acts only on the one-time `state` of a sign-in loki
+  started, and a used or unknown state does nothing. Tokens, the registration and the PKCE verifier are kept in the
+  system keychain (`mcp-oauth.<server>.*`); sign out forgets the tokens.
 - **Permissions.** A tool runs without asking in standard mode only when its server marks it read-only, or when you
   answered "always allow" for it (kept in `~/.loki/state/approvals.json`, taken back in Settings › Chat); a server
   can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode,

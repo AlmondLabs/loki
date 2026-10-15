@@ -139,6 +139,15 @@ export class DaemonChats implements ChatBackend {
     return this.mcpTools.restart(name);
   }
 
+  async mcpSignOut(name: string): Promise<McpView> {
+    return this.mcpTools.signOut(name);
+  }
+
+  async mcpOAuthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
+    if (!this.deps.mcp) return { ok: false, server: null, message: "MCP is not running in this daemon." };
+    return this.deps.mcp.finishAuth(params);
+  }
+
   async mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<McpView> {
     return this.mcpTools.setAgentServer(p.agentId, p.server, p.on);
   }

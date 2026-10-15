@@ -41,6 +41,9 @@ export interface ChatBackend {
   mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<Replies["chat_mcp"]>;
   mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<Replies["chat_mcp"]>;
   mcpRestart(name: string): Promise<Replies["chat_mcp"]>;
+  mcpSignOut(name: string): Promise<Replies["chat_mcp"]>;
+  /** The browser back from an MCP server's sign-in page (mod/server.ts's callback route); not a frame. */
+  mcpOAuthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }>;
   mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<Replies["chat_mcp"]>;
   mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<Replies["chat_mcp_secret"]>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
@@ -107,6 +110,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_mcp_server: (p) => served(b, (x) => x.mcpServer(p)),
     chat_mcp_always_load: (p) => served(b, (x) => x.mcpAlwaysLoad(p)),
     chat_mcp_restart: ({ name }) => served(b, (x) => x.mcpRestart(name)),
+    chat_mcp_signout: ({ name }) => served(b, (x) => x.mcpSignOut(name)),
     chat_mcp_agent: (p) => served(b, (x) => x.mcpAgent(p)),
     chat_mcp_secret: (p) => served(b, (x) => x.mcpSecret(p)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),

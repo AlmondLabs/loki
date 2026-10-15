@@ -86,7 +86,8 @@ process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
-const secrets = await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
+// LOKI_KEYCHAIN=0 keeps secrets in memory for this daemon's life: a test or a scratch run never writes the login keychain.
+const secrets = process.env.LOKI_KEYCHAIN === "0" ? memorySecrets() : await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
 const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
 // path so a bundler cannot follow it, and in the release bundle (daemon.mjs) that path pointed beside the bundle at

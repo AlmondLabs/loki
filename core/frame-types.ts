@@ -225,7 +225,10 @@ export interface McpServerView {
   /** The key as written in mcp.json, which edits name. */
   entry: string;
   kind: "local" | "remote";
-  state: "starting" | "connected" | "down";
+  /** `signin`: a remote server waiting for an OAuth sign-in (`signIn.url`). */
+  state: "starting" | "connected" | "down" | "signin";
+  /** A remote server that signs in with OAuth (one with no Authorization header of its own); null for any other. */
+  signIn: { url: string | null; signedIn: boolean } | null;
   error: string | null;
   purpose: string | null;
   tools: McpToolView[];

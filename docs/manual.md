@@ -660,9 +660,17 @@ and switched back on, a chat searches again for what it needs.
 
 A **local** server (`command`, `args`, `env`, `cwd`) is a program loki starts with the daemon and starts again, after
 a growing pause, when it exits; its `env` adds to the usual environment (PATH, HOME…). A **remote** server (`url`,
-`headers`) is reached over Streamable HTTP with the token in its headers; servers that need an OAuth sign-in are not
-supported yet. `"disabled": true` skips an entry. loki reads the file again when it changes and reconnects only the
-servers whose entry changed.
+`headers`) is reached over Streamable HTTP, with a token in its headers if you give it one. `"disabled": true` skips
+an entry. loki reads the file again when it changes and reconnects only the servers whose entry changed.
+
+**Signing in (OAuth).** A remote server with no `Authorization` header of its own signs in the way MCP's
+authorization spec describes, if it asks to. Its row in Settings › MCP says **needs sign-in**; **sign in to …** opens the
+server's own sign-in page in your browser, and when you approve there, the browser comes back to loki
+(`http://127.0.0.1:41414/mcp/oauth/callback`, on this computer only), loki finishes the sign-in and the server
+connects. loki registers itself with the server's authorization server the first time (when the server allows that),
+keeps the tokens in the system keychain, never in `mcp.json`, and renews them when they expire. **sign out** forgets the
+tokens; the server then asks again. While a server waits for a sign-in, agents see that in their server list and none
+of its tools.
 
 **Tools wait until they are needed.** Every agent sees one short list: each server, what it is for, and the names of
 its tools. None of the tools themselves is in the agent's context until it asks for them with `mcp_search` (a
@@ -715,7 +723,7 @@ period.
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1`
 (make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
 build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the app, or not,
-whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics). The
+whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life, never the system keychain: for tests and scratch runs). The
 harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder), `DISABLE_AUTOUPDATER=1` and
 `LOKI_OWN_APP_SERVER_URL` (its own address, which the mod reads once and removes so nothing the agents start inherits it). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. The mod runs under
 Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
