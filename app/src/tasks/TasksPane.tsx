@@ -70,7 +70,7 @@ export function TasksPane({
   onReopen,
   onStatus,
   onNew,
-  focus = null,
+  focusId = null,
   onOpenSource,
   active,
 }: {
@@ -87,8 +87,11 @@ export function TasksPane({
   onReopen: (ids: string[]) => void;
   onStatus: (ids: string[], status: "open" | "blocked") => void;
   onNew: () => void;
-  /** A task to show (a message's chip was clicked): All, unfiltered, with the cursor on it. */
-  focus?: { id: string; tick: number } | null;
+  /**
+   * A task to show (a message's chip was clicked): the cursor starts on it and its card takes focus once drawn. The
+   * host mounts the pane afresh for each ask (a key), with the view already set to All, so nothing is adjusted after.
+   */
+  focusId?: string | null;
   /** A task filed from a message: open its chat at that message. */
   onOpenSource?: (task: Task) => void;
   /** Tasks is the showing segment: keys apply. */
@@ -100,7 +103,7 @@ export function TasksPane({
   const { view, missing } = useMemo(() => resolveTaskView(stored, tasks), [stored, tasks]);
   const [prefs, setPrefs] = useViewPrefs(view);
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
-  const [cursorRaw, setCursor] = useState<string | null>(null);
+  const [cursorRaw, setCursor] = useState<string | null>(focusId);
   const [anchor, setAnchor] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -125,17 +128,8 @@ export function TasksPane({
   const cursor = cursorRaw && byId.has(cursorRaw) ? cursorRaw : (all[0]?.id ?? null);
   const selected = useMemo(() => ([...selectedRaw].every((id) => byId.has(id)) ? selectedRaw : new Set([...selectedRaw].filter((id) => byId.has(id)))), [selectedRaw, byId]);
 
-  // A message's chip asked for this task: every task, no filter, the cursor on it; focused once its card is drawn.
-  const focusTask = useRef<string | null>(null);
-  const focusSeen = useRef(0);
-  useEffect(() => {
-    if (!focus || focus.tick === focusSeen.current) return;
-    focusSeen.current = focus.tick;
-    focusTask.current = focus.id;
-    setQuery("");
-    setCursor(focus.id);
-    setView("all");
-  }, [focus, setView]);
+  // A message's chip asked for this task: its card takes focus once it is drawn (the list may still be loading).
+  const focusTask = useRef<string | null>(focusId);
   useEffect(() => {
     const id = focusTask.current;
     if (!id) return;

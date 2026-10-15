@@ -24,6 +24,7 @@ import { useChatLayout } from "./useChatLayout";
 import { useTasks } from "./useTasks";
 import type { TaskApi } from "../tasks/messageTasks";
 import { requestReveal } from "../tasks/revealMessage";
+import { setTaskView } from "../tasks/useTaskView";
 import { taskSource } from "../../../core/task-source.ts";
 import type { Task } from "../../../core/frame-types.ts";
 import { useRecall } from "./useRecall";
@@ -216,6 +217,8 @@ export function Shell() {
       tasks: tasks.list,
       create: (t) => tasksRef.current.addFromMessage(t),
       open: (t) => {
+        // Under All, so the task shows whatever view was open; the pane mounts on it (TasksView's key).
+        setTaskView("all");
         setSegment("tasks");
         setTaskFocus({ id: t.id, tick: Date.now() });
       },
