@@ -31,7 +31,7 @@ How code, comments, docs, tests and commits are written is [STYLE.md](STYLE.md);
 [AGENTS.md](../AGENTS.md). Before pushing, run:
 
 ```bash
-npm test                                          # mod, shared, app logic, design tokens (vitest, on Node)
+npm test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
 npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
 npm run typecheck
 npm run format:check                              # Prettier; npm run format fixes it
@@ -47,7 +47,7 @@ CI runs these on a PR (not again on its merge; a newer push cancels the run befo
 say something: `.github/workflows/ci.yml` runs types, lint, the suite, the Node runner's tests and both bundles once
 on Ubuntu 22.04, and the suite again on macOS 14 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
-`app/` (advisory). A PR of docs alone starts none of them. A change to the shell or the mod that works on the Mac
+`app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/STYLE.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
 

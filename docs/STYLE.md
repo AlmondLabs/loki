@@ -4,10 +4,6 @@ How loki's code, comments, docs, tests, commits and pull requests are written. E
 a tool (marked **checked**, with the check named) or is a review matter (marked **review**). A rule that a tool
 checks is not argued in review: change the rule here and the tool together, in one PR.
 
-> **Status**: this guide lands in four PRs: the guide itself, then Prettier (done), then the strict lint (done), then the
-> doc-comment, file-name and PR-title checks, each fixing the whole tree as it turns its check on. A rule marked
-> **checked** whose check has not landed yet is still the rule.
-
 This guide covers how things are written. How loki looks is [design.md](design.md) (tokens, primitives, colour
 rules, checked by `test/tokens.test.ts`); what its words mean is [GLOSSARY.md](../GLOSSARY.md); where code lives is
 [architecture.md](architecture.md).
@@ -18,7 +14,7 @@ The checks, all in CI and all to run before pushing:
 npm run format:check   # Prettier; npm run format fixes it
 npm run lint           # ESLint: typescript-eslint strict + stylistic (type-checked), React hooks and Compiler rules
 npm run typecheck      # tsc, strict
-npm test               # vitest, including the style tests (file names, design tokens, pinned actions)
+npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
