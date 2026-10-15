@@ -1,4 +1,4 @@
-// Release management (docs/RELEASING.md). A stable ships when the release PR merges, as many a day as there are
+// Release management (docs/releasing.md). A stable ships when the release PR merges, as many a day as there are
 // merges.
 //
 // A stable is `YYYY.MMDD.N`: the UTC year, then month and day (October 11 is 1011, January 1 is 101), then that day's
@@ -159,7 +159,7 @@ const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
 /**
  * The commits that are changes, not the release PR's or the Windows and Linux PR's own: `chore(release): …`, or
- * `release: …` from before the titles followed Conventional Commits (docs/STYLE.md §9).
+ * `release: …` from before the titles followed Conventional Commits (docs/style.md §9).
  */
 export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
 

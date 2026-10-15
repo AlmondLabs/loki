@@ -94,7 +94,7 @@ const TRACKING = new Set<string>([]);
 /** Serif, condensed and narrow faces have no place in either presentation. */
 const RETIRED_FACE = /(?<!sans-)serif|New York|Iowan|Georgia|Avenir|Condensed|Narrow/i;
 /** The agent's hue is computed, not a token; its glyph size is derived from the face size. */
-const COMPUTED = (hit: string) => hit.startsWith("desk/AgentChip.tsx:");
+const COMPUTED = (hit: string) => hit.startsWith("desk/agent-chip.tsx:");
 
 const findAll = (list: typeof files, re: RegExp, pick: (m: RegExpMatchArray) => string) =>
   list.flatMap((f) => [...f.text.matchAll(re)].map((m) => `${f.path}: ${pick(m)}`));
@@ -366,7 +366,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
 
   test("phone.css exists and is imported by the phone shell, not injected", () => {
     expect(phone.length).toBeGreaterThan(0);
-    const shell = readFileSync(join(APP, "phone", "Phone.tsx"), "utf8");
+    const shell = readFileSync(join(APP, "phone", "phone.tsx"), "utf8");
     const ui = readFileSync(join(APP, "phone", "ui.tsx"), "utf8");
     expect(shell).toContain('import "./phone.css"');
     expect(ui).not.toContain("<style>");
@@ -412,8 +412,8 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   });
 
   test("the gates and the paired shell all carry the phone root class", () => {
-    const shell = readFileSync(join(APP, "phone", "Phone.tsx"), "utf8");
-    const pair = readFileSync(join(APP, "phone", "Pair.tsx"), "utf8");
+    const shell = readFileSync(join(APP, "phone", "phone.tsx"), "utf8");
+    const pair = readFileSync(join(APP, "phone", "pair.tsx"), "utf8");
     expect(shell.match(/className="loki-phone loki-phone-shell/g)?.length ?? 0).toBeGreaterThanOrEqual(2); // splash and paired
     expect(pair).toMatch(/className="loki-phone loki-phone-shell/);
   });

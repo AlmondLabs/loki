@@ -2,7 +2,7 @@ import type { Platform } from "./env";
 
 /**
  * The wire between the page and an agent-written (module) widget, which runs in a sandboxed iframe
- * (ModuleWidget.tsx, app/src/frame/). `allow-scripts` and nothing else: the frame's origin is opaque, so it
+ * (module-widget.tsx, app/src/frame/). `allow-scripts` and nothing else: the frame's origin is opaque, so it
  * cannot read the page's globals, its storage or the daemon token, and the page hears from it only through
  * postMessage, checked here. What a widget may ask for is what it could always do to its own widget: write
  * its data (`set`), come to the front (`focus`), open a web link in the browser (`open`), and say how big it

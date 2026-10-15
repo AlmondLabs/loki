@@ -9,7 +9,7 @@ import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts"
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 
-import { archivedDesks, liveDesks } from "../shell/DeskTree";
+import { archivedDesks, liveDesks } from "../shell/desk-tree";
 import { sidebarModel, type SidebarSection } from "../shell/sidebar-model";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
@@ -325,7 +325,7 @@ export function countdown(iso: string, now: number = Date.now()): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/* ---- Home (Home.tsx) and the archive (Archive.tsx) ------------------------------------------------ */
+/* ---- Home (home.tsx) and the archive (archive.tsx) ------------------------------------------------ */
 
 /** How many waiting conversations Home lists above the desks; the rest stay in the desk list, marked, and in Inbox. */
 export const HOME_ATTENTION_MAX = 5;
@@ -488,7 +488,7 @@ export function threadLine({
   return [live, desk].filter(Boolean).join(" · ");
 }
 
-/* ---- Agents (Agents.tsx) ----------------------------------------------------------------------------- */
+/* ---- Agents (agents.tsx) ----------------------------------------------------------------------------- */
 
 /** One Agents row before its record arrives: live desks, a turn running now, and the ready cards that wait on you. */
 export interface AgentRowModel {
@@ -538,7 +538,7 @@ export function agentLine(r: AgentRowModel, description: string | null | undefin
   return [r.waiting ? `${r.waiting} waiting` : null, r.running ? "Working" : null, description || liveDesksLabel(r.live)].filter(Boolean).join(" · ");
 }
 
-/* ---- More (More.tsx), preferences and updates --------------------------------------------------------- */
+/* ---- More (more.tsx), preferences and updates --------------------------------------------------------- */
 
 /** The paired Mac in one word, beside its presence dot (so the state is never told by colour alone). */
 export function linkWord(link: LinkState): string {

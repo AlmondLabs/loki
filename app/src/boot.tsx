@@ -3,8 +3,8 @@ import "./styles.css";
 import { inLan, installShellLogging, openExternal } from "./desk/env";
 
 installShellLogging();
-import { Shell } from "./shell/Shell";
-import { Phone } from "./phone/Phone";
+import { Shell } from "./shell/shell";
+import { Phone } from "./phone/phone";
 import { ThemeProvider } from "./theme";
 
 /**

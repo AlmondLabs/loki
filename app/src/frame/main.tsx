@@ -9,7 +9,7 @@ import { mergeData } from "../../../core/desk-core.ts";
 
 /**
  * The widget frame: the document inside the sandboxed iframe that runs one agent-written widget
- * (ModuleWidget.tsx). Built by app/src/frame/build.ts into one classic script inlined in widget-frame.html.
+ * (module-widget.tsx). Built by app/src/frame/build.ts into one classic script inlined in widget-frame.html.
  * It has its own React and kit (window.__lokiShared, where a widget's bare imports point), takes the module,
  * the data overlay, the page's styles and the layout mode from the page, and sends back only what
  * app/src/desk/widget-bridge.ts reads: ready, loaded, error, set, size, focus and open.

@@ -41,7 +41,7 @@ jobs:
       # test (it did, from 2026-10-09: Windows' tests went unrun behind lint).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
-      # Prettier's layout, unarguable (docs/STYLE.md §1): `npm run format` fixes what this reports.
+      # Prettier's layout, unarguable (docs/style.md §1): `npm run format` fixes what this reports.
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run format:check
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}

@@ -15,7 +15,7 @@ import type { McpServerView, McpView } from "../../core/frame-types.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import { auth } from "@modelcontextprotocol/client";
 import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
-import { OAuthStore, ServerOAuth, callbackUrl } from "./oauth.ts";
+import { OauthStore, ServerOauth, callbackUrl } from "./oauth.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
@@ -47,7 +47,7 @@ export interface Secrets {
 }
 
 /** A remote server signs in with OAuth unless its headers carry its own Authorization. */
-export const usesOAuth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
+export const usesOauth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
 
 /** About how many tokens a tool's definition costs once loaded (four characters a token). */
 export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
@@ -73,8 +73,8 @@ export class McpTools {
   private off: Record<string, string[]>;
   // Sign-ins (daemon/mcp/oauth.ts): each remote server's provider, the page each waiting one sends you to, the state
   // each page carries (one-time, matched when the browser comes back), and the servers known to hold a token.
-  private readonly oauthStore: OAuthStore;
-  private readonly providers = new Map<string, ServerOAuth>();
+  private readonly oauthStore: OauthStore;
+  private readonly providers = new Map<string, ServerOauth>();
   private readonly signInUrls = new Map<string, string>();
   private readonly pendingStates = new Map<string, string>();
   private readonly signedIn = new Set<string>();
@@ -97,7 +97,7 @@ export class McpTools {
     this.secrets = opts.secrets ?? null;
     this.offPath = join(opts.lokiDir, "state", "mcp-agents.json");
     this.off = readOff(this.offPath);
-    this.oauthStore = new OAuthStore(this.secrets);
+    this.oauthStore = new OauthStore(this.secrets);
     this.redirect = opts.redirect ?? callbackUrl();
     const secrets = this.secrets;
     this.servers =
@@ -339,7 +339,7 @@ export class McpTools {
         tools: mine,
         tokens: mine.reduce((n, t) => n + t.tokens, 0),
         config: c.kind === "local" ? { command: c.command, args: c.args, env: c.env, cwd: c.cwd } : { url: c.url, headers: c.headers },
-        signIn: usesOAuth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signedIn: this.signedIn.has(c.name) } : null,
+        signIn: usesOauth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signedIn: this.signedIn.has(c.name) } : null,
         offFor: Object.entries(this.off)
           .filter(([, servers]) => servers.includes(c.name))
           .map(([agent]) => agent),
@@ -380,11 +380,11 @@ export class McpTools {
    * The sign-in a server uses (its provider, made once), or none. The provider tells loki when the server sends you to
    * its authorization page, and which servers hold a token, so Settings can say "sign in" or "sign out".
    */
-  oauthFor(config: ServerConfig): ServerOAuth | undefined {
-    if (!usesOAuth(config)) return undefined;
+  oauthFor(config: ServerConfig): ServerOauth | undefined {
+    if (!usesOauth(config)) return undefined;
     let p = this.providers.get(config.name);
     if (!p) {
-      const tracked = new ServerOAuth(
+      const tracked = new ServerOauth(
         config.name,
         this.oauthStore,
         (server, url, state) => {

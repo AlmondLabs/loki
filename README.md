@@ -248,7 +248,7 @@ exist first (`npm run build:app`; the shell embeds the built app). [Contributing
 - [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a run costs.
 - [Architecture](docs/architecture.md): the processes that run, what the daemon holds, and the journey of a message.
 - [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
-- [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).
+- [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/releasing.md).
 
 Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever; and widget code
 runs with the page's full trust, because this is your machine and your agent, not a sandbox.

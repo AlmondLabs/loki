@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { modelEntriesFromWire, withRecent, type ModelEntry } from "../core/models.ts";
-import { ComposerBar } from "../app/src/chat/ChatInput.tsx";
-import { Conversation } from "../app/src/chat/Conversation.tsx";
-import { ModelChoices, ModelPill, modelLine, modelLists, modelName, pickerKey, returnsFocus } from "../app/src/chat/ModelPicker.tsx";
+import { ComposerBar } from "../app/src/chat/chat-input.tsx";
+import { Conversation } from "../app/src/chat/conversation.tsx";
+import { ModelChoices, ModelPill, modelLine, modelLists, modelName, pickerKey, returnsFocus } from "../app/src/chat/model-picker.tsx";
 import { resolve } from "../app/src/shell/keymap.ts";
 import { must } from "./fixtures/must.ts";
 

@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Platform } from "../app/src/desk/env.ts";
-import { LokiVersionFact } from "../app/src/settings/Settings.tsx";
-import { downloadFor, newestWith, type LokiUpdate, type Release } from "../app/src/shell/useLokiUpdate.ts";
+import { LokiVersionFact } from "../app/src/settings/settings.tsx";
+import { downloadFor, newestWith, type LokiUpdate, type Release } from "../app/src/shell/use-loki-update.ts";
 import { must } from "./fixtures/must.ts";
 
 /**

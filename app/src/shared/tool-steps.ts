@@ -8,7 +8,7 @@ import type { IconName } from "./icons";
  * step is a verb and what it was done to ("Ran · ls -la", "Read · app/src/…"), and opened again, its input and
  * output. When the agent said what a call is for (Bash's description), that is the step's line instead
  * ("Ran · Find hard-coded names in tests"), and a lone command's run reads by it. Pure, shared by the phone's
- * sheet and the desktop's inline list (chat/ToolSteps.tsx).
+ * sheet and the desktop's inline list (chat/tool-steps.tsx).
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */

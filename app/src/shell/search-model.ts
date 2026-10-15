@@ -14,7 +14,7 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
  * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over
  * shared/search.ts, as phone/search-index.ts is the phone's. It looks only at what the window holds, in
  * declared fields — a desk's title and agent, an agent's name, a waiting Inbox item's title and agent, the
- * named pages. Never a transcript. A hit carries where it goes (`target`); Shell.tsx does the going.
+ * named pages. Never a transcript. A hit carries where it goes (`target`); shell.tsx does the going.
  *
  * Groups come in the order of their best hit, so the first row drawn is the top result Enter opens.
  */

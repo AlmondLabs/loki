@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { join } from "node:path";
-import { Transcript } from "../app/src/chat/Transcript.tsx";
+import { Transcript } from "../app/src/chat/transcript.tsx";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { clockLabel, dayPills, holdMark, unreadBoundary } from "../app/src/shared/thread.ts";
 import { must } from "./fixtures/must.ts";

@@ -11,8 +11,12 @@ import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { must } from "./fixtures/must.ts";
 
 const rt = { agent_id: "a", conversation_id: "c" };
-const delta = (message_type: string, extra: Record<string, unknown> = {}) => ({ type: "stream_delta", runtime: rt, delta: { message_type, ...extra } });
-const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
+const delta = (messageType: string, extra: Record<string, unknown> = {}) => ({
+  type: "stream_delta",
+  runtime: rt,
+  delta: { message_type: messageType, ...extra },
+});
+const msg = (messageType: string, extra: Record<string, unknown>) => ({ message_type: messageType, date: "2026-09-05T08:00:00Z", ...extra });
 const tools = (rows: TranscriptRow[] | undefined) => (rows ?? []).filter((r) => r.role === "tool");
 const rowsOf = (thread: ThreadModel) => must(thread.rows(), "the thread's rows");
 

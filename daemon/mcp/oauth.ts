@@ -17,18 +17,18 @@ export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_P
 /** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
 /** Where a sign-in's secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend); a keychain without `delete` gets an empty value instead. */
-export interface OAuthSecrets {
+export interface OauthSecrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
 }
 
 /** A sign-in's tokens, client registration and PKCE verifier, per server, as JSON in the keychain or, without one, in memory; an unreadable value reads as nothing. */
-export class OAuthStore {
+export class OauthStore {
   private readonly memory = new Map<string, string>();
-  private readonly secrets: OAuthSecrets | null;
+  private readonly secrets: OauthSecrets | null;
 
-  constructor(secrets: OAuthSecrets | null) {
+  constructor(secrets: OauthSecrets | null) {
     this.secrets = secrets;
   }
 
@@ -62,15 +62,15 @@ export class OAuthStore {
 }
 
 /** One remote server's side of the flow, as the SDK's transport and `auth()` ask for it. */
-export class ServerOAuth implements OAuthClientProvider {
+export class ServerOauth implements OAuthClientProvider {
   private lastState: string | null = null;
   readonly server: string;
-  private readonly store: OAuthStore;
+  private readonly store: OauthStore;
   /** The authorization page to send the person to, and the state it carries: Settings shows "sign in". */
   private readonly onRedirect: (server: string, url: URL, state: string) => void;
   private readonly redirect: string;
 
-  constructor(server: string, store: OAuthStore, onRedirect: (server: string, url: URL, state: string) => void, redirect: string = callbackUrl()) {
+  constructor(server: string, store: OauthStore, onRedirect: (server: string, url: URL, state: string) => void, redirect: string = callbackUrl()) {
     this.server = server;
     this.store = store;
     this.onRedirect = onRedirect;

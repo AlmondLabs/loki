@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FOCUS_CUSHION, FOCUS_OPEN_GAP_MS, SKIP_FACTOR, addFocus, decayed, focusShares, pruneFocus, type FocusEntry } from "../core/attention/focus.ts";
 import { SeenStore } from "../mod/seen.ts";
-import { skipsFocus } from "../core/attention/useAttention.ts";
+import { skipsFocus } from "../core/attention/use-attention.ts";
 import { must } from "./fixtures/must.ts";
 
 /** Focus (core/attention/focus.ts): each chat's share of what you have been doing lately, fading by half every 12 hours. */

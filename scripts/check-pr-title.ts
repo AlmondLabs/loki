@@ -1,5 +1,5 @@
 /**
- * A pull request's title, held to Conventional Commits as docs/STYLE.md §9 has it, since the title becomes the merge
+ * A pull request's title, held to Conventional Commits as docs/style.md §9 has it, since the title becomes the merge
  * commit's message: `type(scope): what changed`. Run by .github/workflows/pr-title.yml with the title in PR_TITLE:
  *   PR_TITLE="feat(tasks): add task from a chat message" node --experimental-strip-types scripts/check-pr-title.ts
  */
@@ -54,7 +54,7 @@ if (process.argv[1]?.endsWith("check-pr-title.ts")) {
   const title = process.env.PR_TITLE ?? "";
   const problem = titleProblem(title);
   if (problem) {
-    console.error(`PR title "${title}": ${problem} (docs/STYLE.md §9)`);
+    console.error(`PR title "${title}": ${problem} (docs/style.md §9)`);
     process.exit(1);
   }
   console.log(`PR title "${title}": fine`);

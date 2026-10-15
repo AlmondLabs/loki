@@ -27,7 +27,7 @@ release's files.
 
 ## Checks
 
-How code, comments, docs, tests and commits are written is [STYLE.md](STYLE.md); agents read the short form in
+How code, comments, docs, tests and commits are written is [style.md](style.md); agents read the short form in
 [AGENTS.md](../AGENTS.md). Before pushing, run:
 
 ```bash
@@ -47,7 +47,7 @@ CI runs these on a PR (not again on its merge; a newer push cancels the run befo
 say something: `.github/workflows/ci.yml` runs types, lint, the suite, the Node runner's tests and both bundles once
 on Ubuntu 22.04, and the suite again on macOS 14 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
-`app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/STYLE.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
+`app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
 
@@ -76,7 +76,7 @@ with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm 
 
 - No real money amounts on screen, in the repo, or in recordings. Fixtures use made-up numbers.
 - The red attention badge is spent only on things that need the human; blue is for what is interactive, green for the one affirmative button (see `docs/design.md`).
-- Everything else about how things are written, from file names to commit messages, is in [STYLE.md](STYLE.md).
+- Everything else about how things are written, from file names to commit messages, is in [style.md](style.md).
 
 ## Dependencies
 

@@ -97,11 +97,11 @@ function reasoningEffortsFromWireEntry(entry: Record<string, unknown>, updateArg
   // Letta Code 0.32.6 removes `reasoning_levels` while building list_models, but still marks
   // ChatGPT OAuth rows and accepts reasoning_effort for them in update_model. Keep this fallback
   // narrower than the provider: these are the distinct levels its bundled OpenAI registry exposes.
-  if (updateArgs?.provider_type === "chatgpt_oauth") return chatGptOAuthEfforts(handle);
+  if (updateArgs?.provider_type === "chatgpt_oauth") return chatGptOauthEfforts(handle);
   return [];
 }
 
-function chatGptOAuthEfforts(handle: string): ReasoningEffort[] {
+function chatGptOauthEfforts(handle: string): ReasoningEffort[] {
   const model = handle.slice(handle.lastIndexOf("/") + 1).replace(/-fast$/, "");
   if (model.startsWith("gpt-5.6")) return ["none", "low", "medium", "high", "xhigh", "max"];
   if (model.startsWith("gpt-6")) return ["low", "medium", "high", "xhigh", "max"];

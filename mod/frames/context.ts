@@ -3,7 +3,7 @@ import type { PayloadOf, PushFrame, ReplyOf, RequestName, SendName } from "../..
 import type { Client } from "../server.ts";
 
 /**
- * What a frame handler (GLOSSARY.md) works with: the client the frame came from, the pushes it may send, and the
+ * What a frame handler (glossary.md) works with: the client the frame came from, the pushes it may send, and the
  * analytics it may record. The router (mod/bridge.ts) builds one per frame; handlers never send a request's reply
  * themselves, they return it.
  */

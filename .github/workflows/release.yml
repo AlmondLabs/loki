@@ -1,4 +1,4 @@
-# Releases, two channels, from every push to main (docs/RELEASING.md; scripts/release.ts does the deciding):
+# Releases, two channels, from every push to main (docs/releasing.md; scripts/release.ts does the deciding):
 #   nightly  every merge builds the app and replaces the rolling `nightly` prerelease and the loki-nightly cask
 #   stable   merging the release PR (branch release/next) publishes vYYYY.MMDD.N with the .dmg and pushes the loki
 #            cask, at once and as often as it is merged; the build decides the number from the date and the tags
@@ -66,7 +66,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-          # RELEASE_TOKEN (optional, see RELEASING.md) makes the PRs' pushes trigger ci.yml; the workflow token cannot.
+          # RELEASE_TOKEN (optional, see releasing.md) makes the PRs' pushes trigger ci.yml; the workflow token cannot.
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -137,7 +137,7 @@ jobs:
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
-      # unsigned (docs/manual.md, "Requirements"; docs/RELEASING.md, "Signing").
+      # unsigned (docs/manual.md, "Requirements"; docs/releasing.md, "Signing").
       - name: signing secrets, when present
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -183,7 +183,7 @@ jobs:
           set -euo pipefail
           FILE="$([ "$KIND" = stable ] && echo loki.rb || echo loki-nightly.rb)"
           if [ -z "$TAP_TOKEN" ]; then
-            echo "::error::TAP_TOKEN secret is missing — the cask was rendered (see the release assets) but not pushed to ${OWNER}/homebrew-loki. docs/RELEASING.md explains the token."
+            echo "::error::TAP_TOKEN secret is missing — the cask was rendered (see the release assets) but not pushed to ${OWNER}/homebrew-loki. docs/releasing.md explains the token."
             exit 1
           fi
           git clone --quiet "https://x-access-token:${TAP_TOKEN}@github.com/${OWNER}/homebrew-loki.git" tap

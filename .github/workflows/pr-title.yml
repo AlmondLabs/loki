@@ -1,5 +1,5 @@
 name: pr title
-# A PR's title becomes its merge commit's message, so it follows Conventional Commits (docs/STYLE.md §9):
+# A PR's title becomes its merge commit's message, so it follows Conventional Commits (docs/style.md §9):
 # `type(scope): what changed`. scripts/check-pr-title.ts says what is wrong; editing the title reruns this. Every PR,
 # docs alone included, since every merge commit is a message.
 on:

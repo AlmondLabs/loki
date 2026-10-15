@@ -19,10 +19,10 @@ import {
   cmdHeld,
   type Binding,
 } from "../app/src/shell/keymap.ts";
-import { keysFor, keysSheetNote } from "../app/src/shell/KeysSheet.tsx";
-import { hideWindow } from "../app/src/shell/useWindowChrome.ts";
+import { keysFor, keysSheetNote } from "../app/src/shell/keys-sheet.tsx";
+import { hideWindow } from "../app/src/shell/use-window-chrome.ts";
 import { SEGMENTS } from "../app/src/shell/shortcuts.ts";
-import { commandText } from "../app/src/chat/SlashPalette.tsx";
+import { commandText } from "../app/src/chat/slash-palette.tsx";
 import { platform, platformFrom, type Platform } from "../app/src/desk/env.ts";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import { must } from "./fixtures/must.ts";

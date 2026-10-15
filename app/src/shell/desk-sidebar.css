@@ -1,4 +1,4 @@
-/* The desk sidebar (DeskSidebar.tsx, plan 013 U4): the filter under the column header, the list, the "needs you" pills, the row menu. */
+/* The desk sidebar (desk-sidebar.tsx, plan 013 U4): the filter under the column header, the list, the "needs you" pills, the row menu. */
 .loki-sidebar-filter {
   flex: none;
   padding: 8px 10px 4px;

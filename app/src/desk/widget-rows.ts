@@ -1,6 +1,6 @@
 import type { Scope, WidgetChange, WidgetLogEntry } from "../../../core/desk-core.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import type { WidgetMark } from "../chat/Transcript";
+import type { WidgetMark } from "../chat/transcript";
 
 /**
  * Widget rows in the thread (plan 013 U8), pure (test/widget-rows.test.ts): the per-desk store of the

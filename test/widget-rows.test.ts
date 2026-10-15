@@ -89,7 +89,7 @@ describe("widget rows: merge by time", () => {
   test("the row reads as the actor's sentence", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Transcript } = await import("../app/src/chat/Transcript.tsx");
+    const { Transcript } = await import("../app/src/chat/transcript.tsx");
     const people = { user: { name: "You" }, assistant: { name: "friday" } };
     const widgets = widgetMarks([row("user", 0)], [entry({ by: "you", change: "removed" })], "friday");
     const html = renderToStaticMarkup(createElement(Transcript, { rows: [row("user", 0)], people, widgets }));
@@ -168,7 +168,7 @@ describe("widget rows: the widget_change frame", () => {
 
 describe("widget rows: runs", () => {
   test("a widget row between two messages by the same author starts a new run", async () => {
-    const { runStarts } = await import("../app/src/chat/Transcript.tsx");
+    const { runStarts } = await import("../app/src/chat/transcript.tsx");
     const rows = [row("assistant", 0), row("assistant", 1), row("assistant", 2)];
     expect(runStarts(rows)).toEqual([true, false, false]);
     expect(runStarts(rows, null, null, new Map([[2, []]]))).toEqual([true, false, true]);

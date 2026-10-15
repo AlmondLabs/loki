@@ -1,10 +1,10 @@
-import type { ConversationActions, ConversationView } from "../chat/Conversation";
-import type { useAttention } from "../../../core/attention/useAttention.ts";
+import type { ConversationActions, ConversationView } from "../chat/conversation";
+import type { useAttention } from "../../../core/attention/use-attention.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import { runAction } from "../shell/keymap";
-import type { useDesk } from "./useDesk";
-import type { DeskChatModel } from "./useDeskChat";
+import type { useDesk } from "./use-desk";
+import type { DeskChatModel } from "./use-desk-chat";
 
 interface Rt {
   agent_id: string;

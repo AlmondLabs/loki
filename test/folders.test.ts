@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import { checkFolder, completeFolder, expandPath, gitBranch } from "../mod/folders.ts";
-import { FolderPicker, browseWith, dialogPick, folderLabel, suggestedFolder, type BrowseWith } from "../app/src/desk/NewDesk.tsx";
+import { FolderPicker, browseWith, dialogPick, folderLabel, suggestedFolder, type BrowseWith } from "../app/src/desk/new-desk.tsx";
 
 describe("folders", () => {
   test("new desk prefers the current desk folder, then the selected agent's latest folder", () => {

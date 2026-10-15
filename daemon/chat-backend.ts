@@ -153,7 +153,7 @@ export class DaemonChats implements ChatBackend {
     return this.mcpTools.signOut(name);
   }
 
-  async mcpOAuthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
+  async mcpOauthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
     if (!this.deps.mcp) return { ok: false, server: null, message: "MCP is not running in this daemon." };
     return this.deps.mcp.finishAuth(params);
   }

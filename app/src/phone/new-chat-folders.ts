@@ -1,5 +1,5 @@
 /**
- * The New chat sheet's folder (Home.tsx NewSheet): one of the folders the agent has worked in on the Mac
+ * The New chat sheet's folder (home.tsx NewSheet): one of the folders the agent has worked in on the Mac
  * (`folders_get`, most recent first), the most recent to begin with.
  */
 

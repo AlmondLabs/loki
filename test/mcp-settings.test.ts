@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { editOf, formOf, pairsText, parsePairs, secureValues, tokenLabel } from "../app/src/settings/Mcp.tsx";
+import { editOf, formOf, pairsText, parsePairs, secureValues, tokenLabel } from "../app/src/settings/mcp.tsx";
 import type { McpServerView } from "../core/frame-types.ts";
 
 const server = (config: McpServerView["config"]): McpServerView => ({

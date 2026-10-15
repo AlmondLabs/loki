@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { nodeHelp, type DaemonStatus, type NodeMissing } from "../app/src/shell/bootstrap.ts";
-import { DaemonProblem, NodeNeeded } from "../app/src/shell/Welcome.tsx";
+import { DaemonProblem, NodeNeeded } from "../app/src/shell/welcome.tsx";
 
 const missing = (os: NodeMissing["os"], found: string | null = null, at: string | null = null): NodeMissing => ({ os, found, at, needed: "22.19" });
 const noNode = (os: NodeMissing["os"], found?: string, at?: string): DaemonStatus => ({

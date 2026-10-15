@@ -28,7 +28,7 @@ const isToolKind = (v: unknown): v is ToolKind => v === "read" || v === "edit" |
 export const CODING_TOOL_KINDS: Readonly<Partial<Record<string, ToolKind>>> = { read: "read", write: "edit", edit: "edit", bash: "command" };
 
 /**
- * loki's tools as they were named before every name followed docs/STYLE.md's snake_case (October 2026), and their names
+ * loki's tools as they were named before every name followed docs/style.md's snake_case (October 2026), and their names
  * now: the "always allow" list kept on disk is carried over through this map once. Old chats keep their calls under the
  * old names; what reads history (core/attention, shared/tool-steps.ts) knows both.
  */

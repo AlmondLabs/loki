@@ -76,7 +76,7 @@ a finger down and leave however they close (`components/sheet-motion.ts`) while 
 and pop, the Inbox card zooms into its conversation (View Transitions, `phone/transitions.ts`); and a swipe from the
 left edge goes back (`phone/edge-swipe.ts`). The chat shows agents at work: a streaming reply's words fade in as
 they arrive, rows that come in while you read rise into place, "thinking" is three rising dots, and scrolled up,
-the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`): a row moving, even between
+the chip counts what is new. Lists that change under you glide (`kit/use-flip.ts`): a row moving, even between
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
 (`kit/leave.ts`); and a swipe an approval refuses shakes the card. Waiting has a shape: a list or card still being
 read shows placeholder rows or a placeholder card after a beat, a light passing over them (`SkeletonRows`,
@@ -90,7 +90,7 @@ count goes up; the camera glides to a widget on the smooth spring, and a wheel, 
 (`desk/camera-glide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
 shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
 
-The agent's work reads the way Claude's apps show it (`chat/ToolSteps.tsx`, wording in `shared/tool-steps.ts`): a
+The agent's work reads the way Claude's apps show it (`chat/tool-steps.tsx`, wording in `shared/tool-steps.ts`): a
 stretch between two messages (tool calls, background-task notices, skills it loaded) is one quiet line in the thread,
 "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed" ("Ran 3 commands" when the rows carry no
 times; "Working" breathing while the last step waits). When a step failed, its name sits under the closed line in red
@@ -174,7 +174,7 @@ toolbar that holds only what loki does to a message (copy as markdown). A messag
 **Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the canvas; choosing one
 opens the Canvas tab framed on that widget. Under a widget's latest row the widget itself is drawn, live
-(`chat/InlineWidget.tsx`, `chat/useInlineWidgets.tsx`, 2026-10-09): the same kit component or module the canvas
+(`chat/inline-widget.tsx`, `chat/use-inline-widgets.tsx`, 2026-10-09): the same kit component or module the canvas
 draws, in a card as wide as the thread allows, with "Show on canvas"; using it there is using it on the canvas (a
 `set` gesture on the widget's own desk, recorded for that desk's agent). Earlier rows for the same widget stay one
 line each, so a widget edited ten times is drawn once. Every chat surface draws them: the desk's chat, the Inbox
@@ -267,7 +267,7 @@ box is one for both, its sizes set by `touch`.
   only for code. `data-palette` never reaches the phone: System, Light and Dark are its only choices.
   `test/tokens.test.ts` fences the file (literal colours only in custom properties, sizes and radii on the
   scales, every selector under `.loki-phone`, no serif or mono presentation).
-- **Safe areas.** Each bottom inset has one owner. On a tab the floating dock (TabBar.tsx) sits on the home
+- **Safe areas.** Each bottom inset has one owner. On a tab the floating dock (tab-bar.tsx) sits on the home
   indicator and publishes `--phone-nav-clearance`; the one scroll owner adds it once at its end
   (`.loki-phone-scroll::after`) and a fixed bottom stops above it (`.loki-phone-above-nav`). With the navigation
   hidden — a conversation, the Inbox deck, any page — the composer or the decide buttons pad themselves with

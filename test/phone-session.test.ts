@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AttentionItem, PendingQuestion } from "../core/attention/model.ts";
-import { draftWriter, submitDraft } from "../app/src/chat/useDraft.ts";
+import { draftWriter, submitDraft } from "../app/src/chat/use-draft.ts";
 import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone/deck.ts";
 import { threadLine } from "../app/src/phone/model.ts";
 import { formatRoute, parseRoute } from "../app/src/phone/router.ts";
@@ -237,7 +237,7 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    g.HTMLElement ??= function HTMLElement() {
+    g.HTMLElement ??= function FakeHtmlElement() {
       // no DOM here; restoreFocus only asks whether a launcher is one
     };
     try {
@@ -269,7 +269,7 @@ describe("prefill", () => {
 });
 
 /**
- * The shared composer's controlled draft (chat/useDraft.ts), wired to the phone's store the way Inbox and
+ * The shared composer's controlled draft (chat/use-draft.ts), wired to the phone's store the way Inbox and
  * the desk page wire it: sending clears the conversation that sent and no other, and deciding a card in
  * the review pass leaves its draft alone.
  */
