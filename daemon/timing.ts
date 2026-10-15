@@ -6,9 +6,12 @@
  */
 
 /** A stretch of time in milliseconds since the epoch. */
-export type Span = { start: number; end: number };
+export interface Span {
+  start: number;
+  end: number;
+}
 
-export type TurnInput = {
+export interface TurnInput {
   sentAt: number;
   /** When the first streamed text or tool call reached the client; null when none did. */
   firstOutputAt: number | null;
@@ -18,9 +21,9 @@ export type TurnInput = {
   tools: Span[];
   /** When the client saw the turn end; absent, the end of the last response or tool. */
   endAt?: number;
-};
+}
 
-export type TurnTimings = {
+export interface TurnTimings {
   /** Send to the first streamed output. */
   ttftMs: number | null;
   /** Send to the end of the turn. */
@@ -35,7 +38,7 @@ export type TurnTimings = {
   beforeFirstRequestMs: number | null;
   /** For each tool result, the time until the next model request started. */
   afterToolMs: number[];
-};
+}
 
 /** Total length of a set of spans, overlaps counted once. */
 export function covered(spans: readonly Span[]): number {

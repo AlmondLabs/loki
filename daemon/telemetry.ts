@@ -45,7 +45,7 @@ export function harnessVersion(root: string): string | null {
 /** A short code, or "other": pi-durable's reasons and statuses are words, but nothing free-form reaches the file. */
 const code = (word: unknown): string => (typeof word === "string" && /^[a-z][a-z_]{0,31}$/.test(word) ? word : "other");
 
-type Message = {
+interface Message {
   role?: string;
   content?: unknown;
   timestamp?: number;
@@ -55,9 +55,9 @@ type Message = {
   stopReason?: string;
   isError?: boolean;
   usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; reasoning?: number; cost?: { total?: number } };
-};
+}
 
-export type FinishedTurn = {
+export interface FinishedTurn {
   agentId: string;
   /** loki's chat id, and what loki keeps about the chat. */
   chatId: string;
@@ -77,7 +77,7 @@ export type FinishedTurn = {
   harnessVersion: string | null;
   /** The chat's model, for a turn that wrote no response. */
   model: string | null;
-};
+}
 
 export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries" | "agentIsSubagent">): TurnOrigin {
   if (t.agentIsSubagent || t.requestId?.startsWith("subagent:")) return "subagent";
@@ -88,7 +88,7 @@ export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "
   if (isWriterChat(t.chatId) || (t.hidden && t.title === "recall")) return "recall";
   if (t.chatId.startsWith("reflection-")) return "reflection";
   const first = t.entries.find((e) => e.kind === "pi.user")?.model?.[0] as Message | undefined;
-  const text = first ? contentText(first.content as never).trimStart() : "";
+  const text = first ? contentText(first.content).trimStart() : "";
   if (isScheduledPrompt(text)) return "schedule";
   if (text.startsWith("<task-notification>")) return "background";
   return "message";
@@ -101,8 +101,8 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
   const messages = t.entries.flatMap((e) => (e.model ?? []) as Message[]);
   const answers = messages.filter((m) => m.role === "assistant");
   const results = messages.filter((m) => m.role === "toolResult");
-  const models: Span[] = answers.filter((m) => typeof m.timestamp === "number").map((m) => ({ start: m.timestamp!, end: m.timestamp! + (m.durationMs ?? 0) }));
-  const tools: Span[] = results.filter((m) => typeof m.timestamp === "number").map((m) => ({ start: m.timestamp! - (m.durationMs ?? 0), end: m.timestamp! }));
+  const models: Span[] = answers.flatMap((m) => (typeof m.timestamp === "number" ? [{ start: m.timestamp, end: m.timestamp + (m.durationMs ?? 0) }] : []));
+  const tools: Span[] = results.flatMap((m) => (typeof m.timestamp === "number" ? [{ start: m.timestamp - (m.durationMs ?? 0), end: m.timestamp }] : []));
   const timings = turnTimings({ sentAt: t.startedAt, firstOutputAt: t.firstOutputAt, models, tools, endAt: t.endedAt });
   const sum = (pick: (u: NonNullable<Message["usage"]>) => number | undefined) => answers.reduce((n, m) => n + (m.usage ? (pick(m.usage) ?? 0) : 0), 0);
   const input = sum((u) => u.input),
@@ -144,16 +144,22 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
 }
 
 /** A run in flight; `taskId` is the task running it now. */
-type Running = { taskId: unknown; inputs: unknown[]; startedAt: number; firstOutputAt: number | null; entries: EntryRecord[] };
+interface Running {
+  taskId: unknown;
+  inputs: unknown[];
+  startedAt: number;
+  firstOutputAt: number | null;
+  entries: EntryRecord[];
+}
 
-type Deps = {
+interface Deps {
   capture: (event: string, properties: Record<string, unknown>) => void;
   harnessVersion: string | null;
   isSubagent: (agentId: string) => boolean;
   context: Context;
   report?: (message: string) => void;
   now?: () => number;
-};
+}
 
 /** Follows every store's commits and captures `turn_finished` as each run ends. */
 export class TurnTelemetry {

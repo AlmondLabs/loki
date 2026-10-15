@@ -35,15 +35,20 @@ import {
  * old code (KTD15). A new copy that then fails to load leaves the mod unloaded, and says so.
  */
 
-type Pieces = {
+interface Pieces {
   tools: ModTool[];
   sections: Array<{ key: string; render: (input: SectionInput) => string | undefined | Promise<string | undefined> }>;
   transforms: Array<(message: OutgoingMessage) => OutgoingMessage["content"] | undefined>;
   beforeTools: Array<(call: ToolCall) => BeforeToolResult | Promise<BeforeToolResult>>;
   listeners: Map<keyof ModEvents, Set<(event: never) => void>>;
-};
+}
 
-type Loaded = { mod: LokiMod; pieces: Pieces; abort: AbortController; dispose?: () => void };
+interface Loaded {
+  mod: LokiMod;
+  pieces: Pieces;
+  abort: AbortController;
+  dispose?: () => void;
+}
 
 export type LoadResult = { loaded: true } | { refused: string };
 
@@ -115,7 +120,7 @@ export class ModRegistry {
     };
     const replacing = this.loaded.has(mod.name);
     this.retire(mod.name);
-    let dispose: void | (() => void);
+    let dispose: unknown;
     try {
       dispose = await mod.activate(api);
     } catch (error) {
@@ -125,7 +130,7 @@ export class ModRegistry {
       this.report(refused);
       return { refused };
     }
-    this.loaded.set(mod.name, { mod, pieces, abort, ...(typeof dispose === "function" ? { dispose } : {}) });
+    this.loaded.set(mod.name, { mod, pieces, abort, ...(typeof dispose === "function" ? { dispose: dispose as () => void } : {}) });
     this.install(mod.name);
     return { loaded: true };
   }
@@ -208,7 +213,7 @@ export class ModRegistry {
         parameters: tool.parameters as never,
         execute: async (args, api, context) => {
           const ref = await chatRef(api, api.conversationId, context);
-          const value = await tool.execute(args as Record<string, unknown>, {
+          const value = await tool.execute(args, {
             ...ref,
             signal: context.abortSignal ?? NO_SIGNAL,
             output: (text) => api.output(text),
@@ -222,7 +227,7 @@ export class ModRegistry {
       section(key, async (input, context) => render({ ...(await chatRef(input.read, input.conversationId, context)), cwd: input.agent.cwd })),
     );
     const hooks: HookRegistration[] = [];
-    const watchesTools = Boolean(pieces.listeners.get("tool_start")?.size || pieces.listeners.get("tool_end")?.size);
+    const watchesTools = Boolean(pieces.listeners.get("tool_start")?.size) || Boolean(pieces.listeners.get("tool_end")?.size);
     if (pieces.beforeTools.length || watchesTools) {
       hooks.push(
         hook(ToolTask, {

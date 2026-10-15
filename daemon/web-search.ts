@@ -5,7 +5,11 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
  * used. A result is its title, link and snippet; the tool keeps the first few.
  */
 
-export type SearchResult = { title: string; url: string; snippet: string };
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'", "&nbsp;": " " };
 /** A numeric entity's character; one past Unicode (a malformed page) stays as written rather than throwing. */

@@ -181,7 +181,7 @@ const importPaths: ImportPaths = {
   backendDir: backend,
   doneFile: join(args.dir, "state", "letta-import.json"),
   schedulesFile,
-  pinsFile: process.env.LOKI_PINS_FILE!,
+  pinsFile: process.env.LOKI_PINS_FILE,
   recallWorkerFile: oldPassFiles.learnWorker,
 };
 let importing: Promise<ImportReport> | null = null;
@@ -278,7 +278,7 @@ const loadCore = () =>
   mods.load({
     name: "loki",
     apiVersion: MOD_API_VERSION,
-    activate: (api) => core.default(api, { chats, chat, analytics }) as Promise<() => void> | (() => void),
+    activate: (api) => core.default(api, { chats, chat, analytics }),
   });
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.

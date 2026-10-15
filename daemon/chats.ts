@@ -22,11 +22,21 @@ import type { StoreManager } from "./kernel/stores.ts";
  */
 
 /** One entry as the projection keeps it: its thread steps, and who spoke and what, for the Inbox's digest. */
-type Kept = { steps: Step[]; role: "user" | "assistant" | null; text: string; at: string | null; compaction?: true };
+interface Kept {
+  steps: Step[];
+  role: "user" | "assistant" | null;
+  text: string;
+  at: string | null;
+  compaction?: true;
+}
 
-type AgentSettings = { model?: { provider?: string; modelId?: string }; thinkingLevel?: string; cwd?: string };
+interface AgentSettings {
+  model?: { provider?: string; modelId?: string };
+  thinkingLevel?: string;
+  cwd?: string;
+}
 
-type Chat = {
+interface Chat {
   agentId: string;
   chatId: string;
   conversationId: number;
@@ -35,18 +45,18 @@ type Chat = {
   entries: Kept[];
   /** The newest entry id kept: entries arrive in id order, so anything at or below it is already here. */
   lastId: number;
-};
+}
 
 /** The message an entry carries for the person to read: a branch entry's own, else the model's. */
 function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMessage | undefined {
   if (entry.kind === "loki.branch") return (entry.data as { message?: PiMessage } | undefined)?.message;
-  if (entry.kind === "pi.user" || entry.kind === "pi.assistant") return entry.model?.[0] as PiMessage | undefined;
+  if (entry.kind === "pi.user" || entry.kind === "pi.assistant") return entry.model?.[0];
   return undefined;
 }
 
 function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">): Kept {
   if (entry.kind === "pi.compaction") return { steps: [], role: null, text: "", at: null, compaction: true };
-  const steps = entrySteps(entry as Parameters<typeof entrySteps>[0]);
+  const steps = entrySteps(entry);
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
   const text = contentText(message.content).trim();
@@ -115,7 +125,7 @@ export class ChatProjection implements ChatSource {
           chatId,
           conversationId,
           info: info ?? null,
-          settings: (settings ?? {}) as AgentSettings,
+          settings: settings ?? {},
           entries: entries.map(keep),
           lastId: entries.at(-1)?.id ?? 0,
         });
@@ -170,7 +180,7 @@ export class ChatProjection implements ChatSource {
         const chat = this.byConversation(agentId, change.conversationId);
         if (!chat) continue;
         if (change.record.kind === "loki.chat") chat.info = change.value as unknown as ChatInfo;
-        else if (change.record.kind === "pi.agent") chat.settings = change.value as AgentSettings;
+        else if (change.record.kind === "pi.agent") chat.settings = change.value;
       }
     }
     const entries = publication.changes.flatMap((c) => (c.type === "entry" ? [c.value] : [])).sort((a, b) => a.id - b.id);
@@ -249,8 +259,9 @@ export class ChatProjection implements ChatSource {
     const chat = this.find(conversationId, agentId);
     let lastRole: LocalDigest["lastRole"] = null;
     let lastAssistantText: string | null = null;
-    for (let i = (chat?.entries.length ?? 0) - 1; i >= 0; i--) {
-      const e = chat!.entries[i];
+    const entries = chat?.entries ?? [];
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
       if (e.role === "user" && e.text) return { lastRole: lastRole ?? "user", lastAssistantText, lastAsk: isScheduledPrompt(e.text) ? "schedule" : "person" };
       if (e.role === "assistant" && e.text && !lastRole) {
         lastRole = "assistant";

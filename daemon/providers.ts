@@ -18,7 +18,10 @@ const NO_SIGN_IN = new Set(["anthropic"]);
 /** How long a sign-in waits for the browser. */
 export const SIGN_IN_MS = 10 * 60_000;
 
-type Waiting = { abort: AbortController; code?: (input: string) => void };
+interface Waiting {
+  abort: AbortController;
+  code?: (input: string) => void;
+}
 
 export class Providers {
   private readonly models: Models;
@@ -72,16 +75,16 @@ export class Providers {
     if (!provider?.auth.apiKey) throw new Error(`${providerId} does not take an API key`);
     if (!key.trim()) throw new Error("the key is empty");
     let previous: Credential | undefined;
-    await this.credentials.modify(providerId, async (current) => {
+    await this.credentials.modify(providerId, (current) => {
       previous = current;
-      return { type: "api_key", key: key.trim() };
+      return Promise.resolve({ type: "api_key", key: key.trim() });
     });
     const refreshed = await this.models.refresh({ providers: [providerId] });
     const error = refreshed.errors.get(providerId);
     if (error) {
       const kept = previous;
       if (kept) {
-        await this.credentials.modify(providerId, async () => kept);
+        await this.credentials.modify(providerId, () => Promise.resolve(kept));
         await this.models.refresh({ providers: [providerId] }).catch(() => undefined);
       } else await this.credentials.delete(providerId);
       throw new Error(`${provider.name} did not accept the key${kept ? " (the one kept before is still in use)" : ""}: ${error.message}`);
@@ -104,7 +107,7 @@ export class Providers {
     const entry: Waiting = { abort: new AbortController() };
     this.waiting.set(providerId, entry);
     const timer = setTimeout(() => entry.abort.abort(new Error("the sign-in was not finished in time")), SIGN_IN_MS);
-    timer.unref?.();
+    timer.unref();
     return new Promise((resolve, reject) => {
       let named = false;
       const done = this.models.login(

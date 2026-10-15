@@ -27,7 +27,7 @@ export function subagentExtension(): Extension {
           const parentInfo = await api.snapshot(ChatDoc, api.conversationId, context);
           const child = await api.commit(async (tx) => {
             // The ownership index remembers the child, so a rerun reuses it.
-            const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items[0];
+            const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items.at(0);
             if (existing) return existing.id;
             const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
             await configure(tx, created.id, { extensions: { remove: [extension] } });

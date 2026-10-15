@@ -8,7 +8,7 @@ import { dirname } from "node:path";
  */
 
 /** `entry` is the server's key as written in the file (`name` is it made safe for tool names), for edits to find it. */
-export type LocalServer = {
+export interface LocalServer {
   kind: "local";
   name: string;
   entry: string;
@@ -17,12 +17,22 @@ export type LocalServer = {
   env: Record<string, string>;
   cwd: string | null;
   alwaysLoad: string[];
-};
-export type RemoteServer = { kind: "remote"; name: string; entry: string; url: string; headers: Record<string, string>; alwaysLoad: string[] };
+}
+export interface RemoteServer {
+  kind: "remote";
+  name: string;
+  entry: string;
+  url: string;
+  headers: Record<string, string>;
+  alwaysLoad: string[];
+}
 export type ServerConfig = LocalServer | RemoteServer;
 
 /** The config as read: the servers that parse, and a line for each entry that does not. */
-export type McpConfig = { servers: ServerConfig[]; problems: string[] };
+export interface McpConfig {
+  servers: ServerConfig[];
+  problems: string[];
+}
 
 /** A server's name as it goes into tool names (`mcp__<name>__<tool>`): letters, digits, `_` and `-` only. */
 export const serverKey = (name: string): string => name.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "server";
@@ -133,15 +143,18 @@ function writeRaw(path: string, raw: Record<string, unknown>): void {
  */
 export function editServer(path: string, entry: string, edit: ServerEdit | null, opts: { rename?: string } = {}): void {
   const raw = readRaw(path);
-  const servers = raw.mcpServers as Record<string, Record<string, unknown>>;
-  const before = servers[entry] && typeof servers[entry] === "object" ? servers[entry] : {};
+  // The file's entries are whatever it holds: any name may be missing, and an entry may not be an object.
+  const servers = raw.mcpServers as Partial<Record<string, unknown>>;
+  const found = servers[entry];
+  const before = found && typeof found === "object" ? (found as Record<string, unknown>) : {};
   const key = opts.rename?.trim() || entry;
   if (!key) throw new Error("a server needs a name");
   if (key !== entry && servers[key]) throw new Error(`there is already a server named ${key}`);
-  delete servers[entry];
+  const { [entry]: _old, ...others } = servers;
+  raw.mcpServers = others;
   if (edit) {
-    const next: Record<string, unknown> = { ...before };
-    for (const k of ["command", "args", "env", "cwd", "url", "headers"]) delete next[k];
+    const { command: _c, args: _a, env: _e, cwd: _w, url: _u, headers: _h, ...kept } = before;
+    const next: Record<string, unknown> = { ...kept };
     if ("command" in edit) {
       if (!edit.command.trim()) throw new Error("a local server needs a command");
       Object.assign(next, {
@@ -155,7 +168,7 @@ export function editServer(path: string, entry: string, edit: ServerEdit | null,
       if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(`"${edit.url}" is not an http(s) URL`);
       Object.assign(next, { url: url.href, ...(Object.keys(edit.headers).length ? { headers: edit.headers } : {}) });
     }
-    servers[key] = next;
+    others[key] = next;
   }
   writeRaw(path, raw);
 }
@@ -163,7 +176,7 @@ export function editServer(path: string, entry: string, edit: ServerEdit | null,
 /** Set the tools of a server that skip the search (`alwaysLoad`); none removes the field. */
 export function setAlwaysLoad(path: string, entry: string, tools: string[]): void {
   const raw = readRaw(path);
-  const server = (raw.mcpServers as Record<string, Record<string, unknown>>)[entry];
+  const server = (raw.mcpServers as Partial<Record<string, Record<string, unknown>>>)[entry];
   if (!server) throw new Error(`no server named ${entry}`);
   if (tools.length) server.alwaysLoad = [...new Set(tools)];
   else delete server.alwaysLoad;

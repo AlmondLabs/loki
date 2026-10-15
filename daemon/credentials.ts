@@ -23,7 +23,10 @@ export async function keychain(): Promise<SecretBackend> {
   return {
     get: (account) => Promise.resolve(new Entry(SERVICE, account).getPassword()),
     set: (account, value) => Promise.resolve(new Entry(SERVICE, account).setPassword(value)),
-    delete: async (account) => void new Entry(SERVICE, account).deletePassword(),
+    delete: (account) => {
+      new Entry(SERVICE, account).deletePassword();
+      return Promise.resolve();
+    },
   };
 }
 
@@ -108,8 +111,14 @@ export function memorySecrets(): SecretBackend & { entries: Map<string, string> 
   const entries = new Map<string, string>();
   return {
     entries,
-    get: async (account) => entries.get(account) ?? null,
-    set: async (account, value) => void entries.set(account, value),
-    delete: async (account) => void entries.delete(account),
+    get: (account) => Promise.resolve(entries.get(account) ?? null),
+    set: (account, value) => {
+      entries.set(account, value);
+      return Promise.resolve();
+    },
+    delete: (account) => {
+      entries.delete(account);
+      return Promise.resolve();
+    },
   };
 }

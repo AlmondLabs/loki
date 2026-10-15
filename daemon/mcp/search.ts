@@ -15,7 +15,7 @@ export function words(text: string): string[] {
     .filter((w) => w.length > 1 || /\d/.test(w));
 }
 
-const params = (schema: Record<string, unknown>): string[] => Object.keys(((schema.properties ?? {}) as Record<string, unknown>) ?? {});
+const params = (schema: Record<string, unknown>): string[] => Object.keys(schema.properties ?? {});
 
 /** The words a tool is found by, weighted by repetition. */
 function document(t: McpTool): string[] {

@@ -13,7 +13,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
  * (core/attention/priority.ts).
  */
 
-export type ScheduledTask = {
+export interface ScheduledTask {
   id: string;
   agent_id: string;
   conversation_id: string;
@@ -27,9 +27,17 @@ export type ScheduledTask = {
   created_at: string;
   last_fired_at: string | null;
   fire_count: number;
-};
+}
 
-type Fields = { minute: Set<number>; hour: Set<number>; day: Set<number>; month: Set<number>; weekday: Set<number>; dayStar: boolean; weekdayStar: boolean };
+interface Fields {
+  minute: Set<number>;
+  hour: Set<number>;
+  day: Set<number>;
+  month: Set<number>;
+  weekday: Set<number>;
+  dayStar: boolean;
+  weekdayStar: boolean;
+}
 
 /** One cron field ("*", "5", "1-5", "*\/15", "1,3"), as the values it allows. */
 function field(text: string, min: number, max: number): Set<number> {
@@ -165,7 +173,7 @@ export class Schedules {
       for (const { id } of this.list()) {
         const tasks = this.list();
         const task = tasks.find((t) => t.id === id);
-        if (!task || task.status !== "active") continue;
+        if (task?.status !== "active") continue;
         let due = false;
         try {
           due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
@@ -193,7 +201,7 @@ export class Schedules {
   start(): void {
     void this.tick();
     this.timer = setInterval(() => void this.tick(), 60_000);
-    this.timer.unref?.();
+    this.timer.unref();
   }
 
   stop(): void {

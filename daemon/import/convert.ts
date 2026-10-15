@@ -15,7 +15,7 @@ export type ImportedMessage = Record<string, unknown> & { role: string; timestam
 export const BRANCH_KIND = "loki.branch";
 
 /** One converted entry: its pi-durable draft, the Letta entry it came from, and the line it was on. */
-export type ImportedEntry = {
+export interface ImportedEntry {
   sourceId: string;
   line: number;
   kind: "pi.user" | "pi.assistant" | "pi.tool-result" | "pi.compaction" | typeof BRANCH_KIND;
@@ -24,7 +24,7 @@ export type ImportedEntry = {
   data?: { diagnostics: [] } | { reason: "threshold" } | { message: ImportedMessage };
   /** For a compaction: the Letta entry its summary keeps from. */
   headSourceId?: string;
-};
+}
 
 /** pi-durable's own wrapping of a compaction summary (`harness/compaction.js`), so an imported summary reads the same. */
 const SUMMARY_PREFIX = "The conversation history before this point was compacted into the following summary:\n\n<summary>\n";
@@ -37,7 +37,7 @@ const FIELDS: Record<string, readonly string[]> = {
   toolResult: ["toolCallId", "toolName", "content", "isError"],
 };
 
-type LogLine = {
+interface LogLine {
   type?: string;
   id?: string;
   parentId?: string | null;
@@ -45,7 +45,7 @@ type LogLine = {
   message?: Record<string, unknown> & { role?: string; timestamp?: unknown; metadata?: { created_at?: unknown } };
   summary?: string;
   firstKeptEntryId?: string;
-};
+}
 
 /**
  * A line's time in milliseconds, read in the order the mod's log reader reads it (`mod/desks.ts` logSteps): the line's
@@ -74,8 +74,8 @@ function cleanMessage(m: Record<string, unknown> & { role: string }, timestamp: 
  * that do not parse are skipped.
  */
 export function lettaLogEntries(text: string): ImportedEntry[] {
-  const lines: Array<{ line: LogLine; index: number }> = [];
-  const byId = new Map<string, { line: LogLine; index: number }>();
+  const lines: Array<{ line: LogLine; id: string; index: number }> = [];
+  const byId = new Map<string, { line: LogLine; id: string; index: number }>();
   text.split("\n").forEach((raw, index) => {
     if (!raw.trim()) return;
     let line: LogLine;
@@ -86,18 +86,17 @@ export function lettaLogEntries(text: string): ImportedEntry[] {
     }
     if (line.type !== "message" && line.type !== "compaction") return;
     if (typeof line.id !== "string") return;
-    const item = { line, index };
+    const item = { line, id: line.id, index };
     lines.push(item);
     byId.set(line.id, item);
   });
   const seen = new Set<string>();
-  for (let item = lines.at(-1); item && !seen.has(item.line.id!); item = item.line.parentId ? byId.get(item.line.parentId) : undefined) {
-    seen.add(item.line.id!);
+  for (let item = lines.at(-1); item && !seen.has(item.id); item = item.line.parentId ? byId.get(item.line.parentId) : undefined) {
+    seen.add(item.id);
   }
 
   const out: ImportedEntry[] = [];
-  for (const { line, index } of lines) {
-    const sourceId = line.id!;
+  for (const { line, id: sourceId, index } of lines) {
     if (!seen.has(sourceId)) {
       const m = line.message;
       if (line.type === "message" && m && typeof m.role === "string" && m.role in FIELDS) {

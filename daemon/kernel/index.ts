@@ -28,6 +28,7 @@ export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
 });
 
 /** What loki keeps about one chat, committed with the chat it describes. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a pi-durable document must be a JsonObject, and an interface with optional fields cannot extend one
 export type ChatInfo = {
   id: string;
   title: string | null;

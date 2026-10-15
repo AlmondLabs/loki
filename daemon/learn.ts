@@ -24,7 +24,11 @@ const FAILING_PER_RUN = 5;
 
 export const INSTRUCTIONS = `You are writing study cards for the person you work with, from a stretch of one of your conversations with them. Answer with the JSON the request asks for and nothing else; you have no tools here.`;
 
-type Deps = { store: RecallStore; state: PassState; chats: ChatProjection };
+interface Deps {
+  store: RecallStore;
+  state: PassState;
+  chats: ChatProjection;
+}
 
 export function learnJob(deps: Deps): PassJob {
   const { store, state, chats } = deps;

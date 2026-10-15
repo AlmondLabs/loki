@@ -120,7 +120,7 @@ export class ChatEventConverter {
           { kind: "error", message: unanswered(ev.record.reason) },
           { kind: "settle" },
           { kind: "loop", state: "idle" },
-          { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id])! },
+          { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id]) ?? undefined },
         ];
       default:
         return [];
