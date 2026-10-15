@@ -234,7 +234,9 @@ export class ThreadModel {
   finishCommand(input: string, success: boolean, output: string, at: string): void {
     const text = output.trim();
     const oneLine = text.split("\n").length === 1 && text.length <= 90;
-    const summary = !success ? "failed" : oneLine ? text || "done" : "done";
+    // A failure says why: a short reason beside it ("failed: a memory review of this agent is already running"), a
+    // long one behind the disclosure. A bare "failed" left the reason nowhere on screen.
+    const summary = !success ? (oneLine && text ? `failed: ${text}` : "failed") : oneLine ? text || "done" : "done";
     const detail = !oneLine && text ? text : null;
     const row = this.runningRow(input);
     if (!row) return this.push({ role: "event", text: input, summary, detail, at });
