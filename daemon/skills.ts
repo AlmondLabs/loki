@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { listGlobalSkills, skillDescription } from "../mod/skills.ts";
 import { AgentInfoDoc } from "./kernel/index.ts";
 import { memoryRoot } from "./memory.ts";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * Skills and project instructions on loki's daemon (plan 017, U10, KTD19). The agent's prompt lists every skill it
@@ -65,18 +66,21 @@ export function skillsExtension(backendDir: string, globalDir?: string): Extensi
       }),
     ],
     tools: [
-      defineTool({
-        name: "Skill",
-        description: "Load a skill's full instructions by its name, from the skills listed in your prompt.",
-        parameters: { type: "object", properties: { skill: { type: "string" } }, required: ["skill"] } as never,
-        execute: async (args, api, context) => {
-          const name = (args as { skill: string }).skill;
-          const agent = await api.snapshot(AgentInfoDoc, context);
-          const skill = skillsOf(backendDir, agent?.id, globalDir).find((s) => s.name === name);
-          if (!skill) throw new Error(`no skill named ${name}`);
-          return { content: [{ type: "text", text: `<skill_content name="${name}">\n${readFileSync(skill.file, "utf8")}\n</skill_content>` }] };
-        },
-      }),
+      withKind(
+        "read",
+        defineTool({
+          name: "skill",
+          description: "Load a skill's full instructions by its name, from the skills listed in your prompt.",
+          parameters: { type: "object", properties: { skill: { type: "string" } }, required: ["skill"] } as never,
+          execute: async (args, api, context) => {
+            const name = (args as { skill: string }).skill;
+            const agent = await api.snapshot(AgentInfoDoc, context);
+            const skill = skillsOf(backendDir, agent?.id, globalDir).find((s) => s.name === name);
+            if (!skill) throw new Error(`no skill named ${name}`);
+            return { content: [{ type: "text", text: `<skill_content name="${name}">\n${readFileSync(skill.file, "utf8")}\n</skill_content>` }] };
+          },
+        }),
+      ),
     ],
   });
 }

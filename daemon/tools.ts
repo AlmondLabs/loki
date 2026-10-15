@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `view_image`, beside its own
@@ -77,98 +78,110 @@ export function fileToolsExtension(): Extension {
   return defineExtension({
     name: "loki.files",
     tools: [
-      defineTool({
-        name: "ls",
-        description: "List a folder: its files and folders (folders end with /).",
-        parameters: { type: "object", properties: { path: { type: "string", description: "Default: the chat's folder" } } } as never,
-        execute: async (args, api, context) => {
-          const dir = at(await folderOf(api, context), (args as { path?: string }).path);
-          const kept = (await readdir(dir)).filter((n) => !SKIP.has(n)).sort();
-          const names = await Promise.all(kept.map(async (n) => ((await stat(join(dir, n)).catch(() => null))?.isDirectory() ? `${n}/` : n)));
-          return text(names.length ? names.join("\n") : "(empty)");
-        },
-      }),
-      defineTool({
-        name: "find",
-        description: "Find files by a glob such as **/*.ts or README*, under a folder.",
-        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } as never,
-        execute: async (args, api, context) => {
-          const a = args as { pattern: string; path?: string };
-          const root = at(await folderOf(api, context), a.path);
-          const test = globTest(a.pattern);
-          const hits = (await walk(root, 20_000)).map((f) => relative(root, f).split(sep).join("/")).filter(test);
-          return text(hits.length ? hits.slice(0, LIMIT).join("\n") + (hits.length > LIMIT ? `\n… and ${hits.length - LIMIT} more` : "") : "no files match");
-        },
-      }),
-      defineTool({
-        name: "grep",
-        description: "Search file contents with a regular expression, under a folder; optionally only files matching a glob.",
-        parameters: {
-          type: "object",
-          properties: { pattern: { type: "string" }, path: { type: "string" }, glob: { type: "string" } },
-          required: ["pattern"],
-        } as never,
-        execute: async (args, api, context) => {
-          const a = args as { pattern: string; path?: string; glob?: string };
-          const root = at(await folderOf(api, context), a.path);
-          try {
-            const { stdout } = await run(
-              "rg",
-              [
-                "--line-number",
-                "--no-heading",
-                "--color=never",
-                "--max-count=50",
-                "--glob",
-                "!**/node_modules/**",
-                ...(a.glob ? ["--glob", a.glob] : []),
-                "--",
-                a.pattern,
-                root,
-              ],
-              { maxBuffer: 8 * 1024 * 1024 },
-            );
-            const lines = stdout.split("\n").filter(Boolean);
-            return text(lines.slice(0, LIMIT).join("\n") + (lines.length > LIMIT ? `\n… and ${lines.length - LIMIT} more` : ""));
-          } catch (error) {
-            // ripgrep exits 1 when nothing matched; ENOENT means there is no ripgrep.
-            const code = (error as { code?: unknown }).code;
-            if (code === 1) return text("no matches");
-            if (code !== "ENOENT") throw error;
-          }
-          // No ripgrep on this machine: walk the folder.
-          const re = new RegExp(a.pattern);
-          const test = a.glob ? globTest(a.glob) : () => true;
-          const out: string[] = [];
-          for (const file of await walk(root, 20_000)) {
-            if (out.length >= LIMIT) break;
-            const rel = relative(root, file).split(sep).join("/");
-            if (!test(rel)) continue;
-            let body: string;
+      withKind(
+        "read",
+        defineTool({
+          name: "ls",
+          description: "List a folder: its files and folders (folders end with /).",
+          parameters: { type: "object", properties: { path: { type: "string", description: "Default: the chat's folder" } } } as never,
+          execute: async (args, api, context) => {
+            const dir = at(await folderOf(api, context), (args as { path?: string }).path);
+            const kept = (await readdir(dir)).filter((n) => !SKIP.has(n)).sort();
+            const names = await Promise.all(kept.map(async (n) => ((await stat(join(dir, n)).catch(() => null))?.isDirectory() ? `${n}/` : n)));
+            return text(names.length ? names.join("\n") : "(empty)");
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "find",
+          description: "Find files by a glob such as **/*.ts or README*, under a folder.",
+          parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } as never,
+          execute: async (args, api, context) => {
+            const a = args as { pattern: string; path?: string };
+            const root = at(await folderOf(api, context), a.path);
+            const test = globTest(a.pattern);
+            const hits = (await walk(root, 20_000)).map((f) => relative(root, f).split(sep).join("/")).filter(test);
+            return text(hits.length ? hits.slice(0, LIMIT).join("\n") + (hits.length > LIMIT ? `\n… and ${hits.length - LIMIT} more` : "") : "no files match");
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "grep",
+          description: "Search file contents with a regular expression, under a folder; optionally only files matching a glob.",
+          parameters: {
+            type: "object",
+            properties: { pattern: { type: "string" }, path: { type: "string" }, glob: { type: "string" } },
+            required: ["pattern"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { pattern: string; path?: string; glob?: string };
+            const root = at(await folderOf(api, context), a.path);
             try {
-              body = await readFile(file, "utf8");
-            } catch {
-              continue;
+              const { stdout } = await run(
+                "rg",
+                [
+                  "--line-number",
+                  "--no-heading",
+                  "--color=never",
+                  "--max-count=50",
+                  "--glob",
+                  "!**/node_modules/**",
+                  ...(a.glob ? ["--glob", a.glob] : []),
+                  "--",
+                  a.pattern,
+                  root,
+                ],
+                { maxBuffer: 8 * 1024 * 1024 },
+              );
+              const lines = stdout.split("\n").filter(Boolean);
+              return text(lines.slice(0, LIMIT).join("\n") + (lines.length > LIMIT ? `\n… and ${lines.length - LIMIT} more` : ""));
+            } catch (error) {
+              // ripgrep exits 1 when nothing matched; ENOENT means there is no ripgrep.
+              const code = (error as { code?: unknown }).code;
+              if (code === 1) return text("no matches");
+              if (code !== "ENOENT") throw error;
             }
-            body.split("\n").forEach((line, i) => {
-              if (out.length < LIMIT && re.test(line)) out.push(`${file}:${i + 1}:${line}`);
-            });
-          }
-          return text(out.length ? out.join("\n") : "no matches");
-        },
-      }),
-      defineTool({
-        name: "view_image",
-        description: "Look at an image file (PNG, JPEG, GIF or WebP).",
-        parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
-        execute: async (args, api, context) => {
-          const file = at(await folderOf(api, context), (args as { path: string }).path);
-          const mimeType = IMAGE_TYPES[extname(file).toLowerCase()];
-          if (!mimeType) throw new Error("not an image this tool can show");
-          if (!existsSync(file)) throw new Error(`no such file: ${file}`);
-          return { content: [{ type: "image", data: (await readFile(file)).toString("base64"), mimeType }] };
-        },
-      }),
+            // No ripgrep on this machine: walk the folder.
+            const re = new RegExp(a.pattern);
+            const test = a.glob ? globTest(a.glob) : () => true;
+            const out: string[] = [];
+            for (const file of await walk(root, 20_000)) {
+              if (out.length >= LIMIT) break;
+              const rel = relative(root, file).split(sep).join("/");
+              if (!test(rel)) continue;
+              let body: string;
+              try {
+                body = await readFile(file, "utf8");
+              } catch {
+                continue;
+              }
+              body.split("\n").forEach((line, i) => {
+                if (out.length < LIMIT && re.test(line)) out.push(`${file}:${i + 1}:${line}`);
+              });
+            }
+            return text(out.length ? out.join("\n") : "no matches");
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "view_image",
+          description: "Look at an image file (PNG, JPEG, GIF or WebP).",
+          parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
+          execute: async (args, api, context) => {
+            const file = at(await folderOf(api, context), (args as { path: string }).path);
+            const mimeType = IMAGE_TYPES[extname(file).toLowerCase()];
+            if (!mimeType) throw new Error("not an image this tool can show");
+            if (!existsSync(file)) throw new Error(`no such file: ${file}`);
+            return { content: [{ type: "image", data: (await readFile(file)).toString("base64"), mimeType }] };
+          },
+        }),
+      ),
     ],
   });
 }

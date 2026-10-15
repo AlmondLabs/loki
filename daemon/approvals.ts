@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { CODING_TOOL_KINDS, RENAMED_TOOLS, type ToolKind } from "./tool-kinds.ts";
 
 /**
  * Approvals (plan 017, U7, KTD8): before a tool runs, the chat's permission mode decides whether the person is asked.
@@ -19,41 +20,19 @@ export const DEFAULT_MODE: PermissionMode = "unrestricted";
 /** Whether a stored value is one of the four modes; a chat whose mode is anything else runs in DEFAULT_MODE. */
 export const isPermissionMode = (m: unknown): m is PermissionMode => m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted";
 
-/** What a tool does, for the mode table: reads, edits files, or anything else (a command). */
-export type ToolKind = "read" | "edit" | "command";
-
-/** The built-in tools and loki's own, by kind; a mod's tool says what it is in its annotations (daemon/mods/api.ts). */
-const KINDS: Partial<Record<string, ToolKind>> = {
-  read: "read",
-  grep: "read",
-  find: "read",
-  ls: "read",
-  desk_state: "read",
-  loki_camera: "read",
-  web_search: "read",
-  view_image: "read",
-  TaskOutput: "read",
-  Monitor: "read",
-  schedule_list: "read",
-  Skill: "read",
-  // A helper's own tool calls pass the gate; starting one does not ask on its own.
-  Agent: "read",
-  // Memory is the agent's own: changing it is not a permission.
-  memory_read: "read",
-  memory_write: "read",
-  memory_edit: "read",
-  memory_delete: "read",
-  write: "edit",
-  edit: "edit",
-};
+export type { ToolKind } from "./tool-kinds.ts";
 
 /** A tool that is never a permission: a question card asks for answers, not leave. */
-const NEVER_ASK = new Set(["AskUserQuestion"]);
+const NEVER_ASK = new Set(["ask_user"]);
 
-/** A tool's kind for the mode table: loki's own table first, then a mod tool's `readOnly` annotation; anything else is a command, the kind that asks most. */
+/**
+ * A tool's kind for the mode table, when it is not one of loki's own (those declare theirs; daemon/extensions.ts
+ * builtinKinds): pi-durable's coding tools by name, then a mod's or MCP server's `readOnly` annotation; anything else is
+ * a command, the kind that asks most.
+ */
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
-  const known = KINDS[name];
-  if (known) return known;
+  const coding = CODING_TOOL_KINDS[name];
+  if (coding) return coding;
   if (annotations?.readOnly) return "read";
   return "command";
 }
@@ -111,7 +90,10 @@ export class Approvals {
   constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string } = {}) {
     this.widgetsDir = opts.widgetsDir;
     this.alwaysPath = opts.alwaysPath ?? null;
-    this.alwaysAllowed = new Set(this.alwaysPath ? readAlways(this.alwaysPath) : []);
+    // Tools allowed under their names from before October 2026 carry over to the new names, written back once.
+    const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
+    this.alwaysAllowed = new Set(stored.map((name) => RENAMED_TOOLS[name] ?? name));
+    if (stored.some((name) => name in RENAMED_TOOLS)) this.saveAlways();
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 
@@ -145,11 +127,14 @@ export class Approvals {
   setAlways(toolName: string, on: boolean): string[] {
     if (on) this.alwaysAllowed.add(toolName);
     else this.alwaysAllowed.delete(toolName);
-    if (this.alwaysPath) {
-      mkdirSync(dirname(this.alwaysPath), { recursive: true });
-      writeFileSync(this.alwaysPath, `${JSON.stringify({ always: this.always() }, null, 2)}\n`);
-    }
+    this.saveAlways();
     return this.always();
+  }
+
+  private saveAlways(): void {
+    if (!this.alwaysPath) return;
+    mkdirSync(dirname(this.alwaysPath), { recursive: true });
+    writeFileSync(this.alwaysPath, `${JSON.stringify({ always: this.always() }, null, 2)}\n`);
   }
 
   /** The person's answers to a question card. */
