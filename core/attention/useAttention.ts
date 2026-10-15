@@ -236,7 +236,7 @@ export function useAttention(opts: UseAttentionOptions) {
         l.pending && l.pending.requestId !== asked.approval
           ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" }
           : l.pendingAsk && l.pendingAsk.requestId !== asked.question
-            ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" }
+            ? { id: l.pendingAsk.requestId, tool: "ask_user", kind: "question" }
             : null;
       // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
       const move = folderMoves.current.get(key);
@@ -550,7 +550,7 @@ export function useAttention(opts: UseAttentionOptions) {
     [decide],
   );
 
-  /** Answer a pending AskUserQuestion; the card clears at once and comes back if the server refuses. */
+  /** Answer a pending question card (the ask_user tool); the card clears at once and comes back if the server refuses. */
   const answer = useCallback(
     (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => {
       const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));

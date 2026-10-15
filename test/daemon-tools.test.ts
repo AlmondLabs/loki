@@ -89,7 +89,7 @@ describe("skills and project instructions", () => {
       ]);
       const t = await chatWith(project, [skillsExtension(dir, globalDir)], { id: agentId, name: "Ada" });
       t.faux.setResponses([
-        t.reply(fauxAssistantMessage(fauxToolCall("Skill", { skill: "tea" }), { stopReason: "toolUse" })),
+        t.reply(fauxAssistantMessage(fauxToolCall("skill", { skill: "tea" }), { stopReason: "toolUse" })),
         t.reply(fauxAssistantMessage("ok")),
       ]);
       await (await t.chat.submit({ type: "input", content: "tea please" }, ctx)).wait(ctx);
@@ -111,16 +111,16 @@ describe("subagents", () => {
     try {
       const t = await chatWith(dir, [subagentExtension()]);
       t.faux.setResponses([
-        t.reply(fauxAssistantMessage(fauxToolCall("Agent", { description: "count", prompt: "Count to three." }), { stopReason: "toolUse" })),
+        t.reply(fauxAssistantMessage(fauxToolCall("subagent", { description: "count", prompt: "Count to three." }), { stopReason: "toolUse" })),
         t.reply(fauxAssistantMessage("one, two, three")), // the helper
         t.reply(fauxAssistantMessage("The helper counted.")),
       ]);
       await (await t.chat.submit({ type: "input", content: "delegate" }, ctx)).wait(ctx);
       expect((await t.results())[0]).toContain("one, two, three");
       // The helper's request offered no Agent tool.
-      expect(t.sent[0]).toContain('"name":"Agent"');
+      expect(t.sent[0]).toContain('"name":"subagent"');
       expect(t.sent[1]).toContain("Count to three.");
-      expect(t.sent[1]).not.toContain('"name":"Agent"');
+      expect(t.sent[1]).not.toContain('"name":"subagent"');
       expect(t.sent[1]).not.toContain("delegate");
       await t.store.close(ctx);
     } finally {

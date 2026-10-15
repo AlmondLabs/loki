@@ -77,7 +77,7 @@ export function useDeskSocket() {
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
-  /** Bumped when the mod says the task list changed (another tab, an agent's loki_task call). */
+  /** Bumped when the mod says the task list changed (another tab, an agent's `tasks` tool call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
   const [recallVersion, setRecallVersion] = useState(0);

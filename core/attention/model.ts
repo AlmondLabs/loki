@@ -25,7 +25,7 @@ export interface PendingApproval {
   at: string;
 }
 
-/** The agent is waiting on answers (AskUserQuestion), not a permission. */
+/** The agent is waiting on answers (the ask_user tool), not a permission. */
 export interface PendingQuestion {
   requestId: string;
   input: unknown;

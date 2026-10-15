@@ -338,7 +338,7 @@ Only the things a mod can do:
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - reads and writes pins in Letta Desktop's own `~/.letta/pinned-conversations.json`, so a pin shows in both
 - adopts or spawns the Vite dev server, detached so it survives `/reload`
-- tools: `desk_state`, `loki_camera` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
+- tools: `desk_state`, `desk_camera` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
 
 ## Install (development)
 
@@ -446,7 +446,7 @@ the folder is Letta Code's to tell.
 
 ## Questions from the agent
 
-When an agent calls `AskUserQuestion`, the conversation (on either tab) and the inbox card show
+When an agent calls `ask_user`, the conversation (on either tab) and the inbox card show
 a question card instead of a permission block: each question with its options
 (pick one, or pick many), and an "or answer in your own words" line. Answer
 sends everything back in one go. A typed reply in the message box while a
@@ -607,7 +607,7 @@ One task list shared by you and every agent, backed by
 [beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at `~/.loki/tasks`. (Tasks was called the Board
 until October 2026; its list in `~/.loki/board` moves to `~/.loki/tasks` the first time the new version starts, and
 stays where it is if it cannot move.) A task is work to be done: you do it yourself, or hand it to an agent. Agents
-file tasks only when asked, through the `loki_task` tool, which stamps the source chat and its folder; you file them
+file tasks only when asked, through the `tasks` tool, which stamps the source chat and its folder; you file them
 from the "+" in Tasks or ⌘T anywhere.
 
 **Views.** The Tasks segment (⌘3) lists its built-in views in the sidebar, each with its count:

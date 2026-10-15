@@ -10,7 +10,7 @@ import type { TaskStore } from "./tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 /**
- * Two desk tools, and loki_task when Tasks is ready. Rendering and authoring are file writes, not tool calls — the
+ * Two desk tools, and tasks when Tasks is ready. Rendering and authoring are file writes, not tool calls — the
  * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
  * reading back and for directing attention.
  */
@@ -91,7 +91,7 @@ interface LokiTool {
 const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 /**
- * Registers the agent's tools with the daemon (desk_state, loki_camera, and loki_task when Tasks is ready); returns
+ * Registers the agent's tools with the daemon (desk_state, desk_camera, and tasks when Tasks is ready); returns
  * the functions that unregister them.
  */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
@@ -122,6 +122,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   disposers.push(
     tools.register({
       name: "desk_state",
+      annotations: { readOnly: true },
       description:
         "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
         "and on the shared canvas: file, type, title, data (with the user's gesture edits applied), position, and any " +
@@ -162,7 +163,8 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   disposers.push(
     tools.register({
-      name: "loki_camera",
+      name: "desk_camera",
+      annotations: { readOnly: true },
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
         "highlighted for a few seconds). Use it to direct attention after writing a widget or when referring to " +
@@ -171,21 +173,21 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       parameters: {
         type: "object",
         properties: {
-          widgetId: { type: "string", description: 'One widget id as returned by desk_state, e.g. "shared/sleep"' },
-          widgetIds: { type: "array", items: { type: "string" }, description: "Several widget ids to fit in view together" },
+          widget_id: { type: "string", description: 'One widget id as returned by desk_state, e.g. "shared/sleep"' },
+          widget_ids: { type: "array", items: { type: "string" }, description: "Several widget ids to fit in view together" },
           dwell: { type: "number", description: "Milliseconds to hold before returning (0–8000)." },
         },
         additionalProperties: false,
       },
       async run(ctx) {
         const args = ctx.args;
-        const ids = Array.isArray(args.widgetIds)
-          ? (args.widgetIds as unknown[]).filter((x): x is string => typeof x === "string")
-          : typeof args.widgetId === "string" && args.widgetId
-            ? [args.widgetId]
+        const ids = Array.isArray(args.widget_ids)
+          ? (args.widget_ids as unknown[]).filter((x): x is string => typeof x === "string")
+          : typeof args.widget_id === "string" && args.widget_id
+            ? [args.widget_id]
             : [];
-        log("tool:loki_camera", { ids, dwell: args.dwell });
-        if (ids.length === 0) return { status: "error", content: "give widgetId or widgetIds" };
+        log("tool:desk_camera", { ids, dwell: args.dwell });
+        if (ids.length === 0) return { status: "error", content: "give widget_id or widget_ids" };
         const missing = ids.filter((id) => !deps.widgets.get(id));
         if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check desk_state` };
         const scopes = new Set(ids.map(scopeOfId));
@@ -204,7 +206,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
     const store = deps.tasks;
     disposers.push(
       tools.register({
-        name: "loki_task",
+        name: "tasks",
         description:
           "The user's Tasks: one task list shared by the user and every agent (beads). Use it when the user asks to " +
           "note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your own " +
@@ -241,7 +243,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           const conversation = ctx.conversation.id;
           const agentId = ctx.agent.id;
           const agent = ctx.agent.name;
-          log("tool:loki_task", { action, agent, conversation });
+          log("tool:tasks", { action, agent, conversation });
           try {
             if (action === "create") {
               const task = await store.create({

@@ -94,6 +94,15 @@ interface DeskState {
 const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]>[0]) =>
   JSON.parse((await must(tools.get("desk_state"), "the desk_state tool").run(c)) as string) as DeskState;
 
+describe("the mod's tools", () => {
+  test("desk_state and desk_camera always, tasks once Tasks is ready; every name snake_case", () => {
+    expect([...harness().tools.keys()].sort()).toEqual(["desk_camera", "desk_state"]);
+    const names = [...harness({ tasks: {} as ToolDeps["tasks"] }).tools.keys()].sort();
+    expect(names).toEqual(["desk_camera", "desk_state", "tasks"]);
+    expect(names.filter((n) => !/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(n))).toEqual([]);
+  });
+});
+
 describe("desk_state", () => {
   test("returns own desk + shared, merged data, layout, errors, pending activity", async () => {
     const { tools } = harness();
@@ -129,31 +138,31 @@ describe("desk_state", () => {
   });
 });
 
-describe("loki_camera", () => {
+describe("desk_camera", () => {
   test("broadcasts to the widget's desk; shared goes to everyone; missing errors", async () => {
     const { tools, broadcasts } = harness();
-    const cam = must(tools.get("loki_camera"), "the loki_camera tool");
-    expect(await cam.run({ args: { widgetId: "c1/sleep" } })).toMatch(/gliding/);
+    const cam = must(tools.get("desk_camera"), "the desk_camera tool");
+    expect(await cam.run({ args: { widget_id: "c1/sleep" } })).toMatch(/gliding/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep"] }, "c1"]);
-    await cam.run({ args: { widgetId: "shared/welcome" } });
+    await cam.run({ args: { widget_id: "shared/welcome" } });
     expect(broadcasts[1][1]).toBeUndefined();
     // A bad call fails, with what to do about it.
-    await expect(cam.run({ args: { widgetId: "nope" } })).rejects.toThrow('no widget "nope" — check desk_state');
-    await expect(cam.run({ args: {} })).rejects.toThrow("give widgetId or widgetIds");
+    await expect(cam.run({ args: { widget_id: "nope" } })).rejects.toThrow('no widget "nope" — check desk_state');
+    await expect(cam.run({ args: {} })).rejects.toThrow("give widget_id or widget_ids");
   });
 
   test("frames several widgets and honours dwell", async () => {
     const { tools, broadcasts } = harness();
-    const cam = must(tools.get("loki_camera"), "the loki_camera tool");
+    const cam = must(tools.get("desk_camera"), "the desk_camera tool");
     const t = Date.now();
-    const out = await cam.run({ args: { widgetIds: ["c1/sleep", "shared/welcome"], dwell: 120 } });
+    const out = await cam.run({ args: { widget_ids: ["c1/sleep", "shared/welcome"], dwell: 120 } });
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);
     expect(out).toMatch(/framing 2 widgets, held 120ms/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep", "shared/welcome"] }, undefined]);
   });
 });
 
-describe("loki_task: a chat's own tasks, and only you close yours", () => {
+describe("tasks: a chat's own tasks, and only you close yours", () => {
   const task = (id: string, metadata: Record<string, string>, status = "open") => ({
     id,
     title: id,
@@ -194,7 +203,7 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
     };
     const h = harness({ tasks: store as unknown as ToolDeps["tasks"] });
     const run = (args: Record<string, unknown>, conversation = "c1") =>
-      must(h.tools.get("loki_task"), "the loki_task tool").run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
+      must(h.tools.get("tasks"), "the tasks tool").run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
     return { run, calls, broadcasts: h.broadcasts };
   }
 
@@ -234,6 +243,6 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
     const listed = JSON.parse(String(await run({ action: "list" }))) as Array<{ id: string }>;
     expect(listed.map((t) => t.id)).toEqual(["lk-mine", "lk-agent"]);
     const h = harness({ tasks: {} as ToolDeps["tasks"] });
-    expect(must(h.tools.get("loki_task"), "the loki_task tool").description).toMatch(/Only the user closes a task the user filed/);
+    expect(must(h.tools.get("tasks"), "the tasks tool").description).toMatch(/Only the user closes a task the user filed/);
   });
 });

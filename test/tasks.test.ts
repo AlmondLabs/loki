@@ -128,7 +128,7 @@ describe("tasks: turn-start block", () => {
     expect(block).toContain("lk-a1  P1  rotate SSO creds — filed by friday");
     expect(block).not.toContain("lk-b2");
     expect(block).not.toContain("lk-c3");
-    expect(block).toContain("loki_task");
+    expect(block).toContain("tasks");
   });
   test("nothing assigned: no block at all", () => {
     expect(formatTasksContext([t({})], { conversation: "c1" })).toBeNull();

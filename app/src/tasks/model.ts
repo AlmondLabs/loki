@@ -273,7 +273,7 @@ export function filterTasks(tasks: Task[], query: string): Task[] {
 
 /**
  * The message a dispatch posts into the target conversation. Plain and complete: the agent
- * may be starting cold, and the ids let it close the tasks through loki_task.
+ * may be starting cold, and the ids let it close the tasks through the `tasks` tool.
  */
 export function dispatchMessage(tasks: Task[]): string {
   const one = tasks.length === 1;
@@ -290,7 +290,7 @@ export function dispatchMessage(tasks: Task[]): string {
     ...lines,
     "",
     one
-      ? 'When it is done, close it with loki_task { action: "close", id, reason }. Ask if anything is unclear before starting.'
-      : 'Work them in order unless one blocks another. Close each with loki_task { action: "close", id, reason } as you finish. Ask if anything is unclear before starting.',
+      ? 'When it is done, close it with the tasks tool: { action: "close", id, reason }. Ask if anything is unclear before starting.'
+      : 'Work them in order unless one blocks another. Close each with the tasks tool, { action: "close", id, reason }, as you finish. Ask if anything is unclear before starting.',
   ].join("\n");
 }

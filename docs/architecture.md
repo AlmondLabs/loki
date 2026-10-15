@@ -92,15 +92,17 @@ every chat gets, the chats, then the mods.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
    the chat's permission mode (GLOSSARY.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
-   crash never asks twice. `AskUserQuestion` shows a question card the same way.
+   crash never asks twice. `ask_user` shows a question card the same way.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `view_image`
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
-   (`daemon/web-search.ts`); the memory tools.
+   (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
+   list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
+   definition (`daemon/tool-kinds.ts`).
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
-   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `Skill` tool hands over a
+   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `skill` tool hands over a
    skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
    own.
-7. **Subagents (`daemon/subagents.ts`).** The `Agent` tool runs a helper in a child conversation that the call owns,
+7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
    with the parent's model, tools, folder and permission mode. Aborting the call aborts the helper. Helpers are not
    agent records, so they never appear in the Agents list.
 8. **Background and scheduled tasks (`daemon/background.ts`, `daemon/schedule.ts`).** A background bash command
@@ -165,8 +167,8 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform, with any tasks assigned to the chat.
-3. **The agent's tools.** `desk_state` (the canvas as you left it), `loki_camera` (move your view to a widget) and
-   `loki_task` (Tasks).
+3. **The agent's tools.** `desk_state` (the canvas as you left it), `desk_camera` (move your view to a widget) and
+   `tasks` (Tasks).
 4. **Tasks.** The shared task list in beads, through `bd`.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.

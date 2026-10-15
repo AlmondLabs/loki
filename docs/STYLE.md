@@ -64,6 +64,17 @@ npm run build:app && npm run build:mod && npm run smoke
 - `core/` never touches the browser, Tauri or `app/`. **checked**: `test/core-portability.test.ts`.
 - One concern per file. When a file passes ~600 lines, look for the second concern inside it. **review**.
 
+**Agent tools** **checked** (`test/extensions.test.ts`, `test/tools.test.ts`):
+
+- A tool's name and its arguments are snake_case: `background_watch`, `desk_camera { widget_id }`. Tools of one family
+  share its prefix (`memory_`, `schedule_`, `background_`, `desk_`).
+- Every built-in tool declares its kind (read, edit or command) on its definition with `withKind`
+  (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
+- Names loki does not choose stay as their owners write them: pi-durable's `read`, `write`, `edit` and `bash`, and MCP's
+  `mcp__<server>__<tool>`.
+- A rename is a hard rename: the old name goes, the stored "always allow" list is migrated (`RENAMED_TOOLS`), and code
+  that reads old chats knows both names.
+
 ## 3. TypeScript
 
 **checked** by tsc (strict, `erasableSyntaxOnly`, `verbatimModuleSyntax`) and ESLint (`strictTypeChecked` and

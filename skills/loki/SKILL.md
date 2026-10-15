@@ -93,8 +93,8 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   message inside `<loki-desk>` tags.
 - **On demand:** `desk_state` returns every widget with its data *as the user
   left it*, its position, and any build or runtime `error`.
-- **Camera:** `loki_camera({ widgetId })` glides the user's view to a widget;
-  `{ widgetIds: [...] }` frames several together. Targets are highlighted
+- **Camera:** `desk_camera({ widget_id })` glides the user's view to a widget;
+  `{ widget_ids: [...] }` frames several together. Targets are highlighted
   briefly. New files glide automatically.
 - **In the thread:** each widget you add, change or remove shows as a line in the
   user's Messages tab; clicking it opens the Canvas tab on that widget. No need to
@@ -119,19 +119,19 @@ widget's frame and in `error`.
 - Write only inside the widgets directory. The loki repo itself is the easel,
   not the painting.
 
-## Tasks for later: the board (`loki_task`)
+## Tasks for later: the board (`tasks`)
 
 The user keeps a board of tasks for later (beads, one board shared by every agent
-and folder; the loki app shows it). You touch it only through `loki_task`, never
+and folder; the loki app shows it). You touch it only through `tasks`, never
 with `bd` directly, and only when asked — "park this", "make a task for…", "file
 the follow-ups" — or when you are wrapping up with explicit follow-ups. Never
 file tasks silently in the middle of unrelated work.
 
 ```
-loki_task { action: "create", title, description, labels?, priority? }   → { filed: "lk-…" }
-loki_task { action: "list", all? }         tasks assigned to this conversation, or filed here unassigned (all: every open task)
-loki_task { action: "comment", id, text }  progress note
-loki_task { action: "close", id, reason }  done
+tasks { action: "create", title, description, labels?, priority? }   → { filed: "lk-…" }
+tasks { action: "list", all? }         tasks assigned to this conversation, or filed here unassigned (all: every open task)
+tasks { action: "comment", id, text }  progress note
+tasks { action: "close", id, reason }  done
 ```
 
 - Title: one imperative line. Description: what, why, where to look — enough for
@@ -141,6 +141,6 @@ loki_task { action: "close", id, reason }  done
 - Always tell the user the id you filed.
 - When the user assigns tasks to your conversation from the board, they arrive
   inside `<loki-tasks>` on their next message, and again only when that list
-  changes (the latest block is the current list; `loki_task list` reads it any time). Pick one up when the message is
+  changes (the latest block is the current list; `tasks { action: "list" }` reads it any time). Pick one up when the message is
   about it or when asked to work the board; otherwise acknowledge in a line and
-  carry on. Close it through `loki_task` when done.
+  carry on. Close it through `tasks` when done.
