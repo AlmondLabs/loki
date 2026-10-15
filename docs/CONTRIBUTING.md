@@ -34,6 +34,7 @@ How code, comments, docs, tests and commits are written is [STYLE.md](STYLE.md);
 npm test                                          # mod, shared, app logic, design tokens (vitest, on Node)
 npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
 npm run typecheck
+npm run format:check                              # Prettier; npm run format fixes it
 npm run lint
 npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 npm run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, Letta import, restart

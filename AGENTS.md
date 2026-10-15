@@ -7,7 +7,7 @@ the same rules in [docs/STYLE.md](docs/STYLE.md), which is the source of truth; 
 
 - Read [docs/STYLE.md](docs/STYLE.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
   code lives. Use the words in [GLOSSARY.md](GLOSSARY.md).
-- Match the code around you: its comment density, naming and idiom.
+- Match the code around you: its comment density, naming and idiom. Leave layout to Prettier (`npm run format`).
 - New behaviour gets a short dated plan in `docs/plans/` first; a change to what loki does gets its part in
   `docs/manual.md` in the same PR.
 
@@ -31,7 +31,7 @@ the same rules in [docs/STYLE.md](docs/STYLE.md), which is the source of truth; 
 Run every check, with CI's toolchain (Node 22.23.3, npm 10.9.9, `SHELL=/bin/bash`), and push only when all pass:
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run test:node
+npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
 
