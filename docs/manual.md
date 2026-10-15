@@ -154,9 +154,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply per conversation
-  through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips in their actions
-  row. ⌘[ and ⌘] step through live chats, each on the tab you left it on.
+  ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply per conversation; a main
+  chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
+  offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
+  mode but strict, until you take it back in Settings › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
+  each on the tab you left it on.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Tasks** (⌘3): the shared task list, see below.
@@ -647,6 +649,14 @@ loki connects your agents to MCP (Model Context Protocol) servers listed in `~/.
   }
 }
 ```
+
+**Settings › MCP** shows every server: its state (connected, starting, or down with its last error), its tools with
+their read-only and destructive marks, and what loading each tool, and all of them, would cost in tokens. Add, edit
+(rename too), restart and remove servers there; check the few tools to load always. "Keep values in this computer's
+keychain" stores each environment or header value in the keychain and writes `${keychain:<server>.<name>}` in the file
+in its place, filled in only when the server starts. Edits keep whatever else the file holds. **Agents › Profile ›
+MCP servers** switches a server off (or on again) for one agent: its chats stop seeing it from their next message,
+and switched back on, a chat searches again for what it needs.
 
 A **local** server (`command`, `args`, `env`, `cwd`) is a program loki starts with the daemon and starts again, after
 a growing pause, when it exits; its `env` adds to the usual environment (PATH, HOME…). A **remote** server (`url`,

@@ -44,7 +44,7 @@ interface CatchUpProps {
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
-  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
+  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
   onReply: (item: AttentionItem, text: string, images?: Attachment[]) => void;
   /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (item: AttentionItem) => Promise<string | null>;

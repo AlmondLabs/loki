@@ -1,9 +1,10 @@
 import type { Context } from "@earendil-works/chord";
 import { configure, defineExtension, defineTool, section, type Conversation, type Extension, type Registry, type ToolRegistration } from "@earendil-works/pi-durable";
-import { unwatchFile, watchFile } from "node:fs";
-import { join } from "node:path";
-import { ChatDoc, type AgentStore } from "../kernel/index.ts";
-import { readConfig } from "./config.ts";
+import { existsSync, mkdirSync, readFileSync, unwatchFile, watchFile, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import type { McpServerView, McpView } from "../../core/frame-types.ts";
+import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
+import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerEdit } from "./config.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
@@ -26,6 +27,11 @@ const SEARCH_LIMIT = 5;
 export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
+/** Where `${keychain:…}` secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend), under mcp.<name>. */
+export type Secrets = { get(account: string): Promise<string | null>; set(account: string, value: string): Promise<void> };
+
+/** About how many tokens a tool's definition costs once loaded (four characters a token). */
+export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
 
 export class McpTools {
   readonly servers: McpServers;
@@ -37,13 +43,21 @@ export class McpTools {
   private problems: string[] = [];
   private installTimer: ReturnType<typeof setTimeout> | null = null;
   private watching = false;
+  private readonly secrets: Secrets | null;
+  /** Each agent's switched-off servers (Agents › Profile), kept in `<loki>/state/mcp-agents.json`. */
+  private readonly offPath: string;
+  private off: Record<string, string[]>;
 
-  constructor(opts: { registry: Registry; configPath: string; lokiDir: string; report?: (message: string) => void; servers?: McpServers; version?: string }) {
+  constructor(opts: { registry: Registry; configPath: string; lokiDir: string; report?: (message: string) => void; servers?: McpServers; version?: string; secrets?: Secrets }) {
     this.registry = opts.registry;
     this.configPath = opts.configPath;
     this.resultsDir = join(opts.lokiDir, "tool-results");
     this.report = opts.report ?? (() => {});
-    this.servers = opts.servers ?? new McpServers({ report: this.report, ...(opts.version ? { version: opts.version } : {}) });
+    this.secrets = opts.secrets ?? null;
+    this.offPath = join(opts.lokiDir, "state", "mcp-agents.json");
+    this.off = readOff(this.offPath);
+    const secrets = this.secrets;
+    this.servers = opts.servers ?? new McpServers({ report: this.report, ...(opts.version ? { version: opts.version } : {}), resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))) });
     // A server connecting, failing or changing its tools re-registers the extension (once per burst of changes).
     this.servers.onChange(() => {
       if (this.installTimer) return;
@@ -91,11 +105,23 @@ export class McpTools {
     return tool ? { readOnly: tool.readOnly, destructive: tool.destructive } : undefined;
   }
 
-  /** What every chat sees up front: the servers and their tools' names, or nothing when no server is configured. */
-  sectionText(): string | undefined {
-    const status = this.servers.status();
+  /** The servers an agent has switched off. */
+  offFor(agentId: string | null | undefined): Set<string> {
+    return new Set(agentId ? (this.off[agentId] ?? []) : []);
+  }
+
+  /** The tools an agent can use: its switched-off servers' left out. */
+  private toolsFor(agentId: string | null | undefined): McpTool[] {
+    const off = this.offFor(agentId);
+    return this.servers.tools().filter((t) => !off.has(t.server));
+  }
+
+  /** What a chat of `agentId` sees up front: its servers and their tools' names, or nothing when it has none. */
+  sectionText(agentId?: string | null): string | undefined {
+    const off = this.offFor(agentId);
+    const status = this.servers.status().filter((s) => !off.has(s.name));
     if (!status.length && !this.problems.length) return undefined;
-    const tools = this.servers.tools();
+    const tools = this.toolsFor(agentId);
     const lines = status.map((s) => {
       if (s.state === "down") return `- ${s.name}: down (${s.error ?? "not connected"})`;
       if (s.state === "starting") return `- ${s.name}: starting`;
@@ -118,7 +144,7 @@ export class McpTools {
   private extension(): Extension {
     return defineExtension({
       name: "loki.mcp",
-      sections: [section("mcp", () => this.sectionText())],
+      sections: [section("mcp", async (input, context) => this.sectionText((await input.read.snapshot(AgentInfoDoc, context))?.id))],
       tools: [this.searchTool(), ...this.servers.tools().map((t) => this.callTool(t))],
     });
   }
@@ -129,9 +155,9 @@ export class McpTools {
       description:
         "Load MCP tools before using them. Describe what you want to do (\"open pull requests on GitHub\") and the best matching tools are loaded, or name exact ones with \"select:server.tool\" (comma-separated). Loaded tools are available from your next step and stay for this chat.",
       parameters: { type: "object", properties: { query: { type: "string", description: 'What you need, or "select:server.tool, …"' } }, required: ["query"] } as never,
-      execute: async (args) => {
+      execute: async (args, api, context) => {
         const query = String((args as { query?: unknown }).query ?? "");
-        const all = this.servers.tools();
+        const all = this.toolsFor((await api.snapshot(AgentInfoDoc, context))?.id);
         const found = selected(query, all) ?? rank(query, all, SEARCH_LIMIT);
         this.capture("mcp_search", { hits: found.length, loaded: found.map((t) => t.key), select: query.trim().toLowerCase().startsWith("select:") });
         if (!found.length) {
@@ -174,7 +200,12 @@ export class McpTools {
    * background pass's) is left alone. Writes only when something changed.
    */
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
+    const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id;
+    const off = this.offFor(agentId);
     const all = this.servers.tools().map((t) => t.key);
+    // A switched-off server's tools are hidden whatever the chat loaded, and count as unknown, so switching it back
+    // on does not bring back what the chat had: it searches again.
+    const usable = new Set(this.servers.tools().filter((t) => !off.has(t.server)).map((t) => t.key));
     const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
     const removed = settings?.tools?.remove ?? [];
@@ -183,16 +214,81 @@ export class McpTools {
     const known = new Set(info?.mcpKnown ?? []);
     const hidden = new Set(removed);
     const always = this.servers.alwaysLoaded();
-    const hide = all.filter((k) => !always.has(k) && !(known.has(k) && !hidden.has(k)));
+    const hide = all.filter((k) => !usable.has(k) || (!always.has(k) && !(known.has(k) && !hidden.has(k))));
     const next = [...removed.filter((n) => !n.startsWith("mcp__")), ...hide];
-    const unchanged = sameSet(next, removed) && sameSet(all, [...known]);
+    const nowKnown = all.filter((k) => usable.has(k));
+    const unchanged = sameSet(next, removed) && sameSet(nowKnown, [...known]);
     if (unchanged) return;
     const registered = new Map(this.registry.snapshot().tools().map(({ tool }) => [tool.name, tool]));
     await chat.commit(async (tx) => {
       await configure(tx, chat.id, { tools: { remove: next.map((n) => registered.get(n) ?? ({ name: n } as ToolRegistration)) } });
       const doc = await tx.doc(ChatDoc, chat.id);
-      doc.mcpKnown = all;
+      doc.mcpKnown = nowKnown;
     }, context);
+  }
+
+  // --- Settings › MCP and Agents › Profile ------------------------------------------------------------------------
+
+  /** Everything Settings shows: each server with its state, tools and their costs, and who has it switched off. */
+  view(): McpView {
+    const status = new Map(this.servers.status().map((s) => [s.name, s]));
+    const tools = this.servers.tools();
+    const servers: McpServerView[] = this.servers.configs().map((c) => {
+      const s = status.get(c.name);
+      const mine = tools.filter((t) => t.server === c.name).map((t) => ({ name: t.name, description: t.description, readOnly: t.readOnly, destructive: t.destructive, alwaysLoad: c.alwaysLoad.includes(t.name), tokens: toolTokens(t) }));
+      return {
+        name: c.name,
+        entry: c.entry,
+        kind: c.kind,
+        state: s?.state ?? "starting",
+        error: s?.error ?? null,
+        purpose: s?.purpose ?? null,
+        tools: mine,
+        tokens: mine.reduce((n, t) => n + t.tokens, 0),
+        config: c.kind === "local" ? { command: c.command, args: c.args, env: c.env, cwd: c.cwd } : { url: c.url, headers: c.headers },
+        offFor: Object.entries(this.off).filter(([, servers]) => servers.includes(c.name)).map(([agent]) => agent),
+      };
+    });
+    return { servers, problems: this.problems, configPath: this.configPath };
+  }
+
+  /** Add, change, rename (`rename`) or remove (`edit` null) a server in mcp.json, and connect as it now says. */
+  setServer(entry: string, edit: ServerEdit | null, rename?: string): McpView {
+    editServer(this.configPath, entry, edit, rename ? { rename } : {});
+    this.reload();
+    return this.view();
+  }
+
+  setAlwaysLoad(entry: string, tools: string[]): McpView {
+    setAlwaysLoad(this.configPath, entry, tools);
+    this.reload();
+    return this.view();
+  }
+
+  restart(name: string): McpView {
+    this.servers.restart(name);
+    return this.view();
+  }
+
+  /** Keep a secret in the keychain for mcp.json to name: the `${keychain:…}` reference to write instead of it. */
+  async storeSecret(name: string, value: string): Promise<string> {
+    if (!this.secrets) throw new Error("no keychain on this system; write the value into mcp.json instead");
+    const safe = name.replace(/[^A-Za-z0-9_.-]+/g, "_").slice(0, 80) || "secret";
+    await this.secrets.set(`mcp.${safe}`, value);
+    return keychainRef(safe);
+  }
+
+  /** Switch a server on or off for one agent; its chats follow from their next run. */
+  setAgentServer(agentId: string, server: string, on: boolean): McpView {
+    const next = new Set(this.off[agentId] ?? []);
+    if (on) next.delete(server);
+    else next.add(server);
+    if (next.size) this.off[agentId] = [...next].sort();
+    else delete this.off[agentId];
+    mkdirSync(dirname(this.offPath), { recursive: true });
+    writeFileSync(this.offPath, `${JSON.stringify({ off: this.off }, null, 2)}\n`);
+    this.install(); // the section reads the switches
+    return this.view();
   }
 
   /** Unload every MCP tool a chat has (/clear, a compaction): its next run starts with none. */
@@ -212,4 +308,17 @@ function summary(t: McpTool): string {
   const required = new Set(Array.isArray(t.inputSchema.required) ? (t.inputSchema.required as string[]) : []);
   const desc = (t.description || t.title || t.name).split("\n")[0].slice(0, 200);
   return `${desc}${props.length ? ` (${props.map((p) => (required.has(p) ? p : `${p}?`)).join(", ")})` : ""}`;
+}
+
+/** The switched-off servers per agent, as saved; anything unreadable is none. */
+function readOff(path: string): Record<string, string[]> {
+  if (!existsSync(path)) return {};
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as { off?: unknown };
+    const out: Record<string, string[]> = {};
+    if (raw.off && typeof raw.off === "object") for (const [k, v] of Object.entries(raw.off)) if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
+    return out;
+  } catch {
+    return {};
+  }
 }

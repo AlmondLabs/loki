@@ -1,6 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import { AgentDoc as PiAgentDoc, defineExtension, hook, ToolTask, type Extension, type HookApi } from "@earendil-works/pi-durable";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
@@ -85,9 +86,17 @@ export class Approvals {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly widgetsDir: string | undefined;
   private readonly kindOfTool: (name: string) => ToolKind;
+  /**
+   * Tools you answered "always allow" for (any chat, any agent), kept in `alwaysPath`; Settings › Chat lists them to
+   * take back. They run without asking in every mode but strict, which asks for everything by choice.
+   */
+  private readonly alwaysPath: string | null;
+  private readonly alwaysAllowed: Set<string>;
 
-  constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind } = {}) {
+  constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string } = {}) {
     this.widgetsDir = opts.widgetsDir;
+    this.alwaysPath = opts.alwaysPath ?? null;
+    this.alwaysAllowed = new Set(this.alwaysPath ? readAlways(this.alwaysPath) : []);
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 
@@ -100,12 +109,32 @@ export class Approvals {
     return [...this.pending.values()].filter((p) => p.agentId === agentId && p.conversationId === conversationId).map((p) => p.event);
   }
 
-  /** The person's decision on an approval; false when nothing is waiting under that id (already answered). */
-  decide(requestId: string, allow: boolean, message?: string): boolean {
+  /**
+   * The person's decision on an approval; false when nothing is waiting under that id (already answered). `always`
+   * with an allow remembers the tool: it does not ask again, in any chat, until taken back.
+   */
+  decide(requestId: string, allow: boolean, message?: string, always = false): boolean {
     const p = this.pending.get(requestId);
     if (!p || p.event.kind !== "approval") return false;
+    if (allow && always && p.event.toolName) this.setAlways(p.event.toolName, true);
     p.settle({ allow, ...(message ? { message } : {}) });
     return true;
+  }
+
+  /** The tools that never ask (but in strict mode), sorted. */
+  always(): string[] {
+    return [...this.alwaysAllowed].sort();
+  }
+
+  /** Remember (or forget) a tool as always allowed. */
+  setAlways(toolName: string, on: boolean): string[] {
+    if (on) this.alwaysAllowed.add(toolName);
+    else this.alwaysAllowed.delete(toolName);
+    if (this.alwaysPath) {
+      mkdirSync(dirname(this.alwaysPath), { recursive: true });
+      writeFileSync(this.alwaysPath, `${JSON.stringify({ always: this.always() }, null, 2)}\n`);
+    }
+    return this.always();
   }
 
   /** The person's answers to a question card. */
@@ -167,8 +196,20 @@ export class Approvals {
     const [chat, agent, settings] = await Promise.all([api.snapshot(ChatDoc, api.conversationId, context), api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
     const mode = isPermissionMode(chat?.mode) ? chat.mode : DEFAULT_MODE;
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
+    if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
     const conversationId = chat?.id || `conversation-${api.conversationId}`;
     return this.ask<Decision>(agentId, conversationId, { kind: "approval", requestId: `approval-${callId}`, toolName: name, input: args }, context.abortSignal);
+  }
+}
+
+/** The always-allowed tools as saved; anything unreadable is none. */
+function readAlways(path: string): string[] {
+  if (!existsSync(path)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as { always?: unknown };
+    return Array.isArray(raw.always) ? raw.always.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
   }
 }

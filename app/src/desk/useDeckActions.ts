@@ -33,7 +33,7 @@ export function useDeckActions({
   /** Archive the chat (done); resolves to an error or null. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
+  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
   /** The agent pill on, if one is: undo takes back that agent's last decision, the one you can see. */
   agent?: string | null;
 }) {
@@ -94,11 +94,11 @@ export function useDeckActions({
     setDecided((d) => d.filter((_, i) => i !== at));
     setQueue((q) => [last.item, ...q]);
   };
-  const approve = (behavior: "allow" | "deny") => {
+  const approve = (behavior: "allow" | "deny" | "always") => {
     if (!current?.pendingApproval) return;
     onApprove(current, current.pendingApproval.requestId, behavior);
-    say(behavior === "allow" ? "approved" : "denied");
-    next(behavior === "allow" ? "approve" : "deny");
+    say(behavior !== "deny" ? "approved" : "denied");
+    next(behavior !== "deny" ? "approve" : "deny");
   };
   return { flash, replies, dir, next, archive, undo, approve, sent };
 }

@@ -363,7 +363,7 @@ export function Inbox({
   onOpen: (item: AttentionItem) => void;
   /** The pairing and connection details, for the states where the Mac is the problem. */
   onConnection: () => void;
-  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
+  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
   /** Next: `how` it was made, for analytics. */
   onSeen: (item: AttentionItem, how: "swipe" | "tap") => void;
   /** A card came to the top while the Inbox is on screen (analytics: its dwell clock starts). */
@@ -437,7 +437,7 @@ export function Inbox({
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
               onApprove(current, current.pendingApproval.requestId, behavior);
-              commit(current, behavior === "allow" ? "approve" : "deny");
+              commit(current, behavior !== "deny" ? "approve" : "deny");
             }}
           />
         </>
@@ -665,7 +665,7 @@ function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView })
  * sheet can archive it) and Next, or — for an approval, which leaves only by its decision — Deny and Approve. The same two elements in both cases, so focus stays put as the
  * next card comes up.
  */
-function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; onOpen: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+export function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; onOpen: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny" | "always") => void }) {
   const approval = !!item.pendingApproval;
   return (
     <div className="loki-phone-decide">
@@ -675,6 +675,11 @@ function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; o
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
         {approval ? "Approve" : "Next"}
       </button>
+      {approval && (
+        <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${item.pendingApproval!.toolName}`}>
+          Always allow {item.pendingApproval!.toolName}
+        </button>
+      )}
     </div>
   );
 }

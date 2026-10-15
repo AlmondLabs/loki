@@ -53,7 +53,7 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onUnread={(item) => (catchUp.undone(item, "next"), catchUp.unread(item))}
       onArchive={(item) => (catchUp.decided(item, "archive", via()), catchUp.archive(item))}
       onUnarchive={(item) => (catchUp.undone(item, "archive"), void catchUp.unarchive(item))}
-      onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny", via()), catchUp.approve(item, requestId, behavior))}
+      onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", via()), catchUp.approve(item, requestId, behavior))}
       onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer", via()), catchUp.answer(item.runtime, requestId, answers))}
       onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
       onStop={(item) => catchUp.stop(item.runtime)}
@@ -109,6 +109,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
       onShowTasks={onShowTasks}
+      mcp={catchUp.mcp}
     />
   );
 }
@@ -116,7 +117,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
 /** Preferences (the Settings sheet): the daemon and mod facts come from the two models and the shell; the chat preferences from useChatLayout. */
 export function SettingsView({ desk, catchUp, daemon, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, onClose }: { onClose: () => void; update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; desk: Desk; catchUp: CatchUp; daemon: DaemonStatus | null; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
   const { attention } = desk;
-  return <Preferences onClose={onClose} chatLink={catchUp.status === "off" ? "connecting" : catchUp.status} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} daemon={daemon} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} importLetta={attention.importLetta} importStatus={attention.importStatus} />;
+  return <Preferences onClose={onClose} chatLink={catchUp.status === "off" ? "connecting" : catchUp.status} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} daemon={daemon} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} mcp={catchUp.mcp} update={update} shortcut={shortcut} recall={recall} importLetta={attention.importLetta} importStatus={attention.importStatus} />;
 }
 
 /** First launch, over the empty desk: Node when the daemon could not start, the provider, the first agent, its desk. */

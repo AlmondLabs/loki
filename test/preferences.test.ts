@@ -31,7 +31,7 @@ describe("Preferences: the segment keys over the sheet", () => {
 
 describe("Preferences: the section list", () => {
   test("every page has a sentence-case name, loki's proper nouns kept", () => {
-    expect(PAGES.map((p) => pageTitle(p.id))).toEqual(["loki", "Inbox", "Providers", "Phone", "Skills", "Learn", "Appearance", "Chat", "Files", "Keys"]);
+    expect(PAGES.map((p) => pageTitle(p.id))).toEqual(["loki", "Inbox", "Providers", "MCP", "Phone", "Skills", "Learn", "Appearance", "Chat", "Files", "Keys"]);
     for (const p of PAGES) if (p.id !== "loki") expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
   });
 

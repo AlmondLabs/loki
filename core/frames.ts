@@ -6,7 +6,7 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import { isRecallId, type CardWithSchedule, type RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
-import type { DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome, Task } from "./frame-types.ts";
+import type { DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, McpView, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome, Task } from "./frame-types.ts";
 
 /**
  * The mod's own protocol on `/ws` (GLOSSARY.md: Frame, Frame table), declared once. The app sends requests and
@@ -59,6 +59,31 @@ export function isGesture(v: unknown): v is Gesture {
   }
 }
 
+/** An MCP server edit as Settings sends it: a local server (command…) or a remote one (url…); null removes it. */
+const stringRecord = (v: unknown): Record<string, string> | null => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, string> = {};
+  for (const [k, x] of Object.entries(v)) {
+    if (typeof x !== "string") return null;
+    out[k] = x;
+  }
+  return out;
+};
+function mcpEdit(v: unknown): { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> } | null | string {
+  if (v === null) return null;
+  if (!v || typeof v !== "object") return "edit required (or null to remove)";
+  const e = v as Raw;
+  if (str(e.command)) {
+    const env = e.env === undefined ? {} : stringRecord(e.env);
+    return env ? { command: e.command, args: strings(e.args), env, cwd: strOr(e.cwd, null) } : "env must map names to strings";
+  }
+  if (str(e.url)) {
+    const headers = e.headers === undefined ? {} : stringRecord(e.headers);
+    return headers ? { url: e.url, headers } : "headers must map names to strings";
+  }
+  return "a server needs a command or a url";
+}
+
 /** The task ids a task list frame names: `ids`, or a single `id`. */
 const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
@@ -108,6 +133,10 @@ export interface Replies {
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
   chat_skill_enabled: { name: string; linkPath: string };
+  /** Tools that run without asking, in every mode but strict (daemon/approvals.ts). */
+  chat_approvals: { always: string[] };
+  chat_mcp: McpView;
+  chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
   chat_imported: { agents: string[]; chats: number; kept: number; credentials: string[]; schedules: number; notes: string[] };
@@ -229,7 +258,7 @@ export const FRAMES = {
     const c = chatRef(m);
     if (typeof c === "string") return c;
     // The approval's own id: `requestId` is the frame's, matched to its reply.
-    return str(m.approvalId) && typeof m.allow === "boolean" ? { ...c, approvalId: m.approvalId, allow: m.allow, message: strOr(m.message, null) } : "approvalId and allow required";
+    return str(m.approvalId) && typeof m.allow === "boolean" ? { ...c, approvalId: m.approvalId, allow: m.allow, message: strOr(m.message, null), always: m.always === true } : "approvalId and allow required";
   }, PHONE),
   chat_answer: request("chat_accepted", "the person's answers to a question card (the tool input with `answers` filled in)", (m) => {
     const c = chatRef(m);
@@ -290,6 +319,19 @@ export const FRAMES = {
     isAgentId(m.agentId) && str(m.path) && m.path ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) } : "agentId and path required"),
   chat_memory_revert: request("chat_done", "undo one memory commit with a new commit, as yours", (m) =>
     isAgentId(m.agentId) && str(m.sha) && /^[0-9a-f]{7,40}$/i.test(m.sha) ? { agentId: m.agentId, sha: m.sha } : "agentId and a commit sha required"),
+  chat_approvals_get: request("chat_approvals", "the tools you always allow", nothing),
+  chat_approvals_set: request("chat_approvals", "always allow a tool, or take that back", (m) => (str(m.tool) && m.tool && typeof m.on === "boolean" ? { tool: m.tool, on: m.on } : "tool and on required")),
+  chat_mcp_get: request("chat_mcp", "the MCP servers: state, tools and their costs, who has each switched off", nothing),
+  chat_mcp_server: request("chat_mcp", "add, change, rename or remove an MCP server in mcp.json", (m) => {
+    if (!str(m.entry) || !m.entry.trim()) return "entry required";
+    const edit = mcpEdit(m.edit);
+    if (typeof edit === "string") return edit;
+    return { entry: m.entry, edit, rename: strOr(m.rename, null) };
+  }),
+  chat_mcp_always_load: request("chat_mcp", "the tools of an MCP server that skip search", (m) => (str(m.entry) && m.entry ? { entry: m.entry, tools: strings(m.tools) } : "entry required")),
+  chat_mcp_restart: request("chat_mcp", "start an MCP server again now", (m) => (str(m.name) && m.name ? { name: m.name } : "name required")),
+  chat_mcp_agent: request("chat_mcp", "switch an MCP server on or off for one agent", (m) => (isAgentId(m.agentId) && str(m.server) && m.server && typeof m.on === "boolean" ? { agentId: m.agentId, server: m.server, on: m.on } : "agentId, server and on required")),
+  chat_mcp_secret: request("chat_mcp_secret", "keep a value in the keychain for mcp.json to name", (m) => (str(m.name) && m.name && str(m.value) && m.value ? { name: m.name, value: m.value } : "name and value required")),
   chat_skill_enable: request("chat_skill_enabled", "make a skill folder global: a link to it in the global skills folder", (m) => (str(m.path) && m.path ? { path: m.path } : "path required")),
   chat_skill_disable: request("chat_done", "take a global skill away: its link in the global skills folder", (m) => (str(m.name) && m.name && !m.name.includes("/") && !m.name.includes("..") ? { name: m.name } : "a skill name required")),
   chat_providers: request("chat_providers", "the model providers, connected or not", nothing),

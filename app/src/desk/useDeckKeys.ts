@@ -25,7 +25,7 @@ export function useDeckKeys({
   replyRef: RefObject<HTMLTextAreaElement | null>;
   next: () => void;
   archive: () => void;
-  approve: (behavior: "allow" | "deny") => void;
+  approve: (behavior: "allow" | "deny" | "always") => void;
   undo: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;

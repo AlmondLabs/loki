@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AgentFace } from "../desk/AgentChip";
-import { Button, Field, Row } from "../components";
+import { Button, Field, Row, Switch } from "../components";
+import type { McpApi } from "../settings/Mcp";
+import type { McpView } from "../../../core/frame-types.ts";
 
 import { ago } from "../shared/ago";
 import { Head } from "./bits";
@@ -22,6 +24,7 @@ export function ProfilePage({
   onOpenDesk,
   onShowDesks,
   onShowTasks,
+  mcp,
   confirmDelete,
   setConfirmDelete,
   onRemove,
@@ -37,6 +40,7 @@ export function ProfilePage({
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onShowDesks: () => void;
   onShowTasks: () => void;
+  mcp?: Pick<McpApi, "get" | "agent">;
   confirmDelete: boolean;
   setConfirmDelete: (v: boolean) => void;
   onRemove: () => Promise<void>;
@@ -49,6 +53,7 @@ export function ProfilePage({
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
         <TasksSection count={myTasks.length} onShowTasks={onShowTasks} />
+        {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
         <div style={{ paddingTop: 8 }}>
           {confirmDelete ? <ConfirmDelete d={d} myDesks={myDesks} taskCount={myTasks.length} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} /> : <Button tone="negative" onClick={() => setConfirmDelete(true)}>delete this agent…</Button>}
         </div>
@@ -171,4 +176,33 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
 /** A context window as people say it: 200k, 1M. */
 function contextSize(tokens: number): string {
   return tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}k`;
+}
+
+/**
+ * The MCP servers this agent can use, each switched on or off for it alone; its chats follow from their next message.
+ * Servers are added in Settings › MCP.
+ */
+function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get" | "agent"> }) {
+  const [view, setView] = useState<McpView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const apply = (r: McpView | string) => (typeof r === "string" ? setError(r) : (setError(null), setView(r)));
+  useEffect(() => void mcp.get().then(apply), []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!view?.servers.length && !error) return null;
+  return (
+    <section>
+      <Head>MCP servers</Head>
+      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ padding: "0 8px" }}>{error}</div>}
+      <div style={{ display: "grid", gap: 6, padding: "0 8px" }}>
+        {view?.servers.map((s) => {
+          const on = !s.offFor.includes(agentId);
+          return (
+            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Switch on={on} onToggle={() => void mcp.agent(agentId, s.name, !on).then(apply)} label={s.entry} small />
+              <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tools` : s.state}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }

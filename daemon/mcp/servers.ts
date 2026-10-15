@@ -77,12 +77,15 @@ export class McpServers {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private readonly connect: Connector;
+  /** Fills a config's `${keychain:…}` values just before it connects (daemon/mcp/config.ts withSecrets). */
+  private readonly resolve: (config: ServerConfig) => Promise<ServerConfig>;
   private readonly report: (message: string) => void;
   private readonly version: string;
   private closed = false;
 
-  constructor(opts: { connect?: Connector; report?: (message: string) => void; version?: string } = {}) {
+  constructor(opts: { connect?: Connector; resolve?: (config: ServerConfig) => Promise<ServerConfig>; report?: (message: string) => void; version?: string } = {}) {
     this.connect = opts.connect ?? connectServer;
+    this.resolve = opts.resolve ?? (async (c) => c);
     this.report = opts.report ?? (() => {});
     this.version = opts.version ?? "0";
   }
@@ -145,7 +148,7 @@ export class McpServers {
       if (generation === entry.generation) entry.stderr = (entry.stderr + text).slice(-STDERR_KEEP);
     };
     try {
-      await this.connect(entry.config, client, stderr);
+      await this.connect(await this.resolve(entry.config), client, stderr);
       if (generation !== entry.generation) return void (await client.close().catch(() => {}));
       entry.client = client;
       const listed = await client.listTools();
@@ -198,6 +201,20 @@ export class McpServers {
       destructive: t.annotations?.destructiveHint === true,
     }));
     this.changed();
+  }
+
+  /** Start a server again now (Settings' restart): a down one does not wait out its pause. */
+  restart(name: string): boolean {
+    const entry = this.entries.get(name);
+    if (!entry) return false;
+    entry.failures = 0;
+    void this.start(entry);
+    return true;
+  }
+
+  /** The configs the servers run with, as read (secrets as their `${keychain:…}` names). */
+  configs(): ServerConfig[] {
+    return [...this.entries.values()].map((e) => e.config);
   }
 
   /** Every tool of every connected server, in config order. */

@@ -1,9 +1,9 @@
 /** The pages down Preferences' left side, in order. "loki" gathers what loki runs on: its version, the mod, requirements, install. */
-export type SettingsPage = "loki" | "inbox" | "providers" | "phone" | "skills" | "learn" | "appearance" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "loki" }, { id: "inbox" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "appearance" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export type SettingsPage = "loki" | "inbox" | "providers" | "mcp" | "phone" | "skills" | "learn" | "appearance" | "chat" | "files" | "keys";
+export const PAGES: Array<{ id: SettingsPage }> = [{ id: "loki" }, { id: "inbox" }, { id: "providers" }, { id: "mcp" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "appearance" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
 
 /** The page's name in the section list and on its heading: sentence case (loki is the product's own spelling). */
-const TITLES: Record<SettingsPage, string> = { loki: "loki", inbox: "Inbox", providers: "Providers", phone: "Phone", skills: "Skills", learn: "Learn", appearance: "Appearance", chat: "Chat", files: "Files", keys: "Keys" };
+const TITLES: Record<SettingsPage, string> = { loki: "loki", inbox: "Inbox", providers: "Providers", mcp: "MCP", phone: "Phone", skills: "Skills", learn: "Learn", appearance: "Appearance", chat: "Chat", files: "Files", keys: "Keys" };
 export const pageTitle = (p: SettingsPage): string => TITLES[p];
 
 export function isSettingsPage(v: unknown): v is SettingsPage {
