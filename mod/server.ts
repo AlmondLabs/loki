@@ -191,7 +191,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
       ws.on("message", (raw) => {
         let msg: unknown;
         try {
-          msg = JSON.parse(String(raw));
+          msg = JSON.parse(messageText(raw));
         } catch {
           send(ws, { type: "error", message: "invalid json" });
           return;
@@ -256,7 +256,11 @@ export function oauthCallbackRoute(path: string, finish: (params: Record<string,
   };
 }
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?? c);
+/** A socket message as text: ws hands over a Buffer, an ArrayBuffer, or a message's fragments. */
+const messageText = (raw: WebSocket.RawData): string =>
+  (Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8");
 
 export function oauthPage(ok: boolean, message: string): string {
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>loki · ${ok ? "signed in" : "sign-in failed"}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}@media(prefers-color-scheme:dark){body{color:#eee;background:#1b1b1d}}h1{font-size:18px}</style><h1>${ok ? "Signed in" : "Not signed in"}</h1><p>${escapeHtml(message)}</p>`;

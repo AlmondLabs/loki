@@ -22,19 +22,20 @@ export class DeskRegistry {
     this.path = path;
     this.agentOf = agentOf;
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Runtime>;
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Partial<Runtime> | null>;
       let rewritten = false;
       for (const [k, v] of Object.entries(parsed)) {
-        if (!v?.agent_id || !v?.conversation_id) continue;
+        if (!v?.agent_id || !v.conversation_id) continue;
+        const rt: Runtime = { ...v, agent_id: v.agent_id, conversation_id: v.conversation_id };
         // One scope per conversation: an older loki filed a main chat under the bare scope "default";
         // today it is `default-<agentId>`. Fold legacy keys onto the canonical one so no desk shows twice.
-        const canonical = scopeFor(v.conversation_id, v.agent_id);
+        const canonical = scopeFor(rt.conversation_id, rt.agent_id);
         if (k !== canonical) {
           rewritten = true;
-          if (!this.byScope.has(canonical)) this.byScope.set(canonical, v);
+          if (!this.byScope.has(canonical)) this.byScope.set(canonical, rt);
           continue;
         }
-        this.byScope.set(k, v);
+        this.byScope.set(k, rt);
       }
       if (rewritten) this.persist();
     } catch {

@@ -30,15 +30,9 @@ export const WIDGET_LOG_COLLAPSE_MS = 60_000;
 export const WIDGET_LOG_EXPECT_MS = 5_000;
 
 const isEntry = (v: unknown): v is WidgetLogEntry => {
-  const e = v as WidgetLogEntry;
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    typeof e.id === "string" &&
-    typeof e.at === "number" &&
-    typeof e.widgetId === "string" &&
-    typeof e.change === "string"
-  );
+  if (typeof v !== "object" || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return typeof e.id === "string" && typeof e.at === "number" && typeof e.widgetId === "string" && typeof e.change === "string";
 };
 
 export class WidgetLog {
@@ -113,8 +107,8 @@ export class WidgetLog {
     return row;
   }
 
-  private file(scope: Scope): string {
-    return join(this.dir!, `${encodeURIComponent(scope)}.json`);
+  private file(dir: string, scope: Scope): string {
+    return join(dir, `${encodeURIComponent(scope)}.json`);
   }
 
   private load(scope: Scope): WidgetLogEntry[] {
@@ -123,7 +117,7 @@ export class WidgetLog {
     log = [];
     if (this.dir) {
       try {
-        const parsed: unknown = JSON.parse(readFileSync(this.file(scope), "utf8"));
+        const parsed: unknown = JSON.parse(readFileSync(this.file(this.dir, scope), "utf8"));
         if (Array.isArray(parsed)) log = parsed.filter(isEntry).slice(-WIDGET_LOG_LIMIT);
       } catch {
         // none yet, or corrupt: start empty
@@ -137,7 +131,7 @@ export class WidgetLog {
     if (!this.dir) return;
     try {
       mkdirSync(this.dir, { recursive: true });
-      const path = this.file(scope);
+      const path = this.file(this.dir, scope);
       writeFileSync(`${path}.tmp`, JSON.stringify(this.load(scope)));
       renameSync(`${path}.tmp`, path);
     } catch {

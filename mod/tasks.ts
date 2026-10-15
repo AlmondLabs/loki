@@ -114,21 +114,29 @@ export function projectLabel(folder: string | null | undefined): string | null {
   return name || null;
 }
 
+/** A field of bd's JSON as text: a string as it is, a number or boolean written out, an object as JSON, `or` when missing. */
+const fieldText = (v: unknown, or = ""): string => {
+  if (v === undefined || v === null) return or;
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") return String(v);
+  return JSON.stringify(v);
+};
+
 /** bd's JSON, from `bd list --json`, `bd create --json`, `bd update --json`, into loki's shape. */
 export function parseTask(raw: Record<string, unknown>): Task {
   const md = (raw.metadata && typeof raw.metadata === "object" ? raw.metadata : {}) as Record<string, unknown>;
   const metadata: Record<string, string> = {};
-  for (const [k, v] of Object.entries(md)) if (v != null) metadata[k] = String(v);
+  for (const [k, v] of Object.entries(md)) if (v != null) metadata[k] = fieldText(v);
   return {
-    id: String(raw.id ?? ""),
-    title: String(raw.title ?? ""),
+    id: fieldText(raw.id),
+    title: fieldText(raw.title),
     description: typeof raw.description === "string" ? raw.description : "",
-    status: String(raw.status ?? "open"),
+    status: fieldText(raw.status, "open"),
     priority: typeof raw.priority === "number" ? raw.priority : Number(raw.priority ?? 2) || 2,
     labels: Array.isArray(raw.labels) ? (raw.labels as unknown[]).filter((l): l is string => typeof l === "string") : [],
     assignee: typeof raw.assignee === "string" && raw.assignee ? raw.assignee : null,
-    createdAt: String(raw.created_at ?? ""),
-    updatedAt: String(raw.updated_at ?? raw.created_at ?? ""),
+    createdAt: fieldText(raw.created_at),
+    updatedAt: fieldText(raw.updated_at ?? raw.created_at),
     closedAt: typeof raw.closed_at === "string" ? raw.closed_at : null,
     metadata,
   };
@@ -167,7 +175,10 @@ export function createArgs(t: CreateTask): string[] {
  * --force"), and the mod runs bd as the computer's user, never the agent. An agent closing its own chat's task closes
  * as its assignee (`actor`); the person closing from Tasks has decided, so it is forced.
  */
-export type CloseAs = { actor?: string | null; force?: boolean };
+export interface CloseAs {
+  actor?: string | null;
+  force?: boolean;
+}
 
 export function closeArgs(ids: string[], reason?: string, as: CloseAs = {}): string[] {
   const args = ["close", ...ids];
@@ -205,7 +216,9 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
   const mine = tasks.filter((t) => t.metadata.assignedTo === opts.conversation && t.status !== "closed");
   if (!mine.length) return null;
   const lines = mine.map((t) => {
-    const from = t.metadata.by === "you" ? "filed by the user" : `filed by ${t.metadata.agent ?? "an agent"}`;
+    // bd's metadata as the task file holds it: any key may be missing.
+    const md: Partial<Record<string, string>> = t.metadata;
+    const from = md.by === "you" ? "filed by the user" : `filed by ${md.agent ?? "an agent"}`;
     const where = t.metadata.folder ? ` in ${t.metadata.folder}` : "";
     const started = t.status === "in_progress" ? " · in progress" : "";
     const desc = t.description ? `\n    ${t.description.replace(/\s+/g, " ").slice(0, 400)}` : "";
@@ -281,7 +294,7 @@ export class TaskStore {
       mkdirSync(this.dir, { recursive: true });
       this.initialising = this.spawn(bin, INIT_ARGS).then(
         () => undefined,
-        (err) => {
+        (err: unknown) => {
           this.initialising = null; // try again next time
           throw new Error(`could not create the task list at ${this.dir}: ${err instanceof Error ? err.message : String(err)}`);
         },
@@ -305,7 +318,7 @@ export class TaskStore {
         { cwd: this.dir, env: { ...process.env, BEADS_DIR: join(this.dir, ".beads"), BD_NON_INTERACTIVE: "1" }, timeout: 20_000, maxBuffer: 16 * 1024 * 1024 },
         (err, stdout, stderr) => {
           if (err) {
-            const msg = String(stderr || err.message)
+            const msg = (stderr || err.message)
               .trim()
               .split("\n")
               .filter((l) => !l.startsWith("warning:") && !l.trim().startsWith("Fix:") && !l.trim().startsWith("Or:"))
@@ -345,9 +358,9 @@ export class TaskStore {
   }
 
   create(t: CreateTask): Promise<Task> {
-    if (!t.title?.trim()) return Promise.reject(new Error("a task needs a title"));
+    if (!t.title.trim()) return Promise.reject(new Error("a task needs a title"));
     return this.serial(async () => {
-      const [task] = parseTasks(await this.run(createArgs(t)));
+      const task = parseTasks(await this.run(createArgs(t))).at(0);
       if (!task) throw new Error("bd create returned nothing");
       log("tasks:create", { id: task.id, by: t.stamp.by, agent: t.stamp.agent });
       this.cache = [...this.cache.filter((c) => c.id !== task.id), task];

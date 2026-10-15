@@ -12,7 +12,7 @@ import { appDistCandidates } from "./paths.ts";
  */
 
 /** The host in the page's words (`__LOKI__.os`, read as `platform` in app/src/desk/env.ts), as the shell names it too. */
-export function hostOs(p: NodeJS.Platform | string = process.platform): "macos" | "windows" | "linux" {
+export function hostOs(p: string = process.platform): "macos" | "windows" | "linux" {
   return p === "darwin" ? "macos" : p === "win32" ? "windows" : "linux";
 }
 

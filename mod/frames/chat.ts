@@ -52,10 +52,12 @@ export interface ChatBackend {
   importStatus(): Promise<Replies["chat_import_status"]>;
 }
 
-export type ChatDeps = { chat?: ChatBackend };
+export interface ChatDeps {
+  chat?: ChatBackend;
+}
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
-const DONE = {} as Record<never, never>;
+const DONE: Replies["chat_done"] = {};
 
 /** Run `work` against the backend: its reply, or why not. */
 async function served<R>(backend: ChatBackend | undefined, work: (b: ChatBackend) => Promise<R>): Promise<Outcome<R>> {

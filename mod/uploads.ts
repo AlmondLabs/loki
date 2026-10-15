@@ -92,7 +92,7 @@ export function uploadRoute(
   const declared = Number(req.headers["content-length"] ?? NaN);
   if (declared > max) return reply(413, { error: `over the ${Math.round(max / 1024 / 1024)} MB limit` });
   const name = safeName(url.searchParams.get("name") ?? "file");
-  const mime = (url.searchParams.get("type") || String(req.headers["content-type"] ?? "") || "application/octet-stream").split(";")[0].trim();
+  const mime = (url.searchParams.get("type") || (req.headers["content-type"] ?? "") || "application/octet-stream").split(";")[0].trim();
   const folder = join(opts.dir, dayFolder());
   mkdirSync(folder, { recursive: true });
   const target = freePath(folder, name);
@@ -119,7 +119,7 @@ export function uploadRoute(
   req.pipe(out);
   out.on("finish", () => {
     if (failed) return;
-    if (req.aborted || !req.complete) return fail(400, "the upload broke off");
+    if (!req.complete) return fail(400, "the upload broke off");
     // Taken while this one streamed? Pick the next free name rather than overwrite.
     const final = existsSync(target) ? freePath(folder, name) : target;
     renameSync(partial, final);

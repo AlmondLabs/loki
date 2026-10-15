@@ -382,7 +382,7 @@ export class LanListener {
  * Bonjour name), is also the listener's own.
  */
 export function crossSite(req: IncomingMessage, allowedHosts: string[] = []): { status: number; error: string } | null {
-  const type = String(req.headers["content-type"] ?? "").toLowerCase();
+  const type = (req.headers["content-type"] ?? "").toLowerCase();
   if (!type.startsWith("application/json")) return { status: 415, error: "send application/json" };
   return crossOrigin(req, allowedHosts);
 }
@@ -550,7 +550,7 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
         const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8") || "null") as unknown;
         resolve(typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null);
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
     req.on("error", reject);

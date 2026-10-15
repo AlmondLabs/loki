@@ -131,7 +131,7 @@ function containedFile(rootPath: string, path: string): { path: string; bytes: n
 function git(args: string[], cwd: string): Promise<string> {
   return new Promise((res, rej) => {
     execFile("git", args, { cwd, timeout: 10_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) =>
-      err ? rej(new Error(String(stderr || err.message).trim())) : res(stdout),
+      err ? rej(new Error((stderr || err.message).trim())) : res(stdout),
     );
   });
 }

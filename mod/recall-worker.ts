@@ -99,7 +99,11 @@ export function lessonCard(lead: Lead): { type: "info-card"; title: string; data
   };
 }
 
-type LessonOpts = { store: RecallStore; widgetsDir?: string; expect?: (widgetId: string, change: WidgetChange) => void };
+interface LessonOpts {
+  store: RecallStore;
+  widgetsDir?: string;
+  expect?: (widgetId: string, change: WidgetChange) => void;
+}
 /** Make a lesson's chat for an agent, titled `[Learn] · <lead>`, in the home folder. */
 type CreateLessonChat = (agentId: string, title: string) => Promise<{ agentId: string; conversationId: string }>;
 

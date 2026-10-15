@@ -68,7 +68,11 @@ function loadOrCreateToken(): string {
 }
 
 /** What the daemon hosts the mod with besides the mod API: its chats, to read and to run, and its analytics writer. */
-export type Host = { chats: ChatSource; chat: ChatBackend; analytics?: Analytics };
+export interface Host {
+  chats: ChatSource;
+  chat: ChatBackend;
+  analytics?: Analytics;
+}
 
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
@@ -96,6 +100,10 @@ export default function activate(api: ModApi, host: Host): () => void {
   let ws: WsBridge | null = null;
   let starting: Promise<LokiServer> | null = null;
   let lan: LanListener | null = null; // the phone listener, built after the bridge (it serves the same handlers)
+  const phones = (): LanListener => {
+    if (!lan) throw new Error("the phone listener is not up yet");
+    return lan;
+  };
   // Every frame goes to the desktop's tabs and to paired phones alike.
   const broadcast = (msg: object, scope?: Scope) => {
     ws?.broadcast(msg, scope);
@@ -116,7 +124,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     for (const scope of scopes) {
       broadcast({ type: "widgets", scope, widgets: widgets.entries(scope) }, scope === SHARED_SCOPE ? undefined : scope);
     }
-    const landed = diff.added[diff.added.length - 1];
+    const landed = diff.added.at(-1);
     if (landed && !landed.error) {
       broadcast({ type: "camera", widgetId: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
     }
@@ -136,7 +144,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     conversationId ? (chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null) : null;
   const refreshTasks = () => {
     if (!tasks.ready()) return;
-    void tasks.list().catch((err) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
+    void tasks.list().catch((err: unknown) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
   };
   refreshTasks();
   const tasksTimer = setInterval(refreshTasks, 60_000);
@@ -286,7 +294,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     recall: {
       store: recallStore,
       status: learnStatus,
-      setSettings: async (s) => void (await chatBackend.setPasses({ learn: s })),
+      setSettings: async (s) => {
+        await chatBackend.setPasses({ learn: s });
+      },
       run: async () => {
         await chatBackend.runLearn();
         return { note: learnStatus().lastRunNote ?? "nothing new" };
@@ -306,18 +316,18 @@ export default function activate(api: ModApi, host: Host): () => void {
     folderFor,
     chat: chatBackend,
     lan: {
-      status: () => lan!.status(),
-      refresh: () => lan!.refresh(),
-      setEnabled: (enabled) => lan!.setEnabled(enabled),
-      setVia: (via) => lan!.setVia(via),
-      setServe: (enabled) => lan!.setServe(enabled),
+      status: () => phones().status(),
+      refresh: () => phones().refresh(),
+      setEnabled: (enabled) => phones().setEnabled(enabled),
+      setVia: (via) => phones().setVia(via),
+      setServe: (enabled) => phones().setServe(enabled),
       pairBegin: () => {
         const { code, expiresAt } = codes.mint();
         log("lan:pair-code", { expiresAt });
-        return { code, url: lan!.pairUrl(code), expiresAt };
+        return { code, url: phones().pairUrl(code), expiresAt };
       },
       devices: () => devices.list(),
-      forget: (id) => lan!.forget(id),
+      forget: (id) => phones().forget(id),
     },
     agents: {
       get: (id) => readLocalAgent(id),
@@ -368,7 +378,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
   };
   // The desk server is always up while the mod is: the loki app (or a browser tab) connects whenever it likes.
-  void ensureServer().catch((err) => log("server:error", err instanceof Error ? err.message : String(err)));
+  void ensureServer().catch((err: unknown) => log("server:error", err instanceof Error ? err.message : String(err)));
 
   // --- phones ----------------------------------------------------------
   // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.
@@ -508,7 +518,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     log("shutdown");
     ws?.close();
     void srv?.close();
-    void lan?.stop(); // the socket only; the setting stays so the listener returns with the mod
+    void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
     ws = null;
     srv = null;
     starting = null;

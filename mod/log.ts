@@ -62,7 +62,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string, fallbac
         clearTimeout(t);
         resolve(v);
       },
-      (err) => {
+      (err: unknown) => {
         clearTimeout(t);
         log("error", { label, error: err instanceof Error ? err.message : String(err) });
         resolve(fallback);

@@ -206,7 +206,7 @@ export class SkillSources {
     rmSync(target, { recursive: true, force: true });
     cpSync(upstream, target, { recursive: true, filter: keep });
     if (!existsSync(join(memory, ".git"))) return null;
-    const who = readLocalAgent(agentId, this.opts.backendDir)?.name?.trim() || "loki";
+    const who = readLocalAgent(agentId, this.opts.backendDir)?.name.trim() || "loki";
     try {
       await this.exec("git", ["add", "-A", "--", spec], { cwd: memory, timeoutMs: 10_000 });
       await this.exec(
@@ -273,13 +273,13 @@ export function parseSource(spec: string): SkillSource | null {
     return {
       kind: "github",
       url: `https://github.com/${url[1]}/${url[2]}.git`,
-      path: url[4] ?? ".",
-      ref: url[3] ?? null,
+      path: url.at(4) ?? ".",
+      ref: url.at(3) ?? null,
       label: `${url[1]}/${url[2]}${url[4] ? `/${url[4]}` : ""}`,
     };
   const short = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/(.+))?$/.exec(s);
   if (short && !short[1].includes("."))
-    return { kind: "github", url: `https://github.com/${short[1]}/${short[2]}.git`, path: short[3] ?? ".", ref: null, label: s };
+    return { kind: "github", url: `https://github.com/${short[1]}/${short[2]}.git`, path: short.at(3) ?? ".", ref: null, label: s };
   return null;
 }
 
@@ -319,7 +319,7 @@ export function readLock(file: string): LockEntry[] {
     const list: unknown[] = Array.isArray(raw)
       ? raw
       : typeof raw === "object" && raw !== null
-        ? Object.entries(raw as Record<string, unknown>).map(([name, v]) => (typeof v === "object" && v !== null ? { name, ...(v as object) } : null))
+        ? Object.entries(raw).map(([name, v]) => (typeof v === "object" && v !== null ? { name, ...(v as object) } : null))
         : [];
     return list.filter(
       (e): e is LockEntry =>
@@ -370,18 +370,7 @@ function defaultExec(bin: string, args: string[], opts: { cwd?: string; timeoutM
       bin,
       args,
       { cwd: opts.cwd, timeout: opts.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
-      (err, stdout, stderr) =>
-        err
-          ? rej(
-              new Error(
-                String(stderr || err.message)
-                  .trim()
-                  .split("\n")
-                  .slice(-3)
-                  .join(" "),
-              ),
-            )
-          : res(String(stdout)),
+      (err, stdout, stderr) => (err ? rej(new Error((stderr || err.message).trim().split("\n").slice(-3).join(" "))) : res(stdout)),
     );
   });
 }

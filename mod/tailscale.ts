@@ -112,10 +112,10 @@ const defaultExec: TailscaleExec = (bin, args, timeoutMs = STATUS_TIMEOUT) =>
   new Promise((resolve, reject) => {
     execProgram(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: process.env }, (err, stdout, stderr) => {
       if (err) {
-        const said = `${String(stderr ?? "")}\n${String(stdout ?? "")}`.trim();
+        const said = `${stderr}\n${stdout}`.trim();
         return reject(new Error(said || err.message));
       }
-      resolve(String(stdout));
+      resolve(stdout);
     });
   });
 

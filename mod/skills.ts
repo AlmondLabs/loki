@@ -71,7 +71,8 @@ export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s))
     return { kind: "folder", path: resolve(s.replace(/^~(?=$|[\\/])/, home)) };
   const web = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/(?:tree|blob)\/([^/]+)(?:\/(.*))?)?\/?$/.exec(s);
-  if (web) return { kind: "git", url: `https://github.com/${web[1]}/${web[2]}.git`, ref: web[3] ?? null, path: (web[4] ?? "").replace(/\/SKILL\.md$/, "") };
+  if (web)
+    return { kind: "git", url: `https://github.com/${web[1]}/${web[2]}.git`, ref: web.at(3) ?? null, path: (web.at(4) ?? "").replace(/\/SKILL\.md$/, "") };
   if (/^(https?|git|ssh):\/\/|^git@/.test(s)) return { kind: "git", url: s, ref: null, path: "" };
   const [owner, repo, ...rest] = s.split("/");
   if (!owner || !repo) throw new Error("a source is a GitHub path (owner/repo/path), a git URL, or a folder");
@@ -83,17 +84,8 @@ export type Runner = (program: string, args: string[], cwd?: string) => Promise<
 const runProgram: Runner = (program, args, cwd) =>
   new Promise((done, fail) => {
     execProgram(program, args, { cwd, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err)
-        fail(
-          new Error(
-            String(stderr || stdout || err.message)
-              .trim()
-              .split("\n")
-              .slice(-3)
-              .join(" "),
-          ),
-        );
-      else done(String(stdout).trim());
+      if (err) fail(new Error((stderr || stdout || err.message).trim().split("\n").slice(-3).join(" ")));
+      else done(stdout.trim());
     });
   });
 
