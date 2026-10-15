@@ -296,6 +296,7 @@ export class FrameChatClient {
     server: (entry: string, edit: InputOf<"chat_mcp_server">["edit"], rename?: string) => this.call("chat_mcp_server", { entry, edit, rename: rename ?? null }),
     alwaysLoad: (entry: string, tools: string[]) => this.call("chat_mcp_always_load", { entry, tools }),
     restart: (name: string) => this.call("chat_mcp_restart", { name }),
+    signOut: (name: string) => this.call("chat_mcp_signout", { name }),
     agent: (agentId: string, server: string, on: boolean) => this.call("chat_mcp_agent", { agentId, server, on }),
     secret: async (name: string, value: string) => (await this.call("chat_mcp_secret", { name, value })).ref,
   };

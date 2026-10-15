@@ -620,6 +620,7 @@ export function useAttention(opts: UseAttentionOptions) {
       server: (entry: string, edit: Parameters<ChatClient["mcp"]["server"]>[1], rename?: string) => via((s) => s.mcp.server(entry, edit, rename)),
       alwaysLoad: (entry: string, tools: string[]) => via((s) => s.mcp.alwaysLoad(entry, tools)),
       restart: (name: string) => via((s) => s.mcp.restart(name)),
+      signOut: (name: string) => via((s) => s.mcp.signOut(name)),
       agent: (agentId: string, server: string, on: boolean) => via((s) => s.mcp.agent(agentId, server, on)),
       // A reference on success, an error message otherwise: never confusable, since one would land in mcp.json.
       secret: (name: string, value: string) => via(async (s) => ({ ref: await s.mcp.secret(name, value) })),

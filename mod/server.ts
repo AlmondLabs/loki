@@ -39,7 +39,10 @@ export function sameSecret(given: string | null | undefined, secret: string): bo
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize; uploads?: string }): Promise<LokiServer> {
+/** A route of the mod's own beyond the server's: true when it took the request. */
+export type Route = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
+
+export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize; uploads?: string; routes?: Route[] }): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
   const server = createServer((req, res) => {
     try {
@@ -51,6 +54,7 @@ export async function startServer(opts: { port: number; health?: () => object; t
       }
       if (profileRoute(req, res, url, authorize, opts.profile, 403)) return;
       if (opts.uploads && uploadRoute(req, res, url, { authorize, dir: opts.uploads, denied: 403 })) return;
+      if (opts.routes?.some((route) => route(req, res, url))) return;
       res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");
     } catch {
       res.writeHead(400).end();
@@ -213,4 +217,32 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
 
 function send(ws: WebSocket, msg: object): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+}
+
+/**
+ * The browser back from signing in to a remote MCP server: GET MCP_OAUTH_CALLBACK with the server's `code` and
+ * loki's one-time `state`. No token, since a browser redirect carries none: the state is the credential (unknown or
+ * used, nothing happens), and the route is on the loopback server only, never the LAN's. Answers with a page to close.
+ */
+export function oauthCallbackRoute(path: string, finish: (params: Record<string, string>) => Promise<{ ok: boolean; message: string }>): Route {
+  return (req, res, url) => {
+    if (url.pathname !== path) return false;
+    if (req.method !== "GET") {
+      res.writeHead(405).end();
+      return true;
+    }
+    void finish(Object.fromEntries(url.searchParams))
+      .catch((error: unknown) => ({ ok: false, message: error instanceof Error ? error.message : String(error) }))
+      .then((r) => {
+        res.writeHead(r.ok ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" });
+        res.end(oauthPage(r.ok, r.message));
+      });
+    return true;
+  };
+}
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+export function oauthPage(ok: boolean, message: string): string {
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>loki · ${ok ? "signed in" : "sign-in failed"}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}@media(prefers-color-scheme:dark){body{color:#eee;background:#1b1b1d}}h1{font-size:18px}</style><h1>${ok ? "Signed in" : "Not signed in"}</h1><p>${escapeHtml(message)}</p>`;
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Client, StreamableHTTPClientTransport, type CallToolResult, type Tool, type Transport } from "@modelcontextprotocol/client";
+import { Client, StreamableHTTPClientTransport, UnauthorizedError, type CallToolResult, type OAuthClientProvider, type Tool, type Transport } from "@modelcontextprotocol/client";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { sameServer, type ServerConfig } from "./config.ts";
 
@@ -22,11 +22,15 @@ export type McpTool = {
   destructive: boolean;
 };
 
-export type ServerState = "starting" | "connected" | "down";
+/** `signin`: a remote server that wants an OAuth sign-in, which waits for the person rather than retrying. */
+export type ServerState = "starting" | "connected" | "down" | "signin";
 export type ServerStatus = { name: string; kind: ServerConfig["kind"]; state: ServerState; error: string | null; tools: number; purpose: string | null };
 
-/** Opens a connection to a server (its stderr, if any, goes to `stderr`); replaced in tests by one that connects in memory. */
-export type Connector = (config: ServerConfig, client: Client, stderr: (text: string) => void) => Promise<void>;
+/**
+ * Opens a connection to a server (its stderr, if any, goes to `stderr`; a remote one signs in with `auth` when it
+ * asks); replaced in tests by one that connects in memory.
+ */
+export type Connector = (config: ServerConfig, client: Client, stderr: (text: string) => void, auth?: OAuthClientProvider) => Promise<void>;
 
 /** Provider tool names are at most 64 characters of letters, digits, `_` and `-`. */
 export function toolKey(server: string, tool: string): string {
@@ -44,7 +48,7 @@ export const backoffMs = (failures: number): number => Math.min(60_000, 1000 * 2
 const STDERR_KEEP = 2000;
 
 /** The real connector: a local server is started over stdio, a remote one reached over Streamable HTTP. */
-export const connectServer: Connector = async (config, client, stderr) => {
+export const connectServer: Connector = async (config, client, stderr, auth) => {
   let transport: Transport;
   if (config.kind === "local") {
     // The given env adds to the safe defaults (PATH, HOME …) rather than replacing them: a server started with only
@@ -53,7 +57,7 @@ export const connectServer: Connector = async (config, client, stderr) => {
     stdio.stderr?.on("data", (chunk: Buffer) => stderr(chunk.toString("utf8")));
     transport = stdio;
   } else {
-    transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers } });
+    transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers }, ...(auth ? { authProvider: auth } : {}) });
   }
   await client.connect(transport);
 };
@@ -79,13 +83,16 @@ export class McpServers {
   private readonly connect: Connector;
   /** Fills a config's `${keychain:…}` values just before it connects (daemon/mcp/config.ts withSecrets). */
   private readonly resolve: (config: ServerConfig) => Promise<ServerConfig>;
+  /** The sign-in a remote server uses when it asks for one (daemon/mcp/oauth.ts); none for a server with its own token. */
+  private readonly oauthFor: (config: ServerConfig) => OAuthClientProvider | undefined;
   private readonly report: (message: string) => void;
   private readonly version: string;
   private closed = false;
 
-  constructor(opts: { connect?: Connector; resolve?: (config: ServerConfig) => Promise<ServerConfig>; report?: (message: string) => void; version?: string } = {}) {
+  constructor(opts: { connect?: Connector; resolve?: (config: ServerConfig) => Promise<ServerConfig>; oauthFor?: (config: ServerConfig) => OAuthClientProvider | undefined; report?: (message: string) => void; version?: string } = {}) {
     this.connect = opts.connect ?? connectServer;
     this.resolve = opts.resolve ?? (async (c) => c);
+    this.oauthFor = opts.oauthFor ?? (() => undefined);
     this.report = opts.report ?? (() => {});
     this.version = opts.version ?? "0";
   }
@@ -148,7 +155,7 @@ export class McpServers {
       if (generation === entry.generation) entry.stderr = (entry.stderr + text).slice(-STDERR_KEEP);
     };
     try {
-      await this.connect(await this.resolve(entry.config), client, stderr);
+      await this.connect(await this.resolve(entry.config), client, stderr, this.oauthFor(entry.config));
       if (generation !== entry.generation) return void (await client.close().catch(() => {}));
       entry.client = client;
       const listed = await client.listTools();
@@ -169,8 +176,18 @@ export class McpServers {
       if (generation !== entry.generation) return;
       await client.close().catch(() => {});
       entry.client = null;
+      // A server that wants a sign-in waits for it: retrying would only open the same page again.
+      if (error instanceof UnauthorizedError) return this.needsSignIn(entry);
       this.down(entry, generation, `${error instanceof Error ? error.message : String(error)}${tailOf(entry.stderr)}`);
     }
+  }
+
+  private needsSignIn(entry: Entry): void {
+    if (entry.state !== "signin") this.report(`mcp ${entry.config.name}: needs a sign-in (Settings › MCP)`);
+    entry.state = "signin";
+    entry.error = "needs a sign-in: Settings › MCP";
+    entry.tools = [];
+    this.changed();
   }
 
   private down(entry: Entry, generation: number, error: string): void {

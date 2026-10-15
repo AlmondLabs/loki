@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { Button, Chip, Dot, Field, Row, TextArea } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
+import { openExternal } from "../desk/env";
 
 /** What Settings › MCP asks of the daemon; each call resolves to the servers as they now are, or an error message. */
 export interface McpApi {
@@ -8,6 +9,8 @@ export interface McpApi {
   server: (entry: string, edit: McpEdit | null, rename?: string) => Promise<McpView | string>;
   alwaysLoad: (entry: string, tools: string[]) => Promise<McpView | string>;
   restart: (name: string) => Promise<McpView | string>;
+  /** Forget a remote server's OAuth sign-in; it then asks for one again. */
+  signOut: (name: string) => Promise<McpView | string>;
   agent: (agentId: string, server: string, on: boolean) => Promise<McpView | string>;
   /** The `${keychain:…}` reference to write in place of the value, or an error message. */
   secret: (name: string, value: string) => Promise<{ ref: string } | string>;
@@ -16,7 +19,7 @@ export interface McpApi {
 
 export type McpEdit = { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
 
-const STATE_TONE: Record<McpServerView["state"], string> = { connected: "var(--loki-positive)", starting: "var(--loki-accent)", down: "var(--loki-negative)" };
+const STATE_TONE: Record<McpServerView["state"], string> = { connected: "var(--loki-positive)", starting: "var(--loki-accent)", down: "var(--loki-negative)", signin: "var(--loki-accent)" };
 const KEYCHAIN = /^\$\{keychain:[A-Za-z0-9_.-]+\}$/;
 
 /** "about 9k tokens": a cost as the list shows it. */
@@ -99,18 +102,19 @@ function ServerRow({ s, open, onToggle, onEdit, api, apply }: { s: McpServerView
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <Row dense selected={open} onClick={onToggle} aria-expanded={open} aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state}`} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
+      <Row dense selected={open} onClick={onToggle} aria-expanded={open} aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state === "signin" ? "needs sign-in" : s.state}`} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
         <Dot color={STATE_TONE[s.state]} />
         <span style={{ minWidth: 0 }}>
           <strong>{s.entry}</strong>
           <span className="loki-meta" style={{ marginLeft: 8 }}>{s.kind}</span>
           {s.purpose && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{s.purpose}</span>}
         </span>
-        <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} · ${tokenLabel(s.tokens)} if all loaded` : s.state}</span>
+        <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} · ${tokenLabel(s.tokens)} if all loaded` : s.state === "signin" ? "needs sign-in" : s.state}</span>
       </Row>
       {open && (
         <div style={{ display: "grid", gap: 8, padding: "4px 8px 10px 28px" }}>
-          {s.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
+          {s.error && s.state !== "signin" && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
+          {s.signIn && <SignIn s={s} onSignOut={() => void api.signOut(s.name).then(apply)} />}
           {s.tools.length > 0 && (
             <div role="group" aria-label={`${s.name} tools`} style={{ display: "grid", gap: 4 }}>
               {s.tools.map((t) => (
@@ -144,6 +148,33 @@ function ServerRow({ s, open, onToggle, onEdit, api, apply }: { s: McpServerView
       )}
     </div>
   );
+}
+
+/**
+ * A remote server's OAuth sign-in: "sign in" opens its authorization page in the browser, which comes back to loki
+ * and connects the server; "sign out" forgets the tokens. A page that went stale is made again by restart.
+ */
+function SignIn({ s, onSignOut }: { s: McpServerView; onSignOut: () => void }) {
+  const signIn = s.signIn!;
+  if (s.state === "signin")
+    return (
+      <div style={{ display: "grid", gap: 6 }}>
+        <span className="loki-meta loki-meta--wrap">{s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.</span>
+        {signIn.url ? (
+          <Button size="sm" tone="positive" onClick={() => openExternal(signIn.url!)} style={{ justifySelf: "start" }}>sign in to {s.entry}</Button>
+        ) : (
+          <span className="loki-meta loki-meta--wrap">getting the sign-in page… (restart if it does not come)</span>
+        )}
+      </div>
+    );
+  if (signIn.signedIn)
+    return (
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span className="loki-meta">signed in</span>
+        <Button size="sm" onClick={onSignOut}>sign out</Button>
+      </div>
+    );
+  return null;
 }
 
 /** The add/edit form's fields, as text; `kind` picks which half is saved. */

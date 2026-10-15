@@ -4,7 +4,7 @@ import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
 import { ScopeDebouncer } from "./lifecycle-events.ts";
-import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
+import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
@@ -31,7 +31,7 @@ import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import { join } from "node:path";
-import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
+import { attachWs, oauthCallbackRoute, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
@@ -322,6 +322,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       token,
       profile: (agentId) => profilePath(agentId),
       uploads: paths.uploads,
+      // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
+      routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOAuthCallback(params))],
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then((s) => {
       ws = attachWs(s.server, token, bridge);

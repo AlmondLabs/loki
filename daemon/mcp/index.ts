@@ -4,7 +4,9 @@ import { existsSync, mkdirSync, readFileSync, unwatchFile, watchFile, writeFileS
 import { dirname, join } from "node:path";
 import type { McpServerView, McpView } from "../../core/frame-types.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
-import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerEdit } from "./config.ts";
+import { auth } from "@modelcontextprotocol/client";
+import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
+import { OAuthStore, ServerOAuth, callbackUrl } from "./oauth.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
@@ -28,7 +30,10 @@ export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
 /** Where `${keychain:…}` secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend), under mcp.<name>. */
-export type Secrets = { get(account: string): Promise<string | null>; set(account: string, value: string): Promise<void> };
+export type Secrets = { get(account: string): Promise<string | null>; set(account: string, value: string): Promise<void>; delete?(account: string): Promise<void> };
+
+/** A remote server signs in with OAuth unless its headers carry its own Authorization. */
+export const usesOAuth = (c: ServerConfig): boolean => c.kind === "remote" && !Object.keys(c.headers).some((h) => h.toLowerCase() === "authorization");
 
 /** About how many tokens a tool's definition costs once loaded (four characters a token). */
 export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
@@ -47,8 +52,16 @@ export class McpTools {
   /** Each agent's switched-off servers (Agents › Profile), kept in `<loki>/state/mcp-agents.json`. */
   private readonly offPath: string;
   private off: Record<string, string[]>;
+  // Sign-ins (daemon/mcp/oauth.ts): each remote server's provider, the page each waiting one sends you to, the state
+  // each page carries (one-time, matched when the browser comes back), and the servers known to hold a token.
+  private readonly oauthStore: OAuthStore;
+  private readonly providers = new Map<string, ServerOAuth>();
+  private readonly signInUrls = new Map<string, string>();
+  private readonly pendingStates = new Map<string, string>();
+  private readonly signedIn = new Set<string>();
+  private readonly redirect: string;
 
-  constructor(opts: { registry: Registry; configPath: string; lokiDir: string; report?: (message: string) => void; servers?: McpServers; version?: string; secrets?: Secrets }) {
+  constructor(opts: { registry: Registry; configPath: string; lokiDir: string; report?: (message: string) => void; servers?: McpServers; version?: string; secrets?: Secrets; redirect?: string }) {
     this.registry = opts.registry;
     this.configPath = opts.configPath;
     this.resultsDir = join(opts.lokiDir, "tool-results");
@@ -56,8 +69,10 @@ export class McpTools {
     this.secrets = opts.secrets ?? null;
     this.offPath = join(opts.lokiDir, "state", "mcp-agents.json");
     this.off = readOff(this.offPath);
+    this.oauthStore = new OAuthStore(this.secrets);
+    this.redirect = opts.redirect ?? callbackUrl();
     const secrets = this.secrets;
-    this.servers = opts.servers ?? new McpServers({ report: this.report, ...(opts.version ? { version: opts.version } : {}), resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))) });
+    this.servers = opts.servers ?? new McpServers({ report: this.report, ...(opts.version ? { version: opts.version } : {}), resolve: (c) => withSecrets(c, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null))), oauthFor: (c) => this.oauthFor(c) });
     // A server connecting, failing or changing its tools re-registers the extension (once per burst of changes).
     this.servers.onChange(() => {
       if (this.installTimer) return;
@@ -124,6 +139,7 @@ export class McpTools {
     const tools = this.toolsFor(agentId);
     const lines = status.map((s) => {
       if (s.state === "down") return `- ${s.name}: down (${s.error ?? "not connected"})`;
+      if (s.state === "signin") return `- ${s.name}: needs the person to sign in (Settings › MCP); its tools are not available until then`;
       if (s.state === "starting") return `- ${s.name}: starting`;
       const names = tools.filter((t) => t.server === s.name).map((t) => t.name);
       const listed = names.slice(0, NAMES_LISTED).join(", ") + (names.length > NAMES_LISTED ? `, … and ${names.length - NAMES_LISTED} more` : "");
@@ -246,6 +262,7 @@ export class McpTools {
         tools: mine,
         tokens: mine.reduce((n, t) => n + t.tokens, 0),
         config: c.kind === "local" ? { command: c.command, args: c.args, env: c.env, cwd: c.cwd } : { url: c.url, headers: c.headers },
+        signIn: usesOAuth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signedIn: this.signedIn.has(c.name) } : null,
         offFor: Object.entries(this.off).filter(([, servers]) => servers.includes(c.name)).map(([agent]) => agent),
       };
     });
@@ -276,6 +293,77 @@ export class McpTools {
     const safe = name.replace(/[^A-Za-z0-9_.-]+/g, "_").slice(0, 80) || "secret";
     await this.secrets.set(`mcp.${safe}`, value);
     return keychainRef(safe);
+  }
+
+  // --- OAuth sign-ins ----------------------------------------------------------------------------------------------
+
+  /**
+   * The sign-in a server uses (its provider, made once), or none. The provider tells loki when the server sends you to
+   * its authorization page, and which servers hold a token, so Settings can say "sign in" or "sign out".
+   */
+  oauthFor(config: ServerConfig): ServerOAuth | undefined {
+    if (!usesOAuth(config)) return undefined;
+    let p = this.providers.get(config.name);
+    if (!p) {
+      const tracked = new ServerOAuth(
+        config.name,
+        this.oauthStore,
+        (server, url, state) => {
+          this.signInUrls.set(server, url.href);
+          for (const [s, name] of this.pendingStates) if (name === server) this.pendingStates.delete(s);
+          if (state) this.pendingStates.set(state, server);
+        },
+        this.redirect,
+      );
+      const tokens = tracked.tokens.bind(tracked);
+      const save = tracked.saveTokens.bind(tracked);
+      tracked.tokens = async () => {
+        const t = await tokens();
+        if (t) this.signedIn.add(config.name);
+        else this.signedIn.delete(config.name);
+        return t;
+      };
+      tracked.saveTokens = async (t) => {
+        await save(t);
+        this.signedIn.add(config.name);
+      };
+      p = tracked;
+      this.providers.set(config.name, p);
+    }
+    return p;
+  }
+
+  /**
+   * The browser came back from a server's authorization page (mod/server.ts, MCP_OAUTH_CALLBACK): match its state to
+   * the sign-in that sent it, redeem the code, and connect. Every outcome is a line for the page the browser shows.
+   */
+  async finishAuth(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
+    const server = params.state ? this.pendingStates.get(params.state) : undefined;
+    if (!server) return { ok: false, server: null, message: "This sign-in is not one loki started, or it was already used. Start it again from Settings › MCP." };
+    this.pendingStates.delete(params.state);
+    const config = this.servers.configs().find((c) => c.name === server);
+    // The page the browser shows names the server as you wrote it (its tool-safe name only when it is gone).
+    const named = config?.entry ?? server;
+    if (params.error) return { ok: false, server, message: `${named} did not sign in: ${params.error_description || params.error}` };
+    const provider = config && this.oauthFor(config);
+    if (!config || config.kind !== "remote" || !provider || !params.code) return { ok: false, server, message: `${named} sent no code to sign in with.` };
+    try {
+      const result = await auth(provider, { serverUrl: config.url, authorizationCode: params.code, ...(params.iss ? { iss: params.iss } : {}) });
+      if (result !== "AUTHORIZED") return { ok: false, server, message: `${named} asked to sign in again.` };
+      this.signInUrls.delete(server);
+      this.servers.restart(server);
+      return { ok: true, server, message: `Signed in to ${named}. You can close this tab and go back to loki.` };
+    } catch (error) {
+      return { ok: false, server, message: `${named} did not sign in: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
+
+  /** Forget a server's tokens (its registration stays) and connect again, which asks for a sign-in. */
+  async signOut(name: string): Promise<McpView> {
+    await this.oauthStore.delete(name, ["tokens", "verifier"]);
+    this.signedIn.delete(name);
+    this.servers.restart(name);
+    return this.view();
   }
 
   /** Switch a server on or off for one agent; its chats follow from their next run. */

@@ -132,6 +132,9 @@ every chat gets, the chats, then the mods.
     or `select:`). A chat's pi-durable tool filter hides every MCP tool until `mcp_search` returns `addTools` for it;
     `DaemonChats` sets the filter before each run (the chat's `mcpKnown` tells a loaded tool from a new one) and
     empties it on /clear and compaction. Results map to text and images; big ones spill to files (`results.ts`).
+    A remote server with no Authorization header signs in with OAuth (`oauth.ts`, the SDK's provider interface):
+    an unauthorized connect is the `signin` state, Settings opens the authorization page, and the browser comes back
+    to the mod's loopback route (`oauthCallbackRoute` in `mod/server.ts`), which hands the code to `McpTools.finishAuth`.
 12. **The chats (`daemon/chat-backend.ts`, `daemon/chats.ts`, `daemon/chat-events.ts`).** `DaemonChats` runs chats
     for the mod's chat frames: open, send, steer, abort, approve, answer, models, agents, providers, the passes,
     memory and skills. A message sent while the chat is busy waits its turn. pi-durable's events become loki's chat

@@ -330,6 +330,7 @@ export const FRAMES = {
   }),
   chat_mcp_always_load: request("chat_mcp", "the tools of an MCP server that skip search", (m) => (str(m.entry) && m.entry ? { entry: m.entry, tools: strings(m.tools) } : "entry required")),
   chat_mcp_restart: request("chat_mcp", "start an MCP server again now", (m) => (str(m.name) && m.name ? { name: m.name } : "name required")),
+  chat_mcp_signout: request("chat_mcp", "forget a remote MCP server's sign-in", (m) => (str(m.name) && m.name ? { name: m.name } : "name required")),
   chat_mcp_agent: request("chat_mcp", "switch an MCP server on or off for one agent", (m) => (isAgentId(m.agentId) && str(m.server) && m.server && typeof m.on === "boolean" ? { agentId: m.agentId, server: m.server, on: m.on } : "agentId, server and on required")),
   chat_mcp_secret: request("chat_mcp_secret", "keep a value in the keychain for mcp.json to name", (m) => (str(m.name) && m.name && str(m.value) && m.value ? { name: m.name, value: m.value } : "name and value required")),
   chat_skill_enable: request("chat_skill_enabled", "make a skill folder global: a link to it in the global skills folder", (m) => (str(m.path) && m.path ? { path: m.path } : "path required")),
