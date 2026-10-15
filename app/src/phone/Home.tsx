@@ -97,7 +97,7 @@ export function Home({
   const [sheet, setSheet] = useState<"menu" | "new" | null>(null);
   const [acting, setActing] = useState<DeskSummary | null>(null);
 
-  useEffect(onRefresh, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(onRefresh, []);
 
   const marks = useMemo(() => {
     const m = new Map<string, AttentionItem>();

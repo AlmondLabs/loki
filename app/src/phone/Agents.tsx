@@ -45,7 +45,6 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
   return d;
 }

@@ -238,7 +238,7 @@ export function Agents({
 const NO_ITEMS: AttentionItem[] = [];
 
 /** The pages as the header's tabs. */
-const PAGE_TABS: readonly Tab<AgentPage>[] = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
+const PAGE_TABS: ReadonlyArray<Tab<AgentPage>> = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
 
 /** Before the first agent: an invitation, as the pane's empty state. */
 function NoAgents({ onNew }: { onNew: () => void }) {

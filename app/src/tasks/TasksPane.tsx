@@ -285,14 +285,13 @@ export function TasksPane({
         if (prefs.layout === "board") setPrefs({ groupBy: nextGroup() });
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, cursor, selected, columns, anchor, prefs.layout, prefs.groupBy, view]);
   // Esc: out of the filter box, else clear the selection.
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (typingIn(e)) return void (e.target as HTMLElement).blur();
+      if (typingIn(e)) return (e.target as HTMLElement).blur();
       if (selected.size) {
         e.preventDefault();
         setSelected(new Set());

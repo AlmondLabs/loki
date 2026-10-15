@@ -71,7 +71,6 @@ export function Mcp({ api }: { api: McpApi }) {
       live = false;
       clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!view) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
@@ -462,7 +461,7 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const [tools, setTools] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const apply = (r: string[] | string) => (typeof r === "string" ? setError(r) : (setError(null), setTools(r)));
-  useEffect(() => void api.list().then(apply), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => void api.list().then(apply), []);
   if (tools === null) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
   return (
     <div style={{ display: "grid", gap: 4 }}>

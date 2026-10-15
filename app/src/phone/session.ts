@@ -158,6 +158,5 @@ export function useFocusOnRoute(root: RefObject<HTMLElement | null>, routeKey: s
       return;
     }
     if (root.current) restoreFocus(root.current, routeKey, returning);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey]);
 }

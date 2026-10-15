@@ -37,7 +37,6 @@ export function useTasks(
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
   useEffect(() => {
     if (desk.connection === "open") void refresh();

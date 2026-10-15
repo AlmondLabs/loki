@@ -50,7 +50,6 @@ export function useDeckKeys({
       },
       "inbox.undo": () => undo(),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typing, current, decided]);
   // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).
   useEffect(() => {
@@ -60,6 +59,5 @@ export function useDeckKeys({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typing]);
 }

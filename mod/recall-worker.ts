@@ -6,7 +6,7 @@ import { isWriterChat, learnTitle, type Lead } from "../core/recall/model.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
-import { RecallStore } from "./recall.ts";
+import type { RecallStore } from "./recall.ts";
 import { paths } from "./paths.ts";
 
 /**

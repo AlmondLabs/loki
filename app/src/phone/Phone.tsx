@@ -128,7 +128,6 @@ function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => voi
         if (r.status === 401) onUnpaired();
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection]);
 }
 
@@ -144,7 +143,6 @@ function usePrefill(conv: ConversationRoute | null) {
   useEffect(() => {
     setHeld((h) => nextPrefill(h, conv, Date.now()));
     if (conv?.prefill) replace({ ...conv, prefill: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convKey, conv?.prefill]);
   // Checked at render too: a newly opened conversation's page applies prefill before this effect drops it.
   return held && held.key === convKey ? held : null;
@@ -196,7 +194,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // The desks list feeds Home and the conversation titles; ask for it whenever the mod link comes up.
   useEffect(() => {
     if (desk.connection === "open") desk.desks.request();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
@@ -229,7 +226,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   }, [recallNote]);
   useEffect(() => {
     if (deck.current) void catchUp.loadHistory(deck.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.currentId]);
 
   // A lesson begun from Learn: its conversation opens and the brief goes out as the person's first message, the way the desktop begins one.
@@ -271,7 +267,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
     if (route.kind !== "tab" && route.kind !== "search") recentPlaces.add(place);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place]);
 
   // Archive and restore go through the daemon, the way the desktop tree does; null while it cannot take them.

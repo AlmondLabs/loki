@@ -34,7 +34,6 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
   const here = os === "macos";
   useEffect(() => {
     if (connected && here) phone.refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, here]);
 
   // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.

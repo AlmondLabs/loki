@@ -123,7 +123,6 @@ export function useDesk() {
     };
     hot.on("vite:error", onError);
     return () => hot.off("vite:error", onError);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requestDesks = () => {

@@ -79,7 +79,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   }
   for (const m of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
     const body = m[1];
-    const tag = (name: string) => body.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`))?.[1]?.trim() ?? null;
+    const tag = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`).exec(body)?.[1]?.trim() ?? null;
     const id = tag("task-id");
     const status = tag("status");
     const summary = tag("summary");

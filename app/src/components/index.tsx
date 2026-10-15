@@ -753,7 +753,7 @@ export function TabRow<T extends string>({
   panelId,
 }: {
   label: string;
-  tabs: readonly Tab<T>[];
+  tabs: ReadonlyArray<Tab<T>>;
   current: T;
   onChange: (id: T) => void;
   panelId?: (id: T) => string;
@@ -802,7 +802,7 @@ export interface PaneHeaderProps<T extends string = string> {
   /** On the right: the pane's actions (IconButtons, a menu). */
   actions?: ReactNode;
   /** The tab row under the line; omitted, the header is one line. */
-  tabs?: readonly Tab<T>[];
+  tabs?: ReadonlyArray<Tab<T>>;
   tab?: T;
   onTab?: (id: T) => void;
   /** The tablist's name, e.g. "Desk views". */

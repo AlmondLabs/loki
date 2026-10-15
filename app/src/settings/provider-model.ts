@@ -8,7 +8,7 @@ import type { ConnectProvider, ProviderField } from "../../../core/attention/pro
 /** The ones most people start with; shown first on the Welcome sheet. */
 export const SHORTLIST = ["anthropic", "openai", "google", "openrouter", "ollama"];
 
-export const isConnected = (p: ConnectProvider): boolean => p.connected?.is_connected === true;
+export const isConnected = (p: ConnectProvider): boolean => p.connected?.is_connected;
 
 /** The fields for a provider, given the chosen auth method (the first one by default). */
 export function fieldsFor(p: ConnectProvider, authMethodId?: string | null): { authMethodId: string | null; fields: ProviderField[] } {

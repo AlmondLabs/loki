@@ -36,7 +36,7 @@ describe("device store", () => {
       const store = new DeviceStore(join(dir, "devices.json"));
       const { id, token } = store.mint("phone");
       expect(store.verify(token)?.id).toBe(id);
-      const flipped = (token[0] === "a" ? "b" : "a") + token.slice(1);
+      const flipped = (token.startsWith("a") ? "b" : "a") + token.slice(1);
       expect(store.verify(flipped)).toBeNull();
       expect(store.verify("")).toBeNull();
       expect(store.verify("not-hex")).toBeNull();

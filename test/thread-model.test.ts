@@ -62,7 +62,7 @@ describe("app-server history as a thread", () => {
 });
 
 describe("one row per tool call", () => {
-  const call = (name: string, id: string | null, args: unknown = undefined): Step => ({ kind: "call", name, args, id, at: null });
+  const call = (name: string, id: string | null, args?: unknown): Step => ({ kind: "call", name, args, id, at: null });
   const approval = (name: string, id: string | null): Step => ({ kind: "approval", name, args: undefined, id, at: null });
 
   test("live, an approval request with its own id, or none, belongs to the call it asks about", () => {

@@ -152,7 +152,6 @@ export function Shell() {
   const welcome = welcomeFor(daemon.status, catchUp);
   useEffect(() => {
     if (catchUp.status === "open" && catchUp.agentsLoaded && catchUp.agents.length === 0 && catchUp.providers === null) void catchUp.loadProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catchUp.status, catchUp.agentsLoaded, catchUp.agents.length, catchUp.providers === null]);
   // The first agent's form offers the model list; ask for it as soon as that step shows (Welcome's "skip" asks too).
   useEffect(() => {
@@ -301,7 +300,6 @@ export function Shell() {
       desk.desks.request();
       desk.phone.refresh();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
   // Search's recent places: every desk opened and every section visited, not only what search opened.
   useEffect(() => {

@@ -7,7 +7,7 @@ export const LEARN_VIEWS: LearnView[] = ["review", "leads", "all", "deleted"];
 const LABEL: Record<LearnView, string> = { review: "Review", leads: "Leads", all: "All cards", deleted: "Deleted" };
 
 /** Each view with the count of what it shows: cards due, leads, every card, the deleted cards and leads. */
-export function learnViews(snap: RecallSnapshot | null, due: number): { view: LearnView; label: string; count: number }[] {
+export function learnViews(snap: RecallSnapshot | null, due: number): Array<{ view: LearnView; label: string; count: number }> {
   const count: Record<LearnView, number> = {
     review: snap ? due : 0,
     leads: snap?.leads.length ?? 0,

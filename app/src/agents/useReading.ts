@@ -23,7 +23,6 @@ export function useReading(selected: string | null, view: Reading, api: AgentsAp
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, view?.kind, view?.kind === "file" ? view.path : view?.sha]);
   return { content, loadingView };
 }

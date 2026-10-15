@@ -48,15 +48,13 @@ const themeBlock = (palette: Palette, theme: Theme) => {
   return tokens.slice(start, tokens.indexOf("\n}", start));
 };
 const themeColor = (palette: Palette, theme: Theme, name: string): Rgb => {
-  const raw = themeBlock(palette, theme)
-    .match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1]
-    .trim();
+  const raw = new RegExp(`--loki-${name}:\\s*([^;]+)`).exec(themeBlock(palette, theme))?.[1].trim();
   if (!raw) throw new Error(`missing --loki-${name} in ${palette} ${theme}`);
   return parseColor(raw);
 };
 const parseColor = (raw: string): Rgb => {
   if (raw.startsWith("#")) return [1, 3, 5].map((i) => Number.parseInt(raw.slice(i, i + 2), 16) / 255) as Rgb;
-  const hit = raw.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)/);
+  const hit = /^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)/.exec(raw);
   if (!hit) throw new Error(`cannot read ${raw}`);
   const lightness = Number(hit[1]) / 100;
   const chroma = Number(hit[2]);
@@ -148,7 +146,7 @@ describe("design tokens: every style stays on the scales", () => {
     expect(findAll(code, /var\(--loki-(display|label)\)/g, (m) => m[0])).toEqual([]);
   });
   test("labels are shown as written: no uppercase transform inline, nor in a desktop stylesheet", () => {
-    const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => /uppercase/.test(value(h)));
+    const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => value(h).includes("uppercase"));
     // the phone keeps two of its own: a pairing code typed in capitals, and a kicker's first letter
     const inCss = findAll(
       css.filter((f) => !f.path.startsWith("phone/")),
@@ -209,25 +207,25 @@ describe("design tokens: definitions and uses agree", () => {
     expect([...named].filter((c) => !ruled.has(c))).toEqual([]);
   });
   test("the page's own colour is --loki-bg in index.html, the manifest and the native window, for every family and both sides", () => {
-    const ground = (palette: Palette, theme: Theme) => themeBlock(palette, theme).match(/--loki-bg:\s*(#[0-9a-fA-F]{6})/)![1];
+    const ground = (palette: Palette, theme: Theme) => /--loki-bg:\s*(#[0-9a-fA-F]{6})/.exec(themeBlock(palette, theme))![1];
     const bg = ground("loki", "dark");
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");
     const rust = readFileSync(join(APP, "..", "..", "src-tauri", "src", "lib.rs"), "utf8");
-    expect(html.match(/name="theme-color" content="(#[0-9a-fA-F]{6})"/)?.[1]).toBe(bg);
+    expect(/name="theme-color" content="(#[0-9a-fA-F]{6})"/.exec(html)?.[1]).toBe(bg);
     for (const palette of PALETTES) {
       // the prepaint script picks the theme-color per family and theme, before any stylesheet
-      const grounds = html.match(new RegExp(`"${palette}": \\{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \\}`));
+      const grounds = new RegExp(`"${palette}": \\{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \\}`).exec(html);
       expect(grounds?.slice(1)).toEqual([ground(palette, "dark"), ground(palette, "light")]);
       // the fallback stylesheet's ground, for a page whose CSS never arrived
       for (const theme of THEMES) {
         const selector = `html${palette === "loki" ? "" : `\\[data-palette="${palette}"\\]`}${theme === "light" ? '\\[data-theme="light"\\]' : ""}`;
-        expect(html.match(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`))?.[1]).toBe(ground(palette, theme));
+        expect(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`).exec(html)?.[1]).toBe(ground(palette, theme));
       }
     }
     expect([...manifest.matchAll(/"(?:background_color|theme_color)":\s*"(#[0-9a-fA-F]{6})"/g)].map((m) => m[1])).toEqual([bg, bg]);
     // the window is created in the dark ground; the page applies the saved preference after it loads
-    const native = rust.match(/background_color\(tauri::window::Color\(0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0xff\)\)/i);
+    const native = /background_color\(tauri::window::Color\(0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0xff\)\)/i.exec(rust);
     expect(`#${native?.slice(1, 4).join("")}`.toLowerCase()).toBe(bg.toLowerCase());
   });
 });
@@ -235,13 +233,13 @@ describe("design tokens: definitions and uses agree", () => {
 describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   const root = themeBlock("loki", "dark");
   const rule = (selector: string) => {
-    const hit = tokens.match(new RegExp(`(?:^|\\n)${selector.replace(/[.[\]()*+?^$|\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`));
+    const hit = new RegExp(`(?:^|\\n)${selector.replace(/[.[\]()*+?^$|\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(tokens);
     if (!hit) throw new Error(`no rule for ${selector}`);
     return hit[1];
   };
   test("display and label faces are the sans stack; no serif or condensed face anywhere in tokens.css", () => {
     for (const face of ["font", "display", "label"]) {
-      const raw = root.match(new RegExp(`--loki-${face}:\\s*([^;]+);`))?.[1] ?? "";
+      const raw = new RegExp(`--loki-${face}:\\s*([^;]+);`).exec(root)?.[1] ?? "";
       expect(raw).not.toBe("");
       expect(raw).not.toMatch(RETIRED_FACE);
       expect(raw).not.toMatch(/mono/i);
@@ -259,15 +257,15 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   test("focus flashes: a 2px accent ring that fades in a second, to a muted ring on controls and to nothing on text fields", () => {
     // the flash is the ring's colour animating from the accent; what it settles to is the rule's own outline
     expect(flat(tokens)).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
-    const control = flat(tokens).match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const control = /\[tabindex\]:focus-visible \{([^}]*)\}/.exec(flat(tokens))?.[1] ?? "";
     expect(control).toMatch(/outline: 2px solid var\(--loki-muted\)/);
     expect(control).toMatch(/animation: loki-focus-flash 1s ease-out/);
-    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = /textarea\):focus-visible \{([^}]*)\}/.exec(flat(tokens))?.[1] ?? "";
     expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
   });
   test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
-    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = /textarea\):focus-visible \{([^}]*)\}/.exec(flat(tokens))?.[1] ?? "";
     expect(field).toMatch(/animation: none/);
     const phone = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8"));
     const chat = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8"));
@@ -276,12 +274,12 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
       [phone, ".loki-phone-search-field:focus-within"],
       [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"],
     ] as const) {
-      const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
+      const rule = /\{([^}]*)\}/.exec(css.slice(css.indexOf(sel)))?.[1] ?? "";
       expect(rule, sel).toMatch(/animation: none/);
     }
   });
   test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
-    const radius = (name: string) => Number(root.match(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`))?.[1]);
+    const radius = (name: string) => Number(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`).exec(root)?.[1]);
     expect([radius("sm"), radius("md"), radius("lg"), radius("pill")]).toEqual([6, 8, 12, 999]);
   });
   test("no literal brass left in tokens.css", () => {
@@ -353,9 +351,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     return phone.slice(start, phone.indexOf("\n}", start + 1));
   };
   const raw = (theme: Theme, name: string) => {
-    const hit = phoneBlock(theme)
-      .match(new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`))?.[2]
-      .trim();
+    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme))?.[2].trim();
     if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
     return hit;
   };
@@ -463,7 +459,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(flat(phone)).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
     // an animation beats a plain declaration, so every ring turned off must stop the flash too
     const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
-    expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
+    expect(off.filter((b) => !b.includes("animation: none"))).toEqual([]);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 });

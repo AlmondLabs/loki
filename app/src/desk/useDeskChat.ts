@@ -23,11 +23,9 @@ export function useDeskChat({
   const pendingQuestion = deskChat?.question ?? null;
   useEffect(() => {
     if (deskRuntime && catchUp.status === "open") void catchUp.subscribe(deskRuntime);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, conversationId, catchUp.status]);
   useEffect(() => {
     if (showing && deskRuntime && catchUp.status === "open") void catchUp.loadThread(deskRuntime);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showing, agentId, conversationId, catchUp.status]);
 
   return { deskRuntime, deskChat, pendingApproval, pendingQuestion };

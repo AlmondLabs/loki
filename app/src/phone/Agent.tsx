@@ -32,7 +32,6 @@ function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
   const showDiff = (sha: string) => {
     if (openSha === sha) return setOpenSha(null);
@@ -184,7 +183,7 @@ function MemoryTree({
   return (
     <RowSection icon="folder" title="Memory" count={folders.reduce((n, f) => n + f.files.length, 0)}>
       {folders.map((f) => {
-        const closed = folded[f.name] === true;
+        const closed = folded[f.name];
         return (
           <div key={f.name || "root"}>
             {f.name && (
@@ -310,7 +309,6 @@ export function FilePage({
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, path]);
   const agentName = d?.agent.name ?? name ?? "the agent";
   const markdown = /\.(md|markdown)$/i.test(path);

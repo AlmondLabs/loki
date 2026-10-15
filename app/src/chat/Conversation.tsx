@@ -177,7 +177,6 @@ export function Conversation({
       el?.setSelectionRange(el.value.length, el.value.length);
     }, 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.tick]);
   const controls = useModelAndMode({
     onLoadModels: actions.onLoadModels,

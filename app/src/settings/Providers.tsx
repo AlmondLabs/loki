@@ -30,7 +30,6 @@ export function Providers({
   const [more, setMore] = useState(!shortlist);
   useEffect(() => {
     if (providers === null) void onLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers === null]);
 
   if (providers === null) return <div className="loki-meta loki-meta--wrap">asking loki…</div>;

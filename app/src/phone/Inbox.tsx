@@ -270,7 +270,7 @@ function useSwipe({
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   // Where and how fast the last drag was let go: the spring home, or off, carries that speed.
   const [release, setRelease] = useState<Release | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: { x: number; t: number }[] } | null>(null);
+  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: Array<{ x: number; t: number }> } | null>(null);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if ((e.target as Element).closest(OWN_GESTURE)) return;
@@ -412,7 +412,6 @@ export function Inbox({
   const currentId = current ? idOf(current) : null;
   useEffect(() => {
     if (current && !hidden) onShown?.(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, hidden]);
 
   // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.

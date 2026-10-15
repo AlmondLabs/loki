@@ -260,7 +260,7 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
   const [view, setView] = useState<McpView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const apply = (r: McpView | string) => (typeof r === "string" ? setError(r) : (setError(null), setView(r)));
-  useEffect(() => void mcp.get().then(apply), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => void mcp.get().then(apply), []);
   if (!view?.servers.length && !error) return null;
   return (
     <section>

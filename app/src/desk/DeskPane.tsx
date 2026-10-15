@@ -22,7 +22,7 @@ import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
-const TABS: readonly Tab<DeskTab>[] = [
+const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "messages", label: "Messages" },
   { id: "desk", label: "Canvas" },
 ];

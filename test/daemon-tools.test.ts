@@ -16,7 +16,7 @@ import { memoryRoot } from "../daemon/memory.ts";
 const ctx = BACKGROUND_CONTEXT;
 
 /** A chat in `cwd` on a store with the given extensions; returns what each request sent and each tool result. */
-async function chatWith(cwd: string, extensions: ReturnType<typeof fileToolsExtension>[], agent?: { id: string; name: string }) {
+async function chatWith(cwd: string, extensions: Array<ReturnType<typeof fileToolsExtension>>, agent?: { id: string; name: string }) {
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);

@@ -33,7 +33,6 @@ export function FolderSheet({
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The chat's own folder is always a chip, first when the agent's list does not have it.

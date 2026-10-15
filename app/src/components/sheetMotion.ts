@@ -95,7 +95,7 @@ export function useSheetMotion(
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
     ro?.observe(card);
 
-    let drag: { id: number; x: number; y: number; on: boolean; samples: { y: number; t: number }[] } | null = null;
+    let drag: { id: number; x: number; y: number; on: boolean; samples: Array<{ y: number; t: number }> } | null = null;
     let dy = 0;
     const lift = (v: number) => parent.style.setProperty("--sheet-lift", String(v));
     const place = (d: number) => {

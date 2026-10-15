@@ -164,7 +164,6 @@ export function ModuleWidget({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boot, entry.file, entry.hash]);
 
   useEffect(() => {

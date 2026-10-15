@@ -20,7 +20,7 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
   const [skills, setSkills] = useState<GlobalSkill[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const load = () => void api.list().then(setSkills);
-  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, []);
   const flash = (m: string) => {
     setNotice(m);
     setTimeout(() => setNotice(null), 2500);

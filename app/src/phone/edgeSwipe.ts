@@ -32,7 +32,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     const shell = shellRef.current;
     const main = shell?.querySelector<HTMLElement>(":scope > .loki-phone-main");
     if (!on || !shell || !main || !standalone()) return;
-    let g: { id: number; x: number; y: number; on: boolean; samples: { x: number; t: number }[] } | null = null;
+    let g: { id: number; x: number; y: number; on: boolean; samples: Array<{ x: number; t: number }> } | null = null;
     // A gesture's follow-ups (the fallback settle, the transition reset), cleared with the effect.
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const later = (f: () => void, ms: number) => {

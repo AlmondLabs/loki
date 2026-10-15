@@ -335,7 +335,6 @@ export function useAttention(opts: UseAttentionOptions) {
       sock.close();
       socketRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.enabled]);
 
   // The pending tick, if any, has nothing to render into after unmount.

@@ -149,7 +149,7 @@ export interface Commit {
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
 /** The commits that are changes, not the release PR's or the Windows and Linux PR's own (`release: …`). */
-export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^release: /.test(c.subject));
+export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !c.subject.startsWith("release: "));
 
 /** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
 export function releaseNotes(version: string, commits: Commit[]): string {

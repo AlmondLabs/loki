@@ -125,10 +125,10 @@ function ProviderStep({
   return (
     <span className="loki-meta loki-meta--wrap">
       {connected
-        ? `${providers!
+        ? providers!
             .filter(isConnected)
             .map((p) => p.display_name)
-            .join(", ")}`
+            .join(", ")
         : "none yet — Settings › providers, any time"}
     </span>
   );

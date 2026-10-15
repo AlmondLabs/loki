@@ -143,7 +143,6 @@ export function ConversationScreen({
 
   useEffect(() => {
     onLoad(rt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.agentId, thread.conversationId]);
 
   const agentName = thread.agentName ?? "the agent";

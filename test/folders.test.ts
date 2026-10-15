@@ -55,7 +55,7 @@ describe("folders", () => {
   test("Windows: completion offers matching folders under a drive path or ~\\", () => {
     const dir = (name: string) => ({ name, isDirectory: () => true });
     const file = (name: string) => ({ name, isDirectory: () => false });
-    const disk: Record<string, ReturnType<typeof dir>[]> = {
+    const disk: Record<string, Array<ReturnType<typeof dir>>> = {
       "C:\\": [dir("Users"), dir("Windows"), file("pagefile.sys")],
       "C:\\Users\\x": [dir("Documents"), dir("Downloads"), dir("docker"), dir(".config"), file("Doc.txt"), dir("Pictures")],
     };

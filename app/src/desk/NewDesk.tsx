@@ -155,7 +155,6 @@ export function useFolderField({
     return () => {
       gone = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The folder follows context until you edit it: the current chat first, then this agent's latest.
@@ -164,7 +163,6 @@ export function useFolderField({
     const suggestion = suggestedFolder(recent, currentFolder, agentId, currentAgentId);
     setFolder(suggestion?.path ?? "");
     setSource(suggestion?.source ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, recent, currentFolder]);
 
   // Validate (and complete) as you type, debounced.
@@ -180,7 +178,6 @@ export function useFolderField({
       if (touched) void folders.complete(f).then(setMatches);
     }, 160);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder]);
 
   const options = useMemo(() => folderOptions(recent, matches, agentId, touched), [recent, matches, agentId, touched]);
@@ -224,7 +221,6 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
   useEffect(() => {
     const t = setTimeout(() => (initialName ? field.inputRef : nameRef).current?.focus(), 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const canStart = !!agentId && !!folder.trim() && status?.ok === true && !busy;
@@ -340,7 +336,6 @@ export function ChangeFolder({
   useEffect(() => {
     const t = setTimeout(() => field.inputRef.current?.select(), 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const target = folder.trim();
   const canMove = !!target && target !== currentFolder && status?.ok === true && !busy;

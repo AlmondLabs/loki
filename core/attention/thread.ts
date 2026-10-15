@@ -429,7 +429,7 @@ export class ThreadModel {
       let i = (rows?.length ?? 0) - 1;
       while (i >= 0 && rows![i].tool?.id !== id) i--;
       if (i < 0) return false;
-      rows![i] = { ...rows![i], tool: withResult(rows![i].tool as ToolStep, output, failed) };
+      rows![i] = { ...rows![i], tool: withResult(rows![i].tool!, output, failed) };
       return true;
     };
     if (!onto(this.tail) && !onto(this.history)) return false;

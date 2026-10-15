@@ -49,7 +49,7 @@ const BROWSER_KEYS = new Set([
 export function guardBrowserKey(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
   os: Platform = keyboard,
-  release: boolean = inTauri && import.meta.env.PROD === true,
+  release: boolean = inTauri && import.meta.env.PROD,
 ): void {
   if (!release || os === "macos" || e.metaKey || !e.key) return;
   const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");

@@ -27,7 +27,7 @@ export function NewAgent({
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(onLoadModels, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(onLoadModels, []);
   const submit = async () => {
     if (busy || !name.trim()) return;
     setBusy(true);

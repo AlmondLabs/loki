@@ -471,7 +471,7 @@ describe("bridge history", () => {
 
 describe("bridge: a paired phone's authority", () => {
   test("a device client gets the inbox frames and nothing else", () => {
-    const broadcasts: Record<string, unknown>[] = [];
+    const broadcasts: Array<Record<string, unknown>> = [];
     let forgot: string | null = null;
     const st: LanStatus = {
       enabled: true,

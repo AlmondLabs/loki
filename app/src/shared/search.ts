@@ -51,9 +51,9 @@ export interface Indexed<H> {
 }
 
 /** Entries with their fields folded: build once per sources, query per keystroke. */
-export type SearchIndex<H> = { readonly entries: readonly Indexed<H>[] };
+export type SearchIndex<H> = { readonly entries: ReadonlyArray<Indexed<H>> };
 
-export function buildSearchIndex<H>(entries: readonly Indexed<H>[]): SearchIndex<H> {
+export function buildSearchIndex<H>(entries: ReadonlyArray<Indexed<H>>): SearchIndex<H> {
   return { entries: entries.map((e) => ({ ...e, fields: e.fields.map(foldField) })) };
 }
 
@@ -93,8 +93,8 @@ export function groupHits<H, G extends string>(
   order: readonly G[],
   titles: Record<G, string>,
   max: number,
-): HitGroup<H, G>[] {
-  const groups: HitGroup<H, G>[] = [];
+): Array<HitGroup<H, G>> {
+  const groups: Array<HitGroup<H, G>> = [];
   for (const id of order) {
     const all = hits.filter((h) => groupOf(h) === id);
     if (all.length) groups.push({ id, title: titles[id], total: all.length, hits: all.slice(0, max) });

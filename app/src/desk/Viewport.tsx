@@ -25,7 +25,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
   ref,
 ) {
   const inner = useRef<ReactZoomPanPinchRef | null>(null);
-  useImperativeHandle(ref, () => inner.current as ReactZoomPanPinchRef, []);
+  useImperativeHandle(ref, () => inner.current!, []);
   const host = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
 

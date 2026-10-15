@@ -24,7 +24,7 @@ const MODELS: ModelEntry[] = [
 const CURRENT = "anthropic/claude-opus-5-5";
 
 /** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
-function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
   const el = node as ReactElement<Record<string, unknown>>;
@@ -100,7 +100,7 @@ describe("the message box's bottom row", () => {
   });
 
   test("send is disabled while the box is empty and live once there is text", () => {
-    const send = (html: string) => html.match(/<button[^>]*aria-label="Send"[^>]*>/)![0];
+    const send = (html: string) => /<button[^>]*aria-label="Send"[^>]*>/.exec(html)![0];
     expect(send(conversation(false))).toContain('disabled=""');
     expect(send(conversation(false, "ship it"))).not.toContain("disabled");
     expect(send(conversation(true, "ship it"))).not.toContain("disabled");

@@ -27,7 +27,6 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
       setSnap(s);
       setError(null);
     } else setError("recall did not answer");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
   useEffect(() => {
     if (desk.connection === "open") void refresh();

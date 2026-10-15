@@ -64,7 +64,7 @@ interface SurfaceProps extends DeskConversationHandlers {
   /** Bumped by the shell (⌘F) to open the chat's find bar. */
   findChat?: number;
   chatPrefill?: { text: string; tick: number } | null;
-  models?: import("../chat/ModelPicker").ModelEntry[] | null;
+  models?: Array<import("../chat/ModelPicker").ModelEntry> | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
 }
@@ -87,7 +87,6 @@ export function Surface(props: SurfaceProps) {
     if (!active || !emptyDesk || autoOpened.current.has(scope)) return;
     autoOpened.current.add(scope);
     onChatOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, emptyDesk, scope]);
   const toggleChatWidth = () => onChatWidth(chatWidth === "wide" ? "narrow" : "wide");
 
@@ -115,7 +114,6 @@ export function Surface(props: SurfaceProps) {
       if (found) focusWidget(widgetId);
     }, 60);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, frameRequest?.nonce]);
 
   const trashWidget = (id: string) => {

@@ -150,7 +150,6 @@ export function useCamera({
       clearTimeout(timer);
       clearTimeout(clear);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraTarget]);
 
   // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these. Registered
@@ -167,7 +166,6 @@ export function useCamera({
         if (!undo()) console.info("loki: nothing to undo on the sheet");
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   return { highlighted, focusWidget };

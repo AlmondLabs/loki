@@ -440,7 +440,7 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       expect(v.servers[0].tokens).toBe(v.servers[0].tools.reduce((n, t) => n + t.tokens, 0));
       expect(v.servers[0].tools[0].tokens).toBeGreaterThan(10);
       mcp.setAlwaysLoad("fake", ["list_issues"]);
-      await until(() => mcp.view().servers[0]?.tools[0]?.alwaysLoad === true);
+      await until(() => mcp.view().servers[0]?.tools[0]?.alwaysLoad);
       expect(await mcp.storeSecret("fake.TOKEN", "s3cret")).toBe("${keychain:fake.TOKEN}");
       expect(secrets.get("mcp.fake.TOKEN")).toBe("s3cret");
       // Switched off for one agent: out of that agent's section, while another agent still sees it.

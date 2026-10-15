@@ -48,7 +48,6 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
     const fromUrl = codeFromUrl(location.href);
     if (fromUrl) void submit(fromUrl);
     else inputRef.current?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onChange = (raw: string) => {

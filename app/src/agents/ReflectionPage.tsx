@@ -28,7 +28,6 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
     return () => {
       gone = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
   const toggle = async (enabled: boolean) => {

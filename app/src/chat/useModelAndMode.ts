@@ -30,14 +30,12 @@ export function useModelAndMode({
   useEffect(() => {
     if (onPickModel) onLoadModels?.();
     // onPickModel is often a fresh scope-bound closure; the boolean capability is the stable trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!onPickModel, onLoadModels]);
   useEffect(() => {
     if (modelPickerTick > 0 && onPickModel) {
       onLoadModels?.();
       setPickerOpen(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelPickerTick]);
   useEffect(() => {
     if (modeMenuTick > 0 && onPickMode) setModeOpen(true);

@@ -22,7 +22,7 @@ describe("inbox agent pills", () => {
     expect(agentPills([attentionItem("a", { agentId: "ag-1", status: "idle", unread: false })]).map((p) => p.count)).toEqual([1]);
   });
   test("hidden with one agent; with two, All leads and says how many wait in all", () => {
-    const html = (items: ReturnType<typeof of>[], agent: string | null = null) =>
+    const html = (items: Array<ReturnType<typeof of>>, agent: string | null = null) =>
       renderToStaticMarkup(createElement(AgentPills, { items, agent, onAgent: () => {} }));
     expect(html([of("a", "ag-1", "Atlas"), of("b", "ag-1", "Atlas")])).toBe("");
     const two = html([of("a", "ag-1", "Atlas"), of("b", "ag-2", "Scout")]);

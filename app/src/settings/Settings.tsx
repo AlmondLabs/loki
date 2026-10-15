@@ -363,7 +363,6 @@ function ImportFact({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asked]);
   const go = async () => {
     setBusy(true);

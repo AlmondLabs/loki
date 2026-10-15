@@ -115,8 +115,8 @@ describe("origin: self or other", () => {
     expect(by["fmt-typed"].edited).toBe(true);
     expect(by["my-own"].origin).toBe("self");
     expect(by["my-own"].source).toBeNull();
-    expect(by["mystery"].origin).toBe("other");
-    expect(by["mystery"].source).toBeNull(); // nobody said where it came from
+    expect(by.mystery.origin).toBe("other");
+    expect(by.mystery.source).toBeNull(); // nobody said where it came from
   });
   test("the source: a global symlink into a checkout; a lock-file entry for a copied folder; nothing otherwise", async () => {
     const info = await sources.annotate(AGENT, memorySkills(AGENT, backend));

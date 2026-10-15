@@ -23,8 +23,8 @@ export type Platform = "macos" | "windows" | "linux";
  */
 export function platformFrom(os: unknown, userAgent: string): Platform {
   if (os === "macos" || os === "windows" || os === "linux") return os;
-  if (/Windows/.test(userAgent)) return "windows";
-  if (/Linux|X11|CrOS/.test(userAgent) && !/like Mac OS X/.test(userAgent)) return "linux";
+  if (userAgent.includes("Windows")) return "windows";
+  if (/Linux|X11|CrOS/.test(userAgent) && !userAgent.includes("like Mac OS X")) return "linux";
   return "macos";
 }
 

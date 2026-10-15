@@ -241,7 +241,7 @@ export function memoryExtension(backendDir: string): Extension {
           if (text === null) throw new Error(`no memory file ${a.path}`);
           const at = text.indexOf(a.old_text);
           if (at < 0) throw new Error("that passage is not in the file");
-          if (text.indexOf(a.old_text, at + 1) >= 0) throw new Error("that passage is in the file more than once; quote more of it");
+          if (text.includes(a.old_text, at + 1)) throw new Error("that passage is in the file more than once; quote more of it");
           writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
           await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
           return { content: [{ type: "text", text: `edited ${a.path}` }] };

@@ -86,7 +86,7 @@ export function profileRoute(
   profile: ((agentId: string) => string | null) | undefined,
   denied: 401 | 403,
 ): boolean {
-  const face = url.pathname.match(/^\/agents\/([^/]+)\/profile\.png$/);
+  const face = /^\/agents\/([^/]+)\/profile\.png$/.exec(url.pathname);
   if (!face) return false;
   if (!authorize(req, url).ok) {
     res.writeHead(denied).end();

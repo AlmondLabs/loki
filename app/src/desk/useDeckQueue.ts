@@ -18,7 +18,6 @@ export function useDeckQueue(items: AttentionItem[], filter: string | null = nul
     const refilter = filterRef.current !== filter;
     filterRef.current = filter;
     setQueue((q) => mergeQueue(refilter ? [] : q, items, decided));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, filter]);
 
   return { queue, setQueue, decided, setDecided };

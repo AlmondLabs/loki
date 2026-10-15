@@ -40,7 +40,6 @@ export function useAgentDetails({
   };
   useEffect(() => {
     if (selected && details[selected] === undefined) void load(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
   const d = selected ? details[selected] : undefined;

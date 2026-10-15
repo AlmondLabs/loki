@@ -50,7 +50,7 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
 }
 
 /** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many chats. */
-export function agentPills(items: AttentionItem[]): { agentId: string; name: string; count: number }[] {
+export function agentPills(items: AttentionItem[]): Array<{ agentId: string; name: string; count: number }> {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
   for (const i of inboxQueue(items)) {
     const p = by.get(i.agentId) ?? { agentId: i.agentId, name: i.agentName ?? "agent", count: 0 };

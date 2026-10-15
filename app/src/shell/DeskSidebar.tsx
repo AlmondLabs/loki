@@ -462,7 +462,6 @@ function RowMenu({
       if (!a || a === document.body || node?.contains(a))
         document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const archived = d.status === "archived";
   const done = doneAction(item);

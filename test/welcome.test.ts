@@ -13,7 +13,7 @@ const noNode = (os: NodeMissing["os"], found?: string, at?: string): DaemonStatu
 const html = (status: DaemonStatus | null) => renderToStaticMarkup(createElement(DaemonProblem, { status, onRetry: async () => {} }));
 
 /** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
-function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>> {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
   const el = node as ReactElement<Record<string, unknown>>;

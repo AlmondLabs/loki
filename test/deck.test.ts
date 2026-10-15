@@ -301,7 +301,7 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
     expect(s.pass.approved).toBe(1);
   });
   test("an approval's swipe never becomes a decision, however far", () => {
-    expect(swipeDecision(W, W, 3, { approval: canCommit(ask, "seen") === false })).toBeNull();
+    expect(swipeDecision(W, W, 3, { approval: !canCommit(ask, "seen") })).toBeNull();
   });
   test("a card replied to stays on top until you decide it, even as the reply takes it out of the queue", () => {
     const [a, b, c] = three();

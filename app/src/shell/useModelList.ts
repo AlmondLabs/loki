@@ -33,7 +33,6 @@ export function useModelList({
       setModels({ key: harnessKey, list: m });
       if (loading.current === harnessKey) loading.current = null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetched, harnessKey]);
   const forget = useCallback(() => setModels(null), []);
   return { list, load, forget };

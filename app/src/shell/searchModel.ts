@@ -211,7 +211,7 @@ export type SearchIndex = CoreIndex<SearchHit>;
 /** The sources as searchable entries, fields folded: build once per sources, query per keystroke. */
 export function buildIndex(src: SearchSources): SearchIndex {
   const name = agentNamer(src);
-  const out: Indexed<SearchHit>[] = [];
+  const out: Array<Indexed<SearchHit>> = [];
   for (const d of src.desks)
     if (openable(d))
       out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });

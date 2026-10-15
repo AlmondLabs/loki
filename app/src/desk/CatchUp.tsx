@@ -123,7 +123,6 @@ function CatchUpDeck(props: DeckProps) {
     if (!current || !currentId) return;
     seenCards.current.add(currentId);
     props.onShown?.(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
   const actions = useDeckActions({
     current,
@@ -153,7 +152,6 @@ function CatchUpDeck(props: DeckProps) {
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
   useEffect(() => {
     if (current) loadHistory(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.agentId, current?.id]);
 
   // Each card arrives with the reply box focused, so you can just type — except approvals,
@@ -166,7 +164,6 @@ function CatchUpDeck(props: DeckProps) {
     }
     const t = setTimeout(() => replyRef.current?.focus(), 0); // after the keystroke that brought this card has finished
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
 
   // The visit's tally, read when the deck unmounts (closing it is what ends a visit).

@@ -79,7 +79,7 @@ export function refusedOffset(dx: number): number {
 }
 
 /** The px per ms of the last stretch of a drag, from the sample at least `window` ms back. */
-export function velocityOf(samples: { x: number; t: number }[], window = 60): number {
+export function velocityOf(samples: Array<{ x: number; t: number }>, window = 60): number {
   if (samples.length < 2) return 0;
   const last = samples[samples.length - 1];
   let ref = samples[0];
@@ -182,7 +182,7 @@ export type Role = "top" | "shell" | "leaving";
  * The cards drawn: the one flying off (if any) over the top three of the stack. One keyed list, so a
  * card keeps its DOM node as it goes shell → top → leaving and its transform transitions between poses.
  */
-export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | null): { item: AttentionItem; role: Role; index: number }[] {
+export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | null): Array<{ item: AttentionItem; role: Role; index: number }> {
   return [
     ...(leaving ? [{ item: leaving, role: "leaving" as Role, index: -1 }] : []),
     ...visible
