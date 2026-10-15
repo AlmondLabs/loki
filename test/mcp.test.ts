@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTransport, type Transport } from "@modelcontextprotocol/client";
@@ -283,9 +283,13 @@ describe("loki.mcp in a chat", () => {
       await (await s.chat.submit({ type: "input", content: "logs?" }, ctx)).wait(ctx);
       const [dump, fail] = await s.results();
       expect(dump).toContain("too large for the conversation");
-      const spilled = dump.match(/(\/[^"\\]+?\.txt)/)?.[1];
-      expect(spilled && existsSync(spilled)).toBe(true);
-      expect(spilled).toContain(join(s.dir, "tool-results", "c"));
+      // The saved file is the one file in the chat's folder, and the result names it (in JSON, a Windows path's
+      // backslashes are doubled, so it is looked for by its name).
+      const folder = join(s.dir, "tool-results", "c");
+      const files = readdirSync(folder);
+      expect(files).toHaveLength(1);
+      expect(readFileSync(join(folder, files[0]), "utf8")).toBe("log line\n".repeat(8000));
+      expect(dump).toContain(files[0]);
       expect(fail).toContain("the tracker is read-only today");
       expect(kindOf("mcp__fake__list_issues", s.mcp.annotations("mcp__fake__list_issues"))).toBe("read");
       expect(kindOf("mcp__fake__create_issue", s.mcp.annotations("mcp__fake__create_issue"))).toBe("command");
