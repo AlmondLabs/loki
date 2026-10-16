@@ -258,6 +258,7 @@ export function SettingsView({
       update={update}
       shortcut={shortcut}
       recall={recall}
+      usage={{ ...desk.usage, agents: catchUp.agents }}
       importLetta={attention.importLetta}
       importStatus={attention.importStatus}
     />

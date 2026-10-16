@@ -94,6 +94,13 @@ export const DESTINATIONS: readonly Destination[] = [
     keywords: ["settings", "appearance", "theme", "dark mode", "light mode"],
   },
   {
+    route: { kind: "usage" },
+    icon: "history",
+    label: "Usage",
+    line: "What the agents spent",
+    keywords: ["cost", "spend", "tokens", "price"],
+  },
+  {
     route: { kind: "connection" },
     icon: "link",
     label: "Connection details",

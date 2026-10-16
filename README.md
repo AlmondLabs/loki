@@ -250,7 +250,8 @@ exist first (`npm run build:app`; the shell embeds the built app). [Contributing
 - [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/releasing.md).
 
-Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever; and widget code
+Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever (the usage page's
+estimate of what your agents spent is the one exception, and its fixtures are made up); and widget code
 runs with the page's full trust, because this is your machine and your agent, not a sandbox.
 
 ## Licence

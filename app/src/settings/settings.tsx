@@ -1,10 +1,10 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/os-words";
-import { Button, Chip, Dot, IconButton, Sheet, Switch, Title, sentence } from "../components";
+import { Button, Dot, IconButton, Sheet, Switch, sentence } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Providers } from "./providers";
@@ -21,6 +21,8 @@ import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { ThemeChoice } from "./theme-choice";
 import { PAGES, SETTINGS_PAGE_KEY, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
+import { Choice, Fact, Section } from "./layout";
+import { UsagePage, type UsageApi } from "./usage";
 import { useTheme } from "../theme";
 
 const HOME = "~/.loki";
@@ -82,6 +84,7 @@ export function Settings({
   update,
   shortcut,
   recall,
+  usage,
   onClose,
 }: {
   chatLink: ChatLink;
@@ -113,6 +116,8 @@ export function Settings({
   shortcut: GlobalShortcut;
   /** The card writer's switch and knobs (Settings › learn). */
   recall: RecallModel;
+  /** What the agents spent, and their names (Settings › usage). */
+  usage: UsageApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
@@ -127,6 +132,49 @@ export function Settings({
     const step = (d: 1 | -1) => pick(PAGES[(PAGES.findIndex((p) => p.id === page) + d + PAGES.length) % PAGES.length].id);
     return registerActions({ "settings.prevPage": () => step(-1), "settings.nextPage": () => step(1) });
   });
+
+  // Each page's body, by page: a table rather than a chain of conditions, so adding a page adds no branch here.
+  const pageBody: Record<SettingsPage, () => ReactNode> = {
+    loki: () => (
+      <LokiPage
+        update={update}
+        harness={harness}
+        daemon={daemon}
+        modConnection={modConnection}
+        deskCount={deskCount}
+        importLetta={importLetta}
+        importStatus={importStatus}
+      />
+    ),
+    usage: () => <UsagePage usage={usage} />,
+    inbox: () => <InboxPage />,
+    providers: () => (
+      <ProvidersPage
+        chatLink={chatLink}
+        providers={providers}
+        onLoadProviders={onLoadProviders}
+        onConnectProvider={onConnectProvider}
+        onDisconnectProvider={onDisconnectProvider}
+        onModelsChanged={onModelsChanged}
+      />
+    ),
+    mcp: () => <McpPage mcp={mcp} chatLink={chatLink} />,
+    phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
+    skills: () => <SkillsPage globalSkills={globalSkills} />,
+    learn: () => <RecallPage recall={recall} />,
+    appearance: () => <AppearancePage />,
+    chat: () => (
+      <ChatPage
+        chatWidth={chatWidth}
+        onChatWidth={onChatWidth}
+        chatPlacement={chatPlacement}
+        onChatPlacement={onChatPlacement}
+        approvals={chatLink === "open" ? mcp.approvals : null}
+      />
+    ),
+    files: () => <FilesPage />,
+    keys: () => <KeysPage shortcut={shortcut} />,
+  };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", flex: 1, minHeight: 0 }}>
@@ -171,44 +219,7 @@ export function Settings({
         </div>
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
-          {page === "loki" && (
-            <LokiPage
-              update={update}
-              harness={harness}
-              daemon={daemon}
-              modConnection={modConnection}
-              deskCount={deskCount}
-              importLetta={importLetta}
-              importStatus={importStatus}
-            />
-          )}
-          {page === "inbox" && <InboxPage />}
-          {page === "providers" && (
-            <ProvidersPage
-              chatLink={chatLink}
-              providers={providers}
-              onLoadProviders={onLoadProviders}
-              onConnectProvider={onConnectProvider}
-              onDisconnectProvider={onDisconnectProvider}
-              onModelsChanged={onModelsChanged}
-            />
-          )}
-          {page === "mcp" && <McpPage mcp={mcp} chatLink={chatLink} />}
-          {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
-          {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
-          {page === "learn" && <RecallPage recall={recall} />}
-          {page === "appearance" && <AppearancePage />}
-          {page === "chat" && (
-            <ChatPage
-              chatWidth={chatWidth}
-              onChatWidth={onChatWidth}
-              chatPlacement={chatPlacement}
-              onChatPlacement={onChatPlacement}
-              approvals={chatLink === "open" ? mcp.approvals : null}
-            />
-          )}
-          {page === "files" && <FilesPage />}
-          {page === "keys" && <KeysPage shortcut={shortcut} />}
+          {pageBody[page]()}
           <div className="loki-label" style={{ textAlign: "center", paddingTop: 12 }}>
             loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
           </div>
@@ -681,55 +692,6 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
 }
 
 /** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
-
-function Choice<T extends string>({
-  options,
-  value,
-  onPick,
-  labels = {},
-}: {
-  options: T[];
-  value: T;
-  onPick: (v: T) => void;
-  labels?: Partial<Record<T, string>>;
-}) {
-  return (
-    <span style={{ display: "inline-flex", gap: 6 }}>
-      {options.map((o) => (
-        <Chip key={o} label active={value === o} onClick={() => onPick(o)} aria-pressed={value === o}>
-          {labels[o] ?? o}
-        </Chip>
-      ))}
-    </span>
-  );
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 24px", alignItems: "start" }}>
-      <div style={{ paddingTop: 2 }}>
-        <Title>{title}</Title>
-        {hint && (
-          <div className="loki-meta loki-meta--wrap" style={{ marginTop: 4, lineHeight: 1.45 }}>
-            {sentence(hint)}
-          </div>
-        )}
-      </div>
-      <div style={{ display: "grid", gap: 6, borderLeft: "1px solid var(--loki-border)", paddingLeft: 20 }}>{children}</div>
-    </section>
-  );
-}
-
-function Fact({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "baseline", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label">{label}</span>
-      <span style={{ color: "var(--loki-fg)", fontFamily: mono ? "var(--loki-mono)" : undefined, fontSize: mono ? 12 : 13.5, overflowWrap: "anywhere" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
 
 function Note({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "warn" }) {
   return <span style={{ marginLeft: 8, fontSize: 12, color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>;

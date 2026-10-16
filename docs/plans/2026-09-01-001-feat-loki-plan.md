@@ -53,7 +53,8 @@ The chat transcript is a straw: every input serialized to sentences, every outpu
 - R8. When a new widget lands, the camera glides to it.
 
 **Data policy (hard rule, survives the demo)**
-- R9. Real data in safe domains only (Spain trip, chores, sleep/gym). Finances synthetic. No real money amounts on screen, in the repo, or in recordings — ever.
+- R9. Real data in safe domains only (Spain trip, chores, sleep/gym). Finances synthetic. No real money amounts on screen, in the repo, or in recordings — ever. (2026-10-17: narrowed by plan 019, KD2: the
+  agents' estimated spend shows on the usage page; fixtures and screenshots of it stay made up.)
 
 ### Acceptance Examples
 

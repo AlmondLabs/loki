@@ -30,6 +30,7 @@ import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
 import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
+import type { UsageDeps } from "./frames/usage.ts";
 import { join } from "node:path";
 import { attachWs, oauthCallbackRoute, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { createBridge } from "./bridge.ts";
@@ -72,6 +73,8 @@ export interface Host {
   chats: ChatSource;
   chat: ChatBackend;
   analytics?: Analytics;
+  /** The daemon's usage ledger (daemon/usage.ts), for the usage page; `onChange` returns its unsubscribe. */
+  usage?: NonNullable<UsageDeps["usage"]> & { onChange: (listener: () => void) => () => void };
 }
 
 /**
@@ -299,6 +302,15 @@ export default function activate(api: ModApi, host: Host): () => void {
   // A lesson's chat is made by the daemon, in process.
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
+  // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
+  let usagePush: ReturnType<typeof setTimeout> | null = null;
+  const stopUsage = host.usage?.onChange(() => {
+    usagePush ??= setTimeout(() => {
+      usagePush = null;
+      broadcast({ type: "usage_changed" });
+    }, 2000);
+  });
+
   const moduleDeps: ModuleDeps = {
     store,
     widgets,
@@ -329,6 +341,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
     chat: chatBackend,
+    usage: host.usage,
     lan: {
       status: () => phones().status(),
       refresh: () => phones().refresh(),
@@ -544,6 +557,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   api.signal.addEventListener("abort", shutdown, { once: true });
 
   return () => {
+    stopUsage?.();
+    if (usagePush) clearTimeout(usagePush);
     for (const d of eventDisposers) d();
     for (const d of toolDisposers) d();
     stopPersist();

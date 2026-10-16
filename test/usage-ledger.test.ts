@@ -148,6 +148,31 @@ describe("the usage ledger", () => {
     }
   });
 
+  test("listeners hear when the ledger counts more, and not when nothing grew", async () => {
+    const s = setup();
+    try {
+      const ledger = s.make();
+      await ledger.settled(); // the seed, which tells listeners too
+      let heard = 0;
+      const off = ledger.onChange(() => heard++);
+      const { store, publish } = fakeStore({ 5: "local-conv-1" }, { 5: { [MODEL]: usage(10, 1) } });
+      ledger.attach("a1", store);
+      await ledger.settled();
+      publish(5, { [MODEL]: usage(10, 1) });
+      await ledger.settled();
+      expect(heard).toBe(0);
+      publish(5, { [MODEL]: usage(20, 1) });
+      await ledger.settled();
+      expect(heard).toBe(1);
+      off();
+      publish(5, { [MODEL]: usage(30, 1) });
+      await ledger.settled();
+      expect(heard).toBe(1);
+    } finally {
+      s.cleanup();
+    }
+  });
+
   test("a restart counts nothing twice, and rows older than 400 days are dropped", async () => {
     const s = setup();
     try {
@@ -201,4 +226,111 @@ describe("the usage ledger", () => {
       s.cleanup();
     }
   });
+
+  test("history is seeded once from analytics' turn_finished lines, before the ledger began, its cost as other", async () => {
+    const s = setup();
+    try {
+      const line = (timestamp: string, properties: Record<string, unknown>) =>
+        JSON.stringify({ event: "turn_finished", timestamp, distinct_id: "x", properties });
+      const turn = {
+        agent: "a1",
+        model: MODEL,
+        input_tokens: 100,
+        output_tokens: 10,
+        cache_read_tokens: 1000,
+        cache_write_tokens: 0,
+        reasoning_tokens: 4,
+        cost: 0.02,
+      };
+      const older = join(s.dir, "events.jsonl.1");
+      const newer = join(s.dir, "events.jsonl");
+      writeFileSync(older, `${line("2026-10-01T09:10:00.000Z", { ...turn, origin: "message" })}\nnot json\n`);
+      writeFileSync(
+        newer,
+        [
+          line("2026-10-01T09:50:00.000Z", { ...turn, origin: "schedule" }),
+          line("2026-10-02T03:00:00.000Z", { ...turn, origin: "reflection" }),
+          JSON.stringify({ event: "view_opened", timestamp: "2026-10-02T03:00:00.000Z", properties: { view: "chats" } }),
+          // After the ledger began: the ledger counts it itself.
+          line("2026-10-17T14:30:00.000Z", { ...turn, origin: "message" }),
+        ].join("\n"),
+      );
+      const ledger = new UsageLedger({ file: s.file, context: ctx, inputRate: () => 3, now: () => NOW, saveDelayMs: 0, eventsFiles: [older, newer] });
+      await ledger.settled();
+      expect(ledger.seeded()).toBe(new Date(NOW).toISOString());
+      const rows = ledger.rows();
+      expect(rows.map((r) => [r.hour, r.origin, r.input_tokens, r.cache_read_tokens])).toEqual([
+        ["2026-10-01T09:00:00.000Z", "chats", 200, 2000],
+        ["2026-10-02T03:00:00.000Z", "reflection", 100, 1000],
+      ]);
+      expect(rows[0].cost).toEqual({ input: 0, cache_read: 0, cache_write: 0, output: 0, other: 0.04, total: 0.04 });
+      expect(rows[0].cache_read_as_input).toBeCloseTo(0.006);
+      ledger.close();
+      // Seeded once: the next start reads the file and seeds nothing more.
+      const again = new UsageLedger({ file: s.file, context: ctx, inputRate: () => 3, now: () => NOW, saveDelayMs: 0, eventsFiles: [older, newer] });
+      await again.settled();
+      expect(again.rows()).toEqual(rows);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a ledger that ran before the seed existed seeds only what came before its first row; no analytics seeds nothing", async () => {
+    const s = setup();
+    try {
+      writeFileSync(
+        s.file,
+        JSON.stringify({
+          version: 1,
+          seen: {},
+          rows: [
+            { ...emptyRowFor("2026-10-10T08:00:00.000Z"), input_tokens: 5, cost: { input: 0, cache_read: 0, cache_write: 0, output: 0, other: 0, total: 0 } },
+          ],
+        }),
+      );
+      const events = join(s.dir, "events.jsonl");
+      const line = (timestamp: string) =>
+        JSON.stringify({
+          event: "turn_finished",
+          timestamp,
+          properties: { agent: "a1", model: MODEL, origin: "message", input_tokens: 7, output_tokens: 1, cost: 0 },
+        });
+      writeFileSync(events, [line("2026-10-10T07:59:00.000Z"), line("2026-10-10T08:01:00.000Z")].join("\n"));
+      const ledger = new UsageLedger({ file: s.file, context: ctx, inputRate: () => null, now: () => NOW, saveDelayMs: 0, eventsFiles: [events] });
+      await ledger.settled();
+      expect(ledger.rows().map((r) => [r.hour, r.input_tokens])).toEqual([
+        ["2026-10-10T07:00:00.000Z", 7],
+        ["2026-10-10T08:00:00.000Z", 5],
+      ]);
+      const none = new UsageLedger({
+        file: join(s.dir, "fresh.json"),
+        context: ctx,
+        inputRate: () => null,
+        now: () => NOW,
+        saveDelayMs: 0,
+        eventsFiles: [join(s.dir, "missing")],
+      });
+      await none.settled();
+      expect(none.rows()).toEqual([]);
+      expect(none.seeded()).not.toBeNull();
+    } finally {
+      s.cleanup();
+    }
+  });
 });
+
+/** A row of agent a1's calls to MODEL from the person's chats in `hour`, with nothing in it yet. */
+function emptyRowFor(hour: string) {
+  return {
+    hour,
+    agent_id: "a1",
+    model: MODEL,
+    origin: "chats",
+    input_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    output_tokens: 0,
+    reasoning_tokens: 0,
+    cache_read_as_input: 0,
+  };
+}

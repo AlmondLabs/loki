@@ -155,7 +155,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, eleven pages down the
+- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, twelve pages down the
   left, one showing at a time, the last one remembered for the window. ⌘, closes it again, ⌘[ and ⌘] step its
   pages, ⌘1-5 close it and go to that section, Esc closes it. In the page list, ↑↓, Home and End move between
   pages. The pages, in order:
@@ -163,23 +163,31 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
      the preview note), importing from Letta, how the app reaches the mod, requirements (the daemon's Node, beads)
      and what the last install put in place.
-  2. **inbox**: how the deck orders its cards (see "The order") and what Next and Archive do.
-  3. **providers**: every provider loki knows, connected first; a row opens into the fields it needs. A key is
+  2. **usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
+     estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the cache
+     saved, and what each origin (your chats, helpers, reflection, Learn, the memory review), agent and model spent.
+     Choosing a line narrows the page to it. The figures are estimates at each provider's API prices, from pi-ai's
+     model table; a subscription sign-in (ChatGPT, say) is billed by its plan, not by these, and a model with no
+     known price counts its tokens but not a cost. The daemon keeps the record in `~/.loki/state/usage.json`, by
+     hour, for 400 days, whether analytics is on or off; history from before it began comes once from
+     `events.jsonl`, with its cost not split by token type.
+  3. **inbox**: how the deck orders its cards (see "The order") and what Next and Archive do.
+  4. **providers**: every provider loki knows, connected first; a row opens into the fields it needs. A key is
      checked with the provider, then kept in the keychain; a sign-in opens the browser, and if the browser does not
      come back you can paste the address it ended on.
-  4. **mcp**: the MCP servers in `~/.loki/mcp.json`, see "MCP servers".
-  5. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
+  5. **mcp**: the MCP servers in `~/.loki/mcp.json`, see "MCP servers".
+  6. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
      Mac only for now.
-  6. **skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field
+  7. **skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field
      to enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
-  7. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+  8. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
      calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
      something new, at once), and the last run.
-  8. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
+  9. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
      tokyo night; kept per device.
-  9. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
-  10. **files**: where everything lives.
-  11. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
+  10. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
+  11. **files**: where everything lives.
+  12. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
       Alfred or the input-source switcher wants it (Mac only).
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in the Inbox, and the app's pages (each
@@ -253,7 +261,8 @@ Search button beside them:
    again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
-4. **More**: the paired Mac, then Agents, Learn, Archived chats and Preferences (appearance), then Updates,
+4. **More**: the paired Mac, then Agents, Learn, Archived chats, Preferences (appearance) and Usage (what the agents
+   spent, as on the Mac), then Updates,
    About loki and the connection details.
 5. **Search**: chat titles, agents, waiting items and pages the phone already holds — not message text — with
    recent searches and places before you type.
@@ -678,6 +687,7 @@ analytics on loki itself; see "Analytics").
 
 ## Hard rules
 
-- No real money amounts on screen, in the repo, or in recordings. Ever.
+- No real money amounts of yours on screen, in the repo, or in recordings. Ever. The one exception is what your
+  agents spent, on the usage page, and only when you open it; fixtures and screenshots of it use made-up numbers.
 - Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox
   (see [SECURITY.md](SECURITY.md)).
