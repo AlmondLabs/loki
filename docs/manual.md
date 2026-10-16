@@ -695,9 +695,10 @@ work).
 **Permissions** follow the tools' own hints: one marked read-only runs freely in standard mode; any other is a
 command and asks, as a shell command does.
 
-**Big results** (past about 25,000 tokens, or 50,000 characters) are saved whole to `~/.loki/tool-results/<chat>/`;
+**Big results** (past 50,000 characters, about 12,500 tokens) are saved whole to `~/.loki/tool-results/<chat>/`;
 the agent gets the path, the size and the start, and reads more with its file tools when it needs to. An error keeps
-its first and last 5,000 characters.
+its first and last 5,000 characters. A shell command's output goes to the same folder once it passes 50KB or 2,000
+lines; the agent sees its last part and the file's path.
 
 A server that cannot start, or stops, shows as down (with its last error output) in the list the agent sees, and is
 tried again. `mcp_search` and `mcp_call` are counted in the local analytics.

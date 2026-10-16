@@ -16,6 +16,7 @@ import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import { auth } from "@modelcontextprotocol/client";
 import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
 import { OauthStore, ServerOauth, callbackUrl } from "./oauth.ts";
+import { toolResultsDir } from "../tool-results.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
@@ -61,7 +62,7 @@ export class McpTools {
   readonly servers: McpServers;
   private readonly registry: Registry;
   private readonly configPath: string;
-  private readonly resultsDir: string;
+  private readonly lokiDir: string;
   private readonly report: (message: string) => void;
   private capture: Capture = () => {};
   private problems: string[] = [];
@@ -92,7 +93,7 @@ export class McpTools {
   }) {
     this.registry = opts.registry;
     this.configPath = opts.configPath;
-    this.resultsDir = join(opts.lokiDir, "tool-results");
+    this.lokiDir = opts.lokiDir;
     this.report = opts.report ?? (() => {});
     this.secrets = opts.secrets ?? null;
     this.offPath = join(opts.lokiDir, "state", "mcp-agents.json");
@@ -246,11 +247,11 @@ export class McpTools {
       parameters: t.inputSchema as never,
       execute: async (args, api, context) => {
         const started = Date.now();
-        const chat = (await api.snapshot(ChatDoc, api.conversationId, context))?.id || `conversation-${api.conversationId}`;
+        const spillDir = await toolResultsDir(this.lokiDir, api, api.conversationId, context);
         try {
           const input: unknown = args; // the model's arguments, as JSON: the schema is the server's, not typed here
           const result = await this.servers.call(t.key, (input ?? {}) as Record<string, unknown>, context.abortSignal);
-          const mapped = mapResult(result, { spillDir: join(this.resultsDir, chat.replace(/[^A-Za-z0-9_.-]+/g, "_")), name: t.key });
+          const mapped = mapResult(result, { spillDir, name: t.key });
           this.capture("mcp_call", {
             server: t.server,
             tool: t.name,

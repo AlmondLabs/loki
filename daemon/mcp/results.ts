@@ -4,13 +4,11 @@ import type { CallToolResult } from "@modelcontextprotocol/client";
 
 /**
  * An MCP result as the model reads it. Text, images and resources map across. A result too big for the conversation
- * (past SPILL_TOKENS, estimated, or SPILL_CHARS) is saved whole to a file under the chat's folder, and the model gets
+ * (past SPILL_CHARS, about 12,500 tokens) is saved whole to a file under the chat's folder, and the model gets
  * its path, its size and its start, to read more with its file tools if it needs to: Claude Code's limits, and
  * Cursor's file instead of a cut. An error keeps its first and last ERROR_KEEP characters.
  */
 
-/** A text result estimated past this many tokens spills to a file. */
-export const SPILL_TOKENS = 25_000;
 /** A text result past this many characters spills to a file. */
 export const SPILL_CHARS = 50_000;
 /** How much of a spilled result's start the model gets with its path. */
@@ -74,7 +72,7 @@ export function mapResult(result: CallToolResult, opts: { spillDir: string; name
     .join("\n");
   const chars = text.length;
   if (isError) return { content: content.map((p) => (p.type === "text" ? { ...p, text: trimError(p.text) } : p)), isError, spilled: null, chars };
-  if (chars <= SPILL_CHARS && tokensOf(chars) <= SPILL_TOKENS) return { content, isError, spilled: null, chars };
+  if (chars <= SPILL_CHARS) return { content, isError, spilled: null, chars };
   const images = content.filter((p) => p.type === "image");
   const start = text.slice(0, START_CHARS);
   try {

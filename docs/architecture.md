@@ -97,7 +97,9 @@ every chat gets, the chats, then the mods.
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
-   definition (`daemon/tool-kinds.ts`).
+   definition (`daemon/tool-kinds.ts`). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
+   own environment except that `bash` output past its limits is saved to the chat's `tool-results` folder, where
+   MCP's big results go too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
    ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `skill` tool hands over a
    skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
