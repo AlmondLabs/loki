@@ -11,9 +11,10 @@ import { historyFrames, type HistoryDeps } from "./history.ts";
 import { lanFrames, type LanDeps } from "./lan.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
+import { usageFrames, type UsageDeps } from "./usage.ts";
 
 /** What every frame handler needs, together: each module takes only its own part. */
-export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & TaskDeps & AgentsDeps & LanDeps & ChatDeps;
+export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & TaskDeps & AgentsDeps & LanDeps & ChatDeps & UsageDeps;
 
 /** Every feature's frame handlers (glossary.md: Frame handler), one module per feature. */
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
@@ -28,6 +29,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     agentsFrames(deps),
     lanFrames(deps),
     chatFrames(deps),
+    usageFrames(deps),
   ];
 }
 

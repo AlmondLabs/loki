@@ -205,6 +205,11 @@ async function main(): Promise<void> {
       }
     }
 
+    const usage = await sock.request("usage_get", { since: new Date(Date.now() - 7 * 86_400_000).toISOString(), until: new Date().toISOString() });
+    if (usage.type !== "usage" || !Array.isArray(usage.rows) || typeof usage.seeded_until !== "string")
+      fail(`usage_get: ${usage.message ?? JSON.stringify(usage)}`);
+    else ok("the usage ledger answers, its history seeded");
+
     sock.close();
     await daemon.stop();
     earlier = daemon.log();

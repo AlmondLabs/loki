@@ -148,6 +148,31 @@ describe("the usage ledger", () => {
     }
   });
 
+  test("listeners hear when the ledger counts more, and not when nothing grew", async () => {
+    const s = setup();
+    try {
+      const ledger = s.make();
+      await ledger.settled(); // the seed, which tells listeners too
+      let heard = 0;
+      const off = ledger.onChange(() => heard++);
+      const { store, publish } = fakeStore({ 5: "local-conv-1" }, { 5: { [MODEL]: usage(10, 1) } });
+      ledger.attach("a1", store);
+      await ledger.settled();
+      publish(5, { [MODEL]: usage(10, 1) });
+      await ledger.settled();
+      expect(heard).toBe(0);
+      publish(5, { [MODEL]: usage(20, 1) });
+      await ledger.settled();
+      expect(heard).toBe(1);
+      off();
+      publish(5, { [MODEL]: usage(30, 1) });
+      await ledger.settled();
+      expect(heard).toBe(1);
+    } finally {
+      s.cleanup();
+    }
+  });
+
   test("a restart counts nothing twice, and rows older than 400 days are dropped", async () => {
     const s = setup();
     try {
