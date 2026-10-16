@@ -15,7 +15,6 @@ import { parseArgs } from "node:util";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
 import { Approvals, kindOf } from "./approvals.ts";
@@ -24,6 +23,7 @@ import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
 import { Schedules } from "./schedule.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
+import { chatEnvs } from "./tool-results.ts";
 import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
@@ -93,12 +93,7 @@ const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // plain static imports, which suits Node and the bundle alike.
 registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
-const stores = new StoreManager(
-  join(args.dir, "stores"),
-  { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) },
-  context,
-  report,
-);
+const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: chatEnvs(args.dir) }, context, report);
 // MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
 const mcp = new McpTools({
   registry: mods.registry,
