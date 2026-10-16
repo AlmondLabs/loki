@@ -266,7 +266,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
                   status: t.status,
                   priority: t.priority,
                   labels: t.labels,
-                  assigned_to: (t.metadata as Partial<Record<string, string>>).assigned_to ?? null,
+                  assigned_to: t.metadata.assigned_to ?? null,
                   description: t.description,
                 })),
                 null,

@@ -82,7 +82,7 @@ export function Home({
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
   /** `folders_get`: the folders each agent worked in, most recent first. */
-  recentFolders: () => Promise<Record<string, string[]>>;
+  recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   /** A new conversation through the daemon; resolves to its runtime. */
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
 }) {
@@ -633,8 +633,8 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
 }
 
 /** `folders_get`, once: the folders each agent worked in, most recent first; null until the Mac answers. */
-function useRecentFolders(recentFolders: () => Promise<Record<string, string[]>>) {
-  const [recent, setRecent] = useState<Record<string, string[]> | null>(null);
+function useRecentFolders(recentFolders: () => Promise<Partial<Record<string, string[]>>>) {
+  const [recent, setRecent] = useState<Partial<Record<string, string[]>> | null>(null);
   useEffect(() => {
     let live = true;
     void recentFolders().then((r) => live && setRecent(r));
@@ -652,7 +652,7 @@ function useRecentFolders(recentFolders: () => Promise<Record<string, string[]>>
 function useNewDesk(
   agents: Array<{ id: string; name: string | null }>,
   defaultAgentId: string | null,
-  recentFolders: () => Promise<Record<string, string[]>>,
+  recentFolders: () => Promise<Partial<Record<string, string[]>>>,
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>,
   onClose: () => void,
 ) {
@@ -696,7 +696,7 @@ function NewSheet({
 }: {
   agents: Array<{ id: string; name: string | null }>;
   defaultAgentId: string | null;
-  recentFolders: () => Promise<Record<string, string[]>>;
+  recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
   onClose: () => void;
 }) {
@@ -795,7 +795,7 @@ function FolderPicker({ folders, folder, onPick }: { folders: string[]; folder: 
 }
 
 /** Where the desk will start: waiting on the Mac, the folder (home shortened to ~), or why there is none. */
-function FolderLine({ recent, folder, agentName }: { recent: Record<string, string[]> | null; folder: string | null; agentName: string | null }) {
+function FolderLine({ recent, folder, agentName }: { recent: Partial<Record<string, string[]>> | null; folder: string | null; agentName: string | null }) {
   const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
   return (
     <p className={folder || recent === null ? "loki-phone-meta loki-phone-wrap" : "loki-phone-error"}>

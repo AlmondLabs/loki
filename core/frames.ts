@@ -4,7 +4,7 @@ import type { ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
-import { isRecallId, type CardWithSchedule, type RecallSnapshot } from "./recall/model.ts";
+import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import type {
@@ -134,7 +134,7 @@ export interface Replies {
   folder_matches: { matches: string[] };
   folder_status: FolderCheck;
   folder_picked: { path: string | null };
-  recall: RecallSnapshot;
+  recall: RecallReply;
   recall_card: { card: CardWithSchedule | null };
   recall_ran: { note: string };
   recall_export: { tsv: string };
@@ -218,7 +218,8 @@ export interface Pushes {
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
-  seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry> };
+  /** `viewed` and `focus` are missing from older mods. */
+  seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry> };
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
   tasks_changed: NoPayload;

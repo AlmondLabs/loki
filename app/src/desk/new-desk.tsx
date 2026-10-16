@@ -10,7 +10,8 @@ import { osWords } from "../shell/os-words";
  * typed path, a check that a path is a usable folder (and its git branch), and the host's folder chooser.
  */
 export interface FolderApi {
-  recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;
+  /** A chat or agent with no folder yet is missing from its map. */
+  recent: () => Promise<{ byAgent: Partial<Record<string, string[]>>; byConversation: Partial<Record<string, string>> }>;
   complete: (prefix: string) => Promise<string[]>;
   check: (path: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
   pick: (defaultPath?: string) => Promise<string | null>;
@@ -101,11 +102,11 @@ export function suggestedFolder(
 }
 
 /** The folder list's rows: typed completions first; then this agent's recent folders; then everyone else's. */
-function folderOptions(recent: Record<string, string[]>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
+function folderOptions(recent: Partial<Record<string, string[]>>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
   const mine = agentId ? (recent[agentId] ?? []) : [];
   const others = Object.entries(recent)
     .filter(([a]) => a !== agentId)
-    .flatMap(([, l]) => l);
+    .flatMap(([, l]) => l ?? []);
   const seen = new Set<string>();
   const list: FolderOption[] = [];
   const take = (paths: string[], group: FolderOption["group"]) => {
@@ -140,7 +141,7 @@ export function useFolderField({
   /** What you typed or chose; until then the field shows the suggestion. */
   const [ownFolder, setOwnFolder] = useState("");
   const [touched, setTouched] = useState(false);
-  const [recent, setRecent] = useState<Record<string, string[]>>({});
+  const [recent, setRecent] = useState<Partial<Record<string, string[]>>>({});
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [matches, setMatches] = useState<string[]>([]);

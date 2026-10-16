@@ -97,8 +97,7 @@ export function sourceMetadata(s: TaskSource): Record<string, string> {
 
 /** The source a task was filed from, read back from its metadata; null for a task not filed from a message. */
 export function taskSource(t: Task): (TaskSource & { conversation: string | null; agent_id: string | null }) | null {
-  // The metadata is the task file's, read from disk: any key may be missing.
-  const md: Partial<Record<string, string>> = t.metadata;
+  const md = t.metadata;
   if ((md.origin !== "message" && md.origin !== "selection") || (md.msg_role !== "user" && md.msg_role !== "assistant") || !md.msg_key) return null;
   return {
     origin: md.origin,

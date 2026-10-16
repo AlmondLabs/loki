@@ -262,8 +262,7 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
   const mine = tasks.filter((t) => t.metadata.assigned_to === opts.conversation && t.status !== "closed");
   if (!mine.length) return null;
   const lines = mine.map((t) => {
-    // bd's metadata as the task file holds it: any key may be missing.
-    const md: Partial<Record<string, string>> = t.metadata;
+    const md = t.metadata;
     const from = md.by === "you" ? "filed by the user" : `filed by ${md.agent ?? "an agent"}`;
     const where = t.metadata.folder ? ` in ${t.metadata.folder}` : "";
     const started = t.status === "in_progress" ? " · in progress" : "";

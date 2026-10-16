@@ -102,6 +102,10 @@ export interface RecallSnapshot {
   lessons: Lesson[];
 }
 
+/** A `recall` reply as a mod of any age sends it: older mods had no leads or lessons, and send none. */
+export type RecallReply = Omit<RecallSnapshot, "leads" | "dismissed_leads" | "lessons"> &
+  Partial<Pick<RecallSnapshot, "leads" | "dismissed_leads" | "lessons">>;
+
 /** Learn's settings and last run (daemon/passes-state.ts), as the Learn section shows them. */
 export interface WorkerStatus {
   enabled: boolean;

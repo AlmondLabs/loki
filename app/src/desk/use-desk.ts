@@ -8,7 +8,7 @@ import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widget-rows";
 
-import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
+import type { CardWithSchedule, RecallReply, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
 import type { TranscriptRow } from "../chat/transcript";
@@ -40,10 +40,9 @@ export interface CameraTarget {
 export type { VisibleWidget } from "./view";
 
 /** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
-const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null => {
+const recallSnapshot = (r: RequestResult<RecallReply>): RecallSnapshot | null => {
   if (!r.ok) return null;
-  // The reply as a mod of any age sends it: leads and lessons may be missing.
-  const reply: Partial<RecallSnapshot> & Pick<RecallSnapshot, "cards" | "rejected" | "worker"> = r.reply;
+  const reply = r.reply;
   return {
     cards: reply.cards,
     rejected: reply.rejected,

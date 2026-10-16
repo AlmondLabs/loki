@@ -7,7 +7,7 @@
 export const FOLDER_CHOICES = 6;
 
 /** The folders an agent worked in, most recent first; empty before the list arrives and when it has none. */
-export function foldersOf(recent: Record<string, string[]> | null, agentId: string | null): string[] {
+export function foldersOf(recent: Partial<Record<string, string[]>> | null, agentId: string | null): string[] {
   return agentId && recent ? (recent[agentId] ?? []) : [];
 }
 
