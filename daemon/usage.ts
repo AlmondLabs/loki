@@ -1,7 +1,8 @@
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, UsageState } from "@earendil-works/pi-durable";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createReadStream, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { createInterface } from "node:readline";
 import { isWriterChat } from "../core/recall/model.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
@@ -42,6 +43,8 @@ interface LedgerFile {
   version: 1;
   rows: UsageRow[];
   seen: Partial<Record<string, Partial<Record<string, Partial<Record<string, Counters>>>>>>;
+  /** When history from `events.jsonl` was seeded up to (KD6); missing until the seed has run. */
+  seeded_until?: string;
 }
 
 const ZERO: Counters = {
@@ -93,6 +96,17 @@ function growth(before: Counters, now: Counters): Counters | null {
   return keys.some((k) => d[k] > 0) ? d : null;
 }
 
+/** A `turn_finished` line's origin (daemon/telemetry.ts) as the ledger's. */
+const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
+  message: "chats",
+  schedule: "chats",
+  background: "chats",
+  subagent: "helpers",
+  recall: "learn",
+  reflection: "reflection",
+  doctor: "doctor",
+};
+
 /** Whose work a chat's calls are, by its id: a background pass's hidden chat, else the person's. */
 export function originOfChat(chatId: string, agentId: string): UsageOrigin {
   if (isWriterChat(chatId)) return "learn";
@@ -111,6 +125,8 @@ export interface UsageLedgerDeps {
   isSubagent?: (agentId: string) => boolean;
   now?: () => number;
   report?: (message: string) => void;
+  /** The analytics files to seed history from once, oldest first (`events.jsonl.1`, then `events.jsonl`). */
+  eventsFiles?: readonly string[];
   /** Writes the file this long after a change; tests pass 0 and call `save()`. */
   saveDelayMs?: number;
 }
@@ -126,11 +142,24 @@ export class UsageLedger {
   /** Every change is applied in order, after any baseline of its store. */
   private queue: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private seededUntil: string | null = null;
+  private readonly listeners = new Set<() => void>();
 
   constructor(deps: UsageLedgerDeps) {
     this.deps = deps;
     this.now = deps.now ?? Date.now;
     this.load();
+    if (this.seededUntil === null) {
+      // Before the first row the ledger kept, or now on its first start: the history that is analytics' alone.
+      const rows = this.rows();
+      const until = rows.length ? rows[0].hour : new Date(this.now()).toISOString();
+      this.enqueue(() => this.seed(until));
+    }
+  }
+
+  /** How far back history was seeded from analytics (its cost has no split by token type), or null before the seed. */
+  seeded(): string | null {
+    return this.seededUntil;
   }
 
   /** Follow every store as it opens; returns the unsubscribe. */
@@ -152,6 +181,12 @@ export class UsageLedger {
       }),
     );
     this.enqueue(() => this.baseline(agentId, store));
+  }
+
+  /** Call `listener` whenever the ledger counts more; returns the unsubscribe. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   /** Every row, oldest hour first. */
@@ -176,7 +211,7 @@ export class UsageLedger {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.prune();
-    const data: LedgerFile = { version: 1, rows: this.rows(), seen: this.seen };
+    const data: LedgerFile = { version: 1, rows: this.rows(), seen: this.seen, ...(this.seededUntil ? { seeded_until: this.seededUntil } : {}) };
     try {
       mkdirSync(dirname(this.deps.file), { recursive: true });
       writeFileSync(`${this.deps.file}.tmp`, JSON.stringify(data));
@@ -202,12 +237,18 @@ export class UsageLedger {
     const file = raw as Partial<LedgerFile> | null;
     for (const row of Array.isArray(file?.rows) ? file.rows : []) this.rowsByKey.set(keyOf(row), row);
     this.seen = file?.seen && typeof file.seen === "object" ? file.seen : {};
+    this.seededUntil = typeof file?.seeded_until === "string" ? file.seeded_until : null;
     this.prune();
   }
 
   private prune(): void {
     const oldest = hourOf(this.now() - KEEP_DAYS * 86_400_000);
     for (const [key, row] of this.rowsByKey) if (row.hour < oldest) this.rowsByKey.delete(key);
+  }
+
+  private changed(): void {
+    for (const listener of this.listeners) listener();
+    this.scheduleSave();
   }
 
   private scheduleSave(): void {
@@ -217,6 +258,53 @@ export class UsageLedger {
       this.save();
     }, delay);
     this.timer.unref();
+  }
+
+  /**
+   * Seed history from analytics, once (KD6): every `turn_finished` line before `until` becomes part of its hour's row,
+   * its cost counted as `other` since the line has only the total. Compaction's calls were never in those lines.
+   */
+  private async seed(until: string): Promise<void> {
+    const cutoff = Date.parse(until);
+    for (const path of this.deps.eventsFiles ?? []) {
+      let lines: AsyncIterable<string>;
+      try {
+        lines = createInterface({ input: createReadStream(path, "utf8"), crlfDelay: Infinity });
+        for await (const line of lines) this.seedLine(line, cutoff);
+      } catch (error) {
+        // No such file is the usual case (analytics off, or rotated away); anything else is worth a line.
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.deps.report?.(`usage: could not seed from ${path}: ${String(error)}`);
+      }
+    }
+    this.seededUntil = until;
+    this.changed();
+  }
+
+  private seedLine(line: string, cutoff: number): void {
+    if (!line.includes('"turn_finished"')) return;
+    let event: { event?: unknown; timestamp?: unknown; properties?: Record<string, unknown> };
+    try {
+      event = JSON.parse(line) as typeof event;
+    } catch {
+      return;
+    }
+    const at = typeof event.timestamp === "string" ? Date.parse(event.timestamp) : NaN;
+    const p = event.properties;
+    if (event.event !== "turn_finished" || !p || !(at < cutoff) || typeof p.agent !== "string") return;
+    const model = typeof p.model === "string" ? p.model : "unknown";
+    const cost = num(p.cost);
+    const d: Counters = {
+      ...ZERO,
+      input: num(p.input_tokens),
+      output: num(p.output_tokens),
+      cache_read: num(p.cache_read_tokens),
+      cache_write: num(p.cache_write_tokens),
+      reasoning: num(p.reasoning_tokens),
+    };
+    if (!growth(ZERO, d) && cost === 0) return;
+    const row = this.add(hourOf(at), p.agent, model, ORIGIN_OF_TURN[String(p.origin)] ?? "chats", d);
+    row.cost.other += cost;
+    row.cost.total += cost;
   }
 
   /** Take the current totals of every chat the ledger has not seen as already counted. */
@@ -232,6 +320,7 @@ export class UsageLedger {
   }
 
   private async apply(agentId: string, store: AgentStore, publication: CommitPublication, at: number): Promise<void> {
+    let grew = false;
     for (const change of publication.changes) {
       if (change.type !== "document" || change.record.kind !== "pi.usage" || change.conversationId === undefined || !change.value) continue;
       const conversationId = change.conversationId;
@@ -245,10 +334,14 @@ export class UsageLedger {
       for (const [model, counters] of Object.entries(now)) {
         if (!counters) continue;
         const d = growth(before?.[model] ?? ZERO, counters);
-        if (d) this.add(hour, agentId, model, await this.originOf(agentId, store, conversationId), d);
+        if (d) {
+          this.add(hour, agentId, model, await this.originOf(agentId, store, conversationId), d);
+          grew = true;
+        }
       }
       this.scheduleSave();
     }
+    if (grew) this.changed();
   }
 
   private originOf(agentId: string, store: AgentStore, conversationId: ConversationId): Promise<UsageOrigin> {
@@ -266,7 +359,7 @@ export class UsageLedger {
     return origin;
   }
 
-  private add(hour: string, agentId: string, model: string, origin: UsageOrigin, d: Counters): void {
+  private add(hour: string, agentId: string, model: string, origin: UsageOrigin, d: Counters): UsageRow {
     const key = keyOf({ hour, agent_id: agentId, model, origin });
     const row = this.rowsByKey.get(key) ?? emptyRow(hour, agentId, model, origin);
     row.input_tokens += d.input;
@@ -281,6 +374,7 @@ export class UsageLedger {
     row.cost.total += d.cost_total;
     row.cache_read_as_input += (d.cache_read * (this.deps.inputRate(model) ?? 0)) / 1_000_000;
     this.rowsByKey.set(key, row);
+    return row;
   }
 }
 

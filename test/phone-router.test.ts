@@ -108,6 +108,7 @@ describe("child routes", () => {
       ["search", "#/search"],
       ["archive", "#/archive"],
       ["preferences", "#/preferences"],
+      ["usage", "#/usage"],
       ["learn", "#/learn"],
     ] as const) {
       const r = { kind } as Route;
@@ -154,6 +155,7 @@ describe("ownership and Back", () => {
     expect(ownerOf({ kind: "archive" })).toBe("home");
     expect(ownerOf({ kind: "search" })).toBe("home");
     expect(ownerOf({ kind: "preferences" })).toBe("more");
+    expect(ownerOf({ kind: "usage" })).toBe("more");
     expect(ownerOf({ kind: "agent", agentId: "a" })).toBe("agents");
     expect(ownerOf(file)).toBe("agents");
     expect(ownerOf(conv)).toBe("home");
