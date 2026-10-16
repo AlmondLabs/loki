@@ -1,6 +1,6 @@
-import type { UsageLine, UsageOrigin } from "../../../core/usage.ts";
+import type { UsageLine, UsageOrigin, UsageSummary } from "../../../core/usage.ts";
 import { Chip, Row } from "../components";
-import { PERIOD_LABELS, PERIODS, modelName, money, originName, shareText, tokenCount } from "../shared/usage-words";
+import { PERIOD_LABELS, PERIODS, modelName, money, originName, shareText, tokenCount, type UsagePeriod } from "../shared/usage-words";
 import { UsageBars } from "../shared/usage-bars";
 import { useUsage, type UsageApi } from "../shared/use-usage";
 import { Choice, Fact, Section } from "./layout";
@@ -13,63 +13,12 @@ export type { UsageApi } from "../shared/use-usage";
  * breakdown narrows the page to it.
  */
 export function UsagePage({ usage }: { usage: UsageApi }) {
-  const { period, pick, filter, setFilter, failed, summary, priced, seededUntil, agentName } = useUsage(usage);
+  const { period, pick, setFilter, failed, summary, priced, seededUntil, agentName, narrowed } = useUsage(usage);
   if (!summary) return <Section title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Section>;
-  const unsplit = summary.cost.other > 0 && seededUntil !== null;
-  const narrowed = filter.agent_id ?? filter.origin ?? filter.model;
-  const narrowedName = filter.agent_id ? agentName(filter.agent_id) : filter.origin ? originName(filter.origin) : filter.model ? modelName(filter.model) : "";
-
   return (
     <>
-      <Section title="Spend" hint="estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
-        <Fact label="Period" value={<Choice options={[...PERIODS]} value={period} onPick={pick} labels={PERIOD_LABELS} />} />
-        {narrowed && (
-          <Fact
-            label="Showing"
-            value={
-              <Chip label active onClick={() => setFilter({})} aria-label={`Show everything, not only ${narrowedName}`}>
-                {narrowedName} ×
-              </Chip>
-            }
-          />
-        )}
-        <Fact
-          label="Estimated"
-          value={
-            <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
-              <span style={{ fontSize: 22, fontWeight: 700 }}>{money(summary.cost.total)}</span>
-              <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
-            </span>
-          }
-        />
-        <Fact label={period === "24h" ? "By hour" : "By day"} value={<UsageBars series={summary.series} hourly={period === "24h"} />} />
-        {summary.unpriced_tokens > 0 && (
-          <Fact label="No price" value={`${tokenCount(summary.unpriced_tokens)} tokens from models with no known price, left out of the estimate`} />
-        )}
-        {unsplit && (
-          <Fact
-            label="Before"
-            value={`${new Date(seededUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, cost comes from loki's analytics and is not split by token type`}
-          />
-        )}
-      </Section>
-      <Section title="Tokens" hint="what was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
-        <Fact label="Input" value={<Amount tokens={summary.tokens.input} cost={summary.cost.input} />} />
-        <Fact label="Cache read" value={<Amount tokens={summary.tokens.cache_read} cost={summary.cost.cache_read} />} />
-        <Fact label="Cache write" value={<Amount tokens={summary.tokens.cache_write} cost={summary.cost.cache_write} />} />
-        <Fact
-          label="Output"
-          value={
-            <Amount
-              tokens={summary.tokens.output}
-              cost={summary.cost.output}
-              note={summary.tokens.reasoning > 0 ? `${tokenCount(summary.tokens.reasoning)} of it reasoning` : null}
-            />
-          }
-        />
-        {summary.cost.other > 0 && <Fact label="Not split" value={money(summary.cost.other)} />}
-        <Fact label="Cache saved" value={`${money(summary.cache_savings)} against paying for the cache reads as fresh input`} />
-      </Section>
+      <SpendSection summary={summary} period={period} onPeriod={pick} narrowed={narrowed} onShowAll={() => setFilter({})} seededUntil={seededUntil} />
+      <TokensSection summary={summary} />
       <Section title="By origin" hint="your chats, the helpers they started, and loki's background passes">
         <Breakdown lines={summary.by_origin} name={originName} priced={() => true} onPick={(key) => setFilter({ origin: key as UsageOrigin })} />
       </Section>
@@ -80,6 +29,77 @@ export function UsagePage({ usage }: { usage: UsageApi }) {
         <Breakdown lines={summary.by_model} name={modelName} priced={priced} onPick={(key) => setFilter({ model: key })} />
       </Section>
     </>
+  );
+}
+
+/** The period, what it cost, a bar a day, and what the estimate leaves out or cannot split. */
+function SpendSection({
+  summary,
+  period,
+  onPeriod,
+  narrowed,
+  onShowAll,
+  seededUntil,
+}: {
+  summary: UsageSummary;
+  period: UsagePeriod;
+  onPeriod: (p: UsagePeriod) => void;
+  narrowed: string | null;
+  onShowAll: () => void;
+  seededUntil: string | null;
+}) {
+  const hourly = period === "24h";
+  return (
+    <Section title="Spend" hint="estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
+      <Fact label="Period" value={<Choice options={[...PERIODS]} value={period} onPick={onPeriod} labels={PERIOD_LABELS} />} />
+      {narrowed && (
+        <Fact
+          label="Showing"
+          value={
+            <Chip label active onClick={onShowAll} aria-label={`Show everything, not only ${narrowed}`}>
+              {narrowed} ×
+            </Chip>
+          }
+        />
+      )}
+      <Fact
+        label="Estimated"
+        value={
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontSize: 22, fontWeight: 700 }}>{money(summary.cost.total)}</span>
+            <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
+          </span>
+        }
+      />
+      <Fact label={hourly ? "By hour" : "By day"} value={<UsageBars series={summary.series} hourly={hourly} />} />
+      {summary.unpriced_tokens > 0 && (
+        <Fact label="No price" value={`${tokenCount(summary.unpriced_tokens)} tokens from models with no known price, left out of the estimate`} />
+      )}
+      {summary.cost.other > 0 && seededUntil !== null && (
+        <Fact
+          label="Before"
+          value={`${new Date(seededUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, cost comes from loki's analytics and is not split by token type`}
+        />
+      )}
+    </Section>
+  );
+}
+
+/** Tokens and their cost by type, what could not be split, and what the cache saved. */
+function TokensSection({ summary }: { summary: UsageSummary }) {
+  const { tokens, cost } = summary;
+  return (
+    <Section title="Tokens" hint="what was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
+      <Fact label="Input" value={<Amount tokens={tokens.input} cost={cost.input} />} />
+      <Fact label="Cache read" value={<Amount tokens={tokens.cache_read} cost={cost.cache_read} />} />
+      <Fact label="Cache write" value={<Amount tokens={tokens.cache_write} cost={cost.cache_write} />} />
+      <Fact
+        label="Output"
+        value={<Amount tokens={tokens.output} cost={cost.output} note={tokens.reasoning > 0 ? `${tokenCount(tokens.reasoning)} of it reasoning` : null} />}
+      />
+      {cost.other > 0 && <Fact label="Not split" value={money(cost.other)} />}
+      <Fact label="Cache saved" value={`${money(summary.cache_savings)} against paying for the cache reads as fresh input`} />
+    </Section>
   );
 }
 

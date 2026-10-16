@@ -1,6 +1,6 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/os-words";
@@ -133,6 +133,49 @@ export function Settings({
     return registerActions({ "settings.prevPage": () => step(-1), "settings.nextPage": () => step(1) });
   });
 
+  // Each page's body, by page: a table rather than a chain of conditions, so adding a page adds no branch here.
+  const pageBody: Record<SettingsPage, () => ReactNode> = {
+    loki: () => (
+      <LokiPage
+        update={update}
+        harness={harness}
+        daemon={daemon}
+        modConnection={modConnection}
+        deskCount={deskCount}
+        importLetta={importLetta}
+        importStatus={importStatus}
+      />
+    ),
+    usage: () => <UsagePage usage={usage} />,
+    inbox: () => <InboxPage />,
+    providers: () => (
+      <ProvidersPage
+        chatLink={chatLink}
+        providers={providers}
+        onLoadProviders={onLoadProviders}
+        onConnectProvider={onConnectProvider}
+        onDisconnectProvider={onDisconnectProvider}
+        onModelsChanged={onModelsChanged}
+      />
+    ),
+    mcp: () => <McpPage mcp={mcp} chatLink={chatLink} />,
+    phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
+    skills: () => <SkillsPage globalSkills={globalSkills} />,
+    learn: () => <RecallPage recall={recall} />,
+    appearance: () => <AppearancePage />,
+    chat: () => (
+      <ChatPage
+        chatWidth={chatWidth}
+        onChatWidth={onChatWidth}
+        chatPlacement={chatPlacement}
+        onChatPlacement={onChatPlacement}
+        approvals={chatLink === "open" ? mcp.approvals : null}
+      />
+    ),
+    files: () => <FilesPage />,
+    keys: () => <KeysPage shortcut={shortcut} />,
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", flex: 1, minHeight: 0 }}>
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
@@ -176,45 +219,7 @@ export function Settings({
         </div>
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
-          {page === "loki" && (
-            <LokiPage
-              update={update}
-              harness={harness}
-              daemon={daemon}
-              modConnection={modConnection}
-              deskCount={deskCount}
-              importLetta={importLetta}
-              importStatus={importStatus}
-            />
-          )}
-          {page === "usage" && <UsagePage usage={usage} />}
-          {page === "inbox" && <InboxPage />}
-          {page === "providers" && (
-            <ProvidersPage
-              chatLink={chatLink}
-              providers={providers}
-              onLoadProviders={onLoadProviders}
-              onConnectProvider={onConnectProvider}
-              onDisconnectProvider={onDisconnectProvider}
-              onModelsChanged={onModelsChanged}
-            />
-          )}
-          {page === "mcp" && <McpPage mcp={mcp} chatLink={chatLink} />}
-          {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
-          {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
-          {page === "learn" && <RecallPage recall={recall} />}
-          {page === "appearance" && <AppearancePage />}
-          {page === "chat" && (
-            <ChatPage
-              chatWidth={chatWidth}
-              onChatWidth={onChatWidth}
-              chatPlacement={chatPlacement}
-              onChatPlacement={onChatPlacement}
-              approvals={chatLink === "open" ? mcp.approvals : null}
-            />
-          )}
-          {page === "files" && <FilesPage />}
-          {page === "keys" && <KeysPage shortcut={shortcut} />}
+          {pageBody[page]()}
           <div className="loki-label" style={{ textAlign: "center", paddingTop: 12 }}>
             loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
           </div>

@@ -310,13 +310,12 @@ export class UsageLedger {
   /** Take the current totals of every chat the ledger has not seen as already counted. */
   private async baseline(agentId: string, store: AgentStore): Promise<void> {
     const seen = (this.seen[agentId] ??= {});
-    let changed = false;
-    for (const id of await store.chatConversations(this.deps.context)) {
-      if (seen[String(id)]) continue;
-      seen[String(id)] = modelCounters(await store.usage(id, this.deps.context));
-      changed = true;
-    }
-    if (changed) this.scheduleSave();
+    const unseen = (await store.chatConversations(this.deps.context)).filter((id) => !seen[String(id)]);
+    const totals = await Promise.all(unseen.map((id) => store.usage(id, this.deps.context)));
+    unseen.forEach((id, i) => {
+      seen[String(id)] ??= modelCounters(totals[i]);
+    });
+    if (unseen.length) this.scheduleSave();
   }
 
   private async apply(agentId: string, store: AgentStore, publication: CommitPublication, at: number): Promise<void> {
@@ -331,13 +330,15 @@ export class UsageLedger {
       // A chat first seen mid-life (its creation came before the ledger followed it): its totals so far are history.
       if (!before && change.ops.length > 0) continue;
       const hour = hourOf(at);
-      for (const [model, counters] of Object.entries(now)) {
-        if (!counters) continue;
-        const d = growth(before?.[model] ?? ZERO, counters);
-        if (d) {
-          this.add(hour, agentId, model, await this.originOf(agentId, store, conversationId), d);
-          grew = true;
-        }
+      const growths = Object.entries(now).flatMap(([model, counters]) => {
+        const d = counters ? growth(before?.[model] ?? ZERO, counters) : null;
+        return d ? [{ model, d }] : [];
+      });
+      if (growths.length) {
+        // One change at a time, in the commit's order: each one moves its chat's last totals, which the next reads.
+        const origin = await this.originOf(agentId, store, conversationId);
+        for (const { model, d } of growths) this.add(hour, agentId, model, origin, d);
+        grew = true;
       }
       this.scheduleSave();
     }

@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { summarize, type UsageFilter, type UsageReply, type UsageSummary } from "../../../core/usage.ts";
-import { PERIODS, periodStart, type UsagePeriod } from "./usage-words";
+import { PERIODS, modelName, originName, periodStart, type UsagePeriod } from "./usage-words";
 
 /** What a usage page asks of the mod, on the Mac or the phone, and the agents' names for its breakdown. */
 export interface UsageApi {
@@ -70,6 +70,7 @@ export function useUsage(usage: UsageApi) {
         filter,
       })
     : null;
+  const agentName = (id: string) => usage.agents.find((a) => a.id === id)?.name ?? id;
   return {
     period,
     pick,
@@ -81,6 +82,8 @@ export function useUsage(usage: UsageApi) {
     priced: (model: string) => data?.reply.priced[model] === true,
     /** History before this instant has no cost split by token type (null before the seed). */
     seededUntil: data?.reply.seeded_until ?? null,
-    agentName: (id: string) => usage.agents.find((a) => a.id === id)?.name ?? id,
+    agentName,
+    /** The line the page is narrowed to, by its name, or null when it shows everything. */
+    narrowed: filter.agent_id ? agentName(filter.agent_id) : filter.origin ? originName(filter.origin) : filter.model ? modelName(filter.model) : null,
   };
 }

@@ -12,8 +12,7 @@ import { BackButton, Scroll, TopBar } from "./ui";
  * narrows the screen to it. The figures are estimates at each provider's API prices.
  */
 export function UsageScreen({ usage, banner, backLabel = "more", onBack }: { usage: UsageApi; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
-  const { period, pick, filter, setFilter, failed, summary, priced, agentName } = useUsage(usage);
-  const narrowed = filter.agent_id ? agentName(filter.agent_id) : filter.origin ? originName(filter.origin) : filter.model ? modelName(filter.model) : null;
+  const { period, pick, setFilter, failed, summary, priced, agentName, narrowed } = useUsage(usage);
   return (
     <div className="loki-phone-page">
       <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Usage" />

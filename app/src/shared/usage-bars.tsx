@@ -1,15 +1,17 @@
 import type { UsagePoint } from "../../../core/usage.ts";
 import { money, tokenCount } from "./usage-words";
 
+/** A bar's day as the reader says it ("Oct 17", or "Sat, Oct 17" for a week's bars); `bucket` starts `2026-10-17`. */
+const dayLabel = (bucket: string, weekday: boolean) =>
+  new Date(`${bucket.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(weekday ? { weekday: "short" } : {}) });
+
 /** The period's bars, each a day (or an hour), its height its cost, or its tokens when nothing had a cost. */
 export function UsageBars({ series, hourly }: { series: UsagePoint[]; hourly: boolean }) {
   const byCost = series.some((p) => p.cost > 0);
   const value = (p: UsagePoint) => (byCost ? p.cost : p.tokens);
   const top = Math.max(...series.map(value), 0);
-  const day = (bucket: string, weekday: boolean) =>
-    new Date(`${bucket.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(weekday ? { weekday: "short" } : {}) });
   // An hour says its day too: a day's bars run from one midnight to the next.
-  const label = (bucket: string) => (hourly ? `${day(bucket, false)}, ${bucket.slice(11)}:00` : day(bucket, series.length <= 7));
+  const label = (bucket: string) => (hourly ? `${dayLabel(bucket, false)}, ${bucket.slice(11)}:00` : dayLabel(bucket, series.length <= 7));
   return (
     <div role="img" aria-label={`${byCost ? "Cost" : "Tokens"} by ${hourly ? "hour" : "day"}`} style={{ display: "grid", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
