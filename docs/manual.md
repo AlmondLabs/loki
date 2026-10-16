@@ -5,38 +5,19 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
 
 ## Requirements
 
-- **macOS 13 or later.** The shell finds Letta Desktop with `lsof`, and uses the traffic lights over a hidden
-  title bar, the dock badge and a global shortcut.
+- **macOS 13 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
+  shortcut.
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
   [Windows and Linux](#windows-and-linux).
-- **Letta Code.** loki runs the one on your Mac — the same `letta` a terminal runs. On launch the shell looks
-  where installers put it (`LOKI_LETTA_BIN`, PATH, `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, nvm, fnm,
-  npm's global bin) and, finding none, runs `npm install -g @letta-ai/letta-code@latest` with the npm beside the
-  first Node 22.19 or newer it finds the same way (Homebrew's `node` comes with the cask), so the terminal's
-  `letta` and loki's are one file. On Linux the list swaps Homebrew for `/usr/local/bin`, `/usr/bin` and
+- **Node 22.19 or newer.** loki runs your agents in its own daemon, a Node process the window starts and keeps
+  running (see [docs/architecture.md](architecture.md)). The Homebrew cask brings Node with it. The shell looks
+  where installers put it: `LOKI_NODE_BIN`, PATH, then `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, npm's
+  global bin, `~/.local/bin`, nvm and fnm. On Linux the list swaps Homebrew for `/usr/local/bin`, `/usr/bin` and
   Linuxbrew; on Windows it is npm's global folder under `%APPDATA%`, the nodejs.org installer's, volta,
-  nvm-windows, fnm, scoop and bun, and npm runs as `npm.cmd`. loki never downloads Node: with none new enough,
-  Welcome says so, names the usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or
-  `sudo apt install nodejs npm` / `sudo dnf install nodejs` when the distribution's Node is new enough), links
-  nodejs.org, and has **check again**. Welcome shows the install as it runs; a global folder npm may not write (the
-  nodejs.org installer leaves one owned by root) gets the `sudo` line to run yourself, since loki never runs one.
-  If an app-server is already running — Letta Desktop's, a `letta server` you started, Letta's channel gateway —
-  loki attaches to it and launches nothing; a plain terminal `letta` opens no app-server, so it is never loki's
-  harness. Otherwise loki launches `letta server` itself; one an earlier loki left running (a crash, a force-quit)
-  is stopped at launch and started afresh, so it always runs the current Letta Code; one whose loki is still
-  running is that loki's, and is only attached to. Settings › letta shows which,
-  the path in use, and the harness's version against the range loki runs on (`core/compat.ts`: below the minimum
-  it says so and names the upgrade line; above the tested release it says "newer than tested"). The harness loki
-  launches runs with the self-updater off, so nothing changes under a session; your terminal sessions keep the
-  install fresh by themselves, and Settings › letta has **check** (asks npm for the newest) and **update** (the
-  same `npm install -g`, then the harness restarts).
-  The harness runs with `LETTA_SCRATCHPAD` set to a folder under `~/.letta` (`~/.letta/loki/scratch` by default,
-  emptied at each start): since Letta Code 0.31.13 its memory subagents — the dreaming (reflection) pass, its
-  selector, the explicit-merge reviewer — run in a sandbox that may only write under `~/.letta`, and Letta's own
-  scratch folder, under the system temp directory, is refused, so every pass failed before its first command.
-  Settings › letta shows the folder, lets you change it, and gives the line for a `letta` you run in a terminal
-  (a different folder: Letta names the files inside by a per-process counter, so two harnesses must not share one).
+  nvm-windows, fnm, scoop and bun. loki never downloads Node: with none new enough, Welcome says so, names the
+  usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or `sudo apt install nodejs npm` /
+  `sudo dnf install nodejs`), links nodejs.org, and has **check again**, which looks afresh.
 - **beads** (`brew install beads`, or `npm install -g @beads/bd` on Windows and Linux) for Tasks. Optional;
   everything else works without it.
 
@@ -57,9 +38,8 @@ follows each release. Versions are the UTC day and that day's count: `2026.1011.
 
 **Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main`, built about twenty
 minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
-conflict — both builds share `~/.letta/loki`, the mod shim and the harness port — so switching channels is an
-uninstall and an install. Settings › letta shows which channel a build is on and names the right cask in its
-upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
+conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
+and an install. Settings › loki shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
 
 **The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
 Open is not enough for an unsigned app on macOS 14 and later):
@@ -82,32 +62,27 @@ Both are built on Ubuntu 22.04.
 
 Windows and Linux files come on stable releases only, published on their own before or after the `.dmg` of the
 same version, so take them from the newest release that has them; nightlies are Mac-only. An upgrade is the next
-such release's file; Settings › letta links it when one is out. No package manager carries them yet.
+such release's file; Settings › loki links it when one is out. No package manager carries them yet.
 
-Whichever way, Letta Code need not be installed first: loki uses the one on your Mac or installs it with npm
-(Requirements). The cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer only
-when no `letta` is there yet. Then:
+Whichever way, the cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer
+(Requirements). Then:
 
-1. Open loki. On first launch it finds or installs Letta Code, copies its mod to `~/.letta/loki/mod/`, writes the
-   shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill at `~/.agents/skills/loki/`.
-   Settings → install shows what happened. Every harness on the Mac loads that shim — Letta has one shared mods
-   folder — but the mod serves the app only inside a harness that hosts an app-server (loki's own, Letta Desktop,
-   a `letta server`); in a terminal `letta` session it logs one line and stands down, so it never takes the
-   app's port or runs a second card writer there.
-2. If Letta Desktop (or a `letta server`) was already running, loki attached to it, and Settings says to `/reload`
-   in it (or restart Desktop) so it picks the mod up. If nothing was running, loki launched its own harness and the
-   mod is already in it.
-3. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key from one of
-   the providers Letta Code connects to — Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and
-   more; Letta checks it with the provider and keeps it, loki never sees it again; every turn is billed by that
-   provider), then name your first agent and
-   pick one of Letta's personalities. You land on its main chat, on Messages, with the message box focused.
+1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
+   skill at `~/.agents/skills/loki/`, writing only what changed; Settings › loki › Install shows what happened.
+   Then it finds Node and starts the daemon, which hosts the mod.
+2. If you used Letta Code before, loki imports it on the first start: your agents, their memory, chats, keys,
+   pins and schedules come over from `~/.letta`, which is only read, never changed. It waits while Letta is
+   running; Settings › loki › Import runs it again.
+3. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
+   the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
+   the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
+   agent, with a description, a persona and a model. You land on its main chat, on Messages, with the message box
+   focused.
 4. Ask your agent to put something on the canvas.
 
-Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app re-installs its mod on launch
-when the bundle changed. It never overwrites a shim or skill it did not write, so a checkout wired up for
-development (below) keeps working. Letta Code moves when your terminal updates it or from Settings › letta (see
-Requirements); the harness loki launches never updates itself.
+Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app
+re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
+write, so a checkout wired up for development (below) keeps working.
 
 ## The window
 
@@ -133,8 +108,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
-  most 80 characters. The name is the Letta conversation's own, so Letta Desktop sees it too; an agent's main
-  chat is named after the agent and cannot be renamed, and renaming needs the app-server. When a chat that waits on
+  most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
@@ -154,7 +128,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply per conversation; a main
+  ⌘⇧P) and its **model** (⌘⇧M, type to filter every model loki offers). Both apply per conversation; a main
   chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Settings › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
@@ -175,36 +149,37 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   chats, counting what recurs across them (and reads a chat right after its context is compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
-  **other**, installed from somewhere named on the row (a checkout linked into `~/.letta/skills`, a repo the `skills`
+  **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
   CLI recorded, a source you typed once). Pick a skill and it opens on the right with its origin, whether the agent has
   edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, ten pages down the
+- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, eleven pages down the
   left, one showing at a time, the last one remembered for the window. ⌘, closes it again, ⌘[ and ⌘] step its
   pages, ⌘1-5 close it and go to that section, Esc closes it. In the page list, ↑↓, Home and End move between
   pages. The pages, in order:
-  1. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
+  1. **loki**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
      hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
-     the preview note), which harness the app is on, the harness's **scratch**
-     folder (see Requirements) with apply, back to the default, and the line for a terminal, how it reaches the
-     mod, requirements and install status.
+     the preview note), importing from Letta, how the app reaches the mod, requirements (the daemon's Node, beads)
+     and what the last install put in place.
   2. **inbox**: how the deck orders its cards (see "The order") and what Next and Archive do.
-  3. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are
-     checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run.
-  4. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
+  3. **providers**: every provider loki knows, connected first; a row opens into the fields it needs. A key is
+     checked with the provider, then kept in the keychain; a sign-in opens the browser, and if the browser does not
+     come back you can paste the address it ended on.
+  4. **mcp**: the MCP servers in `~/.loki/mcp.json`, see "MCP servers".
+  5. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
      Mac only for now.
-  5. **skills**: the global skills in `~/.letta/skills` that every agent reads, each with disable, and a field
+  6. **skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field
      to enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
-  6. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+  7. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
      calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
      something new, at once), and the last run.
-  7. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
+  8. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
      tokyo night; kept per device.
-  8. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
-  9. **files**: where everything lives.
-  10. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
+  9. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
+  10. **files**: where everything lives.
+  11. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
       Alfred or the input-source switcher wants it (Mac only).
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in the Inbox, and the app's pages (each
@@ -226,7 +201,7 @@ itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 ## Windows and Linux
 
 A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Settings › letta links. Chats, Inbox, Tasks, Agents, Learn, Preferences, search and the mod are the Mac's. What
+Settings › loki links. Chats, Inbox, Tasks, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
@@ -244,13 +219,10 @@ differs:
    Linux) yet.
 4. **Folders.** Browse… in the new-chat sheet opens the system's own folder dialog; folder completion takes
    drive paths and `~\`.
-5. **The harness.** The same order as on the Mac: a running Letta Desktop (found by its process name), a
-   `letta server` or channel gateway (found by its command line), else loki's own `letta server` on 41600, as on
-   the Mac restarted at launch when an earlier loki left it behind. On Windows loki runs
-   `node …\@letta-ai\letta-code\letta.js` directly, with no console window, in a Job Object that ends the whole
-   tree when loki exits; on Linux the harness carries the parent-death signal, so it ends with loki too.
+5. **The daemon.** On Windows loki starts it with no console window, in a Job Object that ends it when loki
+   exits; on Linux the daemon carries the parent-death signal, so it ends with loki too.
 6. **Files.** `~` is your profile folder on Windows (`%USERPROFILE%`), so everything is under
-   `%USERPROFILE%\.letta\loki`; the skill link is a junction where Windows refuses a symlink.
+   `%USERPROFILE%\.loki`; the skill link is a junction where Windows refuses a symlink.
 7. **Linux** runs loki through XWayland: the shell sets `GDK_BACKEND=x11` unless you set it yourself, since an
    undecorated window on native Wayland still has open resize and button bugs.
 
@@ -319,32 +291,29 @@ changed, so it pairs once more.
 
 ## What the mod does
 
-Only the things a mod can do:
+loki's mod runs inside the daemon and owns the canvas and the sockets the app connects to:
 
-- owns geometry and gesture state per chat (`~/.letta/loki/state/<desk>.json`, `<desk>` being the chat's id); places new widgets in the first free spot using sizes the tab reports back, and can tidy a canvas into a grid (the `arrange` button or ⌘⇧A)
-- watches `~/.letta/loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
+- owns geometry and gesture state per chat (`~/.loki/state/<desk>.json`, `<desk>` being the chat's id); places new widgets in the first free spot using sizes the tab reports back, and can tidy a canvas into a grid (the `arrange` button or ⌘⇧A)
+- watches `~/.loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
 - appends what the user did on the canvas to their next turn (`turn_start`)
-- finds Letta's app-server and tunnels the browser to it (`/appserver`); the browser owns every conversation
-  view from there — the chat's conversation and Catch Up cards are one model (`core/attention`), streaming token by token
-  whether a turn was typed in Desktop or in the canvas
-- lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
-  however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
+- carries each chat between the app and the daemon over its socket (`/ws` on 127.0.0.1:41414): the chat's
+  conversation and Catch Up cards are one model (`core/attention`), streaming token by token
+- lists every open conversation for the inbox (`inbox_list`): main chats included, however old, with who spoke
+  last; a conversation leaves the inbox by being archived
 - keeps the recall cards (`recall_*`); the daemon's Learn pass writes them: once a conversation has been quiet for half an
   hour it reads the new stretch, asks the agent in its hidden "recall" conversation, and writes cards up to the day's
   cap; the deleted pile goes back into every prompt as what not to write
-- serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
-  and keeps the read (`seen_mark`), viewed (`viewed_mark`) and focus marks the inbox and the sidebar need
-- keeps each chat's widget change log (`~/.letta/loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
+- serves each conversation's full transcript (`history_get`), which survives compaction, and keeps the read
+  (`seen_mark`), viewed (`viewed_mark`) and focus marks the inbox and the sidebar need
+- keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
-- reads and writes pins in Letta Desktop's own `~/.letta/pinned-conversations.json`, so a pin shows in both
-- adopts or spawns the Vite dev server, detached so it survives `/reload`
+- keeps pins in `~/.loki/state/pins.json`
 - tools: `desk_state`, `desk_camera` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
 
 ## Install (development)
 
-You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools; Node runs npm, Vite, the
-Tauri CLI and the tests. Letta Code is found or installed by the window as the app does it (Requirements), which
-needs a Node 22 or newer somewhere only when no `letta` is on the Mac yet. Then:
+You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools. Node runs npm, Vite, the
+Tauri CLI, the tests and loki's daemon. Then:
 
 ```bash
 npm install
@@ -355,63 +324,32 @@ npm start
 `~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
 command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
 that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
-would otherwise show. It then starts Vite, opens the window (the first build compiles the shell, a few minutes),
-and waits for the mod: if nothing answers on its port after a minute and a half, one paragraph names the shim
-and the harness log instead of Vite's proxy errors. On a first launch, when no `letta` is on the Mac yet, the
-script says so and starts that clock only once the window has installed one.
+would otherwise show. It then starts Vite on 127.0.0.1:5173, a watching build of `app/dist` for the phone, and
+`tauri dev`, which bundles the mod and opens the window (the first build compiles the shell, a few minutes). The
+window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`). The script
+waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
+log, `~/.loki/logs/daemon.log`, instead of leaving you Vite's proxy errors. Ctrl-C stops all of it.
 `npm start --check` reports all of it without starting anything.
 
-A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
-without the mod on a Mac that never had loki. Instead, when the shim and the skill are both absent, it points
-Letta at the checkout it was compiled from: `~/.letta/mods/loki.ts` importing `mod/boot.ts` (marked as a
-development shim, so the app leaves it alone later too) and `~/.agents/skills/loki` as a symlink to `skills/loki`.
-Whatever is already in either place stays; Settings › letta › install shows **linked** for each, or what was there.
-Letta Code itself is found or installed the way the app does it, and the Welcome step shows the progress.
+Or run the pieces yourself: `npm run dev` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
+against a Vite already running, in a second terminal).
 
-To do the same by hand — a second checkout, say — everything in `~/.letta/mods/` is loaded as a mod, so only this
-file lives there (the app leaves it alone because it does not start with the managed marker). Your own terminal
-`letta` loads it too and stands down (`mod/gate.ts`): only a harness hosting an app-server serves the app.
-`LOKI_MOD_SERVE=1` in a terminal session's environment makes it serve anyway, for debugging.
-
-```ts
-// ~/.letta/mods/loki.ts
-import { pathToFileURL } from "node:url";
-export default async function activate(letta: unknown) {
-  const url = pathToFileURL("/ABSOLUTE/PATH/TO/loki/mod/boot.ts");
-  url.searchParams.set("v", String(Date.now())); // boot.ts re-bundles the mod's files on every /reload
-  const mod = await import(url.href);
-  return mod.default(letta);
-}
-```
-
-Skill, so the agent knows the vocabulary:
-
-```bash
-ln -s /ABSOLUTE/PATH/TO/loki/skills/loki ~/.agents/skills/loki
-```
-
-Then `/reload` in Letta Code and run `npm start` (Vite plus the window in one terminal), or `npm run dev` (Vite) plus `npm run desktop:dev` (the window against
-it), or open the Vite URL in a browser tab.
+A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it); the daemon runs the checkout's
+code. It links the agent's skill, `~/.agents/skills/loki`, to the checkout's `skills/loki` when nothing is there
+yet; whatever is already there stays, and Settings › loki › Install says which. The data is the same `~/.loki` the
+app uses, and only one daemon serves it (`~/.loki/daemon.lock`): with the installed app running, a development
+window leaves that app's daemon serving and tries again every 30 seconds, so quit the app to run your checkout's.
 
 When something does not come up:
 
-1. **The window opens but the app never links** (Vite prints `ws proxy error … 41414`): the harness has no mod.
-   Check `~/.letta/mods/loki.ts` exists and imports a path that exists, then `~/.letta/loki/logs/harness.log` for
-   the mod's error on activate, and `~/.letta/loki/mod.log` for an `activate:standing-down` line (the mod decided
-   this harness hosts no app-server). `/reload` in Letta Code loads it again.
-2. **Welcome says the Letta Code install did not finish**: `~/.letta/loki/logs/install.log` has every line of every
-   attempt; the window shows the telling one (a package that would not build, a host that would not resolve, a
-   global folder npm may not write — with the `sudo` line to run in a terminal) and npm's own log path. Retry from
-   Welcome once it is fixed. loki installs with `SHARP_IGNORE_GLOBAL_LIBVIPS=1`, so a Homebrew libvips on the Mac
-   does not make `sharp` compile itself with node-gyp. No Node 22.19 or newer anywhere: Welcome's Node step names
-   the command for your system (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's
-   package), then **check again**.
-3. **Letta Desktop (or a `letta server`) is running**: loki attached to that harness rather than launching its own
-   (Requirements). Settings › letta names it and its version against the tested range; the mod loads there from the
-   shared `~/.letta/mods/loki.ts` after a `/reload` or a restart. Quit it and start loki again to run loki's own.
-4. **Homebrew moved to a new Node major** and the harness log shows a module-version error from a native module:
-   Letta Code's global install was built for the old one. Settings › letta › **update** (a reinstall) or
-   `npm install -g @letta-ai/letta-code@latest` in a terminal rebuilds it.
+1. **The window opens but the app never links** (Vite prints `ws proxy error … 41414`): the daemon is not
+   running, or its mod failed. `~/.loki/logs/daemon.log` has the daemon's output, its error at start included,
+   and `~/.loki/mod.log` the mod's.
+2. **Welcome shows the Node step**: no Node 22.19 or newer anywhere loki looks. It names the command for your
+   system (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's package); install it,
+   then **check again**. `LOKI_NODE_BIN` points loki at one it does not find.
+3. **The installed app is running**: its daemon holds `~/.loki`, so yours waits (`daemon.log` says it exited with
+   code 3). Quit the app.
 
 ## Install as an app (Chrome)
 
@@ -419,8 +357,8 @@ The canvas ships a web app manifest, so Chrome can install it: open the canvas
 tab, then menu → Save and share → Install page as app. It opens in its own
 window with the loki icon. The tab remembers its token and last chat in
 localStorage, so the installed app resumes where you left off even though its
-launch URL carries no parameters. It still needs a harness with the mod running (loki's own, Letta Desktop or a
-`letta server`): the mod serves the app; the page comes from Vite in a browser tab, or from the loki app itself.
+launch URL carries no parameters. It still needs loki running: the mod in its daemon serves the app; the page
+comes from Vite in a browser tab, or from the loki app itself.
 
 Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
 plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
@@ -433,16 +371,13 @@ chosen for you). The sheet asks for the agent (chips),
 the folder (defaults to that agent's most recent one; recents, typed paths with
 completion, or Browse… for the system's folder dialog; the git branch shows when the
 folder is a checkout) and an optional name. Start creates the conversation
-through Letta's app-server, so it appears in Desktop too, and the canvas
-opens the empty chat on Messages with the message box focused.
+and opens the empty chat on Messages with the message box focused.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
 the same folder field, starting on the chat's folder (recents, completion, Browse…); Move needs a folder that
 exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
-that agent has worked in. Letta Code moves the conversation (its own `/chdir`, kept in
-`~/.letta/remote-settings.json`) and tells the agent on its next turn that the working directory changed, with
-the new folder's environment. loki's hidden note on each message carries the time and the chat, not the folder:
-the folder is Letta Code's to tell.
+that agent has worked in. The daemon moves the chat, and its commands and file tools work in the new folder from
+the next turn.
 
 ## Questions from the agent
 
@@ -460,9 +395,9 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
   inside the message as base64 image parts, so the agent sees them at once. Large images are shrunk to 1600px on
   the long edge before sending.
 - **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
-  `~/.letta/loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
+  `~/.loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
   its name and the upload's progress; send waits until it is there. × before sending deletes it again. The message
-  carries only where it is, in the attachment tag Letta's own Slack and Telegram channels use
+  carries only where it is, in an attachment tag
   (`<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`); the agent reads it with its own tools.
   The chat hides the tag and shows the file as a chip on your message; in the desktop app a click shows it in its
   folder. 25 MB per file.
@@ -486,13 +421,11 @@ tool calls as muted markers), highest score first (see "The order" below). → o
 The header reads "n need you · m chats". Once you have been past every chat the deck says "You've been through
 every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing the inbox
 ends a visit; opening it again starts a fresh one.
-Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
-backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
-windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
-never archived, so they always stay). The live half — runtime subscriptions, streaming, approvals, answers —
-speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which exists because the app-server
-refuses browser origins. The read (`seen`), viewed and focus marks live in
-`~/.letta/loki/state/attention.json`, so the phone and the Mac share them.
+Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
+chats included, with who spoke last — nothing is windowed by age or capped by count, so a conversation only leaves
+the inbox when it is archived (main chats are never archived, so they always stay). The live half — streaming,
+approvals, answers — comes over the same socket. The read (`seen`), viewed and focus marks live in
+`~/.loki/state/attention.json`, so the phone and the Mac share them.
 
 Slash commands work in the message box, and in the reply box of an inbox card: type `/` and a palette lists what the
 box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K search) and the daemon's:
@@ -500,7 +433,7 @@ box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K searc
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays).
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
-- `/doctor` reviews the agent's whole memory and cleans it up, Letta's /doctor on loki. It tidies (merges what says the
+- `/doctor` reviews the agent's whole memory and cleans it up, after Letta Code's command of the same name. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
   from the rest of memory). It edits directly, each change a commit by "Doctor"; the command's row shows its report,
@@ -551,7 +484,7 @@ the brief as your first message: open with why this matters to you, furnish the 
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
 conversation is still empty) is listed under "lessons under way" with **send the brief**.
 **not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
+**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never inbox cards. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
 Every chat row, chat header, message and inbox card shows the face of the agent that owns the conversation (its
@@ -709,7 +642,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 ## Analytics
 
 loki keeps product analytics on itself — which views you open, which chats get turns, how an inbox visit went,
-what you send from where, which models and modes you pick — as events in `~/.letta/loki/logs/events.jsonl`, one
+what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
 writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
 `distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, phone,
@@ -721,7 +654,7 @@ handle), never message text, titles or folder paths. Event names are `object_ver
 `inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod), `approval_requested` (reported by
 every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
 lists them all with their properties. The file rotates
-at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
+at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.
 
 `npm run analytics` (or `npm run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
@@ -731,17 +664,16 @@ period.
 
 ## Environment variables
 
-`LOKI_PORT` (mod, default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
-`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1`
-(make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
-build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the app, or not,
-whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life, never the system keychain: for tests and scratch runs). The
-harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder), `DISABLE_AUTOUPDATER=1` and
-`LOKI_OWN_APP_SERVER_URL` (its own address, which the mod reads once and removes so nothing the agents start inherits it). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. The mod runs under
-Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
-Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
-`~/.letta/loki/logs/install.log` (every Letta Code install or update, appended), `~/.letta/loki/logs/events.jsonl`
-(product analytics on loki itself; see "Analytics").
+`LOKI_PORT` (the mod's socket, default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
+`LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
+`LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its
+bundle instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build from installing, and a dev build
+from linking), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
+never the system keychain: for tests and scratch runs). On Linux the shell sets `GDK_BACKEND=x11` unless it is
+already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
+
+Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product
+analytics on loki itself; see "Analytics").
 
 ## Hard rules
 
