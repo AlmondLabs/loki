@@ -9,6 +9,7 @@ import { deskView } from "./view";
 import { withHistoryLog } from "./widget-rows";
 
 import type { CardWithSchedule, RecallReply, RecallSnapshot } from "../../../core/recall/model.ts";
+import type { UsageReply } from "../../../core/usage.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
 import type { TranscriptRow } from "../chat/transcript";
@@ -94,6 +95,7 @@ export function useDesk() {
     focusMap,
     tasksVersion,
     recallVersion,
+    usageVersion,
     lanStatus,
     setLanStatus,
     devices,
@@ -499,6 +501,11 @@ export function useDesk() {
     tasksVersion,
     recall,
     recallVersion,
+    /** What the agents spent (Settings › usage): the ledger's rows for a period, and a count bumped as it grows. */
+    usage: {
+      get: (since: string, until: string) => request("usage_get", { since, until }, 15_000).then((r): UsageReply | null => (r.ok ? r.reply : null)),
+      version: usageVersion,
+    },
     undo,
     agents,
     gesture,

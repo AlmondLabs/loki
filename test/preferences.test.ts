@@ -31,7 +31,20 @@ describe("Preferences: the segment keys over the sheet", () => {
 
 describe("Preferences: the section list", () => {
   test("every page has a sentence-case name, loki's proper nouns kept", () => {
-    expect(PAGES.map((p) => pageTitle(p.id))).toEqual(["loki", "Inbox", "Providers", "MCP", "Phone", "Skills", "Learn", "Appearance", "Chat", "Files", "Keys"]);
+    expect(PAGES.map((p) => pageTitle(p.id))).toEqual([
+      "loki",
+      "Usage",
+      "Inbox",
+      "Providers",
+      "MCP",
+      "Phone",
+      "Skills",
+      "Learn",
+      "Appearance",
+      "Chat",
+      "Files",
+      "Keys",
+    ]);
     for (const p of PAGES) if (p.id !== "loki") expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
   });
 
@@ -45,8 +58,8 @@ describe("Preferences: the section list", () => {
 
 describe("Preferences: the section list is a vertical tablist (focus follows the chosen page)", () => {
   test("↑↓ step the pages and wrap, Home and End jump; other keys are not the list's", () => {
-    expect(pageAfterKey("loki", "ArrowDown")).toBe("inbox");
-    expect(pageAfterKey("inbox", "ArrowUp")).toBe("loki");
+    expect(pageAfterKey("loki", "ArrowDown")).toBe("usage");
+    expect(pageAfterKey("usage", "ArrowUp")).toBe("loki");
     expect(pageAfterKey("loki", "ArrowUp")).toBe("keys");
     expect(pageAfterKey("keys", "ArrowDown")).toBe("loki");
     expect(pageAfterKey("chat", "Home")).toBe("loki");
