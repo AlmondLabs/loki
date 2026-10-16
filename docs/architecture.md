@@ -158,8 +158,10 @@ every chat gets, the chats, then the mods.
     person's chats, helpers, or a background pass), in `state/usage.json`, for the usage page. pi-durable adds each
     call's tokens and cost into its conversation's `pi.usage` but keeps no time, so the ledger follows each store's
     commits and adds what grew to the commit's hour. It remembers each chat's last totals in the same file, so a
-    restart counts nothing twice, and takes the totals of chats it has never seen as history. It does not depend on
-    analytics: `LOKI_ANALYTICS=0` leaves it on.
+    restart counts nothing twice, and takes the totals of chats it has never seen as history. That history comes in
+    once from analytics instead: on its first start the ledger reads the `turn_finished` lines from before it began
+    (`seeded_until` in the file), their cost as `other` since a line has only the total. It does not depend on
+    analytics otherwise: `LOKI_ANALYTICS=0` leaves it on.
 
 ## loki's own mod
 

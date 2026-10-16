@@ -244,6 +244,7 @@ const usage = new UsageLedger({
     return slash > 0 ? (models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost.input ?? null) : null;
   },
   isSubagent: (id) => isSubagent(id, backend),
+  eventsFiles: [`${paths.events}.1`, paths.events],
   report,
 });
 usage.follow(stores);
