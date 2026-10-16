@@ -74,7 +74,8 @@ with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm 
 
 ## Rules of the house
 
-- No real money amounts on screen, in the repo, or in recordings. Fixtures use made-up numbers.
+- No real money amounts on screen, in the repo, or in recordings, but for the agents' estimated spend on the usage
+  page. Fixtures and screenshots use made-up numbers.
 - The red attention badge is spent only on things that need the human; blue is for what is interactive, green for the one affirmative button (see `docs/design.md`).
 - Everything else about how things are written, from file names to commit messages, is in [style.md](style.md).
 

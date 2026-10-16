@@ -305,7 +305,8 @@ box is one for both, its sizes set by `touch`.
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Sentence-case sans for every label; mono only for code, data and keys.
 - Motion is springs, only transform and opacity, never for the keyboard; reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
-- No real money amounts on screen, in the repo, or in recordings (R9).
+- No real money amounts on screen, in the repo, or in recordings (R9), but for the agents' estimated spend on the
+  usage page (plan 019, KD2); its fixtures and screenshots use made-up numbers.
 
 ## Tried and dropped
 
