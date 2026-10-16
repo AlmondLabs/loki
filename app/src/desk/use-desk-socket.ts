@@ -81,6 +81,8 @@ export function useDeskSocket() {
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
   const [recallVersion, setRecallVersion] = useState(0);
+  /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
+  const [usageVersion, setUsageVersion] = useState(0);
   /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
   const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -206,6 +208,9 @@ export function useDeskSocket() {
             break;
           case "recall_changed":
             setRecallVersion((v) => v + 1);
+            break;
+          case "usage_changed":
+            setUsageVersion((v) => v + 1);
             break;
           case "lan_status": {
             const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame({ ...msg }), via: "tailscale" }) : lanStatusFromFrame({ ...msg });
@@ -362,6 +367,7 @@ export function useDeskSocket() {
     focusMap,
     tasksVersion,
     recallVersion,
+    usageVersion,
     lanStatus,
     setLanStatus,
     devices,
