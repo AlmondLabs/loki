@@ -79,6 +79,19 @@ describe("summarize", () => {
     ]);
   });
 
+  test("in a zone half an hour off UTC, the period starts at the reader's midnight, with no extra day before it", () => {
+    // Midnight on October 15 in Kolkata is 18:30 UTC on the 14th; the row for 18:00 UTC runs past it.
+    const s = summarize([row("2026-10-14T18:00:00.000Z", { input: 700 })], {
+      since: Date.parse("2026-10-14T18:30:00Z"),
+      until: Date.parse("2026-10-17T18:30:00Z"),
+      timeZone: "Asia/Kolkata",
+      resolution: "day",
+      priced,
+    });
+    expect(s.series.map((p) => p.bucket)).toEqual(["2026-10-15", "2026-10-16", "2026-10-17"]);
+    expect(s.series[0].tokens).toBe(700);
+  });
+
   test("a filter narrows everything to one agent, origin or model; 24 hours buckets by hour", () => {
     const s = summarize(rows, { since, until, timeZone: "UTC", resolution: "day", priced, filter: { origin: "reflection" } });
     expect(s.tokens.total).toBe(3000);

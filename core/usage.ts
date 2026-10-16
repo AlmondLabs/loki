@@ -132,7 +132,8 @@ export function summarize(
   let cacheSavings = 0;
   let unpriced = 0;
   const series = new Map<string, UsagePoint>();
-  for (let t = Date.parse(hourOf(since)); t < until; t += HOUR_MS) {
+  // Bars from `since` itself: in a zone half an hour off UTC, the reader's midnight falls inside a UTC hour.
+  for (let t = since; t < until; t += HOUR_MS) {
     const bucket = bucketOf(t, timeZone, resolution);
     if (!series.has(bucket)) series.set(bucket, { bucket, cost: 0, tokens: 0 });
   }
@@ -145,7 +146,8 @@ export function summarize(
   };
   for (const r of rows) {
     const at = Date.parse(r.hour);
-    if (at < Date.parse(hourOf(since)) || at >= until) continue;
+    // A row is an hour; one that starts before `since` but runs past it belongs to the period's first bar.
+    if (at + HOUR_MS <= since || at >= until) continue;
     if ((filter.agent_id && r.agent_id !== filter.agent_id) || (filter.origin && r.origin !== filter.origin) || (filter.model && r.model !== filter.model))
       continue;
     const n = rowTokens(r);
@@ -166,7 +168,7 @@ export function summarize(
       if (r.cost.other === 0) cacheSavings += Math.max(0, r.cache_read_as_input - r.cost.cache_read);
     } else unpriced += n;
     const c = known ? r.cost.total : 0;
-    const point = series.get(bucketOf(at, timeZone, resolution));
+    const point = series.get(bucketOf(Math.max(at, since), timeZone, resolution));
     if (point) {
       point.cost += c;
       point.tokens += n;
