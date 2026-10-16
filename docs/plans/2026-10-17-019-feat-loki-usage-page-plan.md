@@ -89,17 +89,24 @@ question their always-on design raises.
 
 ## Mechanism
 
-- **Frame.** `usage_summary { since_day, until_day, time_zone }` → `{ rows: UsageRow[], models: { [model]: { priced:
-  boolean } }, seeded_until: string | null }`. Rows come back hourly and the app buckets them, so the time zone is
-  only for the server to trim the edges. A push, `usage`, tells open pages that the current hour changed.
+- **Frame.** `usage_get { since, until }` (ISO instants) → `usage { rows: UsageRow[], priced: { [model]: boolean },
+  seeded_until: string | null }`. Rows come back hourly and the client works out its own period and groups them in
+  its time zone, so the server needs none. A push, `usage_changed`, tells open pages the ledger counted more (at most
+  one in two seconds). (Built as `usage_summary { since_day, until_day, time_zone }` and `usage` in the first draft of
+  this plan; renamed while building unit 3.)
 - **`UsageRow`** (core, snake_case as loki's data is): `hour` (ISO, UTC), `agent_id`, `model`, `origin`,
   `input_tokens`, `cache_read_tokens`, `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost` (`input`,
   `cache_read`, `cache_write`, `output`, `other`, `total`) and `cache_read_as_input`. There is no call count:
   pi-durable's totals count tokens and cost, not calls.
 - **Where the code goes.** `daemon/usage.ts` (the ledger: diffing `pi.usage`, rows, pruning, the seed), wired in
-  `daemon/main.ts` beside the telemetry; the frame in `core/frames.ts` and `mod/frames/`; the pure bucketing and
-  breakdowns in `core/usage.ts` so desktop and phone share them; the page in `app/src/settings/usage.tsx` and the
-  phone screen in `app/src/phone/usage.tsx`.
+  `daemon/main.ts` beside the telemetry; the frame in `core/frames.ts` and `mod/frames/usage.ts`; the pure bucketing
+  and breakdowns in `core/usage.ts`; the page's state and bars in `app/src/shared/use-usage.ts` and
+  `usage-bars.tsx`, shared by the page in `app/src/settings/usage.tsx` and the phone screen in
+  `app/src/phone/usage.tsx`.
+
+## Built
+
+Units 1 to 5 landed as #86, #88, #89, #90 and #91, stacked in that order.
 
 ## Units
 
