@@ -9,6 +9,7 @@ import { expectPop, transition } from "./transitions";
  *   #/learn  #/archive                                Learn and the archived desks (Home's shortcuts, More's rows)
  *   #/learn/<review|leads|lessons|deleted>          one of Learn's lists, opened from Learn
  *   #/preferences  #/connection  #/about            appearance, the paired Mac and pairing, About — under More
+ *   #/usage                                          what the agents spent — under More
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
  *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
@@ -33,6 +34,7 @@ export type Route =
   | { kind: "search"; q?: string }
   | { kind: "archive" }
   | { kind: "preferences" }
+  | { kind: "usage" }
   | { kind: "connection" }
   | { kind: "about" }
   | { kind: "agent"; agentId: string }
@@ -50,7 +52,7 @@ const isLearnPage = (s: string): s is LearnPage => (LEARN_PAGES as readonly stri
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
 /** Single-segment pages that are not tabs. */
-const CHILDREN = ["learn", "archive", "preferences", "connection", "about"] as const;
+const CHILDREN = ["learn", "archive", "preferences", "usage", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
 /** Old addresses, from saved links and installed clients, to where they live now. */
@@ -108,6 +110,7 @@ export function formatRoute(r: Route): string {
       return r.view ? `#/learn/${r.view}` : "#/learn";
     case "archive":
     case "preferences":
+    case "usage":
     case "connection":
     case "about":
       return `#/${r.kind}`;
@@ -122,12 +125,13 @@ export function formatRoute(r: Route): string {
   }
 }
 
-/** The tab a route lives under. Learn, Archive and Search hang off Home; preferences, connection and About off More; a conversation is Home's. */
+/** The tab a route lives under. Learn, Archive and Search hang off Home; preferences, usage, connection and About off More; a conversation is Home's. */
 export function ownerOf(r: Route): Tab {
   switch (r.kind) {
     case "tab":
       return r.tab;
     case "preferences":
+    case "usage":
     case "connection":
     case "about":
       return "more";

@@ -1,32 +1,11 @@
-import { useEffect, useEffectEvent, useState } from "react";
-import { summarize, type UsageFilter, type UsageLine, type UsageOrigin, type UsagePoint, type UsageReply } from "../../../core/usage.ts";
+import type { UsageLine, UsageOrigin } from "../../../core/usage.ts";
 import { Chip, Row } from "../components";
-import { PERIOD_LABELS, PERIODS, modelName, money, originName, periodStart, shareText, tokenCount, type UsagePeriod } from "../shared/usage-words";
+import { PERIOD_LABELS, PERIODS, modelName, money, originName, shareText, tokenCount } from "../shared/usage-words";
+import { UsageBars } from "../shared/usage-bars";
+import { useUsage, type UsageApi } from "../shared/use-usage";
 import { Choice, Fact, Section } from "./layout";
 
-/** What Settings › usage asks of the mod, and the agents' names for its breakdown. */
-export interface UsageApi {
-  /** The ledger's rows from `since` up to `until` (ISO instants), or null when the mod did not answer. */
-  get: (since: string, until: string) => Promise<UsageReply | null>;
-  /** Bumped when the ledger counts more, so the page refetches. */
-  version: number;
-  agents: ReadonlyArray<{ id: string; name: string }>;
-}
-
-const PERIOD_KEY = "loki.usagePeriod";
-
-/** The period last shown on this device, 7 days the first time (or where storage is refused). */
-function savedPeriod(): UsagePeriod {
-  try {
-    const v = localStorage.getItem(PERIOD_KEY);
-    return PERIODS.find((p) => p === v) ?? "7d";
-  } catch {
-    return "7d";
-  }
-}
-
-/** The reader's own time zone, which the days and hours are counted in. */
-const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+export type { UsageApi } from "../shared/use-usage";
 
 /**
  * Settings › usage: what the agents cost over a period, from the daemon's usage ledger (daemon/usage.ts). The figures
@@ -34,50 +13,8 @@ const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
  * breakdown narrows the page to it.
  */
 export function UsagePage({ usage }: { usage: UsageApi }) {
-  const [period, setPeriod] = useState<UsagePeriod>(savedPeriod);
-  const [filter, setFilter] = useState<UsageFilter>({});
-  const [data, setData] = useState<{ reply: UsageReply; since: number; until: number } | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const pick = (p: UsagePeriod) => {
-    setPeriod(p);
-    try {
-      localStorage.setItem(PERIOD_KEY, p);
-    } catch {
-      // the choice holds for this visit
-    }
-  };
-
-  const load = useEffectEvent((gone: () => boolean) => {
-    const until = Date.now();
-    const since = periodStart(period, until);
-    void usage.get(new Date(since).toISOString(), new Date(until).toISOString()).then((reply) => {
-      if (gone()) return;
-      setFailed(reply === null);
-      if (reply) setData({ reply, since, until });
-    });
-  });
-  // The ledger is the daemon's: read it when the period changes and whenever it says it counted more.
-  useEffect(() => {
-    let gone = false;
-    load(() => gone);
-    return () => {
-      gone = true;
-    };
-  }, [period, usage.version]);
-
-  if (!data) return <Section title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Section>;
-
-  const summary = summarize(data.reply.rows, {
-    since: data.since,
-    until: data.until,
-    timeZone: timeZone(),
-    resolution: period === "24h" ? "hour" : "day",
-    priced: data.reply.priced,
-    filter,
-  });
-  const agentName = (id: string) => usage.agents.find((a) => a.id === id)?.name ?? id;
-  const seededUntil = data.reply.seeded_until;
+  const { period, pick, filter, setFilter, failed, summary, priced, seededUntil, agentName } = useUsage(usage);
+  if (!summary) return <Section title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Section>;
   const unsplit = summary.cost.other > 0 && seededUntil !== null;
   const narrowed = filter.agent_id ?? filter.origin ?? filter.model;
   const narrowedName = filter.agent_id ? agentName(filter.agent_id) : filter.origin ? originName(filter.origin) : filter.model ? modelName(filter.model) : "";
@@ -105,7 +42,7 @@ export function UsagePage({ usage }: { usage: UsageApi }) {
             </span>
           }
         />
-        <Fact label={period === "24h" ? "By hour" : "By day"} value={<Bars series={summary.series} hourly={period === "24h"} />} />
+        <Fact label={period === "24h" ? "By hour" : "By day"} value={<UsageBars series={summary.series} hourly={period === "24h"} />} />
         {summary.unpriced_tokens > 0 && (
           <Fact label="No price" value={`${tokenCount(summary.unpriced_tokens)} tokens from models with no known price, left out of the estimate`} />
         )}
@@ -140,7 +77,7 @@ export function UsagePage({ usage }: { usage: UsageApi }) {
         <Breakdown lines={summary.by_agent} name={agentName} priced={() => true} onPick={(key) => setFilter({ agent_id: key })} />
       </Section>
       <Section title="By model">
-        <Breakdown lines={summary.by_model} name={modelName} priced={(key) => data.reply.priced[key] === true} onPick={(key) => setFilter({ model: key })} />
+        <Breakdown lines={summary.by_model} name={modelName} priced={priced} onPick={(key) => setFilter({ model: key })} />
       </Section>
     </>
   );
@@ -156,42 +93,6 @@ function Amount({ tokens, cost, note = null }: { tokens: number; cost: number; n
         {note ? ` · ${note}` : ""}
       </span>
     </span>
-  );
-}
-
-/** The period's bars, each a day (or an hour), its height its cost, or its tokens when nothing had a cost. */
-function Bars({ series, hourly }: { series: UsagePoint[]; hourly: boolean }) {
-  const byCost = series.some((p) => p.cost > 0);
-  const value = (p: UsagePoint) => (byCost ? p.cost : p.tokens);
-  const top = Math.max(...series.map(value), 0);
-  const day = (bucket: string, weekday: boolean) =>
-    new Date(`${bucket.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(weekday ? { weekday: "short" } : {}) });
-  // An hour says its day too: a day's bars run from one midnight to the next.
-  const label = (bucket: string) => (hourly ? `${day(bucket, false)}, ${bucket.slice(11)}:00` : day(bucket, series.length <= 7));
-  return (
-    <div role="img" aria-label={`${byCost ? "Cost" : "Tokens"} by ${hourly ? "hour" : "day"}`} style={{ display: "grid", gap: 4 }}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
-        {series.map((p) => (
-          <div
-            key={p.bucket}
-            title={`${label(p.bucket)}: ${money(p.cost)} · ${tokenCount(p.tokens)} tokens`}
-            style={{
-              flex: 1,
-              minWidth: 2,
-              height: top > 0 ? `${Math.max(value(p) > 0 ? 4 : 0, (value(p) / top) * 100)}%` : 0,
-              background: "var(--loki-accent)",
-              borderRadius: "var(--loki-radius-sm)",
-            }}
-          />
-        ))}
-      </div>
-      {series.length > 0 && (
-        <div className="loki-meta" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>{label(series[0].bucket)}</span>
-          <span>{label(series[series.length - 1].bucket)}</span>
-        </div>
-      )}
-    </div>
   );
 }
 

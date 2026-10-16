@@ -17,6 +17,7 @@ import { Pair, type Me } from "./pair";
 import { More } from "./more";
 import { Search } from "./search";
 import { AboutPage, ConnectionPage, Preferences } from "./preferences";
+import { UsageScreen } from "./usage";
 import { Learn } from "./learn";
 import { useRecall } from "../shell/use-recall";
 import { useDeckPass } from "../recall/use-deck-pass";
@@ -376,6 +377,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
             />
           )}
           {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
+          {route.kind === "usage" && <UsageScreen usage={{ ...desk.usage, agents: catchUp.agents }} banner={banner} backLabel={backLabel} onBack={onBack} />}
           {route.kind === "connection" && (
             <ConnectionPage me={me} link={link} modLink={desk.connection} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />
           )}

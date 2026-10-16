@@ -561,7 +561,7 @@ export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: st
 ];
 
 /** The rows on the More tab. */
-export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "updates" | "about" | "connection";
+export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "usage" | "updates" | "about" | "connection";
 /** One row on the More tab: what it shows and the page it opens. */
 export interface MoreRow {
   id: MoreRowId;
@@ -602,6 +602,7 @@ export function moreSections(s: {
         { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
         { id: "archive", icon: "archive", label: "Archived chats", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
         { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
+        { id: "usage", icon: "history", label: "Usage", aside: null, to: { kind: "usage" } },
       ],
     },
     {
