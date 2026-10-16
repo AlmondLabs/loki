@@ -521,11 +521,9 @@ function ConversationPage({
               // The live folder (the daemon's word) first, else what the Mac's records say; the agent's recent folders to choose from.
               load: async () => {
                 const r = await attention.folders.recent();
-                // A chat the mod has no folder for is missing from the map.
-                const byConversation: Partial<Record<string, string>> = r.byConversation;
                 const current =
                   catchUp.conversation(thread.agentId, thread.conversationId).cwd ??
-                  byConversation[conversationDirName(thread.conversationId, thread.agentId)] ??
+                  r.byConversation[conversationDirName(thread.conversationId, thread.agentId)] ??
                   null;
                 return { current, choices: r.byAgent[thread.agentId] ?? [] };
               },
@@ -575,7 +573,7 @@ function Screen({
   deck: Deck;
   due: number;
   banner: ReactNode;
-  recentFolders: () => Promise<Record<string, string[]>>;
+  recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
   inboxBack: string;

@@ -107,7 +107,7 @@ export interface Task {
   updated_at: string;
   closed_at: string | null;
   /** Free-form; loki uses by/agent/agent_id/conversation/desk/folder and assigned_to/assigned_desk/assigned_agent. */
-  metadata: Record<string, string>;
+  metadata: Partial<Record<string, string>>;
 }
 
 /** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
@@ -134,9 +134,9 @@ export interface InboxRow extends LocalDigest {
 /** The folders chats have worked in lately (`folders`), for the folder picker. */
 export interface RecentFolders {
   /** agentId → folders, most recently used first. */
-  by_agent: Record<string, string[]>;
+  by_agent: Partial<Record<string, string[]>>;
   /** conversationDirName → folder, for the desk you are on. */
-  by_conversation: Record<string, string>;
+  by_conversation: Partial<Record<string, string>>;
 }
 
 /** Whether a path is a folder a chat can work in, and its git branch (`folder_status`, the answer to folder_check); `reason` says why not when `ok` is false. */

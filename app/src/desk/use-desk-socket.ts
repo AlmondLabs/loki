@@ -238,10 +238,9 @@ export function useDeskSocket() {
             break;
           }
           case "seen": {
-            // A mod of any age: one from before the viewed marker or focus sends neither.
-            const { seen, viewed, focus } = msg as Partial<Pushes["seen"]>;
+            const { seen, viewed, focus } = msg;
             // Every mark anywhere broadcasts the whole frame: a map it repeats keeps its object, so nothing re-renders on it.
-            setSeenMap((m) => keepSame(m, seen ?? {}));
+            setSeenMap((m) => keepSame(m, seen));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
             if (viewed && typeof viewed === "object") setViewedMap((m) => keepSame(m, viewed));
             // A mod from before focus sends none: keep what we have.

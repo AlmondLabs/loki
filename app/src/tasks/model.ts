@@ -147,11 +147,8 @@ export const folderName = (folder: string | undefined): string | null =>
         .pop() || folder
     : null;
 
-/** A task's metadata as the mod keeps it: any key may be missing. */
-const meta = (t: Task): Partial<Record<string, string>> => t.metadata;
-
 /** Who filed it: you, or the agent by name. */
-export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : (meta(t).agent ?? "an agent"));
+export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : (t.metadata.agent ?? "an agent"));
 
 /**
  * The Board's columns for a view's tasks. By status, always the four (an empty one says so). By assignee or folder,
@@ -267,7 +264,7 @@ export function filterTasks(tasks: Task[], query: string): Task[] {
       t.title.toLowerCase().includes(q) ||
       t.id.toLowerCase().includes(q) ||
       t.labels.some((l) => l.toLowerCase().includes(q)) ||
-      (meta(t).agent ?? "").toLowerCase().includes(q),
+      (t.metadata.agent ?? "").toLowerCase().includes(q),
   );
 }
 
