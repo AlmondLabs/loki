@@ -9,6 +9,8 @@ import {
   type EntryRecord,
   type HarnessOptions,
   type Storage,
+  UsageDoc,
+  type UsageState,
 } from "@earendil-works/pi-durable";
 import type { ImportedEntry } from "../import/convert.ts";
 
@@ -125,6 +127,17 @@ export class AgentStore {
       if (change.mode !== undefined) info.mode = change.mode;
     }, context);
     return true;
+  }
+
+  /** A conversation's token and cost totals so far, by model and by tool (pi-durable's `pi.usage`). */
+  usage(conversationId: ConversationId, context: Context): Promise<Readonly<UsageState> | undefined> {
+    return this.harness.snapshot(UsageDoc, conversationId, context);
+  }
+
+  /** The conversation of every chat this store holds; a helper's child conversation is not among them. */
+  async chatConversations(context: Context): Promise<ConversationId[]> {
+    const index = await this.harness.snapshot(ChatIndex, context);
+    return Object.values(index?.chats ?? {}).map((id) => id as ConversationId);
   }
 
   /** Every chat this store holds, as loki knows it. */

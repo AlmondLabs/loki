@@ -154,6 +154,12 @@ every chat gets, the chats, then the mods.
     line that mentions it) and never writes to Letta's files. A second run imports only what is missing; a run that
     brought no agent over though Letta has some is not finished, and runs again at the next start. Each run's outcome
     is kept beside what it did (`state/letta-import.json`, `last`) and shown in Settings › loki › Import.
+14. **The usage ledger (`daemon/usage.ts`).** What every model call cost, by hour, agent, model and origin (the
+    person's chats, helpers, or a background pass), in `state/usage.json`, for the usage page. pi-durable adds each
+    call's tokens and cost into its conversation's `pi.usage` but keeps no time, so the ledger follows each store's
+    commits and adds what grew to the commit's hour. It remembers each chat's last totals in the same file, so a
+    restart counts nothing twice, and takes the totals of chats it has never seen as history. It does not depend on
+    analytics: `LOKI_ANALYTICS=0` leaves it on.
 
 ## loki's own mod
 
