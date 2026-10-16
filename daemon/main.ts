@@ -44,6 +44,7 @@ import { isSubagent } from "../mod/agents.ts";
 import { paths } from "../mod/paths.ts";
 import { RecallStore, recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
+import { UsageLedger } from "./usage.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -233,6 +234,19 @@ const telemetry = new TurnTelemetry({
   report,
 });
 telemetry.follow(stores);
+// What every model call cost, by hour, agent, model and origin, for the usage page (daemon/usage.ts); not analytics,
+// so LOKI_ANALYTICS=0 leaves it on.
+const usage = new UsageLedger({
+  file: join(paths.state, "usage.json"),
+  context,
+  inputRate: (model) => {
+    const slash = model.indexOf("/");
+    return slash > 0 ? (models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost.input ?? null) : null;
+  },
+  isSubagent: (id) => isSubagent(id, backend),
+  report,
+});
+usage.follow(stores);
 // An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
 const knownProvider = (id: string) => Boolean(models.getProvider(id));
 for (const id of listAgents(backend)) if (healRecordModel(backend, id, knownProvider)) report(`${id}: its model now goes by pi-ai's name`);
@@ -293,6 +307,7 @@ function stop(signal: string) {
     stopWatchingMods();
     schedules.stop();
     passes.stop();
+    usage.close();
     background.stopAll();
     void mcp.close();
     for (const name of mods.names()) mods.unload(name);
