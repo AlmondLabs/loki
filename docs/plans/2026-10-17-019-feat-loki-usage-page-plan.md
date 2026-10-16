@@ -94,7 +94,8 @@ question their always-on design raises.
   only for the server to trim the edges. A push, `usage`, tells open pages that the current hour changed.
 - **`UsageRow`** (core, snake_case as loki's data is): `hour` (ISO, UTC), `agent_id`, `model`, `origin`,
   `input_tokens`, `cache_read_tokens`, `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost` (`input`,
-  `cache_read`, `cache_write`, `output`, `other`, `total`), `cache_read_as_input`, `calls`.
+  `cache_read`, `cache_write`, `output`, `other`, `total`) and `cache_read_as_input`. There is no call count:
+  pi-durable's totals count tokens and cost, not calls.
 - **Where the code goes.** `daemon/usage.ts` (the ledger: diffing `pi.usage`, rows, pruning, the seed), wired in
   `daemon/main.ts` beside the telemetry; the frame in `core/frames.ts` and `mod/frames/`; the pure bucketing and
   breakdowns in `core/usage.ts` so desktop and phone share them; the page in `app/src/settings/usage.tsx` and the
