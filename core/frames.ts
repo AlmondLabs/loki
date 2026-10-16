@@ -5,6 +5,7 @@ import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
+import type { UsageReply } from "./usage.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import type {
@@ -109,6 +110,8 @@ function mcpEdit(
   return "a server needs a command or a url";
 }
 
+/** Whether a value is an ISO date and time a request can take as an instant. */
+const isInstant = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
 /** The task ids a task list frame names: `ids`, or a single `id`. */
 const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
@@ -135,6 +138,7 @@ export interface Replies {
   folder_status: FolderCheck;
   folder_picked: { path: string | null };
   recall: RecallReply;
+  usage: UsageReply;
   recall_card: { card: CardWithSchedule | null };
   recall_ran: { note: string };
   recall_export: { tsv: string };
@@ -222,6 +226,7 @@ export interface Pushes {
   seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry> };
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
+  usage_changed: NoPayload;
   tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;
@@ -551,6 +556,14 @@ export const FRAMES = {
   folder_check: request("folder_status", "whether a path is a folder a chat can work in, and its git branch", (m) => ({ path: strOr(m.path, null) })),
   folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ default_path: strOr(m.default_path, undefined) })),
 
+  // Usage
+  usage_get: request(
+    "usage",
+    "what the agents spent from `since` up to `until` (ISO instants): the ledger's hourly rows and each model's price status",
+    (m) => (isInstant(m.since) && isInstant(m.until) ? { since: m.since, until: m.until } : "since and until required, as ISO instants"),
+    PHONE,
+  ),
+
   // Learn
   recall_list: request("recall", "the whole Learn section", nothing, PHONE),
   recall_grade: request(
@@ -679,6 +692,7 @@ export const FRAMES = {
   seen: push("the done and viewed marks and the focus weights, after any change"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
+  usage_changed: push("the usage ledger counted more: open usage pages refetch"),
   tasks_changed: push("Tasks changed: other tabs refetch"),
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),

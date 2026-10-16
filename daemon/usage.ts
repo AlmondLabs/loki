@@ -143,6 +143,7 @@ export class UsageLedger {
   private queue: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private seededUntil: string | null = null;
+  private readonly listeners = new Set<() => void>();
 
   constructor(deps: UsageLedgerDeps) {
     this.deps = deps;
@@ -180,6 +181,12 @@ export class UsageLedger {
       }),
     );
     this.enqueue(() => this.baseline(agentId, store));
+  }
+
+  /** Call `listener` whenever the ledger counts more; returns the unsubscribe. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   /** Every row, oldest hour first. */
@@ -239,6 +246,11 @@ export class UsageLedger {
     for (const [key, row] of this.rowsByKey) if (row.hour < oldest) this.rowsByKey.delete(key);
   }
 
+  private changed(): void {
+    for (const listener of this.listeners) listener();
+    this.scheduleSave();
+  }
+
   private scheduleSave(): void {
     const delay = this.deps.saveDelayMs ?? SAVE_DELAY_MS;
     if (delay === 0 || this.timer) return;
@@ -265,7 +277,7 @@ export class UsageLedger {
       }
     }
     this.seededUntil = until;
-    this.scheduleSave();
+    this.changed();
   }
 
   private seedLine(line: string, cutoff: number): void {
@@ -308,6 +320,7 @@ export class UsageLedger {
   }
 
   private async apply(agentId: string, store: AgentStore, publication: CommitPublication, at: number): Promise<void> {
+    let grew = false;
     for (const change of publication.changes) {
       if (change.type !== "document" || change.record.kind !== "pi.usage" || change.conversationId === undefined || !change.value) continue;
       const conversationId = change.conversationId;
@@ -321,10 +334,14 @@ export class UsageLedger {
       for (const [model, counters] of Object.entries(now)) {
         if (!counters) continue;
         const d = growth(before?.[model] ?? ZERO, counters);
-        if (d) this.add(hour, agentId, model, await this.originOf(agentId, store, conversationId), d);
+        if (d) {
+          this.add(hour, agentId, model, await this.originOf(agentId, store, conversationId), d);
+          grew = true;
+        }
       }
       this.scheduleSave();
     }
+    if (grew) this.changed();
   }
 
   private originOf(agentId: string, store: AgentStore, conversationId: ConversationId): Promise<UsageOrigin> {

@@ -276,7 +276,22 @@ const loadCore = () =>
   mods.load({
     name: "loki",
     apiVersion: MOD_API_VERSION,
-    activate: (api) => core.default(api, { chats, chat, analytics }),
+    activate: (api) =>
+      core.default(api, {
+        chats,
+        chat,
+        analytics,
+        usage: {
+          rows: () => usage.rows(),
+          priced: (model) => {
+            const slash = model.indexOf("/");
+            const cost = slash > 0 ? models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost : undefined;
+            return !!cost && cost.input + cost.output > 0;
+          },
+          seeded: () => usage.seeded(),
+          onChange: (listener) => usage.onChange(listener),
+        },
+      }),
   });
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
