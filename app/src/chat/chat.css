@@ -87,8 +87,10 @@
   color: var(--loki-accent);
   text-decoration: none;
 }
-.loki-md a:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .loki-md a:hover {
+    text-decoration: underline;
+  }
 }
 .loki-md-img {
   max-width: 100%;
@@ -110,9 +112,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.loki-md-remote:hover {
-  color: var(--loki-fg);
-  border-color: var(--loki-muted);
+@media (hover: hover) and (pointer: fine) {
+  .loki-md-remote:hover {
+    color: var(--loki-fg);
+    border-color: var(--loki-muted);
+  }
 }
 .loki-md hr {
   border: 0;
@@ -170,10 +174,14 @@
   flex: none;
   margin: 0 6px -8px;
 } /* rides into the next row's top margin: 16px of rhythm, not 24 */
-.loki-bubble:hover .loki-bubble-copy,
 .loki-bubble:focus-within .loki-bubble-copy,
 .loki-bubble-copy[data-copied="true"] {
   opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-bubble:hover .loki-bubble-copy {
+    opacity: 1;
+  }
 }
 @media (hover: none) {
   .loki-bubble-copy {
@@ -205,8 +213,10 @@
   text-align: left;
   cursor: pointer;
 }
-.loki-steps-line:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-steps-line:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-steps-chev {
   flex: none;
@@ -247,8 +257,10 @@
   cursor: pointer;
   list-style: none;
 }
-.loki-steps-step:hover {
-  background: var(--loki-hover);
+@media (hover: hover) and (pointer: fine) {
+  .loki-steps-step:hover {
+    background: var(--loki-hover);
+  }
 }
 .loki-steps-failure {
   display: flex;
@@ -507,8 +519,10 @@
 button.loki-file-chip {
   cursor: pointer;
 }
-button.loki-file-chip:hover {
-  border-color: var(--loki-muted);
+@media (hover: hover) and (pointer: fine) {
+  button.loki-file-chip:hover {
+    border-color: var(--loki-muted);
+  }
 }
 .loki-file-chip[data-failed] {
   border-color: var(--loki-negative);
@@ -540,9 +554,11 @@ button.loki-file-chip:hover {
   line-height: 20px;
   cursor: pointer;
 }
-.loki-file-chip-remove:hover {
-  background: var(--loki-border);
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-file-chip-remove:hover {
+    background: var(--loki-border);
+    color: var(--loki-fg);
+  }
 }
 .loki-file-error {
   display: block;
@@ -586,11 +602,13 @@ button.loki-file-chip:hover {
   background: var(--loki-fg);
   color: var(--loki-bg);
 }
-.loki-btn.loki-composer-stop:hover:not(:disabled) {
-  border-color: var(--loki-fg);
-  background: var(--loki-fg);
-  color: var(--loki-bg);
-  opacity: 0.85;
+@media (hover: hover) and (pointer: fine) {
+  .loki-btn.loki-composer-stop:hover:not(:disabled) {
+    border-color: var(--loki-fg);
+    background: var(--loki-fg);
+    color: var(--loki-bg);
+    opacity: 0.85;
+  }
 }
 .loki-btn.loki-composer-stop:disabled {
   opacity: 0.5;
@@ -749,8 +767,10 @@ button.loki-file-chip:hover {
   white-space: nowrap;
   cursor: pointer;
 }
-.loki-model-tab:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-model-tab:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-model-tab[aria-selected="true"] {
   background: var(--loki-panel);
@@ -761,8 +781,10 @@ button.loki-file-chip:hover {
   opacity: 0.45;
   cursor: default;
 }
-.loki-model-tab[aria-disabled="true"]:hover {
-  color: var(--loki-muted);
+@media (hover: hover) and (pointer: fine) {
+  .loki-model-tab[aria-disabled="true"]:hover {
+    color: var(--loki-muted);
+  }
 }
 /* The effort levels under the list: a label, then the levels as small pills, the chosen one in the accent. */
 .loki-model-efforts {
@@ -786,8 +808,10 @@ button.loki-file-chip:hover {
   font-size: 12px;
   cursor: pointer;
 }
-.loki-model-effort:hover {
-  background: var(--loki-hover);
+@media (hover: hover) and (pointer: fine) {
+  .loki-model-effort:hover {
+    background: var(--loki-hover);
+  }
 }
 .loki-model-effort[aria-checked="true"] {
   border-color: var(--loki-accent);
@@ -879,8 +903,10 @@ button.loki-file-chip:hover {
   margin-top: 8px;
   padding-top: 6px;
 }
-.loki-msg:not(.loki-phone *):hover {
-  background: var(--loki-hover);
+@media (hover: hover) and (pointer: fine) {
+  .loki-msg:not(.loki-phone *):hover {
+    background: var(--loki-hover);
+  }
 }
 .loki-msg[data-queued]:not(.loki-phone *) .loki-msg-body {
   opacity: 0.7;
@@ -955,10 +981,14 @@ button.loki-file-chip:hover {
   opacity: 0.35;
   transition: opacity 120ms ease-out;
 }
-.loki-msg:not(.loki-phone *):hover .loki-msg-action,
 .loki-msg-action:not(.loki-phone *):focus-visible,
 .loki-msg-action[data-copied="true"] {
   opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-msg:not(.loki-phone *):hover .loki-msg-action {
+    opacity: 1;
+  }
 }
 .loki-msg-action[data-copied="true"] {
   color: var(--loki-positive);
@@ -1074,9 +1104,11 @@ button.loki-file-chip:hover {
   font: inherit;
   cursor: pointer;
 }
-.loki-inline-widget-open:hover {
-  color: var(--loki-fg);
-  border-color: var(--loki-muted);
+@media (hover: hover) and (pointer: fine) {
+  .loki-inline-widget-open:hover {
+    color: var(--loki-fg);
+    border-color: var(--loki-muted);
+  }
 }
 .loki-inline-widget-body {
   padding: 12px;
@@ -1090,8 +1122,10 @@ button.loki-file-chip:hover {
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title {
   color: var(--loki-accent);
 }
-.loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title {
+    text-decoration: underline;
+  }
 }
 .loki-widget-row-open:not(.loki-phone *):focus-visible {
   outline: 2px solid var(--loki-muted);
@@ -1180,8 +1214,10 @@ button.loki-file-chip:hover {
 button.loki-msg-task-open {
   cursor: pointer;
 }
-button.loki-msg-task-open:hover {
-  border-color: var(--loki-control-border);
+@media (hover: hover) and (pointer: fine) {
+  button.loki-msg-task-open:hover {
+    border-color: var(--loki-control-border);
+  }
 }
 button.loki-msg-task-open:focus-visible {
   outline: 2px solid var(--loki-accent);
@@ -1278,8 +1314,10 @@ button.loki-msg-task-open:focus-visible {
   color: var(--loki-muted);
   cursor: pointer;
 }
-.loki-task-source:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-task-source:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-task-source:focus-visible {
   outline: 2px solid var(--loki-accent);
@@ -1324,8 +1362,10 @@ button.loki-msg-task-open:focus-visible {
 button.loki-label-chip {
   cursor: pointer;
 }
-button.loki-label-chip:hover {
-  background: color-mix(in srgb, var(--label-tone) 28%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  button.loki-label-chip:hover {
+    background: color-mix(in srgb, var(--label-tone) 28%, transparent);
+  }
 }
 button.loki-label-chip:focus-visible {
   outline: 2px solid var(--loki-accent);
@@ -1363,8 +1403,10 @@ button.loki-label-chip:focus-visible {
   cursor: pointer;
   white-space: nowrap;
 }
-.loki-desk-pane-label-add:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-desk-pane-label-add:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-desk-pane-label-add:focus-visible {
   outline: 2px solid var(--loki-accent);
@@ -1420,9 +1462,13 @@ button.loki-label-chip:focus-visible {
 .loki-label-option + .loki-label-option {
   border-top: 1px solid var(--loki-border);
 }
-.loki-label-option:hover,
 .loki-label-option:focus-visible {
   background: var(--loki-hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-label-option:hover {
+    background: var(--loki-hover);
+  }
 }
 .loki-label-option:disabled {
   color: var(--loki-muted);

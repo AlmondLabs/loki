@@ -324,32 +324,34 @@ a:focus-visible {
   opacity: 0;
   transition: opacity 160ms ease-out;
 }
-.loki-frame:hover .loki-frame-resize,
 .loki-frame:focus-within .loki-frame-resize {
   opacity: 0.5;
 }
-.loki-frame-resize:hover {
-  opacity: 1 !important;
+@media (hover: hover) and (pointer: fine) {
+  .loki-frame:hover .loki-frame-resize {
+    opacity: 0.5;
+  }
+  .loki-frame-resize:hover {
+    opacity: 1 !important;
+  }
 }
-.loki-frame:hover .loki-frame-controls,
 .loki-frame:focus-within .loki-frame-controls {
   opacity: 1;
 }
+@media (hover: hover) and (pointer: fine) {
+  .loki-frame:hover .loki-frame-controls {
+    opacity: 1;
+  }
+}
 
-/* The waiting badge ticks when its count goes up. */
+/* The waiting badge ticks when its count goes up: the same small spring as a list's red badge (components.css),
+   by transform alone, so nothing is repainted while agents stream. */
 .loki-tick {
-  animation: loki-tick 480ms ease-out;
+  animation: loki-tick var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 @keyframes loki-tick {
-  0% {
-    transform: none;
-  }
-  30% {
-    transform: translateY(-2px) scale(1.03);
-    box-shadow: var(--loki-shadow-float);
-  }
-  100% {
-    transform: none;
+  from {
+    transform: scale(0.9);
   }
 }
 
@@ -362,8 +364,8 @@ a:focus-visible {
     opacity: 1;
   }
 }
-/* Sheets rise into place. */
-.loki-sheet {
+/* Sheets opened by a click rise into place (Sheet sets data-grow); a key's sheet is just there. */
+.loki-sheet[data-grow] {
   animation: loki-sheet 160ms ease-out both;
 }
 @keyframes loki-sheet {
@@ -377,9 +379,11 @@ a:focus-visible {
   }
 }
 /* Rail buttons. */
-.loki-rail:hover {
-  background: var(--loki-hover) !important;
-  color: var(--loki-fg) !important;
+@media (hover: hover) and (pointer: fine) {
+  .loki-rail:hover {
+    background: var(--loki-hover) !important;
+    color: var(--loki-fg) !important;
+  }
 }
 @keyframes loki-card-next {
   from {
@@ -411,15 +415,41 @@ a:focus-visible {
   }
 }
 
-/* Reduced motion: no durations and no delays — a delayed zero-length settle would leave a frame at its
-   from-keyframe (invisible) until the delay ran out. JS-driven camera glides read prefersReducedMotion()
-   from kit/motion.ts. */
+/* Reduced motion means less movement, not none. Every duration and delay goes to zero (a delayed zero-length
+   settle would leave a frame at its from-keyframe, invisible, until the delay ran out); then the things that
+   appear and help you follow what changed (a sheet and its veil, a popover, a chat's arriving rows and words,
+   widgets settling, the phone's banner) fade in briefly instead, with no move or scale. Without the fade they
+   would cut in hard, which is its own jolt. JS-driven moves read prefersReducedMotion() from kit/motion.ts. */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0ms !important;
     transition-delay: 0ms !important;
     animation-duration: 0ms !important;
     animation-delay: 0ms !important;
+  }
+  :is(
+    .loki-veil[data-grow],
+    .loki-sheet[data-grow],
+    .loki-popover[data-grow],
+    .loki-frame,
+    .loki-phone .loki-veil--bottom,
+    .loki-phone .loki-sheet-card--bottom,
+    .loki-phone .loki-md--live .loki-word,
+    .loki-phone [data-arrived],
+    .loki-phone .loki-banner
+  ) {
+    animation-name: loki-fade !important;
+    animation-duration: 150ms !important;
+    animation-timing-function: ease-out !important;
+  }
+  /* Opacity-only transitions keep a short fade too: controls showing on hover, a frame's glow. */
+  :is(.loki-frame-controls, .loki-frame-resize, .loki-frame-glow) {
+    transition-duration: 150ms !important;
+  }
+}
+@keyframes loki-fade {
+  from {
+    opacity: 0;
   }
 }
 

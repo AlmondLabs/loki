@@ -61,8 +61,10 @@
   cursor: pointer;
   border-radius: var(--loki-radius-sm);
 }
-.loki-search-clear:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-search-clear:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-search-row {
   min-height: 36px;
