@@ -2,6 +2,7 @@
 // session/load, session/prompt, session/cancel, session/set_mode, session/set_config_option) to be a real agent to
 // @agentclientprotocol/sdk. What it does with a prompt depends on the prompt's words:
 //   "hello"   streams "Hi " then "there", reports usage and its cost so far
+//   "write"   opens a call with no arguments yet (as Claude's adapter does), fills them in, and writes a file
 //   "edit"    asks permission to edit a file, then edits it (a diff) or reports the edit refused
 //   "plan"    reports a plan, then a reply
 //   "wait"    streams a word and waits for session/cancel
@@ -80,6 +81,18 @@ async function prompt(params) {
     say(id, "working");
     return new Promise((resolve) => cancels.set(id, () => resolve({ stopReason: "cancelled" })));
   }
+  if (text.includes("write")) {
+    update(id, { sessionUpdate: "tool_call", toolCallId: "call-w", title: "Preparing file…", kind: "edit", status: "pending" });
+    update(id, { sessionUpdate: "tool_call_update", toolCallId: "call-w", title: "Write a.txt", rawInput: { path: "a.txt", content: "a\n" } });
+    update(id, {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-w",
+      status: "completed",
+      content: [{ type: "diff", path: "a.txt", oldText: null, newText: "a\n" }],
+    });
+    say(id, "written");
+    return { stopReason: "end_turn" };
+  }
   if (text.includes("plan")) {
     update(id, {
       sessionUpdate: "plan",
@@ -154,7 +167,13 @@ async function handle(msg) {
       });
     case "session/new": {
       const sessionId = `s-${process.pid}-${nextSession++}`;
-      return ok({ sessionId, ...open(sessionId, p) });
+      ok({ sessionId, ...open(sessionId, p) });
+      // Its commands follow the session, as Claude's adapter sends them.
+      update(sessionId, {
+        sessionUpdate: "available_commands_update",
+        availableCommands: [{ name: "review", description: "review the changes", input: { hint: "[branch]" } }],
+      });
+      return;
     }
     case "session/load": {
       if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });

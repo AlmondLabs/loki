@@ -1,3 +1,5 @@
+import type { ChatEngineView } from "../models.ts";
+
 /**
  * Slash commands in the message box. Two kinds: the harness's own (chat_command to loki's daemon,
  * through the mod's socket) and loki's (a keymap action, run in place). The box shows a palette while a command is being typed;
@@ -38,6 +40,19 @@ export const LOKI_COMMANDS: SlashCommand[] = [
 export function allCommands(advertised: SlashCommand[] = [], only?: string[]): SlashCommand[] {
   const harness = only ? HARNESS_COMMANDS.filter((c) => only.includes(c.id)) : HARNESS_COMMANDS;
   return [...LOKI_COMMANDS, ...harness, ...advertised];
+}
+
+/**
+ * The commands a chat on an ACP agent offers (plan 020, R6): loki's own, loki's passes (which run on loki's side), and
+ * every command the agent lists, which goes to it as typed.
+ */
+export function engineCommands(engine: ChatEngineView): SlashCommand[] {
+  const passes = HARNESS_COMMANDS.filter((c) => c.id === "reflect" || c.id === "doctor");
+  const own = new Set([...LOKI_COMMANDS, ...passes].map((c) => c.id));
+  const agents = engine.commands
+    .filter((c) => !own.has(c.name))
+    .map((c): SlashCommand => ({ id: c.name, description: c.description, where: "harness", ...(c.hint ? { args: c.hint } : {}) }));
+  return [...LOKI_COMMANDS, ...passes, ...agents];
 }
 
 const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;

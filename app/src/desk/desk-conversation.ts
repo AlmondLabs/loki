@@ -39,6 +39,7 @@ export function deskConversation(
     model: desk.model,
     reasoningEffort: desk.reasoningEffort,
     mode: deskChat?.mode ?? desk.mode,
+    engine: deskChat?.engine ?? null,
     approval: pendingApproval,
     question: pendingQuestion,
     older: deskChat?.older ?? null,

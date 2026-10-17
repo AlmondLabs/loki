@@ -2,6 +2,7 @@ import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../har
 import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
+import type { ChatEngineView } from "../models.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
@@ -85,6 +86,8 @@ export interface Live {
   mode?: string;
   /** From update_device_status: the folder the conversation works in right now. */
   cwd?: string;
+  /** The ACP agent the chat runs on, with its modes and commands (plan 020); absent on loki's own engine. */
+  engine?: ChatEngineView | null;
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -194,8 +197,8 @@ export type ChatEvent =
   | { kind: "approval"; request_id: string; tool_name: string; input: unknown }
   /** The agent asks you questions (a question card), answered with the input filled in. */
   | { kind: "question"; request_id: string; input: unknown }
-  /** The chat's permission mode or folder, as the backend has them now. */
-  | { kind: "device"; mode?: string; cwd?: string }
+  /** The chat's permission mode, folder or engine, as the backend has them now. */
+  | { kind: "device"; mode?: string; cwd?: string; engine?: ChatEngineView | null }
   /** Whether the chat is running, idle, or waiting on an approval; `detail` is the backend's own word for it. */
   | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string; turn_id?: string }
   /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
@@ -232,6 +235,10 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       }
       if (e.cwd && e.cwd !== l.cwd) {
         l.cwd = e.cwd;
+        changed = true;
+      }
+      if (e.engine !== undefined && JSON.stringify(e.engine) !== JSON.stringify(l.engine ?? null)) {
+        l.engine = e.engine;
         changed = true;
       }
       return { changed, userSpoke: false };

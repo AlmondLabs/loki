@@ -224,7 +224,10 @@ export class ChatProjection implements ChatSource {
   info(conversationId: string, agentId?: string | null): LocalConversationInfo | null {
     const chat = this.find(conversationId, agentId);
     if (!chat) return null;
-    const model = chat.settings.model?.provider && chat.settings.model.modelId ? `${chat.settings.model.provider}/${chat.settings.model.modelId}` : null;
+    // A chat on an ACP agent runs on the agent's model and in the agent's own modes (plan 020).
+    const engine = chat.info?.engine?.kind === "acp" ? chat.info.engine : null;
+    const piModel = chat.settings.model?.provider && chat.settings.model.modelId ? `${chat.settings.model.provider}/${chat.settings.model.modelId}` : null;
+    const model = engine ? `acp:${engine.agent}/${engine.model}` : piModel;
     // An agent's main chat has no title of its own; call it by the agent's name.
     const fallback = chat.chatId === "default" ? `${this.agentName(chat.agentId) ?? "agent"} · main chat` : null;
     return {
@@ -234,7 +237,7 @@ export class ChatProjection implements ChatSource {
       archived: chat.info?.archived === true,
       model,
       reasoningEffort: effortOf(chat.settings.thinkingLevel),
-      mode: isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
+      mode: engine ? (chat.info?.mode ?? "default") : isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
     };
   }
 

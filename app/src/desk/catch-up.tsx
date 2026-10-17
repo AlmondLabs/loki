@@ -5,11 +5,10 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/transcript";
 import type { ModelEntry } from "../chat/model-picker";
-import type { PermissionMode } from "../chat/permission-mode";
 import { Conversation, type ChatStatus } from "../chat/conversation";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
-import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
@@ -44,7 +43,7 @@ interface CatchUpProps {
   conversation: (
     agentId: string,
     conversationId: string,
-  ) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; older?: (() => void) | null };
+  ) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; engine?: ChatEngineView | null; older?: (() => void) | null };
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -62,7 +61,7 @@ interface CatchUpProps {
   onPickModel?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
   /** The permission mode of a card's conversation, and its setter. */
   modeFor?: (agentId: string, conversationId: string) => string | null;
-  onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
+  onPickMode?: (item: AttentionItem, mode: string) => Promise<void>;
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
@@ -310,6 +309,7 @@ function Card({
           reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
           // The live thread's mode wins over the record's.
           mode: thread?.mode ?? modeFor?.(agentId, id) ?? null,
+          engine: thread?.engine ?? null,
           approval: current.pendingApproval ?? null,
           question: current.pendingQuestion ?? null,
           older: thread?.older ?? null,

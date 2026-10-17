@@ -26,7 +26,9 @@ import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
-import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./permission-mode";
+import { ModeSwitch } from "./permission-mode";
+import { engineControls } from "./engine-controls";
+import type { ChatEngineView } from "../../../core/models.ts";
 import { useChatTicks } from "./use-chat-ticks";
 import { useDraft, type ControlledDraft } from "./use-draft";
 import { useModelAndMode } from "./use-model-and-mode";
@@ -47,6 +49,8 @@ export interface ConversationView {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   mode?: string | null;
+  /** The ACP agent the chat runs on (plan 020): its models, modes and commands replace loki's; absent on loki's engine. */
+  engine?: ChatEngineView | null;
   approval?: PendingApproval | null;
   question?: PendingQuestion | null;
   /** Load the page of history older than `rows` (the reader reached the top); null or absent when there is none. */
@@ -62,7 +66,7 @@ export interface ConversationActions {
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
   onPickModel?: (selection: ModelSelection) => Promise<void>;
-  onPickMode?: (mode: PermissionMode) => Promise<void>;
+  onPickMode?: (mode: string) => Promise<void>;
   onLoadModels?: () => void;
   /** Take back a message typed mid-turn before it went out. */
   onCancelQueued?: (text: string) => void;
@@ -164,7 +168,7 @@ export function Conversation({
   const question = view.question ?? null;
   const model = view.model ?? null;
   const reasoningEffort = view.reasoningEffort ?? null;
-  const currentMode = isPermissionMode(view.mode) ? view.mode : null;
+  const { mode: currentMode, modes, pickable, commands } = engineControls(view, models ?? null, actions.commands);
   const g = { ...NO_GUTTER, ...gutter };
 
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -174,7 +178,7 @@ export function Conversation({
     question,
     onAnswer: actions.onAnswer,
     onSend: actions.onSend,
-    commands: actions.commands,
+    commands,
     onCommand: actions.onCommand,
     onSent,
     controlled: controlledDraft,
@@ -201,13 +205,14 @@ export function Conversation({
     modelPickerTick,
     modeMenuTick,
   });
-  const palette = useSlashPalette({ draft, onDraft: setDraft, commands: actions.commands ?? [], onCommand: actions.onCommand, inputRef });
+  const palette = useSlashPalette({ draft, onDraft: setDraft, commands: commands ?? [], onCommand: actions.onCommand, inputRef });
 
   const pillRef = useRef<HTMLButtonElement>(null);
   const hasModelPicker = !!actions.onPickModel;
   // The effort shows in the pill only when the model offers a choice of levels.
   const effort = effortEntriesFor(models ?? [], model).length > 1 ? reasoningEffort : null;
-  const hasModeMenu = !!actions.onPickMode;
+  // An agent that has not run yet has not said what its modes are; the chip waits for them.
+  const hasModeMenu = !!actions.onPickMode && (!modes || modes.length > 0);
   const onApprove = approval ? actions.onApprove : undefined;
   const canApprove = !!onApprove;
   const hasFooter = canApprove || !!footer;
@@ -231,7 +236,7 @@ export function Conversation({
       touch={touch}
       current={model}
       currentEffort={reasoningEffort}
-      entries={models}
+      entries={pickable}
       loading={!models}
       onPick={(selection) => void controls.pickModel(selection)}
       onClose={controls.closePicker}
@@ -318,18 +323,7 @@ export function Conversation({
                     {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
                     {!touch && picker}
                     {/* The permission mode beside the model: both say how this conversation's agent works. */}
-                    {hasModeMenu && (
-                      <span className="loki-mode-anchor">
-                        <ModeChip className="loki-model-pill loki-mode-pill" mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />
-                        <ModeMenu
-                          open={controls.modeOpen}
-                          side="above"
-                          current={currentMode}
-                          onPick={(m) => void controls.pickMode(m)}
-                          onClose={controls.closeMode}
-                        />
-                      </span>
-                    )}
+                    {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
                   </>
                 )
               }

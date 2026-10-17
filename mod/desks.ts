@@ -4,7 +4,6 @@ import type { Scope } from "../core/desk-core.ts";
 import { backendName, scopeFor } from "../core/desk-core.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
-import type { PermissionMode } from "../daemon/approvals.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 
 /** A chat by its agent and conversation ids, as the desk registry keeps it. */
@@ -135,8 +134,8 @@ export interface LocalConversationInfo {
   /** The conversation's own model, when it was switched away from the agent's. */
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
-  /** The chat's permission mode (glossary.md). */
-  mode: PermissionMode;
+  /** The chat's permission mode (glossary.md); on an ACP agent, the agent's own mode (plan 020, KD10). */
+  mode: string;
 }
 
 /** One conversation in the daemon's chat list, with whether it is archived or hidden. */

@@ -1,6 +1,6 @@
 import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
-import type { ModelEntry, ReasoningEffort } from "./models.ts";
+import type { ChatEngineView, ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
@@ -191,6 +191,8 @@ export interface ChatState {
   cwd: string | null;
   /** The answer in flight as written so far, when one is: a client opening mid-answer streams on from it. */
   streaming?: { text: string; at: string | null } | null;
+  /** The ACP agent the chat runs on (plan 020); null or absent on loki's own engine. */
+  engine?: ChatEngineView | null;
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */

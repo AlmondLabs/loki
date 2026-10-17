@@ -212,6 +212,7 @@ const acp = new AcpChats({
   context,
   agents: () => readAcpAgents(acpFile),
   homeDir: homedir(),
+  cacheFile: join(args.dir, "state", "acp-offered.json"),
 });
 const chat: DaemonChats = new DaemonChats({
   stores,

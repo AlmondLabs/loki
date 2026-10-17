@@ -2,7 +2,7 @@ import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Runtime } from "./protocol.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
-import type { AppliedModel, ModelSelection } from "../models.ts";
+import type { AppliedModel, ChatEngineView, ModelSelection } from "../models.ts";
 import type { ConnectProvider, PassSettings } from "./protocol.ts";
 import {
   applyChatEvent,
@@ -512,6 +512,7 @@ export function useAttention(opts: UseAttentionOptions) {
       error: string | null;
       mode: string | null;
       cwd: string | null;
+      engine: ChatEngineView | null;
       older: (() => void) | null;
     } => {
       const key = keyOf(agentId, conversationId);
@@ -525,6 +526,7 @@ export function useAttention(opts: UseAttentionOptions) {
         error: l?.error ?? null,
         mode: l?.mode ?? null,
         cwd: l?.cwd ?? null,
+        engine: l?.engine ?? null,
         older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null,
       };
     },

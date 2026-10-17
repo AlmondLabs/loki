@@ -57,6 +57,7 @@ function setup(opts: { systemPrompt?: (agentId: string) => string | null; env?: 
       agents: () => [{ ...FAKE, ...(opts.env ? { env: opts.env } : {}) }],
       ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
       homeDir: dir,
+      cacheFile: join(dir, "state", "acp-offered.json"),
     });
     const chats = new DaemonChats({
       stores,
@@ -142,7 +143,11 @@ describe("ACP agents (plan 020)", () => {
     const s = setup();
     const id = await s.chat();
     await s.say(id, "hello");
-    const kinds = s.events().map((e) => (e.kind === "step" ? `step:${e.step.kind}${e.step.kind === "assistant" && e.step.chunk ? "-chunk" : ""}` : e.kind));
+    // The engine's own updates (device) are the next test's.
+    const kinds = s
+      .events()
+      .filter((e) => e.kind !== "device")
+      .map((e) => (e.kind === "step" ? `step:${e.step.kind}${e.step.kind === "assistant" && e.step.chunk ? "-chunk" : ""}` : e.kind));
     expect(kinds).toEqual(["loop", "step:user", "step:assistant-chunk", "step:assistant-chunk", "step:assistant", "settle", "loop", "turn_end"]);
     expect(s.words()).toBe("Hi there");
     const { store, conversation, entries } = await s.stored(id);
@@ -261,6 +266,73 @@ describe("ACP agents (plan 020)", () => {
     await expect(s.chats.folder("ada", id, tmpdir())).rejects.toThrow(/folder it started in/);
     // A command other than loki's passes goes to the agent as typed.
     expect(await s.chats.command({ agent_id: "ada", conversation_id: id, command: "mode?", args: null })).toMatchObject({ success: true });
+  });
+
+  test("the picker offers the agent before it has run, then the models it offered, kept for the next start", async () => {
+    const s = setup();
+    expect(s.acp.models()).toEqual([
+      { id: "acp:fake/default", handle: "acp:fake/default", label: "Fake", description: "runs on Fake, signed in as you", is_featured: true },
+    ]);
+    const id = await s.chat();
+    await s.say(id, "hello");
+    const handles = () => s.acp.models().map((m) => [m.handle, m.label]);
+    expect(handles()).toEqual([
+      ["acp:fake/default", "Fake"],
+      ["acp:fake/sonnet", "Fake · Sonnet"],
+    ]);
+    expect((await s.chats.models()).map((m) => m.handle)).toContain("acp:fake/sonnet");
+    await s.restart();
+    expect(handles()).toEqual([
+      ["acp:fake/default", "Fake"],
+      ["acp:fake/sonnet", "Fake · Sonnet"],
+    ]);
+  });
+
+  test("the chat's engine reaches the app with the agent's modes and commands, and leaves when it goes back to loki", async () => {
+    const s = setup();
+    const { conversationId: id } = await s.chats.create("ada", null, null);
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
+    const engines = () => s.events().flatMap((e) => (e.kind === "device" && e.engine !== undefined ? [e.engine] : []));
+    expect(engines().at(-1)).toMatchObject({ agent: "fake", name: "Fake", model: "default", modes: [], commands: [] });
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "faux/faux-1", reasoning_effort: null });
+    expect(engines().at(-1)).toBeNull();
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
+    await s.say(id, "hello");
+    await until(() => (engines().at(-1)?.commands.length ?? 0) > 0);
+    const view = {
+      agent: "fake",
+      name: "Fake",
+      model: "default",
+      modes: [
+        { id: "default", name: "Default", description: null },
+        { id: "plan", name: "Plan", description: null },
+      ],
+      commands: [{ name: "review", description: "review the changes", hint: "[branch]" }],
+    };
+    expect(engines().at(-1)).toEqual(view);
+    expect((await s.chats.open("ada", id)).engine).toEqual(view);
+  });
+
+  test("a chat opened on loki's engine and then moved to an agent shows each message once", async () => {
+    const s = setup();
+    const { conversationId: id } = await s.chats.create("ada", null, null);
+    // Opened first, as the app does: loki follows the chat through pi-durable from here on.
+    await s.chats.open("ada", id);
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
+    await s.say(id, "hello");
+    const steps = s.events().flatMap((e) => (e.kind === "step" && !(e.step.kind === "assistant" && e.step.chunk) ? [e.step.kind] : []));
+    expect(steps).toEqual(["user", "assistant"]);
+  });
+
+  test("a call shows once it has arguments, and a file's last newline is not one more line of its diff", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "write");
+    const calls = s.events().flatMap((e) => (e.kind === "step" && e.step.kind === "call" ? [e.step] : []));
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => c.name === "Write a.txt")).toBe(true);
+    const result = s.events().find((e) => e.kind === "step" && e.step.kind === "result");
+    expect(result).toMatchObject({ step: { output: [{ type: "text", text: "--- a.txt\n+++ a.txt\n+a" }] } });
   });
 
   test("the agent's persona and memory go in its system prompt, or ahead of the first message when it takes none", async () => {
