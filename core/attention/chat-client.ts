@@ -166,7 +166,12 @@ export class FrameChatClient {
     this.opened.add(`${rt.agent_id}\u0000${rt.conversation_id}`);
     this.emit(rt, [
       { kind: "loop", state: state.loop, ...(state.turn_id ? { turn_id: state.turn_id } : {}) },
-      { kind: "device", ...(state.mode ? { mode: state.mode } : {}), ...(state.cwd ? { cwd: state.cwd } : {}) },
+      {
+        kind: "device",
+        ...(state.mode ? { mode: state.mode } : {}),
+        ...(state.cwd ? { cwd: state.cwd } : {}),
+        ...(state.engine !== undefined ? { engine: state.engine } : {}),
+      },
       // Opened mid-answer: what was written before this socket listened, so the reply shows from its first word.
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
     ]);

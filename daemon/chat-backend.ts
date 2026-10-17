@@ -84,6 +84,11 @@ export class DaemonChats implements ChatBackend {
   private readonly watching = new Map<string, Promise<void>>();
   /** Each followed chat's event converter, which knows the answer in flight (open hands it to a late client). */
   private readonly converters = new Map<string, ChatEventConverter>();
+  /**
+   * The chats known to run on an ACP agent. One opened while it was still on loki's engine is followed through
+   * pi-durable, which would turn the messages the ACP side writes into events a second time; its follower drops them.
+   */
+  private readonly onAcp = new Set<string>();
   private readonly deps: Deps;
 
   constructor(deps: Deps) {
@@ -101,9 +106,13 @@ export class DaemonChats implements ChatBackend {
   }
 
   /** The chat's engine when it runs on an ACP agent; null on loki's own. */
-  private async engine(store: AgentStore, chat: Conversation): Promise<ChatEngine | null> {
-    const engine = (await store.chatInfo(chat.id, this.deps.context))?.engine;
-    return engine?.kind === "acp" && this.deps.acp ? engine : null;
+  private async engine(agentId: string, conversationId: string, store: AgentStore, chat: Conversation): Promise<ChatEngine | null> {
+    const info = await store.chatInfo(chat.id, this.deps.context);
+    const engine = info?.engine?.kind === "acp" && this.deps.acp ? info.engine : null;
+    const key = `${agentId}\u0000${conversationId}`;
+    if (engine) this.onAcp.add(key);
+    else this.onAcp.delete(key);
+    return engine;
   }
 
   private get acp(): AcpChats {
@@ -126,7 +135,7 @@ export class DaemonChats implements ChatBackend {
 
   async open(agentId: string, conversationId: string, mode: string | null = null): Promise<ChatState> {
     const { store, chat } = await this.chat(agentId, conversationId);
-    const engine = await this.engine(store, chat);
+    const engine = await this.engine(agentId, conversationId, store, chat);
     // An ACP chat's modes are its agent's own (KD10), so they are not loki's four.
     if (mode !== null && engine) await this.acp.setMode(agentId, conversationId, mode);
     else if (mode !== null) {
@@ -211,6 +220,7 @@ export class DaemonChats implements ChatBackend {
     const converter = new ChatEventConverter(agentId);
     this.converters.set(`${agentId}\u0000${conversationId}`, converter);
     stream.start(async (batch) => {
+      if (this.onAcp.has(`${agentId}\u0000${conversationId}`)) return;
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.push(agentId, conversationId, events);
       // A compaction drops what the chat had loaded from MCP with the rest of its context.
@@ -223,7 +233,7 @@ export class DaemonChats implements ChatBackend {
     const store = await this.deps.stores.get(agentId);
     const chat = await store.chat(conversationId, this.deps.context);
     if (!chat) return false;
-    if (await this.engine(store, chat)) return this.acp.busy(agentId, conversationId);
+    if (await this.engine(agentId, conversationId, store, chat)) return this.acp.busy(agentId, conversationId);
     if (this.deps.approvals.waitingIn(agentId, conversationId).length > 0) return true;
     return Boolean((await store.harness.snapshot(LiveDoc, chat.id, this.deps.context))?.run);
   }
@@ -263,7 +273,7 @@ export class DaemonChats implements ChatBackend {
 
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { store, chat } = await this.chat(p.agent_id, p.conversation_id);
-    const engine = await this.engine(store, chat);
+    const engine = await this.engine(p.agent_id, p.conversation_id, store, chat);
     if (engine) {
       this.acp.send(p, engine);
       return true;
@@ -295,7 +305,7 @@ export class DaemonChats implements ChatBackend {
    */
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<void> {
     const { store, chat } = await this.chat(agentId, conversationId);
-    const engine = await this.engine(store, chat);
+    const engine = await this.engine(agentId, conversationId, store, chat);
     if (engine) return this.acp.deliver(agentId, conversationId, text, engine);
     await this.healModel(store, chat);
     await this.deps.mcp?.prepare(store, chat, this.deps.context);
@@ -314,7 +324,7 @@ export class DaemonChats implements ChatBackend {
 
   async abort(agentId: string, conversationId: string): Promise<void> {
     const { store, chat } = await this.chat(agentId, conversationId);
-    if (await this.engine(store, chat)) return this.acp.abort(agentId, conversationId);
+    if (await this.engine(agentId, conversationId, store, chat)) return this.acp.abort(agentId, conversationId);
     await chat.abort(this.deps.context);
   }
 
@@ -331,7 +341,7 @@ export class DaemonChats implements ChatBackend {
   async folder(agentId: string, conversationId: string, cwd: string): Promise<ChatState> {
     const { store, chat } = await this.chat(agentId, conversationId);
     // An agent's session runs in the folder it was opened in.
-    if ((await this.engine(store, chat))?.session_id)
+    if ((await this.engine(agentId, conversationId, store, chat))?.session_id)
       throw new Error("this chat runs on an ACP agent in the folder it started in; start a new chat for another folder");
     await chat.configure({ cwd }, this.deps.context);
     this.push(agentId, conversationId, [{ kind: "device", cwd }]);
@@ -344,7 +354,7 @@ export class DaemonChats implements ChatBackend {
    */
   async model(p: PayloadOf<"chat_model">): Promise<void> {
     const { store, chat } = await this.chat(p.agent_id, p.conversation_id);
-    const engine = await this.engine(store, chat);
+    const engine = await this.engine(p.agent_id, p.conversation_id, store, chat);
     const wanted = acpHandle(p.handle);
     if (wanted) {
       if (!this.acp.agent(wanted.agent)) throw new Error(`no ACP agent named ${wanted.agent}`);
@@ -352,12 +362,21 @@ export class DaemonChats implements ChatBackend {
         throw new Error("this chat has started on another engine; start a new chat to use this one");
       const next: ChatEngine = { kind: "acp", agent: wanted.agent, model: wanted.model, session_id: engine?.agent === wanted.agent ? engine.session_id : null };
       await store.updateChat(p.conversation_id, { engine: next }, this.deps.context);
+      this.onAcp.add(`${p.agent_id}\u0000${p.conversation_id}`);
       if (engine?.agent === wanted.agent) await this.acp.setModel(p.agent_id, p.conversation_id, wanted.model);
+      else {
+        // The agent's own modes replace loki's: its first until its session says which one it is in.
+        const view = this.acp.view(p.agent_id, p.conversation_id, next);
+        this.push(p.agent_id, p.conversation_id, [{ kind: "device", engine: view, ...(view.modes.length ? { mode: view.modes[0].id } : {}) }]);
+      }
       return;
     }
     if (engine) {
       if (await this.started(chat)) throw new Error("this chat has started on an ACP agent; start a new chat to use loki's models");
       await store.updateChat(p.conversation_id, { engine: null }, this.deps.context);
+      this.onAcp.delete(`${p.agent_id}\u0000${p.conversation_id}`);
+      const mode = (await store.chatInfo(chat.id, this.deps.context))?.mode;
+      this.push(p.agent_id, p.conversation_id, [{ kind: "device", engine: null, mode: isPermissionMode(mode) ? mode : "unrestricted" }]);
     }
     const model = modelRef(p.handle);
     if (!model) throw new Error(`not a model handle: ${p.handle}`);
@@ -367,7 +386,9 @@ export class DaemonChats implements ChatBackend {
 
   async models(): Promise<ModelEntry[]> {
     const available = await this.deps.models.getAvailable();
-    return available.map((m) => ({ id: `${m.provider}/${m.id}`, handle: `${m.provider}/${m.id}`, label: m.name || m.id }));
+    const own = available.map((m) => ({ id: `${m.provider}/${m.id}`, handle: `${m.provider}/${m.id}`, label: m.name || m.id }));
+    // Each ACP agent's models after loki's own (plan 020, KD3): picking one before the first message moves the chat there.
+    return [...own, ...(this.deps.acp?.models() ?? [])];
   }
 
   agents(): Promise<Array<{ id: string; name: string }>> {
@@ -439,7 +460,7 @@ export class DaemonChats implements ChatBackend {
   /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect, /doctor. */
   async command(p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
     const { store, chat } = await this.chat(p.agent_id, p.conversation_id);
-    const engine = await this.engine(store, chat);
+    const engine = await this.engine(p.agent_id, p.conversation_id, store, chat);
     // On an ACP agent, every command but loki's passes is the agent's: it goes to the agent as it was typed.
     if (engine && p.command !== "reflect" && p.command !== "doctor") {
       const typed = `/${p.command}${p.args?.trim() ? ` ${p.args.trim()}` : ""}`;

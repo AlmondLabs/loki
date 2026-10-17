@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import type { PermissionMode } from "./permission-mode";
 import type { ModelSelection } from "../../../core/models.ts";
 
 /**
@@ -16,7 +15,7 @@ export function useModelAndMode({
 }: {
   onLoadModels?: () => void;
   onPickModel?: (selection: ModelSelection) => Promise<void>;
-  onPickMode?: (mode: PermissionMode) => Promise<void>;
+  onPickMode?: (mode: string) => Promise<void>;
   modelPickerTick: number;
   modeMenuTick: number;
 }) {
@@ -49,7 +48,7 @@ export function useModelAndMode({
     setSeenModeTick(modeMenuTick);
     if (modeMenuTick > 0 && onPickMode) setModeOpen(true);
   }
-  const pickMode = async (m: PermissionMode) => {
+  const pickMode = async (m: string) => {
     if (!onPickMode) return;
     setModeOpen(false);
     setChangingMode(true);

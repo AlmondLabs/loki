@@ -388,6 +388,23 @@ exists and differs. On the phone it is **Change folder** in the chat's actions s
 that agent has worked in. The daemon moves the chat, and its commands and file tools work in the new folder from
 the next turn.
 
+**Chat through Claude Code.** Any agent's chat can run through Claude Code instead of one of loki's models, signed
+in with your own Claude plan. In a new chat, before you send anything, choose **Claude Code** in the model picker
+(its other models are under **More models** once it has run once). From the first message the chat stays on Claude
+Code: the picker offers only Claude Code's models, and a new chat is how you go back to loki's. loki starts Claude
+Code itself, the first time through `npx`, so it needs Node and a `claude` that is signed in (`claude /login` in a
+terminal). In such a chat:
+
+- the replies, tool calls and their diffs show as in any chat, and stay in loki's history and the Inbox;
+- when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
+  Code's own list, not loki's;
+- the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
+- the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
+  run on loki's side;
+- Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session.
+
+Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
+
 ## Questions from the agent
 
 When an agent calls `ask_user`, the conversation (on either tab) and the inbox card show

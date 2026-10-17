@@ -18,6 +18,31 @@ export interface ModelEntry {
   recent?: number;
 }
 
+/**
+ * The ACP agent a chat runs on, as the app shows it (plan 020): its name, the model it was given, and what the agent
+ * offers in this chat, its own permission modes and slash commands (KD10). Null on loki's own engine.
+ */
+export interface ChatEngineView {
+  agent: string;
+  name: string;
+  model: string;
+  modes: Array<{ id: string; name: string; description: string | null }>;
+  commands: Array<{ name: string; description: string; hint: string | null }>;
+}
+
+/** The model handle prefix of an ACP agent's models (`acp:<agent>/<model>`, daemon/acp/agents.ts). */
+export const acpPrefix = (agent: string) => `acp:${agent}/`;
+
+/**
+ * The models a chat can switch to (plan 020, KD4): on an ACP agent, that agent's own; on loki's engine once something
+ * has been said, loki's own; before the first message, all of them, so the chat can move to an ACP agent.
+ */
+export function pickableEntries(entries: ModelEntry[] | null, engine: Pick<ChatEngineView, "agent"> | null, started: boolean): ModelEntry[] | null {
+  if (!entries) return entries;
+  if (engine) return entries.filter((e) => e.handle.startsWith(acpPrefix(engine.agent)));
+  return started ? entries.filter((e) => !e.handle.startsWith("acp:")) : entries;
+}
+
 /** A concrete list_models preset. The id preserves provider-specific settings attached to that preset. */
 export interface ModelSelection {
   id: string;

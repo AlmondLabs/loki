@@ -2,10 +2,13 @@ import type { Context } from "@earendil-works/chord";
 import type { Conversation } from "@earendil-works/pi-durable";
 import type * as acp from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { contentText } from "../../core/harness.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import { messageSteps } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
+import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
@@ -30,7 +33,25 @@ interface Deps {
   systemPrompt?: (agentId: string) => string | null;
   /** The folder a chat with none set runs in. */
   homeDir: string;
+  /**
+   * Where what each agent last offered (its models, modes and commands) is kept, so the model picker and a chat's
+   * menus have them before the agent next starts; absent, they are kept only while the daemon runs.
+   */
+  cacheFile?: string;
   now?: () => Date;
+}
+
+/** What an agent offered in its last session: the model picker's and the mode chip's choices, and its commands. */
+interface Offered {
+  models: Array<{ value: string; name: string; description: string | null }>;
+  modes: ChatEngineView["modes"];
+  commands: ChatEngineView["commands"];
+}
+
+/** A select option list, its groups flattened. */
+function selectOptions(option: acp.SessionConfigOption | undefined): Offered["models"] {
+  if (option?.type !== "select") return [];
+  return option.options.flatMap((o) => ("options" in o ? o.options : [o])).map((o) => ({ value: o.value, name: o.name, description: o.description ?? null }));
 }
 
 /** A tool call in the turn running now: shown as it changes, written when it finishes. */
@@ -42,6 +63,9 @@ interface Call {
   output: string;
   done: boolean;
 }
+
+/** Whether a call's arguments say anything yet (Claude's adapter opens a call as "Preparing file…" with none). */
+const hasArgs = (args: unknown) => args !== undefined && args !== null && !(typeof args === "object" && Object.keys(args).length === 0);
 
 /** The turn running in a chat. */
 interface Turn {
@@ -65,6 +89,8 @@ interface Live {
   agentId: string;
   conversationId: string;
   agent: string;
+  /** The model the chat runs on, as the picker named it. */
+  model: string;
   sessionId: string | null;
   /** The process start the session belongs to: a restarted agent has none of its sessions open. */
   epoch: number;
@@ -89,8 +115,10 @@ function contentOutput(content: acp.ToolCallContent[] | null | undefined): strin
   return (content ?? [])
     .map((c) => {
       if (c.type === "diff") {
-        const old = (c.oldText ?? "").split("\n").map((l) => `-${l}`);
-        const now = c.newText.split("\n").map((l) => `+${l}`);
+        // A file's last newline ends its last line; it is not one more line.
+        const lines = (text: string) => text.replace(/\n$/, "").split("\n");
+        const old = lines(c.oldText ?? "").map((l) => `-${l}`);
+        const now = lines(c.newText).map((l) => `+${l}`);
         return [`--- ${c.path}`, `+++ ${c.path}`, ...(c.oldText ? old : []), ...now].join("\n");
       }
       if (c.type === "terminal") return `(terminal ${c.terminalId})`;
@@ -123,11 +151,91 @@ export class AcpChats {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly live = new Map<string, Live>();
   private readonly bySession = new Map<string, Live>();
+  /** Updates for a session loki has not registered yet (they can arrive with its `session/new` answer), replayed once it has. */
+  private readonly early = new Map<string, acp.SessionNotification[]>();
   private readonly processes = new Map<string, AcpProcess>();
+  private readonly offered: Map<string, Offered>;
   private readonly deps: Deps;
 
   constructor(deps: Deps) {
     this.deps = deps;
+    this.offered = new Map(Object.entries(this.readCache()));
+  }
+
+  private readCache(): Record<string, Offered> {
+    try {
+      const parsed: unknown = this.deps.cacheFile ? JSON.parse(readFileSync(this.deps.cacheFile, "utf8")) : null;
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, Offered>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Remember what a session offers, for the picker and for chats whose agent is not running now. */
+  private remember(live: Live): void {
+    const known = this.offered.get(live.agent);
+    const modeOption = live.configOptions.find((o) => o.category === "mode");
+    const next: Offered = {
+      models: selectOptions(live.configOptions.find((o) => o.category === "model")),
+      modes: live.modes
+        ? live.modes.availableModes.map((m) => ({ id: m.id, name: m.name, description: m.description ?? null }))
+        : selectOptions(modeOption).map((o) => ({ id: o.value, name: o.name, description: o.description })),
+      commands: live.commands.length
+        ? live.commands.map((c) => ({ name: c.name, description: c.description, hint: c.input?.hint ?? null }))
+        : (known?.commands ?? []),
+    };
+    if (JSON.stringify(next) === JSON.stringify(known)) return;
+    this.offered.set(live.agent, next);
+    if (!this.deps.cacheFile) return;
+    try {
+      mkdirSync(dirname(this.deps.cacheFile), { recursive: true });
+      writeFileSync(this.deps.cacheFile, `${JSON.stringify(Object.fromEntries(this.offered), null, 2)}\n`);
+    } catch {
+      // Only a convenience: the next session offers them again.
+    }
+  }
+
+  /** The chat's engine as the app shows it: the agent's name, the model, and its modes and commands. */
+  view(agentId: string, conversationId: string, engine: ChatEngine): ChatEngineView {
+    const offered = this.offered.get(engine.agent);
+    return {
+      agent: engine.agent,
+      name: this.agent(engine.agent)?.name ?? engine.agent,
+      model: engine.model,
+      modes: offered?.modes ?? [],
+      commands: offered?.commands ?? [],
+    };
+  }
+
+  /** Tell every client the chat's engine changed (its modes or commands arrived), and its mode when that is known. */
+  private pushView(live: Live, engine: Pick<ChatEngine, "agent" | "model">, mode?: string): void {
+    const view = this.view(live.agentId, live.conversationId, { kind: "acp", session_id: null, ...engine });
+    this.push(live.agentId, live.conversationId, [{ kind: "device", engine: view, ...(mode ? { mode } : {}) }]);
+  }
+
+  /** The mode the agent's session is in now: its mode state, or its mode option. */
+  private currentMode(live: Live): string | null {
+    if (live.modes) return live.modes.currentModeId;
+    const option = live.configOptions.find((o) => o.category === "mode");
+    return option?.type === "select" ? option.currentValue : null;
+  }
+
+  /**
+   * Each ACP agent's models for the model picker: what it offered last, or its default before it has run. Its
+   * default is featured, so the agent is among the quick picks.
+   */
+  models(): ModelEntry[] {
+    return this.deps.agents().flatMap((agent) => {
+      const models = this.offered.get(agent.id)?.models ?? [];
+      const choices = models.some((m) => m.value === "default") ? models : [{ value: "default", name: "Default", description: null }, ...models];
+      return choices.map((m): ModelEntry => ({
+        id: `acp:${agent.id}/${m.value}`,
+        handle: `acp:${agent.id}/${m.value}`,
+        label: m.value === "default" ? agent.name : `${agent.name} · ${m.name}`,
+        description: m.description ?? `runs on ${agent.name}, signed in as you`,
+        ...(m.value === "default" ? { is_featured: true } : {}),
+      }));
+    });
   }
 
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void {
@@ -165,6 +273,7 @@ export class AcpChats {
         agentId,
         conversationId,
         agent: engine.agent,
+        model: engine.model,
         sessionId: null,
         epoch: -1,
         loading: false,
@@ -209,6 +318,7 @@ export class AcpChats {
       turn_id: turn?.id ?? null,
       mode: info.mode ?? live?.modes?.currentModeId ?? null,
       cwd: settings?.cwd ?? null,
+      engine: info.engine?.kind === "acp" ? this.view(agentId, conversationId, info.engine) : null,
       ...(turn?.text ? { streaming: { text: turn.text, at: turn.at } } : {}),
     };
   }
@@ -253,7 +363,10 @@ export class AcpChats {
   /** The agent's model for the chat: set on its session when one is open; a new session starts on it. */
   async setModel(agentId: string, conversationId: string, model: string): Promise<void> {
     const live = this.live.get(key(agentId, conversationId));
-    if (live?.sessionId && live.epoch === this.process(live.agent).epoch()) await this.applyModel(live, model);
+    if (!live) return;
+    live.model = model;
+    if (live.sessionId && live.epoch === this.process(live.agent).epoch()) await this.applyModel(live, model);
+    this.pushView(live, { agent: live.agent, model });
   }
 
   /** The slash commands the agent offers in this chat, as it last listed them. */
@@ -322,6 +435,8 @@ export class AcpChats {
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
       }
       opened = await proc.newSession({ cwd, mcpServers: [], ...systemPrompt });
+      // Known before anything else is awaited: the agent sends its commands right after it answers.
+      this.register(opened.sessionId, live);
       await store.updateChat(live.conversationId, { engine: { ...engine, session_id: opened.sessionId } }, this.deps.context);
     }
     live.sessionId = opened.sessionId;
@@ -329,9 +444,15 @@ export class AcpChats {
     live.modes = opened.modes ?? null;
     live.configOptions = opened.configOptions ?? [];
     live.preamble = prompt && !takesPrompt ? prompt : null;
-    this.bySession.set(opened.sessionId, live);
+    this.register(opened.sessionId, live);
+    this.remember(live);
     await this.applyModel(live, engine.model);
-    if (info.mode) await this.applyMode(live, info.mode).catch(() => {});
+    // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in.
+    const offered = this.offered.get(live.agent)?.modes ?? [];
+    if (info.mode && offered.some((m) => m.id === info.mode)) await this.applyMode(live, info.mode).catch(() => {});
+    const mode = this.currentMode(live);
+    if (mode && mode !== info.mode) await store.updateChat(live.conversationId, { mode }, this.deps.context);
+    this.pushView(live, engine, mode ?? undefined);
     return opened.sessionId;
   }
 
@@ -461,10 +582,25 @@ export class AcpChats {
     );
   }
 
+  /** A session is the chat's from now on; what it reported before loki knew it is taken in now. */
+  private register(sessionId: string, live: Live): void {
+    if (this.bySession.get(sessionId) === live) return;
+    this.bySession.set(sessionId, live);
+    const early = this.early.get(sessionId) ?? [];
+    this.early.delete(sessionId);
+    for (const n of early) this.update(n);
+  }
+
   /** What the agent reports as it works, for whichever chat the session is. */
   private update(n: acp.SessionNotification): void {
     const live = this.bySession.get(n.sessionId);
-    if (!live || live.loading) return;
+    if (!live) {
+      // A few, for a few sessions: only what comes between an answer and its session being registered.
+      const held = this.early.get(n.sessionId) ?? [];
+      if (held.length < 20) this.early.set(n.sessionId, [...held, n]);
+      if (this.early.size > 8) this.early.delete(this.early.keys().next().value ?? "");
+      return;
+    }
     const u = n.update;
     const push = (events: ChatEvent[]) => this.push(live.agentId, live.conversationId, events);
     switch (u.sessionUpdate) {
@@ -478,11 +614,16 @@ export class AcpChats {
         return;
       case "available_commands_update":
         live.commands = u.availableCommands;
+        this.remember(live);
+        this.pushView(live, { agent: live.agent, model: live.model });
         return;
       case "config_option_update":
         live.configOptions = u.configOptions;
+        this.remember(live);
         return;
     }
+    // A loaded session's history, replayed: loki has it already.
+    if (live.loading) return;
     const turn = live.turn;
     if (!turn) return;
     const now = this.now();
@@ -506,7 +647,10 @@ export class AcpChats {
         turn.text = "";
         turn.at = null;
         turn.calls.set(u.toolCallId, call);
-        push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
+        // A call is shown once it has arguments, not under the agent's placeholder title.
+        if (hasArgs(call.args)) {
+          push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
+        }
         if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
         return;
       }
@@ -518,8 +662,9 @@ export class AcpChats {
         const output = contentOutput(u.content);
         if (output) call.output = output;
         if (u.status === "completed" || u.status === "failed") this.completeCall(live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
-        else if (u.title || u.rawInput !== undefined)
+        else if ((u.title || u.rawInput !== undefined) && hasArgs(call.args)) {
           push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now } }]);
+        }
         return;
       }
       case "plan":

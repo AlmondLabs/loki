@@ -4,7 +4,7 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
-import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import type { TranscriptRow } from "../chat/transcript";
 import { Conversation, type ChatStatus } from "../chat/conversation";
@@ -44,6 +44,8 @@ export interface ThreadView {
   pending: PendingApproval | null;
   question: PendingQuestion | null;
   error: string | null;
+  /** The ACP agent the chat runs on (plan 020), whose models the picker offers once the chat has started. */
+  engine?: ChatEngineView | null;
   older?: (() => void) | null;
 }
 
@@ -198,6 +200,7 @@ export function ConversationScreen({
                 error: view.error,
                 model,
                 reasoningEffort,
+                engine: view.engine ?? null,
                 approval: view.pending,
                 question: view.question,
                 older: view.older ?? null,

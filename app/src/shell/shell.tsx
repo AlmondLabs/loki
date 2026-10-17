@@ -41,7 +41,7 @@ import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-
 import { agentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
-import { effortLabel } from "../chat/model-picker";
+import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { pageActivity } from "../shared/page-activity";
 
@@ -165,7 +165,10 @@ export function Shell() {
     desk.setDeskModel(scope, applied.handle, applied.reasoning_effort);
     desk.models.used(applied.handle);
     const effort = applied.reasoning_effort ? ` · effort ${effortLabel(applied.reasoning_effort)}` : "";
-    notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${applied.handle.split("/").pop()}${effort}`);
+    // The model as the pill names it ("Claude Code", "claude-fable-5"), not the last part of its handle.
+    notice(
+      `${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${modelName(modelList ?? null, applied.handle)}${effort}`,
+    );
   };
   const [modelPickerTick, setModelPickerTick] = useState(0);
   const [modeMenuTick, setModeMenuTick] = useState(0);
