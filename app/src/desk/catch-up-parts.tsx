@@ -1,5 +1,7 @@
 import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
+import type { LabelView } from "../../../core/labels.ts";
+import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { ConversationHeader } from "../chat/conversation";
@@ -130,10 +132,12 @@ export interface CardHeaderProps {
   current: AttentionItem;
   cameBack: boolean;
   flash: string | null;
+  /** The labels' colours (plan 022), for the chat's chips beside when and why. */
+  labelList?: readonly LabelView[] | null;
 }
 
 /** Title, who and when, why it ranks here, and the status badge. The mode and model chips sit in the card's last row. */
-export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
+export function CardHeader({ current, cameBack, flash, labelList = null }: CardHeaderProps) {
   const badge = BADGE[current.status];
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
@@ -156,6 +160,7 @@ export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
+      <LabelChips labels={current.labels} list={labelList} />
     </ConversationHeader>
   );
 }

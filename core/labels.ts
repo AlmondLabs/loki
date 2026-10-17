@@ -33,3 +33,19 @@ export function chatLabels(raw: readonly string[]): string[] {
   const names = raw.map(labelName).filter((n): n is string => n !== null);
   return [...new Set(names)].slice(0, LABELS_PER_CHAT);
 }
+
+/**
+ * A query typed in the sidebar's filter or ⌘K, split into its `label:` terms (each a label name) and the words left
+ * over (plan 022, R4): "label:infra deploy" is the label infra and the words "deploy".
+ */
+export function labelQuery(raw: string): { labels: string[]; text: string } {
+  const labels: string[] = [];
+  const words: string[] = [];
+  for (const word of raw.trim().split(/\s+/)) {
+    const term = /^label:(.*)$/i.exec(word);
+    const name = term ? labelName(term[1]) : null;
+    if (name) labels.push(name);
+    else if (word && !term) words.push(word);
+  }
+  return { labels, text: words.join(" ") };
+}

@@ -1,5 +1,6 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import { labelQuery } from "../../../core/labels.ts";
 
 /**
  * The desk sidebar's model (plan 013 U4), pure so its rules are tested without a window: Pinned, then one
@@ -55,6 +56,8 @@ export function cleanDeskName(raw: string): string | null {
   const name = raw.replace(/\s+/g, " ").trim().slice(0, DESK_NAME_MAX).trimEnd();
   return name || null;
 }
+/** A desk with an agent and a conversation, not deleted, can carry labels (plan 022); a main chat can too. */
+export const canLabel = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 /** A desk with an agent and a conversation, not deleted, can move to another folder (the daemon keeps it per chat). */
 export const canMove = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
@@ -141,11 +144,15 @@ export function sidebarModel(
   items: AttentionItem[],
   opts: { query?: string; current?: string; agents?: Array<{ id: string; name: string }> },
 ): SidebarModel {
-  const q = (opts.query ?? "").trim().toLowerCase();
+  // `label:` terms keep the chats with every label named; the words left match titles and agents (plan 022, R4).
+  const query = labelQuery(opts.query ?? "");
+  const q = query.text.toLowerCase();
+  const filtering = q !== "" || query.labels.length > 0;
   const itemOf = new Map(items.map((i) => [`${i.agent_id}/${i.id}`, i]));
   const names = new Map((opts.agents ?? []).map((a) => [a.id, a.name]));
   const agentName = (d: DeskSummary) => (d.agent_id ? (names.get(d.agent_id) ?? d.agent_name) : d.agent_name) ?? (d.agent_id ? "Agent" : "Other chats");
-  const matches = (d: DeskSummary) => !q || (d.title ?? "").toLowerCase().includes(q) || agentName(d).toLowerCase().includes(q);
+  const matches = (d: DeskSummary) =>
+    query.labels.every((l) => d.labels?.includes(l)) && (!q || (d.title ?? "").toLowerCase().includes(q) || agentName(d).toLowerCase().includes(q));
   const row = (d: DeskSummary): SidebarRow => ({
     desk: d,
     ...deskRowState(itemOf.get(`${d.agent_id}/${d.conversation_id}`), d),
@@ -175,7 +182,7 @@ export function sidebarModel(
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
   const archived = desks.filter((d) => d.status !== "live" && matches(d)).map(row);
-  return { sections, archived, empty: !!q && sections.length === 0 && archived.length === 0 };
+  return { sections, archived, empty: filtering && sections.length === 0 && archived.length === 0 };
 }
 
 function section(id: string, title: string, agentId: string | null, rows: SidebarRow[]): SidebarSection {

@@ -117,6 +117,8 @@ export function Shell() {
   }, []);
   /** ⌘K search (SearchSheet): a sheet over whatever shows. */
   const [searchOpen, setSearchOpen] = useState(false);
+  /** The Chats sidebar's filter, held here so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
+  const [sidebarQuery, setSidebarQuery] = useState("");
   /** Preferences: the Settings sheet over the section showing (KTD11). The rail keeps that section highlighted underneath. */
   const [prefsOpen, setPrefsOpen] = useState(false);
   // The view on screen, the desk under it, the chat open or closed — an event on each change.
@@ -321,6 +323,13 @@ export function Shell() {
   }, [segment, desk.scope]);
   // The list column between the rail and the main pane (Desk, Tasks, Agents, Learn); the pane starts where it ends.
   const column = useColumn(segment);
+  /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
+  const showLabel = (name: string) => {
+    setSidebarQuery(`label:${name}`);
+    setPrefsOpen(false);
+    setSegment("desk");
+    if (!column.open) column.toggle();
+  };
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
   const immersive = sidebarHidden(segment, pane.tab);
   const columnShown = column.shown && !immersive;
@@ -380,8 +389,8 @@ export function Shell() {
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
   const searchSources = useMemo(
-    () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items }),
-    [desk.desks.list, catchUp.agents, catchUp.items],
+    () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, labels: catchUp.labels.list }),
+    [desk.desks.list, catchUp.agents, catchUp.items, catchUp.labels.list],
   );
   const openHit = ({ target: t }: SearchHit) => {
     setSearchOpen(false);
@@ -392,6 +401,7 @@ export function Shell() {
       return;
     }
     setPrefsOpen(false);
+    if (t.kind === "label") return showLabel(t.name);
     if (t.kind === "desk") return openDesk(t.agentId, t.conversationId);
     if (t.kind === "agent") {
       agentsSelection.pickAgent(t.agentId);
@@ -429,6 +439,8 @@ export function Shell() {
                 notice={notice}
                 onOpen={switchDesk}
                 onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })}
+                query={sidebarQuery}
+                onQuery={setSidebarQuery}
               />
             ),
             tasks: <TasksColumn tasks={tasks.list} onNew={() => setCaptureOpen(true)} />,
@@ -464,6 +476,7 @@ export function Shell() {
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
               taskApi={taskApi}
+              onShowLabel={showLabel}
             />
           </div>
 
@@ -471,6 +484,7 @@ export function Shell() {
             <InboxView
               desk={desk}
               catchUp={catchUp}
+              notice={notice}
               models={modelList}
               onLoadModels={loadModels}
               onPickModel={pickModel}

@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
+import type { LabelView } from "../../../core/labels.ts";
+import { LabelChips } from "../chat/labels";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -383,7 +385,10 @@ export function Inbox({
   onArchive,
   onUndo,
   card,
+  labelList = null,
 }: {
+  /** The labels' colours (plan 022), for the top card's chips. */
+  labelList?: readonly LabelView[] | null;
   items: AttentionItem[];
   /** The daemon has answered at least once; before that an empty list means nothing. */
   loaded: boolean;
@@ -496,6 +501,7 @@ export function Inbox({
               banner={banner}
               card={card}
               onOpen={onOpen}
+              labelList={labelList}
             />
           </div>
           <Decisions
@@ -638,7 +644,9 @@ function Stack({
   banner,
   card,
   onOpen,
+  labelList,
 }: {
+  labelList: readonly LabelView[] | null;
   visible: AttentionItem[];
   leaving: Leaving | null;
   drag: { dx: number } | null;
@@ -690,6 +698,7 @@ function Stack({
           item={item}
           role={role}
           refused={refused}
+          labelList={labelList}
           style={{
             zIndex: 2,
             transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none",
@@ -730,10 +739,13 @@ function Card({
   style,
   handlers,
   onOpen,
+  labelList,
   children,
 }: {
   item: AttentionItem;
   role: Role;
+  /** Given to the top card only: its chat's labels show under its title. */
+  labelList?: readonly LabelView[] | null;
   refused?: boolean;
   /** 0..1: how much of the veil sits over a card behind the top one. */ veil?: number;
   style: CSSProperties;
@@ -771,6 +783,7 @@ function Card({
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
         </span>
+        {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
       </header>
       {children && <div className="loki-phone-card-body loki-phone-thread">{children}</div>}
       {/* Cards behind the top one are dimmed by an opaque veil, not opacity, so the stack does not show through itself. */}

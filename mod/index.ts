@@ -228,6 +228,7 @@ export default function activate(api: ModApi, host: Host): () => void {
           model: info.model,
           reasoning_effort: info.reasoning_effort,
           mode: info.mode ?? null,
+          labels: info.labels ?? [],
           widgets: widgets.entries(scope).length,
           active: scope === activeScope,
           last_active: info.last_active,

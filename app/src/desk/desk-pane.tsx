@@ -15,7 +15,8 @@ import { avatarUrl } from "./env";
 import { Surface } from "./surface";
 import type { useDesk } from "./use-desk";
 import { useDeskChat } from "./use-desk-chat";
-import { deskConversation, type DeskConversationHandlers } from "./desk-conversation";
+import { deskConversation, saveLabels, type DeskConversationHandlers } from "./desk-conversation";
+import { LabelChips, LabelsDialog } from "../chat/labels";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
 import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
@@ -54,6 +55,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onFrameWidget?: (widgetId: string) => void;
   /** Tasks, for Add task on a message and the chips of the messages that have one (tasks/message-tasks.tsx). */
   taskApi?: TaskApi | null;
+  /** A header chip clicked: the sidebar filtered to that label's chats (plan 022, R4). */
+  onShowLabel?: (name: string) => void;
 }
 
 /** A host counter routed to the view that showed when it was bumped (desk/pane.ts), as React state derived during render. */
@@ -92,7 +95,11 @@ export function DeskPane(props: DeskPaneProps) {
   const prefill = useRouted(props.chatPrefill?.tick ?? 0, visible);
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
-  const { view, actions } = deskConversation(desk, catchUp, chat, props);
+  // The chat's labels (plan 022): chips in the header, and the labels… picker from "+ label" or `/label`.
+  const [labeling, setLabeling] = useState(false);
+  const chatLabels = desk.desks.list.find((d) => d.scope === scope)?.labels ?? [];
+  const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
+  const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined });
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
@@ -148,6 +155,14 @@ export function DeskPane(props: DeskPaneProps) {
                 <span className="loki-desk-pane-live" aria-hidden />
                 <span>{live}</span>
               </>
+            )}
+            {runtime && (
+              <span className="loki-desk-pane-labels">
+                <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
+                <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
+                  {chatLabels.length ? "edit labels" : "+ label"}
+                </button>
+              </span>
             )}
           </span>
         }
@@ -209,6 +224,15 @@ export function DeskPane(props: DeskPaneProps) {
           />
         </div>
       </div>
+      {labeling && runtime && (
+        <LabelsDialog
+          title={name}
+          current={chatLabels}
+          list={catchUp.labels.list}
+          onChange={(next) => saveLabels(desk, catchUp, runtime, next)}
+          onClose={() => setLabeling(false)}
+        />
+      )}
     </div>
   );
 }

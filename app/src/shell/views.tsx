@@ -1,6 +1,8 @@
 import type { RefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
+import { labelCommand } from "../chat/labels";
+import { saveLabels } from "../desk/desk-conversation";
 import { runAction } from "./keymap";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
@@ -64,9 +66,12 @@ export function InboxView({
   onOpenDesk,
   onClose,
   onPass,
+  notice,
 }: {
   desk: Desk;
   catchUp: CatchUp;
+  /** A one-line message at the bottom of the window (a refused `/label`). */
+  notice: (message: string) => void;
   models: ModelEntry[] | null;
   onLoadModels: () => void;
   onPickModel: PickModel;
@@ -81,6 +86,7 @@ export function InboxView({
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
+      labelList={catchUp.labels.list}
       onSeen={(item, moved) => (moved === "next" && catchUp.decided(item, "next", via()), catchUp.seen(item))}
       onUnread={(item) => (catchUp.undone(item, "next"), catchUp.unread(item))}
       onArchive={(item) => (catchUp.decided(item, "archive", via()), catchUp.archive(item))}
@@ -113,7 +119,10 @@ export function InboxView({
       onCommand={(item, id, args) => {
         // loki's own commands are keymap actions; everything else is the daemon's, run for the card's conversation.
         const local = LOKI_COMMANDS.find((c) => c.id === id);
-        if (local?.action) runAction(local.action);
+        if (id === "label") {
+          const current = desk.desks.list.find((d) => d.scope === scopeFor(item.id, item.agent_id))?.labels ?? [];
+          void labelCommand(args, current, (next) => saveLabels(desk, catchUp, item.runtime, next)).then((err) => err && notice(`labels: ${err}`));
+        } else if (local?.action) runAction(local.action);
         else void catchUp.execute(item.runtime, id, args);
       }}
     />

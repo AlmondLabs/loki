@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
+import type { LabelView } from "../../../core/labels.ts";
+import { LabelsSheet } from "./labels-sheet";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
@@ -74,6 +76,7 @@ export function ConversationScreen({
   onPin,
   rename = null,
   archive = null,
+  labels = null,
   folder = null,
   onBack,
   onLoad,
@@ -113,6 +116,8 @@ export function ConversationScreen({
   rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
   /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
+  /** The chat's labels (plan 022), their colours and saving them; `onChange` null while the daemon cannot take it. */
+  labels?: { current: string[]; list: LabelView[] | null; onChange: ((labels: string[]) => Promise<string | null>) | null } | null;
   /** Change folder: the chat's folder and the agent's recent ones, and the move; null while the daemon cannot take it. */
   folder?: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null> } | null;
   onBack: () => void;
@@ -136,6 +141,7 @@ export function ConversationScreen({
   const [actionsOpen, setActionsOpen] = useState(false);
   const [moving, setMoving] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [labeling, setLabeling] = useState(false);
   const [archiving, setArchiving] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const toggleArchive = async () => {
     if (!archive?.onArchive) return;
@@ -242,6 +248,15 @@ export function ConversationScreen({
                 onClick={() => (setActionsOpen(false), setRenaming(true))}
               />
             )}
+            {labels && (
+              <SheetRow
+                icon="filter"
+                label={labels.current.length ? `Labels · ${labels.current.join(", ")}` : "Labels"}
+                aside={labels.onChange ? null : "Not connected"}
+                disabled={!labels.onChange}
+                onClick={() => (setActionsOpen(false), setLabeling(true))}
+              />
+            )}
             {folder && <SheetRow icon="folder" label="Change folder" onClick={() => (setActionsOpen(false), setMoving(true))} />}
             {archive && (
               <SheetRow
@@ -270,6 +285,9 @@ export function ConversationScreen({
       )}
       {moving && folder && <FolderSheet load={folder.load} onMove={folder.onMove} onClose={() => setMoving(false)} />}
       {renaming && rename?.onRename && <RenameSheet name={rename.name} onRename={rename.onRename} onClose={() => setRenaming(false)} />}
+      {labeling && labels?.onChange && (
+        <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
+      )}
     </>
   );
 }

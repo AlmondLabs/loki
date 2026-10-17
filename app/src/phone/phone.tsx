@@ -502,6 +502,22 @@ function ConversationPage({
       pinned={convDesk?.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
       rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
+      labels={
+        convDesk?.status !== "deleted"
+          ? {
+              current: convDesk?.labels ?? [],
+              list: catchUp.labels.list,
+              onChange:
+                catchUp.status === "open"
+                  ? async (next) => {
+                      const err = await catchUp.labels.set({ agent_id: thread.agentId, conversation_id: thread.conversationId }, next);
+                      if (!err) desk.desks.request();
+                      return err;
+                    }
+                  : null,
+            }
+          : null
+      }
       archive={
         thread.conversationId !== "default" && convDesk?.status !== "deleted"
           ? {
@@ -627,6 +643,7 @@ function Screen({
       <Inbox
         hidden={tab !== "inbox"}
         items={catchUp.items}
+        labelList={catchUp.labels.list}
         loaded={catchUp.agentsLoaded}
         available={attention.available}
         banner={cardNote ? <Banner>{cardNote}</Banner> : banner}

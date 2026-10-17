@@ -23,6 +23,7 @@ export type ChatClient = Pick<
   | "setApprovalAlways"
   | "mcp"
   | "engines"
+  | "labels"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -333,6 +334,17 @@ export class FrameChatClient {
   async setApprovalAlways(tool: string, on: boolean): Promise<string[]> {
     return (await this.call("chat_approvals_set", { tool, on })).always;
   }
+  /**
+   * Labels on chats (plan 022): every label with its colour and count, a chat's labels set (the whole list), and a
+   * label renamed, recoloured or deleted on every chat. `get` and `edit` answer with the labels as they now stand.
+   */
+  readonly labels = {
+    get: () => this.call("chat_labels_get", {}),
+    set: async (rt: Runtime, labels: string[]): Promise<void> => {
+      await this.call("chat_update", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, labels });
+    },
+    edit: (change: InputOf<"chat_label_set">) => this.call("chat_label_set", change),
+  };
   /** Settings › Engines: each call answers with the ACP agents as they now stand. */
   readonly engines = {
     get: () => this.call("chat_engines_get", {}),

@@ -72,6 +72,15 @@
   --spring-bouncy: linear(0, 0.0159, 0.0579, 0.1182, 0.1906, 0.2699, 0.352, 0.4338, 0.5127, 0.5872, 0.656, 0.7184, 0.7741, 0.8231, 0.8655, 0.9016, 0.9318, 0.9568, 0.9769, 0.9928, 1.0051, 1.0142, 1.0206, 1.0248, 1.0273, 1.0283, 1.0282, 1.0273, 1.0257, 1.0238, 1.0216, 1.0193, 1.017, 1.0147, 1.0125, 1.0105, 1.0087, 1.007, 1.0055, 1.0043, 1.0032, 1.0023, 1.0015, 1);
   --spring-bouncy-ms: 512ms;
   /* end springs */
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(72% 0.14 25);
+  --loki-label-1: oklch(72% 0.14 65);
+  --loki-label-2: oklch(72% 0.14 95);
+  --loki-label-3: oklch(72% 0.14 150);
+  --loki-label-4: oklch(72% 0.14 195);
+  --loki-label-5: oklch(72% 0.14 250);
+  --loki-label-6: oklch(72% 0.14 300);
+  --loki-label-7: oklch(72% 0.14 350);
 }
 /* Where linear() is missing (older WebKitGTK), the springs fall back to the eased curves they replaced. */
 @supports not (transition-timing-function: linear(0, 1)) {
@@ -114,6 +123,15 @@
   --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
   --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
   --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.09);
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(54% 0.15 25);
+  --loki-label-1: oklch(54% 0.15 65);
+  --loki-label-2: oklch(54% 0.15 95);
+  --loki-label-3: oklch(54% 0.15 150);
+  --loki-label-4: oklch(54% 0.15 195);
+  --loki-label-5: oklch(54% 0.15 250);
+  --loki-label-6: oklch(54% 0.15 300);
+  --loki-label-7: oklch(54% 0.15 350);
 }
 
 /* Tokyo Night (enkia, MIT). Night by night, Day by day; the roles are loki's, the colours are the
@@ -153,6 +171,15 @@
   --loki-shadow-float: 0 8px 24px oklch(5% 0.02 280 / 0.42);
   --loki-shadow-panel: 0 4px 12px oklch(5% 0.02 280 / 0.28);
   --loki-shadow-low: 0 2px 6px oklch(5% 0.02 280 / 0.24);
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(72% 0.14 25);
+  --loki-label-1: oklch(72% 0.14 65);
+  --loki-label-2: oklch(72% 0.14 95);
+  --loki-label-3: oklch(72% 0.14 150);
+  --loki-label-4: oklch(72% 0.14 195);
+  --loki-label-5: oklch(72% 0.14 250);
+  --loki-label-6: oklch(72% 0.14 300);
+  --loki-label-7: oklch(72% 0.14 350);
 }
 
 :root[data-palette="tokyo-night"][data-theme="light"] {
@@ -186,6 +213,15 @@
   --loki-shadow-float: 0 8px 24px oklch(30% 0.03 275 / 0.14);
   --loki-shadow-panel: 0 4px 12px oklch(30% 0.03 275 / 0.1);
   --loki-shadow-low: 0 2px 6px oklch(30% 0.03 275 / 0.09);
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(54% 0.15 25);
+  --loki-label-1: oklch(54% 0.15 65);
+  --loki-label-2: oklch(54% 0.15 95);
+  --loki-label-3: oklch(54% 0.15 150);
+  --loki-label-4: oklch(54% 0.15 195);
+  --loki-label-5: oklch(54% 0.15 250);
+  --loki-label-6: oklch(54% 0.15 300);
+  --loki-label-7: oklch(54% 0.15 350);
 }
 
 /* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */

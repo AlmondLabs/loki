@@ -111,6 +111,12 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
+  **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
+  word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header, or with
+  `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
+  the first match or makes the label when none matches. A row shows its labels as coloured dots, the header and the
+  Inbox card as chips. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
+  (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
   with its name, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
   chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
