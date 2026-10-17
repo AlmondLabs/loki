@@ -14,7 +14,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { AcpChats } from "../daemon/acp/chats.ts";
-import { acpHandle, CLAUDE_CODE, readAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
+import { acpHandle, CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { must } from "./fixtures/must.ts";
@@ -134,6 +134,9 @@ describe("ACP agents (plan 020)", () => {
       expect(readAcpAgents(join(dir, "none.json"))).toEqual([CLAUDE_CODE]);
       expect(acpHandle("acp:claude-code/sonnet")).toEqual({ agent: "claude-code", model: "sonnet" });
       expect(acpHandle("anthropic/claude-sonnet")).toBeNull();
+      expect(commandFound(process.execPath)).toBe(true);
+      expect(commandFound(join(dir, "nothing-here"))).toBe(false);
+      expect(commandFound("node-that-is-not-there", { PATH: dir })).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -333,6 +336,52 @@ describe("ACP agents (plan 020)", () => {
     expect(calls.every((c) => c.name === "Write a.txt")).toBe(true);
     const result = s.events().find((e) => e.kind === "step" && e.step.kind === "result");
     expect(result).toMatchObject({ step: { output: [{ type: "text", text: "--- a.txt\n+++ a.txt\n+a" }] } });
+  });
+
+  test("Settings › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-acp-engines-"));
+    const file = join(dir, "state", "acp.json");
+    // Claude Code started the person's way, on the fake agent, so nothing here depends on npx being installed.
+    writeAcpAgents(file, [{ ...FAKE, id: "claude-code", name: "Claude Code" }]);
+    const stores = new StoreManager(
+      join(dir, "stores"),
+      { models: createModels(), registry: new ModRegistry(() => {}).registry },
+      ctx,
+      () => {},
+      () => AgentStore.open({ storage: new MemoryStorage() }, { models: createModels(), registry: new ModRegistry(() => {}).registry }, ctx),
+    );
+    const acp = new AcpChats({ stores, approvals: new Approvals(), context: ctx, agents: () => readAcpAgents(file), homeDir: dir, configFile: file });
+    cleanups.push(async () => {
+      await acp.close();
+      await stores.closeAll();
+      rmSync(dir, { recursive: true, force: true });
+    });
+    const one = (id: string) => must(acp.engines().engines.find((e) => e.id === id));
+    expect(acp.engines().config_path).toBe(file);
+    expect(one("claude-code")).toMatchObject({ builtin: true, changed: true, status: "unknown", command: process.execPath });
+
+    expect((await acp.checkEngine("claude-code")).engines[0]).toMatchObject({ status: "started" });
+
+    await acp.setEngine({ id: "gone", name: "Gone", command: join(dir, "no-such-agent"), args: [] });
+    expect(one("gone")).toMatchObject({ builtin: false, status: "not_found" });
+    expect(readAcpAgents(file).map((a) => a.id)).toEqual(["claude-code", "gone"]);
+    await acp.setEngine({ id: "gone", name: "Gone", command: process.execPath, args: [join(dir, "no-such-script.mjs")] });
+    expect((await acp.checkEngine("gone")).engines.find((e) => e.id === "gone")).toMatchObject({ status: "failed" });
+
+    await acp.removeEngine("gone");
+    await acp.removeEngine("claude-code");
+    expect(readAcpAgents(file)).toEqual([CLAUDE_CODE]);
+    expect(one("claude-code")).toMatchObject({ builtin: true, changed: false });
+  });
+
+  test("a turn that fails for want of signing in marks the agent as needing it; one that works marks it ready", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "auth");
+    expect(s.errors().join("\n")).toMatch(/Authentication required/);
+    expect(s.acp.engines().engines[0]).toMatchObject({ status: "signed_out", detail: "sign in to Fake, then send again" });
+    await s.say(id, "hello");
+    expect(s.acp.engines().engines[0]).toMatchObject({ status: "ready", detail: null });
   });
 
   test("the agent's persona and memory go in its system prompt, or ahead of the first message when it takes none", async () => {

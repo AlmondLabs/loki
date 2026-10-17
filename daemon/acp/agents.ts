@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 
 /**
  * The ACP agents a chat can run on (plan 020, KD1): programs loki starts and talks to over stdio, in the role an
@@ -62,4 +63,27 @@ export function readAcpAgents(file: string | null): AcpAgentConfig[] {
 export function acpHandle(handle: string): { agent: string; model: string } | null {
   const m = /^acp:([a-z0-9][a-z0-9-]*)\/(.+)$/.exec(handle);
   return m ? { agent: m[1], model: m[2] } : null;
+}
+
+/**
+ * Write the person's agents (`{ "agents": [...] }`): every agent but the built-in Claude Code as it ships. One with
+ * Claude Code's id that differs from it is kept, as the override it is.
+ */
+export function writeAcpAgents(file: string, agents: readonly AcpAgentConfig[]): void {
+  const own = agents.filter((a) => a.id !== CLAUDE_CODE.id || JSON.stringify(a) !== JSON.stringify(CLAUDE_CODE));
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ agents: own }, null, 2)}\n`);
+}
+
+/**
+ * Whether a command can be started: a path that exists, or a name found on the PATH (with Windows' extensions for a
+ * bare name there). Only a check for Settings; starting it is the proof.
+ */
+export function commandFound(command: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) return existsSync(command);
+  const exts = process.platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [];
+  const dirs = (env.PATH ?? env.Path ?? "").split(delimiter).filter(Boolean);
+  return dirs.some((dir) =>
+    [command, ...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`)].some((name) => existsSync(join(dir, name))),
+  );
 }

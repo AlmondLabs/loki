@@ -22,6 +22,7 @@ export type ChatClient = Pick<
   | "approvalsAlways"
   | "setApprovalAlways"
   | "mcp"
+  | "engines"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -332,6 +333,13 @@ export class FrameChatClient {
   async setApprovalAlways(tool: string, on: boolean): Promise<string[]> {
     return (await this.call("chat_approvals_set", { tool, on })).always;
   }
+  /** Settings › Engines: each call answers with the ACP agents as they now stand. */
+  readonly engines = {
+    get: () => this.call("chat_engines_get", {}),
+    set: (engine: InputOf<"chat_engine_set">) => this.call("chat_engine_set", engine),
+    remove: (id: string) => this.call("chat_engine_remove", { id }),
+    check: (id: string) => this.call("chat_engine_check", { id }),
+  };
   /** Settings › MCP and Agents › Profile: each call answers with the servers as they now are. */
   readonly mcp = {
     get: () => this.call("chat_mcp_get", {}),

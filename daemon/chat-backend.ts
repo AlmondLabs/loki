@@ -8,7 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
-import type { McpView } from "../core/frame-types.ts";
+import type { EnginesView, McpView } from "../core/frame-types.ts";
 import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
@@ -165,6 +165,22 @@ export class DaemonChats implements ChatBackend {
   private get mcpTools(): McpTools {
     if (!this.deps.mcp) throw new Error("MCP is not running in this daemon");
     return this.deps.mcp;
+  }
+
+  engines(): Promise<EnginesView> {
+    return settled(() => this.acp.engines());
+  }
+
+  setEngine(p: PayloadOf<"chat_engine_set">): Promise<EnginesView> {
+    return this.acp.setEngine(p);
+  }
+
+  removeEngine(id: string): Promise<EnginesView> {
+    return this.acp.removeEngine(id);
+  }
+
+  checkEngine(id: string): Promise<EnginesView> {
+    return this.acp.checkEngine(id);
   }
 
   mcp(): Promise<McpView> {

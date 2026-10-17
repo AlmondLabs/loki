@@ -37,6 +37,11 @@ export interface ChatBackend {
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;
   setApproval(p: PayloadOf<"chat_approvals_set">): Promise<Replies["chat_approvals"]>;
+  /** Settings › Engines (daemon/acp/, plan 020): the ACP agents, and adding, changing, removing and trying one. */
+  engines(): Promise<Replies["chat_engines"]>;
+  setEngine(p: PayloadOf<"chat_engine_set">): Promise<Replies["chat_engines"]>;
+  removeEngine(id: string): Promise<Replies["chat_engines"]>;
+  checkEngine(id: string): Promise<Replies["chat_engines"]>;
   mcp(): Promise<Replies["chat_mcp"]>;
   mcpServer(p: PayloadOf<"chat_mcp_server">): Promise<Replies["chat_mcp"]>;
   mcpAlwaysLoad(p: PayloadOf<"chat_mcp_always_load">): Promise<Replies["chat_mcp"]>;
@@ -137,6 +142,10 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_memory_revert: (p) => served(b, async (x) => (await x.revertMemory(p), DONE)),
     chat_approvals_get: () => served(b, (x) => x.approvals()),
     chat_approvals_set: (p) => served(b, (x) => x.setApproval(p)),
+    chat_engines_get: () => served(b, (x) => x.engines()),
+    chat_engine_set: (p) => served(b, (x) => x.setEngine(p)),
+    chat_engine_remove: ({ id }) => served(b, (x) => x.removeEngine(id)),
+    chat_engine_check: ({ id }) => served(b, (x) => x.checkEngine(id)),
     chat_mcp_get: () => served(b, (x) => x.mcp()),
     chat_mcp_server: (p) => served(b, (x) => x.mcpServer(p)),
     chat_mcp_always_load: (p) => served(b, (x) => x.mcpAlwaysLoad(p)),

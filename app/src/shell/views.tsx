@@ -255,6 +255,7 @@ export function SettingsView({
       phone={desk.phone}
       globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
       mcp={catchUp.mcp}
+      engines={catchUp.engines}
       update={update}
       shortcut={shortcut}
       recall={recall}

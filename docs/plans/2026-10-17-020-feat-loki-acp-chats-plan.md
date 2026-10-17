@@ -139,6 +139,20 @@ All user-directed, 2026-10-17, in the brainstorm.
 - Whether the adapter reports token usage per turn, and in what shape (R9).
 - How the adapter takes an appended system prompt in the pinned version (KD5).
 
+## Built
+
+Units 1 to 4 landed as #94, #95, #96 and the Settings › Engines PR, each from `main`.
+
+The open questions, settled from the Claude adapter's source (0.93.0) in unit 1: it advertises `loadSession`
+without its experimental flag (R8 holds); it takes the standard `systemPrompt: { mode: "append" }` on `session/new`
+and `session/load` (KD5; an agent that does not gets a `<loki-agent>` block ahead of its first prompt); it reports
+tokens per turn in `PromptResponse.usage` and a running dollar total, with the model, on `usage_update` (R9: loki
+counts each turn's share). Found while building: a chat opened on loki's engine and then moved to an agent was
+followed by pi-durable too and showed each message twice (unit 2); the passes, which run on the agent's own model,
+now wait quietly when loki can reach no model rather than failing every quiet spell (unit 3); R1's readiness shows
+on Settings › Engines rather than hiding Claude Code in the picker (unit 4). ACP turns do not write
+`turn_finished` analytics, since writing pi's own run state for them risked pi resuming a run it never had.
+
 ## Units
 
 1. **The client and the engine seam** (`daemon/acp/`, `daemon/chat-backend.ts`, `daemon/kernel/index.ts`, tests):
