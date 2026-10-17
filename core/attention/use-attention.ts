@@ -129,8 +129,8 @@ function sentRow(
 }
 
 /** The environment note a message to this chat carries as it goes out (none when nothing changed), remembered. */
-function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | null | undefined): string | undefined {
-  const note = environmentNote(told.get(key), { desk });
+function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | null | undefined, labels?: readonly string[] | null): string | undefined {
+  const note = environmentNote(told.get(key), { desk, labels });
   told.set(key, note.told);
   return note.text ?? undefined;
 }
@@ -266,7 +266,7 @@ export function useAttention(opts: UseAttentionOptions) {
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
           bump();
           void sock
-            .sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, next.desk))
+            .sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, next.desk, next.labels))
             .catch((err: unknown) => console.warn("loki: queued send", err));
         }
       }
@@ -592,7 +592,7 @@ export function useAttention(opts: UseAttentionOptions) {
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
   const send = useCallback(
-    (rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
+    (rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; labels?: readonly string[] | null; origin?: SendOrigin } = {}) => {
       const key = keyOf(rt.agent_id, rt.conversation_id);
       const l = liveOf(key);
       const fileCount = images.filter(isFileAttachment).length;
@@ -608,7 +608,7 @@ export function useAttention(opts: UseAttentionOptions) {
       optsRef.current.sent?.(rt);
       // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
       if (l.inTurn) {
-        l.queued.push({ text, images, desk: env.desk });
+        l.queued.push({ text, images, desk: env.desk, labels: env.labels });
         l.thread.queue(sentRow(text, images));
         bump();
         return;
@@ -618,7 +618,7 @@ export function useAttention(opts: UseAttentionOptions) {
       l.lastRole = "user";
       bump();
       void subscribe(rt)
-        .then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk)))
+        .then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk, env.labels)))
         .catch((err: unknown) => console.warn("loki: send", err));
       optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     },
@@ -633,7 +633,8 @@ export function useAttention(opts: UseAttentionOptions) {
     [bump],
   );
   const reply = useCallback(
-    (item: AttentionItem, text: string, images: Attachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }),
+    (item: AttentionItem, text: string, images: Attachment[] = []) =>
+      send(item.runtime, text, images, { desk: item.title, labels: item.labels ?? null, origin: "inbox" }),
     [send],
   );
 

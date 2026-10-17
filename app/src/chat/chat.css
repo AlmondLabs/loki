@@ -1458,3 +1458,20 @@ button.loki-label-chip:focus-visible {
   min-height: 44px;
   font-size: 15px;
 }
+/* Settings › labels: one swatch per palette colour, the label's own ringed. */
+.loki-label-swatch {
+  all: unset;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--loki-radius-pill);
+  background: var(--label-tone);
+  cursor: pointer;
+}
+.loki-label-swatch[aria-checked="true"] {
+  outline: 2px solid var(--loki-fg);
+  outline-offset: 2px;
+}
+.loki-label-swatch:focus-visible {
+  outline: 2px solid var(--loki-accent);
+  outline-offset: 2px;
+}

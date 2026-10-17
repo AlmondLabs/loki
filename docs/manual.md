@@ -117,6 +117,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the first match or makes the label when none matches. A row shows its labels as coloured dots, the header and the
   Inbox card as chips. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
   (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions.
+  The agent is told a chat's labels with your next message (and again when they change), so it knows what you
+  file the chat under; only you set them.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
   with its name, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
   chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
@@ -201,8 +203,10 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   10. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
      tokyo night; kept per device.
   11. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
-  12. **files**: where everything lives.
-  13. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
+  12. **labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
+      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
+  13. **files**: where everything lives.
+  14. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
       Alfred or the input-source switcher wants it (Mac only).
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in the Inbox, and the app's pages (each

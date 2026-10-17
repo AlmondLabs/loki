@@ -5,6 +5,8 @@ import { labelQuery, type LabelView } from "../core/labels.ts";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { LabelChips, LabelEditor, labelColor, labelCommand } from "../app/src/chat/labels.tsx";
+import { Labels, type LabelsApi } from "../app/src/settings/labels.tsx";
+import { environmentNote } from "../core/attention/content.ts";
 import { canLabel, sidebarModel } from "../app/src/shell/sidebar-model.ts";
 import { buildIndex, placeHit, search, type SearchSources } from "../app/src/shell/search-model.ts";
 
@@ -143,5 +145,41 @@ describe("⌘K finds labels (R5)", () => {
   test("a label opened before is among the recent places while it exists", () => {
     expect(placeHit("label:billing", src)?.preview).toBe("Label · 1 chat");
     expect(placeHit("label:gone", src)).toBeNull();
+  });
+});
+
+describe("agents see a chat's labels (plan 022, unit 3)", () => {
+  const at = (minutes: number) => new Date(Date.UTC(2026, 9, 17, 9, minutes));
+  test("the first note names them; a change, a clear, or nothing new decides the next", () => {
+    const first = environmentNote(undefined, { now: at(0), desk: "Deploy", labels: ["infra", "client-x"], zone: "UTC" });
+    expect(first.text).toContain("The user has labelled this chat: infra, client-x.");
+    // The same labels a minute on: nothing to say.
+    expect(environmentNote(first.told, { now: at(1), desk: "Deploy", labels: ["infra", "client-x"], zone: "UTC" }).text).toBeNull();
+    // Labels the sender does not know are not news, and what was told is kept.
+    const unknown = environmentNote(first.told, { now: at(2), desk: "Deploy", labels: null, zone: "UTC" });
+    expect(unknown.text).toBeNull();
+    expect(unknown.told.labels).toBe("infra, client-x");
+    const added = environmentNote(first.told, { now: at(3), desk: "Deploy", labels: ["infra", "client-x", "billing"], zone: "UTC" });
+    expect(added.text).toContain("The user has labelled this chat: infra, client-x, billing.");
+    expect(added.text).not.toContain("the chat (");
+    const cleared = environmentNote(added.told, { now: at(4), desk: "Deploy", labels: [], zone: "UTC" });
+    expect(cleared.text).toContain("The user removed this chat's labels.");
+  });
+  test("a chat with none says nothing of labels", () => {
+    expect(environmentNote(undefined, { now: at(0), desk: "Deploy", labels: [], zone: "UTC" }).text).not.toContain("label");
+  });
+});
+
+describe("Settings › labels (R6)", () => {
+  const api = (list: LabelView[] | null): LabelsApi => ({ list, edit: () => Promise.resolve(null) });
+  test("every label with its colour and how many chats carry it, and rename, colour and delete", () => {
+    const html = renderToStaticMarkup(createElement(Labels, { api: api(LIST) }));
+    expect(html).toContain('aria-label="billing, 1 chat"');
+    expect(html).toContain('aria-label="infra, 2 chats"');
+    for (const verb of ["rename infra", "colour of infra", "delete infra"]) expect(html).toContain(`aria-label="${verb}"`);
+  });
+  test("before the list arrives it says so; with none it says there are none", () => {
+    expect(renderToStaticMarkup(createElement(Labels, { api: api(null) }))).toContain("asking loki…");
+    expect(renderToStaticMarkup(createElement(Labels, { api: api([]) }))).toContain("No labels yet.");
   });
 });

@@ -64,7 +64,7 @@ export function buildUserContent(text: string, images: ImageAttachment[] = [], c
  * folder is its working directory on the daemon, where its tools run. Rendered transcripts strip system reminders,
  * so you never see it. This is the full note, a chat's first; `environmentNote` decides when a chat needs one again.
  */
-export function environmentReminder(opts: { now?: Date; desk?: string | null; locale?: string } = {}): string {
+export function environmentReminder(opts: { now?: Date; desk?: string | null; labels?: readonly string[] | null; locale?: string } = {}): string {
   const now = opts.now ?? new Date();
   const when = localTime(now, opts.locale);
   const lines = [
@@ -74,19 +74,27 @@ export function environmentReminder(opts: { now?: Date; desk?: string | null; lo
     `User's device local time: ${when}`,
   ];
   if (opts.desk) lines.push(`The user is looking at this conversation in loki, the chat ("${opts.desk}").`);
+  if (opts.labels?.length) lines.push(labelsLine(opts.labels));
   lines.push("</system-reminder>");
   return lines.join("\n");
+}
+
+/** The chat's labels as the note says them (plan 022): the person's topics for it, which the agent reads but never sets. */
+function labelsLine(labels: readonly string[]): string {
+  return `The user has labelled this chat: ${labels.join(", ")}.`;
 }
 
 /** A chat's note is sent again once this long has passed since its last one. */
 export const ENV_NOTE_EVERY_MS = 30 * 60_000;
 
-/** What a chat was last told: when, on which local day, in which time zone, and the chat's name. */
+/** What a chat was last told: when, on which local day, in which time zone, the chat's name, and its labels. */
 export interface EnvNoteTold {
   at: number;
   day: string;
   zone: string;
   desk: string | null;
+  /** Joined with commas; absent from a note told before labels, or when they were not known. */
+  labels?: string;
 }
 
 /**
@@ -97,24 +105,29 @@ export interface EnvNoteTold {
  */
 export function environmentNote(
   last: EnvNoteTold | undefined,
-  opts: { now?: Date; desk?: string | null; locale?: string; zone?: string } = {},
+  opts: { now?: Date; desk?: string | null; labels?: readonly string[] | null; locale?: string; zone?: string } = {},
 ): { text: string | null; told: EnvNoteTold } {
   const now = opts.now ?? new Date();
   const desk = opts.desk ?? null;
+  const labels = opts.labels ? opts.labels.join(", ") : undefined;
   const told: EnvNoteTold = {
     at: now.getTime(),
     day: `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`,
     zone: opts.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     desk,
+    ...(labels !== undefined ? { labels } : {}),
   };
-  if (!last) return { text: environmentReminder({ now, desk, locale: opts.locale }), told };
+  if (!last) return { text: environmentReminder({ now, desk, labels: opts.labels, locale: opts.locale }), told };
   const renamed = desk !== null && desk !== last.desk;
+  // Labels unknown to the sender say nothing; known ones that differ from what was told are news (cleared ones too).
+  const relabelled = labels !== undefined && labels !== (last.labels ?? "");
   const due = told.at - last.at >= ENV_NOTE_EVERY_MS || told.day !== last.day || told.zone !== last.zone;
-  if (!due && !renamed) return { text: null, told: { ...last, desk: desk ?? last.desk } };
+  if (!due && !renamed && !relabelled) return { text: null, told: { ...last, desk: desk ?? last.desk } };
   const lines = ["<system-reminder>", `User's device local time: ${localTime(now, opts.locale)}`];
   if (renamed) lines.push(`The user is looking at this conversation in loki, the chat ("${desk}").`);
+  if (relabelled) lines.push(labels ? labelsLine(opts.labels ?? []) : "The user removed this chat's labels.");
   lines.push("</system-reminder>");
-  return { text: lines.join("\n"), told };
+  return { text: lines.join("\n"), told: labels === undefined && last.labels !== undefined ? { ...told, labels: last.labels } : told };
 }
 
 function localTime(now: Date, locale?: string): string {
