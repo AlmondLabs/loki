@@ -6,7 +6,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { defineExtension, defineTool, MemoryStorage } from "@earendil-works/pi-durable";
-import { DaemonChats, modelRef } from "../daemon/chat-backend.ts";
+import { DaemonChats, lokiModelEntries, modelRef } from "../daemon/chat-backend.ts";
 import { Approvals } from "../daemon/approvals.ts";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
 import { Providers } from "../daemon/providers.ts";
@@ -353,6 +353,37 @@ describe("the daemon's chats", () => {
     const s = await setup();
     try {
       expect((await s.chats.models()).map((m) => m.handle)).toContain(s.handle);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a model that reasons is one entry per thinking level pi-ai says it takes, off as no reasoning; one that does not is one entry", () => {
+    const base = fauxProvider().getModel();
+    const handle = `${base.provider}/${base.id}`;
+    const efforts = (m: typeof base) => lokiModelEntries([m]).map((e) => [e.id, e.reasoning_effort ?? null]);
+    expect(efforts({ ...base, reasoning: false })).toEqual([[handle, null]]);
+    expect(efforts({ ...base, reasoning: true, thinkingLevelMap: { minimal: null, xhigh: "xhigh" } })).toEqual([
+      [`${handle}@none`, "none"],
+      [`${handle}@low`, "low"],
+      [`${handle}@medium`, "medium"],
+      [`${handle}@high`, "high"],
+      [`${handle}@xhigh`, "xhigh"],
+    ]);
+    expect(new Set(lokiModelEntries([{ ...base, reasoning: true }]).map((e) => e.handle))).toEqual(new Set([handle]));
+  });
+
+  test("max reaches pi as max, and no reasoning as off", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      const store = await s.stores.get(agent.id);
+      const chat = must(await store.chat(conversationId, ctx), "the chat");
+      await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "max" });
+      expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "max" });
+      await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "none" });
+      expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "off" });
     } finally {
       await s.cleanup();
     }

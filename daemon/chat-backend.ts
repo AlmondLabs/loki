@@ -1,5 +1,5 @@
 import type { Context } from "@earendil-works/chord";
-import type { Models } from "@earendil-works/pi-ai/models";
+import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
 import { LiveDoc, watchEvents, type Conversation } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
@@ -9,7 +9,7 @@ import type { ChatEvent } from "../core/attention/model.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
-import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
+import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
@@ -72,7 +72,22 @@ const settled = <T>(work: () => T): Promise<T> => new Promise((resolve) => resol
 /** loki's reasoning effort as pi's thinking level. */
 function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
   if (!effort) return undefined;
-  return effort === "none" ? "off" : effort === "max" ? "xhigh" : effort;
+  return effort === "none" ? "off" : effort;
+}
+
+/**
+ * loki's own models as the picker lists them: one entry per model, or one per reasoning effort pi-ai says it takes
+ * (its thinking levels, "off" as no reasoning), so Select model offers the levels under the list (plan 021).
+ */
+export function lokiModelEntries(available: ReadonlyArray<Parameters<typeof getSupportedThinkingLevels>[0]>): ModelEntry[] {
+  return available.flatMap((m) => {
+    const handle = `${m.provider}/${m.id}`;
+    const entry: ModelEntry = { id: handle, handle, label: m.name || m.id };
+    const efforts = getSupportedThinkingLevels(m)
+      .map((level) => (level === "off" ? "none" : level))
+      .filter(isReasoningEffort);
+    return efforts.length > 1 ? efforts.map((e): ModelEntry => ({ ...entry, id: `${handle}@${e}`, reasoning_effort: e })) : [entry];
+  });
 }
 
 /**
@@ -385,12 +400,15 @@ export class DaemonChats implements ChatBackend {
       };
       await store.updateChat(p.conversation_id, { engine: next }, this.deps.context);
       this.onAcp.add(`${p.agent_id}\u0000${p.conversation_id}`);
-      if (engine?.agent === wanted.agent) await this.acp.setModel(p.agent_id, p.conversation_id, wanted.model, p.reasoning_effort);
-      else {
+      // A session opened early (`warm`) may be open already, from an earlier pick of this agent.
+      await this.acp.setModel(p.agent_id, p.conversation_id, wanted.model, p.reasoning_effort);
+      if (engine?.agent !== wanted.agent) {
         // The agent's own modes replace loki's: its first until its session says which one it is in.
         const view = this.acp.view(p.agent_id, p.conversation_id, next);
         this.push(p.agent_id, p.conversation_id, [{ kind: "device", engine: view, ...(view.modes.length ? { mode: view.modes[0].id } : {}) }]);
       }
+      // Its session opened now, before anything is said, tells the picker the agent's models and effort levels.
+      if (!(await this.started(chat))) this.acp.warm(p.agent_id, p.conversation_id, next);
       return;
     }
     if (engine) {
@@ -407,8 +425,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   async models(): Promise<ModelEntry[]> {
-    const available = await this.deps.models.getAvailable();
-    const own = available.map((m) => ({ id: `${m.provider}/${m.id}`, handle: `${m.provider}/${m.id}`, label: m.name || m.id }));
+    const own = lokiModelEntries(await this.deps.models.getAvailable());
     // Each ACP agent's models after loki's own (plan 020, KD3): picking one before the first message moves the chat there.
     return [...own, ...(this.deps.acp?.models() ?? [])];
   }

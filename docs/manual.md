@@ -131,7 +131,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   ⌘⇧P) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
   any agent added in Settings › engines; ←→ move between them), that harness's models (loki's lately used and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
-  has more than one. The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
+  has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
+  chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
   per conversation; a main chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Settings › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
@@ -410,7 +411,8 @@ terminal). In such a chat:
 - the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
   run on loki's side;
 - the picker's effort row offers the levels Claude Code gives the model you're on (low to max, depending on the
-  model); a model shows them once it has been used in a chat, and they're kept for next time;
+  model). loki starts Claude Code as soon as you pick it, so they show a moment later, before you send anything,
+  and they're kept for next time;
 - Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
   starts, beside Claude Code's own `CLAUDE.md`. Claude Code can read the memory files and is asked not to change them;
