@@ -47,6 +47,7 @@ import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 import { UsageLedger } from "./usage.ts";
 import { readAcpAgents } from "./acp/agents.ts";
 import { AcpChats } from "./acp/chats.ts";
+import { agentPrompt } from "./acp/prompt.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -140,6 +141,14 @@ const passes = new PassRunner({
   context,
   jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })],
   busy,
+  // A pass runs on the agent's own model; with no provider for it (only Claude Code chats, say), passes wait.
+  // An agent with no model of its own runs on pi's default, so then any reachable model will do.
+  canRun: async (handle) => {
+    const available = await models.getAvailable();
+    const slash = handle.indexOf("/");
+    if (slash <= 0) return available.length > 0;
+    return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
+  },
   isSubagent: (id) => isSubagent(id, backend),
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
@@ -211,6 +220,7 @@ const acp = new AcpChats({
   approvals,
   context,
   agents: () => readAcpAgents(acpFile),
+  systemPrompt: (agentId) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null),
   homeDir: homedir(),
   cacheFile: join(args.dir, "state", "acp-offered.json"),
 });

@@ -109,6 +109,12 @@ interface Deps {
   jobs: readonly PassJob[];
   /** Whether a chat has a turn running (its LiveDoc, daemon/chat-backend.ts). */
   busy(agentId: string, chatId: string): Promise<boolean>;
+  /**
+   * Whether the agent's model can be reached, so a pass can run on it. An agent whose chats all run on an ACP agent,
+   * for someone with no provider set up, has none (plan 020, KD6): its passes wait quietly rather than failing.
+   * Absent, every model is taken as reachable.
+   */
+  canRun?(model: string): Promise<boolean>;
   isSubagent(agentId: string): boolean;
   capture?(event: string, properties: Record<string, unknown>): void;
   report?(message: string): void;
@@ -355,6 +361,8 @@ export class PassRunner {
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
+      // No model to run on: nothing to report or retry, and nothing read (the cursors stay for when there is one).
+      if (this.deps.canRun && !(await this.deps.canRun(record?.model ?? ""))) return "skipped";
       const agentName = record?.name ?? null;
       const gathered = await this.gather(job, agentId, chatIds, agentName, force);
       parts = gathered.parts;
@@ -487,6 +495,12 @@ export class PassRunner {
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
+      if (this.deps.canRun && !(await this.deps.canRun(record?.model ?? "")))
+        return finish({
+          outcome: "skipped",
+          changes: 0,
+          report: "the memory review runs on the agent's own model, and it has none loki can reach; connect a provider in Settings › Providers",
+        });
       const dump = memoryDump(memoryRoot(this.deps.backendDir, agentId));
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
       const answer = await this.ask(agentId, record?.model ?? "", {

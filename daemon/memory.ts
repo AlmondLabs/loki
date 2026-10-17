@@ -51,8 +51,12 @@ function files(root: string, dir = root, out: string[] = []): string[] {
   return out;
 }
 
-/** The memory section's text: the core files in full, the rest by path. Undefined when the agent has no memory. */
-export function memorySection(root: string): string | undefined {
+/**
+ * The memory section's text: the core files in full, the rest by path. Undefined when the agent has no memory.
+ * `files` is for an agent without loki's memory tools (an ACP agent, plan 020): the rest is named by full path for it
+ * to read, and it is told loki keeps the files.
+ */
+export function memorySection(root: string, how: "tools" | "files" = "tools"): string | undefined {
   if (!existsSync(root)) return undefined;
   const all = files(root);
   const core = all.some((f) => f.startsWith("system/"))
@@ -62,12 +66,16 @@ export function memorySection(root: string): string | undefined {
   const rest = all.filter((f) => !core.includes(f));
   if (rest.length)
     parts.push(
-      `Other memory files (read them with memory_read when you need them):\n${rest
+      `Other memory files (${how === "tools" ? "read them with memory_read" : "read them at their paths"} when you need them):\n${rest
         .slice(0, LISTED)
-        .map((f) => `- ${f}`)
+        .map((f) => `- ${how === "tools" ? f : join(root, f)}`)
         .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
     );
-  return parts.length ? `This is your memory, kept as files you can change with the memory tools.\n\n${parts.join("\n\n")}` : undefined;
+  const intro =
+    how === "tools"
+      ? "This is your memory, kept as files you can change with the memory tools."
+      : "This is your memory, kept as files by loki, which updates them from your conversations; read them, but do not edit them.";
+  return parts.length ? `${intro}\n\n${parts.join("\n\n")}` : undefined;
 }
 
 /**
