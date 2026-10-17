@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, rmSync, watch } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, statSync, watch } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type * as esbuild from "esbuild";
@@ -63,14 +63,18 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
   const buildDir = join(dir, ".build");
   rmSync(buildDir, { recursive: true, force: true });
   const names = new Map<string, string>(); // file → mod name
+  const loadedAt = new Map<string, number>(); // file → its modification time when last loaded
   const load = async (file: string) => {
     const path = join(dir, file);
-    if (!existsSync(path)) {
+    const modified = modifiedAt(path);
+    if (modified === null) {
       const name = names.get(file);
       if (name) mods.unload(name);
       names.delete(file);
+      loadedAt.delete(file);
       return;
     }
+    loadedAt.set(file, modified);
     try {
       const mod = await importMod(path, buildDir);
       if ("loaded" in (await mods.load(mod))) names.set(file, mod.name);
@@ -79,8 +83,33 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     }
   };
   const isMod = (file: string) => MOD_FILES.has(extname(file)) && !file.startsWith(".");
-  for (const file of readdirSync(dir).filter(isMod)) await load(file);
-  return watchFiles(dir, isMod, load, 150, false);
+  // Every file that is new, changed or gone since it was last loaded.
+  const sweep = async () => {
+    const files = new Set(readdirSync(dir).filter(isMod));
+    for (const file of new Set([...files, ...loadedAt.keys()])) if (!files.has(file) || loadedAt.get(file) !== modifiedAt(join(dir, file))) await load(file);
+  };
+  // Watching starts before the first look, and a second look follows once the watch is surely running: on macOS
+  // fs.watch returns before its event stream has started, and a file written in between was never loaded.
+  const stop = watchFiles(dir, isMod, load, 150, false);
+  await sweep();
+  const again = setTimeout(() => void sweep(), WATCH_SETTLE_MS);
+  again.unref();
+  return () => {
+    clearTimeout(again);
+    stop();
+  };
+}
+
+/** How long after a watch starts the folder is looked at again, for what changed before it was running. */
+const WATCH_SETTLE_MS = 1000;
+
+/** A file's modification time in milliseconds, or null when it is gone. */
+function modifiedAt(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
 }
 
 /** Call `changed(file)` once a burst of edits to a file under `dir` settles; `file` is relative to `dir`. */
