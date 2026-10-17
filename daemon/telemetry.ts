@@ -145,6 +145,69 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
   };
 }
 
+/**
+ * One turn on an ACP agent (plan 020), as daemon/acp/chats.ts saw it: the agent reports the turn's tokens and cost
+ * and loki watches its replies and tool calls go by, but not how long the model or each tool took. Times are
+ * milliseconds since the epoch.
+ */
+export interface AcpTurn {
+  agentId: string;
+  chatId: string;
+  turnId: string;
+  /** The usage ledger's name for it, `acp:<agent>/<model>`. */
+  model: string;
+  /** The ACP agent's id, which stands in for the harness version: its turns are not loki's harness at work. */
+  agent: string;
+  startedAt: number;
+  firstOutputAt: number | null;
+  endedAt: number;
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; reasoning: number } | null;
+  cost: number;
+  responses: number;
+  toolCalls: number;
+  toolFailures: number;
+  /** ACP's stop reason (`end_turn`, `cancelled`, `refusal`…), null when the prompt failed. */
+  stopReason: string | null;
+  failed: boolean;
+}
+
+/**
+ * The `turn_finished` properties for an ACP turn: the same fields as loki's own turns, with `harness_version` naming
+ * the agent (`acp:<agent>`) so its turns form their own row, and null for the times the agent does not report.
+ */
+export function acpTurnProperties(t: AcpTurn): Record<string, unknown> {
+  const u = t.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 };
+  const prompt = u.input + u.cacheRead + u.cacheWrite;
+  const errorCode = t.failed ? "agent_error" : t.stopReason === "cancelled" ? "aborted" : null;
+  return {
+    desk: scopeFor(t.chatId, t.agentId),
+    chat: t.chatId,
+    agent: t.agentId,
+    model: t.model,
+    harness_version: `acp:${t.agent}`,
+    turn_id: t.turnId,
+    origin: "message",
+    input_tokens: u.input,
+    output_tokens: u.output,
+    cache_read_tokens: u.cacheRead,
+    cache_write_tokens: u.cacheWrite,
+    reasoning_tokens: u.reasoning,
+    cache_share: prompt ? Math.round((u.cacheRead / prompt) * 1000) / 1000 : null,
+    cost: Math.round(t.cost * 1e6) / 1e6,
+    responses: t.responses,
+    ttft_ms: t.firstOutputAt === null ? null : round(t.firstOutputAt - t.startedAt),
+    total_ms: round(t.endedAt - t.startedAt),
+    model_ms: null,
+    tool_ms: null,
+    overhead_ms: null,
+    tool_calls: t.toolCalls,
+    tool_failures: t.toolFailures,
+    stop_reason: t.stopReason === null ? null : code(t.stopReason),
+    error: errorCode !== null,
+    error_code: errorCode,
+  };
+}
+
 /** A run in flight; `taskId` is the task running it now. */
 interface Running {
   taskId: unknown;
