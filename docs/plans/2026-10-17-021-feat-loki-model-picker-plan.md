@@ -77,6 +77,25 @@ All user-directed, 2026-10-17, in the brainstorm.
   list, and an inline radio group for efforts in place of the Effort › page; `PickerView` loses `"effort"`.
   `ModelPill` takes the harness name. Phone and desktop share `ModelChoices` as today.
 
+## Built
+
+Units 1 and 2 landed as #99 and #100, each from `main`.
+
+- **As planned:** the harness tabs (KD1), the inline effort row in place of the Effort › page (KD2), the pill
+  (KD3, which needed no change since an agent's models are already labelled "Claude Code · Sonnet"), and the lock
+  with its reason (KD5). `harnessOf` and `harnesses` in `core/models.ts` replaced plan 020's `pickableEntries`.
+- **Effort levels (R4):** gathered from the agent's `thought_level` option as each model is used, filed under the
+  model the agent reports and under the chat's own name for it (`default`). Levels loki has no word for are left out,
+  and so is the agent's own "default". A level the current model doesn't offer is not sent.
+- **Found while building:**
+  - The app fetched the model list once per connection, so models and levels an agent reported after plan 020's
+    first run never reached the picker until a reload. The list is now fetched again each time a picker opens, with
+    the old one kept on screen meanwhile (unit 1).
+  - Inside an agent's tab, every row repeated "runs on Claude Code, signed in as you". Only the agent's default keeps
+    that line now (unit 2).
+- **Not checked by eye:** the phone's sheet, which needs a paired phone; its markup is covered by the touch tests.
+  With only one harness (no loki provider, or no ACP agent) there are no tabs.
+
 ## Units
 
 1. **ACP effort in the daemon** (`daemon/acp/chats.ts`, `daemon/kernel/index.ts`, `daemon/chat-backend.ts`,
