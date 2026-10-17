@@ -299,6 +299,9 @@ export function Sheet({
   const bottom = placement === "bottom";
   const shell = bottom && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
   useSheetMotion(veilRef, cardRef, onClose, !!shell);
+  // Opened by a click it fades and rises; opened by a key (search, a new task, the keys sheet) it is simply there.
+  // A bottom sheet always rises: on the phone the finger is what opened it.
+  const [grows] = useState(() => bottom || lastInput() === "pointer");
   useEffect(() => {
     opener.current = document.activeElement;
     // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
@@ -319,6 +322,7 @@ export function Sheet({
       ref={veilRef}
       className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom")}
       data-sheet
+      data-grow={grows || undefined}
       style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -356,6 +360,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={label}
+        data-grow={grows || undefined}
         className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)}
         style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }}
         {...cardProps}

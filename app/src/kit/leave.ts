@@ -5,6 +5,12 @@ import { prefersReducedMotion } from "./motion";
 export type LeaveFrames = Keyframe[] | null;
 
 /**
+ * A leave is the app answering (a timer ran out, the link came back, a grade was given), so it moves at once and
+ * slows as it goes: a strong ease-out. Ease-in would hold the first frames still, just when the eye is on it.
+ */
+const LEAVE_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
+
+/**
  * A small thing that leaves the way it came (the Undo button as its seconds run out, the Mac-unreachable
  * banner as the link comes back, a Learn card graded away): when its component unmounts, the element is
  * cloned where it stood and the clone plays `frames`, so the caller never has to keep it mounted for its
@@ -15,7 +21,7 @@ export type LeaveFrames = Keyframe[] | null;
  * graded; null goes at once). A thing that goes with its whole screen (a page closed, a tab left) goes at
  * once too: only a leave that leaves its surroundings in place plays.
  */
-export function useLeave(ref: RefObject<HTMLElement | null>, frames: LeaveFrames | ((el: HTMLElement) => LeaveFrames), ms: number, easing = "ease-in"): void {
+export function useLeave(ref: RefObject<HTMLElement | null>, frames: LeaveFrames | ((el: HTMLElement) => LeaveFrames), ms: number, easing = LEAVE_EASE): void {
   // The latest frames, read in the unmount cleanup.
   const framesRef = useRef(frames);
   useLayoutEffect(() => {

@@ -12,8 +12,9 @@ import { prefersReducedMotion } from "../kit/motion";
  * The drag starts anywhere in the sheet but the fields, and only downward; a list that scrolls keeps its
  * own vertical pans (touch-action, phone.css). A drag never counts as a tap on the row it started on.
  *
- * The veil's parent is the phone shell (Sheet portals there); the drag writes --sheet-lift on it, 1 while
- * the sheet is up and falling toward 0 as it is pulled down, which the receded screen follows.
+ * The veil's parent is the phone shell (Sheet portals there). The receded screen (.loki-phone-main) follows
+ * the drag on its own inline transform, never through a custom property on the shell: a variable set there is
+ * inherited by the whole tree, so every pointermove would restyle every element on screen.
  */
 
 const SLOP = 8;
@@ -33,6 +34,11 @@ function scrolledAbove(target: Element | null, card: HTMLElement): boolean {
   for (let el = target; el && el !== card.parentElement; el = el.parentElement) if (el instanceof HTMLElement && el.scrollTop > 0) return true;
   return false;
 }
+
+/** How far the screen behind recedes while a sheet is up; must match phone.css (the sheet's :has rule). */
+const RECEDE_DROP = "(var(--phone-safe-top) + 10px)";
+const RECEDE_SCALE = 0.06;
+const RECEDE_RADIUS = 12;
 
 /** The clone that plays the exit, marked so the receded screen comes back while it goes. */
 function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
@@ -84,6 +90,7 @@ export function useSheetMotion(
     const card = cardRef.current;
     const parent = veil?.parentElement;
     if (!on || !veil || !card || !parent) return;
+    const behind = parent.querySelector<HTMLElement>(":scope > .loki-phone-main");
     const opened = performance.now();
     let gone = false; // a drag already played the exit
     // The click a drag would otherwise let through, swallowed once; dropped with the sheet if it goes first.
@@ -103,12 +110,23 @@ export function useSheetMotion(
 
     let drag: { id: number; x: number; y: number; on: boolean; samples: Array<{ y: number; t: number }> } | null = null;
     let dy = 0;
-    const lift = (v: number) => parent.style.setProperty("--sheet-lift", String(v));
+    // Measured once as a drag starts: reading layout on every move, right after writing a transform, forces a layout per frame.
+    let height = 1;
+    // 1 while the sheet is up, toward 0 as it is pulled down: the screen behind comes back as the sheet goes.
+    const lift = (v: number) => {
+      if (!behind) return;
+      behind.style.transform = `translateY(calc(${RECEDE_DROP} * ${v})) scale(${1 - RECEDE_SCALE * v})`;
+      behind.style.borderRadius = `${RECEDE_RADIUS * v}px`;
+    };
+    // Hands the screen behind back to phone.css.
+    const unlift = () => {
+      behind?.style.removeProperty("transform");
+      behind?.style.removeProperty("border-radius");
+    };
     const place = (d: number) => {
       dy = d;
       card.style.transform = `translateY(${d >= 0 ? d : -rubberBand(-d)}px)`;
-      const h = card.offsetHeight || 1;
-      const p = Math.max(0, Math.min(1, d / h));
+      const p = Math.max(0, Math.min(1, d / height));
       veil.style.opacity = String(1 - p * 0.8);
       lift(1 - p);
     };
@@ -123,6 +141,7 @@ export function useSheetMotion(
         if (ddy < SLOP || Math.abs(ddy) < Math.abs(e.clientX - drag.x) || scrolledAbove(e.target as Element, card)) return;
         drag.on = true;
         drag.y = e.clientY; // no jump by the slop
+        height = card.offsetHeight || 1;
         try {
           card.setPointerCapture(e.pointerId);
         } catch {
@@ -151,8 +170,7 @@ export function useSheetMotion(
       const first = d.samples[0];
       const last = d.samples[d.samples.length - 1];
       const v = e.type === "pointercancel" || last.t === first.t ? 0 : ((last.y - first.y) / (last.t - first.t)) * 1000;
-      const h = card.offsetHeight || 1;
-      if (e.type !== "pointercancel" && dismisses(dy, h, v)) {
+      if (e.type !== "pointercancel" && dismisses(dy, height, v)) {
         gone = true;
         leave(veil, parent, dy, v);
         veil.style.visibility = "hidden";
@@ -166,7 +184,7 @@ export function useSheetMotion(
       veil.style.transition = `opacity ${s.ms}ms ease-out`;
       card.style.transform = "";
       veil.style.opacity = "";
-      parent.style.removeProperty("--sheet-lift");
+      unlift();
       dy = 0;
     };
     card.addEventListener("pointerdown", down);
@@ -181,7 +199,7 @@ export function useSheetMotion(
       card.removeEventListener("pointerup", up);
       card.removeEventListener("pointercancel", up);
       parent.removeAttribute("data-sheet-drag");
-      parent.style.removeProperty("--sheet-lift");
+      unlift();
       // StrictMode's rehearsal unmount comes within the same frame; a real close has been on screen longer.
       if (!gone && performance.now() - opened > 32 && parent.isConnected) leave(veil, parent, dy);
     };

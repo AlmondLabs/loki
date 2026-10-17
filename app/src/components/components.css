@@ -32,8 +32,10 @@
     border-color 120ms ease-out,
     color 120ms ease-out;
 }
-.loki-btn:hover:not(:disabled) {
-  background: var(--loki-hover);
+@media (hover: hover) and (pointer: fine) {
+  .loki-btn:hover:not(:disabled) {
+    background: var(--loki-hover);
+  }
 }
 .loki-btn:active:not(:disabled) {
   background: var(--loki-selection);
@@ -82,10 +84,15 @@
   background: var(--loki-affirm);
   color: var(--loki-on-affirm);
 }
-.loki-btn--positive:hover:not(:disabled),
 .loki-btn--positive:active:not(:disabled) {
   background: var(--loki-affirm);
   filter: brightness(1.1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-btn--positive:hover:not(:disabled) {
+    background: var(--loki-affirm);
+    filter: brightness(1.1);
+  }
 }
 .loki-btn--positive.loki-btn--bare {
   border-color: var(--loki-affirm);
@@ -98,8 +105,10 @@
   border-color: transparent;
 }
 /* Destroys something: red only once the pointer commits to it. */
-.loki-btn--danger:hover:not(:disabled) {
-  color: var(--loki-negative);
+@media (hover: hover) and (pointer: fine) {
+  .loki-btn--danger:hover:not(:disabled) {
+    color: var(--loki-negative);
+  }
 }
 /* A square glyph button; the size is set inline (24, 28, 36, 40). */
 .loki-btn--icon {
@@ -136,9 +145,11 @@
     background-color 120ms ease-out,
     color 120ms ease-out;
 }
-.loki-nav:hover {
-  background: var(--loki-hover);
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-nav:hover {
+    background: var(--loki-hover);
+    color: var(--loki-fg);
+  }
 }
 .loki-nav[aria-current],
 .loki-nav[aria-selected="true"] {
@@ -172,9 +183,11 @@
     border-color 120ms ease-out,
     color 120ms ease-out;
 }
-.loki-chip:hover:not(:disabled):not(.loki-chip--static) {
-  border-color: var(--loki-muted);
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-chip:hover:not(:disabled):not(.loki-chip--static) {
+    border-color: var(--loki-muted);
+    color: var(--loki-fg);
+  }
 }
 .loki-chip:disabled {
   opacity: 0.5;
@@ -255,8 +268,10 @@
   color: var(--loki-muted);
   opacity: 1;
 }
-.loki-field:hover:not(:disabled) {
-  border-color: var(--loki-muted);
+@media (hover: hover) and (pointer: fine) {
+  .loki-field:hover:not(:disabled) {
+    border-color: var(--loki-muted);
+  }
 }
 .loki-field:disabled {
   opacity: 0.5;
@@ -284,8 +299,10 @@
   border-radius: 0;
   background: transparent;
 }
-.loki-field--bare:hover:not(:disabled) {
-  border-color: var(--loki-border);
+@media (hover: hover) and (pointer: fine) {
+  .loki-field--bare:hover:not(:disabled) {
+    border-color: var(--loki-border);
+  }
 }
 /* A larger first line: the task's title. */
 .loki-field--title {
@@ -302,10 +319,15 @@
   font: inherit;
   line-height: inherit;
 }
-.loki-field--inline:hover:not(:disabled),
 .loki-field--inline:focus {
   border-color: var(--loki-control-border);
   background: var(--loki-well);
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-field--inline:hover:not(:disabled) {
+    border-color: var(--loki-control-border);
+    background: var(--loki-well);
+  }
 }
 .loki-field--mono {
   font-family: var(--loki-mono);
@@ -335,8 +357,10 @@ textarea.loki-field {
   touch-action: manipulation;
   transition: background-color 120ms ease-out;
 }
-.loki-row:hover {
-  background: var(--loki-hover);
+@media (hover: hover) and (pointer: fine) {
+  .loki-row:hover {
+    background: var(--loki-hover);
+  }
 }
 .loki-row[aria-selected="true"],
 .loki-row[aria-checked="true"],
@@ -369,6 +393,9 @@ textarea.loki-field {
   display: grid;
   place-items: start center;
   padding-top: var(--sheet-top, 6vh);
+}
+/* Only a sheet opened by a click fades in (Sheet sets data-grow); one a key opens is just there. */
+.loki-veil[data-grow] {
   animation: loki-veil 160ms ease-out both;
 }
 .loki-veil--scroll {
@@ -596,9 +623,11 @@ textarea.loki-field {
     background-color 120ms ease-out,
     color 120ms ease-out;
 }
-.loki-list-row:hover {
-  background: var(--loki-hover);
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-list-row:hover {
+    background: var(--loki-hover);
+    color: var(--loki-fg);
+  }
 }
 .loki-list-row[aria-current] {
   background: var(--loki-selection);
@@ -706,10 +735,15 @@ textarea.loki-field {
   background: var(--loki-hover);
   transition: opacity 120ms ease-out;
 }
-.loki-list-item:hover .loki-list-row-actions,
 .loki-list-row-actions:focus-within {
   opacity: 1;
   pointer-events: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-list-item:hover .loki-list-row-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .loki-list-item[data-current] .loki-list-row-actions {
   background: var(--loki-selection);
@@ -751,9 +785,11 @@ textarea.loki-field {
 button.loki-list-section-toggle {
   cursor: pointer;
 }
-button.loki-list-section-toggle:hover {
-  background: var(--loki-hover);
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  button.loki-list-section-toggle:hover {
+    background: var(--loki-hover);
+    color: var(--loki-fg);
+  }
 }
 .loki-list-section-chev {
   transition: transform 120ms ease-out;
@@ -779,9 +815,13 @@ button.loki-list-section-toggle:hover {
   opacity: 0;
   transition: opacity 120ms ease-out;
 }
-.loki-list-section-head:hover .loki-list-section-actions,
 .loki-list-section-actions:focus-within {
   opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-list-section-head:hover .loki-list-section-actions {
+    opacity: 1;
+  }
 }
 
 /* The window's top edge in the app (TitleStrip): the rail's colour across the width, the traffic lights over its left end. */
@@ -811,10 +851,15 @@ button.loki-list-section-toggle:hover {
   color: var(--loki-muted);
   cursor: default;
 }
-.loki-title-btn:hover,
 .loki-title-btn[aria-expanded="true"] {
   background: var(--loki-hover);
   color: var(--loki-fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-title-btn:hover {
+    background: var(--loki-hover);
+    color: var(--loki-fg);
+  }
 }
 .loki-title-btn:focus-visible {
   outline: 2px solid var(--loki-accent);
@@ -823,9 +868,11 @@ button.loki-list-section-toggle:hover {
 .loki-title-btn--menu {
   width: 48px;
 } /* the rail's width (SIDEBAR_WIDTH): ☰ sits over the rail */
-.loki-title-btn--close:hover {
-  background: var(--loki-attention);
-  color: var(--loki-on-attention);
+@media (hover: hover) and (pointer: fine) {
+  .loki-title-btn--close:hover {
+    background: var(--loki-attention);
+    color: var(--loki-on-attention);
+  }
 }
 .loki-window-controls {
   display: flex;
@@ -938,8 +985,10 @@ button.loki-list-section-toggle:hover {
     color 120ms ease-out,
     border-color 120ms ease-out;
 }
-.loki-tab:hover {
-  color: var(--loki-fg);
+@media (hover: hover) and (pointer: fine) {
+  .loki-tab:hover {
+    color: var(--loki-fg);
+  }
 }
 .loki-tab[aria-selected="true"] {
   color: var(--loki-fg);
@@ -1072,8 +1121,12 @@ button.loki-list-section-toggle:hover {
   touch-action: none;
   z-index: 1;
 }
-.loki-column-edge:hover,
 .loki-column-edge:active,
 .loki-column-edge:focus-visible {
   background: linear-gradient(to right, transparent 2px, var(--loki-accent) 2px, var(--loki-accent) 4px, transparent 4px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-column-edge:hover {
+    background: linear-gradient(to right, transparent 2px, var(--loki-accent) 2px, var(--loki-accent) 4px, transparent 4px);
+  }
 }

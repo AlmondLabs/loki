@@ -65,49 +65,52 @@ export function ChatWindow({
   const waiting = !!view.approval || !!view.question;
   const { attentive, setHover, setFocused } = useAttentive({ messageCount: view.rows?.length ?? 0, status: view.status, waiting });
   return (
-    <div
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerEnter={() => setHover(true)}
-      onPointerLeave={() => setHover(false)}
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
-      }}
-      data-attentive={attentive ? "true" : "false"}
-      style={panelStyle(placement, width, attentive)}
-    >
-      <Conversation
-        view={view}
-        actions={actions}
-        models={models}
-        agentName={agentName}
-        header={
-          <ConversationHeader
-            title={title ?? (agentName ? `${agentName}'s chat` : "chat")}
-            agentName={agentName}
-            agentId={agentId}
-            right={
-              <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
-                {onToggleWidth && placement !== "center" && (
-                  <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
-                    <WidthIcon wide={width === "wide"} />
+    <>
+      <div aria-hidden style={shadowStyle(placement, width, attentive)} />
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onFocusCapture={() => setFocused(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
+        }}
+        data-attentive={attentive ? "true" : "false"}
+        style={panelStyle(placement, width, attentive)}
+      >
+        <Conversation
+          view={view}
+          actions={actions}
+          models={models}
+          agentName={agentName}
+          header={
+            <ConversationHeader
+              title={title ?? (agentName ? `${agentName}'s chat` : "chat")}
+              agentName={agentName}
+              agentId={agentId}
+              right={
+                <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
+                  {onToggleWidth && placement !== "center" && (
+                    <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
+                      <WidthIcon wide={width === "wide"} />
+                    </IconButton>
+                  )}
+                  <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: 13.5 }}>
+                    ×
                   </IconButton>
-                )}
-                <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: 13.5 }}>
-                  ×
-                </IconButton>
-              </div>
-            }
-          />
-        }
-        prefill={prefill}
-        focusTick={focusTick}
-        findTick={findTick}
-        modelPickerTick={modelPickerTick}
-        modeMenuTick={modeMenuTick}
-        draft={draft}
-      />
-    </div>
+                </div>
+              }
+            />
+          }
+          prefill={prefill}
+          focusTick={focusTick}
+          findTick={findTick}
+          modelPickerTick={modelPickerTick}
+          modeMenuTick={modeMenuTick}
+          draft={draft}
+        />
+      </div>
+    </>
   );
 }
 
@@ -126,11 +129,8 @@ function WidthIcon({ wide }: { wide: boolean }) {
   );
 }
 
-/**
- * Where the panel sits and how it reads: the three placements differ in edges and border, and the
- * whole thing fades to see-through when nothing is going on in it.
- */
-function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boolean): CSSProperties {
+/** Where the panel sits: the three placements differ in edges and border. */
+function placementStyle(placement: ChatPlacement, width: ChatWidth): CSSProperties {
   return {
     position: "absolute",
     ...(placement === "center"
@@ -148,15 +148,36 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
         ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
         : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border)" }),
     boxSizing: "border-box",
+    zIndex: LAYER.panel,
+  };
+}
+
+/**
+ * The panel's shadow, on a layer of its own under it that fades in and out: transitioning box-shadow itself
+ * would repaint the panel on every frame while its thread streams.
+ */
+function shadowStyle(placement: ChatPlacement, width: ChatWidth, attentive: boolean): CSSProperties {
+  return {
+    ...placementStyle(placement, width),
+    borderColor: "transparent",
+    pointerEvents: "none",
+    boxShadow: placement === "center" ? "var(--loki-shadow-sheet)" : "var(--loki-shadow-panel)",
+    opacity: attentive ? 1 : 0,
+    transition: "opacity 220ms ease-out",
+  };
+}
+
+/** How the panel reads: the whole thing fades to see-through when nothing is going on in it. */
+function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boolean): CSSProperties {
+  return {
+    ...placementStyle(placement, width),
     display: "flex",
     flexDirection: "column",
     background: "var(--loki-panel)",
-    boxShadow: attentive ? (placement === "center" ? "var(--loki-shadow-sheet)" : "var(--loki-shadow-panel)") : "none",
     overflow: "hidden",
-    zIndex: LAYER.panel,
     opacity: attentive ? 1 : 0.6,
     // The width changes at once (a menu's pick): animating it would lay the thread out on every frame.
-    transition: "opacity 220ms ease-out, box-shadow 220ms ease-out",
+    transition: "opacity 220ms ease-out",
   };
 }
 

@@ -61,8 +61,13 @@ fades over a second, so you see where focus went without a box sitting there. Co
 links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows which one Tab or Enter acts
 on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
 off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
-Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion zeroes
-every CSS duration *and delay*; JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.
+Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
+movement, not none: it zeroes every CSS duration *and delay*, then lets what appears (sheets, popovers, a chat's
+arriving rows and words, widgets, the phone's banner) fade in over 150 ms with no move or scale, so nothing cuts in
+hard. JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.
+
+Hover belongs to a mouse: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`, so a tap on the
+phone never leaves a control looking hovered. A rule that also answers focus or a press keeps that half outside it.
 
 Motion is springs, the way Apple's is (the phone first; the desktop follows). `app/src/kit/spring.ts` holds three,
 named after SwiftUI's: *smooth* (no bounce, sheets and screens), *snappy* (a trace of bounce, menus, pills, a card
@@ -84,8 +89,8 @@ read shows placeholder rows or a placeholder card after a beat, a light passing 
 message box rides up and down with the keyboard (`phone/viewport.ts`). A Learn card turns over to its answer, is
 thrown right for Got it and left for Again, and the next rises into its place.
 
-The desktop is quieter than the phone. Popovers opened by a click grow from the corner they hang from (the slash
-palette and anything a key opens are just there); a chat opened by a click fades in; a red badge springs in when its
+The desktop is quieter than the phone. Popovers opened by a click grow from the corner they hang from, and sheets
+opened by a click fade and rise (search, a new task, the keys sheet and anything else a key opens are just there); a chat opened by a click fades in; a red badge springs in when its
 count goes up; the camera glides to a widget on the smooth spring, and a wheel, pinch or drag stops it
 (`desk/camera-glide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
 shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
@@ -304,7 +309,7 @@ box is one for both, its sizes set by `touch`.
 - Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Sentence-case sans for every label; mono only for code, data and keys.
-- Motion is springs, only transform and opacity, never for the keyboard; reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
+- Motion is springs, only transform and opacity, never for the keyboard; reduced motion keeps only short fades; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
 - No real money amounts on screen, in the repo, or in recordings (R9), but for the agents' estimated spend on the
   usage page (plan 019, KD2); its fixtures and screenshots use made-up numbers.
 
