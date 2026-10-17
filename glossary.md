@@ -63,6 +63,11 @@ model.
 every agent's chats, the tools, approvals, memory, the background passes and the mods. _Avoid_: harness (for the process),
 app-server, server.
 
+**Engine** (`ChatInfo.engine`, plan 020): what a chat runs on. loki's own engine is pi-durable with a provider's
+model; an **ACP agent** (`daemon/acp/`) is a program loki starts and talks to over the Agent Client Protocol, such
+as Claude Code. Chosen in the model picker before a chat's first message, fixed after it. The agent the chat
+belongs to (its name, memory, Tasks) stays the same either way. _Avoid_: backend, harness (both taken).
+
 **Background pass** (`daemon/passes.ts`): a job the daemon runs on a chat once it has been quiet for half an hour
 and holds new material past the job's cursor, as the agent in that job's hidden chat, one run at a time. There are
 two: reflection, which keeps the agent's memory, and Learn, which writes the person's cards. Same process, different

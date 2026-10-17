@@ -7,6 +7,7 @@
 //   "plan"    reports a plan, then a reply
 //   "wait"    streams a word and waits for session/cancel
 //   "crash"   exits mid-turn
+//   "auth"    fails the prompt the way an agent that is not signed in does
 //   "prompt?" answers with the system prompt and the first prompt's words it was given
 //   "mode?"   answers with its current mode and model
 // Plain JavaScript, so a test starts it with `node` and nothing else.
@@ -183,6 +184,8 @@ async function handle(msg) {
       return ok(open(p.sessionId, p));
     }
     case "session/prompt":
+      if (p.prompt.some((b) => b.type === "text" && b.text.includes("auth")))
+        return send({ id: msg.id, error: { code: -32000, message: "Authentication required" } });
       return ok(await prompt(p));
     case "session/cancel":
       cancels.get(p.sessionId)?.();

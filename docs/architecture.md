@@ -162,6 +162,17 @@ every chat gets, the chats, then the mods.
     once from analytics instead: on its first start the ledger reads the `turn_finished` lines from before it began
     (`seeded_until` in the file), their cost as `other` since a line has only the total. It does not depend on
     analytics otherwise: `LOKI_ANALYTICS=0` leaves it on.
+15. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on
+    pi-durable: `DaemonChats` hands its send, stop, mode, model and commands to `AcpChats`. Each agent is one process
+    (`process.ts`, on `@agentclientprotocol/sdk`, started on first use and again after it exits), offered no files
+    or terminals; each chat is a session on it, loaded again after a restart. What the agent reports
+    (`session/update`) becomes chat events and, as each message completes, `pi.user`, `pi.assistant` and
+    `pi.tool-result` entries in the chat's own store, written without pi (`AgentStore.appendEntries`), so the
+    projection, the Inbox, history and the passes read it as any chat; its reported usage goes into `pi.usage` for
+    the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona, memory and skills go in its
+    system prompt (`prompt.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
+    `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in
+    `state/acp-offered.json` for the picker. Settings › Engines shows how each stands.
 
 ## loki's own mod
 

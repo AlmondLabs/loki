@@ -222,6 +222,7 @@ const acp = new AcpChats({
   agents: () => readAcpAgents(acpFile),
   systemPrompt: (agentId) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null),
   homeDir: homedir(),
+  configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),
 });
 const chat: DaemonChats = new DaemonChats({

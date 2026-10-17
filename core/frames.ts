@@ -18,6 +18,7 @@ import type {
   LanStatus,
   LanVia,
   LocalAgent,
+  EnginesView,
   McpView,
   MemoryCommit,
   MemoryFile,
@@ -170,6 +171,7 @@ export interface Replies {
   /** Tools that run without asking, in every mode but strict (daemon/approvals.ts). */
   chat_approvals: { always: string[] };
   chat_mcp: McpView;
+  chat_engines: EnginesView;
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
@@ -513,6 +515,16 @@ export const FRAMES = {
   chat_approvals_set: request("chat_approvals", "always allow a tool, or take that back", (m) =>
     str(m.tool) && m.tool && typeof m.on === "boolean" ? { tool: m.tool, on: m.on } : "tool and on required",
   ),
+  chat_engines_get: request("chat_engines", "the ACP agents a chat can run on, and how each stands", nothing),
+  chat_engine_set: request("chat_engines", "add or change an ACP agent: its name and how loki starts it", (m) =>
+    str(m.id) && /^[a-z0-9][a-z0-9-]*$/.test(m.id) && str(m.name) && m.name.trim() && str(m.command) && m.command.trim()
+      ? { id: m.id, name: m.name.trim(), command: m.command.trim(), args: strings(m.args) }
+      : "id (lowercase letters, digits and dashes), name and command required",
+  ),
+  chat_engine_remove: request("chat_engines", "remove an ACP agent, or put Claude Code back as loki ships it", (m) =>
+    str(m.id) && m.id ? { id: m.id } : "id required",
+  ),
+  chat_engine_check: request("chat_engines", "start an ACP agent now, to see that it starts", (m) => (str(m.id) && m.id ? { id: m.id } : "id required")),
   chat_mcp_get: request("chat_mcp", "the MCP servers: state, tools and their costs, who has each switched off", nothing),
   chat_mcp_server: request("chat_mcp", "add, change, rename or remove an MCP server in mcp.json", (m) => {
     if (!str(m.entry) || !m.entry.trim()) return "entry required";

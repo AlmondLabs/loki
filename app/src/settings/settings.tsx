@@ -1,4 +1,5 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
+import { Engines, type EnginesApi } from "./engines";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
 import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
@@ -81,6 +82,7 @@ export function Settings({
   phone,
   globalSkills,
   mcp,
+  engines,
   update,
   shortcut,
   recall,
@@ -110,6 +112,8 @@ export function Settings({
   globalSkills: GlobalSkillsApi;
   /** Settings › MCP, and Settings › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
+  /** Settings › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
+  engines: EnginesApi;
   /** Newer loki releases, from GitHub (Settings › loki). */
   update: LokiUpdate;
   /** ⌥Space, held or released (Settings › keys). */
@@ -158,6 +162,7 @@ export function Settings({
         onModelsChanged={onModelsChanged}
       />
     ),
+    engines: () => <EnginesPage engines={engines} chatLink={chatLink} />,
     mcp: () => <McpPage mcp={mcp} chatLink={chatLink} />,
     phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
     skills: () => <SkillsPage globalSkills={globalSkills} />,
@@ -568,6 +573,14 @@ function ChatPage({
         {approvals ? <AlwaysAllowed api={approvals} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
       </Section>
     </>
+  );
+}
+
+function EnginesPage({ engines, chatLink }: { engines: EnginesApi; chatLink: ChatLink }) {
+  return (
+    <Section title="Engines" hint="what a chat can run on besides loki's own models: Claude Code, and any agent that speaks ACP">
+      {chatLink === "open" ? <Engines api={engines} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
+    </Section>
   );
 }
 

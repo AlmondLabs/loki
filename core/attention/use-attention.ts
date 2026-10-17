@@ -778,6 +778,20 @@ export function useAttention(opts: UseAttentionOptions) {
     }),
     [],
   );
+  /** Settings › Engines (plan 020); each resolves to the agents as they now stand, or an error message. */
+  const engines = useMemo(() => {
+    const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      return work(sock).catch((err: unknown) => (err instanceof Error ? err.message : String(err)));
+    };
+    return {
+      get: () => via((s) => s.engines.get()),
+      set: (engine: Parameters<ChatClient["engines"]["set"]>[0]) => via((s) => s.engines.set(engine)),
+      remove: (id: string) => via((s) => s.engines.remove(id)),
+      check: (id: string) => via((s) => s.engines.check(id)),
+    };
+  }, []);
   /** Settings › MCP, Agents › Profile and Settings › Chat's always-allowed tools; each resolves to its result or an error message. */
   const mcp = useMemo(() => {
     const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
@@ -1011,6 +1025,7 @@ export function useAttention(opts: UseAttentionOptions) {
     deleteAgent,
     memory,
     mcp,
+    engines,
     skills,
     updateAgent,
     reflection,

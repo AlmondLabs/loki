@@ -175,19 +175,24 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   4. **providers**: every provider loki knows, connected first; a row opens into the fields it needs. A key is
      checked with the provider, then kept in the keychain; a sign-in opens the browser, and if the browser does not
      come back you can paste the address it ended on.
-  5. **mcp**: the MCP servers in `~/.loki/mcp.json`, see "MCP servers".
-  6. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
+  5. **engines**: what a chat can run on besides loki's own models (see "Chat through Claude Code"): Claude Code,
+     built in, and any agent you add by the command that starts it, kept in `~/.loki/state/acp.json`. Each shows
+     whether it is ready, not found (its command is not on loki's PATH), needs signing in (from its last failure), or
+     has not been tried; **try** starts it now, **edit** changes how it starts, and **reset** puts Claude Code back as
+     loki ships it.
+  6. **mcp**: the MCP servers in `~/.loki/mcp.json`, see "MCP servers".
+  7. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
      Mac only for now.
-  7. **skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field
+  8. **skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field
      to enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
-  8. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+  9. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
      calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
      something new, at once), and the last run.
-  9. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
+  10. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
      tokyo night; kept per device.
-  10. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
-  11. **files**: where everything lives.
-  12. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
+  11. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
+  12. **files**: where everything lives.
+  13. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
       Alfred or the input-source switcher wants it (Mac only).
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in the Inbox, and the app's pages (each

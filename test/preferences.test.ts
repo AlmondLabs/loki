@@ -36,6 +36,7 @@ describe("Preferences: the section list", () => {
       "Usage",
       "Inbox",
       "Providers",
+      "Engines",
       "MCP",
       "Phone",
       "Skills",

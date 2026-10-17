@@ -12,7 +12,8 @@ import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
-import type { AcpAgentConfig } from "./agents.ts";
+import type { EnginesView, EngineView } from "../../core/frame-types.ts";
+import { CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
 import { AcpProcess } from "./process.ts";
 
 /**
@@ -33,6 +34,8 @@ interface Deps {
   systemPrompt?: (agentId: string) => string | null;
   /** The folder a chat with none set runs in. */
   homeDir: string;
+  /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
+  configFile?: string;
   /**
    * Where what each agent last offered (its models, modes and commands) is kept, so the model picker and a chat's
    * menus have them before the agent next starts; absent, they are kept only while the daemon runs.
@@ -155,6 +158,8 @@ export class AcpChats {
   private readonly early = new Map<string, acp.SessionNotification[]>();
   private readonly processes = new Map<string, AcpProcess>();
   private readonly offered: Map<string, Offered>;
+  /** How each agent last went: a message through, a start, or a failure with its reason (Settings › Engines). */
+  private readonly health = new Map<string, { status: "ready" | "started" | "failed"; detail: string | null }>();
   private readonly deps: Deps;
 
   constructor(deps: Deps) {
@@ -193,6 +198,70 @@ export class AcpChats {
     } catch {
       // Only a convenience: the next session offers them again.
     }
+  }
+
+  /** Settings › Engines: every agent, how it starts and how it stands. */
+  engines(): EnginesView {
+    return {
+      engines: this.deps.agents().map((a): EngineView => {
+        const builtin = a.id === CLAUDE_CODE.id;
+        const health = this.health.get(a.id);
+        const failed = health?.status === "failed" ? (health.detail ?? "") : null;
+        // An agent that needs signing in says so in its own words; loki only tells the two kinds of failure apart.
+        const signedOut = failed !== null && /auth|sign.?in|log.?in|credential/i.test(failed);
+        const status: EngineView["status"] = !commandFound(a.command, { ...process.env, ...a.env })
+          ? "not_found"
+          : signedOut
+            ? "signed_out"
+            : (health?.status ?? "unknown");
+        const detail =
+          status === "not_found"
+            ? `${a.command} is not on loki's PATH${a.command === "npx" ? "; install Node" : ""}`
+            : status === "signed_out"
+              ? builtin
+                ? "run claude /login in a terminal, then send again"
+                : `sign in to ${a.name}, then send again`
+              : (health?.detail ?? null);
+        const changed = builtin && JSON.stringify(a) !== JSON.stringify(CLAUDE_CODE);
+        return { id: a.id, name: a.name, command: a.command, args: a.args, builtin, changed, status, detail };
+      }),
+      config_path: this.deps.configFile ?? "",
+    };
+  }
+
+  private editAgents(change: (agents: AcpAgentConfig[]) => AcpAgentConfig[], id: string): EnginesView {
+    if (!this.deps.configFile) throw new Error("this daemon keeps no agents file");
+    writeAcpAgents(this.deps.configFile, change(readAcpAgents(this.deps.configFile)));
+    // The next message starts it the new way.
+    void this.processes.get(id)?.close();
+    this.processes.delete(id);
+    this.health.delete(id);
+    return this.engines();
+  }
+
+  /** Add an agent, or change how one starts (Claude Code's change is kept as an override of the built-in one). */
+  setEngine(agent: AcpAgentConfig): Promise<EnginesView> {
+    return Promise.resolve(this.editAgents((agents) => [...agents.filter((a) => a.id !== agent.id), agent], agent.id));
+  }
+
+  /** Remove an agent; Claude Code goes back to how loki ships it. */
+  removeEngine(id: string): Promise<EnginesView> {
+    return Promise.resolve(
+      this.editAgents((agents) => (id === CLAUDE_CODE.id ? [CLAUDE_CODE, ...agents.filter((a) => a.id !== id)] : agents.filter((a) => a.id !== id)), id),
+    );
+  }
+
+  /** Start an agent afresh and initialize it, to see that it starts; sign-in shows only on a first message. */
+  async checkEngine(id: string): Promise<EnginesView> {
+    const proc = this.process(id);
+    await proc.close();
+    try {
+      await proc.capabilities();
+      if (this.health.get(id)?.status !== "ready") this.health.set(id, { status: "started", detail: "it starts; sign-in shows on the first message" });
+    } catch (error) {
+      this.health.set(id, { status: "failed", detail: proc.failure(error).message });
+    }
+    return this.engines();
   }
 
   /** The chat's engine as the app shows it: the agent's name, the model, and its modes and commands. */
@@ -496,11 +565,14 @@ export class AcpChats {
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "this agent takes no pictures; they were not sent" }]);
       const response = await proc.prompt({ sessionId, prompt });
       await this.finish(live, store, chat, turn, response.usage ?? null, info.engine);
+      this.health.set(live.agent, { status: "ready", detail: null });
       const note = stopNote(response.stopReason);
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
     } catch (error) {
       await this.finish(live, store, chat, turn, null, info.engine).catch(() => {});
-      this.push(live.agentId, live.conversationId, [{ kind: "error", message: proc.failure(error).message }]);
+      const message = proc.failure(error).message;
+      this.health.set(live.agent, { status: "failed", detail: message.split("\n")[0] });
+      this.push(live.agentId, live.conversationId, [{ kind: "error", message }]);
     } finally {
       live.turn = null;
       this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turn_id: turn.id }]);
@@ -510,6 +582,7 @@ export class AcpChats {
   /** The end of a turn: calls left open fail, the plan and the last words are written, and the usage counted. */
   private async finish(live: Live, store: AgentStore, chat: Conversation, turn: Turn, usage: acp.Usage | null, engine: ChatEngine): Promise<void> {
     await Promise.allSettled(turn.writes);
+    // One at a time, in the order the calls were made: the thread is read back in the order its entries were written.
     for (const [id, call] of turn.calls) {
       if (call.done) continue;
       call.done = true;

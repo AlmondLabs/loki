@@ -257,6 +257,30 @@ export interface McpServerView {
   off_for: string[];
 }
 
+/**
+ * One ACP agent as Settings › Engines shows it (plan 020, R10): how loki starts it, and how it stands. `ready`: a
+ * message went through; `started`: it starts, and sign-in shows on the first message; `not_found`: its command is
+ * not on loki's PATH; `signed_out`: it said it needs signing in; `failed`: it failed for another reason; `unknown`:
+ * not tried yet.
+ */
+export interface EngineView {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  /** Claude Code, which loki ships; `changed` when the person's file overrides how it starts. */
+  builtin: boolean;
+  changed: boolean;
+  status: "ready" | "started" | "not_found" | "signed_out" | "failed" | "unknown";
+  detail: string | null;
+}
+
+/** Settings › Engines: the ACP agents and the file the person's own are kept in. */
+export interface EnginesView {
+  engines: EngineView[];
+  config_path: string;
+}
+
 /** The MCP servers Settings shows (`chat_mcp`), with the problems found reading mcp.json and where that file is. */
 export interface McpView {
   servers: McpServerView[];
