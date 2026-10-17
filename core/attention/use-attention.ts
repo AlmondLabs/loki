@@ -29,6 +29,7 @@ import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
+import type { LabelView } from "../labels.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
 export type EngageAction = PayloadOf<"focus_add">["action"];
@@ -778,6 +779,49 @@ export function useAttention(opts: UseAttentionOptions) {
     }),
     [],
   );
+  /**
+   * Labels on chats (plan 022): the list every chip takes its colour from, loaded on first use and after each
+   * change; `set` gives a chat its labels and `edit` renames, recolours or deletes one everywhere. Each resolves to an
+   * error message, or null when it took.
+   */
+  const [labelList, setLabelList] = useState<LabelView[] | null>(null);
+  const labels = useMemo(() => {
+    const load = async (): Promise<string | null> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      try {
+        setLabelList((await sock.labels.get()).labels);
+        return null;
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+    };
+    const run = async (work: (sock: ChatClient) => Promise<unknown>): Promise<string | null> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      try {
+        await work(sock);
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+      return load();
+    };
+    return {
+      list: labelList,
+      load,
+      set: (rt: Runtime, next: string[]) => run((s) => s.labels.set(rt, next)),
+      edit: (change: Parameters<ChatClient["labels"]["edit"]>[0]) => run((s) => s.labels.edit(change)),
+    };
+  }, [labelList]);
+  // Read once the daemon is there, for every chip on this client; each change reads it again (`run` above).
+  const loadLabels = labels.load;
+  const labelsOnOpen = useRef(loadLabels);
+  useEffect(() => {
+    labelsOnOpen.current = loadLabels;
+  });
+  useEffect(() => {
+    if (status === "open") void labelsOnOpen.current();
+  }, [status]);
   /** Settings › Engines (plan 020); each resolves to the agents as they now stand, or an error message. */
   const engines = useMemo(() => {
     const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
@@ -1026,6 +1070,7 @@ export function useAttention(opts: UseAttentionOptions) {
     memory,
     mcp,
     engines,
+    labels,
     skills,
     updateAgent,
     reflection,

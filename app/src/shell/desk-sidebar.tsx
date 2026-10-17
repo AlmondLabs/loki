@@ -9,6 +9,7 @@ import { ColumnHeader } from "./list-column";
 import {
   canArchive,
   canMove,
+  canLabel,
   canPin,
   canRename,
   doneAction,
@@ -26,6 +27,8 @@ import { ChangeFolder, type FolderApi } from "../desk/new-desk";
 import { conversationDirName } from "../../../core/desk-core.ts";
 import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { LabelView } from "../../../core/labels.ts";
+import { LabelChips, LabelsDialog } from "../chat/labels";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
@@ -38,6 +41,7 @@ function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
 
 const NO_ARCHIVE_REASON = "Archiving needs loki's daemon, which is not connected";
 const NO_MOVE_REASON = "Changing folder needs loki's daemon, which is not connected";
+const NO_LABEL_REASON = "Labels need loki's daemon, which is not connected";
 
 /** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
 const store = (): Pick<Storage, "getItem" | "setItem"> | null => {
@@ -71,6 +75,14 @@ export interface DeskSidebarProps {
   onDone?: (item: AttentionItem, done: boolean) => void;
   /** An agent's face (desk/env avatarUrl); a prop so the list renders without a window. */
   avatar: (agentId: string) => string | null;
+  /**
+   * The filter, when the window holds it (a label chip or ⌘K sets it to `label:<name>`); left out, the sidebar keeps
+   * its own.
+   */
+  query?: string;
+  onQuery?: (query: string) => void;
+  /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
+  labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
 }
 
 /**
@@ -94,8 +106,13 @@ export function DeskSidebar({
   folders,
   onDone,
   avatar,
+  query: heldQuery,
+  onQuery,
+  labels,
 }: DeskSidebarProps) {
-  const [query, setQuery] = useState("");
+  const [ownQuery, setOwnQuery] = useState("");
+  const query = heldQuery ?? ownQuery;
+  const setQuery = onQuery ?? setOwnQuery;
   const [pref, setPref] = useState<SidebarPref>(() => {
     const s = store();
     return s ? loadSidebar(s) : { collapsed: [], archivedOpen: false, scroll: 0 };
@@ -103,6 +120,7 @@ export function DeskSidebar({
   const [menu, setMenu] = useState<{ desk: DeskSummary; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<DeskSummary | null>(null);
   const [moving, setMoving] = useState<DeskSummary | null>(null);
+  const [labeling, setLabeling] = useState<DeskSummary | null>(null);
   const [pills, setPills] = useState<{ up: string | null; down: string | null }>({ up: null, down: null });
   const scrollRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -218,14 +236,11 @@ export function DeskSidebar({
         }
         title={name}
         flags={
-          d.pinned && !inPinned ? (
-            <>
-              <Icon name="pin" size={12} title="pinned" />
-              {r.note && <FinishedRing note={r.note} />}
-            </>
-          ) : r.note ? (
-            <FinishedRing note={r.note} />
-          ) : undefined
+          <>
+            {d.pinned && !inPinned && <Icon name="pin" size={12} title="pinned" />}
+            {r.note && <FinishedRing note={r.note} />}
+            <LabelChips labels={d.labels} list={labels?.list ?? null} max={3} dots />
+          </>
         }
         badge={r.badge}
         badgeNoun={r.badgeNoun}
@@ -397,7 +412,17 @@ export function DeskSidebar({
           onArchive={onArchive}
           onRename={setRenaming}
           onMove={onMove && folders ? setMoving : undefined}
+          onLabels={labels ? setLabeling : undefined}
           onDone={onDone}
+        />
+      )}
+      {labeling && labels && (
+        <LabelsDialog
+          title={labeling.title ?? labeling.agent_name ?? "Chat"}
+          current={desks.find((x) => x.scope === labeling.scope)?.labels ?? labeling.labels ?? []}
+          list={labels.list}
+          onChange={(next) => labels.set(labeling, next)}
+          onClose={() => setLabeling(null)}
         />
       )}
       {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
@@ -437,6 +462,7 @@ function RowMenu({
   onArchive,
   onRename,
   onMove,
+  onLabels,
   onDone,
 }: {
   desk: DeskSummary;
@@ -447,6 +473,7 @@ function RowMenu({
   onClose: () => void;
   onRename: (d: DeskSummary) => void;
   onMove?: (d: DeskSummary) => void;
+  onLabels?: (d: DeskSummary) => void;
 } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -514,6 +541,11 @@ function RowMenu({
           Change folder…
         </Row>
       )}
+      {onLabels && canLabel(d) && (
+        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_LABEL_REASON} onClick={pick(() => onLabels(d))}>
+          Labels…
+        </Row>
+      )}
       {canPin(d) && (
         <Row dense role="menuitem" onClick={pick(() => onPin(d, !d.pinned))}>
           {d.pinned ? "Unpin" : "Pin to the top"}
@@ -538,20 +570,36 @@ export function DeskSidebarView({
   notice,
   onOpen,
   onNew,
+  query,
+  onQuery,
 }: {
   desk: Desk;
   catchUp: CatchUp;
   notice: (m: string) => void;
   onOpen: (scope: string) => void;
   onNew: (agentId: string | null) => void;
+  query: string;
+  onQuery: (query: string) => void;
 }) {
+  const connected = catchUp.status === "open";
   return (
     <DeskSidebar
+      query={query}
+      onQuery={onQuery}
+      labels={{
+        list: catchUp.labels.list,
+        set: async (d, next) => {
+          if (!d.agent_id || !d.conversation_id) return "no conversation";
+          const err = await catchUp.labels.set({ agent_id: d.agent_id, conversation_id: d.conversation_id }, next);
+          if (!err) desk.desks.request();
+          return err;
+        },
+      }}
       desks={desk.desks.list}
       agents={catchUp.agents}
       items={catchUp.items}
       current={desk.scope}
-      connected={catchUp.status === "open"}
+      connected={connected}
       avatar={avatarUrl}
       onOpen={onOpen}
       onNew={desk.attention.available ? onNew : undefined}

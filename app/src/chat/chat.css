@@ -1293,3 +1293,168 @@ button.loki-msg-task-open:focus-visible {
   white-space: nowrap;
   font-style: italic;
 }
+
+/* Labels on chats (labels.tsx, plan 022): chips are the label's colour as a dot on a faint tint of it, the name in
+   full ink, so every colour reads the same in both themes. A row shows three dots and "+N"; the header shows all. */
+.loki-labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.loki-label-chip {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 120px;
+  padding: 0 6px;
+  border-radius: var(--loki-radius-pill);
+  background: color-mix(in srgb, var(--label-tone) 16%, transparent);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+button.loki-label-chip {
+  cursor: pointer;
+}
+button.loki-label-chip:hover {
+  background: color-mix(in srgb, var(--label-tone) 28%, transparent);
+}
+button.loki-label-chip:focus-visible {
+  outline: 2px solid var(--loki-accent);
+  outline-offset: 1px;
+}
+.loki-label-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--loki-radius-pill);
+  background: var(--label-tone);
+}
+.loki-label-more {
+  font-size: 11px;
+  color: var(--loki-muted);
+}
+/* In a sidebar row, after the title: the colours only, never taking the title's room. */
+.loki-labels--dots {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 3px;
+  margin-left: 4px;
+}
+/* The header's chips beside the agent, and its "+ label" button in the same quiet ink. */
+.loki-desk-pane-labels {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.loki-desk-pane-label-add {
+  all: unset;
+  font-size: 12px;
+  color: var(--loki-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.loki-desk-pane-label-add:hover {
+  color: var(--loki-fg);
+}
+.loki-desk-pane-label-add:focus-visible {
+  outline: 2px solid var(--loki-accent);
+  outline-offset: 2px;
+  border-radius: var(--loki-radius-sm);
+}
+/* The picker: a field, then the labels as a checklist with the chat's own first and a check on each it has. */
+.loki-labels-dialog {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+}
+.loki-labels-dialog-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--loki-fg);
+}
+.loki-labels-dialog-chat {
+  margin-top: -6px;
+  font-size: 12px;
+  color: var(--loki-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-labels-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+.loki-label-editor {
+  display: grid;
+  gap: 8px;
+}
+.loki-label-list {
+  display: grid;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+}
+.loki-label-option {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13.5px;
+  color: var(--loki-fg);
+  cursor: pointer;
+}
+.loki-label-option + .loki-label-option {
+  border-top: 1px solid var(--loki-border);
+}
+.loki-label-option:hover,
+.loki-label-option:focus-visible {
+  background: var(--loki-hover);
+}
+.loki-label-option:disabled {
+  color: var(--loki-muted);
+  cursor: default;
+}
+.loki-label-option .loki-label-dot {
+  width: 8px;
+  height: 8px;
+}
+.loki-label-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-label-check {
+  flex: none;
+  color: var(--loki-accent);
+}
+.loki-label-empty {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--loki-muted);
+}
+.loki-label-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--loki-negative);
+}
+.loki-label-editor[data-touch] .loki-label-option {
+  min-height: 44px;
+  font-size: 15px;
+}

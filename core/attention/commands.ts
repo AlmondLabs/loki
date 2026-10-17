@@ -32,6 +32,7 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },
   { id: "mode", description: "choose the permission mode for this conversation", where: "loki", action: "chat.mode" },
   { id: "inbox", description: "open the inbox", where: "loki", action: "segment.inbox" },
+  { id: "label", description: "label this chat: /label infra adds infra; /label alone opens its labels", args: "[label]", where: "loki" },
   { id: "chats", description: "search chats, agents and pages", where: "loki", action: "search.open", withKey: true },
 ];
 

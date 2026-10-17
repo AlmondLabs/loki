@@ -42,6 +42,8 @@ export interface ConversationInfo {
   title: string | null;
   last_message_at: string | null;
   archived: boolean;
+  /** The person's labels on the chat (plan 022), as the Inbox list carries them. */
+  labels?: string[];
 }
 
 /** From the last few protocol messages of a conversation. */

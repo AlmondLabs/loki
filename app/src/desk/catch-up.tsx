@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
@@ -35,6 +36,8 @@ export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
 
 interface CatchUpProps {
   onClose: () => void;
+  /** The labels' colours (plan 022), for the card's chips. */
+  labelList?: readonly LabelView[] | null;
   items: AttentionItem[];
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
@@ -328,7 +331,7 @@ function Card({
         models={deck.models ?? null}
         layout={layout}
         agentName={current.agent_name}
-        header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
+        header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} labelList={deck.labelList} />}
         footer={
           <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
         }

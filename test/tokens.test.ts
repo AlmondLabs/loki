@@ -333,6 +333,13 @@ describe("design tokens: every family remains readable on both sides", () => {
         }
         expect(contrast(color("accent"), color("brass-soft"))).toBeGreaterThanOrEqual(4.5);
       });
+
+      test(`${palette} ${theme}: every label colour reads as a mark on the surfaces chips sit on`, () => {
+        const failures = Array.from({ length: 8 }, (_, i) => `label-${i}`)
+          .flatMap((label) => ["bg", "panel", "well"].map((surface) => ({ pair: `${label}/${surface}`, ratio: contrast(color(label), color(surface)) })))
+          .filter(({ ratio }) => ratio < 3);
+        expect(failures).toEqual([]);
+      });
     }
   }
 });

@@ -9,6 +9,7 @@ import { PAGES, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
 import { osWords } from "./os-words";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { LabelView } from "../../../core/labels.ts";
 
 /**
  * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over
@@ -23,11 +24,11 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 export const GROUP_MAX = 5;
 
 /** What search covers, said wherever it could pass for message search (the phone says the same). */
-export const COVERAGE = "Searches chat titles, agents, waiting items and pages — not message text.";
+export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
 
-/** ⌘K search's groups: chats ("desks", the code's older name), agents, what waits on you, and the app's pages. */
-export type GroupId = "desks" | "agents" | "waiting" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", waiting: "Waiting", pages: "Pages" };
+/** ⌘K search's groups: chats ("desks", the code's older name), agents, labels, what waits on you, and the app's pages. */
+export type GroupId = "desks" | "agents" | "labels" | "waiting" | "pages";
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", labels: "Labels", waiting: "Waiting", pages: "Pages" };
 
 /**
  * Where a hit goes. A desk opens on Messages with the box focused (Shell's openDesk). A waiting item opens
@@ -37,6 +38,8 @@ const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents",
 export type SearchTarget =
   | { kind: "desk"; agentId: string; conversationId: string }
   | { kind: "agent"; agentId: string }
+  /** The sidebar filtered to a label's chats (plan 022, R5). */
+  | { kind: "label"; name: string }
   | { kind: "section"; segment: Exclude<Segment, "settings"> }
   | { kind: "preferences"; page: SettingsPage | null };
 
@@ -66,6 +69,8 @@ export interface SearchSources {
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
+  /** The labels on chats, with how many carry each; absent before they load. */
+  labels?: readonly LabelView[] | null;
 }
 
 /** A named page, and the words people use for it. */
@@ -188,6 +193,16 @@ const agentHit = (a: { id: string; name: string }): SearchHit => ({
   lead: { agent: a },
   dim: false,
 });
+const labelHit = (l: LabelView): SearchHit => ({
+  key: `label:${l.name}`,
+  place: `label:${l.name}`,
+  group: "labels",
+  title: l.name,
+  preview: `Label · ${l.chats} ${l.chats === 1 ? "chat" : "chats"}`,
+  target: { kind: "label", name: l.name },
+  lead: { icon: "filter" },
+  dim: false,
+});
 const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
   key: `waiting:${i.agent_id}/${i.id}`,
   place: deskPlace(scopeFor(i.id, i.agent_id)),
@@ -222,6 +237,7 @@ export function buildIndex(src: SearchSources): SearchIndex {
     if (openable(d))
       out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: time(d.last_active) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
+  for (const l of src.labels ?? []) out.push({ hit: labelHit(l), fields: [l.name, `label:${l.name}`], recency: 0 });
   // What needs you: the waiting group; every chat is findable by its title among the chats above.
   for (const i of catchUpQueue(src.items)) {
     const n = name(i.agent_id, i.agent_name);
@@ -258,6 +274,10 @@ export function placeHit(key: string, src: SearchSources): SearchHit | null {
   if (kind === "agent") {
     const a = src.agents.find((x) => x.id === rest);
     return a ? agentHit(a) : null;
+  }
+  if (kind === "label") {
+    const l = src.labels?.find((x) => x.name === rest);
+    return l ? labelHit(l) : null;
   }
   return null;
 }
