@@ -634,8 +634,8 @@ button.loki-file-chip:hover {
 }
 
 /* Select model (model-picker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
-   chevron in Effort and More models), a card of choices split by hairlines with a check in the accent on the
-   current one, then Effort › and More models › as rounded rows of their own. */
+   chevron in More models), the harnesses as a segmented row, a card of choices split by hairlines with a check in
+   the accent on the current one, More models › as a rounded row of its own, then the effort levels. */
 .loki-model-popover {
   max-height: min(460px, 70vh);
   display: flex;
@@ -723,6 +723,77 @@ button.loki-file-chip:hover {
 .loki-model-chev {
   flex: none;
   color: var(--loki-muted);
+}
+/* The harnesses: one well, the chosen one raised in the panel colour; a locked one is faint and does nothing. */
+.loki-model-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-well);
+}
+.loki-model-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.loki-model-tab:hover {
+  color: var(--loki-fg);
+}
+.loki-model-tab[aria-selected="true"] {
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  box-shadow: var(--loki-shadow-low);
+}
+.loki-model-tab[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.loki-model-tab[aria-disabled="true"]:hover {
+  color: var(--loki-muted);
+}
+/* The effort levels under the list: a label, then the levels as small pills, the chosen one in the accent. */
+.loki-model-efforts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 2px 0;
+}
+.loki-model-efforts-label {
+  margin-right: 4px;
+}
+.loki-model-effort {
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.loki-model-effort:hover {
+  background: var(--loki-hover);
+}
+.loki-model-effort[aria-checked="true"] {
+  border-color: var(--loki-accent);
+  background: var(--loki-accent-soft);
+  color: var(--loki-fg);
+  font-weight: 600;
 }
 .loki-model-provider {
   padding: 6px 10px 2px;

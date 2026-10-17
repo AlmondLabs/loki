@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { pickableEntries, type ChatEngineView, type ModelEntry } from "../core/models.ts";
+import { harnessOf, harnesses, type ChatEngineView, type ModelEntry } from "../core/models.ts";
 import { engineCommands, LOKI_COMMANDS } from "../core/attention/commands.ts";
 import { applyChatEvent, emptyLive } from "../core/attention/model.ts";
 import { agentModes } from "../app/src/chat/permission-mode.tsx";
@@ -23,12 +23,22 @@ const entry = (handle: string): ModelEntry => ({ id: handle, handle, label: hand
 const ENTRIES = [entry("anthropic/claude-fable-5"), entry("acp:claude-code/default"), entry("acp:claude-code/sonnet"), entry("acp:codex/default")];
 
 describe("a chat's engine in the app (plan 020)", () => {
-  test("the picker offers every engine before the first message, then only the chat's own", () => {
-    const handles = (e: ModelEntry[] | null) => e?.map((x) => x.handle);
-    expect(handles(pickableEntries(ENTRIES, null, false))).toEqual(ENTRIES.map((e) => e.handle));
-    expect(handles(pickableEntries(ENTRIES, null, true))).toEqual(["anthropic/claude-fable-5"]);
-    expect(handles(pickableEntries(ENTRIES, CLAUDE, true))).toEqual(["acp:claude-code/default", "acp:claude-code/sonnet"]);
-    expect(pickableEntries(null, CLAUDE, true)).toBeNull();
+  test("every harness is open before the first message; after it, only the chat's own (plan 021)", () => {
+    const tabs = (chat: string | null, started: boolean) => harnesses(ENTRIES, chat, started).map((h) => [h.id, h.name, h.locked]);
+    expect(tabs(null, false)).toEqual([
+      [null, "loki", false],
+      ["claude-code", "acp:claude-code/default", false],
+      ["codex", "acp:codex/default", false],
+    ]);
+    expect(tabs(null, true).filter((t) => !t[2])).toEqual([[null, "loki", false]]);
+    expect(tabs("claude-code", true).filter((t) => !t[2])).toEqual([["claude-code", "acp:claude-code/default", false]]);
+    expect(harnesses([], null, false)).toEqual([]);
+    expect([harnessOf("acp:claude-code/sonnet"), harnessOf("anthropic/claude-fable-5"), harnessOf(null), harnessOf("acp:")]).toEqual([
+      "claude-code",
+      null,
+      null,
+      null,
+    ]);
   });
 
   test("an ACP chat's commands: loki's, its passes, then the agent's, with loki's winning a shared name", () => {

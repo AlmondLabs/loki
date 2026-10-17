@@ -2,7 +2,16 @@ import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObje
 import { Chip, Field, IconButton, Meta, Popover, Row, Sheet, sentence } from "../components";
 import { Icon } from "../shared/icons";
 import { formatKeys } from "../shell/keymap";
-import { REASONING_EFFORTS, selectionOf, type ModelEntry, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
+import {
+  REASONING_EFFORTS,
+  harnessOf,
+  harnesses,
+  selectionOf,
+  type Harness,
+  type ModelEntry,
+  type ModelSelection,
+  type ReasoningEffort,
+} from "../../../core/models.ts";
 
 export type { ModelEntry, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 
@@ -136,6 +145,11 @@ export function modelLine(group: ModelGroup): string | null {
   return groupName(group) !== group.handle ? group.handle : null;
 }
 
+/** An ACP agent's row's muted line: only what the agent said of the model; its handle would only repeat the tab. */
+function agentLine(group: ModelGroup): string | null {
+  return group.entries.find((entry) => entry.description)?.description ?? null;
+}
+
 /** The picker's keys over its items (the filter field counts as one): ↑↓ move, Home and End jump, Esc closes. */
 export function pickerKey(key: string, at: number, count: number): { focus: number } | { close: true } | null {
   if (key === "Escape") return { close: true };
@@ -196,8 +210,16 @@ export function ModelPill({
   );
 }
 
-/** Which page of the model picker shows: the short list, the current model's efforts, or more models. */
-export type PickerView = "models" | "effort" | "more";
+/** Which page of the model picker shows: the chosen harness's models, or more of loki's. */
+export type PickerView = "models" | "more";
+
+/** A model's name inside its harness's tab: an ACP agent's "Claude Code · Sonnet" is "Sonnet" there, its default "Default". */
+export function nameInHarness(group: ModelGroup, harness: Harness): string {
+  const name = groupName(group);
+  if (harness.id === null) return name;
+  if (name === harness.name) return "Default";
+  return name.startsWith(`${harness.name} · `) ? name.slice(harness.name.length + 3) : name;
+}
 
 /** The props of `ModelChoices`, the picker's content shared by the phone's sheet and the desktop's popover. */
 export interface ModelChoicesProps {
@@ -205,26 +227,52 @@ export interface ModelChoicesProps {
   entries: ModelEntry[] | null;
   current: string | null;
   currentEffort: ReasoningEffort | null;
+  /** Something has been said: the chat stays on its harness, and the other tabs are locked (plan 020, KD4). */
+  started?: boolean;
+  /** The harness tab showing; undefined shows the chat's own. */
+  harness?: string | null;
   loading: boolean;
   /** More models' filter. */
   query: string;
   /** The phone's sheet: a grip and a round close; the desktop's popover has neither (Esc and a click away close it). */
   touch?: boolean;
   onView: (view: PickerView) => void;
+  onHarness?: (harness: string | null) => void;
   onQuery: (query: string) => void;
   onPick: (selection: ModelSelection) => void;
   onClose: () => void;
 }
 
 /**
- * What Select model shows, the same in the phone's sheet and the desktop's popover: a card of the short list (the
- * model's name, its line, a check on the current one), then Effort › (that model's levels) and More models › (the
- * rest, filtered by provider/name). Every choice applies to this conversation.
+ * What Select model shows, the same in the phone's sheet and the desktop's popover (plan 021): the harnesses as
+ * tabs when there is more than one, the chosen one's models with a check on the current one (loki's as its quick
+ * picks, then More models ›), and under them the checked model's effort levels when it offers several. Every choice
+ * applies to this conversation.
  */
-export function ModelChoices({ view, entries, current, currentEffort, loading, query, touch = false, onView, onQuery, onPick, onClose }: ModelChoicesProps) {
-  const { short, more } = modelLists(entries, current);
-  const efforts = effortEntriesFor(entries ?? [], current);
-  const title = view === "effort" ? "Effort" : view === "more" ? "More models" : "Select model";
+export function ModelChoices({
+  view,
+  entries,
+  current,
+  currentEffort,
+  started = false,
+  harness,
+  loading,
+  query,
+  touch = false,
+  onView,
+  onHarness = () => {},
+  onQuery,
+  onPick,
+  onClose,
+}: ModelChoicesProps) {
+  const chatHarness = harnessOf(current);
+  const tabs = harnesses(entries ?? [], chatHarness, started);
+  const shownId = harness === undefined ? chatHarness : harness;
+  const shown = tabs.find((t) => t.id === shownId) ?? tabs.at(0) ?? { id: null, name: "loki", locked: false };
+  const inShown = (entries ?? []).filter((entry) => harnessOf(entry.handle) === shown.id);
+  const { short, more } = shown.id === null ? modelLists(inShown, current) : { short: groupModelEntries(inShown), more: [] };
+  const efforts = harnessOf(current) === shown.id ? effortEntriesFor(entries ?? [], current) : [];
+  const title = view === "more" ? "More models" : "Select model";
   const glyph = touch ? 20 : 16;
   const option = (id: string, name: string, line: string | null, checked: boolean, pick: () => void) => (
     <Row key={id} flush role="menuitemradio" aria-checked={checked} data-choice={id} data-model-item="" onClick={pick} className="loki-model-row">
@@ -236,16 +284,9 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
     </Row>
   );
   const groupOption = (group: ModelGroup) =>
-    option(group.handle, groupName(group), modelLine(group), group.handle === current, () => onPick(selectionOf(preferredModelEntry(group, currentEffort))));
-  const link = (id: "effort" | "more", label: string, aside: string | null) => (
-    <div key={id} className="loki-model-card">
-      <Row flush role="menuitem" data-choice={id} data-model-item="" onClick={() => onView(id)} className="loki-model-row">
-        <span className="loki-model-link-label">{label}</span>
-        {aside && <span className="loki-model-aside">{aside}</span>}
-        <Icon name="chevron-right" size={glyph} className="loki-model-chev" />
-      </Row>
-    </div>
-  );
+    option(group.handle, nameInHarness(group, shown), shown.id === null ? modelLine(group) : agentLine(group), group.handle === current, () =>
+      onPick(selectionOf(preferredModelEntry(group, currentEffort))),
+    );
   const status = (text: string) => (
     <p role="status" className="loki-model-status">
       {text}
@@ -254,18 +295,9 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
 
   let content;
   if (!entries) content = status(loading ? "Loading models…" : "No models from the harness");
-  else if (view === "effort") {
-    content = (
-      <div className="loki-model-card" role="group" aria-label="Effort">
-        {efforts.map((entry) => {
-          const effort = entry.reasoning_effort;
-          return effort && option(effort, sentence(effortLabel(effort)), null, effort === currentEffort, () => onPick(selectionOf(entry)));
-        })}
-      </div>
-    );
-  } else if (view === "more") {
+  else if (view === "more") {
     const q = query.trim().toLowerCase();
-    const shown = more.filter((group) => !q || group.handle.toLowerCase().includes(q) || group.label.toLowerCase().includes(q)).slice(0, MORE_CAP);
+    const found = more.filter((group) => !q || group.handle.toLowerCase().includes(q) || group.label.toLowerCase().includes(q)).slice(0, MORE_CAP);
     content = (
       <>
         <Field
@@ -281,13 +313,13 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
           placeholder="Filter by provider or name"
           aria-label="Filter models"
         />
-        {shown.length === 0 ? (
+        {found.length === 0 ? (
           status("No model matches")
         ) : (
           <div className="loki-model-card" role="group" aria-label="More models">
-            {shown.flatMap((group, i) => {
+            {found.flatMap((group, i) => {
               const provider = group.handle.split("/")[0];
-              const heading = i === 0 || shown[i - 1].handle.split("/")[0] !== provider;
+              const heading = i === 0 || found[i - 1].handle.split("/")[0] !== provider;
               return [
                 heading && provider !== group.handle && (
                   <div key={`${provider}-label`} role="presentation" className="loki-label loki-model-provider">
@@ -304,11 +336,71 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
   } else {
     content = (
       <>
-        <div className="loki-model-card" role="group" aria-label="Models">
-          {short.map(groupOption)}
-        </div>
-        {efforts.length > 1 && link("effort", "Effort", currentEffort ? sentence(effortLabel(currentEffort)) : null)}
-        {more.length > 0 && link("more", "More models", null)}
+        {tabs.length > 1 && (
+          <div role="tablist" aria-label="Harness" className="loki-model-tabs">
+            {tabs.map((t) => {
+              const on = t.id === shown.id;
+              return (
+                <button
+                  key={t.id ?? "loki"}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  aria-disabled={t.locked || undefined}
+                  tabIndex={on ? 0 : -1}
+                  data-harness={t.id ?? "loki"}
+                  {...(on ? { "data-model-item": "" } : {})}
+                  className="loki-model-tab"
+                  title={t.locked ? "fixed once the chat has started; start a new chat to change" : undefined}
+                  onClick={() => !t.locked && onHarness(t.id)}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {short.length === 0 ? (
+          status(`${shown.name} has not listed its models yet`)
+        ) : (
+          <div className="loki-model-card" role="group" aria-label={`${shown.name} models`}>
+            {short.map(groupOption)}
+          </div>
+        )}
+        {more.length > 0 && (
+          <div className="loki-model-card">
+            <Row flush role="menuitem" data-choice="more" data-model-item="" onClick={() => onView("more")} className="loki-model-row">
+              <span className="loki-model-link-label">More models</span>
+              <Icon name="chevron-right" size={glyph} className="loki-model-chev" />
+            </Row>
+          </div>
+        )}
+        {efforts.length > 1 && (
+          <div role="radiogroup" aria-label="Effort" className="loki-model-efforts">
+            <span aria-hidden className="loki-label loki-model-efforts-label">
+              Effort
+            </span>
+            {efforts.map((entry) => {
+              const effort = entry.reasoning_effort;
+              if (!effort) return null;
+              const on = effort === currentEffort;
+              return (
+                <button
+                  key={effort}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  data-choice={effort}
+                  data-model-item=""
+                  className="loki-model-effort"
+                  onClick={() => onPick(selectionOf(entry))}
+                >
+                  {sentence(effortLabel(effort))}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </>
     );
   }
@@ -338,7 +430,7 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
       </div>
       {!touch && (
         <div role="presentation" className="loki-model-foot">
-          <Meta>{`For this conversation · ↑↓ ${formatKeys("enter")} · ${formatKeys("escape")}`}</Meta>
+          <Meta>{`For this conversation · ${tabs.filter((t) => !t.locked).length > 1 && view === "models" ? "←→ harness · " : ""}↑↓ ${formatKeys("enter")} · ${formatKeys("escape")}`}</Meta>
         </div>
       )}
     </div>
@@ -350,6 +442,8 @@ interface ModelPickerProps {
   current: string | null;
   currentEffort: ReasoningEffort | null;
   entries: ModelEntry[] | null;
+  /** Something has been said in the chat: its harness is fixed. */
+  started?: boolean;
   loading: boolean;
   onPick: (selection: ModelSelection) => void;
   onClose: () => void;
@@ -360,15 +454,17 @@ interface ModelPickerProps {
 /**
  * Select model, framed for where it opens: a bottom sheet on the phone (the Sheet's veil, Escape and focus return),
  * a popover over the message box on the desktop (↑↓ Home End between the items, Esc, a click away; focus returns
- * to the pill). ⌘⇧M (chat.model) opens it too. Closed, nothing is mounted, so each opening starts on the short list.
+ * to the pill). ⌘⇧M (chat.model) opens it too. Closed, nothing is mounted, so each opening starts on the chat's own
+ * harness and its short list.
  */
 export function ModelPicker({ open, ...props }: ModelPickerProps & { open: boolean }) {
   if (!open) return null;
   return <ModelPickerOpen {...props} />;
 }
 
-function ModelPickerOpen({ touch = false, current, currentEffort, entries, loading, onPick, onClose, pillRef }: ModelPickerProps) {
+function ModelPickerOpen({ touch = false, current, currentEffort, entries, started = false, loading, onPick, onClose, pillRef }: ModelPickerProps) {
   const [view, setView] = useState<PickerView>("models");
+  const [harness, setHarness] = useState<string | null>(() => harnessOf(current));
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -384,6 +480,12 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
       node?.querySelector<HTMLElement>("[data-model-item]");
     target?.focus({ preventScroll: true });
   }, [view, loaded]);
+  // A tab chosen from the keyboard keeps the focus, so ←→ can go on to the next.
+  useEffect(() => {
+    const node = ref.current;
+    if (!document.activeElement?.closest('[role="tablist"]')) return;
+    node?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+  }, [harness]);
   // Closing hands focus back to the pill (a tap on a phone never focused it, so the sheet's own return may have
   // nothing to go to). The popover also closes on a press outside it and the pill.
   useEffect(() => {
@@ -411,6 +513,17 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
       return;
     }
     if (inField && (e.key === "Home" || e.key === "End")) return;
+    // ←→ on a harness tab move to the next one the chat can go to, and show it.
+    const tab = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[role="tab"]') : null;
+    if (tab && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      const open = [...(ref.current?.querySelectorAll<HTMLElement>('[role="tab"]:not([aria-disabled="true"])') ?? [])];
+      const at = open.indexOf(tab);
+      const next = open.at((at + (e.key === "ArrowRight" ? 1 : -1) + open.length) % open.length);
+      const id = next?.dataset.harness;
+      if (id && next !== tab) setHarness(id === "loki" ? null : id);
+      return;
+    }
     const move = pickerKey(e.key, items.indexOf(document.activeElement as HTMLElement), items.length);
     if (!move) return;
     e.preventDefault();
@@ -425,10 +538,13 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
       entries={entries}
       current={current}
       currentEffort={currentEffort}
+      started={started}
+      harness={harness}
       loading={loading}
       query={query}
       touch={touch}
       onView={setView}
+      onHarness={setHarness}
       onQuery={setQuery}
       onPick={onPick}
       onClose={onClose}

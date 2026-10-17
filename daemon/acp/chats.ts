@@ -329,7 +329,8 @@ export class AcpChats {
           id: handle,
           handle,
           label: m.value === "default" ? agent.name : `${agent.name} · ${m.name}`,
-          description: m.description ?? `runs on ${agent.name}, signed in as you`,
+          // Its default says what the agent is; its other models are under the agent's tab, so need no such line.
+          ...(m.description ? { description: m.description } : m.value === "default" ? { description: `runs on ${agent.name}, signed in as you` } : {}),
           ...(m.value === "default" ? { is_featured: true } : {}),
         };
         const efforts = knownEfforts(offered?.efforts?.[m.value]);

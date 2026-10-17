@@ -1,17 +1,19 @@
 import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { modelEntriesFromWire, withRecent, type ModelEntry } from "../core/models.ts";
+import { modelEntriesFromWire, withRecent, type Harness, type ModelEntry } from "../core/models.ts";
 import { ComposerBar } from "../app/src/chat/chat-input.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
-import { ModelChoices, ModelPill, modelLine, modelLists, modelName, pickerKey, returnsFocus } from "../app/src/chat/model-picker.tsx";
+import { ModelChoices, ModelPill, modelLine, modelLists, modelName, nameInHarness, pickerKey, returnsFocus } from "../app/src/chat/model-picker.tsx";
+import { groupModelEntries } from "../app/src/chat/model-picker.tsx";
 import { resolve } from "../app/src/shell/keymap.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
  * The one message box (phone and desktop, 2026-09-24): the text on top and a row inside the same field —
  * "+", the model pill (name, then effort), the mic where dictation works, send. The pill opens "Select
- * model": a short list with a check on the current one, then Effort › and More models ›.
+ * model": the harnesses as tabs, the chosen one's models with a check on the current one, More models ›, then the
+ * current model's effort levels (plan 021).
  */
 
 const MODELS: ModelEntry[] = [
@@ -237,28 +239,30 @@ describe("select model", () => {
     ).toBeNull(); // the label already is the handle
   });
 
-  test("the list shows the short list with a check on the current model, then Effort › and More models ›", () => {
+  test("the list shows the short list with a check on the current model, More models ›, then its efforts", () => {
     const html = renderToStaticMarkup(ModelChoices({ ...props, view: "models" }));
     expect(html).toContain(">Select model<");
     const names = [...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1]);
     expect(names).toEqual(["Opus 5.5", "Sonnet 5"]);
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-checked="true"[^>]*data-choice="anthropic\/claude-opus-5-5"/);
-    expect(html).toContain(">Effort<");
     expect(html).toContain(">More models<");
+    // loki alone: no tabs
+    expect(html).not.toContain('role="tablist"');
+    expect(html.indexOf(">More models<")).toBeLessThan(html.indexOf('role="radiogroup"'));
   });
 
-  test("Effort › opens that model's efforts; choosing one picks it", () => {
-    const views: string[] = [];
+  test("the efforts are a row under the list; choosing one picks it at once", () => {
     const picked: unknown[] = [];
-    (must(choice(ModelChoices({ ...props, view: "models", onView: (v) => views.push(v) }), "effort"), "the effort choice").props.onClick as () => void)();
-    expect(views).toEqual(["effort"]);
-    const tree = ModelChoices({ ...props, view: "effort", onPick: (s) => picked.push(s) });
+    const tree = ModelChoices({ ...props, view: "models", onPick: (s) => picked.push(s) });
     const html = renderToStaticMarkup(tree);
-    expect([...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Medium", "High"]);
-    expect(html).toMatch(/aria-checked="true"[^>]*data-choice="medium"/);
+    const row = html.slice(html.indexOf('role="radiogroup"'));
+    expect(row).toContain('aria-label="Effort"');
+    expect([...row.matchAll(/role="radio"[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Medium", "High"]);
+    expect(row).toMatch(/role="radio" aria-checked="true" data-choice="medium"/);
     (must(choice(tree, "high"), "the high choice").props.onClick as () => void)();
     expect(picked).toEqual([{ id: "opus-high", handle: CURRENT, reasoning_effort: "high" }]);
+    // a model with one level or none has no row
+    expect(renderToStaticMarkup(ModelChoices({ ...props, current: "anthropic/claude-sonnet-5", view: "models" }))).not.toContain('role="radiogroup"');
   });
 
   test("More models › lists the rest", () => {
@@ -268,6 +272,102 @@ describe("select model", () => {
     const html = renderToStaticMarkup(ModelChoices({ ...props, view: "more" }));
     const names = [...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1]);
     expect(names).toEqual(["ollama/llama-5", "GPT-6"]);
+  });
+
+  const ACP: ModelEntry[] = [
+    ...MODELS,
+    {
+      id: "acp:claude-code/default",
+      handle: "acp:claude-code/default",
+      label: "Claude Code",
+      description: "runs on Claude Code, signed in as you",
+      is_featured: true,
+    },
+    { id: "acp:claude-code/sonnet@low", handle: "acp:claude-code/sonnet", label: "Claude Code · Sonnet", reasoning_effort: "low" },
+    { id: "acp:claude-code/sonnet@max", handle: "acp:claude-code/sonnet", label: "Claude Code · Sonnet", reasoning_effort: "max" },
+    { id: "acp:codex/default", handle: "acp:codex/default", label: "Codex", is_featured: true },
+  ];
+  const tabsOf = (html: string) =>
+    [...html.matchAll(/role="tab" aria-selected="(true|false)"(?: aria-disabled="true")?[^>]*data-harness="([^"]+)"[^>]*>([^<]+)</g)].map((m) => [
+      m[2],
+      m[3],
+      m[1] === "true",
+      m[0].includes("aria-disabled"),
+    ]);
+
+  test("the harnesses are tabs, loki first; it opens on the chat's own, showing only that harness's models", () => {
+    const html = renderToStaticMarkup(ModelChoices({ ...props, entries: ACP, view: "models" }));
+    expect(tabsOf(html)).toEqual([
+      ["loki", "loki", true, false],
+      ["claude-code", "Claude Code", false, false],
+      ["codex", "Codex", false, false],
+    ]);
+    expect([...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Opus 5.5", "Sonnet 5"]);
+    const claude = renderToStaticMarkup(ModelChoices({ ...props, entries: ACP, current: "acp:claude-code/sonnet", currentEffort: "max", view: "models" }));
+    expect(tabsOf(claude).find((t) => t[2])?.[0]).toBe("claude-code");
+    // in its own tab an agent's models drop its name; its default reads Default
+    expect([...claude.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Default", "Sonnet"]);
+    expect(claude).not.toContain(">More models<");
+    expect([...claude.matchAll(/role="radio"[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Max"]);
+  });
+
+  test("choosing a tab shows it without moving the chat; picking one of its models moves it, at the effort chosen", () => {
+    const harnesses: Array<string | null> = [];
+    const picked: unknown[] = [];
+    const tree = ModelChoices({ ...props, entries: ACP, view: "models", onHarness: (h) => harnesses.push(h), onPick: (s) => picked.push(s) });
+    (
+      must(
+        elements(tree).find((e) => e.props["data-harness"] === "claude-code"),
+        "the Claude Code tab",
+      ).props.onClick as () => void
+    )();
+    expect(harnesses).toEqual(["claude-code"]);
+    expect(picked).toEqual([]);
+    const shown = ModelChoices({ ...props, entries: ACP, harness: "claude-code", view: "models", onPick: (s) => picked.push(s) });
+    const html = renderToStaticMarkup(shown);
+    // the chat's model is not in this tab: no check, and no effort row until a model here is the chat's
+    expect(html).not.toMatch(/aria-checked="true"/);
+    expect(html).not.toContain('role="radiogroup"');
+    (must(choice(shown, "acp:claude-code/default"), "Claude Code's default").props.onClick as () => void)();
+    expect(picked).toEqual([{ id: "acp:claude-code/default", handle: "acp:claude-code/default" }]);
+  });
+
+  test("once the chat has started, the other harnesses are locked and say why", () => {
+    const harnesses: Array<string | null> = [];
+    const tree = ModelChoices({ ...props, entries: ACP, started: true, view: "models", onHarness: (h) => harnesses.push(h) });
+    const html = renderToStaticMarkup(tree);
+    expect(tabsOf(html).map((t) => [t[0], t[3]])).toEqual([
+      ["loki", false],
+      ["claude-code", true],
+      ["codex", true],
+    ]);
+    expect(html).toContain('title="fixed once the chat has started; start a new chat to change"');
+    (
+      must(
+        elements(tree).find((e) => e.props["data-harness"] === "codex"),
+        "the Codex tab",
+      ).props.onClick as () => void
+    )();
+    expect(harnesses).toEqual([]);
+  });
+
+  test("a model's name in its harness's tab", () => {
+    const groups = groupModelEntries(ACP);
+    const claude: Harness = { id: "claude-code", name: "Claude Code", locked: false };
+    const named = (handle: string, h = claude) =>
+      nameInHarness(
+        must(
+          groups.find((g) => g.handle === handle),
+          handle,
+        ),
+        h,
+      );
+    expect(named("acp:claude-code/default")).toBe("Default");
+    expect(named("acp:claude-code/sonnet")).toBe("Sonnet");
+    expect(named(CURRENT, { id: null, name: "loki", locked: false })).toBe("Opus 5.5");
+    // the pill keeps the agent's name: KD3
+    expect(modelName(ACP, "acp:claude-code/sonnet")).toBe("Claude Code · Sonnet");
+    expect(modelName(ACP, CURRENT)).toBe("Opus 5.5");
   });
 
   test("the phone's sheet has a grip and a round close at the top left; the popover has neither", () => {
