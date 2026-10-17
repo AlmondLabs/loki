@@ -401,7 +401,11 @@ terminal). In such a chat:
 - the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
 - the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
   run on loki's side;
-- Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session.
+- Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
+- the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
+  starts, beside Claude Code's own `CLAUDE.md`. Claude Code can read the memory files and is asked not to change them;
+  Reflection, Learn and /doctor keep them up to date from these chats as from any other, on the agent's own model in
+  loki. With no provider set up in loki, they wait until there is one.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
 

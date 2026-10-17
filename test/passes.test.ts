@@ -18,7 +18,7 @@ const ctx = BACKGROUND_CONTEXT;
 /** Long enough to count as new material (MIN_NEW_CHARS). */
 const LONG = "a thought worth keeping about how the river delta builds land over centuries, ".repeat(5);
 
-async function setup(opts: { quietMs?: number; busy?: () => boolean } = {}) {
+async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-passes-"));
   const faux = fauxProvider();
   const models = createModels();
@@ -59,6 +59,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean } = {}) {
     context: ctx,
     jobs: [job],
     busy: () => Promise.resolve(opts.busy?.() ?? false),
+    ...(opts.canRun ? { canRun: () => Promise.resolve(opts.canRun?.() ?? true) } : {}),
     isSubagent: () => false,
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
@@ -68,14 +69,68 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean } = {}) {
     const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, { agent: { model } }, ctx));
     for (const t of texts) await (await chat.submit({ type: "input", content: t }, ctx)).wait(ctx);
   };
+  /** A chat on an ACP agent (plan 020): its turns are written straight into the store, never run by pi. */
+  const acpSay = async (chatId: string, text: string, reply: string) => {
+    const chat = (await store.chat(chatId, ctx)) ?? (await store.createChat(chatId, {}, ctx));
+    await store.updateChat(chatId, { engine: { kind: "acp", agent: "claude-code", model: "default", session_id: "s-1" } }, ctx);
+    // Both in the past, as a finished turn's are: a reply stamped ahead of the clock is not quiet yet.
+    const at = Date.now() - 10;
+    await store.appendEntries(
+      chat,
+      [
+        { kind: "pi.user", message: { role: "user", content: [{ type: "text", text }], timestamp: at } },
+        { kind: "pi.assistant", message: { role: "assistant", content: [{ type: "text", text: reply }], timestamp: at + 1 } },
+      ],
+      null,
+      ctx,
+    );
+  };
   const cleanup = async () => {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });
   };
-  return { dir, faux, agentId, store, chats, state, runner, seen, events, reports, say, cleanup, open, models, registry };
+  return { dir, faux, agentId, store, chats, state, runner, seen, events, reports, say, acpSay, cleanup, open, models, registry };
 }
 
 describe("background passes", () => {
+  test("a chat on an ACP agent is read like any other, and the pass runs on the agent's own model", async () => {
+    const s = await setup();
+    try {
+      s.faux.setResponses([fauxAssistantMessage("kept")]);
+      await s.acpSay("cc", LONG, "noted, from Claude Code");
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(1);
+      expect(s.seen[0].material).toContain("river delta");
+      expect(s.seen[0].material).toContain("noted, from Claude Code");
+      expect(s.events.at(-1)).toMatchObject({ chat: "cc", outcome: "changed", items: { kept: 1 } });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("with no model loki can reach, passes wait quietly and read nothing; the memory review says why", async () => {
+    let reachable = false;
+    const s = await setup({ canRun: () => reachable });
+    try {
+      await s.acpSay("cc", LONG, "noted");
+      await s.runner.sweep();
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(0);
+      expect(s.reports).toEqual([]);
+      expect(s.events).toEqual([]);
+      expect(s.state.cursor("reflection", s.agentId, "cc") ?? 0).toBe(0);
+      const review = await s.runner.runDoctor(s.agentId);
+      expect(review.outcome).toBe("skipped");
+      expect(review.report).toMatch(/Settings › Providers/);
+      reachable = true;
+      s.faux.setResponses([fauxAssistantMessage("kept")]);
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(1);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a quiet chat with new material gets one run, and the job's cursor ends at the chat's length", async () => {
     const s = await setup();
     try {
