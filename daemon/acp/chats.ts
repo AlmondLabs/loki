@@ -378,6 +378,11 @@ export class AcpChats {
 
   private liveOf(agentId: string, conversationId: string, engine: ChatEngine): Live {
     let live = this.live.get(key(agentId, conversationId));
+    // Moved to another agent before its first message, after its session was opened early (`warm`): start over.
+    if (live && live.agent !== engine.agent && !live.turn) {
+      if (live.sessionId) this.bySession.delete(live.sessionId);
+      live = undefined;
+    }
     if (!live) {
       live = {
         agentId,
@@ -443,6 +448,21 @@ export class AcpChats {
     }
     const text = [p.context, p.text.trim() ? p.text : null].filter((t): t is string => Boolean(t)).join("\n\n");
     this.enqueue(live, text, p.images);
+  }
+
+  /**
+   * Open the chat's session now, ahead of its first message, so the agent says which models and effort levels it
+   * offers before anything is sent (plan 021, R4) and the first message starts sooner. Queued like a turn; a failure
+   * here is left for the first message to report.
+   */
+  warm(agentId: string, conversationId: string, engine: ChatEngine): void {
+    const live = this.liveOf(agentId, conversationId, engine);
+    live.queue = live.queue
+      .then(async () => {
+        const { store, chat, info } = await this.chat(agentId, conversationId);
+        if (info.engine?.kind === "acp" && info.engine.agent === live.agent) await this.session(live, store, chat, info, info.engine);
+      })
+      .catch(() => {});
   }
 
   /** A message from loki itself (a schedule's prompt, a background task's notice): queued like the person's. */
@@ -561,7 +581,10 @@ export class AcpChats {
       opened = await proc.newSession({ cwd, mcpServers: [], ...systemPrompt });
       // Known before anything else is awaited: the agent sends its commands right after it answers.
       this.register(opened.sessionId, live);
-      await store.updateChat(live.conversationId, { engine: { ...engine, session_id: opened.sessionId } }, this.deps.context);
+      // Only while the chat is still on this agent: one opened early may have moved on while the agent started.
+      const now = (await store.chatInfo(chat.id, this.deps.context))?.engine;
+      if (now?.kind === "acp" && now.agent === engine.agent)
+        await store.updateChat(live.conversationId, { engine: { ...now, session_id: opened.sessionId } }, this.deps.context);
     }
     live.sessionId = opened.sessionId;
     live.epoch = proc.epoch();
@@ -569,14 +592,17 @@ export class AcpChats {
     live.configOptions = opened.configOptions ?? [];
     live.preamble = prompt && !takesPrompt ? prompt : null;
     this.register(opened.sessionId, live);
-    await this.applyModel(live, engine.model);
-    await this.applyEffort(live, engine.effort ?? null);
+    // The chat's latest choice: a session opened early may have been asked for another while the agent started.
+    await this.applyModel(live, live.model);
+    await this.applyEffort(live, live.effort);
     this.remember(live);
-    // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in.
+    // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in. Read again
+    // now: it may have been chosen while the agent started.
+    const wanted = (await store.chatInfo(chat.id, this.deps.context))?.mode ?? info.mode;
     const offered = this.offered.get(live.agent)?.modes ?? [];
-    if (info.mode && offered.some((m) => m.id === info.mode)) await this.applyMode(live, info.mode).catch(() => {});
+    if (wanted && offered.some((m) => m.id === wanted)) await this.applyMode(live, wanted).catch(() => {});
     const mode = this.currentMode(live);
-    if (mode && mode !== info.mode) await store.updateChat(live.conversationId, { mode }, this.deps.context);
+    if (mode && mode !== wanted) await store.updateChat(live.conversationId, { mode }, this.deps.context);
     this.pushView(live, engine, mode ?? undefined);
     return opened.sessionId;
   }

@@ -65,9 +65,9 @@ function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">): Kept {
 
 const EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
-/** pi's thinking level as loki's reasoning effort. */
+/** pi's thinking level as loki's reasoning effort; none set is pi's own default, off. */
 function effortOf(level: string | undefined): ReasoningEffort | null {
-  if (level === "off") return "none";
+  if (level === undefined || level === "off") return "none";
   return level && EFFORTS.has(level as ReasoningEffort) ? (level as ReasoningEffort) : null;
 }
 

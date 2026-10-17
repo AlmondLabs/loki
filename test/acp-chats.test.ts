@@ -366,6 +366,29 @@ describe("ACP agents (plan 020)", () => {
     expect(efforts()).toHaveLength(6);
   });
 
+  test("picking the agent opens its session before anything is said, so its models and effort levels are known at once", async () => {
+    const s = setup();
+    const { conversationId: id } = await s.chats.create("ada", null, null);
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
+    await until(() => s.acp.models().some((m) => m.reasoning_effort === "medium"));
+    expect([...new Set(s.acp.models().map((m) => m.handle))]).toEqual(["acp:fake/default", "acp:fake/sonnet"]);
+    // A model picked while it is open reaches the session; the first message runs on it.
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "max" });
+    await s.say(id, "effort?");
+    expect(s.words()).toBe("model sonnet, effort max");
+    expect(s.events().filter((e) => e.kind === "step" && e.step.kind === "user")).toHaveLength(1);
+  });
+
+  test("a chat that leaves the agent while its session opens stays where it went", async () => {
+    const s = setup();
+    const { conversationId: id } = await s.chats.create("ada", null, null);
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/default", reasoning_effort: null });
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "faux/faux-1", reasoning_effort: null });
+    await until(() => s.acp.models().some((m) => m.reasoning_effort === "medium"));
+    const { store } = await s.stored(id);
+    expect((await store.chats(ctx)).find((c) => c.id === id)?.engine).toBeNull();
+  });
+
   test("the chosen effort reaches the agent's open session, and a new session starts on it", async () => {
     const s = setup();
     const id = await s.chat();

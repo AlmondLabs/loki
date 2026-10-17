@@ -39,6 +39,8 @@ describe("chat projection", () => {
         title: "Readme",
         archived: false,
         model: `${model.provider}/${model.modelId}`,
+        // No thinking level set is pi's default, off.
+        reasoningEffort: "none",
         lastMessageAt: "2026-10-01T10:00:06.000Z",
       });
       expect(chats.list()).toEqual([
