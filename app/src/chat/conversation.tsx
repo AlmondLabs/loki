@@ -168,7 +168,7 @@ export function Conversation({
   const question = view.question ?? null;
   const model = view.model ?? null;
   const reasoningEffort = view.reasoningEffort ?? null;
-  const { mode: currentMode, modes, pickable, commands } = engineControls(view, models ?? null, actions.commands);
+  const { mode: currentMode, modes, started, commands } = engineControls(view, actions.commands);
   const g = { ...NO_GUTTER, ...gutter };
 
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -236,7 +236,8 @@ export function Conversation({
       touch={touch}
       current={model}
       currentEffort={reasoningEffort}
-      entries={pickable}
+      entries={models}
+      started={started}
       loading={!models}
       onPick={(selection) => void controls.pickModel(selection)}
       onClose={controls.closePicker}

@@ -128,8 +128,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P) and its **model** (⌘⇧M, type to filter every model loki offers). Both apply per conversation; a main
-  chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
+  ⌘⇧P) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
+  any agent added in Settings › engines; ←→ move between them), that harness's models (loki's lately used and
+  featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
+  has more than one. The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
+  per conversation; a main chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Settings › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
@@ -394,9 +397,9 @@ that agent has worked in. The daemon moves the chat, and its commands and file t
 the next turn.
 
 **Chat through Claude Code.** Any agent's chat can run through Claude Code instead of one of loki's models, signed
-in with your own Claude plan. In a new chat, before you send anything, choose **Claude Code** in the model picker
-(its other models are under **More models** once it has run once). From the first message the chat stays on Claude
-Code: the picker offers only Claude Code's models, and a new chat is how you go back to loki's. loki starts Claude
+in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
+and one of its models (the others show once it has run once). From the first message the chat stays on Claude
+Code: the other tabs are greyed out, and a new chat is how you go back to loki's. loki starts Claude
 Code itself, the first time through `npx`, so it needs Node and a `claude` that is signed in (`claude /login` in a
 terminal). In such a chat:
 
@@ -406,7 +409,7 @@ terminal). In such a chat:
 - the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
 - the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
   run on loki's side;
-- the picker's **Effort** offers the levels Claude Code gives the model you're on (low to max, depending on the
+- the picker's effort row offers the levels Claude Code gives the model you're on (low to max, depending on the
   model); a model shows them once it has been used in a chat, and they're kept for next time;
 - Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session

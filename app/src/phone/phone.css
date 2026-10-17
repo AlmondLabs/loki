@@ -1939,6 +1939,18 @@ span.loki-phone-section-btn {
 .loki-phone .loki-model-provider {
   padding: var(--phone-space-2) var(--phone-space-4) 0;
 }
+.loki-phone .loki-model-tabs {
+  border-radius: var(--phone-radius-md);
+}
+.loki-phone .loki-model-tab {
+  min-height: 36px;
+  font-size: var(--phone-text-meta);
+}
+.loki-phone .loki-model-effort {
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-4);
+  font-size: var(--phone-text-meta);
+}
 
 /* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour; "always allow"
    takes a quiet row of its own under them, as under an Inbox card. */

@@ -33,14 +33,36 @@ export interface ChatEngineView {
 /** The model handle prefix of an ACP agent's models (`acp:<agent>/<model>`, daemon/acp/agents.ts). */
 export const acpPrefix = (agent: string) => `acp:${agent}/`;
 
+/** A model's harness (plan 021): the ACP agent's id for `acp:<agent>/<model>`, null for loki's own models. */
+export function harnessOf(handle: string | null | undefined): string | null {
+  if (!handle?.startsWith("acp:")) return null;
+  const slash = handle.indexOf("/");
+  return slash > 4 ? handle.slice(4, slash) : null;
+}
+
+/** One tab of Select model: loki (id null) or an ACP agent, and whether the chat can still move to it. */
+export interface Harness {
+  id: string | null;
+  name: string;
+  /** The chat has started on another harness, so it stays there (plan 020, KD4). */
+  locked: boolean;
+}
+
 /**
- * The models a chat can switch to (plan 020, KD4): on an ACP agent, that agent's own; on loki's engine once something
- * has been said, loki's own; before the first message, all of them, so the chat can move to an ACP agent.
+ * The harnesses the entries offer, loki first, then each ACP agent in the order its models come. An agent is called
+ * by its default model's label (the daemon names it after the agent), else by the label before " · ". Once the chat
+ * has started, every harness but its own is locked.
  */
-export function pickableEntries(entries: ModelEntry[] | null, engine: Pick<ChatEngineView, "agent"> | null, started: boolean): ModelEntry[] | null {
-  if (!entries) return entries;
-  if (engine) return entries.filter((e) => e.handle.startsWith(acpPrefix(engine.agent)));
-  return started ? entries.filter((e) => !e.handle.startsWith("acp:")) : entries;
+export function harnesses(entries: ModelEntry[], chatHarness: string | null, started: boolean): Harness[] {
+  const names = new Map<string | null, string>();
+  for (const entry of entries) {
+    const id = harnessOf(entry.handle);
+    if (id === null) names.set(null, "loki");
+    else if (entry.handle === `${acpPrefix(id)}default`) names.set(id, entry.label);
+    else if (!names.has(id)) names.set(id, entry.label.split(" · ")[0] || id);
+  }
+  const ids = [...names.keys()].sort((a, b) => (a === null ? -1 : b === null ? 1 : 0));
+  return ids.map((id) => ({ id, name: names.get(id) ?? id ?? "loki", locked: started && id !== chatHarness }));
 }
 
 /** A concrete list_models preset. The id preserves provider-specific settings attached to that preset. */
