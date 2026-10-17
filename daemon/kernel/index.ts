@@ -46,7 +46,17 @@ export type ChatInfo = {
    * /clear and a compaction, which unloads every MCP tool the chat had.
    */
   mcpKnown?: string[];
+  /**
+   * Where the chat runs (plan 020): absent, on loki's own engine (pi-durable and a provider's model); `acp`, on an ACP
+   * agent loki starts (daemon/acp/), with the model it was given and the agent's session once one is open. Set before
+   * the chat's first message and fixed after it (KD4).
+   */
+  engine?: ChatEngine | null;
 };
+
+/** An ACP chat's engine: the agent (daemon/acp/agents.ts), its model, and the agent's session id once it has one. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- part of ChatInfo, a pi-durable document
+export type ChatEngine = { kind: "acp"; agent: string; model: string; session_id: string | null };
 
 /** The pi-durable document that holds a chat's ChatInfo, one per conversation, keeping only its latest state; a fork starts from the empty one. */
 export const ChatDoc = defineDoc<ChatInfo>({
@@ -65,6 +75,16 @@ export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   scope: "session",
   initial: () => ({ id: "", name: "" }),
 });
+
+/** Tokens and cost to add to a chat's totals: what an ACP agent reported for a turn (AgentStore.appendEntries). */
+export interface UsageAdd {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /** Dollars, as the agent estimated them; the agent gives no split by token type. */
+  cost: number;
+}
 
 /** The Harness options a store is opened with; the storage is the store's own (AgentStore.open). */
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
@@ -116,7 +136,7 @@ export class AgentStore {
   }
 
   /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
-  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode">>, context: Context): Promise<boolean> {
+  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine">>, context: Context): Promise<boolean> {
     const chat = await this.chat(id, context);
     if (!chat) return false;
     await chat.commit(async (tx) => {
@@ -125,6 +145,7 @@ export class AgentStore {
       if (change.archived !== undefined) info.archived = change.archived;
       if (change.hidden !== undefined) info.hidden = change.hidden;
       if (change.mode !== undefined) info.mode = change.mode;
+      if (change.engine !== undefined) info.engine = change.engine;
     }, context);
     return true;
   }
@@ -196,6 +217,42 @@ export class AgentStore {
         byLine.set(entry.line, written.id);
       }
       return byLine;
+    }, context);
+  }
+
+  /**
+   * Write a chat's messages as they happen elsewhere (an ACP agent's turn, plan 020), without asking pi's model
+   * anything, in one commit. `usage`, when given, is added to the chat's `pi.usage` totals under `model` in the same
+   * commit, so the usage ledger (daemon/usage.ts) counts it as it counts loki's own turns.
+   */
+  async appendEntries(
+    conversation: Conversation,
+    entries: ReadonlyArray<{ kind: "pi.user" | "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }>,
+    usage: { model: string; add: UsageAdd } | null,
+    context: Context,
+  ): Promise<void> {
+    await conversation.commit(async (tx) => {
+      for (const entry of entries) {
+        await tx.appendEntry(conversation.id, {
+          kind: entry.kind,
+          model: [entry.message] as unknown as EntryRecord["model"],
+          ...(entry.kind === "pi.tool-result" ? { data: { diagnostics: [] } } : {}),
+        });
+      }
+      if (!usage) return;
+      const doc = await tx.doc(UsageDoc, conversation.id);
+      const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+      const was = usage.model in doc.models ? doc.models[usage.model] : zero;
+      const { input, output, cacheRead, cacheWrite } = usage.add;
+      doc.models[usage.model] = {
+        ...was,
+        input: was.input + input,
+        output: was.output + output,
+        cacheRead: was.cacheRead + cacheRead,
+        cacheWrite: was.cacheWrite + cacheWrite,
+        totalTokens: was.totalTokens + input + output + cacheRead + cacheWrite,
+        cost: { ...was.cost, total: was.cost.total + usage.add.cost },
+      };
     }, context);
   }
 

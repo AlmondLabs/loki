@@ -1,0 +1,187 @@
+// A stand-in ACP agent for tests: just enough of the Agent Client Protocol over stdio (initialize, session/new,
+// session/load, session/prompt, session/cancel, session/set_mode, session/set_config_option) to be a real agent to
+// @agentclientprotocol/sdk. What it does with a prompt depends on the prompt's words:
+//   "hello"   streams "Hi " then "there", reports usage and its cost so far
+//   "edit"    asks permission to edit a file, then edits it (a diff) or reports the edit refused
+//   "plan"    reports a plan, then a reply
+//   "wait"    streams a word and waits for session/cancel
+//   "crash"   exits mid-turn
+//   "prompt?" answers with the system prompt and the first prompt's words it was given
+//   "mode?"   answers with its current mode and model
+// Plain JavaScript, so a test starts it with `node` and nothing else.
+import { createInterface } from "node:readline";
+
+const sessions = new Map();
+let nextSession = 1;
+let nextRequest = 1;
+const waiting = new Map();
+const cancels = new Map();
+let costSoFar = 0;
+
+const send = (msg) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
+const update = (sessionId, u) => send({ method: "session/update", params: { sessionId, update: u } });
+const say = (sessionId, text) => update(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
+const ask = (method, params) =>
+  new Promise((resolve) => {
+    const id = `agent-${nextRequest++}`;
+    waiting.set(id, resolve);
+    send({ id, method, params });
+  });
+
+const MODES = {
+  currentModeId: "default",
+  availableModes: [
+    { id: "default", name: "Default" },
+    { id: "plan", name: "Plan" },
+  ],
+};
+const modelOption = (value) => ({
+  id: "model",
+  name: "Model",
+  category: "model",
+  type: "select",
+  currentValue: value,
+  options: [
+    { value: "default", name: "Default" },
+    { value: "sonnet", name: "Sonnet" },
+  ],
+});
+
+function open(sessionId, params) {
+  const prompt = params.systemPrompt?.content?.map((c) => c.text).join("\n") ?? null;
+  const s = { mode: "default", model: "default", systemPrompt: prompt, firstPrompt: null };
+  sessions.set(sessionId, s);
+  return { modes: { ...MODES }, configOptions: [modelOption(s.model)] };
+}
+
+async function prompt(params) {
+  const id = params.sessionId;
+  const s = sessions.get(id);
+  const text = params.prompt
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+  s.firstPrompt ??= text;
+  const usage = { inputTokens: 100, outputTokens: 20, cachedReadTokens: 50, cachedWriteTokens: 10, totalTokens: 180 };
+  if (text.includes("crash")) {
+    say(id, "about to stop");
+    setTimeout(() => process.exit(3), 20);
+    return new Promise(() => {});
+  }
+  if (text.includes("prompt?")) {
+    say(id, `system: ${s.systemPrompt ?? "none"} | first: ${s.firstPrompt}`);
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("mode?")) {
+    say(id, `mode ${s.mode}, model ${s.model}`);
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("wait")) {
+    say(id, "working");
+    return new Promise((resolve) => cancels.set(id, () => resolve({ stopReason: "cancelled" })));
+  }
+  if (text.includes("plan")) {
+    update(id, {
+      sessionUpdate: "plan",
+      entries: [
+        { content: "read the file", priority: "high", status: "completed" },
+        { content: "change it", priority: "high", status: "pending" },
+      ],
+    });
+    say(id, "planned");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("edit")) {
+    say(id, "Let me edit it.");
+    const toolCall = { toolCallId: "call-1", title: "Edit notes.txt", kind: "edit", status: "pending", rawInput: { path: "notes.txt" } };
+    update(id, { sessionUpdate: "tool_call", ...toolCall });
+    const answer = await ask("session/request_permission", {
+      sessionId: id,
+      toolCall,
+      options: [
+        { optionId: "yes", name: "Allow", kind: "allow_once" },
+        { optionId: "always", name: "Always allow", kind: "allow_always" },
+        { optionId: "no", name: "Reject", kind: "reject_once" },
+      ],
+    });
+    const allowed = answer.outcome?.outcome === "selected" && answer.outcome.optionId !== "no";
+    if (allowed) {
+      update(id, {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call-1",
+        status: "completed",
+        content: [{ type: "diff", path: "notes.txt", oldText: "old", newText: "new" }],
+      });
+      say(id, `edited (${answer.outcome.optionId})`);
+    } else {
+      update(id, { sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "failed", rawOutput: "refused" });
+      say(id, answer.outcome?.outcome === "cancelled" ? "cancelled" : "not edited");
+    }
+    return { stopReason: answer.outcome?.outcome === "cancelled" ? "cancelled" : "end_turn" };
+  }
+  say(id, "Hi ");
+  say(id, "there");
+  costSoFar += 0.25;
+  update(id, {
+    sessionUpdate: "usage_update",
+    used: 180,
+    size: 200000,
+    cost: { amount: costSoFar, currency: "USD" },
+    _meta: { "_claude/model": "fake-sonnet" },
+  });
+  return { stopReason: "end_turn", usage };
+}
+
+async function handle(msg) {
+  if (msg.id !== undefined && msg.method === undefined) {
+    waiting.get(msg.id)?.(msg.result ?? {});
+    waiting.delete(msg.id);
+    return;
+  }
+  const ok = (result) => send({ id: msg.id, result });
+  const p = msg.params ?? {};
+  switch (msg.method) {
+    case "initialize":
+      return ok({
+        protocolVersion: 1,
+        agentCapabilities: {
+          loadSession: true,
+          promptCapabilities: { image: true },
+          sessionCapabilities: process.env.FAKE_ACP_NO_SYSTEM_PROMPT ? {} : { systemPrompt: { mode: { append: {} } } },
+        },
+        agentInfo: { name: "fake-acp", version: "1" },
+        authMethods: [],
+      });
+    case "session/new": {
+      const sessionId = `s-${process.pid}-${nextSession++}`;
+      return ok({ sessionId, ...open(sessionId, p) });
+    }
+    case "session/load": {
+      if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });
+      // The agent replays the session's history, which a client that keeps its own copy drops.
+      update(p.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text: "replayed question" } });
+      update(p.sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "replayed answer" } });
+      return ok(open(p.sessionId, p));
+    }
+    case "session/prompt":
+      return ok(await prompt(p));
+    case "session/cancel":
+      cancels.get(p.sessionId)?.();
+      cancels.delete(p.sessionId);
+      return;
+    case "session/set_mode":
+      sessions.get(p.sessionId).mode = p.modeId;
+      update(p.sessionId, { sessionUpdate: "current_mode_update", currentModeId: p.modeId });
+      return ok({});
+    case "session/set_config_option":
+      sessions.get(p.sessionId).model = p.value;
+      return ok({ configOptions: [modelOption(p.value)] });
+    default:
+      if (msg.id !== undefined) send({ id: msg.id, error: { code: -32601, message: `no method ${msg.method}` } });
+  }
+}
+
+process.stderr.write("fake-acp: ready\n");
+createInterface({ input: process.stdin }).on("line", (line) => {
+  if (line.trim()) void handle(JSON.parse(line));
+});

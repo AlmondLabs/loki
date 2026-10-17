@@ -63,11 +63,13 @@ function insideFolder(path: unknown, folder: string, cwd: string | undefined): b
 }
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- a tool task's result must be a JsonValue, and an interface with an optional field cannot extend JsonObject
-type Decision = { allow: boolean; message?: string };
+type Decision = { allow: boolean; message?: string; always?: boolean };
 interface Pending {
   agentId: string;
   conversationId: string;
   event: ChatEvent;
+  /** Whether "always allow" goes on loki's list; an ACP agent keeps its own (plan 020, KD10). */
+  remember: boolean;
   settle: (d: Decision | { answers: Record<string, unknown> }) => void;
 }
 
@@ -113,8 +115,8 @@ export class Approvals {
   decide(requestId: string, allow: boolean, message?: string, always = false): boolean {
     const p = this.pending.get(requestId);
     if (p?.event.kind !== "approval") return false;
-    if (allow && always && p.event.tool_name) this.setAlways(p.event.tool_name, true);
-    p.settle({ allow, ...(message ? { message } : {}) });
+    if (allow && always && p.remember && p.event.tool_name) this.setAlways(p.event.tool_name, true);
+    p.settle({ allow, ...(message ? { message } : {}), ...(always ? { always } : {}) });
     return true;
   }
 
@@ -145,8 +147,17 @@ export class Approvals {
     return true;
   }
 
-  /** Ask every client following the chat, and wait for the first answer or the turn's abort. */
-  ask<T>(agentId: string, conversationId: string, event: ChatEvent & { request_id: string }, signal: AbortSignal | undefined): Promise<T> {
+  /**
+   * Ask every client following the chat, and wait for the first answer or the turn's abort. `remember: false` keeps
+   * an "always allow" answer off loki's list and only hands it back (an ACP agent's permission, which it remembers).
+   */
+  ask<T>(
+    agentId: string,
+    conversationId: string,
+    event: ChatEvent & { request_id: string },
+    signal: AbortSignal | undefined,
+    opts: { remember?: boolean } = {},
+  ): Promise<T> {
     return new Promise<T>((resolvePromise, reject) => {
       const done = () => {
         this.pending.delete(event.request_id);
@@ -163,6 +174,7 @@ export class Approvals {
         agentId,
         conversationId,
         event,
+        remember: opts.remember ?? true,
         settle: (d) => {
           done();
           resolvePromise(d as T);

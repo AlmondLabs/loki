@@ -45,6 +45,8 @@ import { paths } from "../mod/paths.ts";
 import { RecallStore, recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 import { UsageLedger } from "./usage.ts";
+import { readAcpAgents } from "./acp/agents.ts";
+import { AcpChats } from "./acp/chats.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -202,6 +204,15 @@ async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
     throw error;
   }
 }
+// Chats on ACP agents (plan 020): Claude Code built in, others added in state/acp.json.
+const acpFile = join(args.dir, "state", "acp.json");
+const acp = new AcpChats({
+  stores,
+  approvals,
+  context,
+  agents: () => readAcpAgents(acpFile),
+  homeDir: homedir(),
+});
 const chat: DaemonChats = new DaemonChats({
   stores,
   mods,
@@ -210,6 +221,7 @@ const chat: DaemonChats = new DaemonChats({
   passes: { runner: passes, state: passState },
   mcp,
   models,
+  acp,
   backendDir: backend,
   context,
   report,
@@ -284,6 +296,8 @@ const loadCore = () =>
         usage: {
           rows: () => usage.rows(),
           priced: (model) => {
+            // An ACP agent prices its own calls, and reports dollars rather than rates (plan 020, R9).
+            if (model.startsWith("acp:")) return true;
             const slash = model.indexOf("/");
             const cost = slash > 0 ? models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost : undefined;
             return !!cost && cost.input + cost.output > 0;
@@ -326,6 +340,7 @@ function stop(signal: string) {
     usage.close();
     background.stopAll();
     void mcp.close();
+    void acp.close();
     for (const name of mods.names()) mods.unload(name);
   } finally {
     void stores.closeAll().finally(() => {
