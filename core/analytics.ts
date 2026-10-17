@@ -72,7 +72,7 @@ export const EVENTS: Record<string, string> = {
   desk_arranged: "a desk tidied",
   widget_trashed: "a widget deleted",
   turn_finished:
-    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection | doctor, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
+    "an agent turn ended, measured by the daemon from its store, or by an ACP chat as it went (harness_version acp:<agent>; model_ms, tool_ms and overhead_ms null) { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection | doctor, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
   pass_finished:
     "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
@@ -251,7 +251,8 @@ interface MeasuredTurn {
   model: string;
   version: string;
   ttft: number | null;
-  overhead: number;
+  /** Null for an ACP agent's turn, whose model and tool times loki does not see. */
+  overhead: number | null;
   total: number;
   cost: number;
   prompt: number;
@@ -266,7 +267,7 @@ function measuredTurn(p: Record<string, unknown>): MeasuredTurn | null {
     model: typeof p.model === "string" ? p.model : "unknown",
     version: typeof p.harness_version === "string" ? p.harness_version : "unknown",
     ttft: typeof p.ttft_ms === "number" ? p.ttft_ms : null,
-    overhead: num(p.overhead_ms),
+    overhead: typeof p.overhead_ms === "number" ? p.overhead_ms : null,
     total: p.total_ms,
     cost: num(p.cost),
     prompt: num(p.input_tokens) + num(p.cache_read_tokens) + num(p.cache_write_tokens),
@@ -295,7 +296,7 @@ function harnessRows(turns: MeasuredTurn[], keyOf: (t: MeasuredTurn) => string):
       key,
       turns: ts.length,
       ttftMs: spread(ts.flatMap((t) => (t.ttft === null ? [] : [t.ttft]))),
-      overheadMs: spread(ts.map((t) => t.overhead)),
+      overheadMs: spread(ts.flatMap((t) => (t.overhead === null ? [] : [t.overhead]))),
       totalMs: spread(ts.map((t) => t.total)),
       costPerTurn: ratio(
         sum(ts, (t) => t.cost),

@@ -692,7 +692,8 @@ a client sent the event, `$app_version`, and the event's own fields — ids and 
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
 `message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
 `inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
-`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod), `approval_requested` (reported by
+`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod; a Claude Code turn's too, with its harness version
+`acp:claude-code` and without the model and tool times Claude Code doesn't report), `approval_requested` (reported by
 every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
 lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.

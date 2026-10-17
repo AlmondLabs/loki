@@ -280,6 +280,25 @@ describe("analytics: the harness, from the daemon's turns", () => {
     ]);
   });
 
+  test("an ACP agent's turns are their own row, and leave overhead out rather than counting it as none", () => {
+    const acp = analyticsReport(
+      [
+        ...events,
+        ev(
+          0,
+          "turn_finished",
+          turn({ model: "acp:claude-code/sonnet", harness_version: "acp:claude-code", ttft_ms: 800, total_ms: 4000, overhead_ms: null }),
+          "mod",
+          "m1",
+          5,
+        ),
+      ],
+      { now: NOW, days: 30 },
+    );
+    expect(acp.harness.byVersion.find((row) => row.key === "acp:claude-code")).toMatchObject({ turns: 1, overheadMs: { p50: null, p90: null } });
+    expect(acp.harness.byModel.find((row) => row.key === "openai/gpt-x")?.overheadMs).toEqual({ p50: 50, p90: 100 });
+  });
+
   test("the text report has a harness section, and none without measured turns", () => {
     const text = formatAnalyticsReport(r);
     for (const s of ["harness 4 turns", "by model", "by harness version", "openai/gpt-x", "def5678-dirty", "500ms/900ms", "2.0s/6.0s", "75%", "33%", "25%"])

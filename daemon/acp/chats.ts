@@ -15,6 +15,7 @@ import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView, EngineView } from "../../core/frame-types.ts";
 import { CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
 import { AcpProcess } from "./process.ts";
+import { acpTurnProperties } from "../telemetry.ts";
 
 /**
  * Chats that run on an ACP agent (plan 020). Each chat has a session on its agent's process; a message is a
@@ -34,6 +35,8 @@ interface Deps {
   systemPrompt?: (agentId: string) => string | null;
   /** The folder a chat with none set runs in. */
   homeDir: string;
+  /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
+  capture?: (event: string, properties: Record<string, unknown>) => void;
   /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
   configFile?: string;
   /**
@@ -76,6 +79,8 @@ interface Call {
   textBefore: string;
   output: string;
   done: boolean;
+  /** The agent said it failed, or the turn ended before it finished. */
+  failed?: boolean;
 }
 
 /** Whether a call's arguments say anything yet (Claude's adapter opens a call as "Preparing file…" with none). */
@@ -96,6 +101,10 @@ interface Turn {
   cost: number;
   /** Finished calls being written, which the turn's end waits for so its last words come after them. */
   writes: Array<Promise<void>>;
+  /** For its `turn_finished` line: when it was sent and first answered (ms), and how many replies it wrote. */
+  startedAt: number;
+  firstOutputAt: number | null;
+  responses: number;
 }
 
 /** One ACP chat as loki is running it now; made on first use, and forgotten when the daemon stops. */
@@ -587,9 +596,13 @@ export class AcpChats {
       model: null,
       cost: 0,
       writes: [],
+      startedAt: 0,
+      firstOutputAt: null,
+      responses: 0,
     };
     live.turn = turn;
     const at = this.now();
+    turn.startedAt = Date.parse(at);
     const content = [
       ...(text ? [{ type: "text" as const, text }] : []),
       ...images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type })),
@@ -599,6 +612,8 @@ export class AcpChats {
       { kind: "step", step: { kind: "user", raw: contentText(content), at } },
     ]);
     await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
+    let usage: acp.Usage | null = null;
+    let stopReason: acp.StopReason | null = null;
     try {
       const sessionId = await this.session(live, store, chat, info, info.engine);
       const caps = await proc.capabilities();
@@ -611,7 +626,9 @@ export class AcpChats {
       if (images.length && !caps.promptCapabilities?.image)
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "this agent takes no pictures; they were not sent" }]);
       const response = await proc.prompt({ sessionId, prompt });
-      await this.finish(live, store, chat, turn, response.usage ?? null, info.engine);
+      usage = response.usage ?? null;
+      stopReason = response.stopReason;
+      await this.finish(live, store, chat, turn, usage, info.engine);
       this.health.set(live.agent, { status: "ready", detail: null });
       const note = stopNote(response.stopReason);
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
@@ -623,7 +640,39 @@ export class AcpChats {
     } finally {
       live.turn = null;
       this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turn_id: turn.id }]);
+      this.measure(live, turn, info.engine, usage, stopReason);
     }
+  }
+
+  /** The turn's `turn_finished` line: what the agent reported, and what loki saw go by. */
+  private measure(live: Live, turn: Turn, engine: ChatEngine, usage: acp.Usage | null, stopReason: acp.StopReason | null): void {
+    const calls = [...turn.calls.values()];
+    this.deps.capture?.(
+      "turn_finished",
+      acpTurnProperties({
+        agentId: live.agentId,
+        chatId: live.conversationId,
+        turnId: turn.id,
+        model: `acp:${engine.agent}/${turn.model ?? engine.model}`,
+        agent: engine.agent,
+        startedAt: turn.startedAt,
+        firstOutputAt: turn.firstOutputAt,
+        endedAt: Date.parse(this.now()),
+        usage: usage && {
+          input: usage.inputTokens,
+          output: usage.outputTokens,
+          cacheRead: usage.cachedReadTokens ?? 0,
+          cacheWrite: usage.cachedWriteTokens ?? 0,
+          reasoning: usage.thoughtTokens ?? 0,
+        },
+        cost: turn.cost,
+        responses: turn.responses,
+        toolCalls: calls.length,
+        toolFailures: calls.filter((c) => c.failed).length,
+        stopReason,
+        failed: stopReason === null,
+      }),
+    );
   }
 
   /** The end of a turn: calls left open fail, the plan and the last words are written, and the usage counted. */
@@ -633,12 +682,15 @@ export class AcpChats {
     for (const [id, call] of turn.calls) {
       if (call.done) continue;
       call.done = true;
+      call.failed = true;
+      turn.responses++;
       await this.writeCall(live, store, chat, id, call, true, call.output || "the tool did not finish");
     }
     const at = this.now();
     const entries: Array<{ kind: "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }> = [];
     if (turn.plan) {
       const id = `plan-${turn.id}`;
+      turn.responses++;
       entries.push(
         { kind: "pi.assistant", message: { role: "assistant", content: [{ type: "toolCall", id, name: "plan", arguments: {} }], timestamp: Date.parse(at) } },
         {
@@ -657,6 +709,7 @@ export class AcpChats {
     const words = turn.text;
     turn.text = "";
     if (words) {
+      turn.responses++;
       const message = { role: "assistant", content: [{ type: "text", text: words }], timestamp: Date.parse(turn.at ?? at) };
       entries.push({ kind: "pi.assistant", message });
       this.push(
@@ -751,10 +804,12 @@ export class AcpChats {
       case "agent_message_chunk":
         if (u.content.type !== "text" || !u.content.text) return;
         turn.at ??= now;
+        turn.firstOutputAt ??= Date.parse(now);
         turn.text += u.content.text;
         push([{ kind: "step", step: { kind: "assistant", text: u.content.text, at: now, chunk: true } }]);
         return;
       case "tool_call": {
+        turn.firstOutputAt ??= Date.parse(now);
         // The words so far belong before the call: they settle as written, and go into the call's stored message.
         const call: Call = {
           name: u.title || u.name || u.kind || "tool",
@@ -812,6 +867,8 @@ export class AcpChats {
   /** A call the agent says finished: done now (so the turn's end leaves it be), written in the background. */
   private completeCall(live: Live, turn: Turn, id: string, call: Call, failed: boolean, raw: string): void {
     call.done = true;
+    call.failed = failed;
+    turn.responses++;
     const output = call.output || raw || (failed ? "the tool failed" : "done");
     turn.writes.push(this.chat(live.agentId, live.conversationId).then(({ store, chat }) => this.writeCall(live, store, chat, id, call, failed, output)));
   }

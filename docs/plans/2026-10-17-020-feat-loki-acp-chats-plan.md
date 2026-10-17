@@ -151,7 +151,9 @@ counts each turn's share). Found while building: a chat opened on loki's engine 
 followed by pi-durable too and showed each message twice (unit 2); the passes, which run on the agent's own model,
 now wait quietly when loki can reach no model rather than failing every quiet spell (unit 3); R1's readiness shows
 on Settings › Engines rather than hiding Claude Code in the picker (unit 4). ACP turns do not write
-`turn_finished` analytics, since writing pi's own run state for them risked pi resuming a run it never had.
+pi's own run state, since pi might resume a run it never had; their `turn_finished` analytics came after, written by
+the ACP chats themselves (harness version `acp:<agent>`, without the model and tool times the agent does not
+report).
 
 ## Units
 
