@@ -1,5 +1,6 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
 import { Engines, type EnginesApi } from "./engines";
+import { Labels, type LabelsApi } from "./labels";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
 import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
@@ -83,6 +84,7 @@ export function Settings({
   globalSkills,
   mcp,
   engines,
+  labels,
   update,
   shortcut,
   recall,
@@ -114,6 +116,8 @@ export function Settings({
   mcp: McpApi;
   /** Settings › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
+  /** Settings › labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
+  labels: LabelsApi;
   /** Newer loki releases, from GitHub (Settings › loki). */
   update: LokiUpdate;
   /** ⌥Space, held or released (Settings › keys). */
@@ -177,6 +181,7 @@ export function Settings({
         approvals={chatLink === "open" ? mcp.approvals : null}
       />
     ),
+    labels: () => <LabelsPage labels={labels} chatLink={chatLink} />,
     files: () => <FilesPage />,
     keys: () => <KeysPage shortcut={shortcut} />,
   };
@@ -573,6 +578,14 @@ function ChatPage({
         {approvals ? <AlwaysAllowed api={approvals} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
       </Section>
     </>
+  );
+}
+
+function LabelsPage({ labels, chatLink }: { labels: LabelsApi; chatLink: ChatLink }) {
+  return (
+    <Section title="Labels" hint="the labels on your chats: rename, recolour or delete one on every chat that carries it">
+      {chatLink === "open" ? <Labels api={labels} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
+    </Section>
   );
 }
 

@@ -61,6 +61,8 @@ export interface QueuedSend {
   images: Attachment[];
   /** The chat's name when it was typed; its environment note is decided when it goes out. */
   desk?: string | null;
+  /** The chat's labels when it was typed (plan 022), for the same note. */
+  labels?: readonly string[] | null;
 }
 
 /** What the live half knows of one conversation beyond its listing, folded from the daemon's chat events while this client is subscribed: its loop, pending approval or question, last words, thread and queued messages. */

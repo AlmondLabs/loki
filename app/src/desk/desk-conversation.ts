@@ -48,7 +48,9 @@ export function deskConversation(
     older: deskChat?.older ?? null,
   };
   const actions: ConversationActions = {
-    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { desk: title, origin: "desk" }),
+    onSend: (text, images) =>
+      deskRuntime &&
+      catchUp.send(deskRuntime, text, images, { desk: title, labels: desk.desks.list.find((d) => d.scope === scope)?.labels ?? null, origin: "desk" }),
     onAnswer: (answers) => {
       if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
     },

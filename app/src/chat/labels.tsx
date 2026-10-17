@@ -16,6 +16,9 @@ const LABEL_COLOR_VARS = [
   "var(--loki-label-7)",
 ] as const;
 
+/** One colour of the palette by its index, for Settings › labels' swatches. */
+export const paletteColor = (index: number): string => LABEL_COLOR_VARS[index % LABEL_COLORS];
+
 /**
  * A label's colour: the one the daemon gave it (Settings › labels can change it), else one picked from its name
  * until the list arrives, so a chip never shows uncoloured.

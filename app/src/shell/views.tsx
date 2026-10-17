@@ -265,6 +265,15 @@ export function SettingsView({
       globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
       mcp={catchUp.mcp}
       engines={catchUp.engines}
+      labels={{
+        list: catchUp.labels.list,
+        // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
+        edit: async (change) => {
+          const err = await catchUp.labels.edit(change);
+          if (!err) desk.desks.request();
+          return err;
+        },
+      }}
       update={update}
       shortcut={shortcut}
       recall={recall}

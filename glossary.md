@@ -80,6 +80,11 @@ objectives. _Avoid_: worker, sweep (the mod's Learn worker and its timer before 
 steps, kept current from each store's commits. The mod reads chats through it (`mod/chat-source.ts`), because it
 needs answers at once and pi-durable answers asynchronously.
 
+**Label** (`ChatInfo.labels`, plan 022): a topic word the person puts on a chat (`infra`, `client-x`) to gather
+related chats across agents: lowercase letters, digits and dashes, up to eight a chat, each with a colour from an
+eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
+agents' own `tags`), category, folder (a chat's working directory).
+
 **Mod**: code that extends every chat through loki's mod API (`daemon/mods/api.ts`, version 1): tools, prompt
 sections, a say before a tool runs, a transform of your message, turn events. loki's own mod is `mod/index.ts`;
 others are files in `~/.loki/mods`. Letta mods do not load.

@@ -70,6 +70,30 @@ All user-directed, 2026-10-17, in the brainstorm.
 - **Agents see them.** The chat's labels go in what the agent is told about the chat it is in (its context line),
   read-only.
 
+## Built
+
+Units 1 to 3 landed as #105, #107 and the Settings › labels PR, each from `main`.
+
+- **As planned:** labels on the chat's own document (`ChatInfo.labels`), colours in `state/labels.json` (a new label
+  takes the colour the fewest have), `chat_labels_get` / `chat_label_set`, the `label:` filter, ⌘K's Labels group,
+  `/label`, Settings › labels, and **Label** in the glossary.
+- **Changed while building:**
+  - Chats have no title menu (the header's only menu is the widgets'; rename, pin and archive live in the row
+    menu by design), so the header has chips and a quiet **+ label** button instead (R1).
+  - A sidebar row shows its labels as coloured dots, not two chips: with chips the title was cut to a few letters
+    in the sidebar's width. The header and Inbox cards keep full chips (R3). A row is a button, so its dots are
+    not; a chip click filters in the header and ⌘K.
+  - The phone's Inbox shows chips on its top card only; the cards behind sit under a veil.
+  - In the picker, ↵ takes the first matching label and makes a new one only when none matches; a click on the
+    Create row still makes it.
+  - The agent learns a chat's labels through the environment note the app adds to a message (its first, and again
+    when the labels change), beside the chat's name, rather than a line on the daemon's side.
+- **Found while building:** the mod's `list_desks` built each desk summary field by field and dropped `labels`, so
+  saved labels never reached the sidebar or header (unit 2, by hand). Unit 1's macOS CI also turned up a race in
+  the mod folder's watcher, fixed on its own in #106.
+- **Not checked by eye:** the phone's labels sheet and card chips (no paired phone); they share the desktop's
+  components.
+
 ## Units
 
 1. **Labels on chats** (`daemon/kernel`, `daemon/chats.ts`, `daemon/chat-backend.ts`, `core/frames.ts`,
