@@ -2950,7 +2950,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   }
 }
 .loki-phone .loki-latest-chip {
-  animation: loki-chip-in var(--spring-snappy-ms) var(--spring-snappy);
+  animation: loki-chip-in var(--spring-smooth-ms) var(--spring-smooth);
 }
 .loki-phone .loki-latest-chip > span {
   display: inline-block;
@@ -2959,7 +2959,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 
 /* Undo springs into the top bar; it shrinks away when it goes (kit/leave.ts). */
 .loki-phone-undo {
-  animation: loki-chip-in var(--spring-snappy-ms) var(--spring-snappy);
+  animation: loki-chip-in var(--spring-smooth-ms) var(--spring-smooth);
 }
 
 /* A swipe an approval refuses shakes the card, as iOS shakes a wrong passcode: the refusal is felt, not only outlined. */
@@ -3075,7 +3075,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   }
 }
 .loki-phone .loki-banner {
-  animation: loki-banner-in var(--spring-snappy-ms) var(--spring-snappy);
+  animation: loki-banner-in var(--spring-smooth-ms) var(--spring-smooth);
 }
 
 /* Learn (phone/learn.tsx): the next card rises into the place of the one graded away; the turn to the answer
@@ -3088,6 +3088,33 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 }
 .loki-phone-learn-card[data-rise] {
   animation: loki-card-rise var(--spring-smooth-ms) var(--spring-smooth) 60ms both;
+}
+
+/* ---- Transparency and contrast ----------------------------------------------------------------------- */
+/* The floating navigation, search and compose buttons are the phone's one material: a raised surface with a blur
+   behind it. Asked for less transparency, they are solid and the blur goes; asked for more contrast, solid too,
+   with the controls' stronger edge, and every hairline takes that edge (as tokens.css does on the desktop). */
+@media (prefers-reduced-transparency: reduce) {
+  .loki-phone,
+  :root[data-theme] .loki-phone {
+    --phone-nav-surface: var(--loki-panel);
+  }
+  .loki-phone :is(.loki-phone-nav, .loki-phone-search-btn, .loki-phone-compose) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .loki-phone,
+  :root[data-theme] .loki-phone {
+    --loki-border: var(--loki-control-border);
+    --phone-nav-surface: var(--loki-panel);
+    --phone-nav-border: var(--loki-control-border);
+  }
+  .loki-phone :is(.loki-phone-nav, .loki-phone-search-btn, .loki-phone-compose) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* ---- Motion -------------------------------------------------------------------------------------- */

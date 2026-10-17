@@ -68,13 +68,20 @@ hard. JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/
 
 Hover belongs to a mouse: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`, so a tap on the
 phone never leaves a control looking hovered. A rule that also answers focus or a press keeps that half outside it.
+Asked for less transparency, the phone's floating navigation is solid with no blur; asked for more contrast, it is
+solid too and every hairline (`--loki-border`) takes the controls' stronger edge.
 
 Motion is springs, the way Apple's is (the phone first; the desktop follows). `app/src/kit/spring.ts` holds three,
-named after SwiftUI's: *smooth* (no bounce, sheets and screens), *snappy* (a trace of bounce, menus, pills, a card
-springing home) and *bouncy* (small confirmations only: the send button, the inbox badge). `node --experimental-strip-types scripts/springs.ts`
+named after SwiftUI's: *smooth* (no bounce, sheets, screens, and menus, pills and banners that appear without being
+thrown), *snappy* (a trace of bounce, for what a finger let go of or pressed: a card springing home, a button) and
+*bouncy* (small confirmations only: the send button, the inbox badge). `node --experimental-strip-types scripts/springs.ts`
 writes them into `tokens.css` as `--spring-<name>` (a `linear()` curve) and `--spring-<name>-ms`; each looks settled by
 ~300 ms. The rules, from Rauno Freiberg's and Emil Kowalski's essays: only transform and opacity move, so it runs on the
 compositor while agents stream; a finger's speed carries into the spring it lets go of (`spring(name, velocity)`);
+a release is judged by where it was going, not where it stopped: its speed (zero if the finger rested first) is
+projected forward as a scroll view slows, and it commits when that lands past the line, so a pull that turns back
+stays (`kit/let-go.ts`, for sheets, the edge swipe and the Inbox card); a thing caught mid-motion is held where it is
+on screen;
 anything can be caught mid-motion; light things happen during a drag and lasting ones on release; nothing done
 from the keyboard, nor a tab switch, animates. On the phone: pressed controls give to 97%, bottom sheets rise, follow
 a finger down and leave however they close (`components/sheet-motion.ts`) while the screen behind recedes; pages push

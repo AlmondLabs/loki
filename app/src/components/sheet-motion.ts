@@ -1,12 +1,15 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { spring } from "../kit/spring";
 import { prefersReducedMotion } from "../kit/motion";
+import { onScreenOffset, releaseCommits, releaseVelocity, type Sample } from "../kit/let-go";
 
 /**
  * A bottom sheet that moves the way an iOS sheet does (the phone's; placement="bottom"):
  *   - it rises on the smooth spring (CSS, phone.css), and the screen behind recedes while it is up;
  *   - it follows a finger down, 1:1, and stretches a little if pulled up past its top;
- *   - let go far enough or fast enough and it leaves at the finger's speed; otherwise it springs back;
+ *   - let go where its speed would carry it past the line and it leaves at that speed; otherwise it springs
+ *     back (a pull that turns up before letting go stays: kit/let-go.ts);
+ *   - caught while it is still rising, it is held where it is, not where the rise was headed;
  *   - however it closes (the veil, Escape, a row that closes it, its caller unmounting it) it leaves the way
  *     it came: the node is cloned as it was and the clone slides away, so no caller has to wait for it.
  * The drag starts anywhere in the sheet but the fields, and only downward; a list that scrolls keeps its
@@ -18,16 +21,15 @@ import { prefersReducedMotion } from "../kit/motion";
  */
 
 const SLOP = 8;
-/** Pulled past this share of its height, or flicked faster than FLICK px/s, the sheet goes. */
+/** Let go where its speed would carry it past this share of its height, the sheet goes. */
 const DISMISS_FRACTION = 0.3;
-const FLICK = 700;
 const FIELDS = "input, textarea, select, [contenteditable='true']";
 
 /** Past its resting place a pull meets resistance, as iOS rubber-bands: a third of the distance, easing off. */
 export const rubberBand = (d: number, limit = 120): number => (d <= 0 ? 0 : limit * (1 - 1 / ((d * 0.55) / limit + 1)));
 
-/** Leave now: whether a released drag closes the sheet. */
-export const dismisses = (dy: number, height: number, velocity: number): boolean => dy > height * DISMISS_FRACTION || (dy > SLOP && velocity > FLICK);
+/** Leave now: whether a released drag closes the sheet (dy and height in px, velocity in px/s, down positive). */
+export const dismisses = (dy: number, height: number, velocity: number): boolean => releaseCommits(dy, velocity, height * DISMISS_FRACTION, SLOP);
 
 /** Something inside that scrolls and is not at its top: a downward pull is that list's, not the sheet's. */
 function scrolledAbove(target: Element | null, card: HTMLElement): boolean {
@@ -50,6 +52,9 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   ghost.style.pointerEvents = "none";
   ghost.style.animation = "none";
   const card = ghost.querySelector<HTMLElement>(".loki-sheet-card");
+  // Closed while still rising (a tap on the veil, Escape): leave from where it is on screen, not from the top.
+  const live = veil.querySelector(".loki-sheet-card");
+  if (!from && live) from = onScreenOffset(live, "y");
   parent.appendChild(ghost);
   const measured = card?.offsetHeight ?? 0;
   const height = measured > 0 ? measured : 400;
@@ -108,7 +113,7 @@ export function useSheetMotion(
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
     ro?.observe(card);
 
-    let drag: { id: number; x: number; y: number; on: boolean; samples: Array<{ y: number; t: number }> } | null = null;
+    let drag: { id: number; x: number; y: number; on: boolean; base: number; samples: Sample[] } | null = null;
     let dy = 0;
     // Measured once as a drag starts: reading layout on every move, right after writing a transform, forces a layout per frame.
     let height = 1;
@@ -132,7 +137,7 @@ export function useSheetMotion(
     };
     const down = (e: PointerEvent) => {
       if (!closeRef.current || (e.pointerType === "mouse" && e.button !== 0) || (e.target as Element).closest(FIELDS)) return;
-      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, samples: [{ y: e.clientY, t: e.timeStamp }] };
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, base: 0, samples: [{ at: e.clientY, t: e.timeStamp }] };
     };
     const move = (e: PointerEvent) => {
       if (drag?.id !== e.pointerId) return;
@@ -147,14 +152,16 @@ export function useSheetMotion(
         } catch {
           /* a pointer that already left */
         }
-        card.getAnimations().forEach((a) => a.cancel()); // caught mid-rise: from here the finger has it
+        // Caught mid-rise: hold it where it is on screen, then the finger has it from there.
+        drag.base = onScreenOffset(card, "y");
+        card.getAnimations().forEach((a) => a.cancel());
         card.style.transition = "none";
         veil.style.transition = "none";
         parent.setAttribute("data-sheet-drag", "");
       }
-      drag.samples.push({ y: e.clientY, t: e.timeStamp });
+      drag.samples.push({ at: e.clientY, t: e.timeStamp });
       if (drag.samples.length > 8) drag.samples.shift();
-      place(e.clientY - drag.y);
+      place(drag.base + e.clientY - drag.y);
     };
     const up = (e: PointerEvent) => {
       const d = drag;
@@ -167,9 +174,7 @@ export function useSheetMotion(
       window.addEventListener("click", swallowing, { capture: true });
       unswallow = setTimeout(stopSwallowing, 0);
       parent.removeAttribute("data-sheet-drag");
-      const first = d.samples[0];
-      const last = d.samples[d.samples.length - 1];
-      const v = e.type === "pointercancel" || last.t === first.t ? 0 : ((last.y - first.y) / (last.t - first.t)) * 1000;
+      const v = e.type === "pointercancel" ? 0 : releaseVelocity(d.samples, e.timeStamp);
       if (e.type !== "pointercancel" && dismisses(dy, height, v)) {
         gone = true;
         leave(veil, parent, dy, v);

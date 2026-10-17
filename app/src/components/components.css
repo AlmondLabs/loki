@@ -471,7 +471,7 @@ textarea.loki-field {
   }
 }
 .loki-popover[data-grow] {
-  animation: loki-popover-grow var(--spring-snappy-ms) var(--spring-snappy);
+  animation: loki-popover-grow var(--spring-smooth-ms) var(--spring-smooth);
 }
 .loki-toast {
   position: absolute;

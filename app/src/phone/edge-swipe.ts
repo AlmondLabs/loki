@@ -1,25 +1,26 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { spring } from "../kit/spring";
 import { popFromDrag } from "./transitions";
+import { releaseCommits, releaseVelocity, type Sample } from "../kit/let-go";
 
 /**
  * Back by a swipe from the screen's left edge, as on iOS: only in the home-screen app, which has no browser to
  * do it. In a Safari tab the browser's own swipe-back owns that edge; both at once would move the page twice.
- * The page follows the finger 1:1; let go past a third of the way, or with a flick, and Back carries on
- * from where the page is at the finger's speed (transitions.ts); short of that it springs home. Only on
+ * The page follows the finger 1:1; let go where its speed would carry it past a third of the way (kit/let-go.ts)
+ * and Back carries on from where the page is at the finger's speed (transitions.ts); short of that, or turned
+ * back before letting go, it springs home. Only on
  * pages (tabs have nowhere to go back to) and never under a sheet. A drag that starts anywhere but the
  * edge, or goes more up than across, is the page's own.
  */
 const EDGE = 24;
 const SLOP = 10;
 const COMMIT_FRACTION = 0.33;
-const FLICK = 500;
 
 /**
- * Whether an edge swipe let go goes Back: past a third of the screen's width, or a flick faster than 500 px/s once past
- * twice the slop (dx and width in px, velocity in px/s).
+ * Whether an edge swipe let go goes Back: once past twice the slop, its speed projected forward carries it past a third
+ * of the screen's width (dx and width in px, velocity in px/s).
  */
-export const edgeCommits = (dx: number, width: number, velocity: number): boolean => dx > width * COMMIT_FRACTION || (dx > SLOP * 2 && velocity > FLICK);
+export const edgeCommits = (dx: number, width: number, velocity: number): boolean => releaseCommits(dx, velocity, width * COMMIT_FRACTION, SLOP * 2);
 
 /** Opened from the home screen (standalone), not in a browser tab. */
 export const standalone = (): boolean =>
@@ -40,7 +41,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     const shell = shellRef.current;
     const main = shell?.querySelector<HTMLElement>(":scope > .loki-phone-main");
     if (!on || !shell || !main || !standalone()) return;
-    let g: { id: number; x: number; y: number; on: boolean; samples: Array<{ x: number; t: number }> } | null = null;
+    let g: { id: number; x: number; y: number; on: boolean; samples: Sample[] } | null = null;
     // A gesture's follow-ups (the fallback settle, the transition reset), cleared with the effect.
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const later = (f: () => void, ms: number) => {
@@ -53,7 +54,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     };
     const down = (e: PointerEvent) => {
       if (e.pointerType === "mouse" || e.clientX > EDGE || shell.querySelector(":scope > .loki-veil:not([data-leaving])")) return;
-      g = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, samples: [{ x: e.clientX, t: e.timeStamp }] };
+      g = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, samples: [{ at: e.clientX, t: e.timeStamp }] };
     };
     const move = (e: PointerEvent) => {
       if (g?.id !== e.pointerId) return;
@@ -72,7 +73,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
         main.style.transition = "none";
         shell.setAttribute("data-edge-drag", "");
       }
-      g.samples.push({ x: e.clientX, t: e.timeStamp });
+      g.samples.push({ at: e.clientX, t: e.timeStamp });
       if (g.samples.length > 8) g.samples.shift();
       main.style.transform = `translateX(${Math.max(0, e.clientX - g.x)}px)`;
     };
@@ -82,9 +83,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
       g = null;
       if (!d.on) return;
       const dx = Math.max(0, e.clientX - d.x);
-      const first = d.samples[0];
-      const last = d.samples[d.samples.length - 1];
-      const v = e.type === "pointercancel" || last.t === first.t ? 0 : ((last.x - first.x) / (last.t - first.t)) * 1000;
+      const v = e.type === "pointercancel" ? 0 : releaseVelocity(d.samples, e.timeStamp);
       if (e.type !== "pointercancel" && edgeCommits(dx, shell.clientWidth || 390, v)) {
         popFromDrag(dx, v, () => {
           main.style.transition = "none";

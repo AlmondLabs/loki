@@ -21,9 +21,9 @@ export interface Spring {
 
 /** Named after SwiftUI's: smooth and snappy as Apple tunes them, bouncy a little tamer (a work tool you watch all day should not wobble). Settled to the eye by ~300 ms. */
 export const SPRINGS = {
-  /** Sheets, screens, anything large. No overshoot. */
+  /** Sheets, screens, and anything that appears without being thrown (menus, pills, banners). No overshoot. */
   smooth: { duration: 0.35, bounce: 0 },
-  /** Menus, pills, buttons, a card springing back. */
+  /** What a finger let go of or pressed: a card or sheet springing back, a button, a chevron turning. Overshoot belongs to momentum. */
   snappy: { duration: 0.3, bounce: 0.15 },
   /** Small confirmations only: the send button, a badge. */
   bouncy: { duration: 0.4, bounce: 0.25 },
