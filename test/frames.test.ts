@@ -15,7 +15,7 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, Add task's (read the list, file one), and the usage page's read", () => {
+  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, Add task's (read the list, file one), the usage page's read, and the labels' list", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
         "chat_open",
@@ -26,6 +26,7 @@ describe("the frame table", () => {
         "chat_send",
         "chat_abort",
         "chat_update",
+        "chat_labels_get",
         "chat_folder",
         "chat_model",
         "chat_models",

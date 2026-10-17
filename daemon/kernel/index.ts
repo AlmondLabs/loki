@@ -52,6 +52,8 @@ export type ChatInfo = {
    * the chat's first message and fixed after it (KD4).
    */
   engine?: ChatEngine | null;
+  /** The person's labels on the chat (plan 022), as core/labels.ts names them; absent, none. */
+  labels?: string[];
 };
 
 /**
@@ -139,7 +141,11 @@ export class AgentStore {
   }
 
   /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
-  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine">>, context: Context): Promise<boolean> {
+  async updateChat(
+    id: string,
+    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels">>,
+    context: Context,
+  ): Promise<boolean> {
     const chat = await this.chat(id, context);
     if (!chat) return false;
     await chat.commit(async (tx) => {
@@ -149,6 +155,7 @@ export class AgentStore {
       if (change.hidden !== undefined) info.hidden = change.hidden;
       if (change.mode !== undefined) info.mode = change.mode;
       if (change.engine !== undefined) info.engine = change.engine;
+      if (change.labels !== undefined) info.labels = change.labels;
     }, context);
     return true;
   }

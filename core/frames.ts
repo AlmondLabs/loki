@@ -8,6 +8,7 @@ import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/mo
 import type { UsageReply } from "./usage.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
+import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
   DeskStatus,
   DeskSummary,
@@ -172,6 +173,8 @@ export interface Replies {
   chat_approvals: { always: string[] };
   chat_mcp: McpView;
   chat_engines: EnginesView;
+  /** Every label on a chat, with its colour and how many chats carry it (plan 022). */
+  chat_labels: { labels: LabelView[] };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
@@ -424,7 +427,7 @@ export const FRAMES = {
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE),
   chat_update: request(
     "chat_done",
-    "rename, archive or hide a chat",
+    "rename, archive or hide a chat, or set its labels",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
@@ -433,6 +436,7 @@ export const FRAMES = {
         title: m.title === null || str(m.title) ? m.title : undefined,
         archived: typeof m.archived === "boolean" ? m.archived : undefined,
         hidden: typeof m.hidden === "boolean" ? m.hidden : undefined,
+        labels: Array.isArray(m.labels) ? chatLabels(strings(m.labels)) : undefined,
       };
     },
     PHONE,
@@ -515,6 +519,16 @@ export const FRAMES = {
   chat_approvals_set: request("chat_approvals", "always allow a tool, or take that back", (m) =>
     str(m.tool) && m.tool && typeof m.on === "boolean" ? { tool: m.tool, on: m.on } : "tool and on required",
   ),
+  chat_labels_get: request("chat_labels", "every label on a chat, its colour and how many chats carry it", nothing, PHONE),
+  chat_label_set: request("chat_labels", "rename, recolour or delete a label on every chat that carries it", (m) => {
+    const name = str(m.name) ? labelName(m.name) : null;
+    if (!name) return "name required";
+    if (m.remove === true) return { name, remove: true as const };
+    const rename = str(m.rename) ? labelName(m.rename) : null;
+    if (str(m.rename) && !rename) return "rename to a label of letters, digits or dashes";
+    const color = typeof m.color === "number" && Number.isInteger(m.color) && m.color >= 0 && m.color < LABEL_COLORS ? m.color : null;
+    return rename || color !== null ? { name, ...(rename ? { rename } : {}), ...(color !== null ? { color } : {}) } : "rename, color or remove required";
+  }),
   chat_engines_get: request("chat_engines", "the ACP agents a chat can run on, and how each stands", nothing),
   chat_engine_set: request("chat_engines", "add or change an ACP agent: its name and how loki starts it", (m) =>
     str(m.id) && /^[a-z0-9][a-z0-9-]*$/.test(m.id) && str(m.name) && m.name.trim() && str(m.command) && m.command.trim()

@@ -129,6 +129,8 @@ export interface InboxRow extends LocalDigest {
   title: string | null;
   last_message_at: string | null;
   archived: false;
+  /** The person's labels on the chat (plan 022). */
+  labels?: string[];
 }
 
 /** The folders chats have worked in lately (`folders`), for the folder picker. */
@@ -202,6 +204,8 @@ export interface DeskInfo {
   reasoning_effort: ReasoningEffort | null;
   /** The permission mode the daemon keeps for this conversation (default: unrestricted). */
   mode?: string | null;
+  /** The person's labels on the chat (plan 022); absent from a mod that predates them. */
+  labels?: string[];
 }
 
 /** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */

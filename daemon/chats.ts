@@ -239,6 +239,7 @@ export class ChatProjection implements ChatSource {
       // An ACP chat's effort is the level chosen for it (plan 021), when loki has a word for it.
       reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
       mode: engine ? (chat.info?.mode ?? "default") : isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
+      labels: chat.info?.labels ?? [],
     };
   }
 

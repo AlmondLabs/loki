@@ -236,6 +236,7 @@ const chat: DaemonChats = new DaemonChats({
   mcp,
   models,
   acp,
+  labelsFile: join(paths.state, "labels.json"),
   backendDir: backend,
   context,
   report,

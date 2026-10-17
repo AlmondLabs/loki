@@ -37,6 +37,9 @@ export interface ChatBackend {
   revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   approvals(): Promise<Replies["chat_approvals"]>;
   setApproval(p: PayloadOf<"chat_approvals_set">): Promise<Replies["chat_approvals"]>;
+  /** Labels on chats (plan 022): every label with its colour and count, and renaming, recolouring or deleting one. */
+  labels(): Promise<Replies["chat_labels"]>;
+  setLabel(p: PayloadOf<"chat_label_set">): Promise<Replies["chat_labels"]>;
   /** Settings › Engines (daemon/acp/, plan 020): the ACP agents, and adding, changing, removing and trying one. */
   engines(): Promise<Replies["chat_engines"]>;
   setEngine(p: PayloadOf<"chat_engine_set">): Promise<Replies["chat_engines"]>;
@@ -142,6 +145,8 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_memory_revert: (p) => served(b, async (x) => (await x.revertMemory(p), DONE)),
     chat_approvals_get: () => served(b, (x) => x.approvals()),
     chat_approvals_set: (p) => served(b, (x) => x.setApproval(p)),
+    chat_labels_get: () => served(b, (x) => x.labels()),
+    chat_label_set: (p) => served(b, (x) => x.setLabel(p)),
     chat_engines_get: () => served(b, (x) => x.engines()),
     chat_engine_set: (p) => served(b, (x) => x.setEngine(p)),
     chat_engine_remove: ({ id }) => served(b, (x) => x.removeEngine(id)),

@@ -136,6 +136,8 @@ export interface LocalConversationInfo {
   reasoningEffort: ReasoningEffort | null;
   /** The chat's permission mode (glossary.md); on an ACP agent, the agent's own mode (plan 020, KD10). */
   mode: string;
+  /** The person's labels on the chat (plan 022). */
+  labels: string[];
 }
 
 /** One conversation in the daemon's chat list, with whether it is archived or hidden. */
