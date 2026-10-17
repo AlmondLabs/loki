@@ -54,9 +54,12 @@ export type ChatInfo = {
   engine?: ChatEngine | null;
 };
 
-/** An ACP chat's engine: the agent (daemon/acp/agents.ts), its model, and the agent's session id once it has one. */
+/**
+ * An ACP chat's engine: the agent (daemon/acp/agents.ts), its model, the effort chosen for it (plan 021; absent or
+ * null leaves the agent's own), and the agent's session id once it has one.
+ */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- part of ChatInfo, a pi-durable document
-export type ChatEngine = { kind: "acp"; agent: string; model: string; session_id: string | null };
+export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null };
 
 /** The pi-durable document that holds a chat's ChatInfo, one per conversation, keeping only its latest state; a fork starts from the empty one. */
 export const ChatDoc = defineDoc<ChatInfo>({
