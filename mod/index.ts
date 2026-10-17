@@ -189,6 +189,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       model: info.model ?? agentModel,
       reasoning_effort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
       mode,
+      labels: info.labels,
       last_active: info.lastMessageAt,
     };
   };
@@ -258,6 +259,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         title: info?.title ?? null,
         last_message_at: c.lastMessageAt,
         archived: false,
+        labels: info?.labels ?? [],
         ...chats.digest(c.conversationId, c.agentId),
       });
     }

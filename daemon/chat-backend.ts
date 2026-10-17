@@ -22,7 +22,9 @@ import type { PassRunner } from "./passes.ts";
 import type { McpTools } from "./mcp/index.ts";
 import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
-import type { AgentStore, ChatEngine } from "./kernel/index.ts";
+import type { AgentStore, ChatEngine, ChatInfo } from "./kernel/index.ts";
+import { LabelColors } from "./labels.ts";
+import { chatLabels, type LabelView } from "../core/labels.ts";
 import { acpHandle } from "./acp/agents.ts";
 import type { AcpChats } from "./acp/chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
@@ -48,6 +50,8 @@ interface Deps {
   models: Models;
   /** Chats on ACP agents (daemon/acp/, plan 020); absent in tests that run none. */
   acp?: AcpChats;
+  /** Where each label's colour is kept (`state/labels.json`, plan 022); absent, only while the daemon runs. */
+  labelsFile?: string;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
   backendDir: string;
   context: Context;
@@ -106,8 +110,12 @@ export class DaemonChats implements ChatBackend {
   private readonly onAcp = new Set<string>();
   private readonly deps: Deps;
 
+  /** Each label's colour (plan 022). */
+  private readonly colors: LabelColors;
+
   constructor(deps: Deps) {
     this.deps = deps;
+    this.colors = new LabelColors(deps.labelsFile);
     // A store that reopens after a failure has new conversations: what followed the old ones follows again on open.
     deps.stores.onOpen((agentId) => {
       for (const key of [...this.watching.keys()]) if (key.startsWith(`${agentId}\u0000`)) this.watching.delete(key);
@@ -365,8 +373,48 @@ export class DaemonChats implements ChatBackend {
       ...(p.title !== undefined ? { title: p.title } : {}),
       ...(p.archived !== undefined ? { archived: p.archived } : {}),
       ...(p.hidden !== undefined ? { hidden: p.hidden } : {}),
+      ...(p.labels !== undefined ? { labels: p.labels } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
+    // A new label takes its colour now, so every client shows it the same from the start.
+    for (const label of p.labels ?? []) this.colors.colorOf(label);
+  }
+
+  /** Every agent's chats with their saved details, for what spans them all (labels). */
+  private async everyChat(): Promise<Array<{ store: AgentStore; info: ChatInfo }>> {
+    const all = await Promise.all(
+      listAgents(this.deps.backendDir).map(async (id) => {
+        const store = await this.deps.stores.get(id);
+        return (await store.chats(this.deps.context)).map((info) => ({ store, info }));
+      }),
+    );
+    return all.flat();
+  }
+
+  async labels(): Promise<{ labels: LabelView[] }> {
+    const counts = new Map<string, number>();
+    for (const { info } of await this.everyChat()) if (!info.hidden) for (const l of info.labels ?? []) counts.set(l, (counts.get(l) ?? 0) + 1);
+    const labels = [...counts].map(([name, chats]) => ({ name, color: this.colors.colorOf(name), chats }));
+    return { labels: labels.sort((a, b) => a.name.localeCompare(b.name)) };
+  }
+
+  /**
+   * Rename, recolour or delete a label (plan 022, R6). A rename or a delete changes every chat that carries it; a
+   * rename onto a label a chat already has leaves it there once.
+   */
+  async setLabel(p: PayloadOf<"chat_label_set">): Promise<{ labels: LabelView[] }> {
+    if ("remove" in p || p.rename) {
+      const to = "remove" in p ? null : (p.rename ?? null);
+      for (const { store, info } of await this.everyChat()) {
+        if (!info.labels?.includes(p.name)) continue;
+        const labels = chatLabels(info.labels.flatMap((l) => (l !== p.name ? [l] : to ? [to] : [])));
+        await store.updateChat(info.id, { labels }, this.deps.context);
+      }
+      if (to) this.colors.rename(p.name, to);
+      else this.colors.remove(p.name);
+    }
+    if (!("remove" in p) && p.color !== undefined) this.colors.set(p.rename ?? p.name, p.color);
+    return this.labels();
   }
 
   async folder(agentId: string, conversationId: string, cwd: string): Promise<ChatState> {
