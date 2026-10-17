@@ -278,7 +278,8 @@ describe("ACP agents (plan 020)", () => {
     ]);
     const id = await s.chat();
     await s.say(id, "hello");
-    const handles = () => s.acp.models().map((m) => [m.handle, m.label]);
+    // One handle per model; a model with effort levels is one entry per level (plan 021).
+    const handles = () => [...new Map(s.acp.models().map((m) => [m.handle, [m.handle, m.label]])).values()];
     expect(handles()).toEqual([
       ["acp:fake/default", "Fake"],
       ["acp:fake/sonnet", "Fake · Sonnet"],
@@ -289,6 +290,46 @@ describe("ACP agents (plan 020)", () => {
       ["acp:fake/default", "Fake"],
       ["acp:fake/sonnet", "Fake · Sonnet"],
     ]);
+  });
+
+  test("each model's effort levels are remembered as it is used, in loki's words, and kept for the next start (plan 021)", async () => {
+    const s = setup();
+    const efforts = () => s.acp.models().map((m) => [m.handle, m.reasoning_effort ?? null]);
+    const id = await s.chat();
+    await s.say(id, "hello");
+    expect(efforts()).toEqual([
+      ["acp:fake/default", "low"],
+      ["acp:fake/default", "medium"],
+      ["acp:fake/default", "high"],
+      ["acp:fake/sonnet", null],
+    ]);
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: null });
+    // Sonnet's "ultra" has no word in loki, so it is left out.
+    expect(efforts().slice(3)).toEqual([
+      ["acp:fake/sonnet", "low"],
+      ["acp:fake/sonnet", "high"],
+      ["acp:fake/sonnet", "max"],
+    ]);
+    expect(new Set(s.acp.models().map((m) => m.id)).size).toBe(6);
+    await s.restart();
+    expect(efforts()).toHaveLength(6);
+  });
+
+  test("the chosen effort reaches the agent's open session, and a new session starts on it", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "effort?");
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "max" });
+    await s.say(id, "effort?");
+    const { store } = await s.stored(id);
+    expect((await store.chats(ctx)).find((c) => c.id === id)?.engine).toMatchObject({ model: "sonnet", effort: "max" });
+    // A level the model does not offer leaves the agent's own.
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "medium" });
+    await s.say(id, "effort?");
+    await s.chats.model({ agent_id: "ada", conversation_id: id, handle: "acp:fake/sonnet", reasoning_effort: "high" });
+    await s.restart();
+    await s.say(id, "effort?");
+    expect(s.words()).toBe("model default, effort default | model sonnet, effort max | model sonnet, effort max | model sonnet, effort high");
   });
 
   test("the chat's engine reaches the app with the agent's modes and commands, and leaves when it goes back to loki", async () => {

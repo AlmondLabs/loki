@@ -113,6 +113,23 @@ describe("chat projection", () => {
     }
   });
 
+  test("an ACP chat reads as its agent's model and the effort chosen for it, when loki has a word for that effort", async () => {
+    const { store, model, chats } = await setup();
+    try {
+      await store.createChat("acp", { agent: { model } }, ctx);
+      await chats.attach(AGENT, store);
+      const engine = { kind: "acp" as const, agent: "claude-code", model: "sonnet", session_id: null };
+      await store.updateChat("acp", { engine: { ...engine, effort: "high" } }, ctx);
+      expect(chats.info("acp", AGENT)).toMatchObject({ model: "acp:claude-code/sonnet", reasoningEffort: "high" });
+      await store.updateChat("acp", { engine: { ...engine, effort: "ultra" } }, ctx);
+      expect(chats.info("acp", AGENT)?.reasoningEffort).toBeNull();
+      await store.updateChat("acp", { engine }, ctx);
+      expect(chats.info("acp", AGENT)?.reasoningEffort).toBeNull();
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
   test("an unknown chat reads as nothing", async () => {
     const { chats } = await setup();
     expect(chats.info("nope", AGENT)).toBeNull();

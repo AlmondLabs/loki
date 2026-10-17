@@ -7,7 +7,7 @@ import { entrySteps, messageAt, type PiMessage } from "../core/attention/pi-step
 import { foldSteps, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
-import type { ReasoningEffort } from "../core/models.ts";
+import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
 import type { LocalConversationInfo, LocalConversationRow } from "../mod/desks.ts";
 import { ChatIndex, type AgentStore, type ChatInfo } from "./kernel/index.ts";
@@ -236,7 +236,8 @@ export class ChatProjection implements ChatSource {
       lastMessageAt: this.lastMessageAt(chat),
       archived: chat.info?.archived === true,
       model,
-      reasoningEffort: effortOf(chat.settings.thinkingLevel),
+      // An ACP chat's effort is the level chosen for it (plan 021), when loki has a word for it.
+      reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
       mode: engine ? (chat.info?.mode ?? "default") : isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
     };
   }

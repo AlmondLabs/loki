@@ -8,7 +8,7 @@ import { contentText } from "../../core/harness.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import { messageSteps } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
-import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
+import { REASONING_EFFORTS, type ChatEngineView, type ModelEntry, type ReasoningEffort } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
@@ -49,6 +49,17 @@ interface Offered {
   models: Array<{ value: string; name: string; description: string | null }>;
   modes: ChatEngineView["modes"];
   commands: ChatEngineView["commands"];
+  /**
+   * Each model's effort levels, by the model's value, as its `thought_level` option listed them (plan 021, R4). A
+   * session reports only its current model's, so they gather as models are used; absent from a cache written
+   * before this field.
+   */
+  efforts?: Record<string, string[]>;
+}
+
+/** An agent's effort levels that loki has words for, least to most; its own "default" and any others are left out. */
+function knownEfforts(levels: string[] | undefined): ReasoningEffort[] {
+  return REASONING_EFFORTS.filter((e) => levels?.includes(e));
 }
 
 /** A select option list, its groups flattened. */
@@ -94,6 +105,8 @@ interface Live {
   agent: string;
   /** The model the chat runs on, as the picker named it. */
   model: string;
+  /** The effort the chat asked for (plan 021); null leaves the agent's own. */
+  effort: string | null;
   sessionId: string | null;
   /** The process start the session belongs to: a restarted agent has none of its sessions open. */
   epoch: number;
@@ -180,14 +193,25 @@ export class AcpChats {
   private remember(live: Live): void {
     const known = this.offered.get(live.agent);
     const modeOption = live.configOptions.find((o) => o.category === "mode");
+    const modelOption = live.configOptions.find((o) => o.category === "model");
+    const effortOption = live.configOptions.find((o) => o.category === "thought_level");
+    const efforts = { ...known?.efforts };
+    if (effortOption?.type === "select") {
+      const levels = selectOptions(effortOption)
+        .map((o) => o.value)
+        .filter((v) => v !== "default");
+      // Filed under the model the agent says it is on, and under the chat's own name for it ("default").
+      for (const model of new Set([modelOption?.type === "select" ? modelOption.currentValue : null, live.model])) if (model) efforts[model] = levels;
+    }
     const next: Offered = {
-      models: selectOptions(live.configOptions.find((o) => o.category === "model")),
+      models: selectOptions(modelOption),
       modes: live.modes
         ? live.modes.availableModes.map((m) => ({ id: m.id, name: m.name, description: m.description ?? null }))
         : selectOptions(modeOption).map((o) => ({ id: o.value, name: o.name, description: o.description })),
       commands: live.commands.length
         ? live.commands.map((c) => ({ name: c.name, description: c.description, hint: c.input?.hint ?? null }))
         : (known?.commands ?? []),
+      ...(Object.keys(efforts).length ? { efforts } : {}),
     };
     if (JSON.stringify(next) === JSON.stringify(known)) return;
     this.offered.set(live.agent, next);
@@ -291,19 +315,26 @@ export class AcpChats {
 
   /**
    * Each ACP agent's models for the model picker: what it offered last, or its default before it has run. Its
-   * default is featured, so the agent is among the quick picks.
+   * default is featured, so the agent is among the quick picks. A model whose effort levels are known is one entry
+   * per level, as loki's own presets are (plan 021, R4).
    */
   models(): ModelEntry[] {
     return this.deps.agents().flatMap((agent) => {
-      const models = this.offered.get(agent.id)?.models ?? [];
+      const offered = this.offered.get(agent.id);
+      const models = offered?.models ?? [];
       const choices = models.some((m) => m.value === "default") ? models : [{ value: "default", name: "Default", description: null }, ...models];
-      return choices.map((m): ModelEntry => ({
-        id: `acp:${agent.id}/${m.value}`,
-        handle: `acp:${agent.id}/${m.value}`,
-        label: m.value === "default" ? agent.name : `${agent.name} · ${m.name}`,
-        description: m.description ?? `runs on ${agent.name}, signed in as you`,
-        ...(m.value === "default" ? { is_featured: true } : {}),
-      }));
+      return choices.flatMap((m) => {
+        const handle = `acp:${agent.id}/${m.value}`;
+        const entry: ModelEntry = {
+          id: handle,
+          handle,
+          label: m.value === "default" ? agent.name : `${agent.name} · ${m.name}`,
+          description: m.description ?? `runs on ${agent.name}, signed in as you`,
+          ...(m.value === "default" ? { is_featured: true } : {}),
+        };
+        const efforts = knownEfforts(offered?.efforts?.[m.value]);
+        return efforts.length ? efforts.map((e): ModelEntry => ({ ...entry, id: `${handle}@${e}`, reasoning_effort: e })) : [entry];
+      });
     });
   }
 
@@ -343,6 +374,7 @@ export class AcpChats {
         conversationId,
         agent: engine.agent,
         model: engine.model,
+        effort: engine.effort ?? null,
         sessionId: null,
         epoch: -1,
         loading: false,
@@ -429,12 +461,17 @@ export class AcpChats {
     this.push(agentId, conversationId, [{ kind: "device", mode: modeId }]);
   }
 
-  /** The agent's model for the chat: set on its session when one is open; a new session starts on it. */
-  async setModel(agentId: string, conversationId: string, model: string): Promise<void> {
+  /** The agent's model and effort for the chat: set on its session when one is open; a new session starts on them. */
+  async setModel(agentId: string, conversationId: string, model: string, effort: string | null = null): Promise<void> {
     const live = this.live.get(key(agentId, conversationId));
     if (!live) return;
     live.model = model;
-    if (live.sessionId && live.epoch === this.process(live.agent).epoch()) await this.applyModel(live, model);
+    live.effort = effort;
+    if (live.sessionId && live.epoch === this.process(live.agent).epoch()) {
+      await this.applyModel(live, model);
+      await this.applyEffort(live, effort);
+      this.remember(live);
+    }
     this.pushView(live, { agent: live.agent, model });
   }
 
@@ -468,6 +505,14 @@ export class AcpChats {
     if (option?.type === "select" && option.currentValue !== model) {
       live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, model)).configOptions;
     }
+  }
+
+  /** The chat's effort on its session, when the agent offers that level for the model it is on now; null leaves the agent's. */
+  private async applyEffort(live: Live, effort: string | null): Promise<void> {
+    if (!live.sessionId || !effort) return;
+    const option = live.configOptions.find((o) => o.category === "thought_level" && o.type === "select");
+    if (option?.type !== "select" || option.currentValue === effort || !selectOptions(option).some((o) => o.value === effort)) return;
+    live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, effort)).configOptions;
   }
 
   /**
@@ -514,8 +559,9 @@ export class AcpChats {
     live.configOptions = opened.configOptions ?? [];
     live.preamble = prompt && !takesPrompt ? prompt : null;
     this.register(opened.sessionId, live);
-    this.remember(live);
     await this.applyModel(live, engine.model);
+    await this.applyEffort(live, engine.effort ?? null);
+    this.remember(live);
     // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in.
     const offered = this.offered.get(live.agent)?.modes ?? [];
     if (info.mode && offered.some((m) => m.id === info.mode)) await this.applyMode(live, info.mode).catch(() => {});

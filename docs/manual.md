@@ -406,6 +406,8 @@ terminal). In such a chat:
 - the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
 - the slash palette offers Claude Code's commands, beside loki's own and **/reflect** and **/doctor**, which still
   run on loki's side;
+- the picker's **Effort** offers the levels Claude Code gives the model you're on (low to max, depending on the
+  model); a model shows them once it has been used in a chat, and they're kept for next time;
 - Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
   starts, beside Claude Code's own `CLAUDE.md`. Claude Code can read the memory files and is asked not to change them;

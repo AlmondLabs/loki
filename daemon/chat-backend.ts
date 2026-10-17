@@ -376,10 +376,16 @@ export class DaemonChats implements ChatBackend {
       if (!this.acp.agent(wanted.agent)) throw new Error(`no ACP agent named ${wanted.agent}`);
       if (engine?.agent !== wanted.agent && (await this.started(chat)))
         throw new Error("this chat has started on another engine; start a new chat to use this one");
-      const next: ChatEngine = { kind: "acp", agent: wanted.agent, model: wanted.model, session_id: engine?.agent === wanted.agent ? engine.session_id : null };
+      const next: ChatEngine = {
+        kind: "acp",
+        agent: wanted.agent,
+        model: wanted.model,
+        effort: p.reasoning_effort,
+        session_id: engine?.agent === wanted.agent ? engine.session_id : null,
+      };
       await store.updateChat(p.conversation_id, { engine: next }, this.deps.context);
       this.onAcp.add(`${p.agent_id}\u0000${p.conversation_id}`);
-      if (engine?.agent === wanted.agent) await this.acp.setModel(p.agent_id, p.conversation_id, wanted.model);
+      if (engine?.agent === wanted.agent) await this.acp.setModel(p.agent_id, p.conversation_id, wanted.model, p.reasoning_effort);
       else {
         // The agent's own modes replace loki's: its first until its session says which one it is in.
         const view = this.acp.view(p.agent_id, p.conversation_id, next);

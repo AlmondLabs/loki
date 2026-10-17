@@ -10,6 +10,7 @@
 //   "auth"    fails the prompt the way an agent that is not signed in does
 //   "prompt?" answers with the system prompt and the first prompt's words it was given
 //   "mode?"   answers with its current mode and model
+//   "effort?" answers with its current model and effort
 // Plain JavaScript, so a test starts it with `node` and nothing else.
 import { createInterface } from "node:readline";
 
@@ -49,11 +50,24 @@ const modelOption = (value) => ({
   ],
 });
 
+// Each model's effort levels, as Claude's adapter offers them: they change with the model, and "ultra" is a level
+// loki has no word for.
+const LEVELS = { default: ["low", "medium", "high"], sonnet: ["low", "high", "max", "ultra"] };
+const effortOption = (s) => ({
+  id: "effort",
+  name: "Effort",
+  category: "thought_level",
+  type: "select",
+  currentValue: s.effort,
+  options: [{ value: "default", name: "Default" }, ...LEVELS[s.model].map((l) => ({ value: l, name: l }))],
+});
+const options = (s) => [modelOption(s.model), effortOption(s)];
+
 function open(sessionId, params) {
   const prompt = params.systemPrompt?.content?.map((c) => c.text).join("\n") ?? null;
-  const s = { mode: "default", model: "default", systemPrompt: prompt, firstPrompt: null };
+  const s = { mode: "default", model: "default", effort: "default", systemPrompt: prompt, firstPrompt: null };
   sessions.set(sessionId, s);
-  return { modes: { ...MODES }, configOptions: [modelOption(s.model)] };
+  return { modes: { ...MODES }, configOptions: options(s) };
 }
 
 async function prompt(params) {
@@ -72,6 +86,10 @@ async function prompt(params) {
   }
   if (text.includes("prompt?")) {
     say(id, `system: ${s.systemPrompt ?? "none"} | first: ${s.firstPrompt}`);
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("effort?")) {
+    say(id, `model ${s.model}, effort ${s.effort}`);
     return { stopReason: "end_turn" };
   }
   if (text.includes("mode?")) {
@@ -195,9 +213,13 @@ async function handle(msg) {
       sessions.get(p.sessionId).mode = p.modeId;
       update(p.sessionId, { sessionUpdate: "current_mode_update", currentModeId: p.modeId });
       return ok({});
-    case "session/set_config_option":
-      sessions.get(p.sessionId).model = p.value;
-      return ok({ configOptions: [modelOption(p.value)] });
+    case "session/set_config_option": {
+      const s = sessions.get(p.sessionId);
+      // A new model starts on its default effort, as Claude's adapter does.
+      if (p.configId === "model") Object.assign(s, { model: p.value, effort: "default" });
+      else s.effort = p.value;
+      return ok({ configOptions: options(s) });
+    }
     default:
       if (msg.id !== undefined) send({ id: msg.id, error: { code: -32601, message: `no method ${msg.method}` } });
   }
