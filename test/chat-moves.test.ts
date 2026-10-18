@@ -115,3 +115,20 @@ describe("taking an agent's chats over on first pairing", () => {
     }
   });
 });
+
+describe("an agent's home set to this Mac after pairing", () => {
+  test("brings its chats over even though the first hand-over already ran", async () => {
+    const m = macs();
+    try {
+      await m.mini.run(BOOK);
+      expect(m.done.has(BOOK)).toBe(true);
+      m.onBook.add("conv-3");
+      await m.mini.run(BOOK);
+      expect(m.onMini.has("conv-3")).toBe(false);
+      await m.mini.run(BOOK, true);
+      expect(m.onMini.has("conv-3")).toBe(true);
+    } finally {
+      m.cleanup();
+    }
+  });
+});

@@ -350,7 +350,13 @@ export default function activate(api: ModApi, host: Host): () => void {
       // A chat or desk that lives there: its clients here hear what it does (U5).
       const relay = router.relay(id, frame);
       if (relay) broadcast(frame, relay.scope);
-      if (frame.type === "agents_changed") void peerAgents.pull(id).then((applied) => Promise.all(applied.created.map((a) => peerMemory.pull(id, a))));
+      if (frame.type === "agents_changed")
+        void peerAgents.pull(id).then(async (applied) => {
+          await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
+          // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
+          const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
+          if (homedHere) await chatMoves.run(id, true);
+        });
       if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
       if (frame.type === "state_changed") void peerState.pull(id);
     },

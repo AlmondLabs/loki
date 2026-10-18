@@ -53,9 +53,12 @@ export class ChatMoves {
     log("peers:chat-moved", { agent: agentId, chat: conversationId });
   }
 
-  /** The new home's side: take over this Mac's agents' chats from `macId`, unless that was done. */
-  async run(macId: string): Promise<void> {
-    if (this.opts.done(macId) || this.running.has(macId)) return;
+  /**
+   * The new home's side: take over this Mac's agents' chats from `macId`, unless that was done. `again` asks once more
+   * after it was: an agent's home was just set to this Mac, so its chats there come here too.
+   */
+  async run(macId: string, again = false): Promise<void> {
+    if ((this.opts.done(macId) && !again) || this.running.has(macId)) return;
     const link = this.opts.link(macId);
     if (!link) return;
     this.running.add(macId);
