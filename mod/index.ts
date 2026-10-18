@@ -327,7 +327,17 @@ export default function activate(api: ModApi, host: Host): () => void {
   let peerCodeUntil = 0;
   const peersNeeded = () => peerStore.size() > 0 || peerCodeUntil > Date.now();
   const peerKeys = new PeerKeys(host.secrets);
-  const peersView = () => ({ me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list((id) => links.reachable(id)) });
+  /** Tailscale's view of this Mac and its tailnet, shared by the phone listener and Settings › Macs. */
+  const tailscale = new Tailscale({ port: Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT) });
+  const peersView = () => {
+    const paired = new Set(peerStore.list().map((p) => p.host.replace(/:\d+$/, "").toLowerCase()));
+    // Computers only: a phone or a tablet on the tailnet is not a Mac to pair with.
+    const tailnet = tailscale
+      .devices()
+      .filter((d) => /^(macos|linux|windows)$/i.test(d.os))
+      .map((d) => ({ ...d, paired: paired.has(d.address) }));
+    return { me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list((id) => links.reachable(id)), tailnet };
+  };
   // One link to each paired Mac (U2): opened when it pairs, closed when it is forgotten.
   const links: PeerLinks = new PeerLinks({
     token: (id) => peerKeys.get(id),
@@ -642,7 +652,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   lan = new LanListener({
     port: lanPort,
-    tailscale: new Tailscale({ port: lanPort }),
+    tailscale,
     stateFile: paths.lan,
     devices,
     codes,

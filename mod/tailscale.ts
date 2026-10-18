@@ -1,6 +1,6 @@
 import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
-import type { TailscaleStatus } from "../core/frame-types.ts";
+import type { TailscaleStatus, TailnetDevice } from "../core/frame-types.ts";
 
 /**
  * Tailscale, detected and read, never installed (plan Addendum 3). The phone listener asks this for
@@ -42,6 +42,35 @@ export function findTailscale(look: Look = {}): string | null {
     ],
     look,
   );
+}
+
+/**
+ * `tailscale status --json` → the other devices on the tailnet (its `Peer` map), each with its name, MagicDNS name,
+ * system and whether it is online: what Settings › Macs offers to pair with (plan 023).
+ */
+export function parseDevices(json: string): TailnetDevice[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const peers = typeof parsed === "object" && parsed !== null ? (parsed as { Peer?: unknown }).Peer : null;
+  if (typeof peers !== "object" || peers === null) return [];
+  const out: TailnetDevice[] = [];
+  for (const p of Object.values(peers as Record<string, unknown>)) {
+    if (typeof p !== "object" || p === null) continue;
+    const peer = p as { HostName?: unknown; DNSName?: unknown; OS?: unknown; Online?: unknown };
+    const address = dnsName(peer.DNSName);
+    if (!address) continue;
+    out.push({
+      name: typeof peer.HostName === "string" && peer.HostName.trim() ? peer.HostName.trim() : address.split(".")[0],
+      address,
+      os: typeof peer.OS === "string" ? peer.OS : "",
+      online: peer.Online === true,
+    });
+  }
+  return out.sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
 }
 
 /** `tailscale status --json` → running, the first IPv4 in Self.TailscaleIPs, Self.DNSName without the dot. */
@@ -134,6 +163,8 @@ export class Tailscale {
   private last: TailscaleStatus | null = null;
   private lastAt = 0;
   private inflight: Promise<TailscaleStatus> | null = null;
+  /** The other devices on the tailnet at the last read (plan 023). */
+  private lastDevices: TailnetDevice[] = [];
 
   constructor(opts: TailscaleOptions) {
     this.port = opts.port;
@@ -159,6 +190,11 @@ export class Tailscale {
       return s;
     });
     return this.inflight;
+  }
+
+  /** The other devices on the tailnet as the last status() saw them; empty off the tailnet. */
+  devices(): TailnetDevice[] {
+    return this.last?.running ? this.lastDevices : [];
   }
 
   /** Forget the cache: the next status() asks again. */
@@ -196,7 +232,9 @@ export class Tailscale {
     let ip: string | null = null;
     let name: string | null = null;
     try {
-      ({ running, ip, name } = parseStatus(await this.exec(bin, ["status", "--json"], STATUS_TIMEOUT)));
+      const json = await this.exec(bin, ["status", "--json"], STATUS_TIMEOUT);
+      ({ running, ip, name } = parseStatus(json));
+      this.lastDevices = parseDevices(json);
     } catch (err) {
       return { installed: true, running: false, ip: null, name: null, serve_url: null, error: clip(err) };
     }

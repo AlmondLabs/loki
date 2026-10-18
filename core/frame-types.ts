@@ -241,6 +241,17 @@ export interface DeviceSummary {
   last_via?: DeviceVia;
 }
 
+/** Another device on the tailnet, as `tailscale status` lists it (plan 023): a candidate to pair a Mac with. */
+export interface TailnetDevice {
+  /** Its name on the tailnet (the device's host name). */
+  name: string;
+  /** Its MagicDNS name, lower-cased, no trailing dot: what another Mac types to reach it. */
+  address: string;
+  /** "macOS", "iOS", "linux", "windows" … as Tailscale says. */
+  os: string;
+  online: boolean;
+}
+
 /** A Mac as loki names it (plan 023): its install id (`state/device-id`) and the Mac's own name. */
 export interface MacIdentity {
   mac_id: string;

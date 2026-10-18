@@ -1,9 +1,10 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { Button, Chip, Field } from "../components";
+import { Button, Chip, Dot, Field, Row as PickRow } from "../components";
 import { useNow } from "../components/use-now";
 import { countdown, lastSeen } from "../phone/model";
 import { osWords } from "../shell/os-words";
 import type { Pushes } from "../../../core/frames.ts";
+import type { TailnetDevice } from "../../../core/frame-types.ts";
 
 /** What useDesk exposes as `macs`: this Mac, the Macs paired with it, the last code minted here, and the actions. */
 export interface MacsApi {
@@ -86,6 +87,7 @@ function Pair({ macs }: { macs: MacsApi }) {
           <span className="loki-meta loki-meta--wrap">type it on the other Mac</span>
         </span>
       )}
+      <TailnetList devices={macs.view?.tailnet ?? []} picked={host} onPick={setHost} />
       <form
         style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
         onSubmit={(e) => {
@@ -108,6 +110,51 @@ function Pair({ macs }: { macs: MacsApi }) {
         </Button>
       </form>
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+    </div>
+  );
+}
+
+/**
+ * The other computers on your tailnet, from Tailscale (plan 023): pick the Mac to pair with and its address fills in,
+ * so only its code is typed. An offline one is listed but not picked; one already paired says so.
+ */
+function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice & { paired: boolean }>; picked: string; onPick: (address: string) => void }) {
+  if (devices.length === 0) return null;
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <span className="loki-meta">on your tailnet · pick the other Mac, then type the code it shows</span>
+      <div role="radiogroup" aria-label="computers on your tailnet" style={{ display: "grid", gap: 4 }}>
+        {devices.map((d) => {
+          const chosen = picked.trim().toLowerCase() === d.address;
+          return (
+            <PickRow
+              key={d.address}
+              role="radio"
+              aria-checked={chosen}
+              aria-disabled={!d.online || d.paired || undefined}
+              selected={chosen}
+              flush
+              onClick={() => d.online && !d.paired && onPick(d.address)}
+              style={{
+                padding: "6px 10px",
+                border: "1px solid var(--loki-border)",
+                borderRadius: "var(--loki-radius-md)",
+                cursor: d.online && !d.paired ? undefined : "default",
+                opacity: d.online && !d.paired ? 1 : 0.55,
+              }}
+            >
+              <Dot aria-hidden size={8} color={d.online ? "var(--loki-positive)" : "var(--loki-border)"} ring={!d.online} />
+              <span style={{ display: "grid", minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{d.name}</span>
+                <span className="loki-meta" style={{ fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {d.address}
+                </span>
+              </span>
+              <span className="loki-meta">{d.paired ? "paired" : d.online ? d.os : "offline"}</span>
+            </PickRow>
+          );
+        })}
+      </div>
     </div>
   );
 }

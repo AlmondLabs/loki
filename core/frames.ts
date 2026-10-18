@@ -20,6 +20,7 @@ import type {
   LanVia,
   MacIdentity,
   PeerSummary,
+  TailnetDevice,
   LocalAgent,
   EnginesView,
   McpView,
@@ -273,8 +274,11 @@ export interface Pushes {
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expires_at: string };
-  /** This Mac and the Macs paired with it (plan 023); `me.host` is its tailnet address, null off the tailnet. */
-  peers: { me: MacIdentity & { host: string | null }; peers: PeerSummary[] };
+  /**
+   * This Mac and the Macs paired with it (plan 023); `me.host` is its tailnet address, null off the tailnet.
+   * `tailnet` is the other computers on the tailnet, to pick one to pair with instead of typing its address.
+   */
+  peers: { me: MacIdentity & { host: string | null }; peers: PeerSummary[]; tailnet?: Array<TailnetDevice & { paired: boolean }> };
   /** A code another Mac types to pair with this one, the address it types beside it, and when the code expires. */
   peer_pair_code: { code: string; host: string | null; expires_at: string };
   app_build: { build: string };
