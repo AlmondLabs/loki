@@ -96,7 +96,8 @@ read shows placeholder rows or a placeholder card after a beat, a light passing 
 message box rides up and down with the keyboard (`phone/viewport.ts`). A Learn card turns over to its answer, is
 thrown right for Got it and left for Again, and the next rises into its place.
 
-The desktop is quieter than the phone. Popovers opened by a click grow from the corner they hang from, and sheets
+The desktop is quieter than the phone. A button or chip gives to 97% under the pointer (not under a key: Space on
+a focused button is pressed too, and stays still). Popovers opened by a click grow from the corner they hang from, and sheets
 opened by a click fade and rise (search, a new task, the keys sheet and anything else a key opens are just there); a chat opened by a click fades in; a red badge springs in when its
 count goes up; the camera glides to a widget on the smooth spring, and a wheel, pinch or drag stops it
 (`desk/camera-glide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
@@ -275,6 +276,13 @@ box is one for both, its sizes set by `touch`.
 - **Tokens.** `app/src/phone/phone.css` owns them. `.loki-phone` redeclares every `--loki-*` role with Slack's
   dark values and `:root[data-theme="light"] .loki-phone` with its light ones, and adds the `--phone-*` scales
   (text 11 · 13 · 15 · 17 · 20 · 28, radii 8 · 12 · 24 · pill, space 4–24, the 44 touch size, layers, durations).
+  On a touch screen the text follows the size set in iOS, as Dynamic Type does: `-apple-system-body` sets the
+  document's rem and the text scale keeps its proportions to it (the default draws the px above), clamped from a step
+  below to about half again above so rows built around 44px still hold; spacing, touch sizes and the tab bar's
+  labels and badge (`--phone-text-tab`) stay fixed, as iOS keeps its tab bar.
+- **The dock is a material.** The floating navigation, search and compose buttons are 75% of the panel's colour
+  with `blur(20px) saturate(180%)` behind, so the list shows through as it scrolls under, as iOS's bars do; the
+  badge's ring is solid panel, so it never shows the list.
   The accent is link blue, the unread badge is red, affirmative is green; the faces are the system sans, mono
   only for code. `data-palette` never reaches the phone: System, Light and Dark are its only choices.
   `test/tokens.test.ts` fences the file (literal colours only in custom properties, sizes and radii on the

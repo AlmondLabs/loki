@@ -28,6 +28,7 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition:
+    scale var(--spring-snappy-ms) var(--spring-snappy),
     background-color 120ms ease-out,
     border-color 120ms ease-out,
     color 120ms ease-out;
@@ -39,6 +40,11 @@
 }
 .loki-btn:active:not(:disabled) {
   background: var(--loki-selection);
+}
+/* A button or chip gives a little under the pointer, so the press is felt before the click lands (the phone gives
+   the same, phone.css). Not under a key: Space on a focused button is :active too, and nothing a key does moves. */
+:is(.loki-btn, .loki-chip:not(.loki-chip--static)):active:not(:disabled, :focus-visible) {
+  scale: 0.97;
 }
 .loki-btn:disabled {
   opacity: 0.5;
@@ -179,6 +185,7 @@
   -webkit-tap-highlight-color: transparent;
   flex: 0 0 auto;
   transition:
+    scale var(--spring-snappy-ms) var(--spring-snappy),
     background-color 120ms ease-out,
     border-color 120ms ease-out,
     color 120ms ease-out;

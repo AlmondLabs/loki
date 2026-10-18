@@ -294,6 +294,10 @@ came since your last look on either device. The conversation's actions sheet has
 read, **Mark as unread**, and pin. No Tasks segment on the phone, but a long press on a message offers **Add task**
 (below), and a message that has a task shows its chip.
 
+The phone's text follows the size you set in iOS (Settings › Display & Brightness › Text Size, or Larger Text in
+Accessibility), up to about half again the default; the tab bar stays its own size, as iOS's does. Reduce
+Transparency makes the floating tab bar solid, and Increase Contrast makes it and every divider stronger.
+
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
 when the Mac gets a new address. The phone talks to the Mac directly over the local network (port 41415), so
