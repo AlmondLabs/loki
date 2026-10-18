@@ -192,6 +192,10 @@ export interface Replies {
    * files, each in the shape its store merges (mod/peer-state.ts).
    */
   peer_state: { marks: object; pins: object; labels: object; learn: object };
+  /** The chats here of agents that live on the asking Mac, for it to take over on first pairing (plan 023, U9). */
+  peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
+  /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
+  peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
   peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
@@ -792,6 +796,9 @@ export const FRAMES = {
     PEER,
   ),
   peer_state_get: request("peer_state", "the person's marks, pins, label colours and Learn, for another Mac", nothing, false, true),
+  peer_moves_get: request("peer_moves", "the chats here whose agent lives on the asking Mac", nothing, false, true),
+  peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, true),
+  peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, true),
   peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],

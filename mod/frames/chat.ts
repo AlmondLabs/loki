@@ -1,3 +1,4 @@
+import type { MovedChat } from "../../daemon/chat-move.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
@@ -27,6 +28,11 @@ export interface ChatBackend {
   deleteAgent(agentId: string): Promise<void>;
   /** Remove an agent here because another Mac deleted it (plan 023): no tombstone of this Mac's. */
   removeAgent(agentId: string): Promise<void>;
+  /** Moving a chat to the Mac its agent lives on (plan 023, U9): which, copying out, writing in, and letting go. */
+  moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>>;
+  exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }>;
+  importChat(moved: MovedChat): Promise<boolean>;
+  finishMove(agentId: string, chatId: string): Promise<void>;
   /** The person's label colours for a paired Mac, and taking that Mac's (plan 023, U8). */
   labelColors(): LabelColorsSnapshot;
   applyLabelColors(theirs: LabelColorsSnapshot): boolean;
@@ -71,6 +77,8 @@ export interface ChatDeps {
   chat?: ChatBackend;
   /** Why an agent may not be deleted now (a paired Mac out of reach would keep its chats), or null (plan 023). */
   agentDeleteBlocked?: (agentId: string) => string | null;
+  /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
+  chatBlocked?: (agentId: string, conversationId: string) => string | null;
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
@@ -112,7 +120,10 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         const made = await x.create(agentId, cwd, title);
         return { agent_id: made.agentId, conversation_id: made.conversationId };
       }),
-    chat_send: (p) => served(b, async (x) => ({ accepted: await x.send(p) })),
+    chat_send: (p) => {
+      const blocked = deps.chatBlocked?.(p.agent_id, p.conversation_id);
+      return blocked ? fail(blocked) : served(b, async (x) => ({ accepted: await x.send(p) }));
+    },
     chat_abort: ({ agent_id: agentId, conversation_id: conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
     chat_update: (p) => served(b, async (x) => (await x.update(p), DONE)),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),

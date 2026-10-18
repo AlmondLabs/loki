@@ -154,6 +154,16 @@ export class Schedules {
     return task;
   }
 
+  /**
+   * A task as it was on another Mac, its id and when it last fired kept, so a slot it already fired there does not
+   * fire again here (plan 023, U9). One already here is left as it is.
+   */
+  adopt(task: ScheduledTask): void {
+    const tasks = this.list();
+    if (tasks.some((t) => t.id === task.id)) return;
+    this.save([...tasks, task]);
+  }
+
   /** Cancel a task of this agent by its id or name; false when there is none. */
   cancel(agentId: string, idOrName: string): boolean {
     const tasks = this.list();

@@ -18,6 +18,7 @@ import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay, recallDir } from "./recall.ts";
 import { applyRecall, recallSnapshot } from "./recall-sync.ts";
 import { PeerState } from "./peer-state.ts";
+import { ChatMoves } from "./chat-moves.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
@@ -332,7 +333,11 @@ export default function activate(api: ModApi, host: Host): () => void {
       remoteChats.setReachable(id, status === "reachable");
       // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
       if (status === "reachable") {
-        void peerAgents.pull(id).then(() => peerMemory.pullAll(id));
+        // Agents, then their memory, then (once, after pairing) the chats of agents that live here (U9).
+        void peerAgents
+          .pull(id)
+          .then(() => peerMemory.pullAll(id))
+          .then(() => chatMoves.run(id));
         void peerState.pull(id);
       }
     },
@@ -365,6 +370,18 @@ export default function activate(api: ModApi, host: Host): () => void {
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     uploadsDir: paths.uploads,
     upload: (id, file) => peers.upload(id, file),
+  });
+  // Taking over this Mac's agents' chats from a Mac they were made on, once after pairing (U9).
+  const chatMoves: ChatMoves = new ChatMoves({
+    chat: chatBackend,
+    link: (id) => links.get(id),
+    widgetsDir: paths.widgets,
+    done: (id) => peerStore.get(id)?.moves_done === true,
+    markDone: (id) => peerStore.markMovesDone(id),
+    onMoved: (id) => {
+      void remoteChats.refresh(id);
+      broadcast({ type: "lists_changed" });
+    },
   });
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
@@ -517,8 +534,18 @@ export default function activate(api: ModApi, host: Host): () => void {
       agents: () => peerAgents.snapshot(),
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
       state: () => peerState.snapshotNow(),
+      moves: {
+        candidates: (id) => chatBackend.moveCandidates(id),
+        export: (id, agentId, conversationId) => chatMoves.export(id, agentId, conversationId),
+        moved: async (agentId, conversationId) => {
+          await chatMoves.moved(agentId, conversationId);
+          desks.forgetConversations((id) => id === conversationId); // its desk row lives on the other Mac now
+          broadcast({ type: "lists_changed" });
+        },
+      },
       memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
     },
+    chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
     agentDeleteBlocked: () => {
       const away = peerStore.list((id) => links.reachable(id)).find((p) => !p.reachable);

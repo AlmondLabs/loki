@@ -20,6 +20,12 @@ export interface PeersDeps {
     agents: () => Replies["peer_agents"];
     /** This Mac's own chats, for another Mac's `peer_chats_get` (U4). */
     chats: () => Replies["peer_chats"];
+    /** Handing this Mac's chats over to the Mac their agent lives on (U9). */
+    moves?: {
+      candidates: (macId: string) => Promise<Replies["peer_moves"]["chats"]>;
+      export: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat"]>;
+      moved: (agentId: string, conversationId: string) => Promise<void>;
+    };
     /** The person's state, for another Mac's `peer_state_get` (U8). */
     state: () => Replies["peer_state"];
     /** An agent's memory commits another Mac lacks, for its `peer_memory_get` (U7). */
@@ -45,6 +51,22 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
     peer_agents_get: () => reply(need().agents()),
     peer_chats_get: () => reply(need().chats()),
     peer_state_get: () => reply(need().state()),
+    // Only another Mac asks these, and it names itself by its socket (U9).
+    peer_moves_get: async (_, ctx) => {
+      const moves = need().moves;
+      return reply({ chats: moves && ctx.client.peerId ? await moves.candidates(ctx.client.peerId) : [] });
+    },
+    peer_chat_export: async ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
+      const moves = need().moves;
+      if (!moves || !ctx.client.peerId) return fail("only another Mac takes a chat over");
+      return reply(await moves.export(ctx.client.peerId, agentId, conversationId));
+    },
+    peer_chat_moved: async ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
+      const moves = need().moves;
+      if (!moves || !ctx.client.peerId) return fail("only another Mac takes a chat over");
+      await moves.moved(agentId, conversationId);
+      return reply({});
+    },
     peer_memory_get: async ({ agent_id: agentId, have }) => reply(await need().memory(agentId, have)),
     peers_get: (_, ctx) => ctx.push({ type: "peers", ...need().view() }),
     peer_pair_begin: (_, ctx) => ctx.push({ type: "peer_pair_code", ...need().begin() }),

@@ -21,9 +21,12 @@ import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
 import type { McpTools } from "./mcp/index.ts";
 import type { PassState } from "./passes-state.ts";
-import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
+import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatEngine, ChatInfo } from "./kernel/index.ts";
 import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
+import { exportChat, importChat, type MovedChat } from "./chat-move.ts";
+import type { Schedules } from "./schedule.ts";
+import { homeOf, readRecord } from "./store/agent-sync.ts";
 import { chatLabels, type LabelView } from "../core/labels.ts";
 import { acpHandle } from "./acp/agents.ts";
 import type { AcpChats } from "./acp/chats.ts";
@@ -62,6 +65,8 @@ interface Deps {
   importStatus?: () => ImportStatus;
   /** This Mac's install id (plan 023): stamped on agent record changes so paired Macs keep the later one. */
   macId?: string;
+  /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
+  schedules?: Schedules;
   /** The clock for those stamps; Date.now unless a test sets it. */
   now?: () => number;
 }
@@ -640,6 +645,54 @@ export class DaemonChats implements ChatBackend {
   }
 
   /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
+  /**
+   * The chats here of agents that live on `mac`, for that Mac to take over when it first pairs (plan 023, U9): the
+   * person's own, not hidden, and not on an ACP agent, whose session belongs to this Mac.
+   */
+  async moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>> {
+    const out: Array<{ agent_id: string; conversation_id: string }> = [];
+    for (const agentId of listAgents(this.deps.backendDir)) {
+      if (homeOf(readRecord(this.deps.backendDir, agentId), this.deps.macId ?? "") !== mac) continue;
+      const store = await this.deps.stores.get(agentId);
+      for (const info of await store.chats(this.deps.context)) {
+        if (info.hidden || info.engine?.kind === "acp" || isReflectionChat(info.id) || isDoctorChat(info.id)) continue;
+        out.push({ agent_id: agentId, conversation_id: info.id });
+      }
+    }
+    return out;
+  }
+
+  /** A chat copied out for another Mac, or `busy` while a turn runs or an approval waits, when it must wait to move. */
+  async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
+    if ((await this.busy(agentId, chatId)) || this.deps.approvals.waitingIn(agentId, chatId).length > 0) return { chat: null, busy: true };
+    const store = await this.deps.stores.get(agentId);
+    const schedules = (this.deps.schedules?.list() ?? []).filter((t) => t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId);
+    const cursors: Record<string, number> = {};
+    for (const job of ["reflection", "learn"] as const) {
+      const at = this.deps.passes?.state.cursor(job, agentId, chatId);
+      if (at !== undefined) cursors[job] = at;
+    }
+    return { chat: await exportChat(store, agentId, chatId, { schedules, cursors }, this.deps.context), busy: false };
+  }
+
+  /** A chat moved here from another Mac: its log, its schedules and its passes' cursors. False when it was already here. */
+  async importChat(moved: MovedChat): Promise<boolean> {
+    const store = await this.deps.stores.get(moved.agent_id);
+    const made = await importChat(store, moved, this.deps.context);
+    for (const task of moved.schedules) this.deps.schedules?.adopt(task);
+    for (const [job, at] of Object.entries(moved.cursors))
+      if (job === "reflection" || job === "learn") this.deps.passes?.state.setCursor(job, moved.agent_id, moved.conversation_id, at);
+    return made;
+  }
+
+  /** The other Mac has the chat now: hide it here and stop its schedules, so it lives and fires on one Mac only. */
+  async finishMove(agentId: string, chatId: string): Promise<void> {
+    const store = await this.deps.stores.get(agentId);
+    await store.updateChat(chatId, { hidden: true }, this.deps.context);
+    for (const t of this.deps.schedules?.list() ?? [])
+      if (t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId) this.deps.schedules?.cancel(agentId, t.id);
+  }
+
   /** The person's label colours, for a paired Mac (plan 023, U8). */
   labelColors(): LabelColorsSnapshot {
     return this.colors.snapshot();

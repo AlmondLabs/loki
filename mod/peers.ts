@@ -36,6 +36,8 @@ export interface PeerRecord extends PeerHello {
   token_hash: string;
   paired_at: string;
   last_seen_at: string;
+  /** This Mac has taken over the chats of its agents from that Mac, once, after pairing (U9). */
+  moves_done?: boolean;
 }
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
@@ -80,7 +82,15 @@ export class PeerStore {
           const hello = parsePeerHello(r);
           const rec = r as Partial<PeerRecord>;
           return hello && isHex(rec.token_hash) && typeof rec.paired_at === "string" && typeof rec.last_seen_at === "string"
-            ? [{ ...hello, token_hash: rec.token_hash, paired_at: rec.paired_at, last_seen_at: rec.last_seen_at }]
+            ? [
+                {
+                  ...hello,
+                  token_hash: rec.token_hash,
+                  paired_at: rec.paired_at,
+                  last_seen_at: rec.last_seen_at,
+                  ...(rec.moves_done === true ? { moves_done: true } : {}),
+                },
+              ]
             : [];
         });
     } catch {
@@ -113,6 +123,14 @@ export class PeerStore {
     if (!peer) return;
     Object.assign(peer, { name: hello.name, host: hello.host, build: hello.build, protocol: hello.protocol });
     peer.last_seen_at = new Date(this.now()).toISOString();
+    this.persist();
+  }
+
+  /** The chats of this Mac's agents have been taken over from that Mac: it is not asked again (U9). */
+  markMovesDone(macId: string): void {
+    const peer = this.get(macId);
+    if (!peer || peer.moves_done) return;
+    peer.moves_done = true;
     this.persist();
   }
 
