@@ -207,6 +207,7 @@ export function useDeskSocket() {
             setTasksVersion((v) => v + 1);
             break;
           case "agents_changed":
+          case "lists_changed":
             listsStale();
             break;
           case "recall_changed":

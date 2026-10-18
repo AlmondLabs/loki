@@ -24,7 +24,7 @@ import {
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/rename-desk";
 import { ChangeFolder, type FolderApi } from "../desk/new-desk";
-import { conversationDirName } from "../../../core/desk-core.ts";
+import { conversationDirName, homeNote } from "../../../core/desk-core.ts";
 import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -240,6 +240,7 @@ export function DeskSidebar({
             {d.pinned && !inPinned && <Icon name="pin" size={12} title="pinned" />}
             {r.note && <FinishedRing note={r.note} />}
             <LabelChips labels={d.labels} list={labels?.list ?? null} max={3} dots />
+            {homeNote(d) && <span className="loki-meta">{homeNote(d)}</span>}
           </>
         }
         badge={r.badge}
@@ -248,7 +249,7 @@ export function DeskSidebar({
         note={r.note}
         live={r.live}
         current={r.current}
-        dim={d.status !== "live"}
+        dim={d.status !== "live" || d.reachable === false}
         launch={launchOf(d.scope)}
         onOpen={() => onOpen(d.scope)}
         onMenu={(e: MouseEvent<HTMLButtonElement>) => {

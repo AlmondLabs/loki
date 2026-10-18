@@ -18,6 +18,8 @@ export interface PeersDeps {
     hello: () => MacIdentity & { build: string | null; protocol: number };
     /** This Mac's agents and tombstones, for another Mac's `peer_agents_get` (U3). */
     agents: () => Replies["peer_agents"];
+    /** This Mac's own chats, for another Mac's `peer_chats_get` (U4). */
+    chats: () => Replies["peer_chats"];
   };
 }
 
@@ -37,6 +39,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       return reply({ mac_id: macId, name, build, protocol });
     },
     peer_agents_get: () => reply(need().agents()),
+    peer_chats_get: () => reply(need().chats()),
     peers_get: (_, ctx) => ctx.push({ type: "peers", ...need().view() }),
     peer_pair_begin: (_, ctx) => ctx.push({ type: "peer_pair_code", ...need().begin() }),
     peer_pair_join: async ({ host, code }, ctx) => {

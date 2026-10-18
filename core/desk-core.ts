@@ -1,4 +1,14 @@
 /**
+ * What a chat row says about the Mac a chat lives on (plan 023, U4): nothing for this Mac's own chats, the Mac's name
+ * for another Mac's, and that it waits for that Mac while the Mac is out of reach.
+ */
+export function homeNote(row: { home?: string; home_name?: string; reachable?: boolean }): string | null {
+  if (!row.home) return null;
+  const name = row.home_name ?? "another Mac";
+  return row.reachable === false ? `waiting for ${name}` : `on ${name}`;
+}
+
+/**
  * desk-core — the vocabulary both halves of loki speak.
  * Imported by the mod (Node, type-stripped) and by the canvas app (Vite).
  * Pure data and pure functions only: no I/O, no framework imports.

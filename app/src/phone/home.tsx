@@ -1,3 +1,4 @@
+import { homeNote } from "../../../core/desk-core.ts";
 import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { previewLine } from "../shared/preview";
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
@@ -462,7 +463,9 @@ export function DeskRow({
   // A look (on either device) un-bolds a finished desk; its dot stays until it is done, as the desktop sidebar's ring does.
   const looked = m.kind === "finished" && !!mark && !unviewed(mark);
   const doing = m.kind === "running" ? "running…" : (m.kind === "waits" || m.kind === "failed") && mark ? BADGE[mark.status].label : null;
-  const said = doing ?? snippet(mark?.lastAssistantText) ?? (d.status !== "live" ? d.status : null);
+  // A chat on another Mac says so, and while that Mac is out of reach that is all it says (plan 023).
+  const said =
+    (d.reachable === false ? homeNote(d) : null) ?? doing ?? snippet(mark?.lastAssistantText) ?? homeNote(d) ?? (d.status !== "live" ? d.status : null);
   const main = d.conversation_id === "default";
   const name = inAgent && main && !d.title ? "Main chat" : deskName(d);
   const who = d.agent_name ?? "agent";

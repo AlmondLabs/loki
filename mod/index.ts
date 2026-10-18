@@ -41,6 +41,7 @@ import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { PeerLinks } from "./peer-link.ts";
 import { PeerAgents } from "./peer-agents.ts";
+import { RemoteChats } from "./remote-chats.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -201,7 +202,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       last_active: info.lastMessageAt,
     };
   };
-  const listDesks = (): DeskSummary[] => {
+  /** This Mac's own desks: what another Mac's lists show of this one (plan 023, U4). */
+  const listLocalDesks = (): DeskSummary[] => {
     // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
     for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
       if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
@@ -250,7 +252,7 @@ export default function activate(api: ModApi, host: Host): () => void {
    * going quiet. Hidden conversations (Learn's writer chats, reflection's, side threads imported from Letta)
    * stay out, as in the tree.
    */
-  const listInbox = (): InboxRow[] => {
+  const listLocalInbox = (): InboxRow[] => {
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
     const names = new Map<string, string | null>();
     const out: InboxRow[] = [];
@@ -274,6 +276,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   };
+  // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
+  const listDesks = (): DeskSummary[] => sortDesks([...listLocalDesks(), ...remoteChats.desks()]);
+  const listInbox = (): InboxRow[] =>
+    [...listLocalInbox(), ...remoteChats.inbox()].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   const deleteWidgetFile = (id: string): string | null => {
     const entry = widgets.get(id);
     if (!entry) return null;
@@ -314,14 +320,22 @@ export default function activate(api: ModApi, host: Host): () => void {
     defaults: { protocol: PEER_PROTOCOL },
     onStatus: (id, status) => {
       ws?.broadcast({ type: "peers", ...peersView() });
+      remoteChats.setReachable(id, status === "reachable");
       // A Mac back in reach: take what changed there while the link was down.
       if (status === "reachable") void peerAgents.pull(id);
     },
     onPush: (id, frame) => {
+      remoteChats.heard(id, frame);
       if (frame.type === "agents_changed") void peerAgents.pull(id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
+  });
+  // The paired Macs' own chats, for every list here (U4).
+  const remoteChats: RemoteChats = new RemoteChats({
+    link: (id) => links.get(id),
+    name: (id) => peerStore.get(id)?.name ?? "another Mac",
+    onChange: () => broadcast({ type: "lists_changed" }),
   });
   // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
   const peerAgents: PeerAgents = new PeerAgents({
@@ -338,6 +352,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
     onChange: () => {
       links.sync(peerStore.list());
+      remoteChats.sync(peerStore.list().map((p) => p.mac_id));
       ws?.broadcast({ type: "peers", ...peersView() });
       void lan?.setPeersNeeded(peersNeeded());
     },
@@ -438,6 +453,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       forget: (id) => peers.forget(id),
       hello: () => peers.hello(),
       agents: () => peerAgents.snapshot(),
+      chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
     },
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
     agentDeleteBlocked: () => {
@@ -638,6 +654,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     void srv?.close();
     void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
     links.stop(); // the links to other Macs reopen with the mod
+    remoteChats.stop();
     ws = null;
     srv = null;
     starting = null;

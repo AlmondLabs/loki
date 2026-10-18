@@ -276,6 +276,7 @@ describe("every frame in the table, through the real router", () => {
       forget: () => Promise.resolve(false),
       hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
       agents: () => ({ agents: [], tombstones: [] }),
+      chats: () => ({ desks: [], inbox: [] }),
     },
   };
   /** The smallest frame each entry accepts. */

@@ -184,6 +184,8 @@ export interface Replies {
    * and the agents deleted there (daemon/store/agent-sync.ts).
    */
   peer_agents: { agents: Array<{ id: string; record: Record<string, unknown> }>; tombstones: Array<{ id: string; at: string; mac: string }> };
+  /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
+  peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
@@ -248,6 +250,8 @@ export interface Pushes {
   tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;
+  /** Another Mac's chats changed, or it came into or out of reach (plan 023): every client asks for its lists again. */
+  lists_changed: NoPayload;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expires_at: string };
@@ -743,6 +747,7 @@ export const FRAMES = {
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   peer_ping: request("peer_pong", "who this Mac is and which peer protocol it speaks", nothing, false, true),
   peer_agents_get: request("peer_agents", "this Mac's agents and the agents deleted here, for another Mac to take", nothing, false, true),
+  peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),
@@ -757,6 +762,7 @@ export const FRAMES = {
   switch_desk: push("the active conversation changed; the tab follows"),
   desks: push("every desk, after list_desks or a pin"),
   agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again"),
+  lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
   seen: push("the done and viewed marks and the focus weights, after any change"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),

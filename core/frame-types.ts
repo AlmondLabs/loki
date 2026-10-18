@@ -123,8 +123,18 @@ export interface LocalDigest {
   last_ask: AskedBy | null;
 }
 
+/**
+ * Where a chat lives when it is not on this Mac (plan 023, U4): the Mac's id and name, and whether it can be reached
+ * now. Absent on this Mac's own chats.
+ */
+export interface ChatHome {
+  home?: string;
+  home_name?: string;
+  reachable?: boolean;
+}
+
 /** One open chat in the Inbox list the mod sends (`inbox`): the conversation, its agent, and its digest. Archived chats are left out. */
-export interface InboxRow extends LocalDigest {
+export interface InboxRow extends LocalDigest, ChatHome {
   id: string;
   agent_id: string;
   agent_name: string | null;
@@ -211,7 +221,7 @@ export interface DeskInfo {
 }
 
 /** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */
-export interface DeskSummary extends DeskInfo {
+export interface DeskSummary extends DeskInfo, ChatHome {
   scope: Scope;
   conversation_id: string | null;
   /** Pinned in loki's pins file (mod/pins.ts). */

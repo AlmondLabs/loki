@@ -1,3 +1,4 @@
+import { homeNote } from "../../../core/desk-core.ts";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Chip, Dot, Field, Sheet } from "../components";
 import type { Scope } from "../../../core/desk-core.ts";
@@ -564,6 +565,7 @@ function DeskRow({
         )}
         {d.title ?? (d.status === "live" ? "new chat" : d.scope)}
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
+        {homeNote(d) && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· {homeNote(d)}</span>}
       </span>
       <span className="loki-meta">{when(d.last_active)}</span>
     </div>
