@@ -92,7 +92,11 @@ export class RemoteChats {
       this.setReachable(macId, false);
       return;
     }
-    const desks = Array.isArray(reply.desks) ? (reply.desks as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id) : [];
+    // A desk whose chat is gone there (a layout or canvas left behind) is no chat of that Mac's: listing it would also
+    // send that chat's frames there, away from the Mac that holds it.
+    const desks = Array.isArray(reply.desks)
+      ? (reply.desks as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted")
+      : [];
     const inbox = Array.isArray(reply.inbox) ? (reply.inbox as InboxRow[]) : [];
     this.macs.set(macId, { desks, inbox, reachable: true });
     this.opts.onChange();

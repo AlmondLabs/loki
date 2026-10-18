@@ -119,4 +119,12 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(remote.homeOfScope("conv-1")).toEqual({ mac: MINI, reachable: true });
     expect(homeNote({})).toBeNull();
   });
+
+  test("a desk whose chat is gone on that Mac is not listed, and frames for that chat stay here", async () => {
+    const { remote, state } = fixture();
+    state.lists = { desks: [desk("conv-1", "plan the week"), { ...desk("default", "Ira · main chat"), status: "deleted" }], inbox: [] };
+    await remote.refresh(MINI);
+    expect(remote.desks().map((d) => d.conversation_id)).toEqual(["conv-1"]);
+    expect(remote.homeOf("default", "agent-ira")).toBeNull();
+  });
 });
