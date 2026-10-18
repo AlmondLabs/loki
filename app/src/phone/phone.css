@@ -47,8 +47,9 @@
   --phone-affirm: #007a5a;
   --phone-on-affirm: #ffffff;
   --phone-focus: #1d9bd1;
-  /* the floating navigation: a near-opaque raised surface, a hairline a step lighter, the current tab's pill */
-  --phone-nav-surface: rgba(34, 37, 41, 0.96);
+  /* the floating navigation: a material the list shows through (blurred and saturated behind it, as iOS's bars
+     are), a hairline a step lighter, the current tab's pill */
+  --phone-nav-surface: rgba(34, 37, 41, 0.75);
   --phone-nav-border: #484c53;
   --phone-nav-active: #50535a;
   /* loki's workspace mark in Home's header: a cream tile with a green letter, in both themes */
@@ -60,6 +61,8 @@
   --loki-label: var(--loki-font);
   /* type (px): micro tab labels · meta timestamps · body previews · emph row titles and messages · title · large */
   --phone-text-micro: 11px;
+  /* the tab bar's labels and badge: fixed, as iOS keeps its tab bar when the text size grows */
+  --phone-text-tab: 11px;
   --phone-text-meta: 13px;
   --phone-text-body: 15px;
   --phone-text-emph: 17px;
@@ -156,7 +159,7 @@
   --phone-affirm: #007a5a;
   --phone-on-affirm: #ffffff;
   --phone-focus: #1264a3;
-  --phone-nav-surface: rgba(255, 255, 255, 0.96);
+  --phone-nav-surface: rgba(255, 255, 255, 0.75);
   --phone-nav-border: #dddddd;
   --phone-nav-active: #ebebeb;
   --phone-workspace: #f4f0e7;
@@ -191,6 +194,28 @@ html:has(.loki-phone-shell) body {
 html:has(.loki-phone-shell) {
   --phone-behind: #000;
   --phone-lift-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
+}
+
+/* Text follows the size set in iOS (Settings, Display & Brightness, Text Size; and Larger Text in Accessibility), as
+   a native app's Dynamic Type does. iOS reports it as the body style's size: on the document, -apple-system-body
+   makes 1rem that size (17px at the default), and the scale keeps its proportions to it, so the default draws
+   exactly the px above. Clamped, a step below and about half again above the default, so the larger accessibility
+   sizes grow the text without breaking rows built around a 44px touch. Spacing and touch sizes stay fixed. Only on
+   a touch screen with WebKit's text styles: a desktop browser keeps the px scale (macOS's body style is 13px). */
+@supports (font: -apple-system-body) {
+  @media (hover: none) and (pointer: coarse) {
+    html:has(.loki-phone-shell) {
+      font: -apple-system-body;
+    }
+    .loki-phone {
+      --phone-text-micro: clamp(10px, calc(11rem / 17), 16px);
+      --phone-text-meta: clamp(12px, calc(13rem / 17), 19px);
+      --phone-text-body: clamp(14px, calc(15rem / 17), 22px);
+      --phone-text-emph: clamp(15px, calc(17rem / 17), 25px);
+      --phone-text-title: clamp(18px, calc(20rem / 17), 30px);
+      --phone-text-large: clamp(24px, calc(28rem / 17), 40px);
+    }
+  }
 }
 
 /* The shell: the whole screen, one column. Fixed to the viewport (the fallback), then the small and the
@@ -505,8 +530,8 @@ html:has(.loki-phone-shell) {
   border-radius: var(--phone-radius-pill);
   background: var(--phone-nav-surface);
   box-shadow: var(--loki-shadow-float);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .loki-phone-nav-item {
   position: relative;
@@ -547,7 +572,7 @@ html:has(.loki-phone-shell) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--phone-text-micro);
+  font-size: var(--phone-text-tab);
   font-weight: var(--phone-weight-strong);
   line-height: var(--phone-leading-tight);
 }
@@ -562,8 +587,9 @@ html:has(.loki-phone-shell) {
   border-radius: var(--phone-radius-pill);
   background: var(--phone-unread);
   color: var(--phone-on-unread);
-  box-shadow: 0 0 0 2px var(--phone-nav-surface);
-  font-size: var(--phone-text-micro);
+  /* the ring cuts the badge out of the icon in the panel's solid colour: a see-through ring would show the list */
+  box-shadow: 0 0 0 2px var(--loki-panel);
+  font-size: var(--phone-text-tab);
   font-weight: var(--phone-weight-strong);
   line-height: 16px;
   text-align: center;
@@ -583,8 +609,8 @@ html:has(.loki-phone-shell) {
   box-shadow: var(--loki-shadow-float);
   color: var(--loki-fg);
   cursor: pointer;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .loki-phone-search-btn:active {
   background: var(--loki-hover);
@@ -607,8 +633,8 @@ html:has(.loki-phone-shell) {
   box-shadow: var(--loki-shadow-float);
   color: var(--loki-fg);
   cursor: pointer;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .loki-phone-compose:active {
   background: var(--loki-hover);
@@ -1850,7 +1876,8 @@ span.loki-phone-section-btn {
 .loki-phone .loki-field.loki-composer-text {
   padding: var(--phone-space-1) var(--phone-space-2);
   font-size: var(--phone-text-body);
-  line-height: 20px;
+  /* 20px at the default size, growing with the text (iOS's text size) */
+  line-height: calc(20em / 15);
   scrollbar-width: none;
 }
 /* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
