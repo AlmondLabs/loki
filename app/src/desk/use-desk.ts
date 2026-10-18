@@ -445,9 +445,11 @@ export function useDesk() {
 
   const { visible, closed, ownCount, loaded } = deskView(scope, desks, widgets);
 
-  const title = titles[scope] ?? null;
+  // Until the desk itself arrives (another Mac's chat waits on that Mac), its row in the list names it.
+  const listed = deskList.find((d) => d.scope === scope);
+  const title = titles[scope] ?? listed?.title ?? null;
   const status: DeskStatus = statuses[scope] ?? "none";
-  const agentName = agentNames[scope] ?? null;
+  const agentName = agentNames[scope] ?? listed?.agent_name ?? null;
   const model = models[scope] ?? null;
   const reasoningEffort = reasoningEfforts[scope] ?? null;
   /** After a switch the mod only re-reads the conversation at the next turn end; remember the new model now. */
@@ -469,7 +471,7 @@ export function useDesk() {
     setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, title } : d)));
   };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
-  const agentId = agentIds[scope] ?? null;
+  const agentId = agentIds[scope] ?? listed?.agent_id ?? null;
   /** The conversation behind this desk, as loki's daemon names it. */
   const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
 

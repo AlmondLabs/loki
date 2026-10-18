@@ -64,7 +64,17 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
 
   return {
     onConnect(client: Client) {
-      for (const frame of deps.welcome?.(client.scope) ?? []) client.send(frame);
+      // A tab opened on another Mac's chat: that Mac sends its desk (its agent, title and canvas), not an empty one from here.
+      const ask = { type: "desk_get", scope: client.scope };
+      const home = !client.peerId && deps.route ? deps.route.target(ask) : null;
+      for (const frame of deps.welcome?.(client.scope) ?? []) {
+        if (home && frame.type === "desk" && frame.scope === client.scope) continue;
+        client.send(frame);
+      }
+      if (home && deps.route)
+        void deps.route.forward(home, ask, "send").then((out) => {
+          if (!out.ok) client.send({ type: "error", message: out.message });
+        });
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {
