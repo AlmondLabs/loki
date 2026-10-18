@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import type { FrameName } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
 import type { RemoteHome } from "./remote-chats.ts";
+import { MOVE_TIMEOUT_MS } from "./chat-moves.ts";
 
 /**
  * Each chat answered by the Mac it lives on (plan 023, U5, KTD3). A frame from this Mac's tabs or phones about a chat
@@ -22,6 +23,7 @@ export const CHAT_ROUTED: ReadonlySet<FrameName> = new Set([
   "chat_update",
   "chat_folder",
   "chat_model",
+  "chat_move",
 ]);
 
 /** The canvas frames routed by the desk they name: its scope, or a widget id's leading scope. */
@@ -118,7 +120,8 @@ export class ChatRouter {
     }
     if (kind === "send") return link.send(frame) ? { ok: true, reply: null } : { ok: false, message: `waiting for ${name}: this chat lives there` };
     try {
-      return { ok: true, reply: await link.request(frame, 30_000) };
+      // A move waits for the whole chat to cross to the Mac it moves to.
+      return { ok: true, reply: await link.request(frame, frame.type === "chat_move" ? MOVE_TIMEOUT_MS : 30_000) };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
     }

@@ -36,7 +36,8 @@ function macs(busy = new Set<string>()) {
     exportChat: (_a: string, c: string) => Promise.resolve(busy.has(c) ? { chat: null, busy: true } : { chat: moved(c), busy: false }),
     finishMove: (_a: string, c: string) => (onBook.delete(c), finished.push(c), Promise.resolve()),
   };
-  const miniChat = { importChat: (m: MovedChat) => (onMini.add(m.conversation_id), Promise.resolve(true)) };
+  const imported: MovedChat[] = [];
+  const miniChat = { importChat: (m: MovedChat) => (onMini.add(m.conversation_id), imported.push(m), Promise.resolve(true)) };
   const book: ChatMoves = new ChatMoves({
     chat: bookChat as never,
     link: () => null,
@@ -61,7 +62,7 @@ function macs(busy = new Set<string>()) {
     markDone: (id) => done.add(id),
     onMoved: () => {},
   });
-  return { dir, bookWidgets, miniWidgets, onBook, onMini, finished, done, book, mini, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, bookWidgets, miniWidgets, onBook, onMini, imported, finished, done, book, mini, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 describe("taking an agent's chats over on first pairing", () => {
@@ -127,6 +128,23 @@ describe("an agent's home set to this Mac after pairing", () => {
       expect(m.onMini.has("conv-3")).toBe(false);
       await m.mini.run(BOOK, true);
       expect(m.onMini.has("conv-3")).toBe(true);
+    } finally {
+      m.cleanup();
+    }
+  });
+});
+
+describe("moving one chat by hand", () => {
+  test("arrives placed, so the hand-over leaves it, and the old Mac lets it go; a busy chat stays and says so", async () => {
+    const m = macs(new Set(["conv-2"]));
+    try {
+      expect(await m.mini.take(BOOK, "agent-ira", "conv-1")).toEqual({ moved: true, busy: false });
+      expect(m.imported.map((c) => [c.conversation_id, c.info.placed])).toEqual([["conv-1", true]]);
+      expect(m.finished).toEqual(["conv-1"]);
+      expect(await m.mini.take(BOOK, "agent-ira", "conv-2")).toEqual({ moved: false, busy: true });
+      expect(m.onBook.has("conv-2")).toBe(true);
+      // The hand-over is not marked done by a move by hand.
+      expect(m.done.has(BOOK)).toBe(false);
     } finally {
       m.cleanup();
     }

@@ -118,11 +118,6 @@ interface Deps {
    */
   canRun?(model: string): Promise<boolean>;
   isSubagent(agentId: string): boolean;
-  /**
-   * Whether an agent lives on this Mac (plan 023, R17): passes run only for those, so two Macs never reflect on one
-   * agent at once. Absent, every agent does.
-   */
-  livesHere?(agentId: string): boolean;
   capture?(event: string, properties: Record<string, unknown>): void;
   report?(message: string): void;
   now?(): Date;
@@ -188,8 +183,7 @@ export class PassRunner {
           !isReflectionChat(row.conversationId) &&
           !isDoctorChat(row.conversationId) &&
           !isWriterChat(row.conversationId) &&
-          !this.deps.isSubagent(row.agentId) &&
-          (this.deps.livesHere?.(row.agentId) ?? true),
+          !this.deps.isSubagent(row.agentId),
       );
   }
 

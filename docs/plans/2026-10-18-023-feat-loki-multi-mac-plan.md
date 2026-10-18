@@ -830,3 +830,32 @@ MacBook with the mini off.
   contains conflict markers after the U7 tests.
 - The manual, architecture, product and security docs describe the shipped behaviour (U12).
 - Code from abandoned approaches is removed from the diff; every new export has a doc comment, per AGENTS.md.
+
+---
+
+## Addendum, 2026-10-18: chats away from their agent's home
+
+Using two paired Macs showed that an agent's home is a default, not a rule for every chat: Friday lives on the MacBook,
+but one Friday chat may belong on the mini, and a chat started on the mini with the "lives on" picker should stay
+there. This addendum lifts R8's "a chat's home does not change" and narrows R17. Teleport, deferred above, comes in
+this form; the outbox and reading a chat while its home is down stay deferred.
+
+- **A1. Move one chat.** `chat_move` (`agent_id`, `conversation_id`, `to`) goes, like every chat frame, to the Mac the
+  chat lives on (U5). That Mac asks `to` over its peer link to take the chat (`peer_chat_take`), and `to` pulls it as
+  U9 pulls a chat: copy out, write in under the same id with its canvas files, then the old Mac lets go. One path
+  serves "move it there" and "bring it here". A chat mid-turn or waiting on an approval says so and does not move. The
+  chat row's menu in the sidebar offers "Move to <Mac>" for every other Mac, greyed while it is out of reach; an
+  agent's main chat is not offered, since each Mac keeps its own.
+- **A2. A chat placed on purpose stays put.** A chat moved by A1, or started on a Mac other than its agent's home with
+  the picker, is marked `placed` in its ChatInfo, and the mark travels with it. U9's hand-over (at first pairing, or
+  when an agent's home is set) skips placed chats, so it never pulls back a chat the person put somewhere.
+- **A3. Passes read a chat where it lives.** R17 becomes: reflection and Learn read each chat on the Mac it lives on.
+  Their cursors already travel with a moved chat (U9), so no chat is read twice. Two Macs can then write one agent's
+  memory; U7 already merges memory both ways and keeps the home's text on a clash, with the other side in
+  `conflicts/sync.md` for reflection to settle, so no new mechanism is needed. Chosen over sending an away chat's
+  transcript to the home to be read there, which would need the home in reach and a second copy of every log.
+- **A4. Moving back.** A Mac that let a chat go keeps a hidden copy. When the chat comes back, that copy is retired
+  under a new key (still hidden, its usage still counted) and the chat is written in fresh.
+
+Tests: the sweep skips a placed chat; a chat moved there and back arrives whole both times; a moved chat is read by
+the passes on its new Mac from its old cursor; `chat_move` from a tab on either Mac reaches the chat's Mac (node test).

@@ -60,6 +60,32 @@ describe("a chat moving to another Mac", () => {
   });
 });
 
+describe("a chat moved there and back", () => {
+  test("comes back whole over the copy it left, keeps its placed mark, and the set-aside copy stays hidden", async () => {
+    const s = await stores();
+    s.faux.setResponses([fauxAssistantMessage("hello"), fauxAssistantMessage("on the mini"), fauxAssistantMessage("back")]);
+    const chat = await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
+    await (await chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
+    // There: placed on purpose, and the MacBook lets go of its copy.
+    const there = must(await exportChat(s.book, "agent-friday", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
+    expect(await importChat(s.mini, { ...there, info: { ...there.info, placed: true } }, ctx)).toBe(true);
+    await s.book.updateChat("conv-1", { hidden: true }, ctx);
+    const onMini = must(await s.mini.chat("conv-1", ctx), "on the mini");
+    await (await onMini.submit({ type: "input", content: "more" }, ctx)).wait(ctx);
+    // And back.
+    const back = must(await exportChat(s.mini, "agent-friday", "conv-1", { schedules: [], cursors: {} }, ctx), "the export back");
+    expect(back.info.placed).toBe(true);
+    expect(await importChat(s.book, back, ctx)).toBe(true);
+    expect(await said(s.book, "conv-1")).toEqual(await said(s.mini, "conv-1"));
+    const info = must(await s.book.chatInfo(must(await s.book.chat("conv-1", ctx), "chat").id, ctx), "info");
+    expect(info).toMatchObject({ hidden: false, placed: true });
+    const all = await s.book.chats(ctx);
+    expect(all.filter((c) => c.id.startsWith("conv-1~moved-")).map((c) => c.hidden)).toEqual([true]);
+    // A chat still here and in use is never written over.
+    expect(await importChat(s.book, back, ctx)).toBe(false);
+  });
+});
+
 describe("a moved chat's schedules", () => {
   test("keep their id and when they last fired, so a slot fired on the old Mac does not fire again here", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-adopt-"));

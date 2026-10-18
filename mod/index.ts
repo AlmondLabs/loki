@@ -19,7 +19,7 @@ import { RecallStore, isoDay, recallDir } from "./recall.ts";
 import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall-sync.ts";
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import { PeerState } from "./peer-state.ts";
-import { ChatMoves } from "./chat-moves.ts";
+import { ChatMoves, MOVE_TIMEOUT_MS } from "./chat-moves.ts";
 import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
@@ -583,6 +583,26 @@ export default function activate(api: ModApi, host: Host): () => void {
           await chatMoves.moved(agentId, conversationId);
           desks.forgetConversations((id) => id === conversationId); // its desk row lives on the other Mac now
           broadcast({ type: "lists_changed" });
+        },
+        take: (id, agentId, conversationId) => chatMoves.take(id, agentId, conversationId),
+        offer: async (to, agentId, conversationId) => {
+          if (to === macId) return null;
+          const name = peerStore.get(to)?.name;
+          if (!name) return "that Mac is not paired with this one";
+          const link = links.get(to);
+          if (!link || !links.reachable(to)) return `${name} is out of reach: move the chat once it is back`;
+          try {
+            const out = (await link.request({ type: "peer_chat_take", agent_id: agentId, conversation_id: conversationId }, MOVE_TIMEOUT_MS)) as {
+              moved?: boolean;
+              busy?: boolean;
+            };
+            if (out.busy) return "the chat is answering or waiting for you: move it once it is done";
+            if (!out.moved) return "the chat is not on this Mac";
+            void remoteChats.refresh(to);
+            return null;
+          } catch (err) {
+            return `the move to ${name} did not finish: ${err instanceof Error ? err.message : String(err)}`;
+          }
         },
       },
       memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),

@@ -14,10 +14,12 @@ import {
   canRename,
   doneAction,
   loadSidebar,
+  moveTargets,
   offscreenWaits,
   saveSidebar,
   sidebarModel,
   toggleFold,
+  type MoveTarget,
   type SidebarPref,
   type SidebarRow,
 } from "./sidebar-model";
@@ -28,6 +30,7 @@ import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
 import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips, LabelsDialog } from "../chat/labels";
 
@@ -84,6 +87,8 @@ export interface DeskSidebarProps {
   onQuery?: (query: string) => void;
   /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
   labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
+  /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
+  macs?: { view: Pushes["peers"] | null; move: (desk: DeskSummary, to: MoveTarget) => void };
 }
 
 /**
@@ -110,6 +115,7 @@ export function DeskSidebar({
   query: heldQuery,
   onQuery,
   labels,
+  macs,
 }: DeskSidebarProps) {
   const [ownQuery, setOwnQuery] = useState("");
   const query = heldQuery ?? ownQuery;
@@ -416,6 +422,8 @@ export function DeskSidebar({
           onMove={onMove && folders ? setMoving : undefined}
           onLabels={labels ? setLabeling : undefined}
           onDone={onDone}
+          targets={macs ? moveTargets(menu.desk, macs.view) : []}
+          onMoveTo={macs?.move}
         />
       )}
       {labeling && labels && (
@@ -466,6 +474,8 @@ function RowMenu({
   onMove,
   onLabels,
   onDone,
+  targets,
+  onMoveTo,
 }: {
   desk: DeskSummary;
   item: AttentionItem | null;
@@ -476,6 +486,9 @@ function RowMenu({
   onRename: (d: DeskSummary) => void;
   onMove?: (d: DeskSummary) => void;
   onLabels?: (d: DeskSummary) => void;
+  /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
+  targets: MoveTarget[];
+  onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
 } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -548,6 +561,19 @@ function RowMenu({
           Labels…
         </Row>
       )}
+      {onMoveTo &&
+        targets.map((t) => (
+          <Row
+            key={t.mac_id}
+            dense
+            role="menuitem"
+            disabled={!connected || !t.reachable}
+            title={!connected ? NO_MOVE_REASON : t.reachable ? undefined : `${t.name} is out of reach`}
+            onClick={pick(() => onMoveTo(d, t))}
+          >
+            Move to {t.name}
+          </Row>
+        ))}
       {canPin(d) && (
         <Row dense role="menuitem" onClick={pick(() => onPin(d, !d.pinned))}>
           {d.pinned ? "Unpin" : "Pin to the top"}
@@ -615,6 +641,18 @@ export function DeskSidebarView({
         const err = await catchUp.changeFolder({ agent_id: d.agent_id, conversation_id: d.conversation_id }, folder);
         if (!err) notice(`${d.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
         return err;
+      }}
+      macs={{
+        view: desk.macs.view,
+        move: (d, to) => {
+          if (!d.agent_id || !d.conversation_id) return;
+          const name = d.title ?? "chat";
+          notice(`moving ${name} to ${to.name}…`);
+          void desk.macs.move(d.agent_id, d.conversation_id, to.mac_id).then((err) => {
+            notice(err ? `move: ${err}` : `${name} moved to ${to.name}`);
+            if (!err) desk.desks.request();
+          });
+        },
       }}
       onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {

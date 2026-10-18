@@ -429,6 +429,11 @@ export function useDesk() {
     join: (host: string, code: string): Promise<string | null> =>
       request("peer_pair_join", { host, code }, 30_000).then((r) => (r.ok ? null : r.timed_out ? "the other Mac did not answer in time" : r.error)),
     forget: (macId: string) => send({ type: "peer_forget", mac_id: macId }),
+    /** Move a chat to another Mac (addendum A1): null once it moved, else why not. A long chat takes a while to cross. */
+    move: (agentId: string, conversationId: string, to: string): Promise<string | null> =>
+      request("chat_move", { agent_id: agentId, conversation_id: conversationId, to }, 200_000).then((r) =>
+        r.ok ? null : r.timed_out ? "the move did not finish in time" : r.error,
+      ),
   };
 
   /** Delete a widget's file for good. The mod removes it; the watcher takes it off every tab. */

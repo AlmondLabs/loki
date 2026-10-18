@@ -15,7 +15,8 @@ import type { ScheduledTask } from "./schedule.ts";
 export interface MovedChat {
   agent_id: string;
   conversation_id: string;
-  info: { title: string | null; archived: boolean; mode: string | null; labels: string[]; created_at: string };
+  /** `placed`: it goes where the person put it, and the hand-over to its agent's home leaves it there (addendum A2). */
+  info: { title: string | null; archived: boolean; mode: string | null; labels: string[]; created_at: string; placed?: boolean };
   /** What the conversation ran with: its model and folder, when it had its own. */
   agent: { model?: { provider: string; modelId: string }; cwd?: string };
   entries: ImportedEntry[];
@@ -50,6 +51,7 @@ export async function exportChat(
       mode: typeof info?.mode === "string" ? info.mode : null,
       labels: info?.labels ?? [],
       created_at: info?.createdAt ?? new Date().toISOString(),
+      ...(info?.placed ? { placed: true } : {}),
     },
     agent: { ...(model ? { model } : {}), ...(typeof settings?.cwd === "string" ? { cwd: settings.cwd } : {}) },
     entries: entries.map((e, line) => ({
@@ -65,9 +67,16 @@ export async function exportChat(
   };
 }
 
-/** Write a moved chat into this Mac's store under its own id; false when a chat of that id is already here (a move tried again). */
+/**
+ * Write a moved chat into this Mac's store under its own id; false when a chat of that id is already here (a move tried
+ * again). The hidden copy left by an earlier move away is set aside first, so a chat can come back (addendum A4).
+ */
 export async function importChat(store: AgentStore, moved: MovedChat, context: Context): Promise<boolean> {
-  if (await store.chat(moved.conversation_id, context)) return false;
+  const here = await store.chat(moved.conversation_id, context);
+  if (here) {
+    if ((await store.chatInfo(here.id, context))?.hidden !== true) return false;
+    await store.retireChat(moved.conversation_id, context);
+  }
   const conversation = await store.createChat(
     moved.conversation_id,
     { title: moved.info.title, createdAt: moved.info.created_at, ...(Object.keys(moved.agent).length ? { agent: moved.agent } : {}) },
@@ -76,7 +85,12 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
   await store.importEntries(conversation, moved.entries, context);
   await store.updateChat(
     moved.conversation_id,
-    { archived: moved.info.archived, labels: moved.info.labels, ...(moved.info.mode ? { mode: moved.info.mode } : {}) },
+    {
+      archived: moved.info.archived,
+      labels: moved.info.labels,
+      ...(moved.info.mode ? { mode: moved.info.mode } : {}),
+      ...(moved.info.placed ? { placed: true } : {}),
+    },
     context,
   );
   return true;

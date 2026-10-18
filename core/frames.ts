@@ -199,6 +199,8 @@ export interface Replies {
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
   /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
   peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
+  /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
+  peer_chat_taken: { moved: boolean; busy: boolean };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
   peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
@@ -791,6 +793,17 @@ export const FRAMES = {
   peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>
     str(m.host) && m.host.trim() && str(m.code) && m.code.trim() ? { host: m.host.trim(), code: m.code.trim() } : "expected {host, code}",
   ),
+  chat_move: request(
+    "chat_done",
+    "move a chat to the paired Mac `to`; answered by the Mac the chat lives on (plan 023, addendum A1)",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      return str(m.to) && m.to ? { ...c, to: m.to } : "to required";
+    },
+    false,
+    PEER,
+  ),
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   chat_requirements: request(
     "chat_requirements",
@@ -813,6 +826,7 @@ export const FRAMES = {
   peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, true),
   peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, true),
   peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, true),
+  peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),

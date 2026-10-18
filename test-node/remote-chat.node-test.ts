@@ -106,6 +106,16 @@ async function macs() {
           chats: () => ({ desks: [IRA_DESK], inbox: [] }),
           state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
+          moves: {
+            candidates: () => Promise.resolve([]),
+            export: () => Promise.resolve({ chat: null, busy: false, widgets: {} }),
+            moved: () => Promise.resolve(),
+            take: () => Promise.resolve({ moved: false, busy: false }),
+            offer: (to, agentId, conversationId) => (
+              reached.push({ type: "chat_move", to, agent_id: agentId, conversation_id: conversationId }),
+              Promise.resolve(null)
+            ),
+          },
         },
       }),
     ],
@@ -208,6 +218,22 @@ void test("history and an approval reach the far Mac, from a tab and from a phon
     await until(() => phone.sent.length > 0);
     assert.deepEqual(phone.sent[0], { type: "chat_accepted", accepted: true, request_id: "a" });
     assert.equal(m.reached.find((r) => r.type === "chat_approve")?.approval_id, "ap1");
+  } finally {
+    await m.done();
+  }
+});
+
+void test("moving a chat from a tab here reaches the Mac it lives on, which offers it to the Mac named", async () => {
+  const m = await macs();
+  try {
+    const tab = client();
+    m.near.onMessage(tab, { type: "chat_move", request_id: "mv", agent_id: IRA, conversation_id: CONV, to: NEAR });
+    await until(() => tab.sent.length > 0);
+    assert.deepEqual(tab.sent[0], { type: "chat_done", request_id: "mv" });
+    assert.deepEqual(
+      m.reached.find((r) => r.type === "chat_move"),
+      { type: "chat_move", to: NEAR, agent_id: IRA, conversation_id: CONV },
+    );
   } finally {
     await m.done();
   }

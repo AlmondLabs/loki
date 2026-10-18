@@ -1,5 +1,5 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
 /**
@@ -260,4 +260,29 @@ export function saveSidebar(store: Store, pref: SidebarPref): void {
 /** The settings with one section's fold flipped. */
 export function toggleFold(pref: SidebarPref, id: string): SidebarPref {
   return { ...pref, collapsed: pref.collapsed.includes(id) ? pref.collapsed.filter((c) => c !== id) : [...pref.collapsed, id] };
+}
+
+/** A Mac a chat can move to, from its row's menu (plan 023, addendum A1). */
+export interface MoveTarget {
+  mac_id: string;
+  name: string;
+  /** In reach now: a Mac asleep or off is offered, but greyed. */
+  reachable: boolean;
+}
+
+/**
+ * Where a chat can move: every Mac but the one it lives on, this Mac first. None for a chat whose Mac is out of reach,
+ * an agent's main chat (each Mac keeps its own), or a row that is not a chat; none until another Mac is paired.
+ */
+export function moveTargets(
+  d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
+  macs: { me: MacIdentity; peers: Array<MacIdentity & { reachable: boolean }> } | null,
+): MoveTarget[] {
+  if (!macs?.peers.length || !d.agent_id || !d.conversation_id || d.conversation_id === "default" || d.reachable === false) return [];
+  const all = [
+    { mac_id: macs.me.mac_id, name: macs.me.name, reachable: true },
+    ...macs.peers.map((p) => ({ mac_id: p.mac_id, name: p.name, reachable: p.reachable })),
+  ];
+  const lives = d.home ?? macs.me.mac_id;
+  return all.filter((m) => m.mac_id !== lives);
 }

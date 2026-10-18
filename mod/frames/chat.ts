@@ -16,7 +16,8 @@ export interface ChatBackend {
   open(agentId: string, conversationId: string, mode: string | null): Promise<ChatState>;
   approve(p: PayloadOf<"chat_approve">): Promise<boolean>;
   answer(p: PayloadOf<"chat_answer">): Promise<boolean>;
-  create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }>;
+  /** `home`: the Mac the person picked for it, which places it when its agent lives elsewhere (plan 023, addendum A2). */
+  create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
   abort(agentId: string, conversationId: string): Promise<void>;
   update(p: PayloadOf<"chat_update">): Promise<void>;
@@ -116,9 +117,9 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_open: ({ agent_id: agentId, conversation_id: conversationId, mode }) => served(b, (x) => x.open(agentId, conversationId, mode)),
     chat_approve: (p) => served(b, async (x) => ({ accepted: await x.approve(p) })),
     chat_answer: (p) => served(b, async (x) => ({ accepted: await x.answer(p) })),
-    chat_create: ({ agent_id: agentId, cwd, title }) =>
+    chat_create: ({ agent_id: agentId, cwd, title, home }) =>
       served(b, async (x) => {
-        const made = await x.create(agentId, cwd, title);
+        const made = await x.create(agentId, cwd, title, home);
         return { agent_id: made.agentId, conversation_id: made.conversationId };
       }),
     chat_send: (p) => {

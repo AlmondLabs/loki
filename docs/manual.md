@@ -350,12 +350,17 @@ reachable; a closed lid still sleeps.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
    on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
    schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
-   agent stays where its session is. Files attached to a moved chat stay on the Mac they were attached on.
-4. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
+   agent stays where its session is. Files attached to a moved chat stay on the Mac they were attached on. Setting
+   an agent's home later moves its chats the same way.
+4. **Move one chat by hand.** Right-click a chat in the sidebar and pick **Move to Mac mini** (or the MacBook): it
+   moves with everything above, and works the same in both directions, so you can bring a chat back. A chat you
+   moved, or started on a Mac other than its agent's home, stays where you put it: moving its agent's home later
+   leaves it. A chat mid-answer or waiting for you says so and stays; an agent's main chat stays on each Mac.
+5. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to
-   `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn run for an agent
-   on its home Mac only.
-5. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
+   `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat
+   on the Mac it lives on, so a Friday chat on the mini still teaches Friday, and a moved chat is not read twice.
+6. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
    adds up), pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
    "always allow" list, Tasks, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
    on.

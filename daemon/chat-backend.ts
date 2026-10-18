@@ -304,11 +304,18 @@ export class DaemonChats implements ChatBackend {
     };
   }
 
-  async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {
+  /**
+   * A new chat here. `home` is the Mac the person picked for it; picked here while its agent lives on another Mac, the
+   * chat is placed (addendum A2), so the hand-over of that agent's chats leaves it here.
+   */
+  async create(agentId: string, cwd: string | null, title: string | null, home: string | null = null): Promise<{ agentId: string; conversationId: string }> {
     const store = await this.deps.stores.get(agentId);
     const conversationId = `local-conv-${randomUUID()}`;
     const model = modelRef(readLocalAgent(agentId, this.deps.backendDir)?.model ?? "");
     await store.createChat(conversationId, { title, agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) } }, this.deps.context);
+    const here = this.deps.macId ?? "";
+    if (home && here && homeOf(readRecord(this.deps.backendDir, agentId), here) !== here)
+      await store.updateChat(conversationId, { placed: true }, this.deps.context);
     return { agentId, conversationId };
   }
 
@@ -647,7 +654,8 @@ export class DaemonChats implements ChatBackend {
   /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
   /**
    * The chats here of agents that live on `mac`, for that Mac to take over when it first pairs (plan 023, U9): the
-   * person's own, not hidden, and not on an ACP agent, whose session belongs to this Mac.
+   * person's own, not hidden, and not on an ACP agent, whose session belongs to this Mac. A chat put here on purpose
+   * stays (addendum A2).
    */
   async moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>> {
     const out: Array<{ agent_id: string; conversation_id: string }> = [];
@@ -655,7 +663,7 @@ export class DaemonChats implements ChatBackend {
       if (homeOf(readRecord(this.deps.backendDir, agentId), this.deps.macId ?? "") !== mac) continue;
       const store = await this.deps.stores.get(agentId);
       for (const info of await store.chats(this.deps.context)) {
-        if (info.hidden || info.engine?.kind === "acp" || isReflectionChat(info.id) || isDoctorChat(info.id)) continue;
+        if (info.hidden || info.placed || info.engine?.kind === "acp" || isReflectionChat(info.id) || isDoctorChat(info.id)) continue;
         out.push({ agent_id: agentId, conversation_id: info.id });
       }
     }

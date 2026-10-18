@@ -27,6 +27,10 @@ export interface PeersDeps {
       candidates: (macId: string) => Promise<Replies["peer_moves"]["chats"]>;
       export: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat"]>;
       moved: (agentId: string, conversationId: string) => Promise<void>;
+      /** Take one chat over from the Mac it lives on, because the person moved it here (addendum A1). */
+      take: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat_taken"]>;
+      /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
+      offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
     };
     /** The person's state, for another Mac's `peer_state_get` (U8). */
     state: () => Replies["peer_state"];
@@ -68,6 +72,18 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       if (!moves || !ctx.client.peerId) return fail("only another Mac takes a chat over");
       await moves.moved(agentId, conversationId);
       return reply({});
+    },
+    peer_chat_take: async ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
+      const moves = need().moves;
+      if (!moves || !ctx.client.peerId) return fail("only another Mac offers a chat");
+      return reply(await moves.take(ctx.client.peerId, agentId, conversationId));
+    },
+    // The chat lives here (a tab here, or the Mac it moves to, asked): this Mac offers it to `to` (addendum A1).
+    chat_move: async ({ agent_id: agentId, conversation_id: conversationId, to }) => {
+      const moves = need().moves;
+      if (!moves) return fail("moving chats between Macs is not available in this mod");
+      const why = await moves.offer(to, agentId, conversationId);
+      return why ? fail(why) : reply({});
     },
     peer_memory_get: async ({ agent_id: agentId, have }) => reply(await need().memory(agentId, have)),
     peers_get: async (_, ctx) => {

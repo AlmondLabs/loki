@@ -15,6 +15,7 @@ import {
   saveSidebar,
   sidebarModel,
   toggleFold,
+  moveTargets,
 } from "../app/src/shell/sidebar-model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -374,5 +375,27 @@ describe("the rename dialog, rendered", () => {
     expect(html).toContain('value="Meeting notes"');
     expect(html).toContain(`maxLength="${DESK_NAME_MAX}"`);
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save<\/button>/);
+  });
+});
+
+describe("moving a chat to another Mac (plan 023, addendum A1)", () => {
+  const me = { mac_id: "book", name: "MacBook" };
+  const macs = { me, peers: [{ mac_id: "mini", name: "Mac mini", reachable: true }] };
+  const chat = { agent_id: "agent-1", conversation_id: "conv-1" };
+
+  test("a chat here is offered to the other Macs, greyed while one is out of reach; one there, back to this Mac", () => {
+    expect(moveTargets(chat, macs)).toEqual([{ mac_id: "mini", name: "Mac mini", reachable: true }]);
+    expect(moveTargets(chat, { me, peers: [{ mac_id: "mini", name: "Mac mini", reachable: false }] })).toEqual([
+      { mac_id: "mini", name: "Mac mini", reachable: false },
+    ]);
+    expect(moveTargets({ ...chat, home: "mini", reachable: true }, macs)).toEqual([{ mac_id: "book", name: "MacBook", reachable: true }]);
+  });
+
+  test("nothing to offer with no Mac paired, for a main chat, a row with no chat, or a chat whose Mac is out of reach", () => {
+    expect(moveTargets(chat, { me, peers: [] })).toEqual([]);
+    expect(moveTargets(chat, null)).toEqual([]);
+    expect(moveTargets({ ...chat, conversation_id: "default" }, macs)).toEqual([]);
+    expect(moveTargets({ agent_id: null, conversation_id: null }, macs)).toEqual([]);
+    expect(moveTargets({ ...chat, home: "mini", reachable: false }, macs)).toEqual([]);
   });
 });

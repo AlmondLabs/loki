@@ -6,6 +6,9 @@ import type { ChatBackend } from "./frames/chat.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
 
+/** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
+export const MOVE_TIMEOUT_MS = 180_000;
+
 /**
  * Taking over this Mac's agents' chats from a Mac they were made on, once, after pairing (plan 023, U9, R9, KTD11):
  * the mini, home of Ira, takes Ira's chats from the MacBook. One chat at a time: the old Mac copies it out (or says
@@ -67,20 +70,9 @@ export class ChatMoves {
       let waiting = false;
       let moved = 0;
       for (const c of chats ?? []) {
-        const reply = (await link.request({ type: "peer_chat_export", agent_id: c.agent_id, conversation_id: c.conversation_id }, 120_000)) as {
-          chat?: MovedChat | null;
-          busy?: boolean;
-          widgets?: Record<string, string>;
-        };
-        if (reply.busy) {
-          waiting = true;
-          continue;
-        }
-        if (!reply.chat) continue;
-        await this.opts.chat.importChat(reply.chat);
-        writeWidgets(join(this.opts.widgetsDir, scopeFor(c.conversation_id, c.agent_id)), reply.widgets ?? {});
-        await link.request({ type: "peer_chat_moved", agent_id: c.agent_id, conversation_id: c.conversation_id });
-        moved++;
+        const out = await this.pull(link, c.agent_id, c.conversation_id, false);
+        if (out === "busy") waiting = true;
+        if (out === "moved") moved++;
       }
       if (moved) {
         log("peers:chats-taken", { from: macId, moved, waiting });
@@ -93,6 +85,36 @@ export class ChatMoves {
     } finally {
       this.running.delete(macId);
     }
+  }
+
+  /**
+   * Take one chat over from `macId`, where it lives, because the person moved it here (addendum A1): it is placed, so
+   * the hand-over of its agent's chats leaves it here. `busy` while a turn runs or an approval waits there.
+   */
+  async take(macId: string, agentId: string, conversationId: string): Promise<{ moved: boolean; busy: boolean }> {
+    const link = this.opts.link(macId);
+    if (!link) return { moved: false, busy: false };
+    const out = await this.pull(link, agentId, conversationId, true);
+    if (out === "moved") {
+      log("peers:chat-taken", { from: macId, agent: agentId, chat: conversationId });
+      this.opts.onMoved(macId);
+    }
+    return { moved: out === "moved", busy: out === "busy" };
+  }
+
+  /** Copy one chat out of the Mac at the link's end, write it in here with its canvas files, and let that Mac go of it. */
+  private async pull(link: PeerLink, agentId: string, conversationId: string, placed: boolean): Promise<"moved" | "busy" | "none"> {
+    const reply = (await link.request({ type: "peer_chat_export", agent_id: agentId, conversation_id: conversationId }, 120_000)) as {
+      chat?: MovedChat | null;
+      busy?: boolean;
+      widgets?: Record<string, string>;
+    };
+    if (reply.busy) return "busy";
+    if (!reply.chat) return "none";
+    await this.opts.chat.importChat(placed ? { ...reply.chat, info: { ...reply.chat.info, placed: true } } : reply.chat);
+    writeWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId)), reply.widgets ?? {});
+    await link.request({ type: "peer_chat_moved", agent_id: agentId, conversation_id: conversationId });
+    return "moved";
   }
 }
 

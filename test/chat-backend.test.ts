@@ -19,7 +19,12 @@ import { must } from "./fixtures/must.ts";
 const ctx = BACKGROUND_CONTEXT;
 
 async function setup(
-  opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void>; passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"] } = {},
+  opts: {
+    tokensPerSecond?: number;
+    tool?: (done: () => void) => Promise<void>;
+    passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"];
+    macId?: string;
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
   const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
@@ -64,6 +69,7 @@ async function setup(
     backendDir: join(dir, "backend"),
     context: ctx,
     ...(opts.passes ? { passes: opts.passes } : {}),
+    ...(opts.macId ? { macId: opts.macId } : {}),
   });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
@@ -384,6 +390,27 @@ describe("the daemon's chats", () => {
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "max" });
       await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "none" });
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "off" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a chat started here with the picker, away from its agent's home, stays out of the hand-over to that home", async () => {
+    const s = await setup({ macId: "mac-book" });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ira", description: null, persona: null, model: s.handle });
+      const home = (mac: string) => s.chats.updateAgent({ agent_id: agent.id, name: undefined, description: undefined, model: undefined, home_mac: mac });
+      await home("mac-mini");
+      const followed = await s.chats.create(agent.id, null, "follows Ira", null);
+      const placed = await s.chats.create(agent.id, null, "stays here", "mac-book");
+      const ids = (await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id);
+      expect(ids).toContain(followed.conversationId);
+      expect(ids).not.toContain(placed.conversationId);
+      // Picked on the agent's own home, a chat is not placed: it follows the agent like any other.
+      await home("mac-book");
+      const atHome = await s.chats.create(agent.id, null, "at home", "mac-book");
+      await home("mac-mini");
+      expect((await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id)).toContain(atHome.conversationId);
     } finally {
       await s.cleanup();
     }
