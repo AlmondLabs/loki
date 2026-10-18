@@ -375,13 +375,15 @@ export function useDesk() {
       }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
-      recent: () =>
-        request("folders_get", {}, 4000).then((r) =>
+      // `home` asks the Mac a new chat will live on (plan 023): its folders, not this Mac's.
+      recent: (home?: string) =>
+        request("folders_get", home ? { home } : {}, 4000).then((r) =>
           r.ok ? { byAgent: r.reply.by_agent, byConversation: r.reply.by_conversation } : { byAgent: {}, byConversation: {} },
         ),
-      complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
-      check: (path: string) =>
-        request("folder_check", { path }, 3000).then((r) =>
+      complete: (prefix: string, home?: string) =>
+        request("folder_complete", { prefix, ...(home ? { home } : {}) }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
+      check: (path: string, home?: string) =>
+        request("folder_check", { path, ...(home ? { home } : {}) }, 3000).then((r) =>
           r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error },
         ),
       pick: (defaultPath?: string) => request("folder_pick", { default_path: defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),

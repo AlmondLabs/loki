@@ -173,7 +173,7 @@ describe("the frame table", () => {
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
       gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
     });
-    expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null });
+    expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null, home: null });
   });
 });
 

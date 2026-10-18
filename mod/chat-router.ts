@@ -32,6 +32,12 @@ const SCOPED_PUSHES = new Set(["state", "widgets", "desk", "widget_change"]);
 
 /** What the router is built from: where chats and desks live, the links, and sending a file on to a Mac. */
 export interface ChatRouterOptions {
+  /** This Mac's id: a new chat asked to live here stays here. */
+  here?: string;
+  /** A paired Mac as a home, and whether it is in reach; null for a Mac that is not paired. */
+  peer?: (macId: string) => RemoteHome | null;
+  /** The Mac an agent lives on, from its record; null when it names none. */
+  agentHome?: (agentId: string) => string | null;
   homeOf: (conversationId: string, agentId: string | null) => RemoteHome | null;
   homeOfScope: (scope: string) => RemoteHome | null;
   link: (macId: string) => PeerLink | null;
@@ -60,6 +66,9 @@ export class ChatRouter {
   /** The Mac a frame is about, when it is another Mac's chat or desk; null when it is this Mac's, or not about one. */
   target(msg: Record<string, unknown>): Target {
     const type = msg.type as FrameName;
+    if (type === "chat_create") return this.newChatHome(msg);
+    // The folders of the Mac a new chat will live on (U6).
+    if (type === "folders_get" || type === "folder_complete" || type === "folder_check") return this.askedHome(msg.home);
     if (CHAT_ROUTED.has(type) && typeof msg.conversation_id === "string")
       return this.opts.homeOf(msg.conversation_id, typeof msg.agent_id === "string" ? msg.agent_id : null);
     if (SCOPE_ROUTED.has(type)) {
@@ -70,13 +79,36 @@ export class ChatRouter {
   }
 
   /**
+   * Where a new chat lives (R7): the Mac it names, else its agent's home while that Mac is in reach, else here. A
+   * named Mac out of reach is still the answer, so the chat is not made anywhere and the person hears why.
+   */
+  private newChatHome(msg: Record<string, unknown>): Target {
+    const named = this.askedHome(msg.home);
+    if (named || (typeof msg.home === "string" && msg.home)) return named;
+    const agentHome = typeof msg.agent_id === "string" ? this.opts.agentHome?.(msg.agent_id) : null;
+    if (!agentHome || agentHome === this.opts.here) return null;
+    const home = this.opts.peer?.(agentHome) ?? null;
+    return home?.reachable ? home : null;
+  }
+
+  /** The paired Mac a frame's `home` names; null for this Mac, no Mac, or one not paired. */
+  private askedHome(home: unknown): Target {
+    if (typeof home !== "string" || !home || home === this.opts.here) return null;
+    return this.opts.peer?.(home) ?? null;
+  }
+
+  /**
    * Send a frame to the Mac it is about: a request comes back with the home's reply (or why not), a send with nothing.
    * A message's files attached here go to the home first, and the message names them where they now are.
    */
   async forward(home: RemoteHome, msg: Record<string, unknown>, kind: "request" | "send"): Promise<Forwarded> {
     const name = this.opts.name(home.mac);
     const link = this.opts.link(home.mac);
-    if (!home.reachable || !link) return { ok: false, message: `waiting for ${name}: this chat lives there` };
+    if (!home.reachable || !link)
+      return {
+        ok: false,
+        message: msg.type === "chat_create" ? `${name} is out of reach: the chat was not started` : `waiting for ${name}: this chat lives there`,
+      };
     const frame = { ...msg } as { type: string } & Record<string, unknown>;
     delete frame.request_id;
     if (frame.type === "chat_send" && typeof frame.text === "string") {

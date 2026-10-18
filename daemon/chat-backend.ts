@@ -484,7 +484,12 @@ export class DaemonChats implements ChatBackend {
   }
 
   agents(): Promise<Array<{ id: string; name: string }>> {
-    return settled(() => listAgents(this.deps.backendDir).map((id) => ({ id, name: readLocalAgent(id, this.deps.backendDir)?.name ?? id })));
+    return settled(() =>
+      listAgents(this.deps.backendDir).map((id) => {
+        const agent = readLocalAgent(id, this.deps.backendDir);
+        return { id, name: agent?.name ?? id, home_mac: agent?.home_mac ?? null };
+      }),
+    );
   }
 
   /** Now, on this Mac: the stamp a record change carries to paired Macs (plan 023, U3). */

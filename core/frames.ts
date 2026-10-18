@@ -164,7 +164,8 @@ export interface Replies {
   chat_created: { agent_id: string; conversation_id: string };
   chat_accepted: { accepted: boolean };
   chat_models: { entries: ModelEntry[] };
-  chat_agents: { agents: Array<{ id: string; name: string }> };
+  /** `home_mac` is the Mac each agent lives on (plan 023), null for one whose record names none. */
+  chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
   chat_done: NoPayload;
   chat_providers: { providers: ConnectProvider[] };
@@ -437,9 +438,11 @@ export const FRAMES = {
   ),
   chat_create: request(
     "chat_created",
-    "a new chat for an agent, in a folder",
-    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agent_id required"),
+    "a new chat for an agent, in a folder; `home` is the Mac it lives on, else its agent's when that Mac is in reach",
+    (m) =>
+      isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null), home: strOr(m.home, null) } : "agent_id required",
     PHONE,
+    PEER,
   ),
   chat_send: request(
     "chat_accepted",
@@ -620,9 +623,22 @@ export const FRAMES = {
   ),
 
   // Folders
-  folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),
-  folder_complete: request("folder_matches", "folders completing a typed prefix", (m) => ({ prefix: strOr(m.prefix, null) })),
-  folder_check: request("folder_status", "whether a path is a folder a chat can work in, and its git branch", (m) => ({ path: strOr(m.path, null) })),
+  // `home` asks the Mac a new chat will live on (plan 023, U6): its folders, not this Mac's.
+  folders_get: request("folders", "the folders each agent and conversation has worked in", (m) => ({ home: strOr(m.home, null) }), PHONE, PEER),
+  folder_complete: request(
+    "folder_matches",
+    "folders completing a typed prefix",
+    (m) => ({ prefix: strOr(m.prefix, null), home: strOr(m.home, null) }),
+    false,
+    PEER,
+  ),
+  folder_check: request(
+    "folder_status",
+    "whether a path is a folder a chat can work in, and its git branch",
+    (m) => ({ path: strOr(m.path, null), home: strOr(m.home, null) }),
+    false,
+    PEER,
+  ),
   folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ default_path: strOr(m.default_path, undefined) })),
 
   // Usage

@@ -166,7 +166,7 @@ describe("the daemon's chats", () => {
     const s = await setup();
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
-      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada", home_mac: null }]);
       // With no persona of yours, the agent's memory starts with its name; with one, with your words.
       expect(readFileSync(join(s.dir, "backend", "memfs", agent.id, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada.\n");
       const told = await s.chats.createAgent({
@@ -235,7 +235,7 @@ describe("the daemon's chats", () => {
       await s.chats.update({ agent_id: agent.id, conversation_id: conversationId, title: "Renamed", archived: true, hidden: undefined, labels: undefined });
       expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
       await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined, home_mac: undefined });
-      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace" }]);
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace", home_mac: null }]);
       await s.chats.deleteAgent(agent.id);
       expect(await s.chats.agents()).toEqual([]);
       expect(existsSync(join(s.dir, "backend", "memfs", agent.id))).toBe(false);

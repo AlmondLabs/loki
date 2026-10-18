@@ -50,3 +50,50 @@ describe("which pushes from another Mac are passed on here", () => {
     expect(r.relay(MINI, { type: "peers" })).toBe(false);
   });
 });
+
+describe("where a new chat lives", () => {
+  const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
+  /** On the MacBook, with Ira living on the mini; `miniUp` says whether the mini is in reach. */
+  const onBook = (miniUp: boolean) =>
+    new ChatRouter({
+      here: BOOK,
+      peer: (id) => (id === MINI ? { mac: MINI, reachable: miniUp } : null),
+      agentHome: (id) => (id === "agent-ira" ? MINI : id === "agent-friday" ? BOOK : null),
+      homeOf: () => null,
+      homeOfScope: () => null,
+      link: () => null,
+      name: () => "Mac mini",
+      uploadsDir: "/nowhere",
+      upload: () => Promise.resolve(null),
+    });
+
+  test("with no Mac named, an agent's chat goes to its home while that Mac is in reach (AE1)", () => {
+    expect(onBook(true).target({ type: "chat_create", agent_id: "agent-ira" })).toEqual({ mac: MINI, reachable: true });
+    expect(onBook(true).target({ type: "chat_create", agent_id: "agent-friday" })).toBeNull();
+    expect(onBook(true).target({ type: "chat_create", agent_id: "agent-other" })).toBeNull();
+  });
+
+  test("picking this Mac keeps it here (AE1)", () => {
+    expect(onBook(true).target({ type: "chat_create", agent_id: "agent-ira", home: BOOK })).toBeNull();
+  });
+
+  test("with the agent's home out of reach, the default is this Mac", () => {
+    expect(onBook(false).target({ type: "chat_create", agent_id: "agent-ira" })).toBeNull();
+  });
+
+  test("a Mac named outright is asked even out of reach, so the chat is made nowhere and the person hears why", async () => {
+    const r = onBook(false);
+    const home = r.target({ type: "chat_create", agent_id: "agent-ira", home: MINI });
+    expect(home).toEqual({ mac: MINI, reachable: false });
+    expect(home && (await r.forward(home, { type: "chat_create" }, "request"))).toEqual({
+      ok: false,
+      message: "Mac mini is out of reach: the chat was not started",
+    });
+  });
+
+  test("the folders a new chat is offered come from the Mac it will live on", () => {
+    expect(onBook(true).target({ type: "folders_get", home: MINI })).toEqual({ mac: MINI, reachable: true });
+    expect(onBook(true).target({ type: "folder_check", path: "/x", home: BOOK })).toBeNull();
+    expect(onBook(true).target({ type: "folders_get" })).toBeNull();
+  });
+});

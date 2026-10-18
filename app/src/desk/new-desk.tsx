@@ -4,16 +4,17 @@ import { AgentFace } from "./agent-chip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
+import type { Pushes } from "../../../core/frames.ts";
 
 /**
  * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
  * typed path, a check that a path is a usable folder (and its git branch), and the host's folder chooser.
  */
 export interface FolderApi {
-  /** A chat or agent with no folder yet is missing from its map. */
-  recent: () => Promise<{ byAgent: Partial<Record<string, string[]>>; byConversation: Partial<Record<string, string>> }>;
-  complete: (prefix: string) => Promise<string[]>;
-  check: (path: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
+  /** A chat or agent with no folder yet is missing from its map. `home` asks another paired Mac (plan 023). */
+  recent: (home?: string) => Promise<{ byAgent: Partial<Record<string, string[]>>; byConversation: Partial<Record<string, string>> }>;
+  complete: (prefix: string, home?: string) => Promise<string[]>;
+  check: (path: string, home?: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
   pick: (defaultPath?: string) => Promise<string | null>;
 }
 
@@ -29,14 +30,18 @@ export function NewDesk({ open, ...props }: NewDeskProps & { open: boolean }) {
 
 interface NewDeskProps {
   onClose: () => void;
-  agents: Array<{ id: string; name: string }>;
+  /** `home_mac` is the Mac each agent lives on (plan 023). */
+  agents: Array<{ id: string; name: string; home_mac?: string | null }>;
+  /** This Mac and the Macs paired with it; with none, every chat starts here and nothing is asked. */
+  macs?: Pushes["peers"] | null;
   defaultAgentId: string | null;
   /** The desk this dialog opened from; its exact folder wins over recency for that same agent. */
   currentAgentId: string | null;
   currentConversationKey: string | null;
   initialName?: string;
   folders: FolderApi;
-  onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
+  /** `home` is the Mac the chat lives on, when the dialog chose one. */
+  onCreate: (agentId: string, folder: string, name: string, home?: string) => Promise<void>;
 }
 
 /**
@@ -132,11 +137,14 @@ export function useFolderField({
   agentId,
   currentAgentId,
   currentConversationKey,
+  home,
 }: {
   folders: FolderApi;
   agentId: string | null;
   currentAgentId: string | null;
   currentConversationKey: string | null;
+  /** Another paired Mac the chat will live on: its folders are offered and checked, and Browse (this Mac's) is off. */
+  home?: string;
 }) {
   /** What you typed or chose; until then the field shows the suggestion. */
   const [ownFolder, setOwnFolder] = useState("");
@@ -152,7 +160,7 @@ export function useFolderField({
 
   // Open: every agent's recent folders, and the folder of the chat this opened from.
   const readRecent = useEffectEvent(() =>
-    folders.recent().then((r) => ({
+    folders.recent(home).then((r) => ({
       byAgent: r.byAgent,
       current: currentConversationKey ? (r.byConversation[currentConversationKey] ?? null) : null,
     })),
@@ -172,7 +180,7 @@ export function useFolderField({
     return () => {
       gone = true;
     };
-  }, []);
+  }, [home]);
 
   // The folder follows context until you edit it: the current chat first, then this agent's latest.
   const suggestion = touched ? null : suggestedFolder(recent, currentFolder, agentId, currentAgentId);
@@ -186,14 +194,14 @@ export function useFolderField({
     setMatches([]);
   }
   const validate = useEffectEvent((f: string) => {
-    void folders.check(f).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
-    if (touched) void folders.complete(f).then(setMatches);
+    void folders.check(f, home).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
+    if (touched) void folders.complete(f, home).then(setMatches);
   });
   useEffect(() => {
     if (!trimmed) return;
     const t = setTimeout(() => validate(trimmed), 160);
     return () => clearTimeout(t);
-  }, [trimmed, folder]);
+  }, [trimmed, folder, home]);
 
   const options = useMemo(() => folderOptions(recent, matches, agentId, touched), [recent, matches, agentId, touched]);
   /** A folder chosen from the list (or the chooser) is yours: it stops following the agent and the list closes. */
@@ -207,7 +215,8 @@ export function useFolderField({
     setTouched(true);
     setListOpen(true);
   };
-  const browser = browseWith(inTauri, platform);
+  // The chooser shows this Mac's disk, which a chat living on another Mac cannot use.
+  const browser = home ? null : browseWith(inTauri, platform);
   const browse = async () => {
     setPicking(true);
     // The native picker validates this path itself. Passing it immediately avoids a race where a
@@ -220,12 +229,19 @@ export function useFolderField({
   return { folder, source, touched, currentFolder, ready, status, options, listOpen, setListOpen, inputRef, picking, choose, type, browse, browser };
 }
 
-function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
+function NewDeskSheet({ onClose, agents, macs, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
   const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents.at(0)?.id ?? null);
   const [name, setName] = useState(initialName);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey });
+  // Where the chat will live (plan 023, R7): its agent's home Mac while that Mac is in reach, unless you pick this one.
+  const [pickHere, setPickHere] = useState(false);
+  const agentHome = agentHomeOf(
+    agents.find((a) => a.id === agentId),
+    macs,
+  );
+  const remote = agentHome?.reachable && !pickHere ? agentHome : null;
+  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: remote?.mac_id });
   const { folder, status, listOpen, setListOpen } = field;
   const busy: false | "creating" | "picking" = creating ? "creating" : field.picking ? "picking" : false;
   const nameRef = useRef<HTMLInputElement>(null);
@@ -243,7 +259,8 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
     setCreating(true);
     setError(null);
     try {
-      await onCreate(agentId, folder.trim(), name.trim());
+      // Named outright either way, so the chat lives where the dialog said even if that Mac came back meanwhile.
+      await onCreate(agentId, folder.trim(), name.trim(), remote ? remote.mac_id : agentHome ? macs?.me.mac_id : undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setCreating(false);
@@ -281,6 +298,8 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
         <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
+        {agentHome && macs && <HomeChoice home={agentHome} here={macs.me.name} pickHere={pickHere} onPickHere={setPickHere} />}
+
         <FolderPicker
           inputRef={field.inputRef}
           folder={folder}
@@ -317,6 +336,54 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
 
       <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
     </Sheet>
+  );
+}
+
+/** The Mac an agent lives on, when that is another paired Mac (with whether it is in reach); undefined when it is this one. */
+function agentHomeOf(agent: { home_mac?: string | null } | undefined, macs: Pushes["peers"] | null | undefined): Pushes["peers"]["peers"][number] | undefined {
+  if (!agent?.home_mac || !macs || agent.home_mac === macs.me.mac_id) return undefined;
+  return macs.peers.find((p) => p.mac_id === agent.home_mac);
+}
+
+/** Where the chat will live: the agent's home Mac or this one; with that Mac out of reach, this one, and it says so. */
+function HomeChoice({
+  home,
+  here,
+  pickHere,
+  onPickHere,
+}: {
+  home: Pushes["peers"]["peers"][number];
+  here: string;
+  pickHere: boolean;
+  onPickHere: (here: boolean) => void;
+}) {
+  return (
+    <div>
+      <div className="loki-label" style={{ marginBottom: 6 }}>
+        Lives on
+      </div>
+      <div role="radiogroup" aria-label="the Mac this chat lives on" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <Chip
+          role="radio"
+          aria-checked={!pickHere && home.reachable}
+          active={!pickHere && home.reachable}
+          disabled={!home.reachable}
+          onClick={() => onPickHere(false)}
+        >
+          {home.name}
+        </Chip>
+        <Chip role="radio" aria-checked={pickHere || !home.reachable} active={pickHere || !home.reachable} onClick={() => onPickHere(true)}>
+          {here} · {osWords().machine}
+        </Chip>
+      </div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
+        {!home.reachable
+          ? `${home.name} is out of reach: this chat starts here and stays here`
+          : pickHere
+            ? `runs here, with ${osWords().machine}'s files and tools, for good`
+            : `runs on ${home.name}, with its files and tools; you reach it from here`}
+      </div>
+    </div>
   );
 }
 

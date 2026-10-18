@@ -262,8 +262,8 @@ export function Shell() {
   /** The `?` cheat sheet for the view showing. */
   const [keysOpen, setKeysOpen] = useState(false);
   const pendingAssign = useRef<Picker | null>(null);
-  const createDesk = async (agent: string, folder: string, name: string) => {
-    const rt = await catchUp.createDesk(agent, folder, name);
+  const createDesk = async (agent: string, folder: string, name: string, home?: string) => {
+    const rt = await catchUp.createDesk(agent, folder, name, home);
     setNewDesk({ open: false, name: "", agentId: null });
     const pending = pendingAssign.current;
     pendingAssign.current = null;

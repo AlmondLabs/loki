@@ -343,6 +343,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
   const router: ChatRouter = new ChatRouter({
+    here: macId,
+    peer: (id) => (peerStore.get(id) ? { mac: id, reachable: links.reachable(id) } : null),
+    agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
     homeOf: (conv, agent) => remoteChats.homeOf(conv, agent),
     homeOfScope: (scope) => remoteChats.homeOfScope(scope),
     link: (id) => links.get(id),

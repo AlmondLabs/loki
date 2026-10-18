@@ -394,7 +394,7 @@ export function NewDeskSheet({
   onClose: () => void;
   desk: Desk;
   catchUp: CatchUp;
-  onCreate: (agent: string, folder: string, name: string) => Promise<void>;
+  onCreate: (agent: string, folder: string, name: string, home?: string) => Promise<void>;
 }) {
   const currentConversationKey = inheritCurrentDesk && desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null;
   return (
@@ -407,6 +407,7 @@ export function NewDeskSheet({
       currentConversationKey={currentConversationKey}
       initialName={state.name}
       folders={desk.attention.folders}
+      macs={desk.macs.view}
       onCreate={onCreate}
     />
   );
