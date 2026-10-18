@@ -21,6 +21,7 @@ import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
+import { onScreenOffset, releaseVelocity, type Sample } from "../kit/let-go";
 import {
   DRAG_SLOP,
   EMPTY_DECK,
@@ -46,7 +47,6 @@ import {
   swipeDecision,
   undoCard,
   unreadBoundary,
-  velocityOf,
   type DeckState,
   type PassSummary,
   type Role,
@@ -279,11 +279,11 @@ function useSwipe({
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   // Where and how fast the last drag was let go: the spring home, or off, carries that speed.
   const [release, setRelease] = useState<Release | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: Array<{ x: number; t: number }> } | null>(null);
+  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: Sample[] } | null>(null);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if ((e.target as Element).closest(OWN_GESTURE)) return;
-    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, base: 0, samples: [{ x: e.clientX, t: e.timeStamp }] };
+    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, base: 0, samples: [{ at: e.clientX, t: e.timeStamp }] };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
     const s = start.current;
@@ -294,14 +294,14 @@ function useSwipe({
       if (!isHorizontalDrag(dx, dy)) return;
       s.dragging = true;
       // Caught while still springing home: the finger takes it from where it is, not from the middle.
-      s.base = currentOffset(e.currentTarget);
+      s.base = onScreenOffset(e.currentTarget, "x");
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
         /* a pointer that already left */
       }
     }
-    s.samples.push({ x: e.clientX, t: e.timeStamp });
+    s.samples.push({ at: e.clientX, t: e.timeStamp });
     if (s.samples.length > 12) s.samples.shift();
     setDrag({ dx: dx + s.base });
   };
@@ -311,7 +311,8 @@ function useSwipe({
     start.current = null;
     if (!s.dragging) return;
     const dx = e.clientX - s.x + s.base;
-    const v = cancelled ? 0 : velocityOf(s.samples);
+    // px per ms, as the deck's helpers take it.
+    const v = cancelled ? 0 : releaseVelocity(s.samples, e.timeStamp) / 1000;
     const decision = cancelled || !current ? null : swipeDecision(dx, width, v, { approval });
     if (current) setRelease({ id: idOf(current), committed: !!decision, dx: approval ? refusedOffset(dx) : dx, v: approval ? 0 : v });
     if (cancelled || !current) {
@@ -334,13 +335,6 @@ interface Release {
   committed: boolean;
   dx: number;
   v: number;
-}
-
-/** The card's translateX as it is drawn right now, mid-spring included. */
-function currentOffset(el: Element): number {
-  const t = getComputedStyle(el).transform;
-  if (!t || t === "none" || typeof DOMMatrixReadOnly === "undefined") return 0;
-  return new DOMMatrixReadOnly(t).m41;
 }
 
 /** What the card's conversation can do: reply (text, images), answer the open question, take back a queued message. */

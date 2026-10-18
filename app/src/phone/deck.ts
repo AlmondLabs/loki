@@ -5,6 +5,7 @@
  */
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
+import { releaseCommits } from "../kit/let-go";
 
 /** How a card goes by hand: "seen" (Next: read, move on; the chat stays) by the right swipe or the button, "archive" (done: the chat leaves) by its button only. */
 export type Swipe = "seen" | "archive";
@@ -13,8 +14,6 @@ export type Via = Swipe | "approve" | "deny";
 
 /** A release past this share of the card's width commits. */
 export const COMMIT_FRACTION = 0.4;
-/** A flick this fast (px per ms) commits short of the distance, once past the slop. */
-export const FLICK_VELOCITY = 0.6;
 /** The most a card leans while dragged, in degrees. */
 export const MAX_ROTATION = 8;
 /** A move shorter than this is a tap or a scroll, not a drag. */
@@ -26,8 +25,9 @@ export const FLY_PAST = 80;
 
 /**
  * What releasing a dragged card does. Approvals go nowhere either way: a decision is the only way
- * off, so the card refuses. Otherwise, past 40 % of the width or a fast flick in the drag's own
- * direction commits; anything shorter springs back (null).
+ * off, so the card refuses. Otherwise a release commits when its speed (px per ms), projected forward,
+ * carries the card past 40 % of the width (kit/let-go.ts): a long pull or a quick flick right goes, a pull
+ * that turns back before it lets go springs back (null).
  */
 export function swipeDecision(dx: number, width: number, velocity: number, opts: { approval: boolean }): Swipe | null {
   if (opts.approval) return null;
@@ -35,9 +35,7 @@ export function swipeDecision(dx: number, width: number, velocity: number, opts:
   // Only a right swipe commits (Next); archiving is too final for a stray swipe, so it has its button alone.
   if (dx <= 0) return null;
   const dir: Swipe = "seen";
-  if (Math.abs(dx) >= width * COMMIT_FRACTION) return dir;
-  if (Math.abs(dx) > DRAG_SLOP && Math.abs(velocity) >= FLICK_VELOCITY && Math.sign(velocity) === Math.sign(dx)) return dir;
-  return null;
+  return releaseCommits(dx, velocity * 1000, width * COMMIT_FRACTION, DRAG_SLOP) ? dir : null;
 }
 
 /** A horizontal drag has begun when the finger has moved more sideways than up, and past the slop. */
@@ -76,19 +74,6 @@ export function revealOpacity(dx: number, width: number): number {
 export function refusedOffset(dx: number): number {
   const eased = dx * 0.25;
   return Math.max(-40, Math.min(40, eased));
-}
-
-/** The px per ms of the last stretch of a drag, from the sample at least `window` ms back. */
-export function velocityOf(samples: Array<{ x: number; t: number }>, window = 60): number {
-  if (samples.length < 2) return 0;
-  const last = samples[samples.length - 1];
-  let ref = samples[0];
-  for (let i = samples.length - 2; i >= 0; i--) {
-    ref = samples[i];
-    if (last.t - ref.t >= window) break;
-  }
-  const dt = last.t - ref.t;
-  return dt > 0 ? (last.x - ref.x) / dt : 0;
 }
 
 /** Where the card behind the top one sits: a touch smaller, a touch lower, dimmer. Two hints, twelve pixels in all. */

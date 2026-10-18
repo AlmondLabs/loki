@@ -224,6 +224,17 @@
   --loki-label-7: oklch(54% 0.15 350);
 }
 
+/* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in every theme and palette.
+   The phone does the same for its own tokens (phone.css). */
+@media (prefers-contrast: more) {
+  :root,
+  :root[data-theme],
+  :root[data-palette],
+  :root[data-palette][data-theme] {
+    --loki-border: var(--loki-control-border);
+  }
+}
+
 /* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
   font-family: var(--loki-font);

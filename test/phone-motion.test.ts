@@ -43,6 +43,7 @@ describe("gestures", () => {
     expect(dismisses(100, 400, 0)).toBe(false);
     expect(dismisses(40, 400, 900)).toBe(true);
     expect(dismisses(4, 400, 2000)).toBe(false); // inside the slop: a tap
+    expect(dismisses(200, 400, -1500)).toBe(false); // pulled far, then pushed back up before letting go
   });
 
   test("pulled up past its top, a sheet stretches less and less, never past the limit", () => {
@@ -58,6 +59,7 @@ describe("gestures", () => {
     expect(edgeCommits(100, 390, 0)).toBe(false);
     expect(edgeCommits(60, 390, 800)).toBe(true);
     expect(edgeCommits(12, 390, 3000)).toBe(false);
+    expect(edgeCommits(200, 390, -1500)).toBe(false); // swiped across, then back toward the edge
   });
 
   test("the Inbox card is armed at the commit distance, either way", () => {

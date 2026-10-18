@@ -6,7 +6,6 @@ import {
   DRAG_SLOP,
   EMPTY_DECK,
   EMPTY_PASS,
-  FLICK_VELOCITY,
   MAX_ROTATION,
   canCommit,
   cardNotice,
@@ -31,7 +30,6 @@ import {
   toFront,
   undoCard,
   unreadBoundary,
-  velocityOf,
   visibleQueue,
 } from "../app/src/phone/deck.ts";
 
@@ -84,8 +82,8 @@ describe("swipe decision", () => {
     expect(swipeDecision(0, W, 0, plain)).toBeNull();
   });
   test("a fast flick commits short of the distance, in the drag's own direction", () => {
-    expect(swipeDecision(40, W, FLICK_VELOCITY, plain)).toBe("seen");
-    expect(swipeDecision(-40, W, -FLICK_VELOCITY, plain)).toBeNull();
+    expect(swipeDecision(40, W, 0.6, plain)).toBe("seen");
+    expect(swipeDecision(-40, W, -0.6, plain)).toBeNull();
     // fast but the other way (a flick back toward rest): no
     expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
     // a flick that never cleared the slop is a twitch
@@ -144,25 +142,11 @@ describe("lean and reveal", () => {
   });
 });
 
-describe("velocity", () => {
-  test("px per ms over the last stretch of samples", () => {
-    expect(velocityOf([])).toBe(0);
-    expect(velocityOf([{ x: 0, t: 0 }])).toBe(0);
-    expect(
-      velocityOf([
-        { x: 0, t: 0 },
-        { x: 60, t: 100 },
-      ]),
-    ).toBeCloseTo(0.6);
-    // uses the sample at least 60 ms back, not the whole drag: a slow start then a flick
-    const samples = [
-      { x: 0, t: 0 },
-      { x: 10, t: 300 },
-      { x: 20, t: 600 },
-      { x: 30, t: 640 },
-      { x: 90, t: 680 },
-    ];
-    expect(velocityOf(samples)).toBeCloseTo((90 - 20) / 80);
+describe("a release that turns back", () => {
+  test("past the distance but flicked back left before letting go: springs back", () => {
+    expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -1.5, plain)).toBeNull();
+    // a little drift back is not a change of mind
+    expect(swipeDecision(W * COMMIT_FRACTION + 20, W, -0.05, plain)).toBe("seen");
   });
 });
 
