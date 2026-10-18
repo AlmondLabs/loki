@@ -1,3 +1,4 @@
+import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
@@ -26,6 +27,9 @@ export interface ChatBackend {
   deleteAgent(agentId: string): Promise<void>;
   /** Remove an agent here because another Mac deleted it (plan 023): no tombstone of this Mac's. */
   removeAgent(agentId: string): Promise<void>;
+  /** The person's label colours for a paired Mac, and taking that Mac's (plan 023, U8). */
+  labelColors(): LabelColorsSnapshot;
+  applyLabelColors(theirs: LabelColorsSnapshot): boolean;
   providers(): Promise<Replies["chat_providers"]["providers"]>;
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;

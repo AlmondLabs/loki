@@ -80,6 +80,7 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
           hello: () => peers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
           chats: () => ({ desks: [], inbox: [] }),
+          state: () => ({ marks: {}, pins: {}, labels: {}, learn: {} }),
           memory: (agentId, have) => farSide.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
         },
       }),

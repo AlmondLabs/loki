@@ -59,6 +59,29 @@ export function focusShares(entries: Record<string, FocusEntry>, now = Date.now(
   return Object.fromEntries(w.map(([key, v]) => [key, v / total]));
 }
 
+/**
+ * Every Mac's focus for each chat as one (plan 023, U8): this Mac's entries plus each paired Mac's, faded to `now` and
+ * added, as entries stamped `now`. A Next on any Mac (`skips`, when it was pressed) halves every weight from before it
+ * once, on whichever Mac it was added.
+ */
+export function combineFocus(
+  own: Record<string, FocusEntry>,
+  others: Array<Record<string, FocusEntry>>,
+  skips: Partial<Record<string, string>> = {},
+  now = Date.now(),
+): Record<string, FocusEntry> {
+  const t = new Date(now).toISOString();
+  const sum = new Map<string, number>();
+  // An entry from before a Next is halved once; the Mac that pressed it already halved its own, stamped then.
+  for (const map of [own, ...others])
+    for (const [key, e] of Object.entries(map)) {
+      const skip = skips[key];
+      const skipped = skip !== undefined && skip > e.t;
+      sum.set(key, (sum.get(key) ?? 0) + decayed(e, now) * (skipped ? SKIP_FACTOR : 1));
+    }
+  return Object.fromEntries([...sum].map(([key, w]) => [key, { w, t }]));
+}
+
 /** Entries whose weight has faded below this are dropped when written: a month-old chat is not worth keeping. */
 export const FOCUS_FORGET_BELOW = 0.001;
 

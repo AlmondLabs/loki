@@ -23,7 +23,7 @@ import type { McpTools } from "./mcp/index.ts";
 import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatEngine, ChatInfo } from "./kernel/index.ts";
-import { LabelColors } from "./labels.ts";
+import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
 import { chatLabels, type LabelView } from "../core/labels.ts";
 import { acpHandle } from "./acp/agents.ts";
 import type { AcpChats } from "./acp/chats.ts";
@@ -640,6 +640,16 @@ export class DaemonChats implements ChatBackend {
   }
 
   /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
+  /** The person's label colours, for a paired Mac (plan 023, U8). */
+  labelColors(): LabelColorsSnapshot {
+    return this.colors.snapshot();
+  }
+
+  /** A paired Mac's label colours: true when one here changed. */
+  applyLabelColors(theirs: LabelColorsSnapshot): boolean {
+    return this.colors.apply(theirs);
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     addTombstone(this.deps.backendDir, { id: agentId, ...this.stampNow() });
     await this.removeAgent(agentId);

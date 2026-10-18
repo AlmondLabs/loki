@@ -15,12 +15,14 @@ import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
-import { RecallStore, isoDay } from "./recall.ts";
+import { RecallStore, isoDay, recallDir } from "./recall.ts";
+import { applyRecall, recallSnapshot } from "./recall-sync.ts";
+import { PeerState } from "./peer-state.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskStore, TasksNotice } from "./tasks.ts";
-import { readPins, setPin } from "./pins.ts";
+import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
@@ -124,10 +126,14 @@ export default function activate(api: ModApi, host: Host): () => void {
     if (!lan) throw new Error("the phone listener is not up yet");
     return lan;
   };
+  /** The person's state on paired Macs (plan 023, U8), told when a push here says some of it changed. */
+  const stateSync: { peerState: PeerState | null } = { peerState: null };
+  const STATE_PUSHES = new Set(["seen", "desks", "recall_changed"]);
   // Every frame goes to the desktop's tabs and to paired phones alike.
   const broadcast = (msg: object, scope?: Scope) => {
     ws?.broadcast(msg, scope);
     lan?.broadcast(msg, scope);
+    if (STATE_PUSHES.has((msg as { type?: string }).type ?? "")) stateSync.peerState?.changed();
   };
 
   store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
@@ -325,7 +331,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       ws?.broadcast({ type: "peers", ...peersView() });
       remoteChats.setReachable(id, status === "reachable");
       // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
-      if (status === "reachable") void peerAgents.pull(id).then(() => peerMemory.pullAll(id));
+      if (status === "reachable") {
+        void peerAgents.pull(id).then(() => peerMemory.pullAll(id));
+        void peerState.pull(id);
+      }
     },
     onPush: (id, frame) => {
       remoteChats.heard(id, frame);
@@ -334,6 +343,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (relay) broadcast(frame, relay.scope);
       if (frame.type === "agents_changed") void peerAgents.pull(id).then((applied) => Promise.all(applied.created.map((a) => peerMemory.pull(id, a))));
       if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
+      if (frame.type === "state_changed") void peerState.pull(id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
@@ -356,6 +366,26 @@ export default function activate(api: ModApi, host: Host): () => void {
     uploadsDir: paths.uploads,
     upload: (id, file) => peers.upload(id, file),
   });
+  // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
+  const peerState: PeerState = new PeerState({
+    snapshot: () => ({ marks: seen.snapshot(), pins: pinChanges(), labels: chatBackend.labelColors(), learn: recallSnapshot(recallDir()) }),
+    apply: (id, theirs) => {
+      const moved = {
+        marks: seen.applyRemote(id, theirs.marks),
+        pins: applyPinChanges(theirs.pins),
+        labels: chatBackend.applyLabelColors(theirs.labels),
+        learn: applyRecall(recallDir(), theirs.learn),
+      };
+      if (moved.marks) broadcast(seenFrame({ seen }));
+      if (moved.pins) broadcast({ type: "desks", desks: listDesks() });
+      if (moved.labels) broadcast({ type: "lists_changed" });
+      if (moved.learn) broadcast({ type: "recall_changed" });
+      return moved;
+    },
+    link: (id) => links.get(id),
+    tell: () => lan?.broadcast({ type: "state_changed" }),
+  });
+  stateSync.peerState = peerState;
   // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
   const peerMemory: PeerMemory = new PeerMemory({
     backendDir,
@@ -385,7 +415,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       ws?.broadcast({ type: "peers", ...peersView() });
       void lan?.setPeersNeeded(peersNeeded());
     },
-    onForget: (id) => lan?.closePeer(id),
+    onForget: (id) => {
+      lan?.closePeer(id);
+      seen.forgetMac(id); // its focus no longer counts here
+    },
   });
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
@@ -483,6 +516,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       hello: () => peers.hello(),
       agents: () => peerAgents.snapshot(),
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
+      state: () => peerState.snapshotNow(),
       memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
     },
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
@@ -687,6 +721,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     links.stop(); // the links to other Macs reopen with the mod
     remoteChats.stop();
     peerMemory.stop();
+    peerState.stop();
     ws = null;
     srv = null;
     starting = null;

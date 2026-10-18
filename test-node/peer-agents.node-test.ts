@@ -76,6 +76,7 @@ async function pair() {
           hello: () => peers.hello(),
           agents: () => farAgents.snapshot(),
           chats: () => ({ desks: [], inbox: [] }),
+          state: () => ({ marks: {}, pins: {}, labels: {}, learn: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
         },
       }),
