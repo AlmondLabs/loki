@@ -62,6 +62,8 @@ export interface PassPart {
 export interface PassInput {
   agentId: string;
   agentName: string | null;
+  /** The agent's memory repo, for a job that reads it directly (reflection's clashes between Macs, plan 023). */
+  memoryRoot?: string;
   parts: PassPart[];
   material: string;
   now: Date;
@@ -116,6 +118,11 @@ interface Deps {
    */
   canRun?(model: string): Promise<boolean>;
   isSubagent(agentId: string): boolean;
+  /**
+   * Whether an agent lives on this Mac (plan 023, R17): passes run only for those, so two Macs never reflect on one
+   * agent at once. Absent, every agent does.
+   */
+  livesHere?(agentId: string): boolean;
   capture?(event: string, properties: Record<string, unknown>): void;
   report?(message: string): void;
   now?(): Date;
@@ -181,7 +188,8 @@ export class PassRunner {
           !isReflectionChat(row.conversationId) &&
           !isDoctorChat(row.conversationId) &&
           !isWriterChat(row.conversationId) &&
-          !this.deps.isSubagent(row.agentId),
+          !this.deps.isSubagent(row.agentId) &&
+          (this.deps.livesHere?.(row.agentId) ?? true),
       );
   }
 
@@ -367,7 +375,7 @@ export class PassRunner {
       const gathered = await this.gather(job, agentId, chatIds, agentName, force);
       parts = gathered.parts;
       if (!parts.length) return gathered.busy ? "skipped" : finish("nothing");
-      const input: PassInput = { agentId, agentName, parts, material: batchText(parts), now: started };
+      const input: PassInput = { agentId, agentName, memoryRoot: memoryRoot(this.deps.backendDir, agentId), parts, material: batchText(parts), now: started };
       const advance = () => {
         for (const p of parts) state.setCursor(job.name, agentId, p.chatId, p.lines);
       };

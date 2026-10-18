@@ -41,6 +41,8 @@ import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { PeerLinks } from "./peer-link.ts";
 import { PeerAgents } from "./peer-agents.ts";
+import { PeerMemory } from "./peer-memory.ts";
+import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts";
 import { RemoteChats } from "./remote-chats.ts";
 import { ChatRouter } from "./chat-router.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -322,15 +324,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     onStatus: (id, status) => {
       ws?.broadcast({ type: "peers", ...peersView() });
       remoteChats.setReachable(id, status === "reachable");
-      // A Mac back in reach: take what changed there while the link was down.
-      if (status === "reachable") void peerAgents.pull(id);
+      // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
+      if (status === "reachable") void peerAgents.pull(id).then(() => peerMemory.pullAll(id));
     },
     onPush: (id, frame) => {
       remoteChats.heard(id, frame);
       // A chat or desk that lives there: its clients here hear what it does (U5).
       const relay = router.relay(id, frame);
       if (relay) broadcast(frame, relay.scope);
-      if (frame.type === "agents_changed") void peerAgents.pull(id);
+      if (frame.type === "agents_changed") void peerAgents.pull(id).then((applied) => Promise.all(applied.created.map((a) => peerMemory.pull(id, a))));
+      if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
@@ -353,6 +356,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     uploadsDir: paths.uploads,
     upload: (id, file) => peers.upload(id, file),
   });
+  // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
+  const peerMemory: PeerMemory = new PeerMemory({
+    backendDir,
+    macId,
+    link: (id) => links.get(id),
+    homeOf: (agentId) => recordHome(readRecord(backendDir(), agentId), macId),
+    tell: (agentId) => lan?.broadcast({ type: "memory_changed", agent_id: agentId }),
+    onCloned: () => broadcast({ type: "agents_changed" }),
+  });
+  peerMemory.start();
   // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
   const peerAgents: PeerAgents = new PeerAgents({
     backendDir,
@@ -470,6 +483,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       hello: () => peers.hello(),
       agents: () => peerAgents.snapshot(),
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
+      memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
     },
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
     agentDeleteBlocked: () => {
@@ -672,6 +686,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
     links.stop(); // the links to other Macs reopen with the mod
     remoteChats.stop();
+    peerMemory.stop();
     ws = null;
     srv = null;
     starting = null;

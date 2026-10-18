@@ -20,6 +20,8 @@ export interface PeersDeps {
     agents: () => Replies["peer_agents"];
     /** This Mac's own chats, for another Mac's `peer_chats_get` (U4). */
     chats: () => Replies["peer_chats"];
+    /** An agent's memory commits another Mac lacks, for its `peer_memory_get` (U7). */
+    memory: (agentId: string, have: string[]) => Promise<Replies["peer_memory"]>;
   };
 }
 
@@ -40,6 +42,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
     },
     peer_agents_get: () => reply(need().agents()),
     peer_chats_get: () => reply(need().chats()),
+    peer_memory_get: async ({ agent_id: agentId, have }) => reply(await need().memory(agentId, have)),
     peers_get: (_, ctx) => ctx.push({ type: "peers", ...need().view() }),
     peer_pair_begin: (_, ctx) => ctx.push({ type: "peer_pair_code", ...need().begin() }),
     peer_pair_join: async ({ host, code }, ctx) => {

@@ -18,7 +18,7 @@ const ctx = BACKGROUND_CONTEXT;
 /** Long enough to count as new material (MIN_NEW_CHARS). */
 const LONG = "a thought worth keeping about how the river delta builds land over centuries, ".repeat(5);
 
-async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean } = {}) {
+async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean; livesHere?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-passes-"));
   const faux = fauxProvider();
   const models = createModels();
@@ -61,6 +61,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     busy: () => Promise.resolve(opts.busy?.() ?? false),
     ...(opts.canRun ? { canRun: () => Promise.resolve(opts.canRun?.() ?? true) } : {}),
     isSubagent: () => false,
+    ...(opts.livesHere === undefined ? {} : { livesHere: () => opts.livesHere ?? true }),
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,
@@ -93,6 +94,27 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
 }
 
 describe("background passes", () => {
+  test("an agent that lives on another paired Mac is not reflected on here, and its memory root reaches the job here", async () => {
+    const away = await setup({ livesHere: false });
+    try {
+      await away.say("c", LONG, "and more");
+      await away.runner.sweep();
+      expect(away.seen).toHaveLength(0);
+    } finally {
+      await away.cleanup();
+    }
+    const home = await setup({ livesHere: true });
+    try {
+      home.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
+      await home.say("c", LONG, "and more");
+      await home.runner.sweep();
+      expect(home.seen).toHaveLength(1);
+      expect(home.seen[0].memoryRoot).toBe(join(home.dir, "memfs", home.agentId, "memory"));
+    } finally {
+      await home.cleanup();
+    }
+  });
+
   test("a chat on an ACP agent is read like any other, and the pass runs on the agent's own model", async () => {
     const s = await setup();
     try {

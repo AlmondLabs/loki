@@ -62,6 +62,7 @@ async function farMac(port: number, token: string, protocol = PEER_PROTOCOL) {
           hello: () => peers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
           chats: () => ({ desks: [], inbox: [] }),
+          memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
         },
       }),
     ],

@@ -1,3 +1,4 @@
+import { CONFLICTS_PATH, pendingConflicts } from "./memory-sync.ts";
 import { MEMORY_TOOLS } from "./memory.ts";
 import type { PassJob } from "./passes.ts";
 
@@ -22,9 +23,16 @@ export const reflectionJob: PassJob = {
   instructions: INSTRUCTIONS,
   tools: () => MEMORY_TOOLS.map((name) => ({ name })),
   onCompaction: true,
-  prompt: (input) =>
-    input.parts.length === 1
-      ? `Here is what happened in the conversation since you last reflected on it.\n\n${input.material}`
-      : `Here is what happened in ${input.parts.length} conversations since you last reflected on them, the one that went quiet first first.\n\n${input.material}`,
+  prompt: (input) => {
+    const said =
+      input.parts.length === 1
+        ? `Here is what happened in the conversation since you last reflected on it.\n\n${input.material}`
+        : `Here is what happened in ${input.parts.length} conversations since you last reflected on them, the one that went quiet first first.\n\n${input.material}`;
+    // Notes two Macs changed apart (plan 023, U7): each kept this Mac's text, and the other waits in the conflicts note.
+    const clashes = input.memoryRoot ? pendingConflicts(input.memoryRoot) : null;
+    return clashes
+      ? `${said}\n\nAlso: your memory was changed on two Macs at once, and ${CONFLICTS_PATH} holds the other side of each clash. For each one, fold what is still true into its note with the memory tools, then delete ${CONFLICTS_PATH}.\n\n<conflicts>\n${clashes}\n</conflicts>`
+      : said;
+  },
   apply: (_input, answer) => ({ items: { memory_changes: answer.toolCalls.filter((t) => WRITES.has(t)).length } }),
 };

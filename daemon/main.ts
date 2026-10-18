@@ -18,6 +18,7 @@ import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
 import { Approvals, kindOf } from "./approvals.ts";
+import { homeOf, readRecord } from "./store/agent-sync.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
@@ -152,6 +153,8 @@ const passes = new PassRunner({
     return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
   },
   isSubagent: (id) => isSubagent(id, backend),
+  // An agent homed on another paired Mac is reflected on there (plan 023, R17).
+  livesHere: (id) => homeOf(readRecord(backend, id), installId()) === installId(),
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });

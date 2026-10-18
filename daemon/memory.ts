@@ -6,6 +6,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
+import { serial } from "./repo-queue.ts";
 
 /**
  * An agent's memory on loki's daemon (plan 017, U9): the git repo at `<backend>/memfs/<agentId>/memory`, Letta's
@@ -101,22 +102,7 @@ function inside(root: string, path: unknown): string {
  */
 const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", ...args]);
 
-/**
- * One git command sequence at a time per memory repo. A chat's memory_write, a reflection pass and an edit from the
- * Agents page can land together; two `git add`/`commit`s at once in one repo fail on its index.lock, and the write
- * that lost was on disk but never committed.
- */
-const queues = new Map<string, Promise<unknown>>();
-/** Run `work` on the repo at `root` once every earlier sequence there has settled, failed or not; settles as `work` does. */
-export function serial<T>(root: string, work: () => Promise<T>): Promise<T> {
-  const next = (queues.get(root) ?? Promise.resolve()).then(work, work);
-  const settled = next.catch(() => {});
-  queues.set(root, settled);
-  void settled.then(() => {
-    if (queues.get(root) === settled) queues.delete(root);
-  });
-  return next;
-}
+export { serial } from "./repo-queue.ts";
 
 function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
   return serial(root, async () => {
