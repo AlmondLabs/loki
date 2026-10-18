@@ -406,6 +406,8 @@ describe("the daemon's chats", () => {
       const ids = (await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id);
       expect(ids).toContain(followed.conversationId);
       expect(ids).not.toContain(placed.conversationId);
+      // The agent's one main chat goes with it to its new home.
+      expect(ids).toContain("default");
       // Picked on the agent's own home, a chat is not placed: it follows the agent like any other.
       await home("mac-book");
       const atHome = await s.chats.create(agent.id, null, "at home", "mac-book");

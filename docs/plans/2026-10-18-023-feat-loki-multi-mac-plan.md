@@ -844,8 +844,9 @@ this form; the outbox and reading a chat while its home is down stay deferred.
   chat lives on (U5). That Mac asks `to` over its peer link to take the chat (`peer_chat_take`), and `to` pulls it as
   U9 pulls a chat: copy out, write in under the same id with its canvas files, then the old Mac lets go. One path
   serves "move it there" and "bring it here". A chat mid-turn or waiting on an approval says so and does not move. The
-  chat row's menu in the sidebar offers "Move to <Mac>" for every other Mac, greyed while it is out of reach; an
-  agent's main chat is not offered, since each Mac keeps its own.
+  chat row's menu in the sidebar offers "Move to <Mac>" for every other Mac, greyed while it is out of reach. An
+  agent's main chat is not offered: there is one per agent (made with the agent, on the Mac that made it, and shown
+  on the others as a remote chat), it lives on the agent's home, and U9's hand-over moves it when that home changes.
 - **A2. A chat placed on purpose stays put.** A chat moved by A1, or started on a Mac other than its agent's home with
   the picker, is marked `placed` in its ChatInfo, and the mark travels with it. U9's hand-over (at first pairing, or
   when an agent's home is set) skips placed chats, so it never pulls back a chat the person put somewhere.

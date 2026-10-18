@@ -272,7 +272,8 @@ export interface MoveTarget {
 
 /**
  * Where a chat can move: every Mac but the one it lives on, this Mac first. None for a chat whose Mac is out of reach,
- * an agent's main chat (each Mac keeps its own), or a row that is not a chat; none until another Mac is paired.
+ * a row that is not a chat, or an agent's main chat, which there is one of and which lives with its agent: it moves
+ * when the agent's home does. None until another Mac is paired.
  */
 export function moveTargets(
   d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
