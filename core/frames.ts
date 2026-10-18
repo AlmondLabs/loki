@@ -179,6 +179,8 @@ export interface Replies {
   chat_labels: { labels: LabelView[] };
   /** A Mac paired by `peer_pair_join` (plan 023). */
   peer_paired: { peer: PeerSummary };
+  /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
+  peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
@@ -727,6 +729,8 @@ export const FRAMES = {
   peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>
     str(m.host) && m.host.trim() && str(m.code) && m.code.trim() ? { host: m.host.trim(), code: m.code.trim() } : "expected {host, code}",
   ),
+  // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
+  peer_ping: request("peer_pong", "who this Mac is and which peer protocol it speaks", nothing, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),

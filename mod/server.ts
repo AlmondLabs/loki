@@ -199,7 +199,8 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     }
     const who = authorize(req, url);
     if (!who.ok) {
-      socket.destroy();
+      // Said, not just dropped: another Mac's link tells a refused token (it may have been forgotten) from a network fault.
+      socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
     if (url.pathname !== "/ws") {

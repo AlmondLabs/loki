@@ -46,6 +46,7 @@ describe("the paired Macs", () => {
           last_seen_at: "2026-10-18T10:00:00.000Z",
           build: "b1",
           outdated: false,
+          reachable: false,
         },
       ]);
     } finally {

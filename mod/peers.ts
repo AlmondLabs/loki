@@ -132,7 +132,8 @@ export class PeerStore {
     return this.peers.length;
   }
 
-  list(): PeerSummary[] {
+  /** The paired Macs as Settings shows them; `reachable` says which have an open peer link (U2), none when omitted. */
+  list(reachable: (macId: string) => boolean = () => false): PeerSummary[] {
     return this.peers.map((p) => ({
       mac_id: p.mac_id,
       name: p.name,
@@ -141,6 +142,7 @@ export class PeerStore {
       last_seen_at: p.last_seen_at,
       build: p.build,
       outdated: p.protocol !== PEER_PROTOCOL,
+      reachable: reachable(p.mac_id),
     }));
   }
 

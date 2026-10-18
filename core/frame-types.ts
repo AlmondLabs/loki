@@ -245,6 +245,8 @@ export interface PeerSummary extends MacIdentity {
   build: string | null;
   /** True when it speaks another peer protocol than this Mac: paired, but nothing syncs until one of them updates. */
   outdated: boolean;
+  /** True while this Mac's peer link to it is open and speaking the same protocol (plan 023, U2). */
+  reachable: boolean;
 }
 
 /** One MCP tool as Settings shows it (daemon/mcp/): its hints, whether it skips search, and its definition's cost. */

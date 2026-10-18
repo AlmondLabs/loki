@@ -39,6 +39,7 @@ import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
 import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
+import { PeerLinks } from "./peer-link.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -304,13 +305,23 @@ export default function activate(api: ModApi, host: Host): () => void {
   /** Until when a Mac pairing code may be redeemed: the listener stays up for it. */
   let peerCodeUntil = 0;
   const peersNeeded = () => peerStore.size() > 0 || peerCodeUntil > Date.now();
-  const peersView = () => ({ me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list() });
-  const peers = new Peers({
+  const peerKeys = new PeerKeys(host.secrets);
+  const peersView = () => ({ me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list((id) => links.reachable(id)) });
+  // One link to each paired Mac (U2): opened when it pairs, closed when it is forgotten.
+  const links: PeerLinks = new PeerLinks({
+    token: (id) => peerKeys.get(id),
+    defaults: { protocol: PEER_PROTOCOL },
+    onStatus: () => ws?.broadcast({ type: "peers", ...peersView() }),
+    // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
+    onRefused: (id) => void peers.contact(id),
+  });
+  const peers: Peers = new Peers({
     store: peerStore,
-    keys: new PeerKeys(host.secrets),
+    keys: peerKeys,
     codes: peerCodes,
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
     onChange: () => {
+      links.sync(peerStore.list());
       ws?.broadcast({ type: "peers", ...peersView() });
       void lan?.setPeersNeeded(peersNeeded());
     },
@@ -409,6 +420,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         return peers.join(to, code);
       },
       forget: (id) => peers.forget(id),
+      hello: () => peers.hello(),
     },
     agents: {
       get: (id) => readLocalAgent(id),
@@ -491,6 +503,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   if (lan.enabled()) void lan.start();
   if (peerStore.size() > 0) void lan.setPeersNeeded(true);
+  links.sync(peerStore.list());
 
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
@@ -602,6 +615,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     ws?.close();
     void srv?.close();
     void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
+    links.stop(); // the links to other Macs reopen with the mod
     ws = null;
     srv = null;
     starting = null;

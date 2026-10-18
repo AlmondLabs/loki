@@ -166,7 +166,7 @@ function PairedMacs({ peers, onForget }: { peers: Pushes["peers"]["peers"]; onFo
               needs an update
             </Chip>
           )}
-          <span className="loki-meta">{lastSeen(p.last_seen_at, now)}</span>
+          <span className="loki-meta">{p.reachable ? "connected" : `out of reach · ${lastSeen(p.last_seen_at, now)}`}</span>
           <Button size="sm" tone="negative" onClick={() => onForget(p.mac_id)} title="both Macs forget each other; pair again to reconnect">
             forget
           </Button>

@@ -274,6 +274,7 @@ describe("every frame in the table, through the real router", () => {
       begin: () => ({ code: "K9HF6D", host: null, expires_at: "" }),
       join: () => Promise.reject(new Error("no Mac there")),
       forget: () => Promise.resolve(false),
+      hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
     },
   };
   /** The smallest frame each entry accepts. */
