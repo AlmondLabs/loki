@@ -418,6 +418,30 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("after a move the agent is told once, with the next message: the Macs, the files left behind, a missing folder", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, join(s.dir, "not-here"), null);
+      const store = await s.stores.get(agent.id);
+      await store.updateChat(conversationId, { moved: { from: "MacBook", to: "Mac mini", files_left: 2 } }, BACKGROUND_CONTEXT);
+      await s.chats.open(agent.id, conversationId);
+      s.faux.setResponses([s.reply("one"), s.reply("two")]);
+      const send = async (text: string, turns: number) => {
+        await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text, images: [], send_id: text, context: null });
+        await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === turns);
+      };
+      await send("first", 1);
+      expect(s.sent[0]).toContain("This chat moved from MacBook to Mac mini");
+      expect(s.sent[0]).toContain("2 files attached before the move stayed on MacBook");
+      expect(s.sent[0]).toContain(`This chat's folder, ${join(s.dir, "not-here")}, is not on Mac mini.`);
+      await send("second", 2);
+      expect(s.sent[1].match(/This chat moved/g)).toHaveLength(1);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a chat that does not exist is refused, and a handle without a provider is not a model", async () => {
     const s = await setup();
     try {

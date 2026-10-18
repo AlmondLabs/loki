@@ -355,7 +355,9 @@ reachable; a closed lid still sleeps.
 4. **Move one chat by hand.** Right-click a chat in the sidebar and pick **Move to Mac mini** (or the MacBook): it
    moves with everything above, and works the same in both directions, so you can bring a chat back. A chat you
    moved, or started on a Mac other than its agent's home, stays where you put it: moving its agent's home later
-   leaves it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
+   leaves it. The chat keeps a quiet "moved to Mac mini" line where it moved, and the agent is told with your next
+   message there (which Mac it now runs on, and any attached files or folder that did not come along); nothing runs
+   just to tell it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
    is one, on the agent's home, and it moves when you change the agent's "lives on".
 5. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to

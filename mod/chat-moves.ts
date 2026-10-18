@@ -26,6 +26,8 @@ export class ChatMoves {
     markDone: (macId: string) => void;
     /** Chats moved here: the lists should be asked for again. */
     onMoved: (macId: string) => void;
+    /** A Mac's name, this one's included, for the mark a moved chat's thread keeps (addendum A5); absent, no mark. */
+    name?: (macId: string | null) => string;
   };
   /** Chats this Mac is handing over, which take no message meanwhile. */
   private readonly moving = new Map<string, string>();
@@ -70,7 +72,7 @@ export class ChatMoves {
       let waiting = false;
       let moved = 0;
       for (const c of chats ?? []) {
-        const out = await this.pull(link, c.agent_id, c.conversation_id, false);
+        const out = await this.pull(macId, link, c.agent_id, c.conversation_id, false);
         if (out === "busy") waiting = true;
         if (out === "moved") moved++;
       }
@@ -94,7 +96,7 @@ export class ChatMoves {
   async take(macId: string, agentId: string, conversationId: string): Promise<{ moved: boolean; busy: boolean }> {
     const link = this.opts.link(macId);
     if (!link) return { moved: false, busy: false };
-    const out = await this.pull(link, agentId, conversationId, true);
+    const out = await this.pull(macId, link, agentId, conversationId, true);
     if (out === "moved") {
       log("peers:chat-taken", { from: macId, agent: agentId, chat: conversationId });
       this.opts.onMoved(macId);
@@ -103,7 +105,7 @@ export class ChatMoves {
   }
 
   /** Copy one chat out of the Mac at the link's end, write it in here with its canvas files, and let that Mac go of it. */
-  private async pull(link: PeerLink, agentId: string, conversationId: string, placed: boolean): Promise<"moved" | "busy" | "none"> {
+  private async pull(macId: string, link: PeerLink, agentId: string, conversationId: string, placed: boolean): Promise<"moved" | "busy" | "none"> {
     const reply = (await link.request({ type: "peer_chat_export", agent_id: agentId, conversation_id: conversationId }, 120_000)) as {
       chat?: MovedChat | null;
       busy?: boolean;
@@ -111,7 +113,9 @@ export class ChatMoves {
     };
     if (reply.busy) return "busy";
     if (!reply.chat) return "none";
-    await this.opts.chat.importChat(placed ? { ...reply.chat, info: { ...reply.chat.info, placed: true } } : reply.chat);
+    const name = this.opts.name;
+    const names = name ? { from: name(macId), to: name(null) } : undefined;
+    await this.opts.chat.importChat(placed ? { ...reply.chat, info: { ...reply.chat.info, placed: true } } : reply.chat, names);
     writeWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId)), reply.widgets ?? {});
     await link.request({ type: "peer_chat_moved", agent_id: agentId, conversation_id: conversationId });
     return "moved";

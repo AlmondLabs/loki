@@ -59,6 +59,11 @@ export type ChatInfo = {
    * The hand-over of an agent's chats to its home leaves it where it is.
    */
   placed?: boolean;
+  /**
+   * Moved here from another Mac, and the agent not told yet (addendum A5): told with the person's next message, then
+   * cleared. `files_left`: files attached before the move, which stayed on the Mac it came from.
+   */
+  moved?: { from: string; to: string; files_left: number } | null;
 };
 
 /**
@@ -148,7 +153,7 @@ export class AgentStore {
   /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
   async updateChat(
     id: string,
-    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "placed">>,
+    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "placed" | "moved">>,
     context: Context,
   ): Promise<boolean> {
     const chat = await this.chat(id, context);
@@ -162,6 +167,7 @@ export class AgentStore {
       if (change.engine !== undefined) info.engine = change.engine;
       if (change.labels !== undefined) info.labels = change.labels;
       if (change.placed !== undefined) info.placed = change.placed;
+      if (change.moved !== undefined) info.moved = change.moved;
     }, context);
     return true;
   }

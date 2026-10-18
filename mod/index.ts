@@ -11,7 +11,7 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, hiddenScopes, lookupLocalAgentName } from "./desks.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
@@ -124,6 +124,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   let srv: LokiServer | null = null;
   let ws: WsBridge | null = null;
   let starting: Promise<LokiServer> | null = null;
+  /** Set when the mod stops: a server still starting then closes as soon as it is up, so the next mod can have its port. */
+  let stopped = false;
   let lan: LanListener | null = null; // the phone listener, built after the bridge (it serves the same handlers)
   const phones = (): LanListener => {
     if (!lan) throw new Error("the phone listener is not up yet");
@@ -238,26 +240,30 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (isSubagent(c.agentId)) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
     }
+    // A chat let go to another Mac lives there now, though its canvas may still be here.
+    const hidden = hiddenScopes(chats.list());
     return sortDesks(
-      [...scopes].map((scope) => {
-        const info = deskInfo(scope);
-        return {
-          scope,
-          title: info.title,
-          status: info.status,
-          agent_name: info.agent_name,
-          agent_id: info.agent_id,
-          conversation_id: desks.get(scope)?.conversation_id ?? null,
-          pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
-          model: info.model,
-          reasoning_effort: info.reasoning_effort,
-          mode: info.mode ?? null,
-          labels: info.labels ?? [],
-          widgets: widgets.entries(scope).length,
-          active: scope === activeScope,
-          last_active: info.last_active,
-        };
-      }),
+      [...scopes]
+        .filter((scope) => !hidden.has(scope))
+        .map((scope) => {
+          const info = deskInfo(scope);
+          return {
+            scope,
+            title: info.title,
+            status: info.status,
+            agent_name: info.agent_name,
+            agent_id: info.agent_id,
+            conversation_id: desks.get(scope)?.conversation_id ?? null,
+            pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
+            model: info.model,
+            reasoning_effort: info.reasoning_effort,
+            mode: info.mode ?? null,
+            labels: info.labels ?? [],
+            widgets: widgets.entries(scope).length,
+            active: scope === activeScope,
+            last_active: info.last_active,
+          };
+        }),
     );
   };
   /**
@@ -405,6 +411,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       void remoteChats.refresh(id);
       broadcast({ type: "lists_changed" });
     },
+    name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? "another Mac")),
   });
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
@@ -645,7 +652,11 @@ export default function activate(api: ModApi, host: Host): () => void {
       // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
       routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params))],
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
-    }).then((s) => {
+    }).then(async (s) => {
+      if (stopped) {
+        await s.close();
+        throw new Error("the mod stopped while its server was starting");
+      }
       ws = attachWs(s.server, token, bridge);
       log("server:listening", { port: s.port });
       return (srv = s);
@@ -804,6 +815,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
+    stopped = true;
     ws?.close();
     void srv?.close();
     void lan.stop(); // the socket only; the setting stays so the listener returns with the mod

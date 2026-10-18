@@ -1,4 +1,7 @@
 import type { Context } from "@earendil-works/chord";
+import { existsSync } from "node:fs";
+import { contentText, messageFiles, movedMark } from "../core/harness.ts";
+import { BRANCH_KIND } from "./import/convert.ts";
 import type { ImportedEntry } from "./import/convert.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { ScheduledTask } from "./schedule.ts";
@@ -67,11 +70,18 @@ export async function exportChat(
   };
 }
 
+/** The Macs a chat moved between, by name, for its mark and the agent's note (addendum A5). */
+export interface MoveNames {
+  from: string;
+  to: string;
+}
+
 /**
  * Write a moved chat into this Mac's store under its own id; false when a chat of that id is already here (a move tried
- * again). The hidden copy left by an earlier move away is set aside first, so a chat can come back (addendum A4).
+ * again). The hidden copy left by an earlier move away is set aside first, so a chat can come back (addendum A4). With
+ * `names`, the thread is marked where it moved and the agent is told with the next message (addendum A5).
  */
-export async function importChat(store: AgentStore, moved: MovedChat, context: Context): Promise<boolean> {
+export async function importChat(store: AgentStore, moved: MovedChat, context: Context, names?: MoveNames, now = Date.now()): Promise<boolean> {
   const here = await store.chat(moved.conversation_id, context);
   if (here) {
     if ((await store.chatInfo(here.id, context))?.hidden !== true) return false;
@@ -90,8 +100,22 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
       labels: moved.info.labels,
       ...(moved.info.mode ? { mode: moved.info.mode } : {}),
       ...(moved.info.placed ? { placed: true } : {}),
+      ...(names ? { moved: { ...names, files_left: filesLeft(moved) } } : {}),
     },
     context,
   );
+  if (names)
+    await store.importEntries(
+      conversation,
+      [{ sourceId: "moved", line: 0, kind: BRANCH_KIND, data: { message: { role: "user", content: movedMark(names.from, names.to), timestamp: now } } }],
+      context,
+    );
   return true;
+}
+
+/** How many files the chat's messages carried that are not on this Mac: they stayed where they were attached. */
+function filesLeft(moved: MovedChat): number {
+  const paths = new Set<string>();
+  for (const e of moved.entries) for (const m of e.model ?? []) if (m.role === "user") for (const f of messageFiles(contentText(m.content))) paths.add(f.path);
+  return [...paths].filter((p) => !existsSync(p)).length;
 }

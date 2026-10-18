@@ -149,6 +149,16 @@ export interface LocalConversationRow {
   lastMessageAt: string | null;
 }
 
+/**
+ * The desks of chats this Mac only keeps hidden (one it let go to another Mac, a background pass's): left out of the
+ * lists even when a canvas or a saved layout here still names them (plan 023). A scope a visible chat also has stays.
+ */
+export function hiddenScopes(rows: ReadonlyArray<Pick<LocalConversationRow, "conversationId" | "agentId" | "hidden">>): Set<Scope> {
+  const out = new Set(rows.filter((r) => r.hidden).map((r) => scopeFor(r.conversationId, r.agentId)));
+  for (const r of rows) if (!r.hidden) out.delete(scopeFor(r.conversationId, r.agentId));
+  return out;
+}
+
 /** The agent's display name from its record, if present. */
 export function lookupLocalAgentName(agentId: string, backendDir = defaultBackendDir()): string | null {
   try {

@@ -86,6 +86,25 @@ describe("a chat moved there and back", () => {
   });
 });
 
+describe("a moved chat's mark", () => {
+  test("the thread keeps one quiet mark where it moved, and the agent's note counts the files that stayed behind", async () => {
+    const s = await stores();
+    s.faux.setResponses([fauxAssistantMessage("got it")]);
+    const chat = await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
+    const gone = join(tmpdir(), "loki-not-there", "plan.pdf");
+    await (
+      await chat.submit({ type: "input", content: `read this <attachment kind="file" local_path="${gone}" name="plan.pdf" mime_type="application/pdf"/>` }, ctx)
+    ).wait(ctx);
+    const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
+    expect(await importChat(s.mini, moved, ctx, { from: "MacBook", to: "Mac mini" }, Date.parse("2026-10-19T09:00:00Z"))).toBe(true);
+    const there = must(await s.mini.chat("conv-1", ctx), "chat");
+    const entries = await s.mini.entries(there, ctx);
+    expect(entries.at(-1)).toMatchObject({ kind: "loki.branch" });
+    expect(JSON.stringify(entries.at(-1)?.data)).toContain('<loki-moved from=\\"MacBook\\" to=\\"Mac mini\\"/>');
+    expect((await s.mini.chatInfo(there.id, ctx))?.moved).toEqual({ from: "MacBook", to: "Mac mini", files_left: 1 });
+  });
+});
+
 describe("a moved chat's schedules", () => {
   test("keep their id and when they last fired, so a slot fired on the old Mac does not fire again here", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-adopt-"));

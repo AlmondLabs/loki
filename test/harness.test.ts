@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decodeEntities, extractHarnessEvents, stripHarnessMarkup } from "../core/harness.ts";
+import { decodeEntities, extractHarnessEvents, movedMark, stripHarnessMarkup } from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>Background command "Re-auth dev" completed</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>\nFull transcript available at: /var/x/bash_24.log`;
@@ -57,5 +57,13 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
     const text = 'summarise this\n<skill_content name="unslop">\n# Unslop\n\nEdit text to remove AI patterns.\n</skill_content>';
     expect(extractHarnessEvents(text)).toEqual([{ text: "skill loaded", summary: "unslop", detail: "# Unslop\n\nEdit text to remove AI patterns." }]);
     expect(stripHarnessMarkup(text).trim()).toBe("summarise this");
+  });
+});
+
+describe("a chat's move mark (plan 023, addendum A5)", () => {
+  test("is a quiet row naming both Macs, and no words in a bubble", () => {
+    const mark = movedMark("Deepak's MacBook", 'Mac "mini"');
+    expect(extractHarnessEvents(mark)).toEqual([{ text: 'moved to Mac "mini"', summary: "came over from Deepak's MacBook", detail: null }]);
+    expect(stripHarnessMarkup(mark).trim()).toBe("");
   });
 });

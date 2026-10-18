@@ -33,7 +33,8 @@ export interface ChatBackend {
   /** Moving a chat to the Mac its agent lives on (plan 023, U9): which, copying out, writing in, and letting go. */
   moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>>;
   exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }>;
-  importChat(moved: MovedChat): Promise<boolean>;
+  /** `names`: the Macs it moved between, to mark its thread and tell its agent (plan 023, addendum A5). */
+  importChat(moved: MovedChat, names?: { from: string; to: string }): Promise<boolean>;
   finishMove(agentId: string, chatId: string): Promise<void>;
   /** The person's label colours for a paired Mac, and taking that Mac's (plan 023, U8). */
   labelColors(): LabelColorsSnapshot;

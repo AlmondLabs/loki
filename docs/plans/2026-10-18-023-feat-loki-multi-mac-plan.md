@@ -858,5 +858,13 @@ this form; the outbox and reading a chat while its home is down stay deferred.
 - **A4. Moving back.** A Mac that let a chat go keeps a hidden copy. When the chat comes back, that copy is retired
   under a new key (still hidden, its usage still counted) and the chat is written in fresh.
 
+- **A5. A move is marked, for the person and the agent.** The Mac a chat arrives on writes one `loki.branch` entry
+  (shown, never sent to the model, as the import from Letta's off-path messages are) whose message is only
+  `<loki-moved from to/>`; the thread draws it as a quiet event row, "moved to Mac mini", where the move happened. The
+  agent is told once, on the person's next message there: a `<system-reminder>` naming both Macs, and what did not
+  come along (files attached before the move; the chat's folder, when it is missing on this Mac). The reminder is
+  stripped from the person's bubble like any other. It waits in ChatInfo (`moved`) until that message, so no turn runs
+  only to tell the agent, and the person's own messages are never changed in what they show.
+
 Tests: the sweep skips a placed chat; a chat moved there and back arrives whole both times; a moved chat is read by
 the passes on its new Mac from its old cursor; `chat_move` from a tab on either Mac reaches the chat's Mac (node test).

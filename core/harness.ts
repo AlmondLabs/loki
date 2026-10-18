@@ -15,6 +15,7 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the tasks assigned to this conversation in Tasks, from the mod
+    .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads, Letta's channels): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
@@ -74,6 +75,11 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
       detail: lines.length ? lines.join("\n") : null,
     });
+  }
+  for (const m of text.matchAll(/<loki-moved\b([^>]*)\/>/g)) {
+    const was = decodeEntities(/\bfrom="([^"]*)"/.exec(m[1])?.[1] ?? "");
+    const now = decodeEntities(/\bto="([^"]*)"/.exec(m[1])?.[1] ?? "");
+    out.push({ text: `moved to ${now || "this Mac"}`, summary: was ? `came over from ${was}` : null, detail: null });
   }
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
@@ -252,4 +258,10 @@ export function toolLabel(name: string, input: unknown): string {
   const target = question || argOf(args)?.split("\n")[0];
   if (!target) return name;
   return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
+}
+
+/** The mark a chat's thread keeps where it moved to another Mac (plan 023, addendum A5); drawn as a quiet row. */
+export function movedMark(from: string, to: string): string {
+  const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<loki-moved from="${attr(from)}" to="${attr(to)}"/>`;
 }

@@ -24,7 +24,7 @@ import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatEngine, ChatInfo } from "./kernel/index.ts";
 import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
-import { exportChat, importChat, type MovedChat } from "./chat-move.ts";
+import { exportChat, importChat, type MoveNames, type MovedChat } from "./chat-move.ts";
 import type { Schedules } from "./schedule.ts";
 import { homeOf, readRecord } from "./store/agent-sync.ts";
 import { chatLabels, type LabelView } from "../core/labels.ts";
@@ -338,7 +338,9 @@ export class DaemonChats implements ChatBackend {
     await this.deps.mcp?.prepare(store, chat, this.deps.context);
     await this.watch(store, chat, p.agent_id, p.conversation_id);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type }));
+    const moved = await this.movedNote(store, chat);
     const parts = [
+      ...(moved ? [{ type: "text" as const, text: moved }] : []),
       ...(p.context ? [{ type: "text" as const, text: p.context }] : []),
       ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []),
       ...images,
@@ -353,6 +355,22 @@ export class DaemonChats implements ChatBackend {
     });
     await chat.submit({ type: "input", content: content as never, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
     return true;
+  }
+
+  /**
+   * What the agent is told, once, with the first message after its chat moved here (addendum A5): the two Macs, and
+   * what did not come along. Cleared as it is read, so it goes with one message only. Null when the chat did not move.
+   */
+  private async movedNote(store: AgentStore, chat: Conversation): Promise<string | null> {
+    const info = await store.chatInfo(chat.id, this.deps.context);
+    if (!info?.moved) return null;
+    const { from, to, files_left: filesLeft } = info.moved;
+    await store.updateChat(info.id, { moved: null }, this.deps.context);
+    const cwd = ((await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined)?.cwd;
+    const lines = [`This chat moved from ${from} to ${to}: you now run on ${to}, with its files, tools and sign-ins.`];
+    if (filesLeft > 0) lines.push(`${filesLeft === 1 ? "A file" : `${filesLeft} files`} attached before the move stayed on ${from} and cannot be read here.`);
+    if (cwd && !existsSync(cwd)) lines.push(`This chat's folder, ${cwd}, is not on ${to}.`);
+    return `<system-reminder>\n${lines.join("\n")}\n</system-reminder>`;
   }
 
   /**
@@ -683,10 +701,13 @@ export class DaemonChats implements ChatBackend {
     return { chat: await exportChat(store, agentId, chatId, { schedules, cursors }, this.deps.context), busy: false };
   }
 
-  /** A chat moved here from another Mac: its log, its schedules and its passes' cursors. False when it was already here. */
-  async importChat(moved: MovedChat): Promise<boolean> {
+  /**
+   * A chat moved here from another Mac: its log, its schedules and its passes' cursors. False when it was already here.
+   * `names` marks the thread where it moved and tells the agent with the next message (addendum A5).
+   */
+  async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
     const store = await this.deps.stores.get(moved.agent_id);
-    const made = await importChat(store, moved, this.deps.context);
+    const made = await importChat(store, moved, this.deps.context, names);
     for (const task of moved.schedules) this.deps.schedules?.adopt(task);
     for (const [job, at] of Object.entries(moved.cursors))
       if (job === "reflection" || job === "learn") this.deps.passes?.state.setCursor(job, moved.agent_id, moved.conversation_id, at);
