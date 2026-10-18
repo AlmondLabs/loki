@@ -373,6 +373,9 @@ export function useDesk() {
         setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
         return { rows: r.reply.messages, more: r.reply.more };
       }),
+    /** What the Mac a new chat would live on lacks for its agent (plan 023, U10): lines for the person, none when nothing. */
+    requirements: (agentId: string, home?: string): Promise<string[]> =>
+      request("chat_requirements", { agent_id: agentId, ...(home ? { home } : {}) }, 8000).then((r) => (r.ok ? r.reply.missing : [])),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
       // `home` asks the Mac a new chat will live on (plan 023): its folders, not this Mac's.

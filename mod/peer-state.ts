@@ -3,6 +3,7 @@ import type { PeerLink } from "./peer-link.ts";
 import type { PinChange } from "./pins.ts";
 import type { RecallSnapshot } from "./recall-sync.ts";
 import type { MarksSnapshot } from "./seen.ts";
+import type { McpSnapshot } from "../daemon/config-sync.ts";
 import { log } from "./log.ts";
 
 /**
@@ -18,6 +19,9 @@ export interface PersonState {
   pins: Record<string, PinChange>;
   labels: LabelColorsSnapshot;
   learn: RecallSnapshot;
+  /** loki's own config (U10): its MCP servers and its mods. */
+  mcp: McpSnapshot;
+  mods: RecallSnapshot;
 }
 
 /** Which parts moved when a paired Mac's state was taken. */
@@ -26,6 +30,8 @@ export interface StateMoved {
   pins: boolean;
   labels: boolean;
   learn: boolean;
+  mcp: boolean;
+  mods: boolean;
 }
 
 /** Pulls and applies the person's state between this Mac and its paired Macs. */
@@ -72,9 +78,16 @@ export class PeerState {
         return null;
       }
       const theirs = reply as Partial<PersonState>;
-      if (!theirs.marks || !theirs.pins || !theirs.labels || !theirs.learn) return null;
-      const moved = this.opts.apply(macId, { marks: theirs.marks, pins: theirs.pins, labels: theirs.labels, learn: theirs.learn });
-      if (moved.marks || moved.pins || moved.labels || moved.learn) log("peers:state", { from: macId, ...moved });
+      if (!theirs.marks || !theirs.pins || !theirs.labels || !theirs.learn || !theirs.mcp || !theirs.mods) return null;
+      const moved = this.opts.apply(macId, {
+        marks: theirs.marks,
+        pins: theirs.pins,
+        labels: theirs.labels,
+        learn: theirs.learn,
+        mcp: theirs.mcp,
+        mods: theirs.mods,
+      });
+      if (Object.values(moved).some(Boolean)) log("peers:state", { from: macId, ...moved });
       return moved;
     });
     this.queue = run.catch(() => undefined);

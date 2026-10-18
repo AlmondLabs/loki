@@ -12,6 +12,12 @@ import { dirname, join } from "node:path";
 const FOLDERS = ["cards", "schedule", "rejected", "leads", "leads-dismissed", "lessons"];
 const MANIFEST = ".sync.json";
 
+/** Which files of a folder sync (a path under it, forward slashes): how to list them and which paths may be written. */
+export interface SyncedFiles {
+  list: (dir: string) => Record<string, number>;
+  safe: (path: string) => boolean;
+}
+
 /** One file as it travels: its text and when it was last written (ms). */
 export interface RecallFile {
   content: string;
@@ -49,7 +55,7 @@ function writeManifest(dir: string, m: Manifest): void {
 const without = <T>(o: Record<string, T>, key: string): Record<string, T> => Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
 
 /** Every Learn file here, by its path under the Learn folder (forward slashes). */
-function listFiles(dir: string): Record<string, number> {
+function listRecall(dir: string): Record<string, number> {
   const out: Record<string, number> = {};
   for (const folder of FOLDERS) {
     let names: string[];
@@ -63,9 +69,15 @@ function listFiles(dir: string): Record<string, number> {
   return out;
 }
 
+/** Learn's files: its folders' JSON files. */
+const RECALL: SyncedFiles = {
+  list: listRecall,
+  safe: (path) => /^[a-z-]+\/[A-Za-z0-9._-]+\.json$/.test(path) && FOLDERS.includes(path.split("/")[0]),
+};
+
 /** Look again: a file known before and gone now was removed now; then the manifest says what is here. */
-function refresh(dir: string, now: number): { files: Record<string, number>; manifest: Manifest } {
-  const files = listFiles(dir);
+function refresh(dir: string, which: SyncedFiles, now: number): { files: Record<string, number>; manifest: Manifest } {
+  const files = which.list(dir);
   const manifest = readManifest(dir);
   for (const path of Object.keys(manifest.known)) if (!(path in files)) manifest.deleted[path] = now;
   for (const [path, mtime] of Object.entries(files)) if ((manifest.deleted[path] ?? -1) < mtime) manifest.deleted = without(manifest.deleted, path);
@@ -76,7 +88,17 @@ function refresh(dir: string, now: number): { files: Record<string, number>; man
 
 /** This Mac's Learn files and removals, for a paired Mac. */
 export function recallSnapshot(dir: string, now = Date.now()): RecallSnapshot {
-  const { files, manifest } = refresh(dir, now);
+  return filesSnapshot(dir, RECALL, now);
+}
+
+/** Take a paired Mac's Learn files: every later write, every later removal. True when a file here changed. */
+export function applyRecall(dir: string, theirs: RecallSnapshot, now = Date.now()): boolean {
+  return applyFiles(dir, RECALL, theirs, now);
+}
+
+/** A folder's synced files and removals, for a paired Mac (Learn's, loki's mods). */
+export function filesSnapshot(dir: string, which: SyncedFiles, now = Date.now()): RecallSnapshot {
+  const { files, manifest } = refresh(dir, which, now);
   const out: Record<string, RecallFile> = {};
   for (const [path, mtime] of Object.entries(files)) {
     try {
@@ -88,10 +110,10 @@ export function recallSnapshot(dir: string, now = Date.now()): RecallSnapshot {
   return { files: out, deleted: { ...manifest.deleted } };
 }
 
-/** Take a paired Mac's Learn files: every later write, every later removal. True when a file here changed. */
-export function applyRecall(dir: string, theirs: RecallSnapshot, now = Date.now()): boolean {
-  const { files, manifest } = refresh(dir, now);
-  const safe = (path: string) => /^[a-z-]+\/[A-Za-z0-9._-]+\.json$/.test(path) && FOLDERS.includes(path.split("/")[0]);
+/** Take a paired Mac's files of a folder: every later write, every later removal. True when a file here changed. */
+export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapshot, now = Date.now()): boolean {
+  const { files, manifest } = refresh(dir, which, now);
+  const { safe } = which;
   let moved = false;
   for (const [path, file] of Object.entries(theirs.files)) {
     if (!safe(path) || typeof file.content !== "string" || typeof file.mtime !== "number") continue;

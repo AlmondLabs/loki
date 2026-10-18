@@ -1,4 +1,5 @@
 import type { MovedChat } from "../../daemon/chat-move.ts";
+import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
@@ -155,6 +156,8 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
       ),
     chat_import_status: () => served(b, (x) => x.importStatus()),
     chat_passes_get: () => served(b, (x) => x.passes()),
+    // Asked of the Mac a new chat will live on (plan 023, U10); the router sends it there when `home` is another Mac.
+    chat_requirements: ({ agent_id: agentId }) => served(b, async (x) => ({ agent_id: agentId, missing: await missingFor(x, agentId) })),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
     chat_skill_enable: ({ path }) =>

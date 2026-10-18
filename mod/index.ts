@@ -16,7 +16,8 @@ import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay, recallDir } from "./recall.ts";
-import { applyRecall, recallSnapshot } from "./recall-sync.ts";
+import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall-sync.ts";
+import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
@@ -127,6 +128,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     if (!lan) throw new Error("the phone listener is not up yet");
     return lan;
   };
+  /** loki's mods folder as it syncs between Macs (plan 023, U10). */
+  const MOD_FILES = { list: listModFiles, safe: isModPath };
   /** The person's state on paired Macs (plan 023, U8), told when a push here says some of it changed. */
   const stateSync: { peerState: PeerState | null } = { peerState: null };
   const STATE_PUSHES = new Set(["seen", "desks", "recall_changed"]);
@@ -385,13 +388,23 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
-    snapshot: () => ({ marks: seen.snapshot(), pins: pinChanges(), labels: chatBackend.labelColors(), learn: recallSnapshot(recallDir()) }),
+    snapshot: () => ({
+      marks: seen.snapshot(),
+      pins: pinChanges(),
+      labels: chatBackend.labelColors(),
+      learn: recallSnapshot(recallDir()),
+      mcp: mcpSnapshot(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json")),
+      mods: filesSnapshot(join(paths.data, "mods"), MOD_FILES),
+    }),
     apply: (id, theirs) => {
       const moved = {
         marks: seen.applyRemote(id, theirs.marks),
         pins: applyPinChanges(theirs.pins),
         labels: chatBackend.applyLabelColors(theirs.labels),
         learn: applyRecall(recallDir(), theirs.learn),
+        // The daemon follows mcp.json and the mods folder itself: a change written here is picked up there.
+        mcp: applyMcp(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json"), theirs.mcp),
+        mods: applyFiles(join(paths.data, "mods"), MOD_FILES, theirs.mods),
       };
       if (moved.marks) broadcast(seenFrame({ seen }));
       if (moved.pins) broadcast({ type: "desks", desks: listDesks() });
@@ -403,6 +416,11 @@ export default function activate(api: ModApi, host: Host): () => void {
     tell: () => lan?.broadcast({ type: "state_changed" }),
   });
   stateSync.peerState = peerState;
+  // An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again every few minutes.
+  const statePoll = setInterval(() => {
+    for (const p of peerStore.list()) if (links.reachable(p.mac_id)) void peerState.pull(p.mac_id);
+  }, 5 * 60_000);
+  statePoll.unref();
   // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
   const peerMemory: PeerMemory = new PeerMemory({
     backendDir,
@@ -749,6 +767,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     remoteChats.stop();
     peerMemory.stop();
     peerState.stop();
+    clearInterval(statePoll);
     ws = null;
     srv = null;
     starting = null;

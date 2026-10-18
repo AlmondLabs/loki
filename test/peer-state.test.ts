@@ -7,6 +7,8 @@ const empty: PersonState = {
   pins: {},
   labels: { colors: {}, changed: {} },
   learn: { files: {}, deleted: {} },
+  mcp: { servers: {}, removed: {} },
+  mods: { files: {}, deleted: {} },
 };
 
 describe("the person's state between Macs", () => {
@@ -16,11 +18,11 @@ describe("the person's state between Macs", () => {
     const link = { request: () => (up ? Promise.resolve({ type: "peer_state", ...empty }) : Promise.reject(new Error("out of reach"))) };
     const state = new PeerState({
       snapshot: () => empty,
-      apply: (id) => (applied.push(id), { marks: true, pins: false, labels: false, learn: false }),
+      apply: (id) => (applied.push(id), { marks: true, pins: false, labels: false, learn: false, mcp: false, mods: false }),
       link: () => link as never,
       tell: () => {},
     });
-    expect(await state.pull(MINI)).toEqual({ marks: true, pins: false, labels: false, learn: false });
+    expect(await state.pull(MINI)).toEqual({ marks: true, pins: false, labels: false, learn: false, mcp: false, mods: false });
     up = false;
     expect(await state.pull(MINI)).toBeNull();
     expect(applied).toEqual([MINI]);
@@ -30,7 +32,7 @@ describe("the person's state between Macs", () => {
     let told = 0;
     const state = new PeerState({
       snapshot: () => empty,
-      apply: () => ({ marks: false, pins: false, labels: false, learn: false }),
+      apply: () => ({ marks: false, pins: false, labels: false, learn: false, mcp: false, mods: false }),
       link: () => null,
       tell: () => told++,
       debounceMs: 5,

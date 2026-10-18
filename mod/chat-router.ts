@@ -68,7 +68,7 @@ export class ChatRouter {
     const type = msg.type as FrameName;
     if (type === "chat_create") return this.newChatHome(msg);
     // The folders of the Mac a new chat will live on (U6).
-    if (type === "folders_get" || type === "folder_complete" || type === "folder_check") return this.askedHome(msg.home);
+    if (type === "folders_get" || type === "folder_complete" || type === "folder_check" || type === "chat_requirements") return this.askedHome(msg.home);
     if (CHAT_ROUTED.has(type) && typeof msg.conversation_id === "string")
       return this.opts.homeOf(msg.conversation_id, typeof msg.agent_id === "string" ? msg.agent_id : null);
     if (SCOPE_ROUTED.has(type)) {

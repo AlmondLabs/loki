@@ -277,7 +277,7 @@ describe("every frame in the table, through the real router", () => {
       hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
       agents: () => ({ agents: [], tombstones: [] }),
       chats: () => ({ desks: [], inbox: [] }),
-      state: () => ({ marks: {}, pins: {}, labels: {}, learn: {} }),
+      state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
       memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
     },
   };

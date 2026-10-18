@@ -178,6 +178,8 @@ export interface Replies {
   chat_engines: EnginesView;
   /** Every label on a chat, with its colour and how many chats carry it (plan 022). */
   chat_labels: { labels: LabelView[] };
+  /** What this Mac lacks to run an agent's chat (plan 023, U10): one line for the person each, none when nothing. */
+  chat_requirements: { agent_id: string; missing: string[] };
   /** A Mac paired by `peer_pair_join` (plan 023). */
   peer_paired: { peer: PeerSummary };
   /**
@@ -191,7 +193,7 @@ export interface Replies {
    * The person's own state for another Mac (plan 023, U8): Inbox marks and focus, pins, label colours and Learn's
    * files, each in the shape its store merges (mod/peer-state.ts).
    */
-  peer_state: { marks: object; pins: object; labels: object; learn: object };
+  peer_state: { marks: object; pins: object; labels: object; learn: object; mcp: object; mods: object };
   /** The chats here of agents that live on the asking Mac, for it to take over on first pairing (plan 023, U9). */
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
   /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
@@ -786,6 +788,13 @@ export const FRAMES = {
     str(m.host) && m.host.trim() && str(m.code) && m.code.trim() ? { host: m.host.trim(), code: m.code.trim() } : "expected {host, code}",
   ),
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
+  chat_requirements: request(
+    "chat_requirements",
+    "what the Mac a chat would live on (`home`, else this one) lacks to run the agent's chat",
+    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, home: strOr(m.home, null) } : "agent_id required"),
+    false,
+    PEER,
+  ),
   peer_ping: request("peer_pong", "who this Mac is and which peer protocol it speaks", nothing, false, true),
   peer_agents_get: request("peer_agents", "this Mac's agents and the agents deleted here, for another Mac to take", nothing, false, true),
   peer_memory_get: request(

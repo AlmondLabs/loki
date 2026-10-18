@@ -42,6 +42,8 @@ interface NewDeskProps {
   folders: FolderApi;
   /** `home` is the Mac the chat lives on, when the dialog chose one. */
   onCreate: (agentId: string, folder: string, name: string, home?: string) => Promise<void>;
+  /** What the Mac the chat would live on lacks for the agent (plan 023, U10). */
+  requirements?: (agentId: string, home?: string) => Promise<string[]>;
 }
 
 /**
@@ -229,7 +231,18 @@ export function useFolderField({
   return { folder, source, touched, currentFolder, ready, status, options, listOpen, setListOpen, inputRef, picking, choose, type, browse, browser };
 }
 
-function NewDeskSheet({ onClose, agents, macs, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
+function NewDeskSheet({
+  onClose,
+  agents,
+  macs,
+  defaultAgentId,
+  currentAgentId,
+  currentConversationKey,
+  initialName = "",
+  folders,
+  onCreate,
+  requirements,
+}: NewDeskProps) {
   const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents.at(0)?.id ?? null);
   const [name, setName] = useState(initialName);
   const [creating, setCreating] = useState(false);
@@ -242,6 +255,18 @@ function NewDeskSheet({ onClose, agents, macs, defaultAgentId, currentAgentId, c
   );
   const remote = agentHome?.reachable && !pickHere ? agentHome : null;
   const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: remote?.mac_id });
+  // What the chosen Mac lacks for this agent, asked again whenever the agent or the Mac changes (R21).
+  const [missing, setMissing] = useState<{ key: string; lines: string[] } | null>(null);
+  const missingKey = `${agentId ?? ""}@${remote?.mac_id ?? ""}`;
+  useEffect(() => {
+    if (!agentId || !requirements) return;
+    let live = true;
+    void requirements(agentId, remote?.mac_id).then((lines) => live && setMissing({ key: missingKey, lines }));
+    return () => {
+      live = false;
+    };
+  }, [agentId, remote?.mac_id, requirements, missingKey]);
+  const lacks = missing?.key === missingKey ? missing.lines : [];
   const { folder, status, listOpen, setListOpen } = field;
   const busy: false | "creating" | "picking" = creating ? "creating" : field.picking ? "picking" : false;
   const nameRef = useRef<HTMLInputElement>(null);
@@ -299,6 +324,12 @@ function NewDeskSheet({ onClose, agents, macs, defaultAgentId, currentAgentId, c
         <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
         {agentHome && macs && <HomeChoice home={agentHome} here={macs.me.name} pickHere={pickHere} onPickHere={setPickHere} />}
+
+        {lacks.length > 0 && (
+          <div className="loki-meta loki-meta--negative loki-meta--wrap" role="status">
+            {remote ? remote.name : osWords().Machine} needs {lacks.join("; ")}
+          </div>
+        )}
 
         <FolderPicker
           inputRef={field.inputRef}

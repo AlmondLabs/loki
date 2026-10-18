@@ -408,6 +408,7 @@ export function NewDeskSheet({
       initialName={state.name}
       folders={desk.attention.folders}
       macs={desk.macs.view}
+      requirements={desk.attention.requirements}
       onCreate={onCreate}
     />
   );

@@ -104,7 +104,7 @@ async function macs() {
           hello: () => farPeers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
           chats: () => ({ desks: [IRA_DESK], inbox: [] }),
-          state: () => ({ marks: {}, pins: {}, labels: {}, learn: {} }),
+          state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
         },
       }),
