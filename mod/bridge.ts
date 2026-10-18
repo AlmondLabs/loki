@@ -2,6 +2,7 @@ import { PEER_FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type PushFrame }
 import type { Scope } from "../core/desk-core.ts";
 import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { Client, WsHandlers } from "./server.ts";
+import type { Forwarded, Target } from "./chat-router.ts";
 
 /**
  * The router for the mod's own socket (socket-free so it is testable). Every frame is declared in core/frames.ts;
@@ -10,6 +11,8 @@ import type { Client, WsHandlers } from "./server.ts";
  *  2. refuses it to a paired phone unless the table marks it for the phone, and to a paired Mac unless it marks it for
  *     Macs;
  *  3. parses it (a malformed one answers `error`);
+ *  3½. sends it on, as it is, when it is about a chat or desk that lives on another paired Mac (mod/chat-router.ts),
+ *     answering with that Mac's reply;
  *  4. calls its handler, sync or async;
  *  5. sends a request's reply under the table's name with its request_id, or `error` with the request_id when the
  *     handler failed, threw or rejected. A send's handler pushes what it causes; its failure answers `error`.
@@ -25,6 +28,11 @@ export interface BridgeDeps {
   broadcast(msg: object, scope?: Scope): void;
   /** Analytics (mod/analytics.ts): an event this client caused, or a `capture` frame it sent about one the mod cannot see. */
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
+  /** Chats that live on another paired Mac (plan 023, U5): which Mac a frame is about, and sending it there. */
+  route?: {
+    target(msg: Record<string, unknown>): Target;
+    forward(home: NonNullable<Target>, msg: Record<string, unknown>, kind: "request" | "send"): Promise<Forwarded>;
+  };
 }
 
 type Handler = (payload: never, ctx: FrameContext) => unknown;
@@ -70,6 +78,16 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         return client.send({ type: "error", request_id: requestId, message: `${String(msg.type)} is not available to another Mac` });
       }
       const entry = frameEntry(msg.type);
+      // Another Mac's chat: that Mac answers. A paired Mac's own frames are answered here, never sent on.
+      const home = !client.peerId && deps.route ? deps.route.target(msg) : null;
+      // A malformed frame is answered here like any other, without bothering the other Mac.
+      if (home && deps.route && entry && entry.kind !== "push" && typeof entry.parse(msg) !== "string") {
+        void deps.route.forward(home, msg, entry.kind).then((out) => {
+          if (!out.ok) return client.send({ type: "error", ...(entry.kind === "request" ? { request_id: requestId } : {}), message: out.message });
+          if (entry.kind === "request" && out.reply) client.send({ ...out.reply, request_id: requestId });
+        });
+        return;
+      }
       const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
       if (!entry || entry.kind === "push" || !handle)
         return client.send({ type: "error", request_id: requestId, message: `unsupported message type: ${String(msg.type)}` });

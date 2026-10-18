@@ -346,6 +346,36 @@ export class Peers {
     return "ok";
   }
 
+  /**
+   * Send a file this Mac holds to a paired Mac's uploads (U5), for a chat that lives there; resolves to its path on
+   * that Mac, or null when it could not be sent.
+   */
+  async upload(macId: string, file: { path: string; name: string; mime: string }): Promise<string | null> {
+    const peer = this.opts.store.get(macId);
+    const token = await this.opts.keys.get(macId);
+    const base = peer ? peerBase(peer.host) : null;
+    if (!base || !token) return null;
+    let body: Buffer;
+    try {
+      body = readFileSync(file.path);
+    } catch {
+      return null;
+    }
+    try {
+      const q = new URLSearchParams({ name: file.name, type: file.mime });
+      const res = await this.fetch(`${base}/peer/uploads?${q.toString()}`, {
+        method: "POST",
+        headers: { "content-type": file.mime, authorization: `Bearer ${token}` },
+        body: new Uint8Array(body),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const answer = (await res.json().catch(() => null)) as { path?: unknown } | null;
+      return res.ok && typeof answer?.path === "string" ? answer.path : null;
+    } catch {
+      return null;
+    }
+  }
+
   private async drop(macId: string, where: "here" | "there"): Promise<boolean> {
     const gone = this.opts.store.forget(macId);
     await this.opts.keys.delete(macId);

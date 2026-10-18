@@ -80,6 +80,14 @@ export class PeerLink {
     return this.ask(frame, timeoutMs, this.current === "reachable");
   }
 
+  /** Tell the other Mac something that has no reply (a send); false when it cannot be told now. */
+  send(frame: { type: string } & Record<string, unknown>): boolean {
+    const ws = this.ws;
+    if (this.current !== "reachable" || ws?.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify(frame));
+    return true;
+  }
+
   private ask(frame: { type: string } & Record<string, unknown>, timeoutMs: number, allowed: boolean): Promise<Record<string, unknown>> {
     const ws = this.ws;
     if (!allowed || ws?.readyState !== WebSocket.OPEN) {

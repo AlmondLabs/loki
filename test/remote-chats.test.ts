@@ -12,6 +12,8 @@ const desk = (conversationId: string, title: string, agentId = "agent-ira"): Des
   status: "live",
   agent_name: "Ira",
   agent_id: agentId,
+  model: null,
+  reasoning_effort: null,
   conversation_id: conversationId,
   widgets: 0,
   active: true,

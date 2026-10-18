@@ -42,6 +42,7 @@ import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { PeerLinks } from "./peer-link.ts";
 import { PeerAgents } from "./peer-agents.ts";
 import { RemoteChats } from "./remote-chats.ts";
+import { ChatRouter } from "./chat-router.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -326,6 +327,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
     onPush: (id, frame) => {
       remoteChats.heard(id, frame);
+      // A chat or desk that lives there: its clients here hear what it does (U5).
+      const relay = router.relay(id, frame);
+      if (relay) broadcast(frame, relay.scope);
       if (frame.type === "agents_changed") void peerAgents.pull(id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
@@ -336,6 +340,15 @@ export default function activate(api: ModApi, host: Host): () => void {
     link: (id) => links.get(id),
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     onChange: () => broadcast({ type: "lists_changed" }),
+  });
+  // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
+  const router: ChatRouter = new ChatRouter({
+    homeOf: (conv, agent) => remoteChats.homeOf(conv, agent),
+    homeOfScope: (scope) => remoteChats.homeOfScope(scope),
+    link: (id) => links.get(id),
+    name: (id) => peerStore.get(id)?.name ?? "another Mac",
+    uploadsDir: paths.uploads,
+    upload: (id, file) => peers.upload(id, file),
   });
   // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
   const peerAgents: PeerAgents = new PeerAgents({
@@ -480,6 +493,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     welcome: welcomeFrames(moduleDeps),
     broadcast,
     capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
+    route: router,
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;

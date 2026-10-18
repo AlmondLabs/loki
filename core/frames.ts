@@ -310,6 +310,8 @@ const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; peer?: b
 });
 const push = (doc: string): PushEntry => ({ kind: "push", doc });
 const PHONE = true;
+/** Marks a frame another paired Mac may send: a chat or canvas frame routed to the Mac it lives on (plan 023, U5). */
+const PEER = true;
 
 /** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
@@ -317,7 +319,7 @@ export const FRAMES = {
   gesture: send(
     "a gesture on a widget (move, resize, set …); its desk's state follows",
     (m) => (isGesture(m.gesture) ? { gesture: m.gesture } : "malformed gesture"),
-    { causes: ["state"] },
+    { causes: ["state"], peer: PEER },
   ),
   measure: send(
     "a widget's rendered size, which drives placement",
@@ -325,19 +327,19 @@ export const FRAMES = {
       const size = m.size as Raw | undefined;
       return str(m.id) && size && isNum(size.w) && isNum(size.h) ? { id: m.id, size: { w: size.w, h: size.h } } : "malformed measure";
     },
-    { causes: ["state"] },
+    { causes: ["state"], peer: PEER },
   ),
   arrange: send("tidy this desk into a grid", nothing, { causes: ["camera"] }),
   trash: send("delete the widget's file: the agent's work is gone for good", (m) => (str(m.id) ? { id: m.id } : "malformed trash")),
   widget_status: send(
     "a runtime or reload error from the tab (null clears it)",
     (m) => (str(m.id) ? { id: m.id, error: str(m.error) && m.error.trim() ? m.error.trim() : null } : "malformed widget_status"),
-    { causes: ["widgets"] },
+    { causes: ["widgets"], peer: PEER },
   ),
   desk_get: send(
     "another desk's state and widgets, for widgets shown inline in a thread; no switch",
     (m) => (str(m.scope) && m.scope ? { scope: m.scope } : "scope required"),
-    { phone: PHONE, causes: ["desk"] },
+    { phone: PHONE, causes: ["desk"], peer: PEER },
   ),
   list_desks: send("every desk, for the sidebar and search", nothing, { phone: PHONE, causes: ["desks"] }),
   pin_set: send(
@@ -391,6 +393,7 @@ export const FRAMES = {
         ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id, limit: isNum(m.limit) ? m.limit : null }
         : "conversation_id required",
     PHONE,
+    PEER,
   ),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
@@ -403,6 +406,7 @@ export const FRAMES = {
       return typeof c === "string" ? c : { ...c, mode: strOr(m.mode, null) };
     },
     PHONE,
+    PEER,
   ),
   chat_approve: request(
     "chat_accepted",
@@ -416,6 +420,7 @@ export const FRAMES = {
         : "approval_id and allow required";
     },
     PHONE,
+    PEER,
   ),
   chat_answer: request(
     "chat_accepted",
@@ -428,6 +433,7 @@ export const FRAMES = {
         : "question_id and input required";
     },
     PHONE,
+    PEER,
   ),
   chat_create: request(
     "chat_created",
@@ -448,8 +454,9 @@ export const FRAMES = {
       return { ...c, text: m.text, images, send_id: strOr(m.send_id, null), context: strOr(m.context, null) };
     },
     PHONE,
+    PEER,
   ),
-  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE),
+  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, PEER),
   chat_update: request(
     "chat_done",
     "rename, archive or hide a chat, or set its labels",
@@ -465,6 +472,7 @@ export const FRAMES = {
       };
     },
     PHONE,
+    PEER,
   ),
   chat_folder: request(
     "chat_state",
@@ -474,6 +482,7 @@ export const FRAMES = {
       return typeof c === "string" ? c : str(m.cwd) && m.cwd ? { ...c, cwd: m.cwd } : "cwd required";
     },
     PHONE,
+    PEER,
   ),
   chat_model: request(
     "chat_done",
@@ -486,6 +495,7 @@ export const FRAMES = {
         : "handle required";
     },
     PHONE,
+    PEER,
   ),
   chat_models: request("chat_models", "the models the connected providers offer", nothing, PHONE),
   chat_agents: request("chat_agents", "the person's agents", nothing, PHONE),

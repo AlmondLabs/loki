@@ -423,6 +423,13 @@ export class LanListener {
         if (!bearer()) return json(res, 401, { error: "not paired" });
         return json(res, 200, peers.hello());
       }
+      case "/peer/uploads": {
+        // A file attached on another Mac to a chat that lives here (U5): saved where this Mac's uploads go.
+        if (!this.opts.uploads) return json(res, 404, { error: "not found" });
+        const peerAuth: Authorize = () => ({ ok: !!bearer() });
+        uploadRoute(req, res, new URL(`/uploads${url.search}`, "http://0.0.0.0"), { authorize: peerAuth, dir: this.opts.uploads, denied: 401 });
+        return;
+      }
       case "/peer/unpair": {
         if (req.method !== "POST") return json(res, 405, { error: "POST" });
         const mac = bearer();

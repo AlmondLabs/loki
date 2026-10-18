@@ -247,7 +247,8 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
 
   return {
     broadcast(msg, scope) {
-      for (const [ws, c] of clients) if (!scope || c.scope === scope) send(ws, msg);
+      // A paired Mac follows every desk: it passes on the ones it shows of this Mac's (plan 023, U5).
+      for (const [ws, c] of clients) if (!scope || c.scope === scope || c.peerId) send(ws, msg);
     },
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
