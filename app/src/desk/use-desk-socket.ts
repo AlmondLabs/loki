@@ -230,7 +230,7 @@ export function useDeskSocket() {
             setDevices(Array.isArray(msg.devices) ? msg.devices : []);
             break;
           case "peers":
-            setMacs({ me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [] });
+            setMacs(macsFromFrame(msg));
             break;
           case "peer_pair_code":
             setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });
@@ -409,6 +409,11 @@ function sameData(a: unknown, b: unknown): boolean {
     kb = Object.keys(b);
   if (ka.length !== kb.length) return false;
   return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
+export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
+  return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
 }
 
 /** `next`, unless it holds what `prev` holds: then `prev`, so a repeated frame changes no reference. */
