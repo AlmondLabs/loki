@@ -20,6 +20,7 @@ import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
+import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
@@ -374,6 +375,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     uploadsDir: paths.uploads,
     upload: (id, file) => peers.upload(id, file),
   });
+  // A paired Mac stays awake on power while loki runs, so its chats can be reached from the other (U11, R14).
+  const awake = new Awake();
+  awake.set(peerStore.size() > 0);
   // Taking over this Mac's agents' chats from a Mac they were made on, once after pairing (U9).
   const chatMoves: ChatMoves = new ChatMoves({
     chat: chatBackend,
@@ -445,6 +449,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     codes: peerCodes,
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
     onChange: () => {
+      awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
       remoteChats.sync(peerStore.list().map((p) => p.mac_id));
       ws?.broadcast({ type: "peers", ...peersView() });
@@ -768,6 +773,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     peerMemory.stop();
     peerState.stop();
     clearInterval(statePoll);
+    awake.set(false);
     ws = null;
     srv = null;
     starting = null;
