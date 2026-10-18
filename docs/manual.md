@@ -321,6 +321,47 @@ The small "https on the tailnet" switch runs `tailscale serve` in front of the l
 stays inside the tailnet — loki never uses Funnel. Whichever way you switch, the address the phone bookmarked has
 changed, so it pairs once more.
 
+## Your Macs
+
+loki on more than one Mac is one set of agents. Friday is the same agent on your MacBook and your Mac mini: one
+name, one memory, every chat of hers listed on both. Each chat runs on one Mac, its **home**, with that Mac's files
+and tools; from the other Mac you open it, read it and write in it as if you sat at its home.
+
+**Pairing.** Install [Tailscale](https://tailscale.com/download) on both Macs and sign in to the same account; Macs
+reach each other over your tailnet only, never the Wi‑Fi or the internet. On one Mac open Settings › Macs and press
+**show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. On the other Mac, in
+Settings › Macs, type the address and the code and press **pair**. Each Mac now lists the other, with **connected**
+or when it was last seen, and **forget** on either side unpairs both. A Mac running another version of loki shows
+"needs an update": it stays paired, but nothing syncs until both run the same release. While any Mac is paired,
+loki keeps the Mac from sleeping when it is idle on power, so a MacBook on its charger with the lid open stays
+reachable; a closed lid still sleeps.
+
+**Where things live.**
+
+1. **Agents have a home Mac.** An agent lives on the Mac that made it; change it on the agent's profile ("lives
+   on"). A new chat starts on its agent's home, and the new chat dialog says so under **Lives on**: pick this Mac
+   instead and the chat runs here, with this Mac's files, for good. If the agent's home is out of reach, the chat
+   starts here and stays here. The folders the dialog offers are the home's, and it says what that Mac lacks for the
+   agent (a provider sign-in, an MCP server needing a sign-in) before you start.
+2. **Every list shows both Macs' chats.** A chat on the other Mac says "on Mac mini" in the sidebar, the switcher
+   and on the phone. While that Mac is asleep or off, its chats stay listed, dimmed, "waiting for Mac mini": they
+   do not open and take no message until it is back. Nothing is queued.
+3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
+   on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
+   schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
+   agent stays where its session is. Files attached to a moved chat stay on the Mac they were attached on.
+4. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
+   changed the same lines apart, the note keeps the home Mac's text and the other side goes to
+   `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn run for an agent
+   on its home Mac only.
+5. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
+   adds up), pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
+   "always allow" list, Tasks, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
+   on.
+
+**The phone** reaches every chat on every paired Mac through the Mac it is paired with; if that Mac is off, the
+phone waits for it.
+
 ## What the mod does
 
 loki's mod runs inside the daemon and owns the canvas and the sockets the app connects to:

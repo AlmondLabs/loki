@@ -67,6 +67,31 @@ Mac's MagicDNS name. The model changes in one place:
   serve status --json`, and `tailscale serve` on and off for the switch). loki does not install Tailscale,
   sign in, or change the tailnet's settings.
 
+## Other Macs, over Tailscale
+
+Plan 023 lets your Macs running loki share their agents. Nothing reaches any host outside your tailnet, and no
+server or account is involved.
+
+- **Tailnet only.** Pairing (`/peer/pair`), a Mac's hello and unpairing, and a paired Mac's socket on `/ws` are
+  answered only for requests that arrive over Tailscale (a `100.64.0.0/10` peer, or `tailscale serve`); over the
+  Wi‑Fi they get 403. They use the phone listener's port, which stays up while any Mac is paired even with the
+  phone switch off; the phone's routes and the canvas then answer 404 and no phone's cookie opens anything.
+- **Pairing is mutual and needs a code.** A Mac shows a six-character code that lives ten minutes, separate from the
+  phone's codes, with the same wrong-code limit. Each Mac mints a 32-byte token for the other: it keeps only the
+  token's SHA-256 (`~/.loki/state/peers.json`, mode 0600) and keeps the token the other Mac minted for it in the
+  keychain. Forgetting a Mac on either side tells the other when it can, and a Mac whose token is refused checks and
+  forgets too.
+- **A paired Mac is not the desktop.** Its socket may send only the frames marked for Macs (`PEER_FRAMES`): chat,
+  history, canvas and folder frames for chats that live on this Mac, and the sync frames. Never pairing, device or
+  phone settings. A phone's frame is checked against the phone's own limits on its own Mac before it is passed on.
+- **What travels.** Over WireGuard, between your Macs: chats you open on the other Mac, agent records and memory
+  (as git bundles), Inbox marks, pins, label colours, Learn's files, your MCP server entries and your mods, and files
+  you attach to a chat that lives on the other Mac. A synced mod is code, and it runs on every paired Mac. Never
+  travels: provider keys and sign-ins, MCP secrets (mcp.json holds `${keychain:…}` references only), the "always
+  allow" list, browser profiles, agents' own files.
+- **Staying awake.** While a Mac is paired, loki runs `/usr/bin/caffeinate -s -w <pid>`: no idle sleep on power
+  while the daemon runs; no setting is changed and a closed lid still sleeps.
+
 ## MCP servers
 
 - **What loki starts.** Exactly the local servers listed in `~/.loki/mcp.json` (`command` and `args`, run as you,

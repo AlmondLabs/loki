@@ -85,6 +85,20 @@ related chats across agents: lowercase letters, digits and dashes, up to eight a
 eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
 agents' own `tags`), category, folder (a chat's working directory).
 
+**Paired Mac** (`mod/peers.ts`, plan 023): another of the person's Macs running loki, paired with a code over the
+tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
+
+**Home** (`home_mac` on an agent record, `home` on a chat row): the Mac an agent lives on, where its new chats start
+and its background passes run; and the one Mac a chat lives on, which alone writes it and runs its tools. Other Macs
+reach a chat through its home.
+
+**Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
+`request_id`) and hears (that Mac's pushes); a paired Mac's frames are limited to `PEER_FRAMES`.
+
+**Conflicts note** (`conflicts/sync.md` in an agent's memory, `daemon/memory-sync.ts`): the other side of each clash
+when two Macs changed the same lines of a memory note apart; the note keeps the home's text, and reflection folds
+this in.
+
 **Mod**: code that extends every chat through loki's mod API (`daemon/mods/api.ts`, version 1): tools, prompt
 sections, a say before a tool runs, a transform of your message, turn events. loki's own mod is `mod/index.ts`;
 others are files in `~/.loki/mods`. Letta mods do not load.

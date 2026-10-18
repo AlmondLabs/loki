@@ -261,6 +261,40 @@ You type in the chat box and press Enter.
 If the daemon dies mid-turn, the shell starts it again, the store reopens, and the turn resumes from its last saved
 step. A tool that was mid-run and is not safe to repeat is reported to the model as interrupted.
 
+## Several Macs
+
+Plan 023 (`docs/plans/2026-10-18-023-feat-loki-multi-mac-plan.md`) lets one person's Macs share their agents. Each
+Mac still runs its own daemon over its own `~/.loki`, and every chat still has exactly one writer: the Mac it lives
+on, its **home**. The Macs talk to each other directly over the tailnet; there is no server.
+
+1. **Pairing** (`mod/peers.ts`). A Mac is named by its install id (`state/device-id`) and its own name. Two Macs pair
+   with a code over the phone listener's port, tailnet only: each mints a token for the other, keeps its hash in
+   `state/peers.json` and the other's token in the keychain. While any Mac is paired the listener stays up with the
+   phone switch off (the phone's routes then answer 404), and the daemon holds `caffeinate -s` (`daemon/awake.ts`).
+2. **The peer link** (`mod/peer-link.ts`). One socket from each Mac to every paired Mac's `/ws`, with a bearer token,
+   reconnecting with backoff. Its first frame, `peer_ping`, also compares the peer protocol (`PEER_PROTOCOL`): a Mac
+   on another one is "outdated" and asked nothing. A paired Mac's socket has its own allow-list (`PEER_FRAMES`, the
+   `peer` flag in `core/frames.ts`), never the desktop's or the phone's.
+3. **Agents** (`daemon/store/agent-sync.ts`, `mod/peer-agents.ts`). Agent ids are the same on every Mac. Each record
+   field carries when and where it last changed and the later change wins; `home_mac` is one of them. A delete
+   leaves a tombstone (`backend/tombstones.json`). Only an agent's home creates its main chat.
+4. **Chats** (`mod/remote-chats.ts`, `mod/chat-router.ts`). Each Mac lists its own chats and every paired Mac's,
+   fetched over the link and marked with their home (`home`, `home_name`, `reachable` on desks and Inbox rows). The
+   bridge sends a chat or canvas frame about another Mac's chat there as it is (`route`) and passes back that Mac's
+   pushes about its own chats only, so Macs never echo each other. A new chat's home is its agent's while that Mac is
+   in reach (`chat_create`'s `home`). Files attached here go to the home's uploads first.
+5. **Memory** (`daemon/memory-sync.ts`, `mod/peer-memory.ts`). After a repo settles in its queue
+   (`daemon/repo-queue.ts`) paired Macs are told (`memory_changed`) and fetch the commits they lack as a git bundle,
+   merged in the same queue. A clash keeps the home's text and writes the other side to `conflicts/sync.md`, which
+   reflection reads. Background passes run only for agents homed on this Mac.
+6. **The person's state and config** (`mod/peer-state.ts`). One snapshot, pulled on connect, on `state_changed` and
+   every five minutes: marks with times (`unseen` beside `seen`), focus per Mac summed (`combineFocus`), pins and
+   label colours with change times, Learn and mods file by file (`mod/recall-sync.ts`), mcp.json entry by entry
+   (`daemon/config-sync.ts`).
+7. **The first move** (`daemon/chat-move.ts`, `mod/chat-moves.ts`). Once after pairing, a Mac takes over the idle
+   chats of agents homed on it: copied out, imported under the same id, then hidden on the old Mac with its
+   schedules stopped.
+
 ## Where things live on disk
 
 Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second loki). On first start the shell
@@ -276,7 +310,10 @@ Windows), so paths written in agents' memories and old widget references still r
 7. `state/`: small JSON files: schedules (`crons.json`), pins, the Inbox's marks (`attention.json`), the LAN switch,
    paired devices, each chat's canvas, and a record of the import from Letta (`letta-import.json`).
 8. `mods/`: mods of your own, loaded after loki's.
-9. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
+9. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
+   (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
+   to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
+10. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
    events).
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
