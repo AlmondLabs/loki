@@ -1,4 +1,3 @@
-import { homeNote } from "../../../core/desk-core.ts";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Chip, Dot, Field, Sheet } from "../components";
 import type { Scope } from "../../../core/desk-core.ts";
@@ -7,6 +6,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { AgentChip, AgentFace } from "../desk/agent-chip";
 import { avatarUrl } from "../desk/env";
 import { deskMark } from "./sidebar-model";
+import { HomeMark } from "./home-mark";
 import { formatKeys } from "./keymap";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
@@ -565,7 +565,9 @@ function DeskRow({
         )}
         {d.title ?? (d.status === "live" ? "new chat" : d.scope)}
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
-        {homeNote(d) && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· {homeNote(d)}</span>}
+        <span style={{ marginLeft: 8, verticalAlign: "middle" }}>
+          <HomeMark row={d} />
+        </span>
       </span>
       <span className="loki-meta">{when(d.last_active)}</span>
     </div>

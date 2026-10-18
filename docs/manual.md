@@ -343,9 +343,10 @@ reachable; a closed lid still sleeps.
    instead and the chat runs here, with this Mac's files, for good. If the agent's home is out of reach, the chat
    starts here and stays here. The folders the dialog offers are the home's, and it says what that Mac lacks for the
    agent (a provider sign-in, an MCP server needing a sign-in) before you start.
-2. **Every list shows both Macs' chats.** A chat on the other Mac says "on Mac mini" in the sidebar, the switcher
-   and on the phone. While that Mac is asleep or off, its chats stay listed, dimmed, "waiting for Mac mini": they
-   do not open and take no message until it is back. Nothing is queued.
+2. **Every list shows both Macs' chats.** A chat on the other Mac has a small laptop icon in the sidebar and the
+   switcher (hover it for "on Mac mini"), and says "on Mac mini" on the phone. While that Mac is asleep or off, its
+   chats stay listed with a broken-link icon, "waiting for Mac mini": they do not open and take no message until it
+   is back. Nothing is queued.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
    on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
    schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
