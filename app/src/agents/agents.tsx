@@ -22,6 +22,7 @@ import { ChangesPage } from "./changes-page";
 import { ReflectionPage } from "./reflection-page";
 import { SkillsPage, type Adding } from "./skills-page";
 import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./types";
+import type { MacIdentity } from "../../../core/frame-types.ts";
 import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
@@ -52,6 +53,7 @@ export function Agents({
   onShowDesks,
   onShowTasks,
   mcp,
+  macs,
   columnOutside = false,
   selection = agentsSelection,
 }: {
@@ -76,6 +78,8 @@ export function Agents({
   onShowTasks: () => void;
   /** The MCP servers, to switch on and off for the agent (Profile). */
   mcp?: Pick<McpApi, "get" | "agent">;
+  /** This Mac first, then the Macs paired with it (plan 023): where an agent may live. */
+  macs?: MacIdentity[];
   /** The Shell's list column holds AgentsColumn (plan 013 U10): draw only the pane. Otherwise the column sits inside, at the left. */
   columnOutside?: boolean;
   /** The chosen agent, page and new-agent form, shared with AgentsColumn; the window's one by default. */
@@ -200,6 +204,7 @@ export function Agents({
         d={d}
         selected={selected}
         mcp={mcp}
+        macs={macs}
         avatar={avatar(selected)}
         models={models}
         onLoadModels={loadModels}

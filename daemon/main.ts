@@ -244,6 +244,7 @@ const chat: DaemonChats = new DaemonChats({
   report,
   importLetta,
   importStatus: () => importStatus(importPaths),
+  macId: installId(),
 });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's

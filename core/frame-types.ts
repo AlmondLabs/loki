@@ -20,6 +20,8 @@ export interface LocalAgent {
   favourite: boolean;
   /** The first line of the system prompt, for orientation; the prompt is the agent record's, not editable here. */
   system_head: string | null;
+  /** The Mac the agent lives on (plan 023), or null when its record names none: then it lives on the Mac that has it. */
+  home_mac: string | null;
 }
 
 /** One file of an agent's memory, its path relative to the memory root with forward slashes, as the `agent` frame lists them. */

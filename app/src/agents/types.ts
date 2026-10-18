@@ -69,4 +69,6 @@ export interface AgentEdit {
   name?: string;
   description?: string;
   model?: string;
+  /** The Mac the agent lives on (plan 023): new chats start there. */
+  home_mac?: string;
 }

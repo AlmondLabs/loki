@@ -1,3 +1,4 @@
+import type { MacIdentity } from "../../../core/frame-types.ts";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 import { AgentFace } from "../desk/agent-chip";
@@ -25,6 +26,7 @@ export function ProfilePage({
   onShowDesks,
   onShowTasks,
   mcp,
+  macs,
   confirmDelete,
   setConfirmDelete,
   onRemove,
@@ -41,6 +43,8 @@ export function ProfilePage({
   onShowDesks: () => void;
   onShowTasks: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
+  /** This Mac first, then the Macs paired with it (plan 023); with more than one, the agent's home can be changed. */
+  macs?: MacIdentity[];
   confirmDelete: boolean;
   setConfirmDelete: (v: boolean) => void;
   onRemove: () => Promise<void>;
@@ -53,7 +57,7 @@ export function ProfilePage({
   return (
     <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
       <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
-        <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} />
+        <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} macs={macs} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
         <TasksSection count={myTasks.length} onShowTasks={onShowTasks} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
@@ -175,7 +179,9 @@ function Identity({
   models,
   onLoadModels,
   onSave,
+  macs = [],
 }: {
+  macs?: MacIdentity[];
   d: AgentDetails;
   avatar: string;
   models: string[] | null;
@@ -244,6 +250,24 @@ function Identity({
           ))}
           {d.agent.favourite && <span style={{ color: "var(--loki-accent)" }}>· ★ favourite</span>}
         </div>
+        {macs.length > 1 && (
+          <label className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            lives on
+            <select
+              aria-label="the Mac this agent lives on"
+              value={d.agent.home_mac ?? macs[0].mac_id}
+              onChange={(e) => void onSave({ home_mac: e.target.value })}
+              style={{ font: "inherit", color: "var(--loki-fg)" }}
+            >
+              {macs.map((m) => (
+                <option key={m.mac_id} value={m.mac_id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <span>· new chats start there</span>
+          </label>
+        )}
       </div>
     </section>
   );

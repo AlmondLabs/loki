@@ -23,6 +23,8 @@ export interface NewAgent {
   persona?: string;
   system?: string;
   model?: string;
+  /** The Mac the agent lives on (plan 023); a record without one lives on whichever Mac has it. */
+  home_mac?: string;
 }
 
 /** A new agent's record and its memory repo, with a first commit; returns its id. */
@@ -44,6 +46,7 @@ export async function createAgent(backendDir: string, agent: NewAgent): Promise<
     model: agent.model ?? null,
     model_settings: {},
     hidden: false,
+    ...(agent.home_mac ? { home_mac: agent.home_mac } : {}),
   });
   return id;
 }

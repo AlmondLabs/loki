@@ -1,5 +1,5 @@
 import type { MacIdentity, PeerSummary } from "../../core/frame-types.ts";
-import type { Pushes } from "../../core/frames.ts";
+import type { Pushes, Replies } from "../../core/frames.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
 /** What Settings › Macs' frame handler needs from its host; without `peers` every frame fails with an error. */
@@ -16,6 +16,8 @@ export interface PeersDeps {
     forget: (macId: string) => Promise<boolean>;
     /** Who this Mac is and its peer protocol, for another Mac's `peer_ping`. */
     hello: () => MacIdentity & { build: string | null; protocol: number };
+    /** This Mac's agents and tombstones, for another Mac's `peer_agents_get` (U3). */
+    agents: () => Replies["peer_agents"];
   };
 }
 
@@ -34,6 +36,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       const { mac_id: macId, name, build, protocol } = need().hello();
       return reply({ mac_id: macId, name, build, protocol });
     },
+    peer_agents_get: () => reply(need().agents()),
     peers_get: (_, ctx) => ctx.push({ type: "peers", ...need().view() }),
     peer_pair_begin: (_, ctx) => ctx.push({ type: "peer_pair_code", ...need().begin() }),
     peer_pair_join: async ({ host, code }, ctx) => {

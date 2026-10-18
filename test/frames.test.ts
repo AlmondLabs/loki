@@ -275,6 +275,7 @@ describe("every frame in the table, through the real router", () => {
       join: () => Promise.reject(new Error("no Mac there")),
       forget: () => Promise.resolve(false),
       hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
+      agents: () => ({ agents: [], tombstones: [] }),
     },
   };
   /** The smallest frame each entry accepts. */
@@ -422,5 +423,24 @@ describe("frames: approvals and MCP settings", () => {
   test("none of the MCP or always-allow frames reach a phone", () => {
     for (const n of ["chat_mcp_get", "chat_mcp_server", "chat_mcp_secret", "chat_mcp_agent", "chat_approvals_set"] as const)
       expect(PHONE_FRAMES.has(n)).toBe(false);
+  });
+});
+
+describe("deleting an agent while a paired Mac is out of reach", () => {
+  test("is refused with the reason, and the backend is never asked", async () => {
+    const asked: string[] = [];
+    const bridge = bridgeOf({
+      chat: { deleteAgent: (id: string) => (asked.push(id), Promise.resolve()) } as never,
+      agentDeleteBlocked: () => "Mac mini is out of reach: delete this agent once it is back, so its chats there go too",
+    });
+    const c = client("d1");
+    bridge.onMessage(c, { type: "chat_agent_delete", request_id: "r1", agent_id: "agent-1" });
+    await settled();
+    expect(c.sent.at(-1)).toEqual({
+      type: "error",
+      request_id: "r1",
+      message: "Mac mini is out of reach: delete this agent once it is back, so its chats there go too",
+    });
+    expect(asked).toEqual([]);
   });
 });

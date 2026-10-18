@@ -212,6 +212,7 @@ export function AgentsView({
       onShowDesks={onShowDesks}
       onShowTasks={onShowTasks}
       mcp={catchUp.mcp}
+      macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
     />
   );
 }

@@ -24,6 +24,8 @@ export interface ChatBackend {
   createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }>;
   updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
+  /** Remove an agent here because another Mac deleted it (plan 023): no tombstone of this Mac's. */
+  removeAgent(agentId: string): Promise<void>;
   providers(): Promise<Replies["chat_providers"]["providers"]>;
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;
@@ -63,6 +65,8 @@ export interface ChatBackend {
 /** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
+  /** Why an agent may not be deleted now (a paired Mac out of reach would keep its chats), or null (plan 023). */
+  agentDeleteBlocked?: (agentId: string) => string | null;
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
@@ -121,11 +125,14 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         served(b, async (x) => (await x.updateAgent(p), DONE)),
         ctx,
       ),
-    chat_agent_delete: ({ agent_id: agentId }, ctx) =>
-      agentsChange(
+    chat_agent_delete: ({ agent_id: agentId }, ctx) => {
+      const blocked = deps.agentDeleteBlocked?.(agentId);
+      if (blocked) return fail(blocked);
+      return agentsChange(
         served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
         ctx,
-      ),
+      );
+    },
     chat_import: (_p, ctx) =>
       agentsChange(
         served(b, (x) => x.importLetta()),

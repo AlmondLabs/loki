@@ -41,5 +41,7 @@ export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
     deskFrame(deps, scope),
     ...(scope !== SHARED_SCOPE ? [deskFrame(deps, SHARED_SCOPE)] : []),
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),
+    // The Macs paired with this one, for where an agent lives and, later, where each chat runs (plan 023).
+    ...(deps.peers ? [{ type: "peers" as const, ...deps.peers.view() }] : []),
   ];
 }

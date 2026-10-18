@@ -234,7 +234,7 @@ describe("the daemon's chats", () => {
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high", cwd: "/b" });
       await s.chats.update({ agent_id: agent.id, conversation_id: conversationId, title: "Renamed", archived: true, hidden: undefined, labels: undefined });
       expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
-      await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined });
+      await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined, home_mac: undefined });
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace" }]);
       await s.chats.deleteAgent(agent.id);
       expect(await s.chats.agents()).toEqual([]);

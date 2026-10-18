@@ -179,6 +179,11 @@ export interface Replies {
   chat_labels: { labels: LabelView[] };
   /** A Mac paired by `peer_pair_join` (plan 023). */
   peer_paired: { peer: PeerSummary };
+  /**
+   * A Mac's agents for another Mac (plan 023, U3): each record as its file holds it, with its change stamps and home,
+   * and the agents deleted there (daemon/store/agent-sync.ts).
+   */
+  peer_agents: { agents: Array<{ id: string; record: Record<string, unknown> }>; tombstones: Array<{ id: string; at: string; mac: string }> };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
@@ -485,9 +490,15 @@ export const FRAMES = {
       ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) }
       : "name required",
   ),
-  chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
+  chat_agent_update: request("chat_done", "an agent's name, description, model or home Mac", (m) =>
     isAgentId(m.agent_id)
-      ? { agent_id: m.agent_id, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) }
+      ? {
+          agent_id: m.agent_id,
+          name: strOr(m.name, undefined),
+          description: strOr(m.description, undefined),
+          model: strOr(m.model, undefined),
+          home_mac: strOr(m.home_mac, undefined),
+        }
       : "agent_id required",
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
@@ -731,6 +742,7 @@ export const FRAMES = {
   ),
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   peer_ping: request("peer_pong", "who this Mac is and which peer protocol it speaks", nothing, false, true),
+  peer_agents_get: request("peer_agents", "this Mac's agents and the agents deleted here, for another Mac to take", nothing, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),

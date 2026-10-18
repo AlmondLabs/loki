@@ -30,6 +30,7 @@ import type { AcpChats } from "./acp/chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
 import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
+import { SYNCED_FIELDS, addTombstone, stamp, type Stamp } from "./store/agent-sync.ts";
 
 /**
  * Chats on loki's daemon, as the mod's chat frames ask for them (plan 017, U5; mod/frames/chat.ts). A chat a client
@@ -59,6 +60,10 @@ interface Deps {
   /** The import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
   importLetta?: () => Promise<ImportReport>;
   importStatus?: () => ImportStatus;
+  /** This Mac's install id (plan 023): stamped on agent record changes so paired Macs keep the later one. */
+  macId?: string;
+  /** The clock for those stamps; Date.now unless a test sets it. */
+  now?: () => number;
 }
 
 /** A model handle (`provider/model`) as pi-durable's model reference. */
@@ -482,13 +487,22 @@ export class DaemonChats implements ChatBackend {
     return settled(() => listAgents(this.deps.backendDir).map((id) => ({ id, name: readLocalAgent(id, this.deps.backendDir)?.name ?? id })));
   }
 
+  /** Now, on this Mac: the stamp a record change carries to paired Macs (plan 023, U3). */
+  private stampNow(): Stamp {
+    return { at: new Date((this.deps.now ?? Date.now)()).toISOString(), mac: this.deps.macId ?? "" };
+  }
+
   async createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }> {
     const id = await createAgent(this.deps.backendDir, {
       name: p.name,
       ...(p.description ? { description: p.description } : {}),
       ...(p.persona ? { persona: p.persona } : {}),
       ...(p.model ? { model: p.model } : {}),
+      ...(this.deps.macId ? { home_mac: this.deps.macId } : {}),
     });
+    // Every field is new here: a paired Mac takes them all, and the agent lives on the Mac that made it.
+    const file = join(this.deps.backendDir, "agents", `${backendName(id)}.json`);
+    writeRecord(this.deps.backendDir, id, stamp(JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>, SYNCED_FIELDS, this.stampNow()));
     const store = await this.deps.stores.get(id);
     await store.setAgent({ id, name: p.name }, this.deps.context);
     const model = p.model ? modelRef(p.model) : undefined;
@@ -499,10 +513,9 @@ export class DaemonChats implements ChatBackend {
   async updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void> {
     const file = join(this.deps.backendDir, "agents", `${backendName(p.agent_id)}.json`);
     const record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    if (p.name !== undefined) record.name = p.name;
-    if (p.description !== undefined) record.description = p.description;
-    if (p.model !== undefined) record.model = p.model;
-    writeRecord(this.deps.backendDir, p.agent_id, record);
+    const changed = (["name", "description", "model", "home_mac"] as const).filter((f) => p[f] !== undefined);
+    for (const f of changed) record[f] = p[f];
+    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, changed, this.stampNow()));
     if (p.name !== undefined) await (await this.deps.stores.get(p.agent_id)).setAgent({ id: p.agent_id, name: p.name }, this.deps.context);
   }
 
@@ -621,7 +634,14 @@ export class DaemonChats implements ChatBackend {
     await revertMemoryCommit(this.deps.backendDir, p.agent_id, p.sha);
   }
 
+  /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
   async deleteAgent(agentId: string): Promise<void> {
+    addTombstone(this.deps.backendDir, { id: agentId, ...this.stampNow() });
+    await this.removeAgent(agentId);
+  }
+
+  /** Remove an agent's store, memory and record here, as a delete on another Mac asks; no tombstone of this Mac's. */
+  async removeAgent(agentId: string): Promise<void> {
     await this.deps.stores.close(agentId);
     for (const path of [
       this.deps.stores.file(agentId),

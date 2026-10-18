@@ -25,7 +25,7 @@ import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
-import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
+import { backendDir, isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
 import { sortDesks } from "./frames/desks.ts";
@@ -40,6 +40,7 @@ import { DeviceStore } from "./devices.ts";
 import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { PeerLinks } from "./peer-link.ts";
+import { PeerAgents } from "./peer-agents.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -311,9 +312,24 @@ export default function activate(api: ModApi, host: Host): () => void {
   const links: PeerLinks = new PeerLinks({
     token: (id) => peerKeys.get(id),
     defaults: { protocol: PEER_PROTOCOL },
-    onStatus: () => ws?.broadcast({ type: "peers", ...peersView() }),
+    onStatus: (id, status) => {
+      ws?.broadcast({ type: "peers", ...peersView() });
+      // A Mac back in reach: take what changed there while the link was down.
+      if (status === "reachable") void peerAgents.pull(id);
+    },
+    onPush: (id, frame) => {
+      if (frame.type === "agents_changed") void peerAgents.pull(id);
+    },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
+  });
+  // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
+  const peerAgents: PeerAgents = new PeerAgents({
+    backendDir,
+    macId,
+    link: (id) => links.get(id),
+    remove: (id) => chatBackend.removeAgent(id),
+    onChanged: () => broadcast({ type: "agents_changed" }),
   });
   const peers: Peers = new Peers({
     store: peerStore,
@@ -421,6 +437,12 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
       forget: (id) => peers.forget(id),
       hello: () => peers.hello(),
+      agents: () => peerAgents.snapshot(),
+    },
+    // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
+    agentDeleteBlocked: () => {
+      const away = peerStore.list((id) => links.reachable(id)).find((p) => !p.reachable);
+      return away ? `${away.name} is out of reach: delete this agent once it is back, so its chats there go too` : null;
     },
     agents: {
       get: (id) => readLocalAgent(id),
