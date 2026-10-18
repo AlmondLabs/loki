@@ -543,10 +543,13 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
     peers: {
       view: peersView,
-      begin: () => {
+      refresh: () => phones().refresh(),
+      begin: async () => {
         const { code, expiresAt } = peerCodes.mint();
         peerCodeUntil = Date.parse(expiresAt);
-        void phones().setPeersNeeded(true);
+        // Bound and Tailscale asked before the address is shown: the other Mac types it.
+        await phones().setPeersNeeded(true);
+        await phones().refresh();
         // Once the code has lapsed, the listener stays up only for the Macs already paired (or the phone switch).
         setTimeout(() => void phones().setPeersNeeded(peersNeeded()), PAIRING_TTL_MS + 1000).unref();
         log("peers:pair-code", { expiresAt });

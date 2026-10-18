@@ -8,8 +8,10 @@ export interface PeersDeps {
   peers?: {
     /** This Mac and the Macs paired with it, as the `peers` push carries them. */
     view: () => Pushes["peers"];
-    /** Mint a code another Mac types; brings the listener up while the code lives. */
-    begin: () => Pushes["peer_pair_code"];
+    /** Mint a code another Mac types; brings the listener up while the code lives, and asks Tailscale for the address. */
+    begin: () => Promise<Pushes["peer_pair_code"]>;
+    /** Ask Tailscale again, so this Mac's address is current rather than unknown (it is asked only when the listener starts). */
+    refresh?: () => Promise<unknown>;
     /** Pair with the Mac at `host` using its code; throws a message for the person. */
     join: (host: string, code: string) => Promise<PeerSummary>;
     /** Forget a Mac, telling it when it can be reached. */
@@ -68,8 +70,12 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       return reply({});
     },
     peer_memory_get: async ({ agent_id: agentId, have }) => reply(await need().memory(agentId, have)),
-    peers_get: (_, ctx) => ctx.push({ type: "peers", ...need().view() }),
-    peer_pair_begin: (_, ctx) => ctx.push({ type: "peer_pair_code", ...need().begin() }),
+    peers_get: async (_, ctx) => {
+      const p = need();
+      await p.refresh?.();
+      ctx.push({ type: "peers", ...p.view() });
+    },
+    peer_pair_begin: async (_, ctx) => ctx.push({ type: "peer_pair_code", ...(await need().begin()) }),
     peer_pair_join: async ({ host, code }, ctx) => {
       const p = need();
       try {

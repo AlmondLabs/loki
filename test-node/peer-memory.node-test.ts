@@ -74,7 +74,7 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
       peersFrames({
         peers: {
           view: () => ({ me: { mac_id: FAR, name: "far", host: null }, peers: [] }),
-          begin: () => ({ code: "x", host: null, expires_at: "" }),
+          begin: () => Promise.resolve({ code: "x", host: null, expires_at: "" }),
           join: () => Promise.reject(new Error("no")),
           forget: () => Promise.resolve(false),
           hello: () => peers.hello(),

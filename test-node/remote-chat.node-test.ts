@@ -98,7 +98,7 @@ async function macs() {
       peersFrames({
         peers: {
           view: () => ({ me: { mac_id: FAR, name: "Mac mini", host: null }, peers: [] }),
-          begin: () => ({ code: "x", host: null, expires_at: "" }),
+          begin: () => Promise.resolve({ code: "x", host: null, expires_at: "" }),
           join: () => Promise.reject(new Error("no")),
           forget: () => Promise.resolve(false),
           hello: () => farPeers.hello(),
