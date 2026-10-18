@@ -25,12 +25,13 @@ export function assertSnakeCase(frame: unknown, path = "frame"): void {
 }
 
 /** A client that records what the mod sent it; a `deviceId` makes it a paired phone. */
-export function client(scope: string, deviceId?: string): Client & { sent: Array<Record<string, unknown>> } {
+export function client(scope: string, deviceId?: string, peerId?: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
   return {
     scope,
     sent,
     ...(deviceId ? { deviceId } : {}),
+    ...(peerId ? { peerId } : {}),
     send: (m) => {
       assertSnakeCase(m);
       sent.push(m as Record<string, unknown>);

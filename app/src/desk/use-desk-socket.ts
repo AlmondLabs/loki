@@ -87,6 +87,9 @@ export function useDeskSocket() {
   const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
+  /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
+  const [macs, setMacs] = useState<Pushes["peers"] | null>(null);
+  const [macCode, setMacCode] = useState<Pushes["peer_pair_code"] | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
   /** The models used lately, latest first (mod/models.ts): sent when the link opens and again after every pick anywhere. */
@@ -224,6 +227,12 @@ export function useDeskSocket() {
             break;
           case "devices":
             setDevices(Array.isArray(msg.devices) ? msg.devices : []);
+            break;
+          case "peers":
+            setMacs({ me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [] });
+            break;
+          case "peer_pair_code":
+            setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });
             break;
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
@@ -372,6 +381,8 @@ export function useDeskSocket() {
     setLanStatus,
     devices,
     pairCode,
+    macs,
+    macCode,
     servedBuild,
     recentModels,
     widgetLogs,

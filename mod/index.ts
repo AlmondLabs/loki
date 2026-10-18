@@ -37,7 +37,9 @@ import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
-import { PairingCodes } from "./pairing.ts";
+import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
+import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
+import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
@@ -75,6 +77,10 @@ export interface Host {
   analytics?: Analytics;
   /** The daemon's usage ledger (daemon/usage.ts), for the usage page; `onChange` returns its unsubscribe. */
   usage?: NonNullable<UsageDeps["usage"]> & { onChange: (listener: () => void) => () => void };
+  /** This Mac's install id (state/device-id), its name to other Macs (plan 023). */
+  macId: string;
+  /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
+  secrets: SecretBackend;
 }
 
 /**
@@ -284,6 +290,32 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
+  // Paired Macs (plan 023, mod/peers.ts), on the same listener over the tailnet, with codes of their own.
+  const peerStore = new PeerStore(paths.peers);
+  const peerCodes = new PairingCodes();
+  const macId = host.macId;
+  const thisMacName = macName();
+  const build = appVersion(paths.root);
+  /** This Mac's tailnet address for other Macs, or null when Tailscale is not running here. */
+  const tailnetHost = (): string | null => {
+    const s = lan?.status();
+    return s?.tailscale?.running && s.tailscale.name ? `${s.tailscale.name}:${s.port}` : null;
+  };
+  /** Until when a Mac pairing code may be redeemed: the listener stays up for it. */
+  let peerCodeUntil = 0;
+  const peersNeeded = () => peerStore.size() > 0 || peerCodeUntil > Date.now();
+  const peersView = () => ({ me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list() });
+  const peers = new Peers({
+    store: peerStore,
+    keys: new PeerKeys(host.secrets),
+    codes: peerCodes,
+    me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
+    onChange: () => {
+      ws?.broadcast({ type: "peers", ...peersView() });
+      void lan?.setPeersNeeded(peersNeeded());
+    },
+    onForget: (id) => lan?.closePeer(id),
+  });
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
   // --- recall -----------------------------------------------------------
@@ -359,6 +391,25 @@ export default function activate(api: ModApi, host: Host): () => void {
       devices: () => devices.list(),
       forget: (id) => phones().forget(id),
     },
+    peers: {
+      view: peersView,
+      begin: () => {
+        const { code, expiresAt } = peerCodes.mint();
+        peerCodeUntil = Date.parse(expiresAt);
+        void phones().setPeersNeeded(true);
+        // Once the code has lapsed, the listener stays up only for the Macs already paired (or the phone switch).
+        setTimeout(() => void phones().setPeersNeeded(peersNeeded()), PAIRING_TTL_MS + 1000).unref();
+        log("peers:pair-code", { expiresAt });
+        return { code, host: tailnetHost(), expires_at: expiresAt };
+      },
+      join: async (to, code) => {
+        // The other Mac needs this Mac's tailnet address to reach it back: ask Tailscale now rather than trust a minute-old answer.
+        await phones().refresh();
+        if (!tailnetHost()) throw new Error("Tailscale is not running on this Mac: open Tailscale and sign in, then pair again");
+        return peers.join(to, code);
+      },
+      forget: (id) => peers.forget(id),
+    },
     agents: {
       get: (id) => readLocalAgent(id),
       tree: (id) => memoryTree(id),
@@ -425,6 +476,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     desktopToken: token,
     profile: (agentId) => profilePath(agentId),
     uploads: paths.uploads,
+    peers,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
     // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they
     // go to its tabs, not to the phones themselves, which never read them.
@@ -438,6 +490,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
   });
   if (lan.enabled()) void lan.start();
+  if (peerStore.size() > 0) void lan.setPeersNeeded(true);
 
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];

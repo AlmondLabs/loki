@@ -9,7 +9,7 @@ import { RecallStore } from "../mod/recall.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
-import { FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type InputOf, type ReplyOf, type RequestName, type SendName } from "../core/frames.ts";
+import { FRAMES, PEER_FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type InputOf, type ReplyOf, type RequestName, type SendName } from "../core/frames.ts";
 
 const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
@@ -269,6 +269,12 @@ describe("every frame in the table, through the real router", () => {
       devices: () => [],
       forget: () => true,
     },
+    peers: {
+      view: () => ({ me: { mac_id: "mac-1", name: "MacBook", host: null }, peers: [] }),
+      begin: () => ({ code: "K9HF6D", host: null, expires_at: "" }),
+      join: () => Promise.reject(new Error("no Mac there")),
+      forget: () => Promise.resolve(false),
+    },
   };
   /** The smallest frame each entry accepts. */
   const sample: Partial<Record<FrameName, Record<string, unknown>>> = {
@@ -303,6 +309,8 @@ describe("every frame in the table, through the real router", () => {
     skill_install: { agent_id: "agent-1", source: "x" },
     skill_refresh: { agent_id: "agent-1", name: "x" },
     lan_via_set: { via: "lan" },
+    peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
+    peer_forget: { mac_id: "mac-2" },
   };
 
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
@@ -340,6 +348,15 @@ describe("every frame in the table, through the real router", () => {
       const phone = client("d1", "dev-1");
       bridge.onMessage(phone, { type: n, request_id: "p", ...sample[n] });
       expect([n, phone.sent.at(-1)]).toEqual([n, { type: "error", request_id: "p", message: `${n} is not available on the phone` }]);
+    }
+  });
+
+  test("a paired Mac is refused every frame the table does not mark for Macs", () => {
+    const bridge = bridgeOf(deps);
+    for (const n of parsed.filter((x) => !PEER_FRAMES.has(x))) {
+      const mac = client("d1", undefined, "mac-2");
+      bridge.onMessage(mac, { type: n, request_id: "m", ...sample[n] });
+      expect([n, mac.sent.at(-1)]).toEqual([n, { type: "error", request_id: "m", message: `${n} is not available to another Mac` }]);
     }
   });
 });

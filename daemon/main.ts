@@ -127,7 +127,9 @@ const approvals = new Approvals({
 const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules });
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
-const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
+// The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
+const installId = deviceIdIn(join(args.dir, "state", "device-id"));
+const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, installId);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
@@ -308,6 +310,9 @@ const loadCore = () =>
         chats,
         chat,
         analytics,
+        // This Mac as other Macs know it (plan 023): its install id, and the keychain for the tokens it presents to them.
+        macId: installId(),
+        secrets: secrets ?? memorySecrets(),
         usage: {
           rows: () => usage.rows(),
           priced: (model) => {

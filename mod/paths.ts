@@ -30,6 +30,8 @@ export const paths = {
   /** The phone listener's setting ({ enabled }) and its paired devices (mod/lan.ts, mod/devices.ts). */
   lan: join(stateDir, "lan.json"),
   devices: join(stateDir, "devices.json"),
+  /** The Macs paired with this one (mod/peers.ts): their hello and the hash of the token each presents. */
+  peers: join(stateDir, "peers.json"),
   token: join(lokiDir(), "token"),
   modLog: join(lokiDir(), "mod.log"),
   /** Product analytics (core/analytics.ts): one event per line, local only; and the install's distinct_id. */

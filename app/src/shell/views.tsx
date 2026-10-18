@@ -262,6 +262,7 @@ export function SettingsView({
       onModelsChanged={onModelsChanged}
       daemon={daemon}
       phone={desk.phone}
+      macs={desk.macs}
       globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
       mcp={catchUp.mcp}
       engines={catchUp.engines}

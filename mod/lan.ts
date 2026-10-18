@@ -11,6 +11,7 @@ import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, t
 import { uploadRoute } from "./uploads.ts";
 import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
 import type { Tailscale } from "./tailscale.ts";
+import type { Peers } from "./peers.ts";
 import { log } from "./log.ts";
 import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 import { isLanVia } from "../core/frames.ts";
@@ -27,6 +28,14 @@ import { isLanVia } from "../core/frames.ts";
  *   /ws                                the same bridge as loopback, device auth only
  *   everything else                    the built canvas as a single-page app (mod/static.ts)
  * The desktop token is refused here even when presented as a bearer.
+ *
+ * Paired Macs (plan 023, mod/peers.ts) use the same port, over the tailnet only:
+ *   POST /peer/pair    {code, hello, token}  pairs with the Mac showing the code
+ *   GET  /peer/hello                        this Mac's hello, for a Mac's bearer token
+ *   POST /peer/unpair                       the Mac behind the bearer token forgot this one
+ *   /ws                                     a Mac's bearer token, routed with a Mac's allow-list (mod/bridge.ts)
+ * While any Mac is paired, or a Mac pairing code is live, the listener stays up with the phone switch off; the
+ * phone's routes then answer 404 and a phone's token opens nothing.
  */
 
 /** What changed on the phone listener: its status, or the paired devices. */
@@ -62,6 +71,10 @@ export interface LanOptions {
   tailscale?: Tailscale | null;
   /** How often to re-read Tailscale while listening (default 60 s). */
   tailscalePollMs?: number;
+  /** Pairing between Macs; without it the /peer routes answer 404 and no Mac's token is accepted. */
+  peers?: Peers | null;
+  /** For tests: which way a request came in (default requestVia). Macs are accepted over the tailnet only. */
+  via?: (req: IncomingMessage) => DeviceVia;
 }
 
 /** The name of the HttpOnly cookie that carries a paired phone's device token. */
@@ -79,6 +92,8 @@ export class LanListener {
   private dist: string | null;
   private serveStatic: StaticHandler;
   private enabledFlag: boolean;
+  /** Paired Macs, or a live Mac pairing code, need the listener up whatever the phone switch says. */
+  private peersNeeded = false;
   /** The user's route choice, or undefined for the default (tailscale iff running). */
   private viaSetting: LanVia | undefined;
   private readonly tailscale: Tailscale | null;
@@ -168,7 +183,13 @@ export class LanListener {
   setEnabled(enabled: boolean): Promise<LanStatus> {
     this.enabledFlag = enabled;
     writeState(this.opts.stateFile, { enabled, via: this.viaSetting });
-    return enabled ? this.start() : this.stop();
+    return enabled || this.peersNeeded ? this.start() : this.stop();
+  }
+
+  /** Paired Macs need the listener (or no longer do): bind it, or close it when the phone switch is off too. */
+  setPeersNeeded(needed: boolean): Promise<LanStatus> {
+    this.peersNeeded = needed;
+    return needed || this.enabledFlag ? this.start() : this.stop();
   }
 
   /** The user's route choice, persisted; every tab hears the new status. */
@@ -277,6 +298,11 @@ export class LanListener {
     return this.ws?.clientCount() ?? 0;
   }
 
+  /** Close a forgotten Mac's live sockets. */
+  closePeer(macId: string): number {
+    return this.ws?.closePeer(macId) ?? 0;
+  }
+
   /** Forget a device and close its live sockets. */
   forget(id: string): boolean {
     const gone = this.opts.devices.forget(id);
@@ -289,9 +315,19 @@ export class LanListener {
   private readonly authorize: Authorize = (req) => {
     const token = deviceToken(req);
     if (!token || token === this.opts.desktopToken) return { ok: false };
-    const device = this.opts.devices.verify(token, requestVia(req));
-    return device ? { ok: true, deviceId: device.id } : { ok: false };
+    const via = this.via(req);
+    // A phone is let in only while the phone switch is on, even when the listener is up for paired Macs.
+    if (this.enabledFlag) {
+      const device = this.opts.devices.verify(token, via);
+      if (device) return { ok: true, deviceId: device.id };
+    }
+    const mac = via === "tailscale" ? this.opts.peers?.verify(token) : null;
+    return mac ? { ok: true, peerId: mac } : { ok: false };
   };
+
+  private via(req: IncomingMessage): DeviceVia {
+    return (this.opts.via ?? requestVia)(req);
+  }
 
   // --- http -----------------------------------------------------------------------------------
   private handle(req: IncomingMessage, res: ServerResponse): void {
@@ -302,6 +338,9 @@ export class LanListener {
       return void res.writeHead(400).end();
     }
     try {
+      if (url.pathname.startsWith("/peer/")) return this.peerRoute(req, res, url);
+      // Up only for paired Macs: the phone's routes and the canvas are not served.
+      if (!this.enabledFlag && url.pathname !== "/health") return json(res, 404, { error: "not found" });
       switch (url.pathname) {
         case "/health":
           return json(res, 200, { ok: true, build: buildIdOf(this.dist), ...(this.opts.health?.() ?? {}) });
@@ -351,6 +390,48 @@ export class LanListener {
       log("lan:request-error", err instanceof Error ? err.message : String(err));
       if (!res.headersSent) res.writeHead(500).end();
     }
+  }
+
+  /** The routes between Macs: over the tailnet only, never the Wi‑Fi, and only with pairing built in. */
+  private peerRoute(req: IncomingMessage, res: ServerResponse, url: URL): void {
+    const peers = this.opts.peers;
+    if (!peers) return json(res, 404, { error: "not found" });
+    if (this.via(req) !== "tailscale") return json(res, 403, { error: "Macs pair over Tailscale only" });
+    const bearer = () => {
+      const token = deviceToken(req);
+      return token && token !== this.opts.desktopToken ? peers.verify(token) : null;
+    };
+    switch (url.pathname) {
+      case "/peer/pair": {
+        if (req.method !== "POST") return json(res, 405, { error: "POST" });
+        const ip = req.socket.remoteAddress ?? "?";
+        if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
+        if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "send application/json" });
+        void readJson(req)
+          .then((body) => peers.accept(body))
+          .then(
+            (answer) => {
+              if (answer.status === 404) this.attempts.failed(ip);
+              else if (answer.status === 200) this.attempts.clear(ip);
+              json(res, answer.status, answer.body);
+            },
+            () => json(res, 400, { error: "bad request body" }),
+          );
+        return;
+      }
+      case "/peer/hello": {
+        if (!bearer()) return json(res, 401, { error: "not paired" });
+        return json(res, 200, peers.hello());
+      }
+      case "/peer/unpair": {
+        if (req.method !== "POST") return json(res, 405, { error: "POST" });
+        const mac = bearer();
+        if (!mac) return json(res, 401, { error: "not paired" });
+        const answer = peers.forgotBy(mac);
+        return json(res, answer.status, answer.body);
+      }
+    }
+    json(res, 404, { error: "not found" });
   }
 
   private pair(req: IncomingMessage, res: ServerResponse): void {

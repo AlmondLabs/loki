@@ -11,6 +11,7 @@ import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/cha
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Providers } from "./providers";
 import { Phone, type PhoneApi } from "./phone";
+import { Macs, type MacsApi } from "./macs";
 import { Skills, type GlobalSkillsApi } from "./skills";
 import type { DaemonStatus } from "../shell/bootstrap";
 import { useHarnessFacts, type InstallReport } from "../shell/use-harness-facts";
@@ -81,6 +82,7 @@ export function Settings({
   onModelsChanged,
   daemon,
   phone,
+  macs,
   globalSkills,
   mcp,
   engines,
@@ -110,6 +112,8 @@ export function Settings({
   daemon: DaemonStatus | null;
   /** The LAN listener and paired phones (useDesk().phone). */
   phone: PhoneApi;
+  /** This Mac and the Macs paired with it (useDesk().macs, plan 023). */
+  macs: MacsApi;
   /** ~/.agents/skills, which every agent reads (Settings › skills). */
   globalSkills: GlobalSkillsApi;
   /** Settings › MCP, and Settings › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
@@ -169,6 +173,11 @@ export function Settings({
     engines: () => <EnginesPage engines={engines} chatLink={chatLink} />,
     mcp: () => <McpPage mcp={mcp} chatLink={chatLink} />,
     phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
+    macs: () => (
+      <Section title="Macs" hint="your other Macs running loki, over Tailscale: every chat reachable from each">
+        <Macs macs={macs} connected={modConnection === "open"} />
+      </Section>
+    ),
     skills: () => <SkillsPage globalSkills={globalSkills} />,
     learn: () => <RecallPage recall={recall} />,
     appearance: () => <AppearancePage />,

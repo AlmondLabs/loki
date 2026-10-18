@@ -18,6 +18,8 @@ import type {
   InboxRow,
   LanStatus,
   LanVia,
+  MacIdentity,
+  PeerSummary,
   LocalAgent,
   EnginesView,
   McpView,
@@ -175,6 +177,8 @@ export interface Replies {
   chat_engines: EnginesView;
   /** Every label on a chat, with its colour and how many chats carry it (plan 022). */
   chat_labels: { labels: LabelView[] };
+  /** A Mac paired by `peer_pair_join` (plan 023). */
+  peer_paired: { peer: PeerSummary };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
@@ -240,6 +244,10 @@ export interface Pushes {
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expires_at: string };
+  /** This Mac and the Macs paired with it (plan 023); `me.host` is its tailnet address, null off the tailnet. */
+  peers: { me: MacIdentity & { host: string | null }; peers: PeerSummary[] };
+  /** A code another Mac types to pair with this one, the address it types beside it, and when the code expires. */
+  peer_pair_code: { code: string; host: string | null; expires_at: string };
   app_build: { build: string };
   /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
   chat_event: { agent_id: string; conversation_id: string; events: ChatEvent[] };
@@ -253,12 +261,16 @@ interface RequestEntry<R extends ReplyName, P> {
   kind: "request";
   reply: R;
   phone: boolean;
+  /** Whether another paired Mac may send it (plan 023): its own allow-list, never the phone's. */
+  peer: boolean;
   doc: string;
   parse: Parse<P>;
 }
 interface SendEntry<P> {
   kind: "send";
   phone: boolean;
+  /** Whether another paired Mac may send it (plan 023). */
+  peer: boolean;
   /** The pushes it causes: how its effect comes back. */
   causes: PushName[];
   doc: string;
@@ -269,16 +281,18 @@ interface PushEntry {
   doc: string;
 }
 
-const request = <R extends ReplyName, P>(reply: R, doc: string, parse: Parse<P>, phone = false): RequestEntry<R, P> => ({
+const request = <R extends ReplyName, P>(reply: R, doc: string, parse: Parse<P>, phone = false, peer = false): RequestEntry<R, P> => ({
   kind: "request",
   reply,
   phone,
+  peer,
   doc,
   parse,
 });
-const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; causes?: PushName[] } = {}): SendEntry<P> => ({
+const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; peer?: boolean; causes?: PushName[] } = {}): SendEntry<P> => ({
   kind: "send",
   phone: opts.phone ?? false,
+  peer: opts.peer ?? false,
   causes: opts.causes ?? [],
   doc,
   parse,
@@ -707,6 +721,16 @@ export const FRAMES = {
   devices_list: send("the paired phones", nothing, { causes: ["devices"] }),
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
+  // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Settings › Macs
+  peers_get: send("this Mac and the Macs paired with it", nothing, { causes: ["peers"] }),
+  peer_pair_begin: send("mint a code another Mac types to pair with this one", nothing, { causes: ["peer_pair_code"] }),
+  peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>
+    str(m.host) && m.host.trim() && str(m.code) && m.code.trim() ? { host: m.host.trim(), code: m.code.trim() } : "expected {host, code}",
+  ),
+  peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
+    causes: ["peers"],
+  }),
+
   // Pushes
   desk: push("one desk in full (on connect, and for desk_get)"),
   desk_title: push("a desk's conversation was renamed, archived or changed model or mode"),
@@ -725,6 +749,8 @@ export const FRAMES = {
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
+  peers: push("this Mac and the Macs paired with it"),
+  peer_pair_code: push("a code another Mac types to pair with this one"),
   app_build: push("the build a phone is served, so it can offer a reload"),
   chat_event: push("what happened in a chat a client has open"),
   error: push("a failed request (with its request_id) or a frame the mod could not take"),
@@ -773,4 +799,13 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
  */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set(
   (Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { phone: boolean }).phone),
+);
+
+/**
+ * The frames another paired Mac may send over its /ws (plan 023, KTD4), marked `peer` above; everything else answers
+ * `error`. A phone's frame reaches another Mac only after its own Mac checked it against PHONE_FRAMES. Never the
+ * pairing, device or Mac frames, nor the writer's settings.
+ */
+export const PEER_FRAMES: ReadonlySet<FrameName> = new Set(
+  (Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { peer: boolean }).peer),
 );

@@ -100,6 +100,8 @@ export function useDesk() {
     setLanStatus,
     devices,
     pairCode,
+    macs: macsView,
+    macCode,
     servedBuild,
     recentModels,
     widgetLogs,
@@ -410,6 +412,20 @@ export function useDesk() {
     forget: (id: string) => send({ type: "device_forget", id }),
   };
 
+  /**
+   * Settings › Macs (plan 023): this Mac, the Macs paired with it, and pairing. `peers` and `peer_pair_code` land in
+   * state above; a join answers with the reply or the reason it failed, in words for the person.
+   */
+  const macs = {
+    view: macsView,
+    lastCode: macCode,
+    refresh: () => send({ type: "peers_get" }),
+    beginPair: () => send({ type: "peer_pair_begin" }),
+    join: (host: string, code: string): Promise<string | null> =>
+      request("peer_pair_join", { host, code }, 30_000).then((r) => (r.ok ? null : r.timed_out ? "the other Mac did not answer in time" : r.error)),
+    forget: (macId: string) => send({ type: "peer_forget", mac_id: macId }),
+  };
+
   /** Delete a widget's file for good. The mod removes it; the watcher takes it off every tab. */
   const trash = (id: string) => {
     lastInteractionRef.current = Date.now();
@@ -484,6 +500,8 @@ export function useDesk() {
     },
     attention,
     phone,
+    /** Settings › Macs: the Macs paired with this one, and pairing another. */
+    macs,
     servedBuild,
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
     models: {

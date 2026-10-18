@@ -28,9 +28,9 @@ export interface LokiServer {
  * checks the desktop token (tokenAuth): from the subprotocol header on /ws (core/ws-auth.ts), from `?t=` on what an
  * <img> fetches, compared in constant time; the LAN listener (mod/lan.ts)
  * looks a device cookie or bearer up and names the device, so its sockets can be
- * closed when the device is forgotten.
+ * closed when the device is forgotten, or a paired Mac's bearer token and names the Mac (mod/peers.ts).
  */
-export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string };
+export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string; peerId?: string };
 
 /**
  * The loopback server's Authorize: the desktop token, from the WebSocket subprotocol header or else `?t=`, compared in
@@ -155,6 +155,8 @@ export interface Client {
   scope: Scope;
   /** The paired phone behind this socket (LAN listener only); undefined on loopback. */
   deviceId?: string;
+  /** The paired Mac behind this socket (LAN listener only, over the tailnet); undefined on loopback and for phones. */
+  peerId?: string;
   send(msg: object): void;
 }
 
@@ -171,6 +173,8 @@ export interface WsBridge {
   clientCount(): number;
   /** Terminate every socket a device holds. Returns how many. */
   closeDevice(deviceId: string): number;
+  /** Terminate every socket a paired Mac holds. Returns how many. */
+  closePeer(peerId: string): number;
   close(): void;
 }
 
@@ -206,6 +210,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     wss.handleUpgrade(req, socket, head, (ws) => {
       const client: Client = { scope, send: (msg) => send(ws, msg) };
       if (who.deviceId) client.deviceId = who.deviceId;
+      if (who.peerId) client.peerId = who.peerId;
       clients.set(ws, client);
       ws.on("close", () => clients.delete(ws));
       ws.on("message", (raw) => {
@@ -227,21 +232,25 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     });
   });
 
+  /** Terminate the sockets whose client matches. Returns how many. */
+  const closeWhere = (match: (c: Client) => boolean): number => {
+    let n = 0;
+    for (const [ws, c] of clients) {
+      if (!match(c)) continue;
+      ws.terminate();
+      clients.delete(ws);
+      n++;
+    }
+    return n;
+  };
+
   return {
     broadcast(msg, scope) {
       for (const [ws, c] of clients) if (!scope || c.scope === scope) send(ws, msg);
     },
     clientCount: () => clients.size,
-    closeDevice(deviceId) {
-      let n = 0;
-      for (const [ws, c] of clients) {
-        if (c.deviceId !== deviceId) continue;
-        ws.terminate();
-        clients.delete(ws);
-        n++;
-      }
-      return n;
-    },
+    closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
+    closePeer: (peerId) => closeWhere((c) => c.peerId === peerId),
     close: () => {
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
       clients.clear();

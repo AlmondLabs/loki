@@ -229,6 +229,24 @@ export interface DeviceSummary {
   last_via?: DeviceVia;
 }
 
+/** A Mac as loki names it (plan 023): its install id (`state/device-id`) and the Mac's own name. */
+export interface MacIdentity {
+  mac_id: string;
+  name: string;
+}
+
+/** Another Mac paired with this one, as Settings › Macs shows it: never the token it holds (mod/peers.ts PeerRecord adds that). */
+export interface PeerSummary extends MacIdentity {
+  /** Where this Mac reaches it: its tailnet name and port, as the person typed it or it sent when pairing. */
+  host: string;
+  paired_at: string;
+  last_seen_at: string;
+  /** Its loki build when last heard from, or null. */
+  build: string | null;
+  /** True when it speaks another peer protocol than this Mac: paired, but nothing syncs until one of them updates. */
+  outdated: boolean;
+}
+
 /** One MCP tool as Settings shows it (daemon/mcp/): its hints, whether it skips search, and its definition's cost. */
 export interface McpToolView {
   name: string;

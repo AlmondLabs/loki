@@ -1,4 +1,4 @@
-import { PHONE_FRAMES, frameEntry, type FrameName, type PushFrame } from "../core/frames.ts";
+import { PEER_FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type PushFrame } from "../core/frames.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { Client, WsHandlers } from "./server.ts";
@@ -7,7 +7,8 @@ import type { Client, WsHandlers } from "./server.ts";
  * The router for the mod's own socket (socket-free so it is testable). Every frame is declared in core/frames.ts;
  * each feature's frame handler (mod/frames/*) answers its own. For one incoming frame the router:
  *  1. looks it up in the table (an unknown name answers `error`);
- *  2. refuses it to a paired phone unless the table marks it for the phone;
+ *  2. refuses it to a paired phone unless the table marks it for the phone, and to a paired Mac unless it marks it for
+ *     Macs;
  *  3. parses it (a malformed one answers `error`);
  *  4. calls its handler, sync or async;
  *  5. sends a request's reply under the table's name with its request_id, or `error` with the request_id when the
@@ -63,6 +64,10 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       // A paired phone shares this router with the desktop but not its authority (core/frames.ts PHONE_FRAMES).
       if (client.deviceId && !PHONE_FRAMES.has(msg.type as FrameName)) {
         return client.send({ type: "error", request_id: requestId, message: `${String(msg.type)} is not available on the phone` });
+      }
+      // Another Mac is trusted with its own list only (core/frames.ts PEER_FRAMES), never the desktop's authority.
+      if (client.peerId && !PEER_FRAMES.has(msg.type as FrameName)) {
+        return client.send({ type: "error", request_id: requestId, message: `${String(msg.type)} is not available to another Mac` });
       }
       const entry = frameEntry(msg.type);
       const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
