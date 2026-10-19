@@ -33,12 +33,21 @@ function offer(file: string, why: string | null, restart: (anyway: boolean) => P
  * when a chat is working, and only "restart anyway" then cuts it off. "later" hides it until the next change; it goes
  * by itself once the daemon is back, since a daemon just started owes no restart.
  */
-export function RestartNotice({ due, restart }: { due: string | null; restart: (anyway: boolean) => Promise<string | null> }) {
+export function RestartNotice({
+  due,
+  restart,
+}: {
+  /** The change that made a restart due; `n` goes up with each change, so each one shows the notice again. */
+  due: { file: string; n: number } | null;
+  restart: (anyway: boolean) => Promise<string | null>;
+}) {
   const show = useEffectEvent((file: string) => offer(file, null, restart));
-  // The notices are outside React: show this one when a restart becomes due, take it down when none is.
+  const file = due?.file ?? null;
+  const n = due?.n ?? 0;
+  // The notices are outside React: show this one at each change, even after "later"; take it down when none is due.
   useEffect(() => {
-    if (due) show(due);
+    if (file) show(file);
     else notify.dismiss(ID);
-  }, [due]);
+  }, [file, n]);
   return null;
 }

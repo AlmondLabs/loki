@@ -89,8 +89,11 @@ export function useDeskSocket() {
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
   const [macs, setMacs] = useState<Pushes["peers"] | null>(null);
-  /** The file whose change in a checkout made a daemon restart due (plan 024); a restarted daemon has none. */
-  const [restartDue, setRestartDue] = useState<string | null>(null);
+  /**
+   * A daemon restart due after a checkout's code changed (plan 024): the file, and which push said so, so that each
+   * change shows the notice again even when it names the same file. A restarted daemon owes none.
+   */
+  const [restartDue, setRestartDue] = useState<{ file: string; n: number } | null>(null);
   const [macCode, setMacCode] = useState<Pushes["peer_pair_code"] | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
@@ -236,7 +239,7 @@ export function useDeskSocket() {
             setMacs(macsFromFrame(msg));
             break;
           case "restart_due":
-            setRestartDue(typeof msg.file === "string" ? msg.file : null);
+            setRestartDue((was) => (typeof msg.file === "string" ? { file: msg.file, n: (was?.n ?? 0) + 1 } : null));
             break;
           case "peer_pair_code":
             setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });

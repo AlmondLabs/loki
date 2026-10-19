@@ -423,8 +423,8 @@ export function useDesk() {
    * state above; a join answers with the reply or the reason it failed, in words for the person.
    */
   /**
-   * Restarting loki's daemon (plan 024): the file whose change made a restart due, and restarting now. Null once under
-   * way, else why not; `anyway` cuts off a chat that is working.
+   * Restarting loki's daemon (plan 024): the change that made a restart due (its file, and a count that goes up with
+   * each change), and restarting now. Null once under way, else why not; `anyway` cuts off a chat that is working.
    */
   const daemon = {
     restartDue,
