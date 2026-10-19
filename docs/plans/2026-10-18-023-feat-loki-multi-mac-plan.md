@@ -868,3 +868,32 @@ this form; the outbox and reading a chat while its home is down stay deferred.
 
 Tests: the sweep skips a placed chat; a chat moved there and back arrives whole both times; a moved chat is read by
 the passes on its new Mac from its old cursor; `chat_move` from a tab on either Mac reaches the chat's Mac (node test).
+
+---
+
+## Addendum B, 2026-10-19: the chat directory
+
+An architecture review of Mac-to-Mac traffic found that "where does this chat live" was inferred from the cached
+lists (`RemoteChats.homeOf`), so a stale or leftover row misrouted frames and dropped the new home's events: the
+leftover-desk, rename and duplicate-row bugs of 2026-10-18 all came from it. loki is already actor-shaped (a chat is a
+single writer at its home, frames are its messages, the peer link carries them one hop); the piece it lacked is the
+address registry. No actor framework is adopted: it would wrap what is there without changing it.
+
+- **B1. Each home is the authority on its own chats.** The chat directory knows this Mac's chats exactly (from its
+  store, `holds`) and each paired Mac's word about its own. Nothing is inferred from what a list shows.
+- **B2. An unknown chat is asked for.** Not here and claimed by no Mac: the directory asks each paired Mac in reach
+  (`peer_where`), keeps the answer, and says "no such chat" when none holds it.
+- **B3. A Mac that let a chat go redirects.** It keeps a forwarding note and tells the paired Macs (`chat_left`, with
+  where it went). A frame that still reaches it is answered with an error carrying `moved_to`; the asking Mac records
+  it and sends once more, to the new home. Frames stay one hop. With no note (after a restart), the answer is "not
+  here" and the asking Mac asks the Macs (B2).
+- **B4. Nothing new on disk.** Own chats come from the store; paired Macs' chats are learned again when a link opens;
+  forwarding notes live in memory, since B2 covers a lost one.
+- **B5. Addresses and lists are split.** The remote chats keep what the lists show and hand each paired Mac's chat
+  ids to the directory; routing and relaying ask only the directory. A chat event is relayed when it comes from the
+  Mac the directory has for that chat.
+- **B6. Interface.** `locate(chat)` (routing; may ask), `peek(chat or scope)` (relay and lists; never asks),
+  `heard(mac, frame)` (a paired Mac's word: its chat ids, `chat_left`, a `peer_where` answer, a redirect), and
+  `left(chat, to)` (this Mac let it go). Tests: two directories joined in memory: a move then a stale frame redirected
+  once; the new home's events relayed at once after a move; a chat just made elsewhere found by asking; a restarted
+  Mac with no notes still finds a moved chat.

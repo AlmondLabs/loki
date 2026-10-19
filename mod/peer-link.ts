@@ -148,7 +148,7 @@ export class PeerLink {
     if (waiting && typeof f.request_id === "string") {
       this.waiting.delete(f.request_id);
       clearTimeout(waiting.timer);
-      if (f.type === "error") waiting.reject(new Error(typeof f.message === "string" ? f.message : "that Mac refused"));
+      if (f.type === "error") waiting.reject(new PeerRefusal(f));
       else waiting.resolve(f);
       return;
     }
@@ -189,6 +189,15 @@ export class PeerLink {
 export interface LinkTarget {
   mac_id: string;
   host: string;
+}
+
+/** A paired Mac's error answer to a request, with the frame it sent: a redirect carries `moved_to` (addendum B3). */
+export class PeerRefusal extends Error {
+  readonly frame: Record<string, unknown>;
+  constructor(frame: Record<string, unknown>) {
+    super(typeof frame.message === "string" ? frame.message : "that Mac refused");
+    this.frame = frame;
+  }
 }
 
 /** What PeerLinks builds each link with, beyond the Mac it links to. */

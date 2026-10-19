@@ -89,8 +89,18 @@ agents' own `tags`), category, folder (a chat's working directory).
 tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
 
 **Home** (`home_mac` on an agent record, `home` on a chat row): the Mac an agent lives on, where its new chats start
-and its background passes run; and the one Mac a chat lives on, which alone writes it and runs its tools. Other Macs
-reach a chat through its home.
+and where its chats go when it moves; and the one Mac a chat lives on, which alone writes it, runs its tools and reads
+it for reflection and Learn. Other Macs reach a chat through its home. A chat is a single-writer actor at its home:
+frames are its messages, and the peer link carries them one hop.
+
+**Chat directory** (`mod/chat-directory.ts`, plan 023 addendum B): where each chat lives, as this Mac knows it. Its own
+chats from its store, and each paired Mac's word about its own: the chats that Mac lists, and its `chat_left` push
+when one moves away. A chat it does not know is asked of the paired Macs in reach. A Mac that let a chat go keeps a
+forwarding note and answers a stale frame with a redirect. Addresses only: what the lists show is the remote chats'
+job. _Avoid_: inferring a chat's home from a list row.
+
+**Placed** (`placed` in a chat's info, addendum A2): a chat put on a Mac on purpose (moved by hand, or started away
+from its agent's home); the hand-over of an agent's chats to its home leaves it there.
 
 **Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
 `request_id`) and hears (that Mac's pushes); a paired Mac's frames are limited to `PEER_FRAMES`.

@@ -50,6 +50,7 @@ import { PeerMemory } from "./peer-memory.ts";
 import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts";
 import { RemoteChats } from "./remote-chats.ts";
 import { ChatRouter } from "./chat-router.ts";
+import { ChatDirectory } from "./chat-directory.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -374,6 +375,12 @@ export default function activate(api: ModApi, host: Host): () => void {
           if (homedHere) await chatMoves.run(id, true);
         });
       if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
+      // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
+      if (frame.type === "chat_left" && typeof frame.conversation_id === "string" && typeof frame.to === "string") {
+        const agentId = typeof frame.agent_id === "string" ? frame.agent_id : null;
+        directory.heard(id, { kind: "left", scope: scopeFor(frame.conversation_id, agentId), to: frame.to });
+        if (frame.to !== macId) void remoteChats.refresh(frame.to);
+      }
       if (frame.type === "state_changed") void peerState.pull(id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
@@ -384,14 +391,29 @@ export default function activate(api: ModApi, host: Host): () => void {
     link: (id) => links.get(id),
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     onChange: () => broadcast({ type: "lists_changed" }),
+    // A Mac's list is its word on which chats it holds (addendum B5).
+    onListed: (id, scopes) => directory.heard(id, { kind: "holds", scopes }),
+  });
+  // Where each chat lives (addendum B): this Mac's from its store, each paired Mac's from its own word.
+  const directory: ChatDirectory = new ChatDirectory({
+    here: macId,
+    holds: (scope) => chats.list().some((c) => !c.hidden && scopeFor(c.conversationId, c.agentId) === scope),
+    macs: () => peerStore.list().map((p) => p.mac_id),
+    reachable: (id) => links.reachable(id),
+    ask: async (id, chat) => {
+      const link = links.get(id);
+      if (!link) throw new Error("not paired");
+      const r = await link.request({ type: "peer_where", agent_id: chat.agent_id ?? null, conversation_id: chat.conversation_id });
+      return { held: r.held === true, moved_to: typeof r.moved_to === "string" ? r.moved_to : null };
+    },
+    tell: (frame) => lan?.broadcast(frame),
   });
   // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
   const router: ChatRouter = new ChatRouter({
     here: macId,
     peer: (id) => (peerStore.get(id) ? { mac: id, reachable: links.reachable(id) } : null),
     agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
-    homeOf: (conv, agent) => remoteChats.homeOf(conv, agent),
-    homeOfScope: (scope) => remoteChats.homeOfScope(scope),
+    directory,
     link: (id) => links.get(id),
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     uploadsDir: paths.uploads,
@@ -467,6 +489,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     remove: (id) => chatBackend.removeAgent(id),
     onChanged: () => broadcast({ type: "agents_changed" }),
   });
+  /** The Macs paired at the last change, so one forgotten since leaves the directory too. */
+  let known = new Set(peerStore.list().map((p) => p.mac_id));
   const peers: Peers = new Peers({
     store: peerStore,
     keys: peerKeys,
@@ -476,6 +500,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
       remoteChats.sync(peerStore.list().map((p) => p.mac_id));
+      for (const id of known) if (!peerStore.get(id)) directory.forget(id);
+      known = new Set(peerStore.list().map((p) => p.mac_id));
       ws?.broadcast({ type: "peers", ...peersView() });
       void lan?.setPeersNeeded(peersNeeded());
     },
@@ -584,11 +610,13 @@ export default function activate(api: ModApi, host: Host): () => void {
       agents: () => peerAgents.snapshot(),
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
       state: () => peerState.snapshotNow(),
+      where: (chat) => directory.answer(chat),
       moves: {
         candidates: (id) => chatBackend.moveCandidates(id),
         export: (id, agentId, conversationId) => chatMoves.export(id, agentId, conversationId),
-        moved: async (agentId, conversationId) => {
+        moved: async (to, agentId, conversationId) => {
           await chatMoves.moved(agentId, conversationId);
+          directory.left({ agent_id: agentId, conversation_id: conversationId }, to);
           desks.forgetConversations((id) => id === conversationId); // its desk row lives on the other Mac now
           broadcast({ type: "lists_changed" });
         },

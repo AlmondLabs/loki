@@ -9,12 +9,6 @@ import type { PeerLink } from "./peer-link.ts";
  * lists stay synchronous: they read what was last fetched.
  */
 
-/** Where a chat lives, for routing a frame to it (U5). */
-export interface RemoteHome {
-  mac: string;
-  reachable: boolean;
-}
-
 interface MacChats {
   desks: DeskSummary[];
   inbox: InboxRow[];
@@ -22,7 +16,7 @@ interface MacChats {
 }
 
 /** Pushes from a Mac after which its chats may have changed. */
-const CHANGING = new Set(["desks", "chat_event", "agents_changed", "seen"]);
+const CHANGING = new Set(["desks", "chat_event", "agents_changed", "seen", "chat_left"]);
 
 /**
  * The chat events that change how a chat is listed (running or idle, waiting on you, failed, its folder). The pieces of
@@ -40,6 +34,8 @@ export interface RemoteChatsOptions {
   name: (macId: string) => string;
   /** The remote chats changed, or a Mac came into or out of reach: the lists should be asked for again. */
   onChange: () => void;
+  /** A Mac's chats were fetched: the scopes it holds, its word for the chat directory (addendum B5). */
+  onListed?: (macId: string, scopes: Scope[]) => void;
   debounceMs?: number;
 }
 
@@ -108,6 +104,10 @@ export class RemoteChats {
       : [];
     const inbox = Array.isArray(reply.inbox) ? (reply.inbox as InboxRow[]) : [];
     this.macs.set(macId, { desks, inbox, reachable: true });
+    this.opts.onListed?.(
+      macId,
+      desks.map((d) => d.scope),
+    );
     this.opts.onChange();
   }
 
@@ -121,21 +121,6 @@ export class RemoteChats {
   /** The paired Macs' Inbox rows, marked the same way. */
   inbox(): InboxRow[] {
     return [...this.macs].flatMap(([mac, m]) => m.inbox.map((r) => ({ ...r, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })));
-  }
-
-  /** The Mac a chat lives on, when it is another Mac's; null for this Mac's own chats and chats no Mac listed. */
-  homeOf(conversationId: string, agentId?: string | null): RemoteHome | null {
-    for (const [mac, m] of this.macs) {
-      const hit = m.desks.some((d) => d.conversation_id === conversationId && (!agentId || d.agent_id === agentId));
-      if (hit) return { mac, reachable: m.reachable };
-    }
-    return null;
-  }
-
-  /** The Mac a desk's scope lives on, when it is another Mac's. */
-  homeOfScope(scope: Scope): RemoteHome | null {
-    for (const [mac, m] of this.macs) if (m.desks.some((d) => d.scope === scope)) return { mac, reachable: m.reachable };
-    return null;
   }
 
   stop(): void {

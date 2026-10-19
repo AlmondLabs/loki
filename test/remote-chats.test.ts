@@ -38,6 +38,8 @@ function fixture() {
     lists: { desks: [desk("conv-1", "plan the week"), desk(SHARED_SCOPE, "shared")], inbox: [row("conv-1")] },
     reachable: true,
     changes: 0,
+    /** What each fetch handed the chat directory, as scopes. */
+    listed: [] as string[][],
   };
   const link = {
     request: () => (state.reachable ? Promise.resolve({ type: "peer_chats", ...state.lists }) : Promise.reject(new Error("that Mac is out of reach"))),
@@ -46,6 +48,7 @@ function fixture() {
     link: (id) => (id === MINI ? (link as never) : null),
     name: () => "Mac mini",
     onChange: () => state.changes++,
+    onListed: (_mac, scopes) => state.listed.push(scopes),
     debounceMs: 5,
   });
   return { state, remote };
@@ -112,13 +115,10 @@ describe("another Mac's chats in this Mac's lists", () => {
     await until(() => remote.desks()[0]?.title === "renamed");
   });
 
-  test("says which Mac a chat or a canvas lives on, and nothing for this Mac's own", async () => {
-    const { remote } = fixture();
+  test("each fetch hands the chat directory the chats that Mac holds, its shared canvas left out", async () => {
+    const { remote, state } = fixture();
     await remote.refresh(MINI);
-    expect(remote.homeOf("conv-1", "agent-ira")).toEqual({ mac: MINI, reachable: true });
-    expect(remote.homeOf("conv-1", "agent-friday")).toBeNull();
-    expect(remote.homeOf("conv-9")).toBeNull();
-    expect(remote.homeOfScope("conv-1")).toEqual({ mac: MINI, reachable: true });
+    expect(state.listed).toEqual([["conv-1"]]);
     expect(homeNote({})).toBeNull();
   });
 
@@ -127,6 +127,6 @@ describe("another Mac's chats in this Mac's lists", () => {
     state.lists = { desks: [desk("conv-1", "plan the week"), { ...desk("default", "Ira · main chat"), status: "deleted" }], inbox: [] };
     await remote.refresh(MINI);
     expect(remote.desks().map((d) => d.conversation_id)).toEqual(["conv-1"]);
-    expect(remote.homeOf("default", "agent-ira")).toBeNull();
+    expect(state.listed).toEqual([["conv-1"]]);
   });
 });

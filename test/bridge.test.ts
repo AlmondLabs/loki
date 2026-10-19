@@ -88,6 +88,7 @@ describe("bridge", () => {
     const forwarded: Array<Record<string, unknown>> = [];
     const route = {
       target: (msg: Record<string, unknown>) => (msg.scope === "c9" ? { mac: "mini", reachable: true } : null),
+      redirect: () => null,
       forward: (_home: { mac: string; reachable: boolean }, msg: Record<string, unknown>) => (
         forwarded.push(msg),
         Promise.resolve({ ok: true as const, reply: null })

@@ -13,6 +13,7 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { createBridge } from "../mod/bridge.ts";
 import { ChatRouter } from "../mod/chat-router.ts";
+import { ChatDirectory } from "../mod/chat-directory.ts";
 import { DeviceStore } from "../mod/devices.ts";
 import { reply, type FrameHandlers } from "../mod/frames/context.ts";
 import { peersFrames } from "../mod/frames/peers.ts";
@@ -66,6 +67,10 @@ const IRA_DESK: DeskSummary = {
 };
 
 /** The two Macs, linked, with Ira's chat living on the far one. */
+/** The chat the far Mac let go to a third Mac, in the redirect test. */
+const GONE = "local-conv-55555555-5555-4555-8555-555555555555";
+const THIRD = "33333333-cccc-4ccc-8ccc-cccccccccccc";
+
 async function macs() {
   const root = mkdtempSync(join(tmpdir(), "loki-remote-chat-"));
   const farUploads = join(root, "far-uploads");
@@ -120,6 +125,12 @@ async function macs() {
       }),
     ],
     broadcast: (msg) => lan?.broadcast(msg),
+    // The far Mac let GONE go to a third Mac (addendum B3): a frame for it is redirected there.
+    route: {
+      target: () => null,
+      redirect: (msg) => (msg.conversation_id === GONE ? { message: "this chat moved to the third Mac", moved_to: THIRD } : null),
+      forward: () => Promise.resolve({ ok: false as const, message: "the far Mac sends nothing on" }),
+    },
   });
   lan = new LanListener({
     port,
@@ -158,11 +169,24 @@ async function macs() {
     },
     minBackoffMs: 20,
   });
-  const remote = new RemoteChats({ link: () => link, name: () => "Mac mini", onChange: () => {}, debounceMs: 5 });
-  const router = new ChatRouter({
-    homeOf: (c, a) => remote.homeOf(c, a),
-    homeOfScope: (s) => remote.homeOfScope(s),
+  const directory = new ChatDirectory({
+    here: NEAR,
+    holds: () => false,
+    macs: () => [FAR],
+    reachable: () => link.status === "reachable",
+    ask: () => Promise.resolve({ held: false, moved_to: null }),
+    tell: () => {},
+  });
+  const remote = new RemoteChats({
     link: () => link,
+    name: () => "Mac mini",
+    onChange: () => {},
+    onListed: (mac, scopes) => directory.heard(mac, { kind: "holds", scopes }),
+    debounceMs: 5,
+  });
+  const router = new ChatRouter({
+    directory,
+    link: (id) => (id === FAR ? link : null),
     name: () => "Mac mini",
     uploadsDir: nearUploads,
     upload: (id, file) => nearPeers.upload(id, file),
@@ -182,6 +206,7 @@ async function macs() {
     lan,
     link,
     remote,
+    directory,
     done: async () => {
       link.stop();
       await lan.stop();
@@ -239,6 +264,22 @@ void test("moving a chat from a tab here reaches the Mac it lives on, which offe
   }
 });
 
+void test("a chat that left the far Mac is redirected over the wire: this Mac learns where it went and sends there", async () => {
+  const m = await macs();
+  try {
+    m.directory.heard(FAR, { kind: "holds", scopes: [GONE] }); // a list from before the move
+    const tab = client();
+    m.near.onMessage(tab, { type: "history_get", request_id: "h", agent_id: IRA, conversation_id: GONE });
+    await until(() => tab.sent.length > 0);
+    // The third Mac has no link here, so the resend waits for it; the redirect itself crossed the wire.
+    assert.deepEqual(m.directory.peek({ agent_id: IRA, conversation_id: GONE }), { at: "mac", mac: THIRD, reachable: true });
+    assert.equal(tab.sent[0].type, "error");
+    assert.match(String(tab.sent[0].message), /waiting for/);
+  } finally {
+    await m.done();
+  }
+});
+
 void test("a phone's frame the phone may not send is refused on its own Mac and never reaches the far Mac", async () => {
   const m = await macs();
   try {
@@ -260,7 +301,7 @@ void test("a malformed frame is answered here, and a chat whose Mac is out of re
     assert.equal(tab.sent[0].type, "error");
     assert.deepEqual(m.reached, []);
     await m.lan.stop();
-    m.remote.setReachable(FAR, false);
+    await until(() => m.link.status !== "reachable");
     m.near.onMessage(tab, { type: "chat_send", request_id: "r2", agent_id: IRA, conversation_id: CONV, text: "hi" });
     await until(() => tab.sent.length > 1);
     assert.deepEqual(tab.sent[1], { type: "error", request_id: "r2", message: "waiting for Mac mini: this chat lives there" });

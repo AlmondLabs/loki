@@ -30,7 +30,10 @@ export interface BridgeDeps {
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
   /** Chats that live on another paired Mac (plan 023, U5): which Mac a frame is about, and sending it there. */
   route?: {
-    target(msg: Record<string, unknown>): Target;
+    /** The Mac a frame is about; a promise while a chat no Mac claimed yet is asked for (addendum B2). */
+    target(msg: Record<string, unknown>): Target | Promise<Target>;
+    /** The error that redirects a paired Mac's frame for a chat that left here (addendum B3), or null. */
+    redirect(msg: Record<string, unknown>): { message: string; moved_to: string | null } | null;
     forward(home: NonNullable<Target>, msg: Record<string, unknown>, kind: "request" | "send"): Promise<Forwarded>;
   };
 }
@@ -66,7 +69,9 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
     onConnect(client: Client) {
       // A tab opened on another Mac's chat: that Mac sends its desk (its agent, title and canvas), not an empty one from here.
       const ask = { type: "desk_get", scope: client.scope };
-      const home = !client.peerId && deps.route ? deps.route.target(ask) : null;
+      // A desk is never asked for (chat-router.ts): this answer is what is known now.
+      const known = !client.peerId && deps.route ? deps.route.target(ask) : null;
+      const home = known instanceof Promise ? null : known;
       for (const frame of deps.welcome?.(client.scope) ?? []) {
         if (home && frame.type === "desk" && frame.scope === client.scope) continue;
         client.send(frame);
@@ -88,48 +93,63 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         return client.send({ type: "error", request_id: requestId, message: `${String(msg.type)} is not available to another Mac` });
       }
       const entry = frameEntry(msg.type);
-      // Another Mac's chat: that Mac answers. A paired Mac's own frames are answered here, never sent on.
-      const home = !client.peerId && deps.route ? deps.route.target(msg) : null;
-      // A malformed frame is answered here like any other, without bothering the other Mac.
-      if (home && deps.route && entry && entry.kind !== "push" && typeof entry.parse(msg) !== "string") {
-        void deps.route.forward(home, msg, entry.kind).then((out) => {
-          if (!out.ok) return client.send({ type: "error", ...(entry.kind === "request" ? { request_id: requestId } : {}), message: out.message });
-          if (entry.kind === "request" && out.reply) client.send({ ...out.reply, request_id: requestId });
+      const route = deps.route;
+      // A paired Mac's frame for a chat that no longer lives here: tell it where the chat went (addendum B3).
+      const redirect = client.peerId && route && entry?.kind === "request" ? route.redirect(msg) : null;
+      if (redirect) return client.send({ type: "error", request_id: requestId, ...redirect });
+      // Another Mac's chat: that Mac answers. A paired Mac's own frames are answered here, never sent on. A malformed
+      // frame is answered here like any other, without bothering the other Mac.
+      if (client.peerId || !route || !entry || entry.kind === "push" || typeof entry.parse(msg) === "string") return here(client, msg);
+      const kind = entry.kind;
+      const forward = (home: NonNullable<Target>) =>
+        void route.forward(home, msg, kind).then((out) => {
+          if (!out.ok) return client.send({ type: "error", ...(kind === "request" ? { request_id: requestId } : {}), message: out.message });
+          if (kind === "request" && out.reply) client.send({ ...out.reply, request_id: requestId });
         });
-        return;
-      }
-      const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
-      if (!entry || entry.kind === "push" || !handle)
-        return client.send({ type: "error", request_id: requestId, message: `unsupported message type: ${String(msg.type)}` });
-      const ctx: FrameContext = {
-        client,
-        push: (f) => client.send(f),
-        broadcast: (f, scope) => deps.broadcast(f, scope),
-        track: (event, properties) => deps.capture?.(client, event, properties),
-      };
-      // Parsing runs inside settle too: a frame that trips its parser is answered like any other failure.
-      const run = () => {
-        const payload = entry.parse(msg);
-        if (typeof payload === "string") {
-          if (entry.kind === "request") return fail(payload);
-          throw new Error(payload);
-        }
-        return handle(payload as never, ctx);
-      };
-      if (entry.kind === "request") {
-        const answer = (out: Outcome<object>) =>
-          client.send(out.ok ? { ...out.reply, type: entry.reply, request_id: requestId } : { type: "error", request_id: requestId, message: out.message });
-        return settle(
-          run,
-          (out) => answer(out as Outcome<object>),
-          (err) => answer(fail(errorMessage(err))),
-        );
-      }
-      settle(
-        run,
-        () => {},
-        (err) => client.send({ type: "error", message: errorMessage(err) }),
+      const home = route.target(msg);
+      if (!(home instanceof Promise)) return home ? forward(home) : here(client, msg);
+      void home.then(
+        (h) => (h ? forward(h) : here(client, msg)),
+        () => here(client, msg),
       );
     },
   };
+
+  /** Answer a frame on this Mac, by the handler that owns it. */
+  function here(client: Client, msg: Record<string, unknown>): void {
+    const requestId = typeof msg.request_id === "string" ? msg.request_id : undefined;
+    const entry = frameEntry(msg.type);
+    const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
+    if (!entry || entry.kind === "push" || !handle)
+      return client.send({ type: "error", request_id: requestId, message: `unsupported message type: ${String(msg.type)}` });
+    const ctx: FrameContext = {
+      client,
+      push: (f) => client.send(f),
+      broadcast: (f, scope) => deps.broadcast(f, scope),
+      track: (event, properties) => deps.capture?.(client, event, properties),
+    };
+    // Parsing runs inside settle too: a frame that trips its parser is answered like any other failure.
+    const run = () => {
+      const payload = entry.parse(msg);
+      if (typeof payload === "string") {
+        if (entry.kind === "request") return fail(payload);
+        throw new Error(payload);
+      }
+      return handle(payload as never, ctx);
+    };
+    if (entry.kind === "request") {
+      const answer = (out: Outcome<object>) =>
+        client.send(out.ok ? { ...out.reply, type: entry.reply, request_id: requestId } : { type: "error", request_id: requestId, message: out.message });
+      return settle(
+        run,
+        (out) => answer(out as Outcome<object>),
+        (err) => answer(fail(errorMessage(err))),
+      );
+    }
+    settle(
+      run,
+      () => {},
+      (err) => client.send({ type: "error", message: errorMessage(err) }),
+    );
+  }
 }

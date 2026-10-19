@@ -26,12 +26,15 @@ export interface PeersDeps {
     moves?: {
       candidates: (macId: string) => Promise<Replies["peer_moves"]["chats"]>;
       export: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat"]>;
-      moved: (agentId: string, conversationId: string) => Promise<void>;
+      /** `macId` holds the chat now: let it go here, and tell the paired Macs where it went. */
+      moved: (macId: string, agentId: string, conversationId: string) => Promise<void>;
       /** Take one chat over from the Mac it lives on, because the person moved it here (addendum A1). */
       take: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat_taken"]>;
       /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
       offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
     };
+    /** Whether this Mac holds a chat, and where it went if this Mac let it go, for `peer_where` (addendum B2). */
+    where?: (chat: { agent_id: string | null; conversation_id: string }) => Replies["peer_here"];
     /** The person's state, for another Mac's `peer_state_get` (U8). */
     state: () => Replies["peer_state"];
     /** An agent's memory commits another Mac lacks, for its `peer_memory_get` (U7). */
@@ -70,7 +73,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
     peer_chat_moved: async ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moves = need().moves;
       if (!moves || !ctx.client.peerId) return fail("only another Mac takes a chat over");
-      await moves.moved(agentId, conversationId);
+      await moves.moved(ctx.client.peerId, agentId, conversationId);
       return reply({});
     },
     peer_chat_take: async ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
@@ -84,6 +87,10 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       if (!moves) return fail("moving chats between Macs is not available in this mod");
       const why = await moves.offer(to, agentId, conversationId);
       return why ? fail(why) : reply({});
+    },
+    peer_where: (chat) => {
+      const where = need().where;
+      return where ? reply(where(chat)) : fail("this Mac does not keep a chat directory");
     },
     peer_memory_get: async ({ agent_id: agentId, have }) => reply(await need().memory(agentId, have)),
     peers_get: async (_, ctx) => {

@@ -199,6 +199,8 @@ export interface Replies {
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
   /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
   peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
+  /** Whether this Mac holds a chat, and where it went when this Mac let it go (plan 023, addendum B2). */
+  peer_here: { held: boolean; moved_to: string | null };
   /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
   peer_chat_taken: { moved: boolean; busy: boolean };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
@@ -287,7 +289,13 @@ export interface Pushes {
   /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
   chat_event: { agent_id: string; conversation_id: string; events: ChatEvent[] };
   /** A request that failed (with its request_id), or a send or frame the mod could not take (without). */
-  error: { message: string; request_id?: string };
+  /**
+   * `moved_to`: a paired Mac's frame named a chat that does not live here (plan 023, addendum B3): where it went when
+   * this Mac let it go, or null when it has no note. Absent on every other error.
+   */
+  error: { message: string; request_id?: string; moved_to?: string | null };
+  /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
+  chat_left: { agent_id: string | null; conversation_id: string; to: string };
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
@@ -826,6 +834,14 @@ export const FRAMES = {
   peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, true),
   peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, true),
   peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, true),
+  peer_where: request(
+    "peer_here",
+    "whether this Mac holds a chat, and where it went if this Mac let it go (addendum B2)",
+    (m) =>
+      str(m.conversation_id) && m.conversation_id ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required",
+    false,
+    true,
+  ),
   peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, true),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
@@ -857,6 +873,7 @@ export const FRAMES = {
   app_build: push("the build a phone is served, so it can offer a reload"),
   chat_event: push("what happened in a chat a client has open"),
   error: push("a failed request (with its request_id) or a frame the mod could not take"),
+  chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)"),
 } as const;
 
 type Table = typeof FRAMES;

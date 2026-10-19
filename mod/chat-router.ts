@@ -2,8 +2,10 @@ import { isAbsolute, relative, sep } from "node:path";
 import { basename } from "node:path";
 import type { FrameName } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
-import type { RemoteHome } from "./remote-chats.ts";
+import { scopeFor } from "../core/desk-core.ts";
+import type { ChatDirectory, ChatRef, Location } from "./chat-directory.ts";
 import { MOVE_TIMEOUT_MS } from "./chat-moves.ts";
+import { PeerRefusal } from "./peer-link.ts";
 
 /**
  * Each chat answered by the Mac it lives on (plan 023, U5, KTD3). A frame from this Mac's tabs or phones about a chat
@@ -43,8 +45,8 @@ export interface ChatRouterOptions {
   peer?: (macId: string) => RemoteHome | null;
   /** The Mac an agent lives on, from its record; null when it names none. */
   agentHome?: (agentId: string) => string | null;
-  homeOf: (conversationId: string, agentId: string | null) => RemoteHome | null;
-  homeOfScope: (scope: string) => RemoteHome | null;
+  /** Where each chat lives (addendum B): asked for every chat and desk frame, told of every redirect. */
+  directory: Pick<ChatDirectory, "peek" | "locate" | "heard" | "answer">;
   link: (macId: string) => PeerLink | null;
   /** A paired Mac's name, for "waiting for <Mac>". */
   name: (macId: string) => string;
@@ -54,6 +56,12 @@ export interface ChatRouterOptions {
   upload: (macId: string, file: { path: string; name: string; mime: string }) => Promise<string | null>;
   /** Read a Mac's chats again, so a rename or a move made there shows here before the person is answered. */
   relist?: (macId: string) => Promise<void>;
+}
+
+/** A paired Mac a frame goes to, and whether it is in reach. */
+export interface RemoteHome {
+  mac: string;
+  reachable: boolean;
 }
 
 /** Where a frame goes: here (null), or the paired Mac it names. */
@@ -70,19 +78,38 @@ export class ChatRouter {
     this.opts = opts;
   }
 
-  /** The Mac a frame is about, when it is another Mac's chat or desk; null when it is this Mac's, or not about one. */
-  target(msg: Record<string, unknown>): Target {
+  /**
+   * The Mac a frame is about, when it is another Mac's chat or desk; null when it is this Mac's, or not about one. A
+   * chat no Mac claimed yet is asked for (the promise); a desk is never asked for, since most desks name no chat.
+   */
+  target(msg: Record<string, unknown>): Target | Promise<Target> {
     const type = msg.type as FrameName;
     if (type === "chat_create") return this.newChatHome(msg);
     // The folders of the Mac a new chat will live on (U6).
     if (type === "folders_get" || type === "folder_complete" || type === "folder_check" || type === "chat_requirements") return this.askedHome(msg.home);
-    if (CHAT_ROUTED.has(type) && typeof msg.conversation_id === "string")
-      return this.opts.homeOf(msg.conversation_id, typeof msg.agent_id === "string" ? msg.agent_id : null);
+    const chat = chatOfFrame(msg);
+    if (chat && CHAT_ROUTED.has(type)) {
+      const known = this.opts.directory.peek(chat);
+      return known ? toTarget(known) : this.opts.directory.locate(chat).then(toTarget);
+    }
     if (SCOPE_ROUTED.has(type)) {
       const scope = scopeOfFrame(msg);
-      return scope ? this.opts.homeOfScope(scope) : null;
+      const known = scope ? this.opts.directory.peek(scope) : null;
+      return known ? toTarget(known) : null;
     }
     return null;
+  }
+
+  /**
+   * A paired Mac's frame about a chat that does not live here (addendum B3): the error that redirects it, naming where
+   * the chat went when this Mac let it go. Null for every other frame, which is answered as usual.
+   */
+  redirect(msg: Record<string, unknown>): { message: string; moved_to: string | null } | null {
+    const chat = chatOfFrame(msg);
+    if (!chat || !CHAT_ROUTED.has(msg.type as FrameName)) return null;
+    const { held, moved_to: movedTo } = this.opts.directory.answer(chat);
+    if (held) return null;
+    return { message: movedTo ? `this chat moved to ${this.opts.name(movedTo)}` : "this chat is not on this Mac", moved_to: movedTo };
   }
 
   /**
@@ -108,7 +135,7 @@ export class ChatRouter {
    * Send a frame to the Mac it is about: a request comes back with the home's reply (or why not), a send with nothing.
    * A message's files attached here go to the home first, and the message names them where they now are.
    */
-  async forward(home: RemoteHome, msg: Record<string, unknown>, kind: "request" | "send"): Promise<Forwarded> {
+  async forward(home: RemoteHome, msg: Record<string, unknown>, kind: "request" | "send", again = false): Promise<Forwarded> {
     const name = this.opts.name(home.mac);
     const link = this.opts.link(home.mac);
     if (!home.reachable || !link)
@@ -130,6 +157,15 @@ export class ChatRouter {
       if (RELISTED.has(frame.type)) await this.opts.relist?.(home.mac);
       return { ok: true, reply };
     } catch (err) {
+      const chat = chatOfFrame(msg);
+      // The chat left that Mac (addendum B3): learn where it went, and send once more, there.
+      if (err instanceof PeerRefusal && "moved_to" in err.frame && chat && !again) {
+        const movedTo = typeof err.frame.moved_to === "string" ? err.frame.moved_to : null;
+        this.opts.directory.heard(home.mac, { kind: "answer", scope: scopeFor(chat.conversation_id, chat.agent_id ?? null), held: false, moved_to: movedTo });
+        const now = await this.opts.directory.locate(chat);
+        if (now.at === "mac" && now.mac !== home.mac) return this.forward({ mac: now.mac, reachable: now.reachable }, msg, kind, true);
+        return { ok: false, message: now.at === "here" ? "this chat is on this Mac now: open it again" : "this chat is not on any of your Macs" };
+      }
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
     }
   }
@@ -139,14 +175,13 @@ export class ChatRouter {
    * the scope to send it to (undefined for every client), or false to leave it.
    */
   relay(fromMac: string, frame: Record<string, unknown>): { scope?: string } | false {
-    if (frame.type === "chat_event" && typeof frame.conversation_id === "string") {
-      const home = this.opts.homeOf(frame.conversation_id, typeof frame.agent_id === "string" ? frame.agent_id : null);
-      return home?.mac === fromMac ? {} : false;
-    }
+    const from = (where: Location | null) => where?.at === "mac" && where.mac === fromMac;
+    const chat = chatOfFrame(frame);
+    if (frame.type === "chat_event" && chat) return from(this.opts.directory.peek(chat)) ? {} : false;
     if (typeof frame.type === "string" && SCOPED_PUSHES.has(frame.type)) {
       const scope = typeof frame.scope === "string" ? frame.scope : scopeOfEntry(frame.entry);
       if (!scope) return false;
-      return this.opts.homeOfScope(scope)?.mac === fromMac ? { scope } : false;
+      return from(this.opts.directory.peek(scope)) ? { scope } : false;
     }
     return false;
   }
@@ -164,6 +199,15 @@ export class ChatRouter {
     return out;
   }
 }
+
+/** The chat a frame names: its conversation, with its agent when given. */
+function chatOfFrame(msg: Record<string, unknown>): ChatRef | null {
+  if (typeof msg.conversation_id !== "string" || !msg.conversation_id) return null;
+  return { conversation_id: msg.conversation_id, agent_id: typeof msg.agent_id === "string" ? msg.agent_id : null };
+}
+
+/** A location as the router sends to it: this Mac (and a chat no Mac has) is null, answered here. */
+const toTarget = (where: Location): Target => (where.at === "mac" ? { mac: where.mac, reachable: where.reachable } : null);
 
 /** The desk a canvas frame names: `scope`, or the scope a widget id starts with (`<scope>/<name>`). */
 export function scopeOfFrame(msg: Record<string, unknown>): string | null {

@@ -278,11 +278,16 @@ on, its **home**. The Macs talk to each other directly over the tailnet; there i
 3. **Agents** (`daemon/store/agent-sync.ts`, `mod/peer-agents.ts`). Agent ids are the same on every Mac. Each record
    field carries when and where it last changed and the later change wins; `home_mac` is one of them. A delete
    leaves a tombstone (`backend/tombstones.json`). Only an agent's home creates its main chat.
-4. **Chats** (`mod/remote-chats.ts`, `mod/chat-router.ts`). Each Mac lists its own chats and every paired Mac's,
-   fetched over the link and marked with their home (`home`, `home_name`, `reachable` on desks and Inbox rows). The
-   bridge sends a chat or canvas frame about another Mac's chat there as it is (`route`) and passes back that Mac's
-   pushes about its own chats only, so Macs never echo each other. A new chat's home is its agent's while that Mac is
-   in reach (`chat_create`'s `home`). Files attached here go to the home's uploads first.
+4. **Chats** (`mod/remote-chats.ts`, `mod/chat-directory.ts`, `mod/chat-router.ts`). A chat is a single-writer actor
+   at its home; frames are its messages and the peer link carries them one hop. Each Mac lists its own chats and
+   every paired Mac's, fetched over the link and marked with their home (`home`, `home_name`, `reachable` on desks and
+   Inbox rows); the lists are for showing only. Where a chat lives is the chat directory's: this Mac's chats from its
+   store, each paired Mac's from its own word (its list, its `chat_left`), and a chat no one claimed asked for
+   (`peer_where`). A Mac that let a chat go keeps a forwarding note and answers a stale frame with an error carrying
+   `moved_to`, which the asking Mac follows once. The bridge sends a chat or canvas frame about another Mac's chat
+   there as it is (`route`) and passes back the pushes of the Mac the directory names for that chat, so Macs never
+   echo each other. A new chat's home is its agent's while that Mac is in reach (`chat_create`'s `home`). Files
+   attached here go to the home's uploads first.
 5. **Memory** (`daemon/memory-sync.ts`, `mod/peer-memory.ts`). After a repo settles in its queue
    (`daemon/repo-queue.ts`) paired Macs are told (`memory_changed`) and fetch the commits they lack as a git bundle,
    merged in the same queue. A clash keeps the home's text and writes the other side to `conflicts/sync.md`, which
