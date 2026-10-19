@@ -20,6 +20,7 @@ import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
+import { PeerSync } from "./peer-sync.ts";
 import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
@@ -362,43 +363,70 @@ export default function activate(api: ModApi, host: Host): () => void {
     onStatus: (id, status) => {
       ws?.broadcast({ type: "peers", ...peersView() });
       remoteChats.setReachable(id, status === "reachable");
-      // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
-      if (status === "reachable") {
-        // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
-        void peerGroup.meshWith(id);
-        // Agents, then their memory, then (once, after pairing) the chats of agents that live here (U9).
-        void peerAgents
-          .pull(id)
-          .then(() => peerMemory.pullAll(id))
-          .then(() => chatMoves.takeOver(id));
-        void peerState.pull(id);
-      }
+      // A Mac back in reach: take what changed there while the link was down.
+      if (status === "reachable") void sync.reached(id);
     },
     onPush: (id, frame) => {
       remoteChats.heard(id, frame);
       // A chat or desk that lives there: its clients here hear what it does (U5).
       const relay = router.relay(id, frame);
       if (relay) broadcast(frame, relay.scope);
-      if (frame.type === "agents_changed")
-        void peerAgents.pull(id).then(async (applied) => {
-          await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
-          // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
-          const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
-          if (homedHere) await chatMoves.takeOver(id, true);
-        });
-      if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
-      // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
-      if (frame.type === "chat_left" && typeof frame.conversation_id === "string" && typeof frame.to === "string") {
-        const agentId = typeof frame.agent_id === "string" ? frame.agent_id : null;
-        directory.heard(id, { kind: "left", scope: scopeFor(frame.conversation_id, agentId), to: frame.to });
-        if (frame.to !== macId) void remoteChats.refresh(frame.to);
-      }
-      if (frame.type === "state_changed") void peerState.pull(id);
-      if (frame.type === "group_changed") void peerGroup.meshWith(id);
+      void sync.heard(id, frame);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
   });
+  // What keeps this Mac current with the paired ones: each syncer, what wakes it, and the one it waits for.
+  const sync: PeerSync = new PeerSync(
+    [
+      // Agents first: their memory and chats follow them.
+      {
+        name: "agents",
+        reached: (id) => peerAgents.pull(id),
+        pushes: {
+          agents_changed: async (id) => {
+            const applied = await peerAgents.pull(id);
+            await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
+            // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
+            const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
+            if (homedHere) await chatMoves.takeOver(id, true);
+          },
+        },
+      },
+      {
+        name: "memory",
+        after: "agents",
+        reached: (id) => peerMemory.pullAll(id),
+        // Pushes arrive from another Mac unparsed: what they name is checked here.
+        pushes: { memory_changed: (id, f) => (typeof f.agent_id === "string" ? peerMemory.pull(id, f.agent_id) : undefined) },
+      },
+      // Once after pairing, the chats there of agents that live here (U9).
+      { name: "moves", after: "memory", reached: (id) => chatMoves.takeOver(id) },
+      {
+        name: "state",
+        reached: (id) => peerState.pull(id),
+        pushes: { state_changed: (id) => peerState.pull(id) },
+      },
+      // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
+      {
+        name: "group",
+        reached: (id) => peerGroup.meshWith(id),
+        pushes: { group_changed: (id) => peerGroup.meshWith(id) },
+      },
+      // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
+      {
+        name: "directory",
+        pushes: {
+          chat_left: (id, f) => {
+            if (typeof f.conversation_id !== "string" || typeof f.to !== "string") return;
+            directory.heard(id, { kind: "left", scope: scopeFor(f.conversation_id, typeof f.agent_id === "string" ? f.agent_id : null), to: f.to });
+            if (f.to !== macId) void remoteChats.refresh(f.to);
+          },
+        },
+      },
+    ],
+    (syncer, id, err) => log("peers:sync-failed", { syncer, mac: id, error: err instanceof Error ? err.message : String(err) }),
+  );
   // The paired Macs' own chats, for every list here (U4).
   const remoteChats: RemoteChats = new RemoteChats({
     link: (id) => links.get(id),
