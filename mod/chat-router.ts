@@ -29,6 +29,9 @@ export const CHAT_ROUTED: ReadonlySet<FrameName> = new Set([
 /** The canvas frames routed by the desk they name: its scope, or a widget id's leading scope. */
 export const SCOPE_ROUTED: ReadonlySet<FrameName> = new Set(["desk_get", "gesture", "measure", "widget_status"]);
 
+/** The frames that change how another Mac's chat is listed: once one succeeds there, its list here is read again. */
+const RELISTED: ReadonlySet<string> = new Set(["chat_update", "chat_folder", "chat_model", "chat_move"]);
+
 /** The pushes about one desk, passed on when they come from the Mac that desk lives on. */
 const SCOPED_PUSHES = new Set(["state", "widgets", "desk", "widget_change"]);
 
@@ -49,6 +52,8 @@ export interface ChatRouterOptions {
   uploadsDir: string;
   /** Send an uploaded file to a Mac; its path there, or null. */
   upload: (macId: string, file: { path: string; name: string; mime: string }) => Promise<string | null>;
+  /** Read a Mac's chats again, so a rename or a move made there shows here before the person is answered. */
+  relist?: (macId: string) => Promise<void>;
 }
 
 /** Where a frame goes: here (null), or the paired Mac it names. */
@@ -121,7 +126,9 @@ export class ChatRouter {
     if (kind === "send") return link.send(frame) ? { ok: true, reply: null } : { ok: false, message: `waiting for ${name}: this chat lives there` };
     try {
       // A move waits for the whole chat to cross to the Mac it moves to.
-      return { ok: true, reply: await link.request(frame, frame.type === "chat_move" ? MOVE_TIMEOUT_MS : 30_000) };
+      const reply = await link.request(frame, frame.type === "chat_move" ? MOVE_TIMEOUT_MS : 30_000);
+      if (RELISTED.has(frame.type)) await this.opts.relist?.(home.mac);
+      return { ok: true, reply };
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
     }

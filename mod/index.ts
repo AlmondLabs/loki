@@ -396,6 +396,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     name: (id) => peerStore.get(id)?.name ?? "another Mac",
     uploadsDir: paths.uploads,
     upload: (id, file) => peers.upload(id, file),
+    relist: (id) => remoteChats.refresh(id),
   });
   // A paired Mac stays awake on power while loki runs, so its chats can be reached from the other (U11, R14).
   const awake = new Awake();

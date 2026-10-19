@@ -40,6 +40,29 @@ describe("which frames go to another Mac", () => {
   });
 });
 
+describe("a change to another Mac's chat", () => {
+  test("a rename there reads that Mac's chats again before the person is answered; a message does not", async () => {
+    const order: string[] = [];
+    const link = { request: (f: { type: string }) => (order.push(`sent ${f.type}`), Promise.resolve({ type: "chat_done" })) };
+    const r = new ChatRouter({
+      homeOf: () => ({ mac: MINI, reachable: true }),
+      homeOfScope: () => null,
+      link: () => link as never,
+      name: () => "Mac mini",
+      uploadsDir: "/nowhere",
+      upload: () => Promise.resolve(null),
+      relist: (mac) => (order.push(`relist ${mac}`), Promise.resolve()),
+    });
+    const home = { mac: MINI, reachable: true };
+    expect(await r.forward(home, { type: "chat_update", conversation_id: "conv-1", agent_id: "a", title: "new name" }, "request")).toEqual({
+      ok: true,
+      reply: { type: "chat_done" },
+    });
+    await r.forward(home, { type: "chat_send", conversation_id: "conv-1", agent_id: "a", text: "hi" }, "request");
+    expect(order).toEqual(["sent chat_update", `relist ${MINI}`, "sent chat_send"]);
+  });
+});
+
 describe("which pushes from another Mac are passed on here", () => {
   test("only those about its own chats and desks, so three Macs never echo each other", () => {
     const r = router();
