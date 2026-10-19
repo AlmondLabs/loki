@@ -12,6 +12,7 @@ import {
   chatStatusOf,
   emptyLive,
   keyOf,
+  sendMode,
   takeQueued,
   type AttentionItem,
   type ConversationInfo,
@@ -590,7 +591,10 @@ export function useAttention(opts: UseAttentionOptions) {
     [bump],
   );
 
-  /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
+  /**
+   * Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. During a
+   * turn it joins the turn, or on an agent waits for its end (sendMode).
+   */
   const send = useCallback(
     (rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; labels?: readonly string[] | null; origin?: SendOrigin } = {}) => {
       const key = keyOf(rt.agent_id, rt.conversation_id);
@@ -606,8 +610,9 @@ export function useAttention(opts: UseAttentionOptions) {
         queued: l.inTurn,
       });
       optsRef.current.sent?.(rt);
-      // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
-      if (l.inTurn) {
+      const mode = sendMode(l);
+      // Mid-turn on an agent: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
+      if (mode === "queue") {
         l.queued.push({ text, images, desk: env.desk, labels: env.labels });
         l.thread.queue(sentRow(text, images));
         bump();
@@ -618,7 +623,7 @@ export function useAttention(opts: UseAttentionOptions) {
       l.lastRole = "user";
       bump();
       void subscribe(rt)
-        .then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk, env.labels)))
+        .then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk, env.labels), mode === "steer"))
         .catch((err: unknown) => console.warn("loki: send", err));
       optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     },

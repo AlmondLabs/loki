@@ -353,7 +353,9 @@ export class DaemonChats implements ChatBackend {
       content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts,
       typed: p.text.trim() !== "",
     });
-    await chat.submit({ type: "input", content: content as never, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
+    // Sent during a turn on purpose: placed after the current tool round, inside the turn (pi-durable's steer).
+    const whenBusy = p.steer ? { whenBusy: "steer" as const } : {};
+    await chat.submit({ type: "input", content: content as never, ...whenBusy, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
     return true;
   }
 

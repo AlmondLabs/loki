@@ -188,7 +188,8 @@ export class FrameChatClient {
     return rt;
   }
 
-  async sendUserMessage(rt: Runtime, text: string, images: ImageAttachment[] = [], context?: string): Promise<boolean> {
+  /** `steer` puts the message into the chat's running turn instead of after it (loki's own engine only). */
+  async sendUserMessage(rt: Runtime, text: string, images: ImageAttachment[] = [], context?: string, steer = false): Promise<boolean> {
     this.remember(rt);
     const sendId = `send-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const r = await this.call("chat_send", {
@@ -198,6 +199,7 @@ export class FrameChatClient {
       images: images.map((i) => ({ media_type: i.mediaType, data: i.data })),
       send_id: sendId,
       context: context ?? null,
+      ...(steer ? { steer: true } : {}),
     });
     return r.accepted;
   }

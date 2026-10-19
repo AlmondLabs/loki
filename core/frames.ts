@@ -522,7 +522,7 @@ export const FRAMES = {
   ),
   chat_send: request(
     "chat_accepted",
-    "a message from the person; queued when the chat is busy, sent once per send_id",
+    "a message from the person; when the chat is busy, queued for after the turn, or with steer put into it; sent once per send_id",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
@@ -530,7 +530,7 @@ export const FRAMES = {
       const images = Array.isArray(m.images)
         ? (m.images as Raw[]).filter((i) => str(i.media_type) && str(i.data)).map((i) => ({ media_type: i.media_type as string, data: i.data as string }))
         : [];
-      return { ...c, text: m.text, images, send_id: strOr(m.send_id, null), context: strOr(m.context, null) };
+      return { ...c, text: m.text, images, send_id: strOr(m.send_id, null), context: strOr(m.context, null), ...(m.steer === true ? { steer: true } : {}) };
     },
     PHONE,
     BY_CHAT,

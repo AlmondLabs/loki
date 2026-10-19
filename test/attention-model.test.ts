@@ -1,6 +1,17 @@
 import { applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
-import { buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo, type Live } from "../core/attention/model.ts";
+import {
+  buildItems,
+  cancelQueued,
+  emptyLive,
+  keyOf,
+  sendMode,
+  takeQueued,
+  unviewed,
+  viewStamp,
+  type ConversationInfo,
+  type Live,
+} from "../core/attention/model.ts";
 import { must } from "./fixtures/must.ts";
 
 describe("attention model (browser)", () => {
@@ -151,6 +162,14 @@ describe("messages typed mid-turn", () => {
     expect(l.queued.map((q) => q.text)).toEqual(["second"]);
     expect(takeQueued(l)).toEqual({ text: "second", images: [] }); // the caller marks inTurn again before the next; here the turn is over
     expect(takeQueued(l)).toBeNull();
+  });
+  test("on loki's own engine a message sent during a turn joins it; on an agent it waits for the turn's end", () => {
+    const l = emptyLive();
+    expect(sendMode(l)).toBe("now");
+    l.inTurn = true;
+    expect(sendMode(l)).toBe("steer");
+    l.engine = { agent: "claude", name: "Claude Code", model: "default", modes: [], commands: [] };
+    expect(sendMode(l)).toBe("queue");
   });
   test("cancel drops the message and its row; an unknown text changes nothing", () => {
     const l = emptyLive();
