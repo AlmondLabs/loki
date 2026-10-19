@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
@@ -283,18 +283,7 @@ function NewDeskSheet({
       width={560}
       top="72px"
       escape={false}
-      cardProps={{
-        onKeyDown: (e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            if (listOpen) setListOpen(false);
-            else onClose();
-          } else if (e.key === "Enter" && !listOpen) {
-            e.preventDefault();
-            void start();
-          }
-        },
-      }}
+      cardProps={{ onKeyDown: sheetKeys(listOpen, setListOpen, onClose, () => void start()) }}
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">New chat</div>
@@ -479,18 +468,7 @@ export function ChangeFolder({
       top="18vh"
       scroll
       escape={false}
-      cardProps={{
-        onKeyDown: (e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            if (listOpen) setListOpen(false);
-            else onClose();
-          } else if (e.key === "Enter" && !listOpen) {
-            e.preventDefault();
-            void move();
-          }
-        },
-      }}
+      cardProps={{ onKeyDown: sheetKeys(listOpen, setListOpen, onClose, () => void move()) }}
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
@@ -536,6 +514,23 @@ export function ChangeFolder({
   // Opened from the sidebar's row menu, it would be laid out (and clipped) inside that column: on the body the veil
   // covers the whole window, as Rename's does. The veil scrolls, so the folder list can hang past the card.
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
+}
+
+/**
+ * The keys of a sheet with a folder list: Escape closes the list first, then the sheet; Enter acts (start, move) while
+ * the list is closed, since the list takes Enter for its own pick.
+ */
+function sheetKeys(listOpen: boolean, setListOpen: (open: boolean) => void, onClose: () => void, onEnter: () => void) {
+  return (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (listOpen) setListOpen(false);
+      else onClose();
+    } else if (e.key === "Enter" && !listOpen) {
+      e.preventDefault();
+      onEnter();
+    }
+  };
 }
 
 /** The agent row: one radio chip per agent, the chosen one pressed (active). */
