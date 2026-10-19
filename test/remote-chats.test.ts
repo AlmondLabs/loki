@@ -104,9 +104,11 @@ describe("another Mac's chats in this Mac's lists", () => {
     await remote.refresh(MINI);
     state.lists.desks = [desk("conv-1", "renamed")];
     remote.heard(MINI, { type: "peers" });
+    // A piece of a reply as it streams changes nothing listed.
+    remote.heard(MINI, { type: "chat_event", events: [{ kind: "step", step: { kind: "assistant", text: "hel" } }] });
     await new Promise((r) => setTimeout(r, 20));
     expect(remote.desks()[0].title).toBe("plan the week");
-    remote.heard(MINI, { type: "chat_event" });
+    remote.heard(MINI, { type: "chat_event", events: [{ kind: "turn_end" }] });
     await until(() => remote.desks()[0]?.title === "renamed");
   });
 
