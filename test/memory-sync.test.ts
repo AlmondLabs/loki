@@ -1,13 +1,10 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reflectionJob } from "../daemon/reflection.ts";
 import { CONFLICTS_PATH, applyMemoryBundle, memoryBundle, memoryHead, pendingConflicts } from "../daemon/memory-sync.ts";
-
-// Each test runs a dozen git commands; on a loaded machine (CI, a build beside them) that has crossed 5 s.
-vi.setConfig({ testTimeout: 20_000 });
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";

@@ -14,5 +14,8 @@ export default defineConfig({
     environment: "node",
     // Each file in its own process: the daemon's pieces spawn children, chdir and listen on ports.
     pool: "forks",
+    // Eight files at once, several running git or spawning daemons, starve the rest: on a loaded Mac even a pure test
+    // has stalled past the 5 s default (9 s seen), a different one each run. Twenty seconds still catches a hang.
+    testTimeout: 20_000,
   },
 });
