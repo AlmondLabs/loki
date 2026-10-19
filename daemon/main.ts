@@ -38,7 +38,7 @@ import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
-import { ModRegistry } from "./mods/registry.ts";
+import { ModRegistry, type LoadResult } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { McpTools } from "./mcp/index.ts";
 import { isSubagent } from "../mod/agents.ts";
@@ -304,7 +304,7 @@ if (importNeeded(importPaths)) {
 
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
-const loadCore = () =>
+const loadCore = (): Promise<LoadResult> =>
   mods.load({
     name: "loki",
     apiVersion: MOD_API_VERSION,
@@ -316,6 +316,8 @@ const loadCore = () =>
         // This Mac as other Macs know it (plan 023): its install id, and the keychain for the tokens it presents to them.
         macId: installId(),
         secrets: secrets ?? memorySecrets(),
+        // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
+        daemon: devReload,
         usage: {
           rows: () => usage.rows(),
           priced: (model) => {
@@ -330,32 +332,36 @@ const loadCore = () =>
         },
       }),
   });
-await loadCore();
 // A checkout keeps up with its sources (plan 024): the mod (mod/boot.ts bundles mod/index.ts and core afresh on every
-// activate) reloads when mod/ or core/ changes, and the daemon restarts, once nothing runs, when daemon/ or core/ does.
-const devReload = new DevReload({
+// activate) reloads when mod/ or core/ changes, and a change to daemon/ or core/ makes a restart due, which the window
+// offers; the restart itself is the person's (any loki can be asked for one).
+const devReload: DevReload = new DevReload({
   reloadMod: async () => {
     const result = await loadCore();
     return "loaded" in result ? "ok" : result.refused;
   },
-  restart: (why) => stop(`${why}, restarting for the change`),
+  // A moment later, so the window hears that the restart is under way before its socket closes.
+  restart: (why) => void setTimeout(() => stop(`${why}, restarting as asked`), 200),
   idle: async () => {
     for (const c of chats.list()) if (c.agentId && (await busy(c.agentId, c.conversationId))) return false;
     return true;
   },
   report,
 });
+await loadCore();
 const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [
       watchFiles(join(checkout, "mod"), sources, (file) => devReload.modChanged(`mod/${file}`)),
-      watchFiles(join(checkout, "core"), sources, (file) => Promise.all([devReload.modChanged(`core/${file}`), devReload.daemonChanged(`core/${file}`)])),
+      watchFiles(join(checkout, "core"), sources, (file) => {
+        devReload.daemonChanged(`core/${file}`);
+        return devReload.modChanged(`core/${file}`);
+      }),
       watchFiles(join(checkout, "daemon"), sources, (file) => devReload.daemonChanged(`daemon/${file}`)),
     ]
   : [];
 const stopWatchingCore = () => {
-  devReload.stop();
   for (const unwatch of watching) unwatch();
 };
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);

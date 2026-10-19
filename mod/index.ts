@@ -95,6 +95,15 @@ export interface Host {
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
+  /**
+   * Restarting the daemon (plan 024): the file whose change in a checkout made a restart due (null when none, always in
+   * the installed app), hearing when one becomes due, and restarting now: null once under way, else why not.
+   */
+  daemon?: {
+    restartDue: () => string | null;
+    onRestartDue: (fn: (file: string) => void) => () => void;
+    restart: (anyway: boolean) => Promise<string | null>;
+  };
 }
 
 /**
@@ -551,6 +560,8 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
   let usagePush: ReturnType<typeof setTimeout> | null = null;
+  // A restart due after a checkout's daemon code changed (plan 024): every window offers it.
+  const stopRestartDue = host.daemon?.onRestartDue((file) => ws?.broadcast({ type: "restart_due", file }));
   const stopUsage = host.usage?.onChange(() => {
     usagePush ??= setTimeout(() => {
       usagePush = null;
@@ -589,6 +600,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     folderFor,
     chat: chatBackend,
     usage: host.usage,
+    daemon: host.daemon,
     lan: {
       status: () => phones().status(),
       refresh: () => phones().refresh(),
@@ -890,6 +902,7 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   return () => {
     stopUsage?.();
+    stopRestartDue?.();
     if (usagePush) clearTimeout(usagePush);
     for (const d of eventDisposers) d();
     for (const d of toolDisposers) d();

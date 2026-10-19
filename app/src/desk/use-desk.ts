@@ -101,6 +101,7 @@ export function useDesk() {
     devices,
     pairCode,
     macs: macsView,
+    restartDue,
     macCode,
     servedBuild,
     recentModels,
@@ -421,6 +422,16 @@ export function useDesk() {
    * Settings › Macs (plan 023): this Mac, the Macs paired with it, and pairing. `peers` and `peer_pair_code` land in
    * state above; a join answers with the reply or the reason it failed, in words for the person.
    */
+  /**
+   * Restarting loki's daemon (plan 024): the file whose change made a restart due, and restarting now. Null once under
+   * way, else why not; `anyway` cuts off a chat that is working.
+   */
+  const daemon = {
+    restartDue,
+    restart: (anyway: boolean): Promise<string | null> =>
+      request("daemon_restart", { anyway }, 10_000).then((r) => (r.ok ? null : r.timed_out ? "loki did not answer" : r.error)),
+  };
+
   const macs = {
     view: macsView,
     lastCode: macCode,
@@ -514,6 +525,7 @@ export function useDesk() {
     phone,
     /** Settings › Macs: the Macs paired with this one, and pairing another. */
     macs,
+    daemon,
     servedBuild,
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
     models: {

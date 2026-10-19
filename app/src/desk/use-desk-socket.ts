@@ -89,6 +89,8 @@ export function useDeskSocket() {
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
   const [macs, setMacs] = useState<Pushes["peers"] | null>(null);
+  /** The file whose change in a checkout made a daemon restart due (plan 024); a restarted daemon has none. */
+  const [restartDue, setRestartDue] = useState<string | null>(null);
   const [macCode, setMacCode] = useState<Pushes["peer_pair_code"] | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
@@ -137,6 +139,7 @@ export function useDeskSocket() {
       ws.onopen = () => {
         retryMs = 500;
         setConnection("open");
+        setRestartDue(null); // a daemon just started owes no restart; one still owing says so in its welcome
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         if (dropped) {
@@ -231,6 +234,9 @@ export function useDeskSocket() {
             break;
           case "peers":
             setMacs(macsFromFrame(msg));
+            break;
+          case "restart_due":
+            setRestartDue(typeof msg.file === "string" ? msg.file : null);
             break;
           case "peer_pair_code":
             setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });
@@ -383,6 +389,7 @@ export function useDeskSocket() {
     devices,
     pairCode,
     macs,
+    restartDue,
     macCode,
     servedBuild,
     recentModels,

@@ -1,10 +1,11 @@
 /**
  * A checkout's daemon keeping up with its sources (plan 024): a change to `mod/` or `core/` reloads the mod in place,
- * and a change to `daemon/` or `core/` restarts the daemon once nothing is running, which the shell's supervisor
- * starts again. The installed app never does this: it does not watch its files.
+ * and a change to `daemon/` or `core/` makes a restart due, which the window offers as a notice with a button. The
+ * restart is the person's call: the daemon stops cleanly and the shell's supervisor starts it again. The installed app
+ * never watches its files, so no restart is ever due there; it can still be asked for one.
  */
 
-/** What the dev reload is built from: reloading the mod, restarting, whether anything runs, and a clock. */
+/** What the dev reload is built from: reloading the mod, restarting, whether anything runs, and where to say so. */
 export interface DevReloadOptions {
   /** Reload the mod; resolves to what to say about it. */
   reloadMod: () => Promise<string>;
@@ -13,20 +14,7 @@ export interface DevReloadOptions {
   /** Whether no chat has a turn running and no approval waits. */
   idle: () => Promise<boolean>;
   report: (message: string) => void;
-  /** How often to look again while something runs (default 5 s). */
-  pollMs?: number;
-  /** How long to wait for idle before saying a restart is due and stopping to look (default 10 minutes). */
-  giveUpMs?: number;
-  now?: () => number;
-  /** A timer; tests pass their own. */
-  later?: (fn: () => void, ms: number) => () => void;
 }
-
-const defaultLater = (fn: () => void, ms: number) => {
-  const t = setTimeout(fn, ms);
-  t.unref();
-  return () => clearTimeout(t);
-};
 
 /** The checkout's reloads and restarts. */
 export class DevReload {
@@ -35,9 +23,9 @@ export class DevReload {
   private again = false;
   /** The latest file to ask for a reload, named when it runs. */
   private changed = "";
-  /** The file whose change asks for a restart, and since when; null when none is due. */
-  private due: { file: string; since: number } | null = null;
-  private cancel: (() => void) | null = null;
+  /** The latest file whose change made a restart due; null when none is. */
+  private due: string | null = null;
+  private readonly listeners = new Set<(file: string) => void>();
 
   constructor(opts: DevReloadOptions) {
     this.opts = opts;
@@ -66,38 +54,32 @@ export class DevReload {
     return this.again;
   }
 
-  /** A source the daemon runs changed: restart once nothing is running. */
-  daemonChanged(file: string): Promise<void> {
-    const now = (this.opts.now ?? Date.now)();
-    if (this.due) {
-      this.due = { file, since: this.due.since };
-      return Promise.resolve();
-    }
-    this.due = { file, since: now };
-    return this.look();
+  /** A source the daemon runs changed: a restart is due, and whoever listens hears which file asked for it. */
+  daemonChanged(file: string): void {
+    const first = this.due === null;
+    this.due = file;
+    if (first) this.opts.report(`${file} changed: restart loki to use it`);
+    for (const fn of this.listeners) fn(file);
   }
 
-  /** Stop looking (the daemon stops). */
-  stop(): void {
-    this.cancel?.();
-    this.cancel = null;
-    this.due = null;
+  /** The file whose change made a restart due, or null when none is. */
+  restartDue(): string | null {
+    return this.due;
   }
 
-  private async look(): Promise<void> {
-    const due = this.due;
-    if (!due) return;
-    if (await this.opts.idle()) {
-      this.due = null;
-      this.opts.restart(`${due.file} changed`);
-      return;
-    }
-    const now = (this.opts.now ?? Date.now)();
-    if (now - due.since >= (this.opts.giveUpMs ?? 10 * 60_000)) {
-      this.due = null;
-      this.opts.report(`${due.file} changed, but a chat is still running: restart loki to use it`);
-      return;
-    }
-    this.cancel = (this.opts.later ?? defaultLater)(() => void this.look(), this.opts.pollMs ?? 5000);
+  /** Hear when a restart becomes due (the file); returns the unsubscribe. */
+  onRestartDue(fn: (file: string) => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  /**
+   * Restart now, as the person asked: null once it is under way, else why not. A chat working or an approval waiting
+   * would be cut off, so that is refused unless `anyway`.
+   */
+  async restart(anyway: boolean): Promise<string | null> {
+    if (!anyway && !(await this.opts.idle())) return "a chat is still working or waiting for you: restarting now cuts it off";
+    this.opts.restart(this.due ? `${this.due} changed` : "asked");
+    return null;
   }
 }

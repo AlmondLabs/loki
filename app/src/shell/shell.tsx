@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Toast } from "../components";
+import { RestartNotice } from "./restart-notice";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/use-attention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
@@ -592,6 +593,7 @@ export function Shell() {
         />
       )}
       {taskNotice && <Toast>{taskNotice}</Toast>}
+      <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
 
       <NewDeskSheet
         state={newDesk}

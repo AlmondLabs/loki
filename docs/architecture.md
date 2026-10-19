@@ -49,8 +49,8 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    one (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build
    runs the checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to
    `~/.loki/logs/daemon.log`. A checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it
-   reloads the mod when `mod/` or `core/` changes and, once nothing runs, stops itself when `daemon/` or `core/`
-   changes, for the supervisor to start it again.
+   reloads the mod when `mod/` or `core/` changes, and a change to `daemon/` or `core/` makes a restart due
+   (`restart_due`), which the window offers; `daemon_restart` stops it cleanly for the supervisor to start again.
 2. **A daemon that dies is started again, with backoff.** The supervisor (`supervise_daemon` in `lib.rs`) waits one
    second, doubling with each exit in the last minute, never more than thirty. A daemon that crashes at start
    therefore does not spin. Quitting loki stops the daemon and the supervisor leaves it down.

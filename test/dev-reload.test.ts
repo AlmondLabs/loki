@@ -1,13 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { DevReload } from "../daemon/dev-reload.ts";
 
-/** A dev reload with its clock, timers and checks in the test's hands. */
+/** A dev reload with its reload and checks in the test's hands. */
 function setup() {
-  const clock = { now: 0 };
-  const timers: Array<{ at: number; fn: () => void }> = [];
   const said: string[] = [];
   const restarts: string[] = [];
-  const state = { idle: false, reloads: 0, release: () => {} };
+  const state = { idle: true, reloads: 0, release: () => {} };
   const dev = new DevReload({
     reloadMod: () =>
       new Promise((resolve) => {
@@ -17,26 +15,8 @@ function setup() {
     restart: (why) => restarts.push(why),
     idle: () => Promise.resolve(state.idle),
     report: (m) => said.push(m),
-    pollMs: 5000,
-    giveUpMs: 60_000,
-    now: () => clock.now,
-    later: (fn, ms) => {
-      const t = { at: clock.now + ms, fn };
-      timers.push(t);
-      return () => timers.splice(timers.indexOf(t), 1);
-    },
   });
-  /** Move the clock on, running each timer that comes due. */
-  const pass = async (ms: number) => {
-    clock.now += ms;
-    for (const t of timers.filter((x) => x.at <= clock.now)) {
-      timers.splice(timers.indexOf(t), 1);
-      t.fn();
-      await Promise.resolve();
-      await Promise.resolve();
-    }
-  };
-  return { dev, state, said, restarts, pass, timers };
+  return { dev, state, said, restarts };
 }
 
 describe("a checkout keeping up with its sources (plan 024)", () => {
@@ -55,43 +35,28 @@ describe("a checkout keeping up with its sources (plan 024)", () => {
     expect(s.said).toEqual(["mod loki reloaded after mod/index.ts changed: ok", "mod loki reloaded after mod/bridge.ts changed: ok"]);
   });
 
-  test("a daemon change restarts at once when nothing runs", async () => {
+  test("a daemon change only makes a restart due: the window hears it, and nothing restarts by itself", () => {
     const s = setup();
-    s.state.idle = true;
-    await s.dev.daemonChanged("daemon/chat-backend.ts");
-    expect(s.restarts).toEqual(["daemon/chat-backend.ts changed"]);
+    const heard: string[] = [];
+    s.dev.onRestartDue((f) => heard.push(f));
+    expect(s.dev.restartDue()).toBeNull();
+    s.dev.daemonChanged("daemon/chat-move.ts");
+    s.dev.daemonChanged("core/harness.ts");
+    expect(s.dev.restartDue()).toBe("core/harness.ts");
+    expect(heard).toEqual(["daemon/chat-move.ts", "core/harness.ts"]);
+    expect(s.said).toEqual(["daemon/chat-move.ts changed: restart loki to use it"]);
+    expect(s.restarts).toEqual([]);
   });
 
-  test("while a chat runs it waits, and restarts when the turn ends, naming the latest change", async () => {
+  test("asked to restart, it does when nothing runs; while a chat works it says so, and restarts only anyway", async () => {
     const s = setup();
-    await s.dev.daemonChanged("daemon/chat-move.ts");
-    await s.dev.daemonChanged("daemon/passes.ts");
+    s.dev.daemonChanged("daemon/passes.ts");
+    s.state.idle = false;
+    expect(await s.dev.restart(false)).toBe("a chat is still working or waiting for you: restarting now cuts it off");
     expect(s.restarts).toEqual([]);
-    await s.pass(5000);
-    expect(s.restarts).toEqual([]);
-    s.state.idle = true;
-    await s.pass(5000);
+    expect(await s.dev.restart(true)).toBeNull();
     expect(s.restarts).toEqual(["daemon/passes.ts changed"]);
-    expect(s.timers).toHaveLength(0);
-  });
-
-  test("after waiting too long it says a restart is due and stops looking; a later change waits again", async () => {
-    const s = setup();
-    await s.dev.daemonChanged("core/harness.ts");
-    for (let i = 0; i < 12; i++) await s.pass(5000);
-    expect(s.said).toEqual(["core/harness.ts changed, but a chat is still running: restart loki to use it"]);
-    expect(s.timers).toHaveLength(0);
     s.state.idle = true;
-    await s.dev.daemonChanged("daemon/main.ts");
-    expect(s.restarts).toEqual(["daemon/main.ts changed"]);
-  });
-
-  test("stopping cancels a wait", async () => {
-    const s = setup();
-    await s.dev.daemonChanged("daemon/main.ts");
-    s.dev.stop();
-    s.state.idle = true;
-    await s.pass(10_000);
-    expect(s.restarts).toEqual([]);
+    expect(await setup().dev.restart(false)).toBeNull(); // asked with nothing due: the installed app's restart
   });
 });

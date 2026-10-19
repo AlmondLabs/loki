@@ -4,6 +4,7 @@ import { agentsFrames, type AgentsDeps } from "./agents.ts";
 import { taskFrames, type TaskDeps } from "./tasks.ts";
 import { captureFrames } from "./capture.ts";
 import { chatFrames, type ChatDeps } from "./chat.ts";
+import { daemonFrames, type DaemonDeps } from "./daemon.ts";
 import type { FrameHandlers } from "./context.ts";
 import { deskFrame, desksFrames, type DesksDeps } from "./desks.ts";
 import { foldersFrames, type FoldersDeps } from "./folders.ts";
@@ -15,7 +16,18 @@ import { seenFrames, type SeenDeps } from "./seen.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
 /** What every frame handler needs, together: each module takes only its own part. */
-export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & TaskDeps & AgentsDeps & LanDeps & PeersDeps & ChatDeps & UsageDeps;
+export type ModuleDeps = DesksDeps &
+  SeenDeps &
+  HistoryDeps &
+  FoldersDeps &
+  RecallDeps &
+  TaskDeps &
+  AgentsDeps &
+  LanDeps &
+  PeersDeps &
+  ChatDeps &
+  UsageDeps &
+  DaemonDeps;
 
 /** Every feature's frame handlers (glossary.md: Frame handler), one module per feature. */
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
@@ -32,6 +44,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     peersFrames(deps),
     chatFrames(deps),
     usageFrames(deps),
+    daemonFrames(deps),
   ];
 }
 
@@ -43,5 +56,7 @@ export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),
     // The Macs paired with this one, for where an agent lives and, later, where each chat runs (plan 023).
     ...(deps.peers ? [{ type: "peers" as const, ...deps.peers.view() }] : []),
+    // A restart due after a checkout's daemon code changed (plan 024): the window offers it.
+    ...(deps.daemon?.restartDue() ? [{ type: "restart_due" as const, file: deps.daemon.restartDue() }] : []),
   ];
 }
