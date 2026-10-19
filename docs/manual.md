@@ -601,7 +601,8 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
 is in it, except one whose agent is mid-turn. The score is
-`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer) `+ new ? 10 : 0` (the
+`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer; a reply that only reads like
+a question, ending in "?" or "let me know", counts until you have looked at it) `+ new ? 10 : 0` (the
 agent said something since you last looked) `+ 15 × focus`
 (the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
 blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,

@@ -359,7 +359,9 @@ export function buildItems(
     else if (l?.pendingAsk) status = "question";
     else if (l?.error && unread) status = "failed";
     else if (l?.loop === "running") status = "running";
-    else if (unread && looksLikeQuestion(lastAssistantText)) status = "question";
+    // A reply that only reads like a question waits on you until you have looked at it; a real ask (above) until answered.
+    else if (unread && looksLikeQuestion(lastAssistantText) && unviewed({ unread, last_message_at: lastMessageAt, viewedAt: viewed[key] ?? null }))
+      status = "question";
     else if (unread) status = "done";
     out.push({
       ...c,
