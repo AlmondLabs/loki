@@ -100,13 +100,15 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
   await lan.setPeersNeeded(true);
   const cloned: string[] = [];
   const holder: { memory: PeerMemory | null } = { memory: null };
+  // The pull a push started, awaited before the folder goes: Windows will not remove a folder git is still working in.
+  let pulling: Promise<unknown> = Promise.resolve();
   const link = new PeerLink({
     macId: FAR,
     url: () => `ws://127.0.0.1:${port}/ws`,
     token: () => Promise.resolve(token),
     protocol: PEER_PROTOCOL,
     onPush: (f) => {
-      if (f.type === "memory_changed" && typeof f.agent_id === "string") void holder.memory?.pull(FAR, f.agent_id);
+      if (f.type === "memory_changed" && typeof f.agent_id === "string") pulling = holder.memory?.pull(FAR, f.agent_id) ?? pulling;
     },
     minBackoffMs: 20,
   });
@@ -134,6 +136,7 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
   } finally {
     link.stop();
     await lan.stop();
+    await pulling.catch(() => undefined);
     rmSync(root, { recursive: true, force: true });
   }
 });
