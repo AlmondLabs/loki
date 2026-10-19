@@ -434,7 +434,8 @@ describe("the daemon's chats", () => {
       await send("first", 1);
       expect(s.sent[0]).toContain("This chat moved from MacBook to Mac mini");
       expect(s.sent[0]).toContain("2 files attached before the move stayed on MacBook");
-      expect(s.sent[0]).toContain(`This chat's folder, ${join(s.dir, "not-here")}, is not on Mac mini.`);
+      // What was sent is JSON, which escapes a Windows path's backslashes.
+      expect(s.sent[0]).toContain(JSON.stringify(`This chat's folder, ${join(s.dir, "not-here")}, is not on Mac mini.`).slice(1, -1));
       await send("second", 2);
       expect(s.sent[1].match(/This chat moved/g)).toHaveLength(1);
     } finally {

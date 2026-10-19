@@ -80,7 +80,8 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
       if (!existsSync(join(root, ".git"))) {
         mkdirSync(dirname(root), { recursive: true });
         rmSync(root, { recursive: true, force: true });
-        await run("git", ["clone", "--quiet", file, root]);
+        // Kept in the clone's own config: Windows' git checks notes out with CRLF otherwise, unlike the home Mac's.
+        await run("git", ["clone", "--quiet", "--config", "core.autocrlf=false", file, root]);
         await git(root, "remote", "remove", "origin").catch(() => undefined);
         return "cloned";
       }
