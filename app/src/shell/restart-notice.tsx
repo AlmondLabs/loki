@@ -1,32 +1,44 @@
-import { useState } from "react";
-import { Button, Toast } from "../components";
+import { useEffect, useEffectEvent } from "react";
+import { notify } from "../components";
+
+/** The one restart notice: shown again in place, never stacked. */
+const ID = "loki-restart-due";
+
+const showing = () => notify.getToasts().some((t) => t.id === ID);
+
+/**
+ * Offer the restart for `file`'s change, or say why it did not happen (a chat working, no answer) with "restart
+ * anyway". A refusal that comes back after the notice went (the daemon was back, owing nothing) is not shown.
+ */
+function offer(file: string, why: string | null, restart: (anyway: boolean) => Promise<string | null>): void {
+  if (why && !showing()) return;
+  notify(why ?? `loki's code changed (${file})`, {
+    id: ID,
+    description: why ? undefined : "restart to use it",
+    duration: Infinity,
+    action: {
+      label: why ? "restart anyway" : "restart",
+      onClick: (e) => {
+        e.preventDefault(); // the notice stays, saying what happens next
+        notify.loading("restarting…", { id: ID, duration: Infinity });
+        void restart(why !== null).then((err) => (err ? offer(file, err, restart) : undefined));
+      },
+    },
+    cancel: { label: "later", onClick: () => undefined },
+  });
+}
 
 /**
  * The notice that loki's daemon code changed in a checkout (plan 024), with the button that restarts it: loki says
- * when a chat is working, and only "restart anyway" then cuts it off. "later" hides it until the next change. The
- * window reconnects on its own once the daemon is back.
+ * when a chat is working, and only "restart anyway" then cuts it off. "later" hides it until the next change; it goes
+ * by itself once the daemon is back, since a daemon just started owes no restart.
  */
 export function RestartNotice({ due, restart }: { due: string | null; restart: (anyway: boolean) => Promise<string | null> }) {
-  const [later, setLater] = useState<string | null>(null);
-  const [refusal, setRefusal] = useState<{ file: string; why: string } | null>(null);
-  const [restarting, setRestarting] = useState(false);
-  if (!due || later === due) return null;
-  const why = refusal?.file === due ? refusal.why : null;
-  const go = async (anyway: boolean) => {
-    setRestarting(true);
-    const err = await restart(anyway);
-    setRestarting(false);
-    setRefusal(err ? { file: due, why: err } : null);
-  };
-  return (
-    <Toast style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span>{why ?? `loki's code changed (${due}): restart to use it`}</span>
-      <Button size="sm" tone="positive" disabled={restarting} onClick={() => void go(why !== null)}>
-        {restarting ? "restarting…" : why ? "restart anyway" : "restart"}
-      </Button>
-      <Button size="sm" tone="quiet" onClick={() => setLater(due)}>
-        later
-      </Button>
-    </Toast>
-  );
+  const show = useEffectEvent((file: string) => offer(file, null, restart));
+  // The notices are outside React: show this one when a restart becomes due, take it down when none is.
+  useEffect(() => {
+    if (due) show(due);
+    else notify.dismiss(ID);
+  }, [due]);
+  return null;
 }

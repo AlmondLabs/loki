@@ -11,6 +11,7 @@ import type {
 } from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Toaster, toast } from "sonner";
 import { useSheetMotion } from "./sheet-motion";
 import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
@@ -484,14 +485,27 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
   );
 }
 
-/** A notice, briefly, at the bottom centre of the window. */
-export function Toast({ children, className, style, ...rest }: HTMLAttributes<HTMLDivElement>) {
+/**
+ * The window's notices (Sonner): one stack at the bottom centre, in loki's colours (components.css .loki-notices),
+ * over everything but a sheet. Mounted once, by the shell; `notify` shows one from anywhere: a line that goes after
+ * four seconds, or one that stays with its buttons (`duration: Infinity`, `action`, `cancel`).
+ */
+export function Notices() {
   return (
-    <div role="status" className={cx("loki-toast", className)} style={{ zIndex: LAYER.toast, boxShadow: "var(--loki-shadow-float)", ...style }} {...rest}>
-      {children}
-    </div>
+    <Toaster
+      className="loki-notices"
+      position="bottom-center"
+      offset={22}
+      visibleToasts={3}
+      duration={4000}
+      style={{ zIndex: LAYER.toast }}
+      toastOptions={{ className: "loki-notice", classNames: { actionButton: "loki-notice-action", cancelButton: "loki-notice-cancel" } }}
+    />
   );
 }
+
+/** Show a notice (Sonner's `toast`): see `Notices`. */
+export const notify = toast;
 
 /** An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). */
 export function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {

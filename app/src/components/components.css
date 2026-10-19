@@ -480,22 +480,29 @@ textarea.loki-field {
 .loki-popover[data-grow] {
   animation: loki-popover-grow var(--spring-smooth-ms) var(--spring-smooth);
 }
-.loki-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  max-width: 70%;
-  padding: 8px 14px;
-  border-radius: var(--loki-radius-pill);
-  border: 1px solid var(--loki-border);
-  background: var(--loki-panel);
-  color: var(--loki-fg);
+/* The window's notices (Notices, on Sonner): Sonner's own layout and motion, in loki's colours and type. */
+.loki-notices {
+  --normal-bg: var(--loki-panel);
+  --normal-border: var(--loki-border);
+  --normal-text: var(--loki-fg);
+  --border-radius: var(--loki-radius-md);
+  font-family: var(--loki-font);
+}
+.loki-notices .loki-notice {
   font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  box-shadow: var(--loki-shadow-float);
+}
+.loki-notices .loki-notice .loki-notice-action {
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+  border-radius: var(--loki-radius-sm);
+  font-weight: 600;
+}
+.loki-notices .loki-notice .loki-notice-cancel {
+  background: transparent;
+  color: var(--loki-muted);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
 }
 .loki-banner {
   flex: 0 0 auto;

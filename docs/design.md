@@ -136,7 +136,10 @@ neutral, brass the blue pick, attention the red badge, tone for a status badge, 
 float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row** (selected, dense, touch,
 flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or bottom), **Popover**, **Kbd**,
 **Meta** (sans 12 muted; brass, negative for a small error, wrap; a div that is a meta line takes the
-`loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, **Toast**.
+`loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, and
+**Notices** with `notify` (the window's notices, on [Sonner](https://sonner.emilkowal.ski): a line for four seconds,
+or one that stays with an action and a cancel button; one stack, bottom centre, in loki's colours; never a
+hand-built toast).
 
 The tone names predate the Slack look and are kept for compatibility. What they render now: `quiet` muted ink
 on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action; it no longer means

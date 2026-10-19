@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { Toast } from "../components";
+import { Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/use-attention.ts";
@@ -18,7 +18,6 @@ import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
 import type { Segment } from "./shortcuts";
-import { useNotice } from "./use-notice";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
 import { useChatLayout } from "./use-chat-layout";
@@ -99,7 +98,8 @@ export function Shell() {
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
   });
-  const { message: taskNotice, notice } = useNotice();
+  /** A line at the bottom of the window for four seconds (Notices). */
+  const notice = (m: string) => void notify(m);
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
   const archivedKey = desk.desks.list
     .filter((d) => d.status === "archived")
@@ -592,7 +592,7 @@ export function Shell() {
           onModelsChanged={forgetModels}
         />
       )}
-      {taskNotice && <Toast>{taskNotice}</Toast>}
+      <Notices />
       <RestartNotice due={desk.daemon.restartDue} restart={desk.daemon.restart} />
 
       <NewDeskSheet
