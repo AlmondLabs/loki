@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { serial } from "../daemon/repo-queue.ts";
 import {
   cpSync,
   existsSync,
@@ -204,8 +205,15 @@ export class SkillSources {
     return dir;
   }
 
-  /** Overwrite the memory copy and commit as the agent, the way an install does (mod/skills.ts). */
-  private async replace(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
+  /**
+   * Overwrite the memory copy and commit as the agent, the way an install does (mod/skills.ts), in the repo's queue so
+   * a merge from a paired Mac or a memory write never meets it halfway (plan 023, U7).
+   */
+  private replace(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
+    return serial(memory, () => this.replaceNow(agentId, memory, name, upstream, label));
+  }
+
+  private async replaceNow(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
     const target = join(memory, "skills", name);
     const spec = `skills/${name}`;
     rmSync(target, { recursive: true, force: true });

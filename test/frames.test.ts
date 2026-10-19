@@ -9,7 +9,19 @@ import { RecallStore } from "../mod/recall.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
-import { FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type InputOf, type ReplyOf, type RequestName, type SendName } from "../core/frames.ts";
+import {
+  FRAMES,
+  PEER_FRAMES,
+  PHONE_FRAMES,
+  frameEntry,
+  peerMeaning,
+  pushMeaning,
+  type FrameName,
+  type InputOf,
+  type ReplyOf,
+  type RequestName,
+  type SendName,
+} from "../core/frames.ts";
 
 const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
@@ -173,7 +185,7 @@ describe("the frame table", () => {
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
       gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
     });
-    expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null });
+    expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null, home: null });
   });
 });
 
@@ -269,6 +281,17 @@ describe("every frame in the table, through the real router", () => {
       devices: () => [],
       forget: () => true,
     },
+    peers: {
+      view: () => ({ me: { mac_id: "mac-1", name: "MacBook", host: null }, peers: [] }),
+      begin: () => Promise.resolve({ code: "K9HF6D", host: null, expires_at: "" }),
+      join: () => Promise.reject(new Error("no Mac there")),
+      forget: () => Promise.resolve(false),
+      hello: () => ({ mac_id: "mac-1", name: "MacBook", build: null, protocol: 1 }),
+      agents: () => ({ agents: [], tombstones: [] }),
+      chats: () => ({ desks: [], inbox: [] }),
+      state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
+      memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
+    },
   };
   /** The smallest frame each entry accepts. */
   const sample: Partial<Record<FrameName, Record<string, unknown>>> = {
@@ -303,6 +326,8 @@ describe("every frame in the table, through the real router", () => {
     skill_install: { agent_id: "agent-1", source: "x" },
     skill_refresh: { agent_id: "agent-1", name: "x" },
     lan_via_set: { via: "lan" },
+    peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
+    peer_forget: { mac_id: "mac-2" },
   };
 
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
@@ -340,6 +365,15 @@ describe("every frame in the table, through the real router", () => {
       const phone = client("d1", "dev-1");
       bridge.onMessage(phone, { type: n, request_id: "p", ...sample[n] });
       expect([n, phone.sent.at(-1)]).toEqual([n, { type: "error", request_id: "p", message: `${n} is not available on the phone` }]);
+    }
+  });
+
+  test("a paired Mac is refused every frame the table does not mark for Macs", () => {
+    const bridge = bridgeOf(deps);
+    for (const n of parsed.filter((x) => !PEER_FRAMES.has(x))) {
+      const mac = client("d1", undefined, "mac-2");
+      bridge.onMessage(mac, { type: n, request_id: "m", ...sample[n] });
+      expect([n, mac.sent.at(-1)]).toEqual([n, { type: "error", request_id: "m", message: `${n} is not available to another Mac` }]);
     }
   });
 });
@@ -404,5 +438,70 @@ describe("frames: approvals and MCP settings", () => {
   test("none of the MCP or always-allow frames reach a phone", () => {
     for (const n of ["chat_mcp_get", "chat_mcp_server", "chat_mcp_secret", "chat_mcp_agent", "chat_approvals_set"] as const)
       expect(PHONE_FRAMES.has(n)).toBe(false);
+  });
+});
+
+describe("deleting an agent while a paired Mac is out of reach", () => {
+  test("is refused with the reason, and the backend is never asked", async () => {
+    const asked: string[] = [];
+    const bridge = bridgeOf({
+      chat: { deleteAgent: (id: string) => (asked.push(id), Promise.resolve()) } as never,
+      agentDeleteBlocked: () => "Mac mini is out of reach: delete this agent once it is back, so its chats there go too",
+    });
+    const c = client("d1");
+    bridge.onMessage(c, { type: "chat_agent_delete", request_id: "r1", agent_id: "agent-1" });
+    await settled();
+    expect(c.sent.at(-1)).toEqual({
+      type: "error",
+      request_id: "r1",
+      message: "Mac mini is out of reach: delete this agent once it is back, so its chats there go too",
+    });
+    expect(asked).toEqual([]);
+  });
+});
+
+describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
+  const by = (route: string | undefined) => names.filter((n) => peerMeaning(n) && peerMeaning(n)?.route === route).sort();
+
+  test("the catalog: what is routed by chat, desk or home, what only Macs send each other, and what is relayed", () => {
+    expect(by("chat")).toEqual([
+      "chat_abort",
+      "chat_answer",
+      "chat_approve",
+      "chat_folder",
+      "chat_model",
+      "chat_move",
+      "chat_open",
+      "chat_send",
+      "chat_update",
+      "history_get",
+    ]);
+    expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
+    expect(by("home")).toEqual(["chat_requirements", "folder_check", "folder_complete", "folders_get"]);
+    expect(by("new-chat")).toEqual(["chat_create"]);
+    expect(names.filter((n) => pushMeaning(n)?.relay === "chat")).toEqual(["chat_event"]);
+    expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["desk", "state", "widget_change", "widgets"]);
+  });
+
+  test("a frame only Macs send each other is a peer_ frame; the rest of those are Settings' own, never a Mac's", () => {
+    const settings = ["peer_forget", "peer_pair_begin", "peer_pair_join"];
+    expect(by(undefined)).toEqual(names.filter((n) => n.startsWith("peer_") && FRAMES[n].kind !== "push" && !settings.includes(n)).sort());
+    for (const n of settings) expect(peerMeaning(n), n).toBeNull();
+  });
+
+  test("a frame routed by its chat is refused without one, so it is never sent on to no Mac", () => {
+    for (const n of by("chat")) {
+      const entry = FRAMES[n];
+      if (entry.kind === "push") continue;
+      expect(typeof entry.parse({ type: n, agent_id: "agent-local-1", to: "mac" }), n).toBe("string");
+    }
+  });
+
+  test("the pushes that change how chats are listed, and the chat events that do", () => {
+    expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_left", "desks", "seen"]);
+    expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device"]);
+    expect(peerMeaning("chat_move")).toMatchObject({ relists: true, timeout_ms: 180_000 });
+    expect(peerMeaning("peers_get")).toBeNull();
+    expect(peerMeaning("nonsense")).toBeNull();
   });
 });

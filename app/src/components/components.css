@@ -480,22 +480,36 @@ textarea.loki-field {
 .loki-popover[data-grow] {
   animation: loki-popover-grow var(--spring-smooth-ms) var(--spring-smooth);
 }
-.loki-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  max-width: 70%;
-  padding: 8px 14px;
-  border-radius: var(--loki-radius-pill);
-  border: 1px solid var(--loki-border);
-  background: var(--loki-panel);
-  color: var(--loki-fg);
+/*
+ * The window's notices (Notices, on Sonner): Sonner's layout and motion, in loki's colours and type. Sonner sets its
+ * own light or dark colours on [data-sonner-toaster][data-sonner-theme] and its buttons under [data-styled]; these
+ * selectors carry one more attribute than each of its, so loki's win in either theme whatever loads last.
+ */
+.loki-notices[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--loki-panel);
+  --normal-border: var(--loki-border);
+  --normal-text: var(--loki-fg);
+  --border-radius: var(--loki-radius-md);
+  font-family: var(--loki-font);
+}
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
   font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  box-shadow: var(--loki-shadow-float);
+}
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] [data-description] {
+  color: var(--loki-muted);
+}
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-action {
+  background: var(--loki-affirm);
+  color: var(--loki-on-affirm);
+  border-radius: var(--loki-radius-sm);
+  font-weight: 600;
+}
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-cancel {
+  background: transparent;
+  color: var(--loki-muted);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
 }
 .loki-banner {
   flex: 0 0 auto;
@@ -626,6 +640,9 @@ textarea.loki-field {
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
+  /* A row is a control: a right-click opens its menu, and WebKit would otherwise select the word under the pointer. */
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
@@ -659,6 +676,12 @@ textarea.loki-field {
   color: inherit;
 }
 /* The agent is working: Slack's green presence dot, at the lead's corner (or before the title when there is no lead). */
+/* A chat mid-turn: the dot breathes while it works. Reduced motion zeroes the duration, which leaves it steady. */
+@keyframes loki-live-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
 .loki-list-row-live {
   width: 8px;
   height: 8px;
@@ -666,6 +689,11 @@ textarea.loki-field {
   box-sizing: border-box;
   border-radius: 50%;
   background: var(--loki-positive);
+  animation: loki-live-pulse 1.6s ease-in-out infinite;
+}
+/* In the badge's place on the right, where every row's mark lines up (ListRow liveAtEnd). */
+.loki-list-row-live--end {
+  margin: 0 4px;
 }
 .loki-list-row-lead > .loki-list-row-live {
   position: absolute;
@@ -813,6 +841,15 @@ button.loki-list-section-toggle {
 .loki-list-section-count {
   font-size: 12px;
   font-weight: 400;
+  color: var(--loki-muted);
+}
+/* The Mac an agent lives on, beside its section's title: always shown, quieter than the title. */
+.loki-list-section-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 12px;
   color: var(--loki-muted);
 }
 .loki-list-section-actions {

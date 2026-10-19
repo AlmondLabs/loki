@@ -21,15 +21,19 @@ import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
 import type { McpTools } from "./mcp/index.ts";
 import type { PassState } from "./passes-state.ts";
-import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
+import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore, ChatEngine, ChatInfo } from "./kernel/index.ts";
-import { LabelColors } from "./labels.ts";
+import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
+import { exportChat, importChat, type MoveNames, type MovedChat } from "./chat-move.ts";
+import type { Schedules } from "./schedule.ts";
+import { homeOf, readRecord } from "./store/agent-sync.ts";
 import { chatLabels, type LabelView } from "../core/labels.ts";
 import { acpHandle } from "./acp/agents.ts";
 import type { AcpChats } from "./acp/chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
 import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
+import { SYNCED_FIELDS, addTombstone, stamp, type Stamp } from "./store/agent-sync.ts";
 
 /**
  * Chats on loki's daemon, as the mod's chat frames ask for them (plan 017, U5; mod/frames/chat.ts). A chat a client
@@ -59,6 +63,12 @@ interface Deps {
   /** The import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
   importLetta?: () => Promise<ImportReport>;
   importStatus?: () => ImportStatus;
+  /** This Mac's install id (plan 023): stamped on agent record changes so paired Macs keep the later one. */
+  macId?: string;
+  /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
+  schedules?: Schedules;
+  /** The clock for those stamps; Date.now unless a test sets it. */
+  now?: () => number;
 }
 
 /** A model handle (`provider/model`) as pi-durable's model reference. */
@@ -294,11 +304,18 @@ export class DaemonChats implements ChatBackend {
     };
   }
 
-  async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {
+  /**
+   * A new chat here. `home` is the Mac the person picked for it; picked here while its agent lives on another Mac, the
+   * chat is placed (addendum A2), so the hand-over of that agent's chats leaves it here.
+   */
+  async create(agentId: string, cwd: string | null, title: string | null, home: string | null = null): Promise<{ agentId: string; conversationId: string }> {
     const store = await this.deps.stores.get(agentId);
     const conversationId = `local-conv-${randomUUID()}`;
     const model = modelRef(readLocalAgent(agentId, this.deps.backendDir)?.model ?? "");
     await store.createChat(conversationId, { title, agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) } }, this.deps.context);
+    const here = this.deps.macId ?? "";
+    if (home && here && homeOf(readRecord(this.deps.backendDir, agentId), here) !== here)
+      await store.updateChat(conversationId, { placed: true }, this.deps.context);
     return { agentId, conversationId };
   }
 
@@ -321,7 +338,9 @@ export class DaemonChats implements ChatBackend {
     await this.deps.mcp?.prepare(store, chat, this.deps.context);
     await this.watch(store, chat, p.agent_id, p.conversation_id);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type }));
+    const moved = await this.movedNote(store, chat);
     const parts = [
+      ...(moved ? [{ type: "text" as const, text: moved }] : []),
       ...(p.context ? [{ type: "text" as const, text: p.context }] : []),
       ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []),
       ...images,
@@ -336,6 +355,22 @@ export class DaemonChats implements ChatBackend {
     });
     await chat.submit({ type: "input", content: content as never, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
     return true;
+  }
+
+  /**
+   * What the agent is told, once, with the first message after its chat moved here (addendum A5): the two Macs, and
+   * what did not come along. Cleared as it is read, so it goes with one message only. Null when the chat did not move.
+   */
+  private async movedNote(store: AgentStore, chat: Conversation): Promise<string | null> {
+    const info = await store.chatInfo(chat.id, this.deps.context);
+    if (!info?.moved) return null;
+    const { from, to, files_left: filesLeft } = info.moved;
+    await store.updateChat(info.id, { moved: null }, this.deps.context);
+    const cwd = ((await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined)?.cwd;
+    const lines = [`This chat moved from ${from} to ${to}: you now run on ${to}, with its files, tools and sign-ins.`];
+    if (filesLeft > 0) lines.push(`${filesLeft === 1 ? "A file" : `${filesLeft} files`} attached before the move stayed on ${from} and cannot be read here.`);
+    if (cwd && !existsSync(cwd)) lines.push(`This chat's folder, ${cwd}, is not on ${to}.`);
+    return `<system-reminder>\n${lines.join("\n")}\n</system-reminder>`;
   }
 
   /**
@@ -479,7 +514,17 @@ export class DaemonChats implements ChatBackend {
   }
 
   agents(): Promise<Array<{ id: string; name: string }>> {
-    return settled(() => listAgents(this.deps.backendDir).map((id) => ({ id, name: readLocalAgent(id, this.deps.backendDir)?.name ?? id })));
+    return settled(() =>
+      listAgents(this.deps.backendDir).map((id) => {
+        const agent = readLocalAgent(id, this.deps.backendDir);
+        return { id, name: agent?.name ?? id, home_mac: agent?.home_mac ?? null };
+      }),
+    );
+  }
+
+  /** Now, on this Mac: the stamp a record change carries to paired Macs (plan 023, U3). */
+  private stampNow(): Stamp {
+    return { at: new Date((this.deps.now ?? Date.now)()).toISOString(), mac: this.deps.macId ?? "" };
   }
 
   async createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }> {
@@ -488,7 +533,11 @@ export class DaemonChats implements ChatBackend {
       ...(p.description ? { description: p.description } : {}),
       ...(p.persona ? { persona: p.persona } : {}),
       ...(p.model ? { model: p.model } : {}),
+      ...(this.deps.macId ? { home_mac: this.deps.macId } : {}),
     });
+    // Every field is new here: a paired Mac takes them all, and the agent lives on the Mac that made it.
+    const file = join(this.deps.backendDir, "agents", `${backendName(id)}.json`);
+    writeRecord(this.deps.backendDir, id, stamp(JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>, SYNCED_FIELDS, this.stampNow()));
     const store = await this.deps.stores.get(id);
     await store.setAgent({ id, name: p.name }, this.deps.context);
     const model = p.model ? modelRef(p.model) : undefined;
@@ -499,10 +548,9 @@ export class DaemonChats implements ChatBackend {
   async updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void> {
     const file = join(this.deps.backendDir, "agents", `${backendName(p.agent_id)}.json`);
     const record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    if (p.name !== undefined) record.name = p.name;
-    if (p.description !== undefined) record.description = p.description;
-    if (p.model !== undefined) record.model = p.model;
-    writeRecord(this.deps.backendDir, p.agent_id, record);
+    const changed = (["name", "description", "model", "home_mac"] as const).filter((f) => p[f] !== undefined);
+    for (const f of changed) record[f] = p[f];
+    writeRecord(this.deps.backendDir, p.agent_id, stamp(record, changed, this.stampNow()));
     if (p.name !== undefined) await (await this.deps.stores.get(p.agent_id)).setAgent({ id: p.agent_id, name: p.name }, this.deps.context);
   }
 
@@ -621,7 +669,76 @@ export class DaemonChats implements ChatBackend {
     await revertMemoryCommit(this.deps.backendDir, p.agent_id, p.sha);
   }
 
+  /** Delete an agent here and leave a tombstone, so paired Macs delete it too rather than send it back. */
+  /**
+   * The chats here of agents that live on `mac`, for that Mac to take over when it first pairs (plan 023, U9): the
+   * person's own, not hidden, and not on an ACP agent, whose session belongs to this Mac. A chat put here on purpose
+   * stays (addendum A2).
+   */
+  async moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>> {
+    const out: Array<{ agent_id: string; conversation_id: string }> = [];
+    for (const agentId of listAgents(this.deps.backendDir)) {
+      if (homeOf(readRecord(this.deps.backendDir, agentId), this.deps.macId ?? "") !== mac) continue;
+      const store = await this.deps.stores.get(agentId);
+      for (const info of await store.chats(this.deps.context)) {
+        if (info.hidden || info.placed || info.engine?.kind === "acp" || isReflectionChat(info.id) || isDoctorChat(info.id)) continue;
+        out.push({ agent_id: agentId, conversation_id: info.id });
+      }
+    }
+    return out;
+  }
+
+  /** A chat copied out for another Mac, or `busy` while a turn runs or an approval waits, when it must wait to move. */
+  async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
+    if ((await this.busy(agentId, chatId)) || this.deps.approvals.waitingIn(agentId, chatId).length > 0) return { chat: null, busy: true };
+    const store = await this.deps.stores.get(agentId);
+    const schedules = (this.deps.schedules?.list() ?? []).filter((t) => t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId);
+    const cursors: Record<string, number> = {};
+    for (const job of ["reflection", "learn"] as const) {
+      const at = this.deps.passes?.state.cursor(job, agentId, chatId);
+      if (at !== undefined) cursors[job] = at;
+    }
+    return { chat: await exportChat(store, agentId, chatId, { schedules, cursors }, this.deps.context), busy: false };
+  }
+
+  /**
+   * A chat moved here from another Mac: its log, its schedules and its passes' cursors. False when it was already here.
+   * `names` marks the thread where it moved and tells the agent with the next message (addendum A5).
+   */
+  async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
+    const store = await this.deps.stores.get(moved.agent_id);
+    const made = await importChat(store, moved, this.deps.context, names);
+    for (const task of moved.schedules) this.deps.schedules?.adopt(task);
+    for (const [job, at] of Object.entries(moved.cursors))
+      if (job === "reflection" || job === "learn") this.deps.passes?.state.setCursor(job, moved.agent_id, moved.conversation_id, at);
+    return made;
+  }
+
+  /** The other Mac has the chat now: hide it here and stop its schedules, so it lives and fires on one Mac only. */
+  async finishMove(agentId: string, chatId: string): Promise<void> {
+    const store = await this.deps.stores.get(agentId);
+    await store.updateChat(chatId, { hidden: true }, this.deps.context);
+    for (const t of this.deps.schedules?.list() ?? [])
+      if (t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId) this.deps.schedules?.cancel(agentId, t.id);
+  }
+
+  /** The person's label colours, for a paired Mac (plan 023, U8). */
+  labelColors(): LabelColorsSnapshot {
+    return this.colors.snapshot();
+  }
+
+  /** A paired Mac's label colours: true when one here changed. */
+  applyLabelColors(theirs: LabelColorsSnapshot): boolean {
+    return this.colors.apply(theirs);
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
+    addTombstone(this.deps.backendDir, { id: agentId, ...this.stampNow() });
+    await this.removeAgent(agentId);
+  }
+
+  /** Remove an agent's store, memory and record here, as a delete on another Mac asks; no tombstone of this Mac's. */
+  async removeAgent(agentId: string): Promise<void> {
     await this.deps.stores.close(agentId);
     for (const path of [
       this.deps.stores.file(agentId),

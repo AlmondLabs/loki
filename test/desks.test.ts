@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeskRegistry } from "../mod/desks.ts";
+import { DeskRegistry, hiddenScopes } from "../mod/desks.ts";
+import { scopeFor } from "../core/desk-core.ts";
 
 describe("desk registry", () => {
   test("remembers, persists, reloads; scope is the sanitized conversation id", () => {
@@ -94,5 +95,17 @@ describe("DeskRegistry: one scope per conversation", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("chats this Mac only keeps hidden (plan 023)", () => {
+  test("a chat let go to another Mac leaves the list though its canvas stays; one visible under the same scope stays", () => {
+    const rows = [
+      { conversationId: "conv-moved", agentId: "agent-1", hidden: true },
+      { conversationId: "conv-here", agentId: "agent-1", hidden: false },
+      { conversationId: "conv-back", agentId: "agent-1", hidden: true },
+      { conversationId: "conv-back", agentId: "agent-1", hidden: false },
+    ];
+    expect([...hiddenScopes(rows)]).toEqual([scopeFor("conv-moved", "agent-1")]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { keepSame, withScope } from "../app/src/desk/use-desk-socket.ts";
+import { keepSame, macsFromFrame, withScope } from "../app/src/desk/use-desk-socket.ts";
 
 /**
  * The mod repeats itself: every mark broadcasts the whole seen frame, and the desk list and titles come again
@@ -45,5 +45,14 @@ describe("desk socket: an identical frame keeps its references", () => {
     expect(withScope(titles, "c1", "Revenue review")).toBe(titles);
     expect(withScope(titles, "c1", "Revenue")).toEqual({ c1: "Revenue", c2: "Budget" });
     expect(withScope(titles, "c3", "New")).toEqual({ c1: "Revenue review", c2: "Budget", c3: "New" });
+  });
+});
+
+describe("desk socket: the Macs push", () => {
+  test("keeps the computers on the tailnet beside this Mac and the paired ones", () => {
+    const me = { mac_id: "m1", name: "MacBook", host: "macbook.tail1234.ts.net:41415" };
+    const tailnet = [{ name: "Mac mini", address: "mac-mini.tail1234.ts.net", os: "macOS", online: true, paired: false }];
+    expect(macsFromFrame({ me, peers: [], tailnet })).toEqual({ me, peers: [], tailnet });
+    expect(macsFromFrame({ me, peers: [] })).toEqual({ me, peers: [], tailnet: [] });
   });
 });

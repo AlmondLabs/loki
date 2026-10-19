@@ -15,6 +15,8 @@ import {
   saveSidebar,
   sidebarModel,
   toggleFold,
+  moveTargets,
+  homeMark,
 } from "../app/src/shell/sidebar-model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -131,7 +133,7 @@ describe("marks (scenario 3)", () => {
       live: false,
     });
   });
-  test("finished, looked at since the last message: not bold, the ring stays, the words say viewed", () => {
+  test("finished, looked at since the last message: neither bold nor ringed, though the Inbox still holds it", () => {
     const fresh = deskRowState(
       item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }),
       desk("jira"),
@@ -141,7 +143,8 @@ describe("marks (scenario 3)", () => {
       item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }),
       desk("jira"),
     );
-    expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false, note: "viewed, not done" });
+    expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false });
+    expect(looked.note).toBeUndefined();
     // waiting stays bold with its badge whatever the look: it needs you to act
     expect(
       deskRowState(item("a1", "jira", "approval", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
@@ -374,5 +377,49 @@ describe("the rename dialog, rendered", () => {
     expect(html).toContain('value="Meeting notes"');
     expect(html).toContain(`maxLength="${DESK_NAME_MAX}"`);
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save<\/button>/);
+  });
+});
+
+describe("moving a chat to another Mac (plan 023, addendum A1)", () => {
+  const me = { mac_id: "book", name: "MacBook" };
+  const macs = { me, peers: [{ mac_id: "mini", name: "Mac mini", reachable: true }] };
+  const chat = { agent_id: "agent-1", conversation_id: "conv-1" };
+
+  test("a chat here is offered to the other Macs, greyed while one is out of reach; one there, back to this Mac", () => {
+    expect(moveTargets(chat, macs)).toEqual([{ mac_id: "mini", name: "Mac mini", reachable: true }]);
+    expect(moveTargets(chat, { me, peers: [{ mac_id: "mini", name: "Mac mini", reachable: false }] })).toEqual([
+      { mac_id: "mini", name: "Mac mini", reachable: false },
+    ]);
+    expect(moveTargets({ ...chat, home: "mini", reachable: true }, macs)).toEqual([{ mac_id: "book", name: "MacBook", reachable: true }]);
+  });
+
+  test("nothing to offer with no Mac paired, for a main chat, a row with no chat, or a chat whose Mac is out of reach", () => {
+    expect(moveTargets(chat, { me, peers: [] })).toEqual([]);
+    expect(moveTargets(chat, null)).toEqual([]);
+    expect(moveTargets({ ...chat, conversation_id: "default" }, macs)).toEqual([]);
+    expect(moveTargets({ agent_id: null, conversation_id: null }, macs)).toEqual([]);
+    expect(moveTargets({ ...chat, home: "mini", reachable: false }, macs)).toEqual([]);
+  });
+});
+
+describe("where a chat lives, in its row (plan 023)", () => {
+  const BOOK = "book";
+  const MINI = "mini";
+  const on = (home?: string, reachable = true) => (home ? { home, home_name: home === MINI ? "Mac mini" : "MacBook", reachable } : {});
+
+  test("a chat on its agent's Mac is not marked: its section says where the agent lives", () => {
+    expect(homeMark(on(MINI), MINI, BOOK, "this Mac")).toBeNull();
+    expect(homeMark(on(), BOOK, BOOK, "this Mac")).toBeNull();
+  });
+
+  test("a chat living away from its agent's Mac is, here or there; one whose Mac is asleep says so", () => {
+    expect(homeMark(on(), MINI, BOOK, "this Mac")).toEqual({ kind: "away", note: "on this Mac" });
+    expect(homeMark(on(MINI), BOOK, BOOK, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
+    expect(homeMark(on(MINI, false), MINI, BOOK, "this Mac")).toEqual({ kind: "asleep", note: "waiting for Mac mini" });
+  });
+
+  test("with no Mac paired nothing is marked; in a flat list every chat on another Mac is", () => {
+    expect(homeMark(on(), undefined, undefined, "this Mac")).toBeNull();
+    expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
   });
 });

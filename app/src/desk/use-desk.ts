@@ -100,6 +100,9 @@ export function useDesk() {
     setLanStatus,
     devices,
     pairCode,
+    macs: macsView,
+    restartDue,
+    macCode,
     servedBuild,
     recentModels,
     widgetLogs,
@@ -371,15 +374,20 @@ export function useDesk() {
         setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
         return { rows: r.reply.messages, more: r.reply.more };
       }),
+    /** What the Mac a new chat would live on lacks for its agent (plan 023, U10): lines for the person, none when nothing. */
+    requirements: (agentId: string, home?: string): Promise<string[]> =>
+      request("chat_requirements", { agent_id: agentId, ...(home ? { home } : {}) }, 8000).then((r) => (r.ok ? r.reply.missing : [])),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
-      recent: () =>
-        request("folders_get", {}, 4000).then((r) =>
+      // `home` asks the Mac a new chat will live on (plan 023): its folders, not this Mac's.
+      recent: (home?: string) =>
+        request("folders_get", home ? { home } : {}, 4000).then((r) =>
           r.ok ? { byAgent: r.reply.by_agent, byConversation: r.reply.by_conversation } : { byAgent: {}, byConversation: {} },
         ),
-      complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
-      check: (path: string) =>
-        request("folder_check", { path }, 3000).then((r) =>
+      complete: (prefix: string, home?: string) =>
+        request("folder_complete", { prefix, ...(home ? { home } : {}) }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
+      check: (path: string, home?: string) =>
+        request("folder_check", { path, ...(home ? { home } : {}) }, 3000).then((r) =>
           r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error },
         ),
       pick: (defaultPath?: string) => request("folder_pick", { default_path: defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),
@@ -410,6 +418,35 @@ export function useDesk() {
     forget: (id: string) => send({ type: "device_forget", id }),
   };
 
+  /**
+   * Settings › Macs (plan 023): this Mac, the Macs paired with it, and pairing. `peers` and `peer_pair_code` land in
+   * state above; a join answers with the reply or the reason it failed, in words for the person.
+   */
+  /**
+   * Restarting loki's daemon (plan 024): the change that made a restart due (its file, and a count that goes up with
+   * each change), and restarting now. Null once under way, else why not; `anyway` cuts off a chat that is working.
+   */
+  const daemon = {
+    restartDue,
+    restart: (anyway: boolean): Promise<string | null> =>
+      request("daemon_restart", { anyway }, 10_000).then((r) => (r.ok ? null : r.timed_out ? "loki did not answer" : r.error)),
+  };
+
+  const macs = {
+    view: macsView,
+    lastCode: macCode,
+    refresh: () => send({ type: "peers_get" }),
+    beginPair: () => send({ type: "peer_pair_begin" }),
+    join: (host: string, code: string): Promise<string | null> =>
+      request("peer_pair_join", { host, code }, 30_000).then((r) => (r.ok ? null : r.timed_out ? "the other Mac did not answer in time" : r.error)),
+    forget: (macId: string) => send({ type: "peer_forget", mac_id: macId }),
+    /** Move a chat to another Mac (addendum A1): null once it moved, else why not. A long chat takes a while to cross. */
+    move: (agentId: string, conversationId: string, to: string): Promise<string | null> =>
+      request("chat_move", { agent_id: agentId, conversation_id: conversationId, to }, 200_000).then((r) =>
+        r.ok ? null : r.timed_out ? "the move did not finish in time" : r.error,
+      ),
+  };
+
   /** Delete a widget's file for good. The mod removes it; the watcher takes it off every tab. */
   const trash = (id: string) => {
     lastInteractionRef.current = Date.now();
@@ -424,9 +461,11 @@ export function useDesk() {
 
   const { visible, closed, ownCount, loaded } = deskView(scope, desks, widgets);
 
-  const title = titles[scope] ?? null;
+  // Until the desk itself arrives (another Mac's chat waits on that Mac), its row in the list names it.
+  const listed = deskList.find((d) => d.scope === scope);
+  const title = titles[scope] ?? listed?.title ?? null;
   const status: DeskStatus = statuses[scope] ?? "none";
-  const agentName = agentNames[scope] ?? null;
+  const agentName = agentNames[scope] ?? listed?.agent_name ?? null;
   const model = models[scope] ?? null;
   const reasoningEffort = reasoningEfforts[scope] ?? null;
   /** After a switch the mod only re-reads the conversation at the next turn end; remember the new model now. */
@@ -448,7 +487,7 @@ export function useDesk() {
     setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, title } : d)));
   };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
-  const agentId = agentIds[scope] ?? null;
+  const agentId = agentIds[scope] ?? listed?.agent_id ?? null;
   /** The conversation behind this desk, as loki's daemon names it. */
   const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
 
@@ -484,6 +523,9 @@ export function useDesk() {
     },
     attention,
     phone,
+    /** Settings › Macs: the Macs paired with this one, and pairing another. */
+    macs,
+    daemon,
     servedBuild,
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
     models: {

@@ -213,3 +213,25 @@ describe("Tailscale (injected CLI)", () => {
     expect((await ts2.setServe(true)).error).toBe("Error: HTTPS is not enabled for this tailnet; enable it in the admin console");
   });
 });
+
+describe("the other devices on the tailnet", () => {
+  test("are read from tailscale status, online first, each with its MagicDNS name", async () => {
+    const { parseDevices } = await import("../mod/tailscale.ts");
+    const json = JSON.stringify({
+      BackendState: "Running",
+      Self: { DNSName: "my-macbook-pro.tail1234.ts.net." },
+      Peer: {
+        "nodekey:1": { HostName: "Deepak's Mac mini", DNSName: "deepaks-mac-mini.tail1234.ts.net.", OS: "macOS", Online: true },
+        "nodekey:2": { HostName: "iPhone", DNSName: "iphone.tail1234.ts.net.", OS: "iOS", Online: false },
+        "nodekey:3": { HostName: "", DNSName: "Build-Box.tail1234.ts.net.", OS: "linux", Online: false },
+        "nodekey:4": { HostName: "no name" },
+      },
+    });
+    expect(parseDevices(json)).toEqual([
+      { name: "Deepak's Mac mini", address: "deepaks-mac-mini.tail1234.ts.net", os: "macOS", online: true },
+      { name: "build-box", address: "build-box.tail1234.ts.net", os: "linux", online: false },
+      { name: "iPhone", address: "iphone.tail1234.ts.net", os: "iOS", online: false },
+    ]);
+    expect(parseDevices("not json")).toEqual([]);
+  });
+});

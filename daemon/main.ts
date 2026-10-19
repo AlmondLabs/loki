@@ -35,9 +35,10 @@ import { StoreManager } from "./kernel/stores.ts";
 import { listAgents, healRecordModel } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
+import { DevReload } from "./dev-reload.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
-import { ModRegistry } from "./mods/registry.ts";
+import { ModRegistry, type LoadResult } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { McpTools } from "./mcp/index.ts";
 import { isSubagent } from "../mod/agents.ts";
@@ -127,7 +128,9 @@ const approvals = new Approvals({
 const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules });
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
-const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
+// The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
+const installId = deviceIdIn(join(args.dir, "state", "device-id"));
+const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, installId);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
@@ -242,6 +245,8 @@ const chat: DaemonChats = new DaemonChats({
   report,
   importLetta,
   importStatus: () => importStatus(importPaths),
+  macId: installId(),
+  schedules,
 });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
@@ -299,7 +304,7 @@ if (importNeeded(importPaths)) {
 
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
-const loadCore = () =>
+const loadCore = (): Promise<LoadResult> =>
   mods.load({
     name: "loki",
     apiVersion: MOD_API_VERSION,
@@ -308,6 +313,11 @@ const loadCore = () =>
         chats,
         chat,
         analytics,
+        // This Mac as other Macs know it (plan 023): its install id, and the keychain for the tokens it presents to them.
+        macId: installId(),
+        secrets: secrets ?? memorySecrets(),
+        // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
+        daemon: devReload,
         usage: {
           rows: () => usage.rows(),
           priced: (model) => {
@@ -322,18 +332,38 @@ const loadCore = () =>
         },
       }),
   });
+// A checkout keeps up with its sources (plan 024): the mod (mod/boot.ts bundles mod/index.ts and core afresh on every
+// activate) reloads when mod/ or core/ changes, and a change to daemon/ or core/ makes a restart due, which the window
+// offers; the restart itself is the person's (any loki can be asked for one).
+const devReload: DevReload = new DevReload({
+  reloadMod: async () => {
+    const result = await loadCore();
+    return "loaded" in result ? "ok" : result.refused;
+  },
+  // A moment later, so the window hears that the restart is under way before its socket closes.
+  restart: (why) => void setTimeout(() => stop(`${why}, restarting as asked`), 200),
+  idle: async () => {
+    for (const c of chats.list()) if (c.agentId && (await busy(c.agentId, c.conversationId))) return false;
+    return true;
+  },
+  report,
+});
 await loadCore();
-// A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
-const stopWatchingCore = args.mod.endsWith("boot.ts")
-  ? watchFiles(
-      dirname(args.mod),
-      (f) => f.endsWith(".ts") && !f.includes(".loki-build"),
-      async (file) => {
-        const result = await loadCore();
-        report(`mod loki reloaded after ${file} changed: ${"loaded" in result ? "ok" : result.refused}`);
-      },
-    )
-  : () => {};
+const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
+const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
+const watching = checkout
+  ? [
+      watchFiles(join(checkout, "mod"), sources, (file) => devReload.modChanged(`mod/${file}`)),
+      watchFiles(join(checkout, "core"), sources, (file) => {
+        devReload.daemonChanged(`core/${file}`);
+        return devReload.modChanged(`core/${file}`);
+      }),
+      watchFiles(join(checkout, "daemon"), sources, (file) => devReload.daemonChanged(`daemon/${file}`)),
+    ]
+  : [];
+const stopWatchingCore = () => {
+  for (const unwatch of watching) unwatch();
+};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
 // The passes' settings and cursors carried over (carryOverPasses, above); then the runner looks over the chats once a minute.

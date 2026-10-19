@@ -47,9 +47,12 @@ history page. An approval request for the same tool attaches to it instead of ad
 3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `recall_changed`).
 
 **Frame table** (`core/frames.ts`, `FRAMES`): every frame declared once — its kind, its reply, whether a paired
-phone may send it, and the parser that turns the raw object into a typed payload. The mod's router, the app's
-`request()`, the phone allow-list and the protocol's documentation all read it. _Avoid_: REPLY_FRAMES,
-PHONE_FRAMES (now derived from it).
+phone may send it, its **peer meaning** (how it crosses to another paired Mac: routed by the chat, desk or home it
+names, whether it re-reads that Mac's chats, how long it may take; for a push, whether it is relayed and whether it
+changes the lists), and the parser that turns the raw object into a typed payload. The mod's router, the chat
+router, the remote chats, the app's `request()`, the phone and peer allow-lists and the protocol's documentation all
+read it. _Avoid_: REPLY_FRAMES, PHONE_FRAMES, PEER_FRAMES as hand-kept lists (all derived from it), a string set of
+frame names kept beside it.
 
 **Frame handler**: the mod module for one feature (Learn, Tasks, agents, folders, the phone listener, …) that
 answers that feature's frames; a request handler returns its reply or an error, and the router sends it.
@@ -84,6 +87,34 @@ needs answers at once and pi-durable answers asynchronously.
 related chats across agents: lowercase letters, digits and dashes, up to eight a chat, each with a colour from an
 eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
 agents' own `tags`), category, folder (a chat's working directory).
+
+**Paired Mac** (`mod/peers.ts`, plan 023): another of the person's Macs running loki, paired with a code over the
+tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
+
+**Home** (`home_mac` on an agent record, `home` on a chat row): the Mac an agent lives on, where its new chats start
+and where its chats go when it moves; and the one Mac a chat lives on, which alone writes it, runs its tools and reads
+it for reflection and Learn. Other Macs reach a chat through its home. A chat is a single-writer actor at its home:
+frames are its messages, and the peer link carries them one hop.
+
+**Chat directory** (`mod/chat-directory.ts`, plan 023 addendum B): where each chat lives, as this Mac knows it. Its own
+chats from its store, and each paired Mac's word about its own: the chats that Mac lists, and its `chat_left` push
+when one moves away. A chat it does not know is asked of the paired Macs in reach. A Mac that let a chat go keeps a
+forwarding note and answers a stale frame with a redirect. Addresses only: what the lists show is the remote chats'
+job. _Avoid_: inferring a chat's home from a list row.
+
+**Placed** (`placed` in a chat's info, addendum A2): a chat put on a Mac on purpose (moved by hand, or started away
+from its agent's home); the hand-over of an agent's chats to its home leaves it there.
+
+**Group** and **invite** (`mod/peer-group.ts`, plan 023 addendum D): every paired Mac paired with every other. A
+Mac paired with two Macs introduces them; the Mac being joined mints an invite (single use, for that Mac only, two
+minutes) and the joining Mac pairs with it directly. _Avoid_: transitive pairing (frames never go through a Mac).
+
+**Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
+`request_id`) and hears (that Mac's pushes); a paired Mac's frames are limited to `PEER_FRAMES`.
+
+**Conflicts note** (`conflicts/sync.md` in an agent's memory, `daemon/memory-sync.ts`): the other side of each clash
+when two Macs changed the same lines of a memory note apart; the note keeps the home's text, and reflection folds
+this in.
 
 **Mod**: code that extends every chat through loki's mod API (`daemon/mods/api.ts`, version 1): tools, prompt
 sections, a say before a tool runs, a transform of your message, turn events. loki's own mod is `mod/index.ts`;

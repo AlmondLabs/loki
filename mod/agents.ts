@@ -48,6 +48,7 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
       tags,
       favourite: tags.some((t) => t.startsWith("favorite:")),
       system_head: system ? system.split("\n")[0].slice(0, 200) : null,
+      home_mac: typeof raw.home_mac === "string" && raw.home_mac ? raw.home_mac : null,
     };
   } catch {
     return null;

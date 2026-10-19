@@ -19,7 +19,12 @@ import { must } from "./fixtures/must.ts";
 const ctx = BACKGROUND_CONTEXT;
 
 async function setup(
-  opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void>; passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"] } = {},
+  opts: {
+    tokensPerSecond?: number;
+    tool?: (done: () => void) => Promise<void>;
+    passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"];
+    macId?: string;
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
   const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
@@ -64,6 +69,7 @@ async function setup(
     backendDir: join(dir, "backend"),
     context: ctx,
     ...(opts.passes ? { passes: opts.passes } : {}),
+    ...(opts.macId ? { macId: opts.macId } : {}),
   });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
@@ -166,7 +172,7 @@ describe("the daemon's chats", () => {
     const s = await setup();
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
-      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada", home_mac: null }]);
       // With no persona of yours, the agent's memory starts with its name; with one, with your words.
       expect(readFileSync(join(s.dir, "backend", "memfs", agent.id, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada.\n");
       const told = await s.chats.createAgent({
@@ -234,8 +240,8 @@ describe("the daemon's chats", () => {
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high", cwd: "/b" });
       await s.chats.update({ agent_id: agent.id, conversation_id: conversationId, title: "Renamed", archived: true, hidden: undefined, labels: undefined });
       expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
-      await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined });
-      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace" }]);
+      await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined, home_mac: undefined });
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace", home_mac: null }]);
       await s.chats.deleteAgent(agent.id);
       expect(await s.chats.agents()).toEqual([]);
       expect(existsSync(join(s.dir, "backend", "memfs", agent.id))).toBe(false);
@@ -384,6 +390,54 @@ describe("the daemon's chats", () => {
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "max" });
       await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "none" });
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ thinkingLevel: "off" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a chat started here with the picker, away from its agent's home, stays out of the hand-over to that home", async () => {
+    const s = await setup({ macId: "mac-book" });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ira", description: null, persona: null, model: s.handle });
+      const home = (mac: string) => s.chats.updateAgent({ agent_id: agent.id, name: undefined, description: undefined, model: undefined, home_mac: mac });
+      await home("mac-mini");
+      const followed = await s.chats.create(agent.id, null, "follows Ira", null);
+      const placed = await s.chats.create(agent.id, null, "stays here", "mac-book");
+      const ids = (await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id);
+      expect(ids).toContain(followed.conversationId);
+      expect(ids).not.toContain(placed.conversationId);
+      // The agent's one main chat goes with it to its new home.
+      expect(ids).toContain("default");
+      // Picked on the agent's own home, a chat is not placed: it follows the agent like any other.
+      await home("mac-book");
+      const atHome = await s.chats.create(agent.id, null, "at home", "mac-book");
+      await home("mac-mini");
+      expect((await s.chats.moveCandidates("mac-mini")).map((c) => c.conversation_id)).toContain(atHome.conversationId);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("after a move the agent is told once, with the next message: the Macs, the files left behind, a missing folder", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, join(s.dir, "not-here"), null);
+      const store = await s.stores.get(agent.id);
+      await store.updateChat(conversationId, { moved: { from: "MacBook", to: "Mac mini", files_left: 2 } }, BACKGROUND_CONTEXT);
+      await s.chats.open(agent.id, conversationId);
+      s.faux.setResponses([s.reply("one"), s.reply("two")]);
+      const send = async (text: string, turns: number) => {
+        await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text, images: [], send_id: text, context: null });
+        await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === turns);
+      };
+      await send("first", 1);
+      expect(s.sent[0]).toContain("This chat moved from MacBook to Mac mini");
+      expect(s.sent[0]).toContain("2 files attached before the move stayed on MacBook");
+      // What was sent is JSON, which escapes a Windows path's backslashes.
+      expect(s.sent[0]).toContain(JSON.stringify(`This chat's folder, ${join(s.dir, "not-here")}, is not on Mac mini.`).slice(1, -1));
+      await send("second", 2);
+      expect(s.sent[1].match(/This chat moved/g)).toHaveLength(1);
     } finally {
       await s.cleanup();
     }

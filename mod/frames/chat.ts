@@ -1,3 +1,6 @@
+import type { MovedChat } from "../../daemon/chat-move.ts";
+import { missingFor } from "../requirements.ts";
+import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
@@ -13,7 +16,8 @@ export interface ChatBackend {
   open(agentId: string, conversationId: string, mode: string | null): Promise<ChatState>;
   approve(p: PayloadOf<"chat_approve">): Promise<boolean>;
   answer(p: PayloadOf<"chat_answer">): Promise<boolean>;
-  create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }>;
+  /** `home`: the Mac the person picked for it, which places it when its agent lives elsewhere (plan 023, addendum A2). */
+  create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
   abort(agentId: string, conversationId: string): Promise<void>;
   update(p: PayloadOf<"chat_update">): Promise<void>;
@@ -24,6 +28,17 @@ export interface ChatBackend {
   createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }>;
   updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
+  /** Remove an agent here because another Mac deleted it (plan 023): no tombstone of this Mac's. */
+  removeAgent(agentId: string): Promise<void>;
+  /** Moving a chat to the Mac its agent lives on (plan 023, U9): which, copying out, writing in, and letting go. */
+  moveCandidates(mac: string): Promise<Array<{ agent_id: string; conversation_id: string }>>;
+  exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }>;
+  /** `names`: the Macs it moved between, to mark its thread and tell its agent (plan 023, addendum A5). */
+  importChat(moved: MovedChat, names?: { from: string; to: string }): Promise<boolean>;
+  finishMove(agentId: string, chatId: string): Promise<void>;
+  /** The person's label colours for a paired Mac, and taking that Mac's (plan 023, U8). */
+  labelColors(): LabelColorsSnapshot;
+  applyLabelColors(theirs: LabelColorsSnapshot): boolean;
   providers(): Promise<Replies["chat_providers"]["providers"]>;
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;
@@ -63,6 +78,10 @@ export interface ChatBackend {
 /** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
+  /** Why an agent may not be deleted now (a paired Mac out of reach would keep its chats), or null (plan 023). */
+  agentDeleteBlocked?: (agentId: string) => string | null;
+  /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
+  chatBlocked?: (agentId: string, conversationId: string) => string | null;
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
@@ -99,12 +118,15 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_open: ({ agent_id: agentId, conversation_id: conversationId, mode }) => served(b, (x) => x.open(agentId, conversationId, mode)),
     chat_approve: (p) => served(b, async (x) => ({ accepted: await x.approve(p) })),
     chat_answer: (p) => served(b, async (x) => ({ accepted: await x.answer(p) })),
-    chat_create: ({ agent_id: agentId, cwd, title }) =>
+    chat_create: ({ agent_id: agentId, cwd, title, home }) =>
       served(b, async (x) => {
-        const made = await x.create(agentId, cwd, title);
+        const made = await x.create(agentId, cwd, title, home);
         return { agent_id: made.agentId, conversation_id: made.conversationId };
       }),
-    chat_send: (p) => served(b, async (x) => ({ accepted: await x.send(p) })),
+    chat_send: (p) => {
+      const blocked = deps.chatBlocked?.(p.agent_id, p.conversation_id);
+      return blocked ? fail(blocked) : served(b, async (x) => ({ accepted: await x.send(p) }));
+    },
     chat_abort: ({ agent_id: agentId, conversation_id: conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
     chat_update: (p) => served(b, async (x) => (await x.update(p), DONE)),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
@@ -121,11 +143,14 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         served(b, async (x) => (await x.updateAgent(p), DONE)),
         ctx,
       ),
-    chat_agent_delete: ({ agent_id: agentId }, ctx) =>
-      agentsChange(
+    chat_agent_delete: ({ agent_id: agentId }, ctx) => {
+      const blocked = deps.agentDeleteBlocked?.(agentId);
+      if (blocked) return fail(blocked);
+      return agentsChange(
         served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
         ctx,
-      ),
+      );
+    },
     chat_import: (_p, ctx) =>
       agentsChange(
         served(b, (x) => x.importLetta()),
@@ -133,6 +158,8 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
       ),
     chat_import_status: () => served(b, (x) => x.importStatus()),
     chat_passes_get: () => served(b, (x) => x.passes()),
+    // Asked of the Mac a new chat will live on (plan 023, U10); the router sends it there when `home` is another Mac.
+    chat_requirements: ({ agent_id: agentId }) => served(b, async (x) => ({ agent_id: agentId, missing: await missingFor(x, agentId) })),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
     chat_skill_enable: ({ path }) =>

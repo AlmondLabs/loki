@@ -223,3 +223,18 @@ describe("a loop status that repeats changes nothing", () => {
     expect(l.error).toBeNull();
   });
 });
+
+describe("a reply that only reads like a question", () => {
+  const at = "2026-10-19T09:00:00Z";
+  const conv = [{ id: "c", agent_id: "a", agent_name: "friday", title: "FMOS", last_message_at: at, archived: false }];
+  const digest = new Map([[keyOf("a", "c"), { last_role: "assistant" as const, last_assistant_text: "Shall I open the PR now?", last_ask: null }]]);
+
+  test("waits on you until you look at it, then is a finished chat: still unread, so the Inbox keeps it", () => {
+    expect(buildItems(conv, digest, new Map(), {})[0].status).toBe("question");
+    const looked = buildItems(conv, digest, new Map(), {}, Date.parse(at), { [keyOf("a", "c")]: "2026-10-19T09:05:00Z" })[0];
+    expect(looked.status).toBe("done");
+    expect(looked.unread).toBe(true);
+    // A look from before the reply does not count.
+    expect(buildItems(conv, digest, new Map(), {}, Date.parse(at), { [keyOf("a", "c")]: "2026-10-19T08:00:00Z" })[0].status).toBe("question");
+  });
+});

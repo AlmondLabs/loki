@@ -1,6 +1,6 @@
 /** The pages down Preferences' left side, in order. "loki" gathers what loki runs on: its version, the mod, requirements, install. */
 export type SettingsPage =
-  "loki" | "usage" | "inbox" | "providers" | "engines" | "mcp" | "phone" | "skills" | "learn" | "appearance" | "chat" | "labels" | "files" | "keys";
+  "loki" | "usage" | "inbox" | "providers" | "engines" | "mcp" | "phone" | "macs" | "skills" | "learn" | "appearance" | "chat" | "labels" | "files" | "keys";
 /** Preferences' pages, in the order its left side lists them. */
 export const PAGES: Array<{ id: SettingsPage }> = [
   { id: "loki" },
@@ -10,6 +10,7 @@ export const PAGES: Array<{ id: SettingsPage }> = [
   { id: "engines" },
   { id: "mcp" },
   { id: "phone" },
+  { id: "macs" },
   { id: "skills" },
   { id: "learn" },
   { id: "appearance" },
@@ -28,6 +29,7 @@ const TITLES: Record<SettingsPage, string> = {
   engines: "Engines",
   mcp: "MCP",
   phone: "Phone",
+  macs: "Macs",
   skills: "Skills",
   learn: "Learn",
   appearance: "Appearance",

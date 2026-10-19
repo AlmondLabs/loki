@@ -18,6 +18,9 @@ import type {
   InboxRow,
   LanStatus,
   LanVia,
+  MacIdentity,
+  PeerSummary,
+  TailnetDevice,
   LocalAgent,
   EnginesView,
   McpView,
@@ -162,7 +165,8 @@ export interface Replies {
   chat_created: { agent_id: string; conversation_id: string };
   chat_accepted: { accepted: boolean };
   chat_models: { entries: ModelEntry[] };
-  chat_agents: { agents: Array<{ id: string; name: string }> };
+  /** `home_mac` is the Mac each agent lives on (plan 023), null for one whose record names none. */
+  chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
   chat_done: NoPayload;
   chat_providers: { providers: ConnectProvider[] };
@@ -175,6 +179,38 @@ export interface Replies {
   chat_engines: EnginesView;
   /** Every label on a chat, with its colour and how many chats carry it (plan 022). */
   chat_labels: { labels: LabelView[] };
+  /** What this Mac lacks to run an agent's chat (plan 023, U10): one line for the person each, none when nothing. */
+  chat_requirements: { agent_id: string; missing: string[] };
+  /** A Mac paired by `peer_pair_join` (plan 023). */
+  peer_paired: { peer: PeerSummary };
+  /**
+   * A Mac's agents for another Mac (plan 023, U3): each record as its file holds it, with its change stamps and home,
+   * and the agents deleted there (daemon/store/agent-sync.ts).
+   */
+  peer_agents: { agents: Array<{ id: string; record: Record<string, unknown> }>; tombstones: Array<{ id: string; at: string; mac: string }> };
+  /** The commits of an agent's memory another Mac lacks, as a base64 git bundle, or null when it lacks none (plan 023, U7). */
+  peer_memory: { agent_id: string; bundle: string | null };
+  /**
+   * The person's own state for another Mac (plan 023, U8): Inbox marks and focus, pins, label colours and Learn's
+   * files, each in the shape its store merges (mod/peer-state.ts).
+   */
+  peer_state: { marks: object; pins: object; labels: object; learn: object; mcp: object; mods: object };
+  /** The chats here of agents that live on the asking Mac, for it to take over on first pairing (plan 023, U9). */
+  peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
+  /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
+  peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
+  /** The Macs this one is paired with, for another to join those it lacks (plan 023, addendum D1). */
+  peer_group: { macs: Array<MacIdentity & { host: string }> };
+  /** An invite to pair with a Mac, bound to the asking Mac, and where to redeem it (addendum D4). */
+  peer_invite: { host: string; code: string };
+  /** Whether this Mac holds a chat, and where it went when this Mac let it go (plan 023, addendum B2). */
+  peer_here: { held: boolean; moved_to: string | null };
+  /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
+  peer_chat_taken: { moved: boolean; busy: boolean };
+  /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
+  peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
+  /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
+  peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
@@ -237,28 +273,79 @@ export interface Pushes {
   tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;
+  /** Another Mac's chats changed, or it came into or out of reach (plan 023): every client asks for its lists again. */
+  lists_changed: NoPayload;
+  /** An agent's memory has new commits on this Mac: a paired Mac asks for them (plan 023, U7). */
+  memory_changed: { agent_id: string };
+  /** The person's marks, pins, label colours or Learn changed on this Mac: a paired Mac asks for them (plan 023, U8). */
+  state_changed: NoPayload;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expires_at: string };
+  /**
+   * This Mac and the Macs paired with it (plan 023); `me.host` is its tailnet address, null off the tailnet.
+   * `tailnet` is the other computers on the tailnet, to pick one to pair with instead of typing its address.
+   */
+  peers: { me: MacIdentity & { host: string | null }; peers: PeerSummary[]; tailnet?: Array<TailnetDevice & { paired: boolean }> };
+  /** A code another Mac types to pair with this one, the address it types beside it, and when the code expires. */
+  peer_pair_code: { code: string; host: string | null; expires_at: string };
   app_build: { build: string };
   /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
   chat_event: { agent_id: string; conversation_id: string; events: ChatEvent[] };
   /** A request that failed (with its request_id), or a send or frame the mod could not take (without). */
-  error: { message: string; request_id?: string };
+  /**
+   * `moved_to`: a paired Mac's frame named a chat that does not live here (plan 023, addendum B3): where it went when
+   * this Mac let it go, or null when it has no note. Absent on every other error.
+   */
+  error: { message: string; request_id?: string; moved_to?: string | null };
+  /** A checkout's daemon code changed (plan 024): `file` names it; the window offers a restart. */
+  restart_due: { file: string | null };
+  /** The Macs this one is paired with changed (addendum D1). */
+  group_changed: NoPayload;
+  /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
+  chat_left: { agent_id: string | null; conversation_id: string; to: string };
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
+
+/** How a request or send crosses to another paired Mac (plan 023, addendum C). */
+export interface PeerMeaning {
+  /**
+   * How a frame from this Mac's clients finds the Mac it is about: the chat it names, the desk it names, the Mac its
+   * `home` names, or the Mac a new chat will live on. Absent: a frame only paired Macs send each other.
+   */
+  route?: "chat" | "scope" | "home" | "new-chat";
+  /** Once it succeeds on another Mac, that Mac's chats are read again: it changes how a chat is listed there. */
+  relists?: true;
+  /** How long it may take on the other Mac; absent, the router's usual wait. */
+  timeout_ms?: number;
+}
+
+/** How a push from a paired Mac is taken here (addendum C). */
+export interface PushPeerMeaning {
+  /** Passed on to this Mac's clients when it comes from the Mac holding the chat or the desk it names. */
+  relay?: "chat" | "scope";
+  /** It may change that Mac's chats, so they are read again: always, or only for these chat event kinds. */
+  lists?: true | ReadonlyArray<ChatEvent["kind"]>;
+}
+
+/** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
+export const MOVE_TIMEOUT_MS = 180_000;
 
 interface RequestEntry<R extends ReplyName, P> {
   kind: "request";
   reply: R;
   phone: boolean;
+  /** How another paired Mac may send it (plan 023, addendum C): its own allow-list, never the phone's; null, never. */
+  peer: PeerMeaning | null;
   doc: string;
   parse: Parse<P>;
 }
 interface SendEntry<P> {
   kind: "send";
   phone: boolean;
+  /** How another paired Mac may send it (plan 023, addendum C); null, never. */
+  peer: PeerMeaning | null;
   /** The pushes it causes: how its effect comes back. */
   causes: PushName[];
   doc: string;
@@ -267,24 +354,40 @@ interface SendEntry<P> {
 interface PushEntry {
   kind: "push";
   doc: string;
+  /** How it is taken when a paired Mac pushes it (addendum C); absent, it is not passed on and changes no list. */
+  peer?: PushPeerMeaning;
 }
 
-const request = <R extends ReplyName, P>(reply: R, doc: string, parse: Parse<P>, phone = false): RequestEntry<R, P> => ({
+const request = <R extends ReplyName, P>(reply: R, doc: string, parse: Parse<P>, phone = false, peer: PeerMeaning | null = null): RequestEntry<R, P> => ({
   kind: "request",
   reply,
   phone,
+  peer,
   doc,
   parse,
 });
-const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; causes?: PushName[] } = {}): SendEntry<P> => ({
+const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; peer?: PeerMeaning; causes?: PushName[] } = {}): SendEntry<P> => ({
   kind: "send",
   phone: opts.phone ?? false,
+  peer: opts.peer ?? null,
   causes: opts.causes ?? [],
   doc,
   parse,
 });
-const push = (doc: string): PushEntry => ({ kind: "push", doc });
+const push = (doc: string, peer?: PushPeerMeaning): PushEntry => ({ kind: "push", doc, ...(peer ? { peer } : {}) });
 const PHONE = true;
+/** A chat frame another paired Mac may send, routed to the Mac the chat it names lives on (plan 023, U5). */
+const BY_CHAT: PeerMeaning = { route: "chat" };
+/** The same, for a frame that changes how the chat is listed. */
+const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
+/** A canvas frame, routed to the Mac its desk lives on. */
+const BY_SCOPE: PeerMeaning = { route: "scope" };
+/** A frame about the Mac a new chat will live on, routed by its `home`. */
+const BY_HOME: PeerMeaning = { route: "home" };
+/** A frame only paired Macs send each other, answered where it lands. */
+const BETWEEN_MACS: PeerMeaning = {};
+/** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
+const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device"];
 
 /** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
@@ -292,7 +395,7 @@ export const FRAMES = {
   gesture: send(
     "a gesture on a widget (move, resize, set …); its desk's state follows",
     (m) => (isGesture(m.gesture) ? { gesture: m.gesture } : "malformed gesture"),
-    { causes: ["state"] },
+    { causes: ["state"], peer: BY_SCOPE },
   ),
   measure: send(
     "a widget's rendered size, which drives placement",
@@ -300,19 +403,19 @@ export const FRAMES = {
       const size = m.size as Raw | undefined;
       return str(m.id) && size && isNum(size.w) && isNum(size.h) ? { id: m.id, size: { w: size.w, h: size.h } } : "malformed measure";
     },
-    { causes: ["state"] },
+    { causes: ["state"], peer: BY_SCOPE },
   ),
   arrange: send("tidy this desk into a grid", nothing, { causes: ["camera"] }),
   trash: send("delete the widget's file: the agent's work is gone for good", (m) => (str(m.id) ? { id: m.id } : "malformed trash")),
   widget_status: send(
     "a runtime or reload error from the tab (null clears it)",
     (m) => (str(m.id) ? { id: m.id, error: str(m.error) && m.error.trim() ? m.error.trim() : null } : "malformed widget_status"),
-    { causes: ["widgets"] },
+    { causes: ["widgets"], peer: BY_SCOPE },
   ),
   desk_get: send(
     "another desk's state and widgets, for widgets shown inline in a thread; no switch",
     (m) => (str(m.scope) && m.scope ? { scope: m.scope } : "scope required"),
-    { phone: PHONE, causes: ["desk"] },
+    { phone: PHONE, causes: ["desk"], peer: BY_SCOPE },
   ),
   list_desks: send("every desk, for the sidebar and search", nothing, { phone: PHONE, causes: ["desks"] }),
   pin_set: send(
@@ -366,6 +469,7 @@ export const FRAMES = {
         ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id, limit: isNum(m.limit) ? m.limit : null }
         : "conversation_id required",
     PHONE,
+    BY_CHAT,
   ),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
@@ -378,6 +482,7 @@ export const FRAMES = {
       return typeof c === "string" ? c : { ...c, mode: strOr(m.mode, null) };
     },
     PHONE,
+    BY_CHAT,
   ),
   chat_approve: request(
     "chat_accepted",
@@ -391,6 +496,7 @@ export const FRAMES = {
         : "approval_id and allow required";
     },
     PHONE,
+    BY_CHAT,
   ),
   chat_answer: request(
     "chat_accepted",
@@ -403,12 +509,16 @@ export const FRAMES = {
         : "question_id and input required";
     },
     PHONE,
+    BY_CHAT,
   ),
   chat_create: request(
     "chat_created",
-    "a new chat for an agent, in a folder",
-    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agent_id required"),
+    "a new chat for an agent, in a folder; `home` is the Mac it lives on, else its agent's when that Mac is in reach",
+    (m) =>
+      isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null), home: strOr(m.home, null) } : "agent_id required",
     PHONE,
+    // Read that Mac's chats again once it is made there: it is listed here before its first reply.
+    { route: "new-chat", relists: true },
   ),
   chat_send: request(
     "chat_accepted",
@@ -423,8 +533,9 @@ export const FRAMES = {
       return { ...c, text: m.text, images, send_id: strOr(m.send_id, null), context: strOr(m.context, null) };
     },
     PHONE,
+    BY_CHAT,
   ),
-  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE),
+  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
   chat_update: request(
     "chat_done",
     "rename, archive or hide a chat, or set its labels",
@@ -440,6 +551,7 @@ export const FRAMES = {
       };
     },
     PHONE,
+    BY_CHAT_RELISTED,
   ),
   chat_folder: request(
     "chat_state",
@@ -449,6 +561,7 @@ export const FRAMES = {
       return typeof c === "string" ? c : str(m.cwd) && m.cwd ? { ...c, cwd: m.cwd } : "cwd required";
     },
     PHONE,
+    BY_CHAT_RELISTED,
   ),
   chat_model: request(
     "chat_done",
@@ -461,6 +574,7 @@ export const FRAMES = {
         : "handle required";
     },
     PHONE,
+    BY_CHAT_RELISTED,
   ),
   chat_models: request("chat_models", "the models the connected providers offer", nothing, PHONE),
   chat_agents: request("chat_agents", "the person's agents", nothing, PHONE),
@@ -469,9 +583,15 @@ export const FRAMES = {
       ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) }
       : "name required",
   ),
-  chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
+  chat_agent_update: request("chat_done", "an agent's name, description, model or home Mac", (m) =>
     isAgentId(m.agent_id)
-      ? { agent_id: m.agent_id, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) }
+      ? {
+          agent_id: m.agent_id,
+          name: strOr(m.name, undefined),
+          description: strOr(m.description, undefined),
+          model: strOr(m.model, undefined),
+          home_mac: strOr(m.home_mac, undefined),
+        }
       : "agent_id required",
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
@@ -579,9 +699,22 @@ export const FRAMES = {
   ),
 
   // Folders
-  folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),
-  folder_complete: request("folder_matches", "folders completing a typed prefix", (m) => ({ prefix: strOr(m.prefix, null) })),
-  folder_check: request("folder_status", "whether a path is a folder a chat can work in, and its git branch", (m) => ({ path: strOr(m.path, null) })),
+  // `home` asks the Mac a new chat will live on (plan 023, U6): its folders, not this Mac's.
+  folders_get: request("folders", "the folders each agent and conversation has worked in", (m) => ({ home: strOr(m.home, null) }), PHONE, BY_HOME),
+  folder_complete: request(
+    "folder_matches",
+    "folders completing a typed prefix",
+    (m) => ({ prefix: strOr(m.prefix, null), home: strOr(m.home, null) }),
+    false,
+    BY_HOME,
+  ),
+  folder_check: request(
+    "folder_status",
+    "whether a path is a folder a chat can work in, and its git branch",
+    (m) => ({ path: strOr(m.path, null), home: strOr(m.home, null) }),
+    false,
+    BY_HOME,
+  ),
   folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ default_path: strOr(m.default_path, undefined) })),
 
   // Usage
@@ -707,17 +840,92 @@ export const FRAMES = {
   devices_list: send("the paired phones", nothing, { causes: ["devices"] }),
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
+  // loki's daemon (plan 024): restart it, as the window's restart notice asks
+  daemon_restart: request("chat_done", "restart loki's daemon; refused while a chat works or an approval waits, unless `anyway`", (m) => ({
+    anyway: m.anyway === true,
+  })),
+
+  // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Settings › Macs
+  peers_get: send("this Mac and the Macs paired with it", nothing, { causes: ["peers"] }),
+  peer_pair_begin: send("mint a code another Mac types to pair with this one", nothing, { causes: ["peer_pair_code"] }),
+  peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>
+    str(m.host) && m.host.trim() && str(m.code) && m.code.trim() ? { host: m.host.trim(), code: m.code.trim() } : "expected {host, code}",
+  ),
+  chat_move: request(
+    "chat_done",
+    "move a chat to the paired Mac `to`; answered by the Mac the chat lives on (plan 023, addendum A1)",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      return str(m.to) && m.to ? { ...c, to: m.to } : "to required";
+    },
+    false,
+    { route: "chat", relists: true, timeout_ms: MOVE_TIMEOUT_MS },
+  ),
+  // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
+  chat_requirements: request(
+    "chat_requirements",
+    "what the Mac a chat would live on (`home`, else this one) lacks to run the agent's chat",
+    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, home: strOr(m.home, null) } : "agent_id required"),
+    false,
+    BY_HOME,
+  ),
+  peer_ping: request("peer_pong", "who this Mac is and which peer protocol it speaks", nothing, false, BETWEEN_MACS),
+  peer_agents_get: request("peer_agents", "this Mac's agents and the agents deleted here, for another Mac to take", nothing, false, BETWEEN_MACS),
+  peer_memory_get: request(
+    "peer_memory",
+    "the commits of an agent's memory the asking Mac lacks, given the commits it has",
+    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, have: strings(m.have) } : "agent_id required"),
+    false,
+    BETWEEN_MACS,
+  ),
+  peer_state_get: request("peer_state", "the person's marks, pins, label colours and Learn, for another Mac", nothing, false, BETWEEN_MACS),
+  peer_moves_get: request("peer_moves", "the chats here whose agent lives on the asking Mac", nothing, false, BETWEEN_MACS),
+  peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, BETWEEN_MACS),
+  peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, BETWEEN_MACS),
+  peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, BETWEEN_MACS),
+  peer_group_get: request("peer_group", "the Macs this one is paired with, for the asking Mac to join (addendum D1)", nothing, false, BETWEEN_MACS),
+  peer_introduce: request(
+    "peer_invite",
+    "introduce the asking Mac to `mac_id`, another Mac paired with this one: that Mac's invite for it (addendum D1)",
+    (m) => (str(m.mac_id) && m.mac_id ? { mac_id: m.mac_id } : "mac_id required"),
+    false,
+    BETWEEN_MACS,
+  ),
+  peer_invite_get: request(
+    "peer_invite",
+    "an invite for `for`, a Mac the asking Mac is introducing: single use, two minutes (addendum D4)",
+    (m) => (str(m.for) && m.for ? { for: m.for } : "for required"),
+    false,
+    BETWEEN_MACS,
+  ),
+  peer_where: request(
+    "peer_here",
+    "whether this Mac holds a chat, and where it went if this Mac let it go (addendum B2)",
+    (m) =>
+      str(m.conversation_id) && m.conversation_id ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required",
+    false,
+    BETWEEN_MACS,
+  ),
+  peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, BETWEEN_MACS),
+  peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
+    causes: ["peers"],
+  }),
+
   // Pushes
-  desk: push("one desk in full (on connect, and for desk_get)"),
+  desk: push("one desk in full (on connect, and for desk_get)", { relay: "scope" }),
   desk_title: push("a desk's conversation was renamed, archived or changed model or mode"),
-  state: push("a desk's geometry and overlay changed"),
-  widgets: push("a desk's widget files changed"),
+  state: push("a desk's geometry and overlay changed", { relay: "scope" }),
+  widgets: push("a desk's widget files changed", { relay: "scope" }),
   camera: push("frame these widgets"),
-  widget_change: push("the agent added, changed or removed a widget on any desk (mod/widget-log.ts)"),
+  widget_change: push("the agent added, changed or removed a widget on any desk (mod/widget-log.ts)", { relay: "scope" }),
   switch_desk: push("the active conversation changed; the tab follows"),
-  desks: push("every desk, after list_desks or a pin"),
-  agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again"),
-  seen: push("the done and viewed marks and the focus weights, after any change"),
+  desks: push("every desk, after list_desks or a pin", { lists: true }),
+  agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again", { lists: true }),
+  lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
+  memory_changed: push("an agent's memory has new commits on this Mac"),
+  state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
+  seen: push("the done and viewed marks and the focus weights, after any change", { lists: true }),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),
@@ -725,9 +933,14 @@ export const FRAMES = {
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
+  peers: push("this Mac and the Macs paired with it"),
+  peer_pair_code: push("a code another Mac types to pair with this one"),
   app_build: push("the build a phone is served, so it can offer a reload"),
-  chat_event: push("what happened in a chat a client has open"),
+  chat_event: push("what happened in a chat a client has open", { relay: "chat", lists: LISTED_EVENTS }),
   error: push("a failed request (with its request_id) or a frame the mod could not take"),
+  restart_due: push("a checkout's daemon code changed, so a restart is due; the window offers it (plan 024)"),
+  group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
+  chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
 } as const;
 
 type Table = typeof FRAMES;
@@ -774,3 +987,22 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set(
   (Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { phone: boolean }).phone),
 );
+
+/**
+ * The frames another paired Mac may send over its /ws (plan 023, KTD4), marked `peer` above; everything else answers
+ * `error`. A phone's frame reaches another Mac only after its own Mac checked it against PHONE_FRAMES. Never the
+ * pairing, device or Mac frames, nor the writer's settings.
+ */
+export const PEER_FRAMES: ReadonlySet<FrameName> = new Set((Object.keys(FRAMES) as FrameName[]).filter((n) => peerMeaning(n) !== null));
+
+/** How another paired Mac may send a frame (addendum C), or null when it may not (or the frame is a push). */
+export function peerMeaning(name: unknown): PeerMeaning | null {
+  const entry = frameEntry(name);
+  return !entry || entry.kind === "push" ? null : entry.peer;
+}
+
+/** How a push from a paired Mac is taken here (addendum C), or null when it is not passed on and changes no list. */
+export function pushMeaning(name: unknown): PushPeerMeaning | null {
+  const entry = frameEntry(name);
+  return entry?.kind === "push" ? (entry.peer ?? null) : null;
+}

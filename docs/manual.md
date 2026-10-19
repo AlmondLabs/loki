@@ -97,15 +97,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new chat with that agent), then **Archived**, folded. A chat's name goes bold when its agent
-  wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. A finished
-  chat also carries a small ring after its name until it is **read**. Opening a chat (or having it open, the
-  window in front, when a message arrives) marks it **viewed**, which drops the bold and keeps the ring, so bold +
-  ring is new since you looked, the ring alone is viewed but not read, and neither is read. Read is what the
-  Inbox's → does, a reply, an approval or an answer; by hand it is **Mark as read** (⌘⇧↵ on the open chat, or
-  the row's right-click menu), and **Mark as unread** in the same menu puts the
-  ring back (the bold stays off: you have seen it). None of these is done: a chat is done only when it is
-  archived, and until then it stays in the Inbox. Viewed and read are kept by the mod, so the phone and the Mac
-  agree on both. "Find a
+  wrote since you looked. On the right of each row, one mark at most: a red badge when it waits on you, else a green
+  dot that breathes while its agent is working. Opening a chat (or having it open, the window in front, when a
+  message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
+  Inbox keeps the chat until it is **read**: what the Inbox's → does, a reply, an approval or an answer; by hand
+  it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
+  same menu puts it back in the Inbox. None of these is done: a chat is done only when it is archived. Viewed
+  and read are kept by the mod, so the phone and the Mac agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
@@ -114,8 +112,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
   word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header, or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
-  the first match or makes the label when none matches. A row shows its labels as coloured dots, the header and the
-  Inbox card as chips. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
+  the first match or makes the label when none matches. A chat's header and its Inbox card show its labels as chips;
+  the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
   (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
@@ -321,6 +319,59 @@ The small "https on the tailnet" switch runs `tailscale serve` in front of the l
 stays inside the tailnet — loki never uses Funnel. Whichever way you switch, the address the phone bookmarked has
 changed, so it pairs once more.
 
+## Your Macs
+
+loki on more than one Mac is one set of agents. Friday is the same agent on your MacBook and your Mac mini: one
+name, one memory, every chat of hers listed on both. Each chat runs on one Mac, its **home**, with that Mac's files
+and tools; from the other Mac you open it, read it and write in it as if you sat at its home.
+
+**Pairing.** Install [Tailscale](https://tailscale.com/download) on both Macs and sign in to the same account; Macs
+reach each other over your tailnet only, never the Wi‑Fi or the internet. On one Mac open Settings › Macs and press
+**show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. On the other Mac, in
+Settings › Macs, type the address and the code and press **pair**. Each Mac now lists the other, with **connected**
+or when it was last seen, and **forget** on either side unpairs both. A Mac running another version of loki shows
+"needs an update": it stays paired, but nothing syncs until both run the same release. A third Mac needs one code:
+pair it with any Mac of yours, and it joins the others by itself, introduced by the Mac they share (each Mac must be
+paired with every other, since a chat is reached on the Mac it lives on). A Mac you **forget** stays forgotten: it is
+not joined again until you pair it by code. While any Mac is paired,
+loki keeps the Mac from sleeping when it is idle on power, so a MacBook on its charger with the lid open stays
+reachable; a closed lid still sleeps.
+
+**Where things live.**
+
+1. **Agents have a home Mac.** An agent lives on the Mac that made it; change it on the agent's profile ("lives
+   on"). A new chat starts on its agent's home, and the new chat dialog says so under **Lives on**: pick this Mac
+   instead and the chat runs here, with this Mac's files, for good. If the agent's home is out of reach, the chat
+   starts here and stays here. The folders the dialog offers are the home's, and it says what that Mac lacks for the
+   agent (a provider sign-in, an MCP server needing a sign-in) before you start.
+2. **Every list shows both Macs' chats.** Each agent's section in the sidebar names the Mac it lives on; a chat
+   living on another Mac than its agent's has a small laptop icon (hover it for "on Mac mini"). The switcher marks
+   every chat on the other Mac, and the phone says "on Mac mini". While a Mac is asleep or off, its chats stay listed
+   with a moon, "waiting for Mac mini": they do not open and take no message until it is back. Nothing is queued.
+3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
+   on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
+   schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
+   agent stays where its session is. Files attached to a moved chat stay on the Mac they were attached on. Setting
+   an agent's home later moves its chats the same way.
+4. **Move one chat by hand.** Right-click a chat in the sidebar and pick **Move to Mac mini** (or the MacBook): it
+   moves with everything above, and works the same in both directions, so you can bring a chat back. A chat you
+   moved, or started on a Mac other than its agent's home, stays where you put it: moving its agent's home later
+   leaves it. The chat keeps a quiet "moved to Mac mini" line where it moved, and the agent is told with your next
+   message there (which Mac it now runs on, and any attached files or folder that did not come along); nothing runs
+   just to tell it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
+   is one, on the agent's home, and it moves when you change the agent's "lives on".
+5. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
+   changed the same lines apart, the note keeps the home Mac's text and the other side goes to
+   `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat
+   on the Mac it lives on, so a Friday chat on the mini still teaches Friday, and a moved chat is not read twice.
+6. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
+   adds up), pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
+   "always allow" list, Tasks, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
+   on.
+
+**The phone** reaches every chat on every paired Mac through the Mac it is paired with; if that Mac is off, the
+phone waits for it.
+
 ## What the mod does
 
 loki's mod runs inside the daemon and owns the canvas and the sockets the app connects to:
@@ -361,6 +412,11 @@ would otherwise show. It then starts Vite on 127.0.0.1:5173, a watching build of
 window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`). The script
 waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
 log, `~/.loki/logs/daemon.log`, instead of leaving you Vite's proxy errors. Ctrl-C stops all of it.
+
+It keeps up with the checkout after a `git pull`: the window reloads when `app/` changes and the mod reloads in place
+when `mod/` or `core/` changes. A change to `daemon/` or `core/` needs the daemon restarted, which loki never does by
+itself: the window shows "loki's code changed" with **restart** and **later**. While a chat is working or waiting for
+you, **restart** says so and offers **restart anyway**, which cuts it off. The window reconnects a second later.
 `npm start --check` reports all of it without starting anything.
 
 Or run the pieces yourself: `npm run dev` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
@@ -550,7 +606,8 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
 is in it, except one whose agent is mid-turn. The score is
-`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer) `+ new ? 10 : 0` (the
+`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer; a reply that only reads like
+a question, ending in "?" or "let me know", counts until you have looked at it) `+ new ? 10 : 0` (the
 agent said something since you last looked) `+ 15 × focus`
 (the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
 blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { sortDesks } from "../mod/frames/desks.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
+import { createBridge } from "../mod/bridge.ts";
+import { welcomeFrames, type ModuleDeps } from "../mod/frames/index.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeskStore } from "../mod/desk-store.ts";
@@ -79,6 +81,32 @@ describe("bridge", () => {
     const s = client("shared");
     bridge.onConnect(s);
     expect(s.sent.map((m) => m.type)).toEqual(["desk"]);
+  });
+
+  test("a tab opened on another Mac's chat asks that Mac for its desk, and gets no empty one from here", async () => {
+    const deps: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog() };
+    const forwarded: Array<Record<string, unknown>> = [];
+    const route = {
+      target: (msg: Record<string, unknown>) => (msg.scope === "c9" ? { mac: "mini", reachable: true } : null),
+      redirect: () => null,
+      forward: (_home: { mac: string; reachable: boolean }, msg: Record<string, unknown>) => (
+        forwarded.push(msg),
+        Promise.resolve({ ok: true as const, reply: null })
+      ),
+    };
+    const bridge = createBridge({ modules: [], welcome: welcomeFrames(deps), broadcast: () => {}, route });
+    const remote = client("c9");
+    bridge.onConnect(remote);
+    await Promise.resolve();
+    expect(remote.sent.map((m) => [m.type, m.scope])).toEqual([["desk", "shared"]]);
+    expect(forwarded).toEqual([{ type: "desk_get", scope: "c9" }]);
+    const local = client("c1");
+    bridge.onConnect(local);
+    expect(local.sent.map((m) => [m.type, m.scope])).toEqual([
+      ["desk", "c1"],
+      ["desk", "shared"],
+    ]);
+    expect(forwarded).toHaveLength(1);
   });
 
   test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {

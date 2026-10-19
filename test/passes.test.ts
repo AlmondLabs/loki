@@ -93,6 +93,19 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
 }
 
 describe("background passes", () => {
+  test("every chat is read on the Mac it lives on, its agent's home or not, and its memory root reaches the job", async () => {
+    const s = await setup();
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
+      await s.say("c", LONG, "and more");
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(1);
+      expect(s.seen[0].memoryRoot).toBe(join(s.dir, "memfs", s.agentId, "memory"));
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a chat on an ACP agent is read like any other, and the pass runs on the agent's own model", async () => {
     const s = await setup();
     try {

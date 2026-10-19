@@ -141,7 +141,7 @@ export const HISTORY_PAGE = 400;
 /** The Inbox's state and actions for a client, the Mac app or the phone: the open conversations and their digests come from the mod (inbox_list), the live half (approvals, questions, streaming) from the daemon through the mod's chat frames for the newest few, and the seen markers from the mod. Returns the scored items, each chat's thread, and the calls that send, decide, archive and manage agents. */
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
-  const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
+  const [agents, setAgents] = useState<Array<{ id: string; name: string; home_mac?: string | null }>>([]);
   /** False until the first agent_list answered: an empty list before that means nothing. */
   const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [digests, setDigests] = useState<Map<string, Digest>>(new Map());
@@ -293,9 +293,9 @@ export function useAttention(opts: UseAttentionOptions) {
         })
         .catch(() => {});
       const agents = await sock.listAgents();
-      const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
+      const shown = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a]));
       if (!cancelled) {
-        setAgents([...names].map(([id, name]) => ({ id, name })));
+        setAgents([...shown.values()].map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null })));
         setAgentsLoaded(true);
       }
       // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
@@ -464,10 +464,10 @@ export function useAttention(opts: UseAttentionOptions) {
 
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
   const createDesk = useCallback(
-    async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
+    async (agentId: string, cwd: string, name?: string, home?: string): Promise<Runtime> => {
       const sock = socketRef.current;
       if (!sock) throw new Error("not connected to loki's daemon");
-      const rt = await sock.createConversation(agentId, cwd, name);
+      const rt = await sock.createConversation(agentId, cwd, name, home);
       const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
       setConversations((c) => [
         {
@@ -674,18 +674,21 @@ export function useAttention(opts: UseAttentionOptions) {
     [bump, liveOf],
   );
 
-  const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
-    const sock = socketRef.current;
-    if (!sock) return "not connected to loki's daemon";
-    try {
-      await sock.updateAgent(agentId, body);
-      const name = body.name;
-      if (name) setAgents((a) => a.map((x) => (x.id === agentId ? { ...x, name } : x)));
-      return null;
-    } catch (err) {
-      return err instanceof Error ? err.message : String(err);
-    }
-  }, []);
+  const updateAgent = useCallback(
+    async (agentId: string, body: { name?: string; description?: string; model?: string; home_mac?: string }): Promise<string | null> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      try {
+        await sock.updateAgent(agentId, body);
+        const name = body.name;
+        if (name) setAgents((a) => a.map((x) => (x.id === agentId ? { ...x, name } : x)));
+        return null;
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+    },
+    [],
+  );
   /** The provider catalogue, loaded on demand; null until asked. */
   const [providers, setProviders] = useState<ConnectProvider[] | null>(null);
   /** The catalogue as last loaded, for a failed reload to fall back on (read at call time, so loadProviders stays one function). */

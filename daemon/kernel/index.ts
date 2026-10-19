@@ -54,6 +54,16 @@ export type ChatInfo = {
   engine?: ChatEngine | null;
   /** The person's labels on the chat (plan 022), as core/labels.ts names them; absent, none. */
   labels?: string[];
+  /**
+   * Put on this Mac on purpose (plan 023, addendum A2): moved here by hand, or started here away from its agent's home.
+   * The hand-over of an agent's chats to its home leaves it where it is.
+   */
+  placed?: boolean;
+  /**
+   * Moved here from another Mac, and the agent not told yet (addendum A5): told with the person's next message, then
+   * cleared. `files_left`: files attached before the move, which stayed on the Mac it came from.
+   */
+  moved?: { from: string; to: string; files_left: number } | null;
 };
 
 /**
@@ -143,7 +153,7 @@ export class AgentStore {
   /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
   async updateChat(
     id: string,
-    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels">>,
+    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "placed" | "moved">>,
     context: Context,
   ): Promise<boolean> {
     const chat = await this.chat(id, context);
@@ -156,6 +166,27 @@ export class AgentStore {
       if (change.mode !== undefined) info.mode = change.mode;
       if (change.engine !== undefined) info.engine = change.engine;
       if (change.labels !== undefined) info.labels = change.labels;
+      if (change.placed !== undefined) info.placed = change.placed;
+      if (change.moved !== undefined) info.moved = change.moved;
+    }, context);
+    return true;
+  }
+
+  /**
+   * Set aside the copy of a chat this Mac let go when it moved away (plan 023, addendum A4), so the chat can come back
+   * under its own id: the copy stays, hidden, under a new key, and its usage is still counted. False when there is none.
+   */
+  async retireChat(id: string, context: Context): Promise<boolean> {
+    const chat = await this.chat(id, context);
+    if (!chat) return false;
+    const key = `${id}~moved-${Date.now().toString(36)}`;
+    await chat.commit(async (tx) => {
+      const index = await tx.doc(ChatIndex);
+      index.chats[key] = chat.id;
+      index.chats = Object.fromEntries(Object.entries(index.chats).filter(([k]) => k !== id));
+      const info = await tx.doc(ChatDoc, chat.id);
+      info.id = key;
+      info.hidden = true;
     }, context);
     return true;
   }

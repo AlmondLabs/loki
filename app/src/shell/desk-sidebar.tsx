@@ -14,10 +14,12 @@ import {
   canRename,
   doneAction,
   loadSidebar,
+  moveTargets,
   offscreenWaits,
   saveSidebar,
   sidebarModel,
   toggleFold,
+  type MoveTarget,
   type SidebarPref,
   type SidebarRow,
 } from "./sidebar-model";
@@ -25,10 +27,12 @@ import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/rename-desk";
 import { ChangeFolder, type FolderApi } from "../desk/new-desk";
 import { conversationDirName } from "../../../core/desk-core.ts";
+import { HomeMark } from "./home-mark";
 import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
-import { LabelChips, LabelsDialog } from "../chat/labels";
+import { LabelsDialog } from "../chat/labels";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
@@ -83,6 +87,13 @@ export interface DeskSidebarProps {
   onQuery?: (query: string) => void;
   /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
   labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
+  /**
+   * Where agents live, once Macs are paired (plan 023): this Mac's id, and each agent's home and its name. Each agent's
+   * section says it once; a row marks only a chat living elsewhere or one whose Mac is asleep.
+   */
+  homes?: { here: string; of: (agentId: string) => { mac: string; name: string } | null };
+  /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
+  macs?: { view: Pushes["peers"] | null; move: (desk: DeskSummary, to: MoveTarget) => void };
 }
 
 /**
@@ -109,6 +120,8 @@ export function DeskSidebar({
   query: heldQuery,
   onQuery,
   labels,
+  macs,
+  homes,
 }: DeskSidebarProps) {
   const [ownQuery, setOwnQuery] = useState("");
   const query = heldQuery ?? ownQuery;
@@ -221,6 +234,17 @@ export function DeskSidebar({
     );
   };
 
+  /** The Mac an agent lives on, in its section's header, once Macs are paired. */
+  const homeAside = (agentId: string) => {
+    const home = homes?.of(agentId);
+    return home ? (
+      <span title={`${home.name}: where this agent's chats start`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Icon name="laptop" size={12} />
+        {home.name}
+      </span>
+    ) : undefined;
+  };
+
   const rowOf = (r: SidebarRow, inPinned: boolean) => {
     const d = r.desk;
     const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
@@ -235,20 +259,16 @@ export function DeskSidebar({
           )
         }
         title={name}
-        flags={
-          <>
-            {d.pinned && !inPinned && <Icon name="pin" size={12} title="pinned" />}
-            {r.note && <FinishedRing note={r.note} />}
-            <LabelChips labels={d.labels} list={labels?.list ?? null} max={3} dots />
-          </>
-        }
+        // One mark at most beside the name, and only where it differs from its section (the status is on the right).
+        flags={<HomeMark row={d} agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null} here={homes?.here} />}
         badge={r.badge}
         badgeNoun={r.badgeNoun}
         unread={r.unread}
         note={r.note}
         live={r.live}
+        liveAtEnd
         current={r.current}
-        dim={d.status !== "live"}
+        dim={d.status !== "live" || d.reachable === false}
         launch={launchOf(d.scope)}
         onOpen={() => onOpen(d.scope)}
         onMenu={(e: MouseEvent<HTMLButtonElement>) => {
@@ -335,6 +355,7 @@ export function DeskSidebar({
                 icon={s.id === "pinned" ? "pin" : undefined}
                 // Folded, the section still says how many of its desks need you.
                 count={shut ? s.waiting : null}
+                aside={s.agentId ? homeAside(s.agentId) : undefined}
                 open={!shut}
                 onToggle={filtering ? undefined : () => fold(s.id)}
                 actions={
@@ -414,6 +435,8 @@ export function DeskSidebar({
           onMove={onMove && folders ? setMoving : undefined}
           onLabels={labels ? setLabeling : undefined}
           onDone={onDone}
+          targets={macs ? moveTargets(menu.desk, macs.view) : []}
+          onMoveTo={macs?.move}
         />
       )}
       {labeling && labels && (
@@ -441,14 +464,6 @@ export function DeskSidebar({
   );
 }
 
-/**
- * A finished desk's ring after its name (deskMark's "finished, unread"): it stays through a look and goes when
- * the desk is done. Its words are the row's too (ListRow's note), so the ring itself is hidden from the reader.
- */
-function FinishedRing({ note }: { note: string }) {
-  return <span aria-hidden className="loki-sidebar-ring" title={note} />;
-}
-
 /** A row's context menu at the pointer: open, mark done or not done, rename, change folder, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
 function RowMenu({
   desk: d,
@@ -464,6 +479,8 @@ function RowMenu({
   onMove,
   onLabels,
   onDone,
+  targets,
+  onMoveTo,
 }: {
   desk: DeskSummary;
   item: AttentionItem | null;
@@ -474,6 +491,9 @@ function RowMenu({
   onRename: (d: DeskSummary) => void;
   onMove?: (d: DeskSummary) => void;
   onLabels?: (d: DeskSummary) => void;
+  /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
+  targets: MoveTarget[];
+  onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
 } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -546,6 +566,19 @@ function RowMenu({
           Labels…
         </Row>
       )}
+      {onMoveTo &&
+        targets.map((t) => (
+          <Row
+            key={t.mac_id}
+            dense
+            role="menuitem"
+            disabled={!connected || !t.reachable}
+            title={!connected ? NO_MOVE_REASON : t.reachable ? undefined : `${t.name} is out of reach`}
+            onClick={pick(() => onMoveTo(d, t))}
+          >
+            Move to {t.name}
+          </Row>
+        ))}
       {canPin(d) && (
         <Row dense role="menuitem" onClick={pick(() => onPin(d, !d.pinned))}>
           {d.pinned ? "Unpin" : "Pin to the top"}
@@ -614,6 +647,19 @@ export function DeskSidebarView({
         if (!err) notice(`${d.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
         return err;
       }}
+      homes={homesOf(desk.macs.view, catchUp.agents)}
+      macs={{
+        view: desk.macs.view,
+        move: (d, to) => {
+          if (!d.agent_id || !d.conversation_id) return;
+          const name = d.title ?? "chat";
+          notice(`moving ${name} to ${to.name}…`);
+          void desk.macs.move(d.agent_id, d.conversation_id, to.mac_id).then((err) => {
+            notice(err ? `move: ${err}` : `${name} moved to ${to.name}`);
+            if (!err) desk.desks.request();
+          });
+        },
+      }}
       onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {
         if (!d.conversation_id) return;
@@ -625,4 +671,17 @@ export function DeskSidebarView({
       }}
     />
   );
+}
+
+/** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). */
+function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): DeskSidebarProps["homes"] {
+  if (!macs?.peers.length) return undefined;
+  const names = new Map([[macs.me.mac_id, macs.me.name], ...macs.peers.map((p) => [p.mac_id, p.name] as const)]);
+  return {
+    here: macs.me.mac_id,
+    of: (agentId) => {
+      const mac = agents.find((a) => a.id === agentId)?.home_mac ?? macs.me.mac_id;
+      return { mac, name: names.get(mac) ?? "another Mac" };
+    },
+  };
 }

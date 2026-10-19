@@ -1,5 +1,6 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
+import { homeNote } from "../../../core/desk-core.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
 /**
@@ -66,8 +67,8 @@ export const canPin = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversat
 
 /**
  * What a row shows: the red badge (one per waiting conversation), the bold title, the live dot, and for a
- * finished desk its ring with the words for it. Bold + ring: new since you last looked; ring alone: looked
- * at, not done; neither: done.
+ * finished desk not looked at since, its ring with the words for it. Bold + ring: new since you last looked;
+ * neither: looked at. Done is the Inbox's, which still holds a chat you looked at until you clear it there.
  */
 export interface RowState {
   kind: MarkKind;
@@ -75,7 +76,7 @@ export interface RowState {
   badgeNoun?: string;
   unread: boolean;
   live: boolean;
-  /** A finished desk's reading, in words: "new messages" or "viewed, not done". */
+  /** A finished desk's reading, in words, while it has news you have not looked at: "new messages". */
   note?: string;
 }
 
@@ -84,7 +85,8 @@ export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): R
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
   const finished = mark.kind === "finished";
-  // A look un-bolds a finished desk (it stays not done: the ring); waiting is news until you act, so it stays bold beside its badge.
+  // A look clears a finished desk's row, bold and ring (the Inbox keeps it until it is done there); waiting is news
+  // until you act, so it stays bold beside its badge.
   const fresh = finished && !!item && unviewed(item);
   return {
     kind: mark.kind,
@@ -92,7 +94,7 @@ export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): R
     badgeNoun: waits ? mark.title : undefined,
     unread: waits || fresh,
     live: mark.kind === "running",
-    note: finished ? (fresh ? "new messages" : "viewed, not done") : undefined,
+    note: fresh ? "new messages" : undefined,
   };
 }
 
@@ -260,4 +262,48 @@ export function saveSidebar(store: Store, pref: SidebarPref): void {
 /** The settings with one section's fold flipped. */
 export function toggleFold(pref: SidebarPref, id: string): SidebarPref {
   return { ...pref, collapsed: pref.collapsed.includes(id) ? pref.collapsed.filter((c) => c !== id) : [...pref.collapsed, id] };
+}
+
+/** A Mac a chat can move to, from its row's menu (plan 023, addendum A1). */
+export interface MoveTarget {
+  mac_id: string;
+  name: string;
+  /** In reach now: a Mac asleep or off is offered, but greyed. */
+  reachable: boolean;
+}
+
+/**
+ * Where a chat can move: every Mac but the one it lives on, this Mac first. None for a chat whose Mac is out of reach,
+ * a row that is not a chat, or an agent's main chat, which there is one of and which lives with its agent: it moves
+ * when the agent's home does. None until another Mac is paired.
+ */
+export function moveTargets(
+  d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
+  macs: { me: MacIdentity; peers: Array<MacIdentity & { reachable: boolean }> } | null,
+): MoveTarget[] {
+  if (!macs?.peers.length || !d.agent_id || !d.conversation_id || d.conversation_id === "default" || d.reachable === false) return [];
+  const all = [
+    { mac_id: macs.me.mac_id, name: macs.me.name, reachable: true },
+    ...macs.peers.map((p) => ({ mac_id: p.mac_id, name: p.name, reachable: p.reachable })),
+  ];
+  const lives = d.home ?? macs.me.mac_id;
+  return all.filter((m) => m.mac_id !== lives);
+}
+
+/**
+ * The location mark a chat's row carries (plan 023): none for a chat on its agent's Mac in reach, which its section
+ * names; "away" with where for a chat living elsewhere; "asleep" while its Mac is out of reach. Without `agentHome`
+ * (no Mac paired, or the switcher's flat list), every chat on another Mac is marked. `machine` names this Mac.
+ */
+export function homeMark(
+  row: { home?: string; home_name?: string; reachable?: boolean },
+  agentHome: string | null | undefined,
+  here: string | undefined,
+  machine: string,
+): { kind: "away" | "asleep"; note: string } | null {
+  const asleep = row.reachable === false;
+  const lives = row.home ?? here;
+  if (!asleep && agentHome && lives === agentHome) return null;
+  const note = homeNote(row) ?? (agentHome && here && lives === here ? `on ${machine}` : null);
+  return note ? { kind: asleep ? "asleep" : "away", note } : null;
 }

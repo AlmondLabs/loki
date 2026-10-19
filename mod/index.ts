@@ -11,21 +11,27 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, hiddenScopes, lookupLocalAgentName } from "./desks.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
-import { RecallStore, isoDay } from "./recall.ts";
+import { RecallStore, isoDay, recallDir } from "./recall.ts";
+import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall-sync.ts";
+import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
+import { PeerState } from "./peer-state.ts";
+import { ChatMoves } from "./chat-moves.ts";
+import { MOVE_TIMEOUT_MS } from "../core/frames.ts";
+import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskStore, TasksNotice } from "./tasks.ts";
-import { readPins, setPin } from "./pins.ts";
+import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
-import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
+import { backendDir, isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
 import { sortDesks } from "./frames/desks.ts";
@@ -37,7 +43,17 @@ import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
-import { PairingCodes } from "./pairing.ts";
+import { PAIRING_TTL_MS, PairingCodes } from "./pairing.ts";
+import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
+import { PeerLinks } from "./peer-link.ts";
+import { PeerAgents } from "./peer-agents.ts";
+import { PeerMemory } from "./peer-memory.ts";
+import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts";
+import { RemoteChats } from "./remote-chats.ts";
+import { ChatRouter } from "./chat-router.ts";
+import { ChatDirectory } from "./chat-directory.ts";
+import { PeerGroup } from "./peer-group.ts";
+import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
@@ -75,6 +91,19 @@ export interface Host {
   analytics?: Analytics;
   /** The daemon's usage ledger (daemon/usage.ts), for the usage page; `onChange` returns its unsubscribe. */
   usage?: NonNullable<UsageDeps["usage"]> & { onChange: (listener: () => void) => () => void };
+  /** This Mac's install id (state/device-id), its name to other Macs (plan 023). */
+  macId: string;
+  /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
+  secrets: SecretBackend;
+  /**
+   * Restarting the daemon (plan 024): the file whose change in a checkout made a restart due (null when none, always in
+   * the installed app), hearing when one becomes due, and restarting now: null once under way, else why not.
+   */
+  daemon?: {
+    restartDue: () => string | null;
+    onRestartDue: (fn: (file: string) => void) => () => void;
+    restart: (anyway: boolean) => Promise<string | null>;
+  };
 }
 
 /**
@@ -107,15 +136,23 @@ export default function activate(api: ModApi, host: Host): () => void {
   let srv: LokiServer | null = null;
   let ws: WsBridge | null = null;
   let starting: Promise<LokiServer> | null = null;
+  /** Set when the mod stops: a server still starting then closes as soon as it is up, so the next mod can have its port. */
+  let stopped = false;
   let lan: LanListener | null = null; // the phone listener, built after the bridge (it serves the same handlers)
   const phones = (): LanListener => {
     if (!lan) throw new Error("the phone listener is not up yet");
     return lan;
   };
+  /** loki's mods folder as it syncs between Macs (plan 023, U10). */
+  const MOD_FILES = { list: listModFiles, safe: isModPath };
+  /** The person's state on paired Macs (plan 023, U8), told when a push here says some of it changed. */
+  const stateSync: { peerState: PeerState | null } = { peerState: null };
+  const STATE_PUSHES = new Set(["seen", "desks", "recall_changed"]);
   // Every frame goes to the desktop's tabs and to paired phones alike.
   const broadcast = (msg: object, scope?: Scope) => {
     ws?.broadcast(msg, scope);
     lan?.broadcast(msg, scope);
+    if (STATE_PUSHES.has((msg as { type?: string }).type ?? "")) stateSync.peerState?.changed();
   };
 
   store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
@@ -193,7 +230,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       last_active: info.lastMessageAt,
     };
   };
-  const listDesks = (): DeskSummary[] => {
+  /** This Mac's own desks: what another Mac's lists show of this one (plan 023, U4). */
+  const listLocalDesks = (): DeskSummary[] => {
     // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
     for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
       if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
@@ -214,26 +252,30 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (isSubagent(c.agentId)) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
     }
+    // A chat let go to another Mac lives there now, though its canvas may still be here.
+    const hidden = hiddenScopes(chats.list());
     return sortDesks(
-      [...scopes].map((scope) => {
-        const info = deskInfo(scope);
-        return {
-          scope,
-          title: info.title,
-          status: info.status,
-          agent_name: info.agent_name,
-          agent_id: info.agent_id,
-          conversation_id: desks.get(scope)?.conversation_id ?? null,
-          pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
-          model: info.model,
-          reasoning_effort: info.reasoning_effort,
-          mode: info.mode ?? null,
-          labels: info.labels ?? [],
-          widgets: widgets.entries(scope).length,
-          active: scope === activeScope,
-          last_active: info.last_active,
-        };
-      }),
+      [...scopes]
+        .filter((scope) => !hidden.has(scope))
+        .map((scope) => {
+          const info = deskInfo(scope);
+          return {
+            scope,
+            title: info.title,
+            status: info.status,
+            agent_name: info.agent_name,
+            agent_id: info.agent_id,
+            conversation_id: desks.get(scope)?.conversation_id ?? null,
+            pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
+            model: info.model,
+            reasoning_effort: info.reasoning_effort,
+            mode: info.mode ?? null,
+            labels: info.labels ?? [],
+            widgets: widgets.entries(scope).length,
+            active: scope === activeScope,
+            last_active: info.last_active,
+          };
+        }),
     );
   };
   /**
@@ -242,7 +284,7 @@ export default function activate(api: ModApi, host: Host): () => void {
    * going quiet. Hidden conversations (Learn's writer chats, reflection's, side threads imported from Letta)
    * stay out, as in the tree.
    */
-  const listInbox = (): InboxRow[] => {
+  const listLocalInbox = (): InboxRow[] => {
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
     const names = new Map<string, string | null>();
     const out: InboxRow[] = [];
@@ -266,6 +308,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   };
+  // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
+  const listDesks = (): DeskSummary[] => sortDesks([...listLocalDesks(), ...remoteChats.desks()]);
+  const listInbox = (): InboxRow[] =>
+    [...listLocalInbox(), ...remoteChats.inbox()].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   const deleteWidgetFile = (id: string): string | null => {
     const entry = widgets.get(id);
     if (!entry) return null;
@@ -284,6 +330,213 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
+  // Paired Macs (plan 023, mod/peers.ts), on the same listener over the tailnet, with codes of their own.
+  const peerStore = new PeerStore(paths.peers);
+  const peerCodes = new PairingCodes();
+  const macId = host.macId;
+  const thisMacName = macName();
+  const build = appVersion(paths.root);
+  /** This Mac's tailnet address for other Macs, or null when Tailscale is not running here. */
+  const tailnetHost = (): string | null => {
+    const s = lan?.status();
+    return s?.tailscale?.running && s.tailscale.name ? `${s.tailscale.name}:${s.port}` : null;
+  };
+  /** Until when a Mac pairing code may be redeemed: the listener stays up for it. */
+  let peerCodeUntil = 0;
+  const peersNeeded = () => peerStore.size() > 0 || peerCodeUntil > Date.now();
+  const peerKeys = new PeerKeys(host.secrets);
+  /** Tailscale's view of this Mac and its tailnet, shared by the phone listener and Settings › Macs. */
+  const tailscale = new Tailscale({ port: Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT) });
+  const peersView = () => {
+    const paired = new Set(peerStore.list().map((p) => p.host.replace(/:\d+$/, "").toLowerCase()));
+    // Computers only: a phone or a tablet on the tailnet is not a Mac to pair with.
+    const tailnet = tailscale
+      .devices()
+      .filter((d) => /^(macos|linux|windows)$/i.test(d.os))
+      .map((d) => ({ ...d, paired: paired.has(d.address) }));
+    return { me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list((id) => links.reachable(id)), tailnet };
+  };
+  // One link to each paired Mac (U2): opened when it pairs, closed when it is forgotten.
+  const links: PeerLinks = new PeerLinks({
+    token: (id) => peerKeys.get(id),
+    defaults: { protocol: PEER_PROTOCOL },
+    onStatus: (id, status) => {
+      ws?.broadcast({ type: "peers", ...peersView() });
+      remoteChats.setReachable(id, status === "reachable");
+      // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
+      if (status === "reachable") {
+        // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
+        void peerGroup.meshWith(id);
+        // Agents, then their memory, then (once, after pairing) the chats of agents that live here (U9).
+        void peerAgents
+          .pull(id)
+          .then(() => peerMemory.pullAll(id))
+          .then(() => chatMoves.run(id));
+        void peerState.pull(id);
+      }
+    },
+    onPush: (id, frame) => {
+      remoteChats.heard(id, frame);
+      // A chat or desk that lives there: its clients here hear what it does (U5).
+      const relay = router.relay(id, frame);
+      if (relay) broadcast(frame, relay.scope);
+      if (frame.type === "agents_changed")
+        void peerAgents.pull(id).then(async (applied) => {
+          await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
+          // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
+          const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
+          if (homedHere) await chatMoves.run(id, true);
+        });
+      if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
+      // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
+      if (frame.type === "chat_left" && typeof frame.conversation_id === "string" && typeof frame.to === "string") {
+        const agentId = typeof frame.agent_id === "string" ? frame.agent_id : null;
+        directory.heard(id, { kind: "left", scope: scopeFor(frame.conversation_id, agentId), to: frame.to });
+        if (frame.to !== macId) void remoteChats.refresh(frame.to);
+      }
+      if (frame.type === "state_changed") void peerState.pull(id);
+      if (frame.type === "group_changed") void peerGroup.meshWith(id);
+    },
+    // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
+    onRefused: (id) => void peers.contact(id),
+  });
+  // The paired Macs' own chats, for every list here (U4).
+  const remoteChats: RemoteChats = new RemoteChats({
+    link: (id) => links.get(id),
+    name: (id) => peerStore.get(id)?.name ?? "another Mac",
+    onChange: () => broadcast({ type: "lists_changed" }),
+    // A Mac's list is its word on which chats it holds (addendum B5).
+    onListed: (id, scopes) => directory.heard(id, { kind: "holds", scopes }),
+  });
+  // Where each chat lives (addendum B): this Mac's from its store, each paired Mac's from its own word.
+  const directory: ChatDirectory = new ChatDirectory({
+    here: macId,
+    holds: (scope) => chats.list().some((c) => !c.hidden && scopeFor(c.conversationId, c.agentId) === scope),
+    macs: () => peerStore.list().map((p) => p.mac_id),
+    reachable: (id) => links.reachable(id),
+    ask: async (id, chat) => {
+      const link = links.get(id);
+      if (!link) throw new Error("not paired");
+      const r = await link.request({ type: "peer_where", agent_id: chat.agent_id ?? null, conversation_id: chat.conversation_id });
+      return { held: r.held === true, moved_to: typeof r.moved_to === "string" ? r.moved_to : null };
+    },
+    tell: (frame) => lan?.broadcast(frame),
+  });
+  // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
+  const router: ChatRouter = new ChatRouter({
+    here: macId,
+    peer: (id) => (peerStore.get(id) ? { mac: id, reachable: links.reachable(id) } : null),
+    agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
+    directory,
+    link: (id) => links.get(id),
+    name: (id) => peerStore.get(id)?.name ?? "another Mac",
+    uploadsDir: paths.uploads,
+    upload: (id, file) => peers.upload(id, file),
+    relist: (id) => remoteChats.refresh(id),
+  });
+  // A paired Mac stays awake on power while loki runs, so its chats can be reached from the other (U11, R14).
+  const awake = new Awake();
+  awake.set(peerStore.size() > 0);
+  // Taking over this Mac's agents' chats from a Mac they were made on, once after pairing (U9).
+  const chatMoves: ChatMoves = new ChatMoves({
+    chat: chatBackend,
+    link: (id) => links.get(id),
+    widgetsDir: paths.widgets,
+    done: (id) => peerStore.get(id)?.moves_done === true,
+    markDone: (id) => peerStore.markMovesDone(id),
+    onMoved: (id) => {
+      void remoteChats.refresh(id);
+      broadcast({ type: "lists_changed" });
+    },
+    name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? "another Mac")),
+  });
+  // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
+  const peerState: PeerState = new PeerState({
+    snapshot: () => ({
+      marks: seen.snapshot(),
+      pins: pinChanges(),
+      labels: chatBackend.labelColors(),
+      learn: recallSnapshot(recallDir()),
+      mcp: mcpSnapshot(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json")),
+      mods: filesSnapshot(join(paths.data, "mods"), MOD_FILES),
+    }),
+    apply: (id, theirs) => {
+      const moved = {
+        marks: seen.applyRemote(id, theirs.marks),
+        pins: applyPinChanges(theirs.pins),
+        labels: chatBackend.applyLabelColors(theirs.labels),
+        learn: applyRecall(recallDir(), theirs.learn),
+        // The daemon follows mcp.json and the mods folder itself: a change written here is picked up there.
+        mcp: applyMcp(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json"), theirs.mcp),
+        mods: applyFiles(join(paths.data, "mods"), MOD_FILES, theirs.mods),
+      };
+      if (moved.marks) broadcast(seenFrame({ seen }));
+      if (moved.pins) broadcast({ type: "desks", desks: listDesks() });
+      if (moved.labels) broadcast({ type: "lists_changed" });
+      if (moved.learn) broadcast({ type: "recall_changed" });
+      return moved;
+    },
+    link: (id) => links.get(id),
+    tell: () => lan?.broadcast({ type: "state_changed" }),
+  });
+  stateSync.peerState = peerState;
+  // An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again every few minutes.
+  const statePoll = setInterval(() => {
+    for (const p of peerStore.list()) if (links.reachable(p.mac_id)) void peerState.pull(p.mac_id);
+  }, 5 * 60_000);
+  statePoll.unref();
+  // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
+  const peerMemory: PeerMemory = new PeerMemory({
+    backendDir,
+    macId,
+    link: (id) => links.get(id),
+    homeOf: (agentId) => recordHome(readRecord(backendDir(), agentId), macId),
+    tell: (agentId) => lan?.broadcast({ type: "memory_changed", agent_id: agentId }),
+    onCloned: () => broadcast({ type: "agents_changed" }),
+  });
+  peerMemory.start();
+  // The same agents on every paired Mac (U3): pulled from a Mac when its link opens or its agents change.
+  const peerAgents: PeerAgents = new PeerAgents({
+    backendDir,
+    macId,
+    link: (id) => links.get(id),
+    remove: (id) => chatBackend.removeAgent(id),
+    onChanged: () => broadcast({ type: "agents_changed" }),
+  });
+  // Every Mac paired with every other, by introductions through a Mac paired with both (addendum D).
+  const peerGroup: PeerGroup = new PeerGroup({
+    here: macId,
+    paired: (id) => peerStore.get(id) !== null,
+    forgotten: (id) => peerStore.isForgotten(id),
+    link: (id) => links.get(id),
+    join: async (host, invite) => {
+      await phones().refresh(); // the other Mac needs this one's tailnet address to reach it back
+      return peers.join(host, invite);
+    },
+  });
+  /** The Macs paired at the last change, so one forgotten since leaves the directory too. */
+  let known = new Set(peerStore.list().map((p) => p.mac_id));
+  const peers: Peers = new Peers({
+    store: peerStore,
+    keys: peerKeys,
+    codes: peerCodes,
+    me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
+    onChange: () => {
+      // The Macs this one is paired with changed: they join any they lack (addendum D1).
+      lan?.broadcast({ type: "group_changed" });
+      awake.set(peerStore.size() > 0);
+      links.sync(peerStore.list());
+      remoteChats.sync(peerStore.list().map((p) => p.mac_id));
+      for (const id of known) if (!peerStore.get(id)) directory.forget(id);
+      known = new Set(peerStore.list().map((p) => p.mac_id));
+      ws?.broadcast({ type: "peers", ...peersView() });
+      void lan?.setPeersNeeded(peersNeeded());
+    },
+    onForget: (id) => {
+      lan?.closePeer(id);
+      seen.forgetMac(id); // its focus no longer counts here
+    },
+  });
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
   // --- recall -----------------------------------------------------------
@@ -307,6 +560,8 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
   let usagePush: ReturnType<typeof setTimeout> | null = null;
+  // A restart due after a checkout's daemon code changed (plan 024): every window offers it.
+  const stopRestartDue = host.daemon?.onRestartDue((file) => ws?.broadcast({ type: "restart_due", file }));
   const stopUsage = host.usage?.onChange(() => {
     usagePush ??= setTimeout(() => {
       usagePush = null;
@@ -345,6 +600,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     folderFor,
     chat: chatBackend,
     usage: host.usage,
+    daemon: host.daemon,
     lan: {
       status: () => phones().status(),
       refresh: () => phones().refresh(),
@@ -358,6 +614,76 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
       devices: () => devices.list(),
       forget: (id) => phones().forget(id),
+    },
+    peers: {
+      view: peersView,
+      refresh: () => phones().refresh(),
+      begin: async () => {
+        const { code, expiresAt } = peerCodes.mint();
+        peerCodeUntil = Date.parse(expiresAt);
+        // Bound and Tailscale asked before the address is shown: the other Mac types it.
+        await phones().setPeersNeeded(true);
+        await phones().refresh();
+        // Once the code has lapsed, the listener stays up only for the Macs already paired (or the phone switch).
+        setTimeout(() => void phones().setPeersNeeded(peersNeeded()), PAIRING_TTL_MS + 1000).unref();
+        log("peers:pair-code", { expiresAt });
+        return { code, host: tailnetHost(), expires_at: expiresAt };
+      },
+      join: async (to, code) => {
+        // The other Mac needs this Mac's tailnet address to reach it back: ask Tailscale now rather than trust a minute-old answer.
+        await phones().refresh();
+        if (!tailnetHost()) throw new Error("Tailscale is not running on this Mac: open Tailscale and sign in, then pair again");
+        return peers.join(to, code);
+      },
+      forget: (id) => peers.forget(id),
+      hello: () => peers.hello(),
+      agents: () => peerAgents.snapshot(),
+      chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
+      state: () => peerState.snapshotNow(),
+      where: (chat) => directory.answer(chat),
+      group: {
+        macs: () => peerStore.list().map((p) => ({ mac_id: p.mac_id, name: p.name, host: p.host })),
+        introduce: (from, id) => peerGroup.introduce(from, id),
+        invite: (id) => peers.invite(id),
+      },
+      moves: {
+        candidates: (id) => chatBackend.moveCandidates(id),
+        export: (id, agentId, conversationId) => chatMoves.export(id, agentId, conversationId),
+        moved: async (to, agentId, conversationId) => {
+          await chatMoves.moved(agentId, conversationId);
+          directory.left({ agent_id: agentId, conversation_id: conversationId }, to);
+          desks.forgetConversations((id) => id === conversationId); // its desk row lives on the other Mac now
+          broadcast({ type: "lists_changed" });
+        },
+        take: (id, agentId, conversationId) => chatMoves.take(id, agentId, conversationId),
+        offer: async (to, agentId, conversationId) => {
+          if (to === macId) return null;
+          const name = peerStore.get(to)?.name;
+          if (!name) return "that Mac is not paired with this one";
+          const link = links.get(to);
+          if (!link || !links.reachable(to)) return `${name} is out of reach: move the chat once it is back`;
+          try {
+            const out = (await link.request({ type: "peer_chat_take", agent_id: agentId, conversation_id: conversationId }, MOVE_TIMEOUT_MS)) as {
+              moved?: boolean;
+              busy?: boolean;
+            };
+            if (out.busy) return "the chat is answering or waiting for you: move it once it is done";
+            if (!out.moved) return "the chat is not on this Mac";
+            void remoteChats.refresh(to);
+            return null;
+          } catch (err) {
+            return `the move to ${name} did not finish: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        },
+      },
+      memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
+    },
+    chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
+    // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
+    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
+    agentDeleteBlocked: (agentId) => {
+      const away = remoteChats.awayWith(agentId);
+      return away ? `${peerStore.get(away)?.name ?? "another Mac"} is out of reach and has this agent's chats: delete it once that Mac is back` : null;
     },
     agents: {
       get: (id) => readLocalAgent(id),
@@ -379,6 +705,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     welcome: welcomeFrames(moduleDeps),
     broadcast,
     capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
+    route: router,
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
@@ -390,7 +717,11 @@ export default function activate(api: ModApi, host: Host): () => void {
       // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
       routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params))],
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
-    }).then((s) => {
+    }).then(async (s) => {
+      if (stopped) {
+        await s.close();
+        throw new Error("the mod stopped while its server was starting");
+      }
       ws = attachWs(s.server, token, bridge);
       log("server:listening", { port: s.port });
       return (srv = s);
@@ -417,7 +748,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   lan = new LanListener({
     port: lanPort,
-    tailscale: new Tailscale({ port: lanPort }),
+    tailscale,
     stateFile: paths.lan,
     devices,
     codes,
@@ -425,6 +756,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     desktopToken: token,
     profile: (agentId) => profilePath(agentId),
     uploads: paths.uploads,
+    peers,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
     // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they
     // go to its tabs, not to the phones themselves, which never read them.
@@ -438,6 +770,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
   });
   if (lan.enabled()) void lan.start();
+  if (peerStore.size() > 0) void lan.setPeersNeeded(true);
+  links.sync(peerStore.list());
 
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
@@ -546,9 +880,16 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
+    stopped = true;
     ws?.close();
     void srv?.close();
     void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
+    links.stop(); // the links to other Macs reopen with the mod
+    remoteChats.stop();
+    peerMemory.stop();
+    peerState.stop();
+    clearInterval(statePoll);
+    awake.set(false);
     ws = null;
     srv = null;
     starting = null;
@@ -561,6 +902,7 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   return () => {
     stopUsage?.();
+    stopRestartDue?.();
     if (usagePush) clearTimeout(usagePush);
     for (const d of eventDisposers) d();
     for (const d of toolDisposers) d();

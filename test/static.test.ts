@@ -1,14 +1,10 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
-
-// These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
-// of them has crossed the 5 s default. Twenty seconds still catches a hang.
-vi.setConfig({ testTimeout: 20_000 });
 
 const INDEX = `<!doctype html><html><head><meta charset="utf-8"><title>loki</title></head><body><div id="root"></div></body></html>`;
 

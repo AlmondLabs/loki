@@ -186,3 +186,32 @@ describe("mod registry", () => {
     }
   });
 });
+
+describe("reloading a mod", () => {
+  test("two loads at once run one after another, and each copy is disposed when the next replaces it", async () => {
+    const mods = new ModRegistry(() => {});
+    const live = new Set<number>();
+    let release: () => void = () => {};
+    const slow = new Promise<void>((r) => (release = r));
+    const copy = (n: number, wait?: Promise<void>): LokiMod => ({
+      name: "loki",
+      apiVersion: 1,
+      activate: async () => {
+        await wait;
+        live.add(n);
+        return () => live.delete(n);
+      },
+    });
+    const first = mods.load(copy(1, slow));
+    const second = mods.load(copy(2));
+    // The second waits for the first, however long it takes to start.
+    await Promise.resolve();
+    expect(live.size).toBe(0);
+    release();
+    expect(await first).toEqual({ loaded: true });
+    expect(await second).toEqual({ loaded: true });
+    expect([...live]).toEqual([2]);
+    mods.unload("loki");
+    expect(live.size).toBe(0);
+  });
+});

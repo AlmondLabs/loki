@@ -20,6 +20,8 @@ export interface LocalAgent {
   favourite: boolean;
   /** The first line of the system prompt, for orientation; the prompt is the agent record's, not editable here. */
   system_head: string | null;
+  /** The Mac the agent lives on (plan 023), or null when its record names none: then it lives on the Mac that has it. */
+  home_mac: string | null;
 }
 
 /** One file of an agent's memory, its path relative to the memory root with forward slashes, as the `agent` frame lists them. */
@@ -121,8 +123,18 @@ export interface LocalDigest {
   last_ask: AskedBy | null;
 }
 
+/**
+ * Where a chat lives when it is not on this Mac (plan 023, U4): the Mac's id and name, and whether it can be reached
+ * now. Absent on this Mac's own chats.
+ */
+export interface ChatHome {
+  home?: string;
+  home_name?: string;
+  reachable?: boolean;
+}
+
 /** One open chat in the Inbox list the mod sends (`inbox`): the conversation, its agent, and its digest. Archived chats are left out. */
-export interface InboxRow extends LocalDigest {
+export interface InboxRow extends LocalDigest, ChatHome {
   id: string;
   agent_id: string;
   agent_name: string | null;
@@ -209,7 +221,7 @@ export interface DeskInfo {
 }
 
 /** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */
-export interface DeskSummary extends DeskInfo {
+export interface DeskSummary extends DeskInfo, ChatHome {
   scope: Scope;
   conversation_id: string | null;
   /** Pinned in loki's pins file (mod/pins.ts). */
@@ -227,6 +239,37 @@ export interface DeviceSummary {
   last_seen_at: string;
   /** Which route the phone's last request came in by (mod/lan.ts requestVia); absent for a phone not seen since this field existed. */
   last_via?: DeviceVia;
+}
+
+/** Another device on the tailnet, as `tailscale status` lists it (plan 023): a candidate to pair a Mac with. */
+export interface TailnetDevice {
+  /** Its name on the tailnet (the device's host name). */
+  name: string;
+  /** Its MagicDNS name, lower-cased, no trailing dot: what another Mac types to reach it. */
+  address: string;
+  /** "macOS", "iOS", "linux", "windows" … as Tailscale says. */
+  os: string;
+  online: boolean;
+}
+
+/** A Mac as loki names it (plan 023): its install id (`state/device-id`) and the Mac's own name. */
+export interface MacIdentity {
+  mac_id: string;
+  name: string;
+}
+
+/** Another Mac paired with this one, as Settings › Macs shows it: never the token it holds (mod/peers.ts PeerRecord adds that). */
+export interface PeerSummary extends MacIdentity {
+  /** Where this Mac reaches it: its tailnet name and port, as the person typed it or it sent when pairing. */
+  host: string;
+  paired_at: string;
+  last_seen_at: string;
+  /** Its loki build when last heard from, or null. */
+  build: string | null;
+  /** True when it speaks another peer protocol than this Mac: paired, but nothing syncs until one of them updates. */
+  outdated: boolean;
+  /** True while this Mac's peer link to it is open and speaking the same protocol (plan 023, U2). */
+  reachable: boolean;
 }
 
 /** One MCP tool as Settings shows it (daemon/mcp/): its hints, whether it skips search, and its definition's cost. */

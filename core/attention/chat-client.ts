@@ -180,8 +180,9 @@ export class FrameChatClient {
     return { type: "chat_state" };
   }
 
-  async createConversation(agentId: string, cwd: string, name?: string): Promise<Runtime> {
-    const created = await this.call("chat_create", { agent_id: agentId, cwd, title: name ?? null });
+  /** `home` is the Mac the chat lives on (plan 023); without it the mod picks its agent's, when in reach. */
+  async createConversation(agentId: string, cwd: string, name?: string, home?: string): Promise<Runtime> {
+    const created = await this.call("chat_create", { agent_id: agentId, cwd, title: name ?? null, ...(home ? { home } : {}) });
     const rt = this.remember({ agent_id: created.agent_id, conversation_id: created.conversation_id });
     await this.runtimeStart(rt);
     return rt;
@@ -235,7 +236,7 @@ export class FrameChatClient {
     return (await this.call("chat_models", {})).entries;
   }
 
-  async listAgents(): Promise<Array<{ id: string; name?: string; hidden?: boolean }>> {
+  async listAgents(): Promise<Array<{ id: string; name?: string; hidden?: boolean; home_mac?: string | null }>> {
     return (await this.call("chat_agents", {})).agents;
   }
 

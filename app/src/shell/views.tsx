@@ -212,6 +212,7 @@ export function AgentsView({
       onShowDesks={onShowDesks}
       onShowTasks={onShowTasks}
       mcp={catchUp.mcp}
+      macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
     />
   );
 }
@@ -262,6 +263,7 @@ export function SettingsView({
       onModelsChanged={onModelsChanged}
       daemon={daemon}
       phone={desk.phone}
+      macs={desk.macs}
       globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
       mcp={catchUp.mcp}
       engines={catchUp.engines}
@@ -392,7 +394,7 @@ export function NewDeskSheet({
   onClose: () => void;
   desk: Desk;
   catchUp: CatchUp;
-  onCreate: (agent: string, folder: string, name: string) => Promise<void>;
+  onCreate: (agent: string, folder: string, name: string, home?: string) => Promise<void>;
 }) {
   const currentConversationKey = inheritCurrentDesk && desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null;
   return (
@@ -405,6 +407,8 @@ export function NewDeskSheet({
       currentConversationKey={currentConversationKey}
       initialName={state.name}
       folders={desk.attention.folders}
+      macs={desk.macs.view}
+      requirements={desk.attention.requirements}
       onCreate={onCreate}
     />
   );

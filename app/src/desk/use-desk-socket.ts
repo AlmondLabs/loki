@@ -87,6 +87,14 @@ export function useDeskSocket() {
   const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
+  /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
+  const [macs, setMacs] = useState<Pushes["peers"] | null>(null);
+  /**
+   * A daemon restart due after a checkout's code changed (plan 024): the file, and which push said so, so that each
+   * change shows the notice again even when it names the same file. A restarted daemon owes none.
+   */
+  const [restartDue, setRestartDue] = useState<{ file: string; n: number } | null>(null);
+  const [macCode, setMacCode] = useState<Pushes["peer_pair_code"] | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
   /** The models used lately, latest first (mod/models.ts): sent when the link opens and again after every pick anywhere. */
@@ -134,6 +142,7 @@ export function useDeskSocket() {
       ws.onopen = () => {
         retryMs = 500;
         setConnection("open");
+        setRestartDue(null); // a daemon just started owes no restart; one still owing says so in its welcome
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         if (dropped) {
@@ -204,6 +213,7 @@ export function useDeskSocket() {
             setTasksVersion((v) => v + 1);
             break;
           case "agents_changed":
+          case "lists_changed":
             listsStale();
             break;
           case "recall_changed":
@@ -224,6 +234,15 @@ export function useDeskSocket() {
             break;
           case "devices":
             setDevices(Array.isArray(msg.devices) ? msg.devices : []);
+            break;
+          case "peers":
+            setMacs(macsFromFrame(msg));
+            break;
+          case "restart_due":
+            setRestartDue((was) => (typeof msg.file === "string" ? { file: msg.file, n: (was?.n ?? 0) + 1 } : null));
+            break;
+          case "peer_pair_code":
+            setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });
             break;
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
@@ -372,6 +391,9 @@ export function useDeskSocket() {
     setLanStatus,
     devices,
     pairCode,
+    macs,
+    restartDue,
+    macCode,
     servedBuild,
     recentModels,
     widgetLogs,
@@ -397,6 +419,11 @@ function sameData(a: unknown, b: unknown): boolean {
     kb = Object.keys(b);
   if (ka.length !== kb.length) return false;
   return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
+export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
+  return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
 }
 
 /** `next`, unless it holds what `prev` holds: then `prev`, so a repeated frame changes no reference. */

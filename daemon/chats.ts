@@ -176,9 +176,17 @@ export class ChatProjection implements ChatSource {
     for (const change of publication.changes) {
       if (change.type !== "document" || change.value === null) continue;
       if (change.record.kind === ChatIndex.definition.kind) {
-        for (const [chatId, conversationId] of Object.entries((change.value as { chats?: Record<string, number> }).chats ?? {})) {
+        const index = (change.value as { chats?: Record<string, number> }).chats ?? {};
+        for (const [chatId, conversationId] of Object.entries(index)) {
           const key = this.key(agentId, chatId);
-          if (!this.chats.has(key)) this.chats.set(key, { agentId, chatId, conversationId, info: null, settings: {}, entries: [], lastId: 0 });
+          const was = this.chats.get(key);
+          if (was?.conversationId === conversationId) continue;
+          // A chat set aside when it moved away keeps its log under a new key; the chat that came back is a new one.
+          const moved = was ? undefined : this.byConversation(agentId, conversationId);
+          if (moved) {
+            this.chats.delete(this.key(agentId, moved.chatId));
+            this.chats.set(key, { ...moved, chatId });
+          } else this.chats.set(key, { agentId, chatId, conversationId, info: null, settings: {}, entries: [], lastId: 0 });
         }
       } else if (change.conversationId !== undefined) {
         const chat = this.byConversation(agentId, change.conversationId);
