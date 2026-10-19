@@ -517,7 +517,8 @@ export const FRAMES = {
     (m) =>
       isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null), home: strOr(m.home, null) } : "agent_id required",
     PHONE,
-    { route: "new-chat" },
+    // Read that Mac's chats again once it is made there: it is listed here before its first reply.
+    { route: "new-chat", relists: true },
   ),
   chat_send: request(
     "chat_accepted",

@@ -58,6 +58,21 @@ describe("which frames go to another Mac", () => {
 });
 
 describe("a change to another Mac's chat", () => {
+  test("a chat started there reads that Mac's chats again before the person is answered, so it is listed here at once", async () => {
+    const order: string[] = [];
+    const link = { request: (f: { type: string }) => (order.push(`sent ${f.type}`), Promise.resolve({ type: "chat_created" })) };
+    const r = new ChatRouter({
+      directory: directory(),
+      link: () => link as never,
+      name: () => "Mac mini",
+      uploadsDir: "/nowhere",
+      upload: () => Promise.resolve(null),
+      relist: (mac) => (order.push(`relist ${mac}`), Promise.resolve()),
+    });
+    await r.forward({ mac: MINI, reachable: true }, { type: "chat_create", agent_id: "agent-ira", home: MINI }, "request");
+    expect(order).toEqual(["sent chat_create", `relist ${MINI}`]);
+  });
+
   test("a rename there reads that Mac's chats again before the person is answered; a message does not", async () => {
     const order: string[] = [];
     const link = { request: (f: { type: string }) => (order.push(`sent ${f.type}`), Promise.resolve({ type: "chat_done" })) };
