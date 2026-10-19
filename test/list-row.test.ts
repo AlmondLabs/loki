@@ -25,10 +25,10 @@ describe("list row words", () => {
 
 describe("list row markup", () => {
   const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
-  test("an unread row draws a bold title and a badge whose words do not rely on colour", () => {
+  test("an unread row draws a bold title and a badge whose words do not rely on colour, its tooltip among them", () => {
     const out = html(createElement(ListRow, { title: "Loki mobile", unread: true, badge: 3, onOpen: () => {} }));
     expect(out).toContain("loki-list-row--unread");
-    expect(out).toMatch(/class="loki-list-badge" aria-hidden="true">3</);
+    expect(out).toMatch(/class="loki-list-badge" aria-hidden="true" title="3 waiting">3</);
     expect(out).toContain(">unread, 3 waiting</span>");
   });
   test("a quiet row shows its time and no badge; the current one is marked for assistive tech", () => {

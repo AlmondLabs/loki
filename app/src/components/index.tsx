@@ -708,7 +708,7 @@ export function ListRow({
         </span>
         {status && <span className="sr-only">{status}</span>}
         {count !== null ? (
-          <span key={pops} className="loki-list-badge" data-pop={pops > 0 || undefined} aria-hidden>
+          <span key={pops} className="loki-list-badge" data-pop={pops > 0 || undefined} aria-hidden title={`${countText(count)} ${badgeNoun ?? "waiting"}`}>
             {countText(count)}
           </span>
         ) : live && liveAtEnd ? (
