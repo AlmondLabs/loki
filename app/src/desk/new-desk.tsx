@@ -247,26 +247,8 @@ function NewDeskSheet({
   const [name, setName] = useState(initialName);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Where the chat will live (plan 023, R7): its agent's home Mac while that Mac is in reach, unless you pick this one.
-  const [pickHere, setPickHere] = useState(false);
-  const agentHome = agentHomeOf(
-    agents.find((a) => a.id === agentId),
-    macs,
-  );
-  const remote = agentHome?.reachable && !pickHere ? agentHome : null;
-  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: remote?.mac_id });
-  // What the chosen Mac lacks for this agent, asked again whenever the agent or the Mac changes (R21).
-  const [missing, setMissing] = useState<{ key: string; lines: string[] } | null>(null);
-  const missingKey = `${agentId ?? ""}@${remote?.mac_id ?? ""}`;
-  useEffect(() => {
-    if (!agentId || !requirements) return;
-    let live = true;
-    void requirements(agentId, remote?.mac_id).then((lines) => live && setMissing({ key: missingKey, lines }));
-    return () => {
-      live = false;
-    };
-  }, [agentId, remote?.mac_id, requirements, missingKey]);
-  const lacks = missing?.key === missingKey ? missing.lines : [];
+  const where = useChatHome(agents, agentId, macs, requirements);
+  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: where.remote?.mac_id });
   const { folder, status, listOpen, setListOpen } = field;
   const busy: false | "creating" | "picking" = creating ? "creating" : field.picking ? "picking" : false;
   const nameRef = useRef<HTMLInputElement>(null);
@@ -284,8 +266,7 @@ function NewDeskSheet({
     setCreating(true);
     setError(null);
     try {
-      // Named outright either way, so the chat lives where the dialog said even if that Mac came back meanwhile.
-      await onCreate(agentId, folder.trim(), name.trim(), remote ? remote.mac_id : agentHome ? macs?.me.mac_id : undefined);
+      await onCreate(agentId, folder.trim(), name.trim(), where.home);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setCreating(false);
@@ -323,11 +304,11 @@ function NewDeskSheet({
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
         <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
-        {agentHome && macs && <HomeChoice home={agentHome} here={macs.me.name} pickHere={pickHere} onPickHere={setPickHere} />}
+        {where.agentHome && macs && <HomeChoice home={where.agentHome} here={macs.me.name} pickHere={where.pickHere} onPickHere={where.setPickHere} />}
 
-        {lacks.length > 0 && (
+        {where.lacks.length > 0 && (
           <div className="loki-meta loki-meta--negative loki-meta--wrap" role="status">
-            {remote ? remote.name : osWords().Machine} needs {lacks.join("; ")}
+            {where.remote ? where.remote.name : osWords().Machine} needs {where.lacks.join("; ")}
           </div>
         )}
 
@@ -368,6 +349,34 @@ function NewDeskSheet({
       <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
     </Sheet>
   );
+}
+
+/**
+ * Where a new chat will live (plan 023, R7): its agent's home Mac while that Mac is in reach, unless you pick this one;
+ * and what that Mac lacks for the agent, asked again whenever the agent or the Mac changes (R21). `home` is the Mac to
+ * name when starting it: named outright either way, so the chat lives where the dialog said even if that Mac came
+ * back meanwhile; undefined when the agent lives here.
+ */
+function useChatHome(agents: NewDeskProps["agents"], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
+  const [pickHere, setPickHere] = useState(false);
+  const agentHome = agentHomeOf(
+    agents.find((a) => a.id === agentId),
+    macs,
+  );
+  const remote = agentHome?.reachable && !pickHere ? agentHome : null;
+  const [missing, setMissing] = useState<{ key: string; lines: string[] } | null>(null);
+  const missingKey = `${agentId ?? ""}@${remote?.mac_id ?? ""}`;
+  useEffect(() => {
+    if (!agentId || !requirements) return;
+    let live = true;
+    void requirements(agentId, remote?.mac_id).then((lines) => live && setMissing({ key: missingKey, lines }));
+    return () => {
+      live = false;
+    };
+  }, [agentId, remote?.mac_id, requirements, missingKey]);
+  const lacks = missing?.key === missingKey ? missing.lines : [];
+  const home = remote ? remote.mac_id : agentHome ? macs?.me.mac_id : undefined;
+  return { agentHome, remote, pickHere, setPickHere, lacks, home };
 }
 
 /** The Mac an agent lives on, when that is another paired Mac (with whether it is in reach); undefined when it is this one. */
