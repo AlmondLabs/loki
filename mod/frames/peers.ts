@@ -2,6 +2,19 @@ import type { MacIdentity, PeerSummary } from "../../core/frame-types.ts";
 import type { Pushes, Replies } from "../../core/frames.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
+/** The frames' side of moving chats between Macs: what another Mac asks of this one, and the person's own move. */
+export interface PeerMoves {
+  /** The chats here whose agent lives on `macId`, for it to take over. */
+  candidates: (macId: string) => Promise<Replies["peer_moves"]["chats"]>;
+  /** A chat here copied out for `macId`, which takes it over; `busy` while it must wait. */
+  export: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat"]>;
+  /** `macId` holds the chat now: let it go here, and tell the paired Macs where it went. */
+  moved: (macId: string, agentId: string, conversationId: string) => Promise<void>;
+  /** Take one chat over from the Mac it lives on, because the person moved it here (addendum A1). */
+  take: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat_taken"]>;
+  /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
+  offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
+}
 /** What Settings › Macs' frame handler needs from its host; without `peers` every frame fails with an error. */
 export interface PeersDeps {
   /** Pairing between Macs (mod/peers.ts), as the mod wires it to the listener. */
@@ -22,17 +35,8 @@ export interface PeersDeps {
     agents: () => Replies["peer_agents"];
     /** This Mac's own chats, for another Mac's `peer_chats_get` (U4). */
     chats: () => Replies["peer_chats"];
-    /** Handing this Mac's chats over to the Mac their agent lives on (U9). */
-    moves?: {
-      candidates: (macId: string) => Promise<Replies["peer_moves"]["chats"]>;
-      export: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat"]>;
-      /** `macId` holds the chat now: let it go here, and tell the paired Macs where it went. */
-      moved: (macId: string, agentId: string, conversationId: string) => Promise<void>;
-      /** Take one chat over from the Mac it lives on, because the person moved it here (addendum A1). */
-      take: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat_taken"]>;
-      /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
-      offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
-    };
+    /** Moving chats between this Mac and the paired ones (U9, addendum A1): mod/chat-moves.ts. */
+    moves?: PeerMoves;
     /** The group (addendum D): this Mac's paired Macs, introducing one to another, and an invite for one. */
     group?: {
       macs: () => Replies["peer_group"]["macs"];

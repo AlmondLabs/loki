@@ -20,7 +20,6 @@ import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
-import { MOVE_TIMEOUT_MS } from "../core/frames.ts";
 import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
@@ -371,7 +370,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         void peerAgents
           .pull(id)
           .then(() => peerMemory.pullAll(id))
-          .then(() => chatMoves.run(id));
+          .then(() => chatMoves.takeOver(id));
         void peerState.pull(id);
       }
     },
@@ -385,7 +384,7 @@ export default function activate(api: ModApi, host: Host): () => void {
           await Promise.all(applied.created.map((a) => peerMemory.pull(id, a)));
           // An agent whose home is now this Mac (set on its profile, on either Mac): its chats on that Mac come here.
           const homedHere = [...applied.created, ...applied.updated].some((a) => recordHome(readRecord(backendDir(), a), macId) === macId);
-          if (homedHere) await chatMoves.run(id, true);
+          if (homedHere) await chatMoves.takeOver(id, true);
         });
       if (frame.type === "memory_changed" && typeof frame.agent_id === "string") void peerMemory.pull(id, frame.agent_id);
       // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
@@ -437,18 +436,24 @@ export default function activate(api: ModApi, host: Host): () => void {
   // A paired Mac stays awake on power while loki runs, so its chats can be reached from the other (U11, R14).
   const awake = new Awake();
   awake.set(peerStore.size() > 0);
-  // Taking over this Mac's agents' chats from a Mac they were made on, once after pairing (U9).
+  // Moving chats between this Mac and the paired ones (U9, addendum A1): the takeover after pairing, and moves by hand.
   const chatMoves: ChatMoves = new ChatMoves({
+    here: macId,
     chat: chatBackend,
-    link: (id) => links.get(id),
+    link: (id) => (links.reachable(id) ? links.get(id) : null),
     widgetsDir: paths.widgets,
+    name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? null)),
     done: (id) => peerStore.get(id)?.moves_done === true,
     markDone: (id) => peerStore.markMovesDone(id),
     onMoved: (id) => {
       void remoteChats.refresh(id);
       broadcast({ type: "lists_changed" });
     },
-    name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? "another Mac")),
+    onLeft: (chat, to) => {
+      directory.left(chat, to);
+      desks.forgetConversations((id) => id === chat.conversation_id); // its desk row lives on the other Mac now
+      broadcast({ type: "lists_changed" });
+    },
   });
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
@@ -646,36 +651,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         introduce: (from, id) => peerGroup.introduce(from, id),
         invite: (id) => peers.invite(id),
       },
-      moves: {
-        candidates: (id) => chatBackend.moveCandidates(id),
-        export: (id, agentId, conversationId) => chatMoves.export(id, agentId, conversationId),
-        moved: async (to, agentId, conversationId) => {
-          await chatMoves.moved(agentId, conversationId);
-          directory.left({ agent_id: agentId, conversation_id: conversationId }, to);
-          desks.forgetConversations((id) => id === conversationId); // its desk row lives on the other Mac now
-          broadcast({ type: "lists_changed" });
-        },
-        take: (id, agentId, conversationId) => chatMoves.take(id, agentId, conversationId),
-        offer: async (to, agentId, conversationId) => {
-          if (to === macId) return null;
-          const name = peerStore.get(to)?.name;
-          if (!name) return "that Mac is not paired with this one";
-          const link = links.get(to);
-          if (!link || !links.reachable(to)) return `${name} is out of reach: move the chat once it is back`;
-          try {
-            const out = (await link.request({ type: "peer_chat_take", agent_id: agentId, conversation_id: conversationId }, MOVE_TIMEOUT_MS)) as {
-              moved?: boolean;
-              busy?: boolean;
-            };
-            if (out.busy) return "the chat is answering or waiting for you: move it once it is done";
-            if (!out.moved) return "the chat is not on this Mac";
-            void remoteChats.refresh(to);
-            return null;
-          } catch (err) {
-            return `the move to ${name} did not finish: ${err instanceof Error ? err.message : String(err)}`;
-          }
-        },
-      },
+      moves: chatMoves,
       memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
     },
     chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
