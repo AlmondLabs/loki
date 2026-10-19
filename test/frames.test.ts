@@ -128,6 +128,13 @@ describe("the frame table", () => {
     }
   });
 
+  test("a message asks to join a running turn only when it says so", () => {
+    const base = { agent_id: "agent-ira", conversation_id: "conv-1", text: "use pnpm" };
+    expect(FRAMES.chat_send.parse({ ...base, steer: true })).toMatchObject({ steer: true });
+    expect(FRAMES.chat_send.parse(base)).not.toHaveProperty("steer");
+    expect(FRAMES.chat_send.parse({ ...base, steer: "yes" })).not.toHaveProperty("steer");
+  });
+
   test("the background passes' settings: each part optional, wrong kinds refused", () => {
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
     expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, daily_cap: 3.7 } })).toEqual({ learn: { enabled: true, daily_cap: 3 } });

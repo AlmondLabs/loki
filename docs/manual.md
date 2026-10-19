@@ -467,6 +467,11 @@ exists and differs. On the phone it is **Change folder** in the chat's actions s
 that agent has worked in. The daemon moves the chat, and its commands and file tools work in the new folder from
 the next turn.
 
+**Sending while the agent works.** A message you send while the agent works goes out at once and joins the turn:
+once the tool running now finishes, the agent reads it before its next step, so "use pnpm, not npm" changes what
+it does next. If the agent is only writing its answer, with no tool running, your message waits for that answer and
+starts the next turn. A message that joined a turn cannot be taken back; **stop** still ends a turn going the wrong way.
+
 **Chat through Claude Code.** Any agent's chat can run through Claude Code instead of one of loki's models, signed
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
 and one of its models (the others show once it has run once). From the first message the chat stays on Claude
@@ -484,6 +489,8 @@ terminal). In such a chat:
   model). loki starts Claude Code as soon as you pick it, so they show a moment later, before you send anything,
   and they're kept for next time;
 - Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
+- a message sent while Claude Code works waits for the turn to end, shown as queued, and until then **take back**
+  removes it: Claude Code takes one message at a time;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
   starts, beside Claude Code's own `CLAUDE.md`. Claude Code can read the memory files and is asked not to change them;
   Reflection, Learn and /doctor keep them up to date from these chats as from any other, on the agent's own model in

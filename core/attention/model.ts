@@ -171,6 +171,16 @@ export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "stream
 }
 
 /**
+ * How a message the person sends now leaves (plan 025): at once to an idle chat; at once into the running turn on
+ * loki's own engine, which places it after the current tool round; or, on an agent (ACP), which takes one prompt at a
+ * time, queued until the turn ends.
+ */
+export function sendMode(l: Pick<Live, "inTurn" | "engine">): "now" | "steer" | "queue" {
+  if (!l.inTurn) return "now";
+  return l.engine ? "queue" : "steer";
+}
+
+/**
  * The next queued message, once the turn has ended: removed from the queue and its transcript row
  * un-flagged, so the caller can send it. Null while the turn runs or when nothing waits.
  */

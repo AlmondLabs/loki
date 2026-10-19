@@ -227,6 +227,39 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("a message sent with steer while a tool runs joins that turn, read before the agent goes on", async () => {
+    let typed = async () => {};
+    const s = await setup({
+      tool: async () => {
+        await typed();
+        await new Promise((r) => setTimeout(r, 200));
+      },
+    });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      await s.chats.open(agent.id, conversationId);
+      const base = { agent_id: agent.id, conversation_id: conversationId, images: [], context: null };
+      typed = () => s.chats.send({ ...base, text: "use pnpm, not npm", send_id: "s2", steer: true }).then(() => {});
+      let asked = 0;
+      s.faux.setResponses([
+        () => (asked++, fauxAssistantMessage(fauxToolCall("slow", {}), { stopReason: "toolUse" })),
+        (context: { messages: unknown[] }) => (asked++, (seen = JSON.stringify(context.messages)), fauxAssistantMessage("Switched to pnpm.")),
+        () => (asked++, fauxAssistantMessage("Extra.")),
+      ]);
+      let seen = "";
+      await s.chats.send({ ...base, text: "install it", send_id: "s1" });
+      await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
+      await new Promise((r) => setTimeout(r, 300));
+      // The agent's next step, in the same turn, read it.
+      expect(seen).toContain("use pnpm, not npm");
+      expect(kinds(s.pushed).filter((k) => k === "turn_end")).toHaveLength(1);
+      expect(asked).toBe(2);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("moving a chat's folder pushes the new folder; its model and title change; deleting an agent removes it all", async () => {
     const s = await setup();
     try {
