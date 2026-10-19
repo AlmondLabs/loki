@@ -1,10 +1,9 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { basename } from "node:path";
-import type { FrameName } from "../core/frames.ts";
+import { peerMeaning, pushMeaning } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import type { ChatDirectory, ChatRef, Location } from "./chat-directory.ts";
-import { MOVE_TIMEOUT_MS } from "./chat-moves.ts";
 import { PeerRefusal } from "./peer-link.ts";
 
 /**
@@ -13,29 +12,6 @@ import { PeerRefusal } from "./peer-link.ts";
  * who asked; what the home pushes about that chat (its events, its canvas) is passed on here. The app and the phone
  * keep talking to their own Mac only. A paired Mac's own frames are never sent on: a chat is one hop from its home.
  */
-
-/** The chat frames routed by the chat they name (`conversation_id`, with `agent_id` when given). */
-export const CHAT_ROUTED: ReadonlySet<FrameName> = new Set([
-  "history_get",
-  "chat_open",
-  "chat_approve",
-  "chat_answer",
-  "chat_send",
-  "chat_abort",
-  "chat_update",
-  "chat_folder",
-  "chat_model",
-  "chat_move",
-]);
-
-/** The canvas frames routed by the desk they name: its scope, or a widget id's leading scope. */
-export const SCOPE_ROUTED: ReadonlySet<FrameName> = new Set(["desk_get", "gesture", "measure", "widget_status"]);
-
-/** The frames that change how another Mac's chat is listed: once one succeeds there, its list here is read again. */
-const RELISTED: ReadonlySet<string> = new Set(["chat_update", "chat_folder", "chat_model", "chat_move"]);
-
-/** The pushes about one desk, passed on when they come from the Mac that desk lives on. */
-const SCOPED_PUSHES = new Set(["state", "widgets", "desk", "widget_change"]);
 
 /** What the router is built from: where chats and desks live, the links, and sending a file on to a Mac. */
 export interface ChatRouterOptions {
@@ -83,16 +59,17 @@ export class ChatRouter {
    * chat no Mac claimed yet is asked for (the promise); a desk is never asked for, since most desks name no chat.
    */
   target(msg: Record<string, unknown>): Target | Promise<Target> {
-    const type = msg.type as FrameName;
-    if (type === "chat_create") return this.newChatHome(msg);
+    // How each frame finds its Mac is the frame table's (core/frames.ts, addendum C).
+    const route = peerMeaning(msg.type)?.route;
+    if (route === "new-chat") return this.newChatHome(msg);
     // The folders of the Mac a new chat will live on (U6).
-    if (type === "folders_get" || type === "folder_complete" || type === "folder_check" || type === "chat_requirements") return this.askedHome(msg.home);
+    if (route === "home") return this.askedHome(msg.home);
     const chat = chatOfFrame(msg);
-    if (chat && CHAT_ROUTED.has(type)) {
+    if (route === "chat" && chat) {
       const known = this.opts.directory.peek(chat);
       return known ? toTarget(known) : this.opts.directory.locate(chat).then(toTarget);
     }
-    if (SCOPE_ROUTED.has(type)) {
+    if (route === "scope") {
       const scope = scopeOfFrame(msg);
       const known = scope ? this.opts.directory.peek(scope) : null;
       return known ? toTarget(known) : null;
@@ -106,7 +83,7 @@ export class ChatRouter {
    */
   redirect(msg: Record<string, unknown>): { message: string; moved_to: string | null } | null {
     const chat = chatOfFrame(msg);
-    if (!chat || !CHAT_ROUTED.has(msg.type as FrameName)) return null;
+    if (!chat || peerMeaning(msg.type)?.route !== "chat") return null;
     const { held, moved_to: movedTo } = this.opts.directory.answer(chat);
     if (held) return null;
     return { message: movedTo ? `this chat moved to ${this.opts.name(movedTo)}` : "this chat is not on this Mac", moved_to: movedTo };
@@ -151,10 +128,11 @@ export class ChatRouter {
       frame.text = text;
     }
     if (kind === "send") return link.send(frame) ? { ok: true, reply: null } : { ok: false, message: `waiting for ${name}: this chat lives there` };
+    const meaning = peerMeaning(frame.type);
     try {
-      // A move waits for the whole chat to cross to the Mac it moves to.
-      const reply = await link.request(frame, frame.type === "chat_move" ? MOVE_TIMEOUT_MS : 30_000);
-      if (RELISTED.has(frame.type)) await this.opts.relist?.(home.mac);
+      // A move waits for the whole chat to cross to the Mac it moves to (its timeout_ms).
+      const reply = await link.request(frame, meaning?.timeout_ms ?? 30_000);
+      if (meaning?.relists) await this.opts.relist?.(home.mac);
       return { ok: true, reply };
     } catch (err) {
       const chat = chatOfFrame(msg);
@@ -176,9 +154,10 @@ export class ChatRouter {
    */
   relay(fromMac: string, frame: Record<string, unknown>): { scope?: string } | false {
     const from = (where: Location | null) => where?.at === "mac" && where.mac === fromMac;
+    const relay = pushMeaning(frame.type)?.relay;
     const chat = chatOfFrame(frame);
-    if (frame.type === "chat_event" && chat) return from(this.opts.directory.peek(chat)) ? {} : false;
-    if (typeof frame.type === "string" && SCOPED_PUSHES.has(frame.type)) {
+    if (relay === "chat") return chat && from(this.opts.directory.peek(chat)) ? {} : false;
+    if (relay === "scope") {
       const scope = typeof frame.scope === "string" ? frame.scope : scopeOfEntry(frame.entry);
       if (!scope) return false;
       return from(this.opts.directory.peek(scope)) ? { scope } : false;

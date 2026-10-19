@@ -1,5 +1,6 @@
 import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
+import { pushMeaning } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
 
 /**
@@ -15,17 +16,13 @@ interface MacChats {
   reachable: boolean;
 }
 
-/** Pushes from a Mac after which its chats may have changed. */
-const CHANGING = new Set(["desks", "chat_event", "agents_changed", "seen", "chat_left"]);
-
-/**
- * The chat events that change how a chat is listed (running or idle, waiting on you, failed, its folder). The pieces of
- * a reply as it streams do not: fetching the lists again for each would have every window reload them while it writes.
- */
-const LISTED_EVENTS = new Set(["loop", "turn_end", "approval", "question", "error", "device"]);
-
-const changesList = (frame: Record<string, unknown>): boolean =>
-  frame.type !== "chat_event" || (Array.isArray(frame.events) && frame.events.some((e) => LISTED_EVENTS.has(String((e as { kind?: unknown } | null)?.kind))));
+/** Whether a push from a Mac may have changed its chats: the frame table says (core/frames.ts, addendum C). */
+const changesList = (frame: Record<string, unknown>): boolean => {
+  const lists = pushMeaning(frame.type)?.lists;
+  if (lists === true) return true;
+  if (!lists || !Array.isArray(frame.events)) return false;
+  return frame.events.some((e) => typeof e === "object" && e !== null && lists.some((kind) => kind === (e as { kind?: unknown }).kind));
+};
 
 /** What RemoteChats is built from; the debounce is shortened in tests. */
 export interface RemoteChatsOptions {
@@ -76,7 +73,7 @@ export class RemoteChats {
 
   /** A push came from a Mac: when it may have changed its chats, fetch them again shortly. */
   heard(macId: string, frame: Record<string, unknown>): void {
-    if (typeof frame.type !== "string" || !CHANGING.has(frame.type) || !changesList(frame)) return;
+    if (!changesList(frame)) return;
     if (this.timers.has(macId)) return;
     const t = setTimeout(() => {
       this.timers.delete(macId);

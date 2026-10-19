@@ -6,9 +6,6 @@ import type { ChatBackend } from "./frames/chat.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
 
-/** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
-export const MOVE_TIMEOUT_MS = 180_000;
-
 /**
  * Taking over this Mac's agents' chats from a Mac they were made on, once, after pairing (plan 023, U9, R9, KTD11):
  * the mini, home of Ira, takes Ira's chats from the MacBook. One chat at a time: the old Mac copies it out (or says

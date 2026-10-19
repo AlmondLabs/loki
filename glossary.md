@@ -47,9 +47,12 @@ history page. An approval request for the same tool attaches to it instead of ad
 3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `recall_changed`).
 
 **Frame table** (`core/frames.ts`, `FRAMES`): every frame declared once — its kind, its reply, whether a paired
-phone may send it, and the parser that turns the raw object into a typed payload. The mod's router, the app's
-`request()`, the phone allow-list and the protocol's documentation all read it. _Avoid_: REPLY_FRAMES,
-PHONE_FRAMES (now derived from it).
+phone may send it, its **peer meaning** (how it crosses to another paired Mac: routed by the chat, desk or home it
+names, whether it re-reads that Mac's chats, how long it may take; for a push, whether it is relayed and whether it
+changes the lists), and the parser that turns the raw object into a typed payload. The mod's router, the chat
+router, the remote chats, the app's `request()`, the phone and peer allow-lists and the protocol's documentation all
+read it. _Avoid_: REPLY_FRAMES, PHONE_FRAMES, PEER_FRAMES as hand-kept lists (all derived from it), a string set of
+frame names kept beside it.
 
 **Frame handler**: the mod module for one feature (Learn, Tasks, agents, folders, the phone listener, …) that
 answers that feature's frames; a request handler returns its reply or an error, and the router sends it.

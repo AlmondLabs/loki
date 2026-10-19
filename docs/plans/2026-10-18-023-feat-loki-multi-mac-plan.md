@@ -897,3 +897,23 @@ address registry. No actor framework is adopted: it would wrap what is there wit
   `left(chat, to)` (this Mac let it go). Tests: two directories joined in memory: a move then a stale frame redirected
   once; the new home's events relayed at once after a move; a chat just made elsewhere found by asking; a restarted
   Mac with no notes still finds a moved chat.
+
+---
+
+## Addendum C, 2026-10-19: each frame's Mac-to-Mac meaning in the frame table
+
+The frame table said only whether a paired Mac may send a frame. What a frame means across Macs (routed by the chat
+or desk it names or by the Mac a new chat will live on, how long it may take there, whether it re-reads that Mac's
+chats, whether a push is relayed and whether it changes the lists) lived in eight string sets across the router, the
+remote chats and the mod's wiring, and drifted: `chat_move` alone was in four. Behaviour does not change.
+
+- **C1.** A request's or send's `peer` is `null` (another Mac may not send it) or its peer meaning: `route`
+  (`"chat"`, `"scope"`, `"home"`, `"new-chat"`, or absent for a frame only Macs send each other), `relists`, and
+  `timeout_ms`. `PEER_FRAMES` and the router's routed, re-listed and timeout rules are derived from it.
+- **C2.** A push's `peer` says how it crosses: `relay` (`"chat"` or `"scope"`, the Mac that holds the chat or desk
+  passes it on) and `lists` (`true`, or the chat event kinds that change how a chat is listed). The router's relayed
+  pushes and the remote chats' list refresh are derived from it.
+- **C3.** Out of scope: which pushes wake the syncers (agents, memory, state) stays in the mod's wiring until each
+  syncer declares its own triggers.
+- **C4.** One test reads the catalog's rules over every frame: a routed frame is one a paired Mac may send, a frame
+  routed by chat parses a `conversation_id`, a relayed push names a chat or a desk.
