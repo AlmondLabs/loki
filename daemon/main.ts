@@ -35,6 +35,7 @@ import { StoreManager } from "./kernel/stores.ts";
 import { listAgents, healRecordModel } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
+import { DevReload } from "./dev-reload.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
 import { ModRegistry } from "./mods/registry.ts";
@@ -330,17 +331,33 @@ const loadCore = () =>
       }),
   });
 await loadCore();
-// A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
-const stopWatchingCore = args.mod.endsWith("boot.ts")
-  ? watchFiles(
-      dirname(args.mod),
-      (f) => f.endsWith(".ts") && !f.includes(".loki-build"),
-      async (file) => {
-        const result = await loadCore();
-        report(`mod loki reloaded after ${file} changed: ${"loaded" in result ? "ok" : result.refused}`);
-      },
-    )
-  : () => {};
+// A checkout keeps up with its sources (plan 024): the mod (mod/boot.ts bundles mod/index.ts and core afresh on every
+// activate) reloads when mod/ or core/ changes, and the daemon restarts, once nothing runs, when daemon/ or core/ does.
+const devReload = new DevReload({
+  reloadMod: async () => {
+    const result = await loadCore();
+    return "loaded" in result ? "ok" : result.refused;
+  },
+  restart: (why) => stop(`${why}, restarting for the change`),
+  idle: async () => {
+    for (const c of chats.list()) if (c.agentId && (await busy(c.agentId, c.conversationId))) return false;
+    return true;
+  },
+  report,
+});
+const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
+const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
+const watching = checkout
+  ? [
+      watchFiles(join(checkout, "mod"), sources, (file) => devReload.modChanged(`mod/${file}`)),
+      watchFiles(join(checkout, "core"), sources, (file) => Promise.all([devReload.modChanged(`core/${file}`), devReload.daemonChanged(`core/${file}`)])),
+      watchFiles(join(checkout, "daemon"), sources, (file) => devReload.daemonChanged(`daemon/${file}`)),
+    ]
+  : [];
+const stopWatchingCore = () => {
+  devReload.stop();
+  for (const unwatch of watching) unwatch();
+};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
 // The passes' settings and cursors carried over (carryOverPasses, above); then the runner looks over the chats once a minute.

@@ -412,6 +412,11 @@ would otherwise show. It then starts Vite on 127.0.0.1:5173, a watching build of
 window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`). The script
 waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
 log, `~/.loki/logs/daemon.log`, instead of leaving you Vite's proxy errors. Ctrl-C stops all of it.
+
+It keeps up with the checkout, so a `git pull` needs no restart: the window reloads when `app/` changes, the mod
+reloads in place when `mod/` or `core/` changes, and the daemon restarts itself when `daemon/` or `core/` changes,
+once no chat is running a turn and no approval waits (the window reconnects a second later). If a chat is still
+running ten minutes later it stops waiting and says in the daemon's log that a restart is due.
 `npm start --check` reports all of it without starting anything.
 
 Or run the pieces yourself: `npm run dev` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
