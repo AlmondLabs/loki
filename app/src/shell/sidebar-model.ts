@@ -1,6 +1,5 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
-import { homeNote } from "../../../core/desk-core.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
 /**
@@ -292,8 +291,9 @@ export function moveTargets(
 
 /**
  * The location mark a chat's row carries (plan 023): none for a chat on its agent's Mac in reach, which its section
- * names; "away" with where for a chat living elsewhere; "asleep" while its Mac is out of reach. Without `agentHome`
- * (no Mac paired, or the switcher's flat list), every chat on another Mac is marked. `machine` names this Mac.
+ * names; "away" for a chat living elsewhere; "asleep" while its Mac is out of reach. Without `agentHome` (no Mac
+ * paired, or the switcher's flat list), every chat on another Mac is marked. `machine` names this Mac. The note is
+ * the mark's tooltip: where the chat lives and why that is marked.
  */
 export function homeMark(
   row: { home?: string; home_name?: string; reachable?: boolean },
@@ -304,6 +304,8 @@ export function homeMark(
   const asleep = row.reachable === false;
   const lives = row.home ?? here;
   if (!asleep && agentHome && lives === agentHome) return null;
-  const note = homeNote(row) ?? (agentHome && here && lives === here ? `on ${machine}` : null);
-  return note ? { kind: asleep ? "asleep" : "away", note } : null;
+  const name = row.home ? (row.home_name ?? "another Mac") : agentHome && here && lives === here ? machine : null;
+  if (name === null) return null;
+  if (asleep) return { kind: "asleep", note: `${name} is asleep or off: this chat waits for it` };
+  return { kind: "away", note: agentHome ? `lives on ${name}, away from its agent's Mac` : `lives on ${name}` };
 }

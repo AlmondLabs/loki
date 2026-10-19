@@ -413,13 +413,13 @@ describe("where a chat lives, in its row (plan 023)", () => {
   });
 
   test("a chat living away from its agent's Mac is, here or there; one whose Mac is asleep says so", () => {
-    expect(homeMark(on(), MINI, BOOK, "this Mac")).toEqual({ kind: "away", note: "on this Mac" });
-    expect(homeMark(on(MINI), BOOK, BOOK, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
-    expect(homeMark(on(MINI, false), MINI, BOOK, "this Mac")).toEqual({ kind: "asleep", note: "waiting for Mac mini" });
+    expect(homeMark(on(), MINI, BOOK, "this Mac")).toEqual({ kind: "away", note: "lives on this Mac, away from its agent's Mac" });
+    expect(homeMark(on(MINI), BOOK, BOOK, "this Mac")).toEqual({ kind: "away", note: "lives on Mac mini, away from its agent's Mac" });
+    expect(homeMark(on(MINI, false), MINI, BOOK, "this Mac")).toEqual({ kind: "asleep", note: "Mac mini is asleep or off: this chat waits for it" });
   });
 
   test("with no Mac paired nothing is marked; in a flat list every chat on another Mac is", () => {
     expect(homeMark(on(), undefined, undefined, "this Mac")).toBeNull();
-    expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
+    expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "lives on Mac mini" });
   });
 });

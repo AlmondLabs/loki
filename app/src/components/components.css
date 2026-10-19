@@ -653,8 +653,10 @@ textarea.loki-field {
     color: var(--loki-fg);
   }
 }
+/* The open chat: the selection a clear step past hover, so it holds while the pointer is on its neighbour. The ink
+   mixed in keeps it neutral in every theme and family (never the accent or the badge). */
 .loki-list-row[aria-current] {
-  background: var(--loki-selection);
+  background: color-mix(in srgb, var(--loki-selection), var(--loki-fg) 8%);
   color: var(--loki-fg);
 }
 /* Unread: bold, in full ink. The status words in the row say it too (rowStatus), so weight is not the only sign. */
@@ -780,8 +782,9 @@ textarea.loki-field {
     pointer-events: auto;
   }
 }
+/* On the open chat they sit on its fill (.loki-list-row[aria-current]). */
 .loki-list-item[data-current] .loki-list-row-actions {
-  background: var(--loki-selection);
+  background: color-mix(in srgb, var(--loki-selection), var(--loki-fg) 8%);
 }
 
 /* A sidebar section (ListSection): a folding heading with its actions on the right, then the rows. */
