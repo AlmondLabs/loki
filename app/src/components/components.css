@@ -480,25 +480,32 @@ textarea.loki-field {
 .loki-popover[data-grow] {
   animation: loki-popover-grow var(--spring-smooth-ms) var(--spring-smooth);
 }
-/* The window's notices (Notices, on Sonner): Sonner's own layout and motion, in loki's colours and type. */
-.loki-notices {
+/*
+ * The window's notices (Notices, on Sonner): Sonner's layout and motion, in loki's colours and type. Sonner sets its
+ * own light or dark colours on [data-sonner-toaster][data-sonner-theme] and its buttons under [data-styled]; these
+ * selectors carry one more attribute than each of its, so loki's win in either theme whatever loads last.
+ */
+.loki-notices[data-sonner-toaster][data-sonner-theme] {
   --normal-bg: var(--loki-panel);
   --normal-border: var(--loki-border);
   --normal-text: var(--loki-fg);
   --border-radius: var(--loki-radius-md);
   font-family: var(--loki-font);
 }
-.loki-notices .loki-notice {
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
   font-size: 12px;
   box-shadow: var(--loki-shadow-float);
 }
-.loki-notices .loki-notice .loki-notice-action {
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] [data-description] {
+  color: var(--loki-muted);
+}
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-action {
   background: var(--loki-affirm);
   color: var(--loki-on-affirm);
   border-radius: var(--loki-radius-sm);
   font-weight: 600;
 }
-.loki-notices .loki-notice .loki-notice-cancel {
+.loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] .loki-notice-cancel {
   background: transparent;
   color: var(--loki-muted);
   border: 1px solid var(--loki-border);

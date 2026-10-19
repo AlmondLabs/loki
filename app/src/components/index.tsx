@@ -486,7 +486,8 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
 }
 
 /**
- * The window's notices (Sonner): one stack at the bottom centre, in loki's colours (components.css .loki-notices),
+ * The window's notices (Sonner): one stack at the top right, under the window's top bar, in loki's colours
+ * (components.css .loki-notices),
  * over everything but a sheet. Mounted once, by the shell; `notify` shows one from anywhere: a line that goes after
  * four seconds, or one that stays with its buttons (`duration: Infinity`, `action`, `cancel`).
  */
@@ -494,8 +495,8 @@ export function Notices() {
   return (
     <Toaster
       className="loki-notices"
-      position="bottom-center"
-      offset={22}
+      position="top-right"
+      offset={{ top: 56, right: 16 }}
       visibleToasts={3}
       duration={4000}
       style={{ zIndex: LAYER.toast }}
