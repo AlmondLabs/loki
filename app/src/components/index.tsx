@@ -601,6 +601,11 @@ export interface ListRowProps {
   note?: string;
   /** The agent is working: a green dot at the lead's corner (or before the title) and "working" in words. */
   live?: boolean;
+  /**
+   * The working dot sits on the right, in the badge's place (a badge outranks it), rather than on the lead: rows whose
+   * marks line up in one column (the Chats sidebar).
+   */
+  liveAtEnd?: boolean;
   /** The row whose detail is open (aria-current="page"). */
   current?: boolean;
   /** Drawn quieter: an archived desk. */
@@ -633,6 +638,7 @@ export function ListRow({
   unread = false,
   note,
   live = false,
+  liveAtEnd = false,
   current = false,
   dim = false,
   flags,
@@ -651,7 +657,7 @@ export function ListRow({
     setShown(count);
     if (count !== null && (shown === null || count > shown)) setPops((n) => n + 1);
   }
-  const liveDot = live ? <span aria-hidden className="loki-list-row-live" /> : null;
+  const liveDot = live && !liveAtEnd ? <span aria-hidden className="loki-list-row-live" /> : null;
   return (
     <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>
       <button
@@ -690,6 +696,8 @@ export function ListRow({
           <span key={pops} className="loki-list-badge" data-pop={pops > 0 || undefined} aria-hidden>
             {countText(count)}
           </span>
+        ) : live && liveAtEnd ? (
+          <span aria-hidden className="loki-list-row-live loki-list-row-live--end" title="working" />
         ) : time ? (
           <span className="loki-list-row-time">{time}</span>
         ) : null}
@@ -708,6 +716,7 @@ export function ListSection({
   title,
   icon,
   count,
+  aside,
   open = true,
   onToggle,
   actions,
@@ -716,6 +725,8 @@ export function ListSection({
   title: string;
   icon?: IconName;
   count?: number | null;
+  /** Quiet words at the head's right, before the actions (the Mac an agent lives on). */
+  aside?: ReactNode;
   open?: boolean;
   onToggle?: () => void;
   actions?: ReactNode;
@@ -741,6 +752,7 @@ export function ListSection({
             <span className="loki-list-section-toggle">{inner}</span>
           )}
         </h2>
+        {aside && <span className="loki-list-section-aside">{aside}</span>}
         {actions && <span className="loki-list-section-actions">{actions}</span>}
       </div>
       {open && children && <ul className="loki-list">{children}</ul>}

@@ -97,9 +97,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new chat with that agent), then **Archived**, folded. A chat's name goes bold when its agent
-  wrote since you looked, with a small ring after it, a red badge says it waits on you, and a green dot breathes
-  while its agent is working. Opening a chat (or having it open, the window in front, when a message arrives)
-  marks it **viewed**, which clears the bold and the ring: the list shows what is new to you, nothing more. The
+  wrote since you looked. On the right of each row, one mark at most: a red badge when it waits on you, else a green
+  dot that breathes while its agent is working. Opening a chat (or having it open, the window in front, when a
+  message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
   Inbox keeps the chat until it is **read**: what the Inbox's → does, a reply, an approval or an answer; by hand
   it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
   same menu puts it back in the Inbox. None of these is done: a chat is done only when it is archived. Viewed
@@ -112,8 +112,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
   word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header, or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
-  the first match or makes the label when none matches. A row shows its labels as coloured dots, the header and the
-  Inbox card as chips. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
+  the first match or makes the label when none matches. A chat's header and its Inbox card show its labels as chips;
+  the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
   (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
@@ -344,10 +344,10 @@ reachable; a closed lid still sleeps.
    instead and the chat runs here, with this Mac's files, for good. If the agent's home is out of reach, the chat
    starts here and stays here. The folders the dialog offers are the home's, and it says what that Mac lacks for the
    agent (a provider sign-in, an MCP server needing a sign-in) before you start.
-2. **Every list shows both Macs' chats.** A chat on the other Mac has a small laptop icon in the sidebar and the
-   switcher (hover it for "on Mac mini"), and says "on Mac mini" on the phone. While that Mac is asleep or off, its
-   chats stay listed with a broken-link icon, "waiting for Mac mini": they do not open and take no message until it
-   is back. Nothing is queued.
+2. **Every list shows both Macs' chats.** Each agent's section in the sidebar names the Mac it lives on; a chat
+   living on another Mac than its agent's has a small laptop icon (hover it for "on Mac mini"). The switcher marks
+   every chat on the other Mac, and the phone says "on Mac mini". While a Mac is asleep or off, its chats stay listed
+   with a moon, "waiting for Mac mini": they do not open and take no message until it is back. Nothing is queued.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
    on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
    schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP

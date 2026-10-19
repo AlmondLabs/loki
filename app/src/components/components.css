@@ -677,6 +677,10 @@ textarea.loki-field {
   background: var(--loki-positive);
   animation: loki-live-pulse 1.6s ease-in-out infinite;
 }
+/* In the badge's place on the right, where every row's mark lines up (ListRow liveAtEnd). */
+.loki-list-row-live--end {
+  margin: 0 4px;
+}
 .loki-list-row-lead > .loki-list-row-live {
   position: absolute;
   right: -2px;
@@ -823,6 +827,15 @@ button.loki-list-section-toggle {
 .loki-list-section-count {
   font-size: 12px;
   font-weight: 400;
+  color: var(--loki-muted);
+}
+/* The Mac an agent lives on, beside its section's title: always shown, quieter than the title. */
+.loki-list-section-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 12px;
   color: var(--loki-muted);
 }
 .loki-list-section-actions {

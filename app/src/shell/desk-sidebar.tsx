@@ -32,7 +32,7 @@ import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
-import { LabelChips, LabelsDialog } from "../chat/labels";
+import { LabelsDialog } from "../chat/labels";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
@@ -87,6 +87,11 @@ export interface DeskSidebarProps {
   onQuery?: (query: string) => void;
   /** Labels on chats (plan 022): the list chips take their colours from, and saving a chat's labels; left out, no Labels…. */
   labels?: { list: LabelView[] | null; set: (desk: DeskSummary, labels: string[]) => Promise<string | null> };
+  /**
+   * Where agents live, once Macs are paired (plan 023): this Mac's id, and each agent's home and its name. Each agent's
+   * section says it once; a row marks only a chat living elsewhere or one whose Mac is asleep.
+   */
+  homes?: { here: string; of: (agentId: string) => { mac: string; name: string } | null };
   /** This Mac and the Macs paired with it, and moving a chat to one (plan 023, addendum A1); left out, no Move to. */
   macs?: { view: Pushes["peers"] | null; move: (desk: DeskSummary, to: MoveTarget) => void };
 }
@@ -116,6 +121,7 @@ export function DeskSidebar({
   onQuery,
   labels,
   macs,
+  homes,
 }: DeskSidebarProps) {
   const [ownQuery, setOwnQuery] = useState("");
   const query = heldQuery ?? ownQuery;
@@ -228,6 +234,17 @@ export function DeskSidebar({
     );
   };
 
+  /** The Mac an agent lives on, in its section's header, once Macs are paired. */
+  const homeAside = (agentId: string) => {
+    const home = homes?.of(agentId);
+    return home ? (
+      <span title={`${home.name}: where this agent's chats start`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Icon name="laptop" size={12} />
+        {home.name}
+      </span>
+    ) : undefined;
+  };
+
   const rowOf = (r: SidebarRow, inPinned: boolean) => {
     const d = r.desk;
     const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
@@ -242,19 +259,14 @@ export function DeskSidebar({
           )
         }
         title={name}
-        flags={
-          <>
-            {d.pinned && !inPinned && <Icon name="pin" size={12} title="pinned" />}
-            {r.note && <FinishedRing note={r.note} />}
-            <LabelChips labels={d.labels} list={labels?.list ?? null} max={3} dots />
-            <HomeMark row={d} />
-          </>
-        }
+        // One mark at most beside the name, and only where it differs from its section (the status is on the right).
+        flags={<HomeMark row={d} agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null} here={homes?.here} />}
         badge={r.badge}
         badgeNoun={r.badgeNoun}
         unread={r.unread}
         note={r.note}
         live={r.live}
+        liveAtEnd
         current={r.current}
         dim={d.status !== "live" || d.reachable === false}
         launch={launchOf(d.scope)}
@@ -343,6 +355,7 @@ export function DeskSidebar({
                 icon={s.id === "pinned" ? "pin" : undefined}
                 // Folded, the section still says how many of its desks need you.
                 count={shut ? s.waiting : null}
+                aside={s.agentId ? homeAside(s.agentId) : undefined}
                 open={!shut}
                 onToggle={filtering ? undefined : () => fold(s.id)}
                 actions={
@@ -449,14 +462,6 @@ export function DeskSidebar({
       )}
     </>
   );
-}
-
-/**
- * A finished desk's ring after its name (deskMark's "finished, unread"): it stays through a look and goes when
- * the desk is done. Its words are the row's too (ListRow's note), so the ring itself is hidden from the reader.
- */
-function FinishedRing({ note }: { note: string }) {
-  return <span aria-hidden className="loki-sidebar-ring" title={note} />;
 }
 
 /** A row's context menu at the pointer: open, mark done or not done, rename, change folder, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
@@ -642,6 +647,7 @@ export function DeskSidebarView({
         if (!err) notice(`${d.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
         return err;
       }}
+      homes={homesOf(desk.macs.view, catchUp.agents)}
       macs={{
         view: desk.macs.view,
         move: (d, to) => {
@@ -665,4 +671,17 @@ export function DeskSidebarView({
       }}
     />
   );
+}
+
+/** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). */
+function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): DeskSidebarProps["homes"] {
+  if (!macs?.peers.length) return undefined;
+  const names = new Map([[macs.me.mac_id, macs.me.name], ...macs.peers.map((p) => [p.mac_id, p.name] as const)]);
+  return {
+    here: macs.me.mac_id,
+    of: (agentId) => {
+      const mac = agents.find((a) => a.id === agentId)?.home_mac ?? macs.me.mac_id;
+      return { mac, name: names.get(mac) ?? "another Mac" };
+    },
+  };
 }

@@ -16,6 +16,7 @@ import {
   sidebarModel,
   toggleFold,
   moveTargets,
+  homeMark,
 } from "../app/src/shell/sidebar-model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -398,5 +399,27 @@ describe("moving a chat to another Mac (plan 023, addendum A1)", () => {
     expect(moveTargets({ ...chat, conversation_id: "default" }, macs)).toEqual([]);
     expect(moveTargets({ agent_id: null, conversation_id: null }, macs)).toEqual([]);
     expect(moveTargets({ ...chat, home: "mini", reachable: false }, macs)).toEqual([]);
+  });
+});
+
+describe("where a chat lives, in its row (plan 023)", () => {
+  const BOOK = "book";
+  const MINI = "mini";
+  const on = (home?: string, reachable = true) => (home ? { home, home_name: home === MINI ? "Mac mini" : "MacBook", reachable } : {});
+
+  test("a chat on its agent's Mac is not marked: its section says where the agent lives", () => {
+    expect(homeMark(on(MINI), MINI, BOOK, "this Mac")).toBeNull();
+    expect(homeMark(on(), BOOK, BOOK, "this Mac")).toBeNull();
+  });
+
+  test("a chat living away from its agent's Mac is, here or there; one whose Mac is asleep says so", () => {
+    expect(homeMark(on(), MINI, BOOK, "this Mac")).toEqual({ kind: "away", note: "on this Mac" });
+    expect(homeMark(on(MINI), BOOK, BOOK, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
+    expect(homeMark(on(MINI, false), MINI, BOOK, "this Mac")).toEqual({ kind: "asleep", note: "waiting for Mac mini" });
+  });
+
+  test("with no Mac paired nothing is marked; in a flat list every chat on another Mac is", () => {
+    expect(homeMark(on(), undefined, undefined, "this Mac")).toBeNull();
+    expect(homeMark(on(MINI), undefined, undefined, "this Mac")).toEqual({ kind: "away", note: "on Mac mini" });
   });
 });

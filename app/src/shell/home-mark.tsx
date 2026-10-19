@@ -1,16 +1,27 @@
-import { homeNote } from "../../../core/desk-core.ts";
 import { Icon } from "../shared/icons";
+import { osWords } from "./os-words";
+import { homeMark } from "./sidebar-model";
 
 /**
- * Where a chat lives, as one small icon in its list row (plan 023): a laptop for a chat on another Mac in reach, a
- * broken link while that Mac is out of reach, and the words in its tooltip. Nothing for this Mac's own chats.
+ * Where a chat lives, as one small icon in its list row (plan 023, sidebar-model.ts homeMark): a laptop for a chat
+ * living away from its agent's Mac, a moon while its Mac is asleep or off, and the words in its tooltip.
  */
-export function HomeMark({ row }: { row: { home?: string; home_name?: string; reachable?: boolean } }) {
-  const note = homeNote(row);
-  if (!note) return null;
+export function HomeMark({
+  row,
+  agentHome,
+  here,
+}: {
+  row: { home?: string; home_name?: string; reachable?: boolean };
+  /** The Mac the chat's agent lives on, when Macs are paired. */
+  agentHome?: string | null;
+  /** This Mac's id, with `agentHome`. */
+  here?: string;
+}) {
+  const mark = homeMark(row, agentHome, here, osWords().machine);
+  if (!mark) return null;
   return (
-    <span className="loki-meta" title={note} style={{ display: "inline-flex", flexShrink: 0 }}>
-      <Icon name={row.reachable === false ? "unlink" : "laptop"} size={12} title={note} />
+    <span className="loki-meta" title={mark.note} style={{ display: "inline-flex", flexShrink: 0 }}>
+      <Icon name={mark.kind === "asleep" ? "moon" : "laptop"} size={12} title={mark.note} />
     </span>
   );
 }
