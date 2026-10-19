@@ -197,6 +197,11 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
 6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
    listener on `0.0.0.0:41415` for paired phones (off by default).
+7. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
+   One rule decides which chats are the person's own: not hidden, not a background pass's, of an agent the person
+   has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
+   inbox shows only open chats. Both lists, a paired Mac's view of this one and the `desk_title` push read their
+   rows here.
 
 ## The ports, and why there are two
 

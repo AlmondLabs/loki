@@ -11,7 +11,8 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, hiddenScopes, lookupLocalAgentName } from "./desks.ts";
+import { DeskRegistry } from "./desks.ts";
+import { ChatListing } from "./chat-listing.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
@@ -24,7 +25,6 @@ import { PeerSync } from "./peer-sync.ts";
 import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
-import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskStore, TasksNotice } from "./tasks.ts";
 import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
@@ -59,8 +59,7 @@ import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
-import { reasoningEffortFromSettings } from "../core/models.ts";
-import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
+import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
 
 /**
  * loki — a memory palace your agent builds.
@@ -196,118 +195,19 @@ export default function activate(api: ModApi, host: Host): () => void {
   log("tasks:store", { dir: tasks.dir, ready: tasks.ready() });
 
   // --- transport -------------------------------------------------------
-  const deskInfo = (scope: Scope): DeskInfo & { last_active: string | null } => {
-    if (scope === SHARED_SCOPE)
-      return { title: "shared", status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null };
-    const rt = desks.get(scope);
-    if (!rt) return { title: null, status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null };
-    const agentName = lookupLocalAgentName(rt.agent_id);
-    const agent = readLocalAgent(rt.agent_id);
-    const agentModel = agent?.model ?? null;
-    const agentEffort = reasoningEffortFromSettings(agent?.model_settings);
-    const info = chats.info(rt.conversation_id, rt.agent_id);
-    const mode = info?.mode ?? "unrestricted";
-    if (!info)
-      return {
-        title: null,
-        status: "deleted",
-        agent_name: agentName,
-        agent_id: rt.agent_id,
-        model: agentModel,
-        reasoning_effort: agentEffort,
-        mode,
-        last_active: null,
-      };
-    return {
-      title: info.title,
-      status: info.archived ? "archived" : "live",
-      agent_name: agentName,
-      agent_id: rt.agent_id,
-      model: info.model ?? agentModel,
-      reasoning_effort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
-      mode,
-      labels: info.labels,
-      last_active: info.lastMessageAt,
-    };
-  };
-  /** This Mac's own desks: what another Mac's lists show of this one (plan 023, U4). */
-  const listLocalDesks = (): DeskSummary[] => {
-    // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
-    for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
-      if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
-    // And the background passes' chats, which an earlier loki listed (Learn's) and kept as desks.
-    const evicted = desks.forgetConversations(passChat);
-    if (evicted) log("desks:evict-pass-chats", { evicted });
-    const scopes = new Set<Scope>([SHARED_SCOPE, ...store.scopes(), ...desks.all().map((d) => d.scope)]);
-    for (const e of widgets.entries()) scopes.add(e.scope);
-    const pins = readPins();
-    // Every conversation of the user's own agents, seen by loki or not (subagents' one-off chats stay out).
-    const ownAgents = new Set(desks.all().map((d) => d.agent_id));
-    for (const c of chats.list()) {
-      // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
-      // out, the background passes' among them (reflection's and Learn's): what they did shows as memory changes
-      // and cards, not as chats.
-      if (c.hidden || passChat(c.conversationId) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
-      // Helper agents have memory folders too: without this, the eviction above was undone on every listing.
-      if (isSubagent(c.agentId)) continue;
-      scopes.add(desks.remember(c.conversationId, c.agentId));
-    }
-    // A chat let go to another Mac lives there now, though its canvas may still be here.
-    const hidden = hiddenScopes(chats.list());
-    return sortDesks(
-      [...scopes]
-        .filter((scope) => !hidden.has(scope))
-        .map((scope) => {
-          const info = deskInfo(scope);
-          return {
-            scope,
-            title: info.title,
-            status: info.status,
-            agent_name: info.agent_name,
-            agent_id: info.agent_id,
-            conversation_id: desks.get(scope)?.conversation_id ?? null,
-            pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
-            model: info.model,
-            reasoning_effort: info.reasoning_effort,
-            mode: info.mode ?? null,
-            labels: info.labels ?? [],
-            widgets: widgets.entries(scope).length,
-            active: scope === activeScope,
-            last_active: info.last_active,
-          };
-        }),
-    );
-  };
-  /**
-   * The inbox's list, from the daemon's chats (its projection): every open conversation of the user's own
-   * agents, main chats included, however old — a conversation leaves the inbox by being archived, not by
-   * going quiet. Hidden conversations (Learn's writer chats, reflection's, side threads imported from Letta)
-   * stay out, as in the tree.
-   */
-  const listLocalInbox = (): InboxRow[] => {
-    const ownAgents = new Set(desks.all().map((d) => d.agent_id));
-    const names = new Map<string, string | null>();
-    const out: InboxRow[] = [];
-    for (const c of chats.list()) {
-      if (c.hidden || c.archived) continue;
-      if (!(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
-      if (isSubagent(c.agentId)) continue;
-      if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId));
-      const info = chats.info(c.conversationId, c.agentId);
-      if (isLearnTitle(info?.title)) continue; // a lesson is precisely the thing that can wait: a desk, never an inbox card
-      out.push({
-        id: c.conversationId,
-        agent_id: c.agentId,
-        agent_name: names.get(c.agentId) ?? null,
-        title: info?.title ?? null,
-        last_message_at: c.lastMessageAt,
-        archived: false,
-        labels: info?.labels ?? [],
-        ...chats.digest(c.conversationId, c.agentId),
-      });
-    }
-    return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
-  };
+  // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
+  const listing = new ChatListing({
+    chats,
+    desks,
+    layouts: () => store.scopes(),
+    widgets,
+    pins: () => readPins(),
+    passChat,
+    activeScope: () => activeScope,
+  });
+  const deskInfo = (scope: Scope) => listing.info(scope);
+  const listLocalDesks = () => listing.desks();
+  const listLocalInbox = () => listing.inbox();
   // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
   const listDesks = (): DeskSummary[] => sortDesks([...listLocalDesks(), ...remoteChats.desks()]);
   const listInbox = (): InboxRow[] =>
@@ -847,21 +747,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         scope,
         () => {
           // A chat's title can come after its first turn; tell tabs when the title or status changes.
-          const info = deskInfo(scope);
-          if (info.title)
-            broadcast(
-              {
-                type: "desk_title",
-                scope,
-                title: info.title,
-                status: info.status,
-                agent_name: info.agent_name,
-                model: info.model,
-                reasoning_effort: info.reasoning_effort,
-                mode: info.mode ?? null,
-              },
-              scope === SHARED_SCOPE ? undefined : scope,
-            );
+          const frame = listing.titleFrame(scope);
+          if (frame) broadcast(frame, scope === SHARED_SCOPE ? undefined : scope);
         },
         1200,
       );

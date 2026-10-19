@@ -88,6 +88,9 @@ related chats across agents: lowercase letters, digits and dashes, up to eight a
 eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
 agents' own `tags`), category, folder (a chat's working directory).
 
+**Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
+list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
+
 **Paired Mac** (`mod/peers.ts`, plan 023): another of the person's Macs running loki, paired with a code over the
 tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
 
