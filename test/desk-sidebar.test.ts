@@ -132,7 +132,7 @@ describe("marks (scenario 3)", () => {
       live: false,
     });
   });
-  test("finished, looked at since the last message: not bold, the ring stays, the words say viewed", () => {
+  test("finished, looked at since the last message: neither bold nor ringed, though the Inbox still holds it", () => {
     const fresh = deskRowState(
       item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }),
       desk("jira"),
@@ -142,7 +142,8 @@ describe("marks (scenario 3)", () => {
       item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }),
       desk("jira"),
     );
-    expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false, note: "viewed, not done" });
+    expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false });
+    expect(looked.note).toBeUndefined();
     // waiting stays bold with its badge whatever the look: it needs you to act
     expect(
       deskRowState(item("a1", "jira", "approval", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),

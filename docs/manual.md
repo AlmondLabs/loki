@@ -97,15 +97,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new chat with that agent), then **Archived**, folded. A chat's name goes bold when its agent
-  wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. A finished
-  chat also carries a small ring after its name until it is **read**. Opening a chat (or having it open, the
-  window in front, when a message arrives) marks it **viewed**, which drops the bold and keeps the ring, so bold +
-  ring is new since you looked, the ring alone is viewed but not read, and neither is read. Read is what the
-  Inbox's → does, a reply, an approval or an answer; by hand it is **Mark as read** (⌘⇧↵ on the open chat, or
-  the row's right-click menu), and **Mark as unread** in the same menu puts the
-  ring back (the bold stays off: you have seen it). None of these is done: a chat is done only when it is
-  archived, and until then it stays in the Inbox. Viewed and read are kept by the mod, so the phone and the Mac
-  agree on both. "Find a
+  wrote since you looked, with a small ring after it, a red badge says it waits on you, and a green dot breathes
+  while its agent is working. Opening a chat (or having it open, the window in front, when a message arrives)
+  marks it **viewed**, which clears the bold and the ring: the list shows what is new to you, nothing more. The
+  Inbox keeps the chat until it is **read**: what the Inbox's → does, a reply, an approval or an answer; by hand
+  it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
+  same menu puts it back in the Inbox. None of these is done: a chat is done only when it is archived. Viewed
+  and read are kept by the mod, so the phone and the Mac agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on

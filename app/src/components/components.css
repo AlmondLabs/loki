@@ -662,6 +662,12 @@ textarea.loki-field {
   color: inherit;
 }
 /* The agent is working: Slack's green presence dot, at the lead's corner (or before the title when there is no lead). */
+/* A chat mid-turn: the dot breathes while it works. Reduced motion zeroes the duration, which leaves it steady. */
+@keyframes loki-live-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
 .loki-list-row-live {
   width: 8px;
   height: 8px;
@@ -669,6 +675,7 @@ textarea.loki-field {
   box-sizing: border-box;
   border-radius: 50%;
   background: var(--loki-positive);
+  animation: loki-live-pulse 1.6s ease-in-out infinite;
 }
 .loki-list-row-lead > .loki-list-row-live {
   position: absolute;

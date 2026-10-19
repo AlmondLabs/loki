@@ -66,8 +66,8 @@ export const canPin = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversat
 
 /**
  * What a row shows: the red badge (one per waiting conversation), the bold title, the live dot, and for a
- * finished desk its ring with the words for it. Bold + ring: new since you last looked; ring alone: looked
- * at, not done; neither: done.
+ * finished desk not looked at since, its ring with the words for it. Bold + ring: new since you last looked;
+ * neither: looked at. Done is the Inbox's, which still holds a chat you looked at until you clear it there.
  */
 export interface RowState {
   kind: MarkKind;
@@ -75,7 +75,7 @@ export interface RowState {
   badgeNoun?: string;
   unread: boolean;
   live: boolean;
-  /** A finished desk's reading, in words: "new messages" or "viewed, not done". */
+  /** A finished desk's reading, in words, while it has news you have not looked at: "new messages". */
   note?: string;
 }
 
@@ -84,7 +84,8 @@ export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): R
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
   const finished = mark.kind === "finished";
-  // A look un-bolds a finished desk (it stays not done: the ring); waiting is news until you act, so it stays bold beside its badge.
+  // A look clears a finished desk's row, bold and ring (the Inbox keeps it until it is done there); waiting is news
+  // until you act, so it stays bold beside its badge.
   const fresh = finished && !!item && unviewed(item);
   return {
     kind: mark.kind,
@@ -92,7 +93,7 @@ export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): R
     badgeNoun: waits ? mark.title : undefined,
     unread: waits || fresh,
     live: mark.kind === "running",
-    note: finished ? (fresh ? "new messages" : "viewed, not done") : undefined,
+    note: fresh ? "new messages" : undefined,
   };
 }
 
