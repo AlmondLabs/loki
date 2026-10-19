@@ -626,6 +626,9 @@ textarea.loki-field {
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
+  /* A row is a control: a right-click opens its menu, and WebKit would otherwise select the word under the pointer. */
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
