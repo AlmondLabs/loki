@@ -20,10 +20,11 @@ const moved = (id: string): MovedChat => ({
 });
 
 /**
- * The MacBook (old home of Ira's chats) and the mini (her home) with ChatMoves on each, joined by a link that calls
- * the MacBook's frame answers directly. `busy` names chats whose turn is running on the MacBook.
+ * The MacBook (old home of Ira's chats) and the mini (her home), with ChatMoves on each, joined by an in-memory link
+ * that answers each frame as mod/frames/peers.ts does, by the other Mac's moves. `busy` names chats whose turn is
+ * running on the MacBook; `miniUp` whether the MacBook can reach the mini.
  */
-function macs(busy = new Set<string>()) {
+function macs(busy = new Set<string>(), miniUp = true) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-moves-"));
   const bookWidgets = join(dir, "book-widgets");
   const miniWidgets = join(dir, "mini-widgets");
@@ -31,38 +32,67 @@ function macs(busy = new Set<string>()) {
   const finished: string[] = [];
   const onMini = new Set<string>();
   const done = new Set<string>();
-  const bookChat = {
-    moveCandidates: () => Promise.resolve([...onBook].map((c) => ({ agent_id: "agent-ira", conversation_id: c }))),
-    exportChat: (_a: string, c: string) => Promise.resolve(busy.has(c) ? { chat: null, busy: true } : { chat: moved(c), busy: false }),
-    finishMove: (_a: string, c: string) => (onBook.delete(c), finished.push(c), Promise.resolve()),
-  };
+  const left: Array<[string, string]> = [];
   const imported: MovedChat[] = [];
-  const miniChat = { importChat: (m: MovedChat) => (onMini.add(m.conversation_id), imported.push(m), Promise.resolve(true)) };
-  const book: ChatMoves = new ChatMoves({
-    chat: bookChat as never,
-    link: () => null,
-    widgetsDir: bookWidgets,
-    done: () => false,
-    markDone: () => {},
-    onMoved: () => {},
+  const store = (chats: Set<string>) => ({
+    moveCandidates: () => Promise.resolve([...chats].map((c) => ({ agent_id: "agent-ira", conversation_id: c }))),
+    exportChat: (_a: string, c: string) =>
+      Promise.resolve(busy.has(c) ? { chat: null, busy: true } : chats.has(c) ? { chat: moved(c), busy: false } : { chat: null, busy: false }),
+    finishMove: (_a: string, c: string) => (chats.delete(c), finished.push(c), Promise.resolve()),
+    importChat: (m: MovedChat) => (chats.add(m.conversation_id), imported.push(m), Promise.resolve(true)),
   });
-  const link = {
+  /** The link from `from` to the Mac whose moves are `to`. */
+  const link = (from: string, to: () => ChatMoves) => ({
     request: async (f: Record<string, unknown>) => {
-      if (f.type === "peer_moves_get") return { chats: await bookChat.moveCandidates() };
-      if (f.type === "peer_chat_export") return book.export(MINI, String(f.agent_id), String(f.conversation_id));
-      if (f.type === "peer_chat_moved") return (await book.moved(String(f.agent_id), String(f.conversation_id)), {});
+      const [a, c] = [String(f.agent_id), String(f.conversation_id)];
+      if (f.type === "peer_moves_get") return { chats: await to().candidates(from) };
+      if (f.type === "peer_chat_export") return to().export(from, a, c);
+      if (f.type === "peer_chat_moved") return (await to().moved(from, a, c), {});
+      if (f.type === "peer_chat_take") return to().take(from, a, c);
       throw new Error(`unexpected ${String(f.type)}`);
     },
-  };
-  const mini = new ChatMoves({
-    chat: miniChat as never,
-    link: () => link as never,
-    widgetsDir: miniWidgets,
-    done: (id) => done.has(id),
-    markDone: (id) => done.add(id),
-    onMoved: () => {},
   });
-  return { dir, bookWidgets, miniWidgets, onBook, onMini, imported, finished, done, book, mini, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const names: Record<string, string> = { [BOOK]: "MacBook", [MINI]: "Mac mini" };
+  const mac = (here: string, chats: Set<string>, widgetsDir: string, other: () => ChatMoves, reach: () => boolean) =>
+    new ChatMoves({
+      here,
+      chat: store(chats),
+      link: (id) => (names[id] && reach() ? (link(here, other) as never) : null),
+      widgetsDir,
+      name: (id) => (id === null ? names[here] : (names[id] ?? null)),
+      done: (id) => here === MINI && done.has(id),
+      markDone: (id) => void done.add(id),
+      onMoved: () => {},
+      onLeft: (chat, to) => void left.push([chat.conversation_id, to]),
+    });
+  const book: ChatMoves = mac(
+    BOOK,
+    onBook,
+    bookWidgets,
+    () => mini,
+    () => miniUp,
+  );
+  const mini: ChatMoves = mac(
+    MINI,
+    onMini,
+    miniWidgets,
+    () => book,
+    () => true,
+  );
+  return {
+    dir,
+    bookWidgets,
+    miniWidgets,
+    onBook,
+    onMini,
+    imported,
+    finished,
+    done,
+    left,
+    book,
+    mini,
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  };
 }
 
 describe("taking an agent's chats over on first pairing", () => {
@@ -72,7 +102,7 @@ describe("taking an agent's chats over on first pairing", () => {
       const scope = scopeFor("conv-1", "agent-ira");
       mkdirSync(join(m.bookWidgets, scope), { recursive: true });
       writeFileSync(join(m.bookWidgets, scope, "chart.tsx"), "export default 1");
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect([...m.onMini]).toEqual(["conv-1", "conv-2"]);
       expect(m.finished).toEqual(["conv-1", "conv-2"]);
       expect(readFileSync(join(m.miniWidgets, scope, "chart.tsx"), "utf8")).toBe("export default 1");
@@ -80,7 +110,7 @@ describe("taking an agent's chats over on first pairing", () => {
       expect(m.done.has(BOOK)).toBe(true);
       // Done once: a later contact asks nothing.
       m.onBook.add("conv-3");
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect(m.onMini.has("conv-3")).toBe(false);
     } finally {
       m.cleanup();
@@ -91,11 +121,11 @@ describe("taking an agent's chats over on first pairing", () => {
     const busy = new Set(["conv-2"]);
     const m = macs(busy);
     try {
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect([...m.onMini]).toEqual(["conv-1"]);
       expect(m.done.has(BOOK)).toBe(false);
       busy.clear();
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect([...m.onMini]).toEqual(["conv-1", "conv-2"]);
       expect(m.done.has(BOOK)).toBe(true);
     } finally {
@@ -109,7 +139,7 @@ describe("taking an agent's chats over on first pairing", () => {
       await m.book.export(MINI, "agent-ira", "conv-1");
       expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving to the Mac its agent lives on/);
       expect(m.book.blocked("agent-ira", "conv-2")).toBeNull();
-      await m.book.moved("agent-ira", "conv-1");
+      await m.book.moved(MINI, "agent-ira", "conv-1");
       expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
     } finally {
       m.cleanup();
@@ -121,12 +151,12 @@ describe("an agent's home set to this Mac after pairing", () => {
   test("brings its chats over even though the first hand-over already ran", async () => {
     const m = macs();
     try {
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect(m.done.has(BOOK)).toBe(true);
       m.onBook.add("conv-3");
-      await m.mini.run(BOOK);
+      await m.mini.takeOver(BOOK);
       expect(m.onMini.has("conv-3")).toBe(false);
-      await m.mini.run(BOOK, true);
+      await m.mini.takeOver(BOOK, true);
       expect(m.onMini.has("conv-3")).toBe(true);
     } finally {
       m.cleanup();
@@ -145,6 +175,40 @@ describe("moving one chat by hand", () => {
       expect(m.onBook.has("conv-2")).toBe(true);
       // The hand-over is not marked done by a move by hand.
       expect(m.done.has(BOOK)).toBe(false);
+    } finally {
+      m.cleanup();
+    }
+  });
+});
+
+describe("moving a chat to another Mac", () => {
+  test("the Mac it lives on offers it; the other takes it, placed; the first lets go and says where it went", async () => {
+    const m = macs();
+    try {
+      expect(await m.book.offer(MINI, "agent-ira", "conv-1")).toBeNull();
+      expect(m.onMini.has("conv-1")).toBe(true);
+      expect(m.onBook.has("conv-1")).toBe(false);
+      expect(m.imported.map((c) => c.info.placed)).toEqual([true]);
+      expect(m.left).toEqual([["conv-1", MINI]]);
+      expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("says why it did not move: busy, out of reach, not paired; a move to this Mac is nothing to do", async () => {
+    const m = macs(new Set(["conv-2"]));
+    try {
+      expect(await m.book.offer(MINI, "agent-ira", "conv-2")).toBe("the chat is answering or waiting for you: move it once it is done");
+      expect(await m.book.offer("cccccccc-3333-4333-8333-333333333333", "agent-ira", "conv-1")).toBe("that Mac is not paired with this one");
+      expect(await m.book.offer(BOOK, "agent-ira", "conv-1")).toBeNull();
+      expect(m.onBook.has("conv-1") && m.onBook.has("conv-2")).toBe(true);
+      const away = macs(new Set(), false);
+      try {
+        expect(await away.book.offer(MINI, "agent-ira", "conv-1")).toBe("Mac mini is out of reach: move the chat once it is back");
+      } finally {
+        away.cleanup();
+      }
     } finally {
       m.cleanup();
     }
