@@ -293,13 +293,7 @@ function NewDeskSheet({
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
         <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
-        {where.agentHome && macs && <HomeChoice home={where.agentHome} here={macs.me.name} pickHere={where.pickHere} onPickHere={where.setPickHere} />}
-
-        {where.lacks.length > 0 && (
-          <div className="loki-meta loki-meta--negative loki-meta--wrap" role="status">
-            {where.remote ? where.remote.name : osWords().Machine} needs {where.lacks.join("; ")}
-          </div>
-        )}
+        <ChatHome where={where} here={macs?.me.name ?? null} />
 
         <FolderPicker
           inputRef={field.inputRef}
@@ -366,6 +360,20 @@ function useChatHome(agents: NewDeskProps["agents"], agentId: string | null, mac
   const lacks = missing?.key === missingKey ? missing.lines : [];
   const home = remote ? remote.mac_id : agentHome ? macs?.me.mac_id : undefined;
   return { agentHome, remote, pickHere, setPickHere, lacks, home };
+}
+
+/** Where the chat will live, when its agent lives on another Mac, and what the chosen Mac lacks for the agent. */
+function ChatHome({ where, here }: { where: ReturnType<typeof useChatHome>; here: string | null }) {
+  return (
+    <>
+      {where.agentHome && here !== null && <HomeChoice home={where.agentHome} here={here} pickHere={where.pickHere} onPickHere={where.setPickHere} />}
+      {where.lacks.length > 0 && (
+        <div className="loki-meta loki-meta--negative loki-meta--wrap" role="status">
+          {where.remote ? where.remote.name : osWords().Machine} needs {where.lacks.join("; ")}
+        </div>
+      )}
+    </>
+  );
 }
 
 /** The Mac an agent lives on, when that is another paired Mac (with whether it is in reach); undefined when it is this one. */
