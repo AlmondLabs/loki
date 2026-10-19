@@ -72,6 +72,8 @@ export class ModRegistry {
   /** The pi-durable registry every agent's store is opened with. */
   readonly registry: Registry = createRegistry();
   private readonly loaded = new Map<string, Loaded>();
+  /** Each mod's load in progress: a load of the same name waits for it (see `load`). */
+  private readonly loading = new Map<string, Promise<unknown>>();
   private readonly report: (message: string) => void;
 
   constructor(report: (message: string) => void = (m) => console.error(`loki-daemon: ${m}`)) {
@@ -80,9 +82,24 @@ export class ModRegistry {
 
   /**
    * Activate a mod and install it; a mod of the same name is replaced. A refused mod changes nothing; one whose
-   * `activate` throws is not loaded, and the copy it was replacing is unloaded too.
+   * `activate` throws is not loaded, and the copy it was replacing is unloaded too. Loads of one name run one after
+   * another: two at once (a checkout's files saved together) would each retire what was loaded before, and the first
+   * to finish would be replaced without being disposed, holding its server's port while the second fails to bind.
    */
-  async load(mod: LokiMod): Promise<LoadResult> {
+  load(mod: LokiMod): Promise<LoadResult> {
+    const before = this.loading.get(mod.name) ?? Promise.resolve();
+    const next = before.then(
+      () => this.loadNow(mod),
+      () => this.loadNow(mod),
+    );
+    this.loading.set(mod.name, next);
+    void next.finally(() => {
+      if (this.loading.get(mod.name) === next) this.loading.delete(mod.name);
+    });
+    return next;
+  }
+
+  private async loadNow(mod: LokiMod): Promise<LoadResult> {
     if (!Number.isInteger(mod.apiVersion) || mod.apiVersion < 1 || mod.apiVersion > MOD_API_VERSION) {
       const refused = `mod ${mod.name} needs mod API ${mod.apiVersion}; this loki has ${MOD_API_VERSION}`;
       this.report(refused);
