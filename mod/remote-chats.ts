@@ -120,6 +120,15 @@ export class RemoteChats {
     return [...this.macs].flatMap(([mac, m]) => m.inbox.map((r) => ({ ...r, home: mac, home_name: this.opts.name(mac), reachable: m.reachable })));
   }
 
+  /**
+   * A paired Mac out of reach whose last list holds chats of this agent (plan 023, addendum D5): deleting the agent
+   * now would leave them behind there. Null when no such Mac.
+   */
+  awayWith(agentId: string): string | null {
+    for (const [mac, m] of this.macs) if (!m.reachable && m.desks.some((d) => d.agent_id === agentId)) return mac;
+    return null;
+  }
+
   stop(): void {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();

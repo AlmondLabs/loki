@@ -129,4 +129,14 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(remote.desks().map((d) => d.conversation_id)).toEqual(["conv-1"]);
     expect(state.listed).toEqual([["conv-1"]]);
   });
+
+  test("an agent's chats on a Mac out of reach block its delete; a Mac out of reach without them does not", async () => {
+    const { remote, state } = fixture();
+    await remote.refresh(MINI);
+    expect(remote.awayWith("agent-ira")).toBeNull(); // in reach
+    remote.setReachable(MINI, false);
+    expect(remote.awayWith("agent-ira")).toBe(MINI);
+    expect(remote.awayWith("agent-friday")).toBeNull();
+    expect(state.changes).toBeGreaterThan(0);
+  });
 });

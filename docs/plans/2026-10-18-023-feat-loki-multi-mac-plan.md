@@ -917,3 +917,33 @@ remote chats and the mod's wiring, and drifted: `chat_move` alone was in four. B
   syncer declares its own triggers.
 - **C4.** One test reads the catalog's rules over every frame: a routed frame is one a paired Mac may send, a frame
   routed by chat parses a `conversation_id`, a relayed push names a chat or a desk.
+
+---
+
+## Addendum D, 2026-10-19: a third Mac joins the group, and deleting an agent with a Mac asleep
+
+Chat frames go one hop to a chat's home, so every Mac must be paired with every other. Pairing was by code, pair by
+pair: a third Mac paired with the MacBook could not reach the mini's chats until the person paired it with the mini
+too. And deleting an agent was refused whenever any paired Mac was out of reach, which three Macs make common.
+
+- **D1. The group fills in by itself.** When a peer link opens, and when a Mac's paired Macs change
+  (`group_changed`), each Mac asks the other for the Macs it is paired with (`peer_group_get`) and joins any it does
+  not know: it asks the Mac between them for an introduction (`peer_introduce`), which asks the third Mac for an
+  invite (`peer_invite_get`); the joining Mac then pairs with the third Mac directly, over the tailnet, by the usual
+  `POST /peer/pair` with the invite in place of a code. Each side mints its own token as in any pairing.
+- **D2. One pairing per pair.** Of two Macs that learn of each other at once, only the one with the lower Mac id
+  joins; the other waits to be joined. Two crossing pairings would leave each side with the other's tokens mismatched.
+- **D3. An unpaired Mac stays unpaired.** A Mac this one forgot on purpose is remembered (`state/peers-forgotten.json`),
+  and neither joined nor invited again; pairing it again by code clears that.
+- **D4. Threat model.** An invite is 32 random bytes, bound to the joining Mac's id, single use, valid for two minutes,
+  kept in memory only, and minted only when a Mac already paired with this one asks for it, for a Mac it is itself
+  paired with. So a paired Mac vouches for another: the same trust a paired Mac already has (it can read and drive
+  every chat here). An invite travels only over peer links (tokens, tailnet addresses only) and is redeemed only on
+  the tailnet listener. Someone on the tailnet without a paired Mac gains nothing; a Mac you unpaired is not let back.
+- **D5. Deleting an agent.** Refused only while a Mac out of reach holds chats of that agent, as its last list said:
+  those chats would be left behind. A Mac out of reach holding none of them does not block; the tombstone reaches it
+  when it is back.
+
+Tests: three Macs in one process, B paired with A and with C: C ends paired with A without a code; only one of A and
+C joins; a forgotten Mac is neither joined nor invited; an invite for another Mac id, used twice or expired, is
+refused. The delete guard: an out-of-reach Mac with the agent's chats blocks, one without does not.

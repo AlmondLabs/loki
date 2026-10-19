@@ -71,10 +71,20 @@ export class PeerStore {
   private peers: PeerRecord[] = [];
   private readonly path: string;
   private readonly now: () => number;
+  /** The Macs forgotten here on purpose (addendum D3), beside peers.json: never joined or invited again by themselves. */
+  private forgotten = new Set<string>();
+  private readonly forgottenPath: string;
 
   constructor(path: string, opts: { now?: () => number } = {}) {
     this.path = path;
     this.now = opts.now ?? Date.now;
+    this.forgottenPath = path.replace(/\.json$/, "") + "-forgotten.json";
+    try {
+      const ids = JSON.parse(readFileSync(this.forgottenPath, "utf8")) as unknown;
+      if (Array.isArray(ids)) this.forgotten = new Set(ids.filter((x): x is string => typeof x === "string"));
+    } catch {
+      this.forgotten = new Set();
+    }
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
       if (Array.isArray(parsed))
@@ -104,6 +114,8 @@ export class PeerStore {
     const record: PeerRecord = { ...hello, token_hash: hashToken(token), paired_at: at, last_seen_at: at };
     this.peers = [...this.peers.filter((p) => p.mac_id !== hello.mac_id), record];
     this.persist();
+    // Paired again on purpose: it is part of the group again.
+    if (this.forgotten.delete(hello.mac_id)) this.persistForgotten();
     return record;
   }
 
@@ -134,12 +146,22 @@ export class PeerStore {
     this.persist();
   }
 
-  forget(macId: string): boolean {
+  /** Forget a Mac; `onPurpose` (the person forgot it here) also keeps it from being joined or invited again. */
+  forget(macId: string, onPurpose = false): boolean {
+    if (onPurpose && !this.forgotten.has(macId)) {
+      this.forgotten.add(macId);
+      this.persistForgotten();
+    }
     const before = this.peers.length;
     this.peers = this.peers.filter((p) => p.mac_id !== macId);
     if (this.peers.length === before) return false;
     this.persist();
     return true;
+  }
+
+  /** Whether the person forgot this Mac here on purpose (addendum D3). */
+  isForgotten(macId: string): boolean {
+    return this.forgotten.has(macId);
   }
 
   get(macId: string): PeerRecord | null {
@@ -169,6 +191,15 @@ export class PeerStore {
     if (now - Date.parse(peer.last_seen_at) < SEEN_WRITE_INTERVAL_MS) return;
     peer.last_seen_at = new Date(now).toISOString();
     this.persist();
+  }
+
+  private persistForgotten(): void {
+    try {
+      mkdirSync(dirname(this.forgottenPath), { recursive: true });
+      writeFileSync(this.forgottenPath, JSON.stringify([...this.forgotten], null, 2) + "\n", { mode: 0o600 });
+    } catch {
+      // best effort, as for peers.json
+    }
   }
 
   private persist(): void {
@@ -260,7 +291,11 @@ export interface PeersOptions {
   onChange?: () => void;
   /** A Mac was forgotten: close its sockets. */
   onForget?: (macId: string) => void;
+  now?: () => number;
 }
+
+/** How long an invite for a Mac being introduced lives (addendum D4). */
+export const INVITE_TTL_MS = 2 * 60_000;
 
 /**
  * Pairing between Macs, both sides of it. The Mac that shows a code answers `POST /peer/pair`; the Mac the person
@@ -270,6 +305,8 @@ export interface PeersOptions {
 export class Peers {
   private readonly opts: PeersOptions;
   private readonly fetch: typeof fetch;
+  /** Invites for Macs being introduced (addendum D4): code → the Mac it is for, and when it lapses. In memory only. */
+  private readonly invites = new Map<string, { mac_id: string; expires: number }>();
 
   constructor(opts: PeersOptions) {
     this.opts = opts;
@@ -290,18 +327,41 @@ export class Peers {
     return this.opts.store.verify(token)?.mac_id ?? null;
   }
 
-  /** `POST /peer/pair` on the Mac showing the code: `body` is the joining Mac's code, hello and the token it minted for this one. */
+  /**
+   * An invite for `macId`, which a Mac paired with this one is introducing (addendum D4): 32 random bytes, for that Mac
+   * only, once, for two minutes; with this Mac's tailnet address to redeem it at. Null for a Mac forgotten here on
+   * purpose, or for this Mac itself.
+   */
+  invite(macId: string): { code: string; host: string } | null {
+    const me = this.hello();
+    if (macId === me.mac_id || this.opts.store.isForgotten(macId) || !me.host) return null;
+    const now = this.now();
+    for (const [code, inv] of this.invites) if (inv.expires <= now) this.invites.delete(code);
+    const code = mintPeerToken();
+    this.invites.set(code, { mac_id: macId, expires: now + INVITE_TTL_MS });
+    log("peers:invite", { for: macId });
+    return { code, host: me.host };
+  }
+
+  /**
+   * `POST /peer/pair` on the Mac showing the code: `body` is the joining Mac's code (or invite), hello and the token it
+   * minted for this one.
+   */
   async accept(body: Record<string, unknown> | null): Promise<PeerAnswer> {
     const hello = parsePeerHello(body?.hello);
     const token = body?.token;
     if (!body || typeof body.code !== "string" || !hello || !isPeerToken(token)) return { status: 400, body: { error: "expected {code, hello, token}" } };
-    if (!this.opts.codes.redeem(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
+    // An invite is spent by its first use, whoever brings it.
+    const invite = this.invites.get(body.code);
+    this.invites.delete(body.code);
+    const invited = !!invite && invite.mac_id === hello.mac_id && invite.expires > this.now();
+    if (!invited && !this.opts.codes.redeem(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
     const me = this.hello();
     if (hello.mac_id === me.mac_id) return { status: 409, body: { error: "that code is this Mac's own" } };
     const mine = mintPeerToken();
     await this.opts.keys.set(hello.mac_id, token);
     this.opts.store.add(hello, mine);
-    log("peers:paired", { mac: hello.mac_id, name: hello.name, by: "code" });
+    log("peers:paired", { mac: hello.mac_id, name: hello.name, by: invited ? "invite" : "code" });
     this.opts.onChange?.();
     return { status: 200, body: { hello: me, token: mine } };
   }
@@ -394,8 +454,12 @@ export class Peers {
     }
   }
 
+  private now(): number {
+    return (this.opts.now ?? Date.now)();
+  }
+
   private async drop(macId: string, where: "here" | "there"): Promise<boolean> {
-    const gone = this.opts.store.forget(macId);
+    const gone = this.opts.store.forget(macId, where === "here");
     await this.opts.keys.delete(macId);
     this.opts.onForget?.(macId);
     if (gone) {

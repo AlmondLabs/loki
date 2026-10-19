@@ -81,6 +81,12 @@ server or account is involved.
   token's SHA-256 (`~/.loki/state/peers.json`, mode 0600) and keeps the token the other Mac minted for it in the
   keychain. Forgetting a Mac on either side tells the other when it can, and a Mac whose token is refused checks and
   forgets too.
+- **A paired Mac can introduce another.** So every Mac is paired with every other, a Mac paired with two Macs
+  introduces them: the Mac being joined mints an invite (32 random bytes, for the joining Mac's id only, single use,
+  two minutes, in memory only) when a Mac it is already paired with asks, and the joining Mac redeems it over the
+  tailnet as it would a code. A paired Mac thus vouches for another, the trust it already has (it can read and drive
+  every chat). A Mac you forgot on purpose is kept in `~/.loki/state/peers-forgotten.json` and never invited back;
+  pairing it again by code clears that.
 - **A paired Mac is not the desktop.** Its socket may send only the frames marked for Macs (`PEER_FRAMES`): chat,
   history, canvas and folder frames for chats that live on this Mac, and the sync frames. Never pairing, device or
   phone settings. A phone's frame is checked against the phone's own limits on its own Mac before it is passed on.

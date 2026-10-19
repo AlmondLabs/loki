@@ -33,6 +33,12 @@ export interface PeersDeps {
       /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
       offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
     };
+    /** The group (addendum D): this Mac's paired Macs, introducing one to another, and an invite for one. */
+    group?: {
+      macs: () => Replies["peer_group"]["macs"];
+      introduce: (from: string, macId: string) => Promise<Replies["peer_invite"]>;
+      invite: (macId: string) => Replies["peer_invite"] | null;
+    };
     /** Whether this Mac holds a chat, and where it went if this Mac let it go, for `peer_where` (addendum B2). */
     where?: (chat: { agent_id: string | null; conversation_id: string }) => Replies["peer_here"];
     /** The person's state, for another Mac's `peer_state_get` (U8). */
@@ -87,6 +93,26 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       if (!moves) return fail("moving chats between Macs is not available in this mod");
       const why = await moves.offer(to, agentId, conversationId);
       return why ? fail(why) : reply({});
+    },
+    peer_group_get: () => {
+      const group = need().group;
+      return group ? reply({ macs: group.macs() }) : fail("this Mac does not introduce Macs");
+    },
+    peer_introduce: async ({ mac_id: macId }, ctx) => {
+      const group = need().group;
+      if (!group || !ctx.client.peerId) return fail("only a paired Mac is introduced");
+      try {
+        return reply(await group.introduce(ctx.client.peerId, macId));
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : String(err));
+      }
+    },
+    // Asked by a Mac paired with this one, for a Mac it is introducing: never by a tab or a phone (PEER frames only).
+    peer_invite_get: ({ for: macId }, ctx) => {
+      const group = need().group;
+      if (!group || !ctx.client.peerId) return fail("only a paired Mac asks for an invite");
+      const invite = group.invite(macId);
+      return invite ? reply(invite) : fail("this Mac does not pair with that one");
     },
     peer_where: (chat) => {
       const where = need().where;

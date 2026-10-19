@@ -330,7 +330,10 @@ reach each other over your tailnet only, never the Wi‑Fi or the internet. On o
 **show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. On the other Mac, in
 Settings › Macs, type the address and the code and press **pair**. Each Mac now lists the other, with **connected**
 or when it was last seen, and **forget** on either side unpairs both. A Mac running another version of loki shows
-"needs an update": it stays paired, but nothing syncs until both run the same release. While any Mac is paired,
+"needs an update": it stays paired, but nothing syncs until both run the same release. A third Mac needs one code:
+pair it with any Mac of yours, and it joins the others by itself, introduced by the Mac they share (each Mac must be
+paired with every other, since a chat is reached on the Mac it lives on). A Mac you **forget** stays forgotten: it is
+not joined again until you pair it by code. While any Mac is paired,
 loki keeps the Mac from sleeping when it is idle on power, so a MacBook on its charger with the lid open stays
 reachable; a closed lid still sleeps.
 

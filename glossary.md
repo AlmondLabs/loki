@@ -105,6 +105,10 @@ job. _Avoid_: inferring a chat's home from a list row.
 **Placed** (`placed` in a chat's info, addendum A2): a chat put on a Mac on purpose (moved by hand, or started away
 from its agent's home); the hand-over of an agent's chats to its home leaves it there.
 
+**Group** and **invite** (`mod/peer-group.ts`, plan 023 addendum D): every paired Mac paired with every other. A
+Mac paired with two Macs introduces them; the Mac being joined mints an invite (single use, for that Mac only, two
+minutes) and the joining Mac pairs with it directly. _Avoid_: transitive pairing (frames never go through a Mac).
+
 **Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
 `request_id`) and hears (that Mac's pushes); a paired Mac's frames are limited to `PEER_FRAMES`.
 

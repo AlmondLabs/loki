@@ -199,6 +199,10 @@ export interface Replies {
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
   /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
   peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
+  /** The Macs this one is paired with, for another to join those it lacks (plan 023, addendum D1). */
+  peer_group: { macs: Array<MacIdentity & { host: string }> };
+  /** An invite to pair with a Mac, bound to the asking Mac, and where to redeem it (addendum D4). */
+  peer_invite: { host: string; code: string };
   /** Whether this Mac holds a chat, and where it went when this Mac let it go (plan 023, addendum B2). */
   peer_here: { held: boolean; moved_to: string | null };
   /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
@@ -294,6 +298,8 @@ export interface Pushes {
    * this Mac let it go, or null when it has no note. Absent on every other error.
    */
   error: { message: string; request_id?: string; moved_to?: string | null };
+  /** The Macs this one is paired with changed (addendum D1). */
+  group_changed: NoPayload;
   /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
   chat_left: { agent_id: string | null; conversation_id: string; to: string };
 }
@@ -870,6 +876,21 @@ export const FRAMES = {
   peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, BETWEEN_MACS),
   peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, BETWEEN_MACS),
   peer_chats_get: request("peer_chats", "this Mac's own chats, for another Mac's lists", nothing, false, BETWEEN_MACS),
+  peer_group_get: request("peer_group", "the Macs this one is paired with, for the asking Mac to join (addendum D1)", nothing, false, BETWEEN_MACS),
+  peer_introduce: request(
+    "peer_invite",
+    "introduce the asking Mac to `mac_id`, another Mac paired with this one: that Mac's invite for it (addendum D1)",
+    (m) => (str(m.mac_id) && m.mac_id ? { mac_id: m.mac_id } : "mac_id required"),
+    false,
+    BETWEEN_MACS,
+  ),
+  peer_invite_get: request(
+    "peer_invite",
+    "an invite for `for`, a Mac the asking Mac is introducing: single use, two minutes (addendum D4)",
+    (m) => (str(m.for) && m.for ? { for: m.for } : "for required"),
+    false,
+    BETWEEN_MACS,
+  ),
   peer_where: request(
     "peer_here",
     "whether this Mac holds a chat, and where it went if this Mac let it go (addendum B2)",
@@ -909,6 +930,7 @@ export const FRAMES = {
   app_build: push("the build a phone is served, so it can offer a reload"),
   chat_event: push("what happened in a chat a client has open", { relay: "chat", lists: LISTED_EVENTS }),
   error: push("a failed request (with its request_id) or a frame the mod could not take"),
+  group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
   chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
 } as const;
 

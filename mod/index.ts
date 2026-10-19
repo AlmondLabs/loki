@@ -52,6 +52,7 @@ import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts"
 import { RemoteChats } from "./remote-chats.ts";
 import { ChatRouter } from "./chat-router.ts";
 import { ChatDirectory } from "./chat-directory.ts";
+import { PeerGroup } from "./peer-group.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
@@ -355,6 +356,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       remoteChats.setReachable(id, status === "reachable");
       // A Mac back in reach: take what changed there while the link was down, agents first, then their memory.
       if (status === "reachable") {
+        // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
+        void peerGroup.meshWith(id);
         // Agents, then their memory, then (once, after pairing) the chats of agents that live here (U9).
         void peerAgents
           .pull(id)
@@ -383,6 +386,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         if (frame.to !== macId) void remoteChats.refresh(frame.to);
       }
       if (frame.type === "state_changed") void peerState.pull(id);
+      if (frame.type === "group_changed") void peerGroup.meshWith(id);
     },
     // The other Mac refused this one's token: ask it once more over HTTP, which forgets it here if it forgot this Mac.
     onRefused: (id) => void peers.contact(id),
@@ -490,6 +494,17 @@ export default function activate(api: ModApi, host: Host): () => void {
     remove: (id) => chatBackend.removeAgent(id),
     onChanged: () => broadcast({ type: "agents_changed" }),
   });
+  // Every Mac paired with every other, by introductions through a Mac paired with both (addendum D).
+  const peerGroup: PeerGroup = new PeerGroup({
+    here: macId,
+    paired: (id) => peerStore.get(id) !== null,
+    forgotten: (id) => peerStore.isForgotten(id),
+    link: (id) => links.get(id),
+    join: async (host, invite) => {
+      await phones().refresh(); // the other Mac needs this one's tailnet address to reach it back
+      return peers.join(host, invite);
+    },
+  });
   /** The Macs paired at the last change, so one forgotten since leaves the directory too. */
   let known = new Set(peerStore.list().map((p) => p.mac_id));
   const peers: Peers = new Peers({
@@ -498,6 +513,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     codes: peerCodes,
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
     onChange: () => {
+      // The Macs this one is paired with changed: they join any they lack (addendum D1).
+      lan?.broadcast({ type: "group_changed" });
       awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
       remoteChats.sync(peerStore.list().map((p) => p.mac_id));
@@ -612,6 +629,11 @@ export default function activate(api: ModApi, host: Host): () => void {
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
       state: () => peerState.snapshotNow(),
       where: (chat) => directory.answer(chat),
+      group: {
+        macs: () => peerStore.list().map((p) => ({ mac_id: p.mac_id, name: p.name, host: p.host })),
+        introduce: (from, id) => peerGroup.introduce(from, id),
+        invite: (id) => peers.invite(id),
+      },
       moves: {
         candidates: (id) => chatBackend.moveCandidates(id),
         export: (id, agentId, conversationId) => chatMoves.export(id, agentId, conversationId),
@@ -646,9 +668,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
     chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
-    agentDeleteBlocked: () => {
-      const away = peerStore.list((id) => links.reachable(id)).find((p) => !p.reachable);
-      return away ? `${away.name} is out of reach: delete this agent once it is back, so its chats there go too` : null;
+    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
+    agentDeleteBlocked: (agentId) => {
+      const away = remoteChats.awayWith(agentId);
+      return away ? `${peerStore.get(away)?.name ?? "another Mac"} is out of reach and has this agent's chats: delete it once that Mac is back` : null;
     },
     agents: {
       get: (id) => readLocalAgent(id),
