@@ -9,7 +9,7 @@ import type { ChatProjection } from "./chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS } from "./memory.ts";
 import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
-import { modelRef } from "./chat-backend.ts";
+import { modelRef } from "./loki-engine.ts";
 import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
 

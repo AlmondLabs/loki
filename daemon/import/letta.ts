@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isPermissionMode } from "../approvals.ts";
-import { modelRef } from "../chat-backend.ts";
+import { modelRef } from "../loki-engine.ts";
 import { piHandle } from "../model-handle.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import { writeRecord } from "../store/agents.ts";

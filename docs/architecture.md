@@ -136,15 +136,18 @@ every chat gets, the chats, then the mods.
     `index.ts` registers every tool as `mcp__<server>__<tool>` in one `loki.mcp` extension, with an `mcp` prompt
     section (servers and tool names) and `mcp_search` (`search.ts`, BM25 over names, descriptions and parameters,
     or `select:`). A chat's pi-durable tool filter hides every MCP tool until `mcp_search` returns `addTools` for it;
-    `DaemonChats` sets the filter before each run (the chat's `mcpKnown` tells a loaded tool from a new one) and
+    loki's engine (`LokiEngine`) sets the filter before each run (the chat's `mcpKnown` tells a loaded tool from a new one) and
     empties it on /clear and compaction. Results map to text and images; big ones spill to files (`results.ts`).
     A remote server with no Authorization header signs in with OAuth (`oauth.ts`, the SDK's provider interface):
     an unauthorized connect is the `signin` state, Settings opens the authorization page, and the browser comes back
     to the mod's loopback route (`oauthCallbackRoute` in `mod/server.ts`), which hands the code to `McpTools.finishAuth`.
-12. **The chats (`daemon/chat-backend.ts`, `daemon/chats.ts`, `daemon/chat-events.ts`).** `DaemonChats` runs chats
-    for the mod's chat frames: open, send, steer, abort, approve, answer, models, agents, providers, the passes,
-    memory and skills. A message sent while the chat is busy waits its turn. pi-durable's events become loki's chat
-    events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
+12. **The chats (`daemon/chat-backend.ts`, `daemon/engine.ts`, `daemon/loki-engine.ts`, `daemon/chats.ts`,
+    `daemon/chat-events.ts`).** `DaemonChats` runs chats for the mod's chat frames: open, send, steer, abort,
+    approve, answer, models, agents, providers, the passes, memory and skills. It finds each chat's engine and hands
+    every per-chat call to it through one interface (`Engine`), with two adapters: `LokiEngine` on pi-durable, and
+    `AcpEngine` (item 15). `DaemonChats` keeps only the rules about which engine a chat runs on: chosen before the
+    first message, fixed after it. On loki's engine, a message sent while the chat is busy waits its turn, or with
+    `steer` joins it; pi-durable's events become loki's chat events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
     its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
     chats often and needs an answer at once (the chat list, the Inbox, a thread's page, Learn's cursor), while
     pi-durable answers asynchronously.
@@ -165,7 +168,8 @@ every chat gets, the chats, then the mods.
     (`seeded_until` in the file), their cost as `other` since a line has only the total. It does not depend on
     analytics otherwise: `LOKI_ANALYTICS=0` leaves it on.
 15. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on
-    pi-durable: `DaemonChats` hands its send, stop, mode, model and commands to `AcpChats`. Each agent is one process
+    pi-durable: its engine is `AcpEngine` (`daemon/acp/engine.ts`), which hands its send, stop, mode, model and
+    commands to `AcpChats`. Each agent is one process
     (`process.ts`, on `@agentclientprotocol/sdk`, started on first use and again after it exits), offered no files
     or terminals; each chat is a session on it, loaded again after a restart. What the agent reports
     (`session/update`) becomes chat events and, as each message completes, `pi.user`, `pi.assistant` and
@@ -252,7 +256,8 @@ You type in the chat box and press Enter.
 1. The page shows your words at once and records them as your own send, so the echo is not shown twice.
 2. It sends a `chat_send` request on `/ws` with your text, any images, and a context note with the local time and
    working folder.
-3. The mod's router hands it to `DaemonChats.send`. Every mod's message transform runs; loki's own appends what you
+3. The mod's router hands it to `DaemonChats.send`, which hands it to the chat's engine. On loki's own (`LokiEngine`),
+   every mod's message transform runs; loki's own appends what you
    did on the canvas since the last turn and the tasks assigned to this chat.
 4. The kernel submits the message to the agent's Harness. pi-durable saves it, renders the prompt sections
    (instructions, mod sections, the agent's memory, then history, in that order so the provider's prompt cache
