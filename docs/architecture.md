@@ -301,7 +301,12 @@ on, its **home**. The Macs talk to each other directly over the tailnet; there i
 7. **Moving chats** (`daemon/chat-move.ts`, `mod/chat-moves.ts`). Once after pairing, and when an agent's home is
    set, a Mac takes over the idle chats of agents homed on it: copied out, imported under the same id, then hidden on
    the old Mac with its schedules stopped. `chat_move` moves one chat by hand: routed to the Mac it lives on, which
-   asks the target to take it (`peer_chat_take`) the same way. A chat moved by hand, or started away from its agent's
+   asks the target to take it (`peer_chat_take`) the same way. `ChatMoves` holds both sides of a move and is the
+   peer frames' `moves`; its tests join two of them with an in-memory link.
+8. **What wakes each syncer** (`mod/peer-sync.ts`). The links hand every status and push to `PeerSync`, where each
+   syncer (agents, memory, moves, state, group, directory) names the pushes that wake it, what it does when a Mac
+   comes into reach, and the syncer it waits for: agents, then their memory, then the chats that move with them;
+   the rest side by side. A failure is logged (`peers:sync-failed`) and stops no other syncer. A chat moved by hand, or started away from its agent's
    home, is `placed` (its ChatInfo) and the hand-over skips it. A chat coming back to a Mac that let it go sets the
    hidden copy aside under a new key first (`AgentStore.retireChat`).
 

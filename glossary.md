@@ -109,6 +109,10 @@ from its agent's home); the hand-over of an agent's chats to its home leaves it 
 Mac paired with two Macs introduces them; the Mac being joined mints an invite (single use, for that Mac only, two
 minutes) and the joining Mac pairs with it directly. _Avoid_: transitive pairing (frames never go through a Mac).
 
+**Syncer** (`mod/peer-sync.ts`): one kind of thing kept current with the paired Macs (agents, memory, moves, state,
+group, directory), with what wakes it (a Mac coming into reach, a push by name) and the syncer it waits for.
+_Avoid_: wiring a new trigger into the link's callbacks.
+
 **Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
 `request_id`) and hears (that Mac's pushes); a paired Mac's frames are limited to `PEER_FRAMES`.
 
