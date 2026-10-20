@@ -1,3 +1,4 @@
+import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
 import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
@@ -118,6 +119,12 @@ export interface AttentionItem extends ConversationInfo {
   reason: Reason;
   /** The chat's share of your recent engagement, 0 to 1 (focus.ts), as scored. */
   focus: number;
+  /** Rested by Next and not due back yet (rest.ts): the Inbox leaves it out until it is, or something new comes. */
+  resting?: boolean;
+  /** The rung its last rest left it on while nothing new came (rest.ts), for the Inbox's analytics. */
+  rung?: number;
+  /** Back from a rest that ended with nothing new (rest.ts), for the Inbox's analytics. */
+  rested?: boolean;
   runtime: Runtime;
 }
 
@@ -343,7 +350,8 @@ export function viewStamp(item: Pick<AttentionItem, "agent_id" | "id" | "unread"
 /**
  * Combine everything into the item list, each item stamped with its score and reason at `now` and the
  * list ordered highest first (priority.ts): blocked agents, then the chats you have been engaging with
- * (`focus`, each chat's share by "agentId/conversationId"), then the rest by age.
+ * (`focus`, each chat's share by "agentId/conversationId"), then the rest by age. `rests` (rest.ts) marks the
+ * cards Next has rested, which the Inbox leaves out until they are due.
  */
 export function buildItems(
   conversations: ConversationInfo[],
@@ -353,6 +361,7 @@ export function buildItems(
   now = Date.now(),
   viewed: Record<string, string> = {},
   focus: Record<string, number> = {},
+  rests: Record<string, Rest> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
   for (const c of conversations) {
@@ -390,5 +399,8 @@ export function buildItems(
       runtime: { agent_id: c.agent_id, conversation_id: c.id },
     });
   }
-  return scored(out, now, focus);
+  return scored(out, now, focus).map((i) => {
+    const key = keyOf(i.agent_id, i.id);
+    return key in rests ? { ...i, ...restState(i, rests[key], now) } : i;
+  });
 }

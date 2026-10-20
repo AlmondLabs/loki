@@ -39,7 +39,7 @@ describe("Inbox marks on two Macs", () => {
     }
   });
 
-  test("focus added on both Macs sums on both, and Next on one halves the other's earlier weight", () => {
+  test("focus added on both Macs sums on both; a rest set later on either Mac wins on both", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
     try {
       const mini = marks(dir, "mini");
@@ -51,13 +51,18 @@ describe("Inbox marks on two Macs", () => {
       const at = Date.parse(book.clock.at);
       expect(decayed(book.store.focusAll()["agent-ira/c1"], at)).toBeCloseTo(2);
       expect(decayed(mini.store.focusAll()["agent-ira/c1"], at)).toBeCloseTo(2);
-      book.clock.at = "2026-10-18T10:00:01.000Z";
-      book.store.engage("agent-ira", "c1", "skip");
-      const later = Date.parse(book.clock.at);
-      expect(decayed(book.store.focusAll()["agent-ira/c1"], later)).toBeCloseTo(1, 2);
-      mini.clock.at = book.clock.at;
-      mini.store.applyRemote(BOOK, book.store.snapshot());
-      expect(decayed(mini.store.focusAll()["agent-ira/c1"], later)).toBeCloseTo(1, 2);
+      const first = { n: 1, until: "2026-10-18T10:10:00.000Z", stamp: "s", at: "2026-10-18T10:00:00.000Z" };
+      const second = { n: 2, until: "2026-10-18T10:40:00.000Z", stamp: "s", at: "2026-10-18T10:10:00.000Z" };
+      expect(mini.store.rest("agent-ira", "c1", second)).toBe(true);
+      expect(book.store.rest("agent-ira", "c1", first)).toBe(true);
+      expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
+      expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(false);
+      expect(book.store.restsAll()["agent-ira/c1"]).toEqual(second);
+      expect(mini.store.restsAll()["agent-ira/c1"]).toEqual(second);
+      // An earlier rest arriving late changes nothing; a Mac from before rests sends none.
+      expect(book.store.rest("agent-ira", "c1", first)).toBe(false);
+      const { rests: _, ...old } = mini.store.snapshot();
+      expect(book.store.applyRemote(MINI, old)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

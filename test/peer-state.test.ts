@@ -3,7 +3,7 @@ import { PeerState, type PersonState } from "../mod/peer-state.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 const empty: PersonState = {
-  marks: { seen: {}, unseen: {}, viewed: {}, focus: {}, skips: {} },
+  marks: { seen: {}, unseen: {}, viewed: {}, focus: {}, rests: {} },
   pins: {},
   labels: { colors: {}, changed: {} },
   learn: { files: {}, deleted: {} },

@@ -88,14 +88,40 @@ export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; 
   );
 }
 
-/** No card left: every chat moved past this visit (or none at all). What is still running, and what this visit did. */
-export function CaughtUp({ items, decided, replies }: { items: AttentionItem[]; decided: Decision[]; replies: number }) {
+/**
+ * No card left: every chat moved past this visit (or none at all). What is still running, what rests (Next rested it,
+ * core/attention/rest.ts) with the way to go through those, and what this visit did.
+ */
+export function CaughtUp({
+  items,
+  decided,
+  replies,
+  resting = 0,
+  onResting,
+}: {
+  items: AttentionItem[];
+  decided: Decision[];
+  replies: number;
+  /** Cards Next has rested, not due back yet. */
+  resting?: number;
+  onResting?: () => void;
+}) {
   const running = items.filter((i) => i.status === "running").length;
   return (
-    <Empty card title={decided.length ? "You've been through every chat." : "Nothing in the Inbox."}>
+    <Empty card title={resting > 0 ? "You're caught up." : decided.length ? "You've been through every chat." : "Nothing in the Inbox."}>
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>
         {running > 0 ? `${running} still running` : "no agent is working right now"}
       </div>
+      {resting > 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span>{resting} resting</span>
+          {onResting && (
+            <Button bare size="sm" tone="brass" onClick={onResting}>
+              go through them
+            </Button>
+          )}
+        </div>
+      )}
       {(decided.length > 0 || replies > 0) && (
         <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}

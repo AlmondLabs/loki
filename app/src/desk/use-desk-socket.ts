@@ -5,6 +5,7 @@ import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import { tokenProtocols } from "../../../core/ws-auth.ts";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
+import type { Rest } from "../../../core/attention/rest.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection } from "./use-desk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
@@ -77,6 +78,7 @@ export function useDeskSocket() {
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
+  const [restMap, setRestMap] = useState<Record<string, Rest>>({});
   /** Bumped when the mod says the task list changed (another tab, an agent's `tasks` tool call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
@@ -262,13 +264,15 @@ export function useDeskSocket() {
             break;
           }
           case "seen": {
-            const { seen, viewed, focus } = msg;
+            const { seen, viewed, focus, rests } = msg;
             // Every mark anywhere broadcasts the whole frame: a map it repeats keeps its object, so nothing re-renders on it.
             setSeenMap((m) => keepSame(m, seen));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
             if (viewed && typeof viewed === "object") setViewedMap((m) => keepSame(m, viewed));
             // A mod from before focus sends none: keep what we have.
             if (focus && typeof focus === "object") setFocusMap((m) => keepSame(m, focus));
+            // And one from before rests.
+            if (rests && typeof rests === "object") setRestMap((m) => keepSame(m, rests));
             break;
           }
           case "desk_title": {
@@ -384,6 +388,7 @@ export function useDeskSocket() {
     seenMap,
     viewedMap,
     focusMap,
+    restMap,
     tasksVersion,
     recallVersion,
     usageVersion,

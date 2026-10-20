@@ -271,7 +271,8 @@ Search button beside them:
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
    **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
-   it comes back on your next visit. Open chat opens the conversation full screen, whose actions sheet has
+   a chat with nothing new rests a while, longer each time (see "The order"), and once only resting chats are left
+   the Inbox says how many and offers **Go through them**. Open chat opens the conversation full screen, whose actions sheet has
    **Change folder** and **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
    the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
    been past every chat it says "You've been through every chat", how many still need you, and **Go through
@@ -536,7 +537,7 @@ recognition is available, so treat it like any other cloud dictation.
 A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
 is mid-turn, where there is nothing to do yet. The inbox icon on the rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and moves on: it stays in the inbox and comes back on your next visit in its place by score, or sooner in this visit if the agent says something new. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
+tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and moves on: a card with something new comes back in ten minutes, a card with nothing new rests longer each time (see "Next lets a stale card rest" below), and either comes back at once if the agent says something new. Once only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
 The header reads "n need you · m chats". Once you have been past every chat the deck says "You've been through
 every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing the inbox
 ends a visit; opening it again starts a fresh one.
@@ -612,7 +613,7 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 ### The order
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
-is in it, except one whose agent is mid-turn. The score is
+is in it, except one whose agent is mid-turn and one Next has rested (below). The score is
 `blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer; a reply that only reads like
 a question, ending in "?" or "let me know", counts until you have looked at it) `+ new ? 10 : 0` (the
 agent said something since you last looked) `+ 15 × focus`
@@ -627,17 +628,27 @@ something new.
 opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
 focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
 the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
-park. **Next** on a card that is there for its focus (it says `in focus`) halves that chat's weight: you have said
-it is not what you are on now, so it gives way after a skip or two. A Next straight after replying on the same
-card is moving on, not a skip, and leaves it alone. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
+park. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
 scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
 weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
+
+**Next lets a stale card rest.** A card with nothing new (no new message, no approval, no question) leaves the Inbox
+for a while when you press Next, and each further Next on it rests it three times longer: 10 minutes, 30, 1h30,
+4h30, 13h30, 1d16h, up to a week. A chat that has already been quiet longer rests at least that long again, so a
+chat quiet for two days stays away two more. A card with something new rests ten minutes and does not climb, and
+so does a Next straight after replying on the same card, which is moving on. An approval or a question never
+rests. Anything new in the chat ends the rest and starts the ladder over: the agent's next message, question or
+approval, and so whatever you send into the chat (from the card, the chat or the phone), which starts a turn.
+Opening or reading a chat does not: a card you read and set aside keeps resting. Undo puts the card back at once,
+on the rung it had. Once only resting cards are left, the Inbox says how many and offers to go through them. The
+Mac's loki process keeps the rests beside the focus weights (`rests` in `state/attention.json`), and paired Macs
+share them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
 
 Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
 badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
 finishing or blocking anywhere, the half-minute clock — and again whenever a card is popped, but the card in
 front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
-is the score, `core/attention/focus.ts` the focus.
+is the score, `core/attention/focus.ts` the focus, `core/attention/rest.ts` the rest.
 
 **What the ranking is tuned for: engagement.** Every card that comes to the top is logged (`inbox_card_shown`),
 and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which

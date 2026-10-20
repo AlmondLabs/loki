@@ -5,7 +5,7 @@ import { LabelChips } from "../chat/labels";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
-import { catchUpQueue, idOf } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/transcript";
 import { Conversation, Thread } from "../chat/conversation";
@@ -45,6 +45,7 @@ import {
   stackPose,
   summaryLine,
   swipeDecision,
+  throughResting,
   undoCard,
   unreadBoundary,
   type DeckState,
@@ -101,6 +102,10 @@ export interface Deck {
   hold: (item: AttentionItem) => void;
   /** A fresh visit: the cards moved past in this one come back. */
   again: () => void;
+  /** Go through the cards Next rested. */
+  restingToo: () => void;
+  /** Whether this visit goes through them already. */
+  resting: boolean;
 }
 
 /** The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight. */
@@ -125,6 +130,8 @@ export function useDeck(items: AttentionItem[]): Deck {
     undo: (item, via, wasHeld) => setState((s) => undoCard(s, item, via, wasHeld)),
     hold: (item) => setState((s) => holdCard(s, item)),
     again: () => setState(EMPTY_DECK),
+    restingToo: () => setState(throughResting),
+    resting: state.resting,
   };
 }
 
@@ -471,6 +478,8 @@ export function Inbox({
           running={running}
           passedOver={catchUpQueue(items).length}
           onAgain={deck.again}
+          resting={deck.resting ? 0 : restingCount(items)}
+          onResting={deck.restingToo}
           pass={deck.pass}
           backLabel={backLabel}
           onClose={onClose}
@@ -525,6 +534,8 @@ function EmptyDeck({
   running,
   passedOver,
   onAgain,
+  resting,
+  onResting,
   pass,
   backLabel,
   onClose,
@@ -536,6 +547,9 @@ function EmptyDeck({
   running: number;
   /** Chats this visit went past; the badge still counts the ones that need you. */ passedOver: number;
   onAgain: () => void;
+  /** Cards Next has rested, not due back yet (core/attention/rest.ts). */
+  resting: number;
+  onResting: () => void;
   pass: PassSummary;
   backLabel: string;
   onClose: () => void;
@@ -564,9 +578,13 @@ function EmptyDeck({
       ? "Cards come back when it reconnects; nothing in the Inbox is lost."
       : again
         ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
-        : running > 0
-          ? `${running} still running. They land here when they finish.`
-          : "Nothing is waiting on you.";
+        : resting > 0
+          ? resting === 1
+            ? "1 chat rests until it's due or something new comes."
+            : `${resting} chats rest until they're due or something new comes.`
+          : running > 0
+            ? `${running} still running. They land here when they finish.`
+            : "Nothing is waiting on you.";
   // The pass came to its end (or there was nothing to pass): the check springs in and what the pass did rises after it.
   const done = loaded && !macProblem;
   return (
@@ -587,6 +605,11 @@ function EmptyDeck({
               {again && (
                 <Button size="touch" tone="paper" onClick={onAgain}>
                   Go through again
+                </Button>
+              )}
+              {!again && resting > 0 && (
+                <Button size="touch" tone="paper" onClick={onResting}>
+                  Go through them
                 </Button>
               )}
               <Button size="touch" tone="paper" onClick={onClose}>

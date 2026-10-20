@@ -554,6 +554,21 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
     expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("moved on after acting 1 (not counted)");
   });
 
+  test("cards back from a rest are counted by the rung it left them on, and how many you engaged with", () => {
+    const now = Date.parse("2026-10-20T12:00:00Z");
+    const e = (minutesAgo: number, properties: Record<string, unknown>) =>
+      makeEvent("inbox_card_decided", "u", { $device_type: "mac", $lib: "loki", $session_id: "s", ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e(50, { action: "reply", desk: "a", rank: 1, reason: "other", rested: true, rung: 1 }),
+      e(48, { action: "next", desk: "b", rank: 1, reason: "other", rested: true, rung: 1 }),
+      e(47, { action: "next", desk: "c", rank: 1, reason: "other", rested: true, rung: 4 }),
+      e(46, { action: "next", desk: "d", rank: 1, reason: "other", rested: false, rung: 0 }),
+    ];
+    const r = analyticsReport(log, { now, days: 7 });
+    expect(Object.fromEntries(r.engagement.rested)).toEqual({ "1": { cards: 2, engaged: 1 }, "3+": { cards: 1, engaged: 0 } });
+    expect(formatAnalyticsReport(r)).toContain("back from rest 3 · engaged 33% · by rung 1 1/2 · 3+ 0/1");
+  });
+
   test("a request every window reports is written once; the once key is not", () => {
     const recorded: Array<[string, Record<string, unknown> | undefined]> = [];
     const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close: () => {} };

@@ -198,6 +198,8 @@ export interface AnalyticsReport {
     undone: number;
     /** Nexts straight after you acted on the same card (a reply leaves the card in place and → moves on): not skips, left out of the cards above. */
     movedOn: number;
+    /** Cards back from a rest that ended with nothing new (core/attention/rest.ts), by the rung it left them on, and how many you engaged with. */
+    rested: Array<[string, { cards: number; engaged: number }]>;
     /** Minutes from an agent's turn ending to your next reply, answer, decision or open in that chat (median). */
     respondMinutes: number | null;
     /** Minutes an approval or question waited for you (median). */
@@ -393,11 +395,13 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     byRank: [],
     undone: 0,
     movedOn: 0,
+    rested: [],
     respondMinutes: null,
     decideMinutes: null,
   };
   const engagedRanks: number[] = [];
   const byReason = new Map<string, { cards: number; engaged: number }>();
+  const byRung = new Map<string, { cards: number; engaged: number }>();
   const engagedChats = new Set<string>();
   const byRank = new Map<string, { shown: number; engaged: number }>(RANK_BUCKETS.map((b) => [b, { shown: 0, engaged: 0 }]));
   /** Each chat's latest showing at the top: its rank bucket, and whether it has been engaged with yet. */
@@ -502,6 +506,13 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
         }
       }
       byReason.set(reason, r);
+      if (p.rested === true) {
+        const rung = typeof p.rung === "number" && p.rung >= 3 ? "3+" : String(num(p.rung));
+        const slot = byRung.get(rung) ?? { cards: 0, engaged: 0 };
+        slot.cards++;
+        if (engaged) slot.engaged++;
+        byRung.set(rung, slot);
+      }
     }
     if (e.event === "inbox_pass_completed") {
       inbox.passes++;
@@ -520,6 +531,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   engagement.byReason = [...byReason.entries()].sort((a, b) => b[1].cards - a[1].cards);
   engagement.chats = engagedChats.size || null;
   engagement.byRank = engagement.shown ? [...byRank.entries()] : [];
+  engagement.rested = [...byRung.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   engagement.respondMinutes = median(respond);
   engagement.decideMinutes = median(decide);
   for (const row of rows.values()) row.sessions = eventSessions.get(row.event)?.size ?? 0;
@@ -607,6 +619,13 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
       out.push(
         `  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}${g.movedOn ? ` · moved on after acting ${g.movedOn} (not counted)` : ""}`,
       );
+  }
+  if (g.rested.length) {
+    const back = g.rested.reduce((n, [, v]) => n + v.cards, 0);
+    const engaged = g.rested.reduce((n, [, v]) => n + v.engaged, 0);
+    out.push(
+      `  back from rest ${back} · engaged ${pct(engaged, back)} · by rung ${g.rested.map(([rung, v]) => `${rung} ${v.engaged}/${v.cards}`).join(" · ")}`,
+    );
   }
   if (g.shown)
     out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);

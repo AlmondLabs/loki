@@ -92,6 +92,10 @@ agents' own `tags`), category, folder (a chat's working directory).
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
 list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
 
+**Rest** (`core/attention/rest.ts`, plan 026): how long an Inbox card stays out after Next. A card with nothing new
+rests longer each Next in a row (its **rung**), a card with something new ten minutes; anything new in the chat ends
+it. _Avoid_: snooze, later (the removed key that did this by hand).
+
 **Paired Mac** (`mod/peers.ts`, plan 023): another of the person's Macs running loki, paired with a code over the
 tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
 

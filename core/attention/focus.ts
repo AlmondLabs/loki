@@ -9,18 +9,15 @@
  *   share = w / (Σ w over every chat + FOCUS_CUSHION)
  *
  * The cushion is about two fresh replies: after a quiet week every share falls toward 0 instead of the one
- * chat with weight left taking the whole list. Next on a card shown for its focus halves that chat's weight
- * (SKIP_FACTOR): you have said it is not what you are on now, so it gives way after a skip or two rather than
- * keeping the top of the Inbox for hours while it fades. Only your actions count — never the agent's turns, never a
+ * chat with weight left taking the whole list. Focus only measures what you do; moving a card out of the way is
+ * Next's rest (rest.ts), not a cut in focus. Only your actions count — never the agent's turns, never a
  * scheduled prompt — so a busy cron cannot talk its way to the top. The mod keeps the weights (mod/seen.ts),
  * so the Mac and the phone rank the same.
  */
-export type FocusAction = "message" | "answer" | "decide" | "open" | "skip";
+export type FocusAction = "message" | "answer" | "decide" | "open";
 
-/** What each action adds: a message or an answer is engagement; a decision is half; opening and reading, a quarter. A skip adds nothing: it scales (SKIP_FACTOR). */
-export const FOCUS_WEIGHT: Record<FocusAction, number> = { message: 1, answer: 1, decide: 0.5, open: 0.25, skip: 0 };
-/** Next on a card shown for its focus keeps this much of the chat's weight. */
-export const SKIP_FACTOR = 0.5;
+/** What each action adds: a message or an answer is engagement; a decision is half; opening and reading, a quarter. */
+export const FOCUS_WEIGHT: Record<FocusAction, number> = { message: 1, answer: 1, decide: 0.5, open: 0.25 };
 /** Hours for a chat's focus weight to halve when you leave it alone. */
 export const FOCUS_HALF_LIFE_H = 12;
 /** Weight added to the sum of every chat's when taking shares, about two fresh replies, so a lone chat after a quiet week does not take the whole list. */
@@ -48,7 +45,6 @@ export function decayed(e: FocusEntry, now = Date.now()): number {
 /** The entry after one action at `now`; null when it adds nothing (a repeat open inside FOCUS_OPEN_GAP_MS). */
 export function addFocus(prev: FocusEntry | undefined, action: FocusAction, now = Date.now()): FocusEntry | null {
   if (action === "open" && prev && now - new Date(prev.t).getTime() < FOCUS_OPEN_GAP_MS) return null;
-  if (action === "skip") return prev ? { w: decayed(prev, now) * SKIP_FACTOR, t: new Date(now).toISOString() } : null;
   return { w: (prev ? decayed(prev, now) : 0) + FOCUS_WEIGHT[action], t: new Date(now).toISOString() };
 }
 
@@ -61,24 +57,12 @@ export function focusShares(entries: Record<string, FocusEntry>, now = Date.now(
 
 /**
  * Every Mac's focus for each chat as one (plan 023, U8): this Mac's entries plus each paired Mac's, faded to `now` and
- * added, as entries stamped `now`. A Next on any Mac (`skips`, when it was pressed) halves every weight from before it
- * once, on whichever Mac it was added.
+ * added, as entries stamped `now`.
  */
-export function combineFocus(
-  own: Record<string, FocusEntry>,
-  others: Array<Record<string, FocusEntry>>,
-  skips: Partial<Record<string, string>> = {},
-  now = Date.now(),
-): Record<string, FocusEntry> {
+export function combineFocus(own: Record<string, FocusEntry>, others: Array<Record<string, FocusEntry>>, now = Date.now()): Record<string, FocusEntry> {
   const t = new Date(now).toISOString();
   const sum = new Map<string, number>();
-  // An entry from before a Next is halved once; the Mac that pressed it already halved its own, stamped then.
-  for (const map of [own, ...others])
-    for (const [key, e] of Object.entries(map)) {
-      const skip = skips[key];
-      const skipped = skip !== undefined && skip > e.t;
-      sum.set(key, (sum.get(key) ?? 0) + decayed(e, now) * (skipped ? SKIP_FACTOR : 1));
-    }
+  for (const map of [own, ...others]) for (const [key, e] of Object.entries(map)) sum.set(key, (sum.get(key) ?? 0) + decayed(e, now));
   return Object.fromEntries([...sum].map(([key, w]) => [key, { w, t }]));
 }
 
