@@ -1,4 +1,6 @@
-import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { labelQuery, toggleLabelTerm, type LabelView } from "../../../core/labels.ts";
+import { labelColor } from "../chat/labels";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../shared/ago";
@@ -16,7 +18,7 @@ import { Icon, type IconName } from "./icons";
 import { homeCounts, homeDeskSections, homeSections, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
 import type { Me } from "./pair";
 import { navigate, type Route } from "./router";
-import { Avatar, PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
+import { PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
 import { RenameSheet } from "./rename-sheet";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-folders";
@@ -66,6 +68,7 @@ export function Home({
   recentFolders,
   onCreate,
   homes,
+  labelList = null,
 }: {
   me: Me;
   link: LinkState;
@@ -82,6 +85,8 @@ export function Home({
   onRefresh: () => void;
   /** Where each agent lives, once Macs are paired (the Mac's homesOf): its section names the Mac, and a chat away from it is marked. */
   homes?: Homes;
+  /** Every label with its colour (plan 022), for Home's filter: the menu's chips and the pills. */
+  labelList?: LabelView[] | null;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
   /** Null while the daemon cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
@@ -123,7 +128,7 @@ export function Home({
       {/* Rows glide when the arrangement changes under you; not while a filter is typed (nothing moves for the keyboard). */}
       <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(sections.attention, sections.more, groups, folded)}>
         <ShortcutRail counts={counts} />
-        <FilterPills query={query} onClearQuery={() => setQuery("")} />
+        <FilterPills query={query} labelList={labelList} onQuery={setQuery} />
 
         <AttentionSection attention={sections.attention} more={sections.more} waiting={counts.inbox} />
         <DeskSections
@@ -146,7 +151,9 @@ export function Home({
         <Icon name="compose" size={24} />
       </button>
 
-      {sheet === "menu" && <HomeMenu query={query} onQuery={setQuery} onRefresh={() => (onRefresh(), setSheet(null))} onClose={() => setSheet(null)} />}
+      {sheet === "menu" && (
+        <HomeMenu query={query} labelList={labelList} onQuery={setQuery} onRefresh={() => (onRefresh(), setSheet(null))} onClose={() => setSheet(null)} />
+      )}
       {sheet === "new" && <NewSheet agents={chips} defaultAgentId={null} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(null)} />}
       {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onRename={onRename} onClose={() => setActing(null)} />}
     </div>
@@ -175,13 +182,16 @@ function saveFolds(folded: string[]): void {
   }
 }
 
-/** The filter in force, as a pill that clears it; nothing while none is on. */
-function FilterPills({ query, onClearQuery }: { query: string; onClearQuery: () => void }) {
-  const q = query.trim();
-  if (!q) return null;
+/** The filter in force: a pill per label (in its colour) and one for the words, each clearing only itself; nothing while none is on. */
+function FilterPills({ query, labelList, onQuery }: { query: string; labelList: LabelView[] | null; onQuery: (q: string) => void }) {
+  const { labels, text } = labelQuery(query);
+  if (!labels.length && !text) return null;
   return (
     <div className="loki-phone-pills" role="group" aria-label="filters on">
-      <FilterPill label={`\u201c${q}\u201d`} onClear={onClearQuery} />
+      {labels.map((l) => (
+        <FilterPill key={l} label={l} tone={labelColor(l, labelList)} onClear={() => onQuery(toggleLabelTerm(query, l))} />
+      ))}
+      {text && <FilterPill label={`\u201c${text}\u201d`} onClear={() => onQuery(labels.map((l) => `label:${l}`).join(" "))} />}
     </div>
   );
 }
@@ -236,7 +246,6 @@ function AttentionSection({ attention, more, waiting }: { attention: HomeAttenti
               data-launch="home:inbox-more"
               onClick={() => navigate({ kind: "tab", tab: "inbox" })}
             >
-              <RowIcon name="inbox" />
               <span className="loki-phone-row-copy loki-phone-link">{more} more in Inbox</span>
             </button>
           </li>
@@ -410,10 +419,11 @@ function ShortcutRail({ counts }: { counts: HomeCounts }) {
 }
 
 /** An active filter, said out loud, with the × that clears it. */
-function FilterPill({ label, onClear }: { label: string; onClear: () => void }) {
+function FilterPill({ label, tone, onClear }: { label: string; /** A label's colour, for its dot. */ tone?: string; onClear: () => void }) {
   return (
     <button type="button" className="loki-phone-pill" aria-label={`Clear filter ${label}`} onClick={onClear}>
       <span className="loki-phone-pill-face">
+        {tone && <span aria-hidden className="loki-label-dot" style={{ "--label-tone": tone } as CSSProperties} />}
         <span className="loki-phone-ellipsis">{label}</span>
         <Icon name="close" size={14} />
       </span>
@@ -421,18 +431,22 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
   );
 }
 
-/** A waiting conversation: the agent's face, the desk's name (else the item's), agent · what it waits on, the time, a dot when unread. */
+/**
+ * A waiting conversation, one line as every chat row is (plan 028): the desk's name (else the item's), its agent after
+ * it since the section mixes agents, and on the right the count while it waits on you, else the time.
+ */
 function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
   const title = desk?.title ?? item.title ?? "new chat";
   const word = BADGE[item.status].label;
+  const row = deskRowState(item, desk ?? { status: "live" });
   return (
     <PhoneRow
-      lead={<Avatar name={item.agent_name} src={avatarUrl(item.agent_id)} />}
       title={title}
-      preview={`${item.agent_name ?? "agent"} · ${word}`}
+      flags={<span className="loki-phone-row-agent">· {item.agent_name ?? "agent"}</span>}
       time={ago(item.last_message_at)}
-      badge={item.unread || item.status === "approval" || item.status === "question"}
-      unread
+      badge={row.badge}
+      live={row.live}
+      unread={row.unread}
       label={`${title}, ${item.agent_name ?? "agent"}, ${word}`}
       launch={`attention:${item.agent_id}/${item.id}`}
       flip={`conv:${item.agent_id}/${item.id}`}
@@ -601,7 +615,20 @@ export function SheetRow({
  * Home's menu: the filter that used to sit over the list (desks group by agent below, as on the desktop, so
  * there is no agent scope), then a refresh and the archive (New desk is the compose button over the list). The filter applies as you type, so closing the sheet shows the narrowed list at once.
  */
-function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQuery: (q: string) => void; onRefresh: () => void; onClose: () => void }) {
+function HomeMenu({
+  query,
+  labelList,
+  onQuery,
+  onRefresh,
+  onClose,
+}: {
+  query: string;
+  labelList: LabelView[] | null;
+  onQuery: (q: string) => void;
+  onRefresh: () => void;
+  onClose: () => void;
+}) {
+  const on = labelQuery(query).labels;
   return (
     <Sheet label="Home menu" onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <Field
@@ -621,6 +648,25 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
         data-1p-ignore
         data-form-type="other"
       />
+      {/* Every label, in its colour: a tap adds it to the filter (label:name, as on the Mac), a second takes it out. */}
+      {!!labelList?.length && (
+        <div className="loki-phone-pills" role="group" aria-label="Labels">
+          {labelList.map((l) => (
+            <button
+              key={l.name}
+              type="button"
+              className="loki-phone-pill"
+              aria-pressed={on.includes(l.name)}
+              onClick={() => onQuery(toggleLabelTerm(query, l.name))}
+            >
+              <span className="loki-phone-pill-face">
+                <span aria-hidden className="loki-label-dot" style={{ "--label-tone": labelColor(l.name, labelList) } as CSSProperties} />
+                <span className="loki-phone-ellipsis">{l.name}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       <ul className="loki-phone-list">
         <SheetRow icon="refresh" label="Refresh chats" onClick={onRefresh} />
         <SheetRow icon="archive" label="Archived chats" onClick={() => (onClose(), navigate({ kind: "archive" }))} />

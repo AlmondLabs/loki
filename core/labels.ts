@@ -49,3 +49,13 @@ export function labelQuery(raw: string): { labels: string[]; text: string } {
   }
   return { labels, text: words.join(" ") };
 }
+
+/**
+ * The query with the label `name` taken out when it is in force, else added (the phone's label chips, plan 028): the
+ * other terms and the words keep their order.
+ */
+export function toggleLabelTerm(raw: string, name: string): string {
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  const on = words.filter((w) => /^label:/i.test(w) && labelName(w.slice(6)) === name);
+  return (on.length ? words.filter((w) => !on.includes(w)) : [...words, `label:${name}`]).join(" ");
+}

@@ -5,6 +5,7 @@ import { ListRow, ListSection } from "../app/src/components/index.tsx";
 import { DeskRow } from "../app/src/phone/home.tsx";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { attentionItem } from "./fixtures/attention.ts";
+import { toggleLabelTerm } from "../core/labels.ts";
 
 /**
  * Chat rows the same on the Mac and the phone (plan 027): no lead, one line, and on the right the count while
@@ -62,5 +63,14 @@ describe("the phone's chat list", () => {
     const homes = { here: BOOK, of: () => ({ mac: BOOK, name: "MacBook" }) };
     const away = html(createElement(DeskRow, { desk: desk({ home: MINI, home_name: "Mac mini" }), mark: undefined, onActions: null, homes }));
     expect(away).toContain('title="lives on Mac mini, away from its agent');
+  });
+});
+
+describe("Home's label chips (plan 028)", () => {
+  test("a chip adds its label to the filter, and a second tap takes it out, the rest kept in order", () => {
+    expect(toggleLabelTerm("", "long")).toBe("label:long");
+    expect(toggleLabelTerm("deploy", "long")).toBe("deploy label:long");
+    expect(toggleLabelTerm("label:long deploy label:infra", "long")).toBe("deploy label:infra");
+    expect(toggleLabelTerm("label:Long", "long")).toBe("");
   });
 });

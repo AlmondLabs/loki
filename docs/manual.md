@@ -115,7 +115,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
   the first match or makes the label when none matches. A chat's header and its Inbox card show its labels as chips;
   the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
-  (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions.
+  (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions, and Home's menu lists every label: a tap filters Home to it, as
+  `label:` does on the Mac, and a second tap takes it off.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
@@ -263,7 +264,8 @@ Settings is asked for one more time; it stays valid ten minutes). From then on t
 float in a capsule at the bottom — Home, Inbox, Agents, More, the Inbox carrying the waiting count — with a round
 Search button beside them:
 
-1. **Home**: the loki header (its menu holds the filter, **Refresh chats** and **Archived chats**), a row of
+1. **Home**: the loki header (its menu holds the filter, every label as a chip to filter by, **Refresh chats** and
+   **Archived chats**; what filters the list shows as pills over it, each clearing itself), a row of
    shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
    Inbox queue — then **Chats**, pinned first. A long press on a chat (or its actions button) opens its actions sheet: pin,
    **Rename** or archive. The round compose button at the bottom right starts a new chat: pick the agent, a name if

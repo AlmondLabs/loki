@@ -8,6 +8,7 @@
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
+import { labelQuery } from "../../../core/labels.ts";
 
 import { archivedDesks, liveDesks } from "../shell/desk-tree";
 import { sidebarModel, type SidebarSection } from "../shell/sidebar-model";
@@ -426,7 +427,9 @@ export function homeSections(
   query: string,
   max = HOME_ATTENTION_MAX,
 ): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
-  const q = norm(query);
+  // `label:` terms keep the chats with every label named; the words left match names and agents (plan 028).
+  const { labels, text } = labelQuery(query);
+  const q = norm(text);
   const byKey = new Map<string, DeskSummary>();
   for (const d of desks) if (d.agent_id && d.conversation_id) byKey.set(`${d.agent_id}/${d.conversation_id}`, d);
   const waiting = catchUpQueue(items)
@@ -434,6 +437,7 @@ export function homeSections(
     .filter(
       ({ item, desk }) =>
         (!agentFilter || item.agent_id === agentFilter) &&
+        labels.every((l) => (item.labels ?? desk?.labels ?? []).includes(l)) &&
         (!q || [desk?.title, item.title, item.agent_name ?? desk?.agent_name].some((s) => (s ?? "").toLowerCase().includes(q))),
     );
   const attention = waiting.slice(0, max);
