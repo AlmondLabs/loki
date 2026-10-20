@@ -1090,6 +1090,20 @@ html:has(.loki-phone-shell) {
   font-size: var(--phone-text-meta);
   font-weight: var(--phone-weight-strong);
 }
+/* In a sheet, the pills line up with its field: the sheet has its own gutter. */
+.loki-phone-sheet .loki-phone-pills {
+  padding: 0;
+}
+/* A label not in force, in Home's menu: outlined, not filled (plan 028). */
+.loki-phone-pill[aria-pressed="false"] .loki-phone-pill-face {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--loki-border);
+  font-weight: 400;
+}
+.loki-phone-pill .loki-label-dot {
+  width: 8px;
+  height: 8px;
+}
 
 /* ---- Sections and rows (rows.tsx) ---------------------------------------------------------------- */
 .loki-phone-section {
@@ -3170,6 +3184,12 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   font-size: var(--phone-text-body);
 }
 
+/* Whose chat it is, after its name, where a section mixes agents (Needs your attention). */
+.loki-phone-row-agent {
+  flex: none;
+  font-weight: 400;
+  color: var(--loki-muted);
+}
 /* A one-line row (a chat): a touch tall, as the Mac's sidebar row is one line, its time on the line. */
 .loki-phone-row:not(:has(.loki-phone-row-preview)) {
   min-height: var(--phone-touch);

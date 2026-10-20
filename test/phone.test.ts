@@ -423,6 +423,16 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     expect(typed.desks).toEqual([]);
     expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
   });
+  test("label: terms narrow the attention list too: every label named, then the words (plan 028)", () => {
+    const labelled = [
+      item({ id: "c1", status: "approval", labels: ["long"] }),
+      item({ id: "c9", agent_id: "a2", agent_name: "jira", status: "question", title: "Main chat" }),
+    ];
+    expect(homeSections(desks, labelled, null, "label:long").attention.map((a) => a.item.id)).toEqual(["c1"]);
+    expect(homeSections(desks, labelled, null, "label:long label:short").attention).toEqual([]);
+    expect(homeSections(desks, labelled, null, "label:long loki").attention.map((a) => a.item.id)).toEqual(["c1"]);
+    expect(homeSections(desks, labelled, null, "label:long main").attention).toEqual([]);
+  });
   test("the archive list: no shared sheet, the agent scope and the filter apply", () => {
     expect(archiveList(desks, null, "").map((d) => d.conversation_id)).toEqual(["c4", "c5"]);
     expect(archiveList(desks, "a2", "").map((d) => d.conversation_id)).toEqual(["c5"]);

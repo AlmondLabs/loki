@@ -80,7 +80,7 @@ export interface RowState {
 }
 
 /** What a chat's row shows, from its Inbox item and its status (see `RowState`). */
-export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): RowState {
+export function deskRowState(item: AttentionItem | undefined, d: Pick<DeskSummary, "status">): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
   const finished = mark.kind === "finished";

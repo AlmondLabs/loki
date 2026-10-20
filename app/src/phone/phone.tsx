@@ -643,6 +643,7 @@ function Screen({
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
         homes={homesOf(desk.macs.view, catchUp.agents)}
+        labelList={catchUp.labels.list}
       />
       <Inbox
         hidden={tab !== "inbox"}
