@@ -516,7 +516,12 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
 
 - **Images** (PNG, JPEG, GIF, WebP, HEIC) show as a thumbnail above the box, with × to remove; send puts them
   inside the message as base64 image parts, so the agent sees them at once. Large images are shrunk to 1600px on
-  the long edge before sending.
+  the long edge before sending. The picture shows on your message in every window, after a reload too, on the Mac
+  the chat lives on and the phone: the daemon keeps a copy of each in `~/.loki/chat-images/`, named by its content,
+  and a Mac showing a chat that lives on another asks that Mac for its pictures.
+- **Images the agent looks at** with its `view_image` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
+  the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
+  file go as they are, and so does every image on Windows and Linux.
 - **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
   `~/.loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
   its name and the upload's progress; send waits until it is there. × before sending deletes it again. The message

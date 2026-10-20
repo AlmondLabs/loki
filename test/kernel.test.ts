@@ -52,7 +52,7 @@ describe("agent store", () => {
       expect([...lines.keys()]).toEqual([1, 2, 3, 4, 5, 6]);
 
       const imported = await store.entries(chat, ctx);
-      expect(foldSteps(imported.flatMap(entrySteps))).toEqual(foldSteps(converted.flatMap(entrySteps)));
+      expect(foldSteps(imported.flatMap((e) => entrySteps(e)))).toEqual(foldSteps(converted.flatMap((e) => entrySteps(e))));
 
       faux.setResponses([reply("You are welcome.")]);
       const submission = await chat.submit({ type: "input", content: "One more thing", requestId: "r1" }, ctx);
@@ -66,7 +66,7 @@ describe("agent store", () => {
       expect(request).toContain("One more thing");
       expect(request).not.toContain("What is in the readme?");
 
-      const after = foldSteps((await store.entries(chat, ctx)).flatMap(entrySteps));
+      const after = foldSteps((await store.entries(chat, ctx)).flatMap((e) => entrySteps(e)));
       expect(after.at(-1)).toMatchObject({ role: "assistant", text: "You are welcome." });
     } finally {
       await store.close(ctx);
@@ -84,7 +84,7 @@ describe("agent store", () => {
         assistantLine("y", "a", "2026-10-01T10:00:03.000Z", "kept answer"),
       ]);
       await store.importEntries(chat, lettaLogEntries(text), ctx);
-      const rows = foldSteps((await store.entries(chat, ctx)).flatMap(entrySteps)).map((r) => r.text);
+      const rows = foldSteps((await store.entries(chat, ctx)).flatMap((e) => entrySteps(e))).map((r) => r.text);
       expect(rows).toEqual(["first try", "abandoned answer", "kept answer"]);
       faux.setResponses([reply("ok")]);
       await (await chat.submit({ type: "input", content: "next" }, ctx)).wait(ctx);
@@ -125,8 +125,8 @@ describe("agent store", () => {
         chatB.submit({ type: "input", content: "question B" }, ctx),
       ]);
       await Promise.all([sa.wait(ctx), sb.wait(ctx)]);
-      const rowsA = foldSteps((await a.store.entries(chatA, ctx)).flatMap(entrySteps)).map((r) => r.text);
-      const rowsB = foldSteps((await b.store.entries(chatB, ctx)).flatMap(entrySteps)).map((r) => r.text);
+      const rowsA = foldSteps((await a.store.entries(chatA, ctx)).flatMap((e) => entrySteps(e))).map((r) => r.text);
+      const rowsB = foldSteps((await b.store.entries(chatB, ctx)).flatMap((e) => entrySteps(e))).map((r) => r.text);
       expect(rowsA).toEqual(["question A", "answer A"]);
       expect(rowsB).toEqual(["question B", "answer B"]);
     } finally {

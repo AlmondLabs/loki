@@ -38,7 +38,8 @@ import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import type { UsageDeps } from "./frames/usage.ts";
 import { join } from "node:path";
-import { attachWs, oauthCallbackRoute, startServer, type LokiServer, type WsBridge } from "./server.ts";
+import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer, type WsBridge } from "./server.ts";
+import { chatImageRoute } from "./chat-images.ts";
 import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
@@ -611,6 +612,15 @@ export default function activate(api: ModApi, host: Host): () => void {
     capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     route: router,
   });
+  /** A picture not here, from whichever paired Mac in reach holds it (plan 029): the chat it is in lives there. */
+  const chatImageFromPeers = async (name: string): Promise<Buffer | null> => {
+    for (const p of peerStore.list()) {
+      if (!links.reachable(p.mac_id)) continue;
+      const data = await peers.chatImage(p.mac_id, name);
+      if (data) return data;
+    }
+    return null;
+  };
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
     starting ??= startServer({
@@ -619,7 +629,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       profile: (agentId) => profilePath(agentId),
       uploads: paths.uploads,
       // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
-      routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params))],
+      routes: [
+        oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params)),
+        chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
+      ],
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then(async (s) => {
       if (stopped) {
@@ -660,6 +673,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     desktopToken: token,
     profile: (agentId) => profilePath(agentId),
     uploads: paths.uploads,
+    chatImages: { dir: paths.chatImages, fetchRemote: chatImageFromPeers },
     peers,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
     // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they

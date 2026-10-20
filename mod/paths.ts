@@ -26,6 +26,8 @@ export const paths = {
   data: lokiDir(),
   /** Files attached to messages (mod/uploads.ts): <uploads>/<chat>/<name>, read by the agent from there. */
   uploads: process.env.LOKI_UPLOADS_DIR ?? join(lokiDir(), "uploads"),
+  /** The pictures in the person's messages, as the daemon writes them (daemon/chat-images.ts, plan 029). */
+  chatImages: join(lokiDir(), "chat-images"),
   state: stateDir,
   /** The phone listener's setting ({ enabled }) and its paired devices (mod/lan.ts, mod/devices.ts). */
   lan: join(stateDir, "lan.json"),

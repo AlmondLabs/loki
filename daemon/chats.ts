@@ -3,7 +3,7 @@ import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
-import { entrySteps, messageAt, type PiMessage } from "../core/attention/pi-steps.ts";
+import { entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
@@ -54,9 +54,9 @@ function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMe
   return undefined;
 }
 
-function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">): Kept {
+function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: ImageNamer): Kept {
   if (entry.kind === "pi.compaction") return { steps: [], role: null, text: "", at: null, compaction: true };
-  const steps = entrySteps(entry);
+  const steps = entrySteps(entry, nameImage);
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
   const text = contentText(message.content).trim();
@@ -85,9 +85,13 @@ export class ChatProjection implements ChatSource {
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
 
-  constructor(context: Context, agentName: (agentId: string) => string | null) {
+  /** Keeps a user message's pictures as files a window loads (daemon/chat-images.ts, plan 029). */
+  private readonly nameImage?: ImageNamer;
+
+  constructor(context: Context, agentName: (agentId: string) => string | null, nameImage?: ImageNamer) {
     this.context = context;
     this.agentName = agentName;
+    this.nameImage = nameImage;
   }
 
   /** Follow every store `stores` opens, now and after a reopen. */
@@ -130,7 +134,7 @@ export class ChatProjection implements ChatSource {
           conversationId,
           info: info ?? null,
           settings: settings ?? {},
-          entries: entries.map(keep),
+          entries: entries.map((e) => keep(e, this.nameImage)),
           lastId: entries.at(-1)?.id ?? 0,
         });
       }),
@@ -199,7 +203,7 @@ export class ChatProjection implements ChatSource {
     for (const entry of entries) {
       const chat = this.byConversation(agentId, entry.conversationId);
       if (!chat || entry.id <= chat.lastId) continue;
-      const kept = keep(entry);
+      const kept = keep(entry, this.nameImage);
       chat.entries.push(kept);
       chat.lastId = entry.id;
       const kind = entry.kind === "pi.compaction" ? "compaction" : kept.role === "assistant" ? "answer" : null;

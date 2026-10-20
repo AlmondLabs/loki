@@ -143,6 +143,15 @@ export function messageFiles(text: string): FileRef[] {
   return out;
 }
 
+/** The pictures in a message's content, as the model got them: base64 data and its type (plan 029). */
+export function contentImages(content: unknown): Array<{ data: string; mimeType: string }> {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((p) => {
+    const part = p as { type?: unknown; data?: unknown; mimeType?: unknown } | null;
+    return part?.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string" ? [{ data: part.data, mimeType: part.mimeType }] : [];
+  });
+}
+
 /**
  * A message's text as a thread shows it, the same from every source: its text parts a line each, and an "[image]"
  * line where it carried a picture (the local log's own rendering; the bubble shows the picture when it has it).

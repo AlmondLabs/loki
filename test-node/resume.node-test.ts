@@ -87,7 +87,7 @@ void test("a tool that is not replay-safe, killed mid-call, is reported to the m
     const result = entries.find((e) => e.kind === "pi.tool-result");
     assert.ok(result, "a tool result was written");
     assert.match(JSON.stringify(result.model), /interrupted/i);
-    assert.equal(foldSteps(entries.flatMap(entrySteps)).at(-1)?.text, "the wait was interrupted");
+    assert.equal(foldSteps(entries.flatMap((e) => entrySteps(e))).at(-1)?.text, "the wait was interrupted");
     await store.close(ctx);
   } finally {
     rmSync(dir, { recursive: true, force: true });

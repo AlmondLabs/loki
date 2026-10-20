@@ -6,6 +6,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { withKind } from "./tool-kinds.ts";
+import { shrinkImage } from "./image-shrink.ts";
 
 /**
  * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `view_image`, beside its own
@@ -73,8 +74,12 @@ const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 
-/** The file tools above (`ls`, `find`, `grep`, `view_image`), as one extension every chat selects. */
-export function fileToolsExtension(): Extension {
+/**
+ * The file tools above (`ls`, `find`, `grep`, `view_image`), as one extension every chat selects. `shrink` makes an
+ * image the size it is kept at (daemon/image-shrink.ts); tests pass their own.
+ */
+export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: string) => Promise<{ data: Buffer; mimeType: string }> } = {}): Extension {
+  const shrink = opts.shrink ?? shrinkImage;
   return defineExtension({
     name: "loki.files",
     tools: [
@@ -178,7 +183,9 @@ export function fileToolsExtension(): Extension {
             const mimeType = IMAGE_TYPES[extname(file).toLowerCase()];
             if (!mimeType) throw new Error("not an image this tool can show");
             if (!existsSync(file)) throw new Error(`no such file: ${file}`);
-            return { content: [{ type: "image", data: (await readFile(file)).toString("base64"), mimeType }] };
+            // Shrunk as a pasted image is: the result is kept in the chat's store for good (plan 029).
+            const image = await shrink(file, mimeType);
+            return { content: [{ type: "image", data: image.data.toString("base64"), mimeType: image.mimeType }] };
           },
         }),
       ),

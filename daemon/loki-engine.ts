@@ -3,6 +3,7 @@ import type { Models } from "@earendil-works/pi-ai/models";
 import { LiveDoc, watchEvents, type AgentEventStream, type Conversation } from "@earendil-works/pi-durable";
 import { existsSync } from "node:fs";
 import type { ChatEvent } from "../core/attention/model.ts";
+import type { ImageNamer } from "../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -46,6 +47,8 @@ export class LokiEngine implements Engine {
     backendDir: string;
     context: Context;
     push: (agentId: string, conversationId: string, events: ChatEvent[]) => void;
+    /** Keeps the person's pictures as files a window loads (plan 029). */
+    nameImage?: ImageNamer;
   };
   private readonly following = new Map<string, Promise<AgentEventStream>>();
   /** Each followed chat's event converter, which knows the answer in flight (open hands it to a late client). */
@@ -169,7 +172,7 @@ export class LokiEngine implements Engine {
   /** Push every event of a chat from now on. */
   private async follow({ store, chat, agentId, conversationId }: EngineChat): Promise<AgentEventStream> {
     const stream = await watchEvents(store.harness, chat.id, this.deps.context);
-    const converter = new ChatEventConverter(agentId);
+    const converter = new ChatEventConverter(agentId, this.deps.nameImage);
     this.converters.set(keyOf(agentId, conversationId), converter);
     stream.start(async (batch) => {
       const events = batch.flatMap((ev) => converter.convert(ev));

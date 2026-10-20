@@ -6,6 +6,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, un
 import { basename, join } from "node:path";
 import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
+import type { ImageNamer } from "../core/attention/pi-steps.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
@@ -56,6 +57,8 @@ interface Deps {
   acp?: AcpChats;
   /** Where each label's colour is kept (`state/labels.json`, plan 022); absent, only while the daemon runs. */
   labelsFile?: string;
+  /** Keeps the person's pictures as files a window loads (daemon/chat-images.ts, plan 029); absent in tests that need none. */
+  nameImage?: ImageNamer;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
   backendDir: string;
   context: Context;

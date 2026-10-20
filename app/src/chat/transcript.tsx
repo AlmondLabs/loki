@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
-import { inTauri } from "../desk/env";
+import { chatImageUrl, inTauri } from "../desk/env";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/agent-chip";
@@ -682,7 +682,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
           {m.images.map((src, k) => (
             <img
               key={k}
-              src={src}
+              src={chatImageUrl(src)}
               alt=""
               style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }}
             />

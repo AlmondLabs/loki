@@ -17,6 +17,7 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
+import { ChatImages } from "./chat-images.ts";
 import { Approvals, kindOf } from "./approvals.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
@@ -131,7 +132,10 @@ for (const extension of builtins) mods.registry.install(extension);
 // The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
 const installId = deviceIdIn(join(args.dir, "state", "device-id"));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, installId);
-const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
+// The person's pictures as files a window loads (plan 029), named as each message is read.
+const chatImages = new ChatImages(join(args.dir, "chat-images"));
+const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
+const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
@@ -240,6 +244,7 @@ const chat: DaemonChats = new DaemonChats({
   models,
   acp,
   labelsFile: join(paths.state, "labels.json"),
+  nameImage,
   backendDir: backend,
   context,
   report,

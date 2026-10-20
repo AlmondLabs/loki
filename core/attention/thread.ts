@@ -11,8 +11,11 @@ import type { FileRef, TranscriptRow } from "./transcript.ts";
 
 /** One thing the harness reported, in the shape every source is parsed into. `at` is when it was written, null when unknown. */
 export type Step =
-  /** A user message as written: harness markup in it becomes event rows, the rest the bubble. */
-  | { kind: "user"; raw: string; at: string | null }
+  /**
+   * A user message as written: harness markup in it becomes event rows, the rest the bubble. `images` names its
+   * pictures as the mod serves them (plan 029, `/chat-images/<name>`), when the source kept them.
+   */
+  | { kind: "user"; raw: string; at: string | null; images?: string[] }
   /** The agent's words: a whole message from history, or a streamed piece of the reply (`chunk`). */
   | { kind: "assistant"; text: string; at: string | null; chunk?: boolean }
   /** A tool call; the same id again carries more of its arguments as they stream in. */
@@ -134,7 +137,7 @@ export class ThreadModel {
   apply(step: Step): { changed: boolean; spoke: string | null } {
     switch (step.kind) {
       case "user":
-        return this.user(step.raw, step.at);
+        return this.user(step.raw, step.at, step.images);
       case "assistant":
         if (step.chunk) {
           if (!step.text) return { changed: false, spoke: null };
@@ -367,18 +370,20 @@ export class ThreadModel {
     return copy;
   }
 
-  private user(raw: string, at: string | null): { changed: boolean; spoke: string | null } {
+  private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
     // Harness machinery in the message (desk activity, a loaded skill, a task result) is its own quiet row.
     const events = extractHarnessEvents(raw);
     for (const ev of events) this.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...rowAt(at) });
-    const text = stripHarnessMarkup(raw).trim();
+    const typed = stripHarnessMarkup(raw).trim();
+    // With the pictures in hand, the "[image]" lines that stood for them go: the bubble shows them instead.
+    const text = images.length ? withoutImageMarks(typed) : typed;
     const files = messageFiles(raw);
-    if (!text && !files.length) return { changed: events.length > 0, spoke: null };
+    if (!text && !files.length && !images.length) return { changed: events.length > 0, spoke: null };
     this.settle(at);
     const own = this.echoes.indexOf(ownSendKey(withoutImageMarks(text), files));
     if (own >= 0)
       this.echoes.splice(own, 1); // shown when it was sent
-    else this.push({ role: "user", text, ...rowAt(at), ...(files.length ? { files } : {}) });
+    else this.push({ role: "user", text, ...rowAt(at), ...(files.length ? { files } : {}), ...(images.length ? { images: [...images] } : {}) });
     return { changed: true, spoke: text };
   }
 

@@ -205,7 +205,7 @@ describe("importing from Letta", () => {
       );
       expect(existsSync(join(p.backendDir, "memfs", HELPER))).toBe(false);
       const ada = await rows(stores, A, "default");
-      expect(foldSteps(ada.entries.flatMap(entrySteps)).map((r) => r.text)).toEqual(["hi", "hello"]);
+      expect(foldSteps(ada.entries.flatMap((e) => entrySteps(e))).map((r) => r.text)).toEqual(["hi", "hello"]);
       expect(((await ada.store.agentSettings(ada.chat.id, ctx)) as { cwd?: string } | undefined)?.cwd).toBe("/work/ada"); // the desktop's folder wins over the log's
       const long = await rows(stores, A, "local-conv-long");
       const info = await long.store.chatInfo(long.chat.id, ctx);
@@ -230,7 +230,7 @@ describe("importing from Letta", () => {
       expect(compaction.head).toBe(entries[2].id);
       // Letta-era Learn's file is only read.
       expect((JSON.parse(readFileSync(paths().recallWorkerFile, "utf8")) as { cursors: Record<string, unknown> }).cursors[`${A}/local-conv-long`]).toBe(6);
-      expect(foldSteps(entries.slice(5).flatMap(entrySteps)).map((r) => r.text)).toEqual(["third", "three"]);
+      expect(foldSteps(entries.slice(5).flatMap((e) => entrySteps(e))).map((r) => r.text)).toEqual(["third", "three"]);
     } finally {
       await stores.closeAll();
     }

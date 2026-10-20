@@ -27,7 +27,7 @@ describe("Letta log conversion", () => {
   test("a converted log folds into the same rows the mod shows from the log itself", () => {
     const text = sampleLog();
     const converted = lettaLogEntries(text);
-    expect(foldSteps(converted.flatMap(entrySteps))).toEqual(rowsFromDisk(text));
+    expect(foldSteps(converted.flatMap((e) => entrySteps(e)))).toEqual(rowsFromDisk(text));
   });
 
   test("entries keep their order and kinds; the compaction heads the entry it keeps, wrapped as pi-durable wraps it", () => {
@@ -80,7 +80,7 @@ describe("Letta log conversion", () => {
       ["d", "pi.assistant"],
     ]);
     expect(converted[1].model).toBeUndefined();
-    expect(foldSteps(converted.flatMap(entrySteps))).toEqual(rowsFromDisk(text));
+    expect(foldSteps(converted.flatMap((e) => entrySteps(e)))).toEqual(rowsFromDisk(text));
   });
 
   test("a compaction whose kept entry is not on the path is left out", () => {
