@@ -1123,6 +1123,10 @@ span.loki-phone-section-btn {
   font-weight: var(--phone-weight-heavy);
   line-height: var(--phone-leading-tight);
 }
+.loki-phone-section-aside {
+  font-weight: 400;
+  color: var(--loki-muted);
+}
 .loki-phone-section-count {
   font-size: var(--phone-text-meta);
   color: var(--loki-muted);
@@ -3164,4 +3168,23 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 }
 .loki-phone .loki-inline-widget-note {
   font-size: var(--phone-text-body);
+}
+
+/* A one-line row (a chat): a touch tall, as the Mac's sidebar row is one line, its time on the line. */
+.loki-phone-row:not(:has(.loki-phone-row-preview)) {
+  min-height: var(--phone-touch);
+}
+.loki-phone-row:not(:has(.loki-phone-row-preview)) .loki-phone-row-time {
+  align-self: center;
+  padding-top: 0;
+}
+/* A running turn: the Mac's pulsing dot (components.css loki-live-pulse), in the time's place. */
+.loki-phone-row-live {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--loki-positive);
+  animation: loki-live-pulse 1.6s ease-in-out infinite;
 }

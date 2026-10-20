@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Button, Field, IconButton, ListIcon, ListRow, ListSection, Row } from "../components";
+import { Button, Field, IconButton, ListRow, ListSection, Row } from "../components";
+import { ago } from "../shared/ago";
 import { Icon } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
@@ -245,20 +246,15 @@ export function DeskSidebar({
     ) : undefined;
   };
 
-  const rowOf = (r: SidebarRow, inPinned: boolean) => {
+  const rowOf = (r: SidebarRow) => {
     const d = r.desk;
     const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
     return (
       <ListRow
         key={d.scope}
-        lead={
-          r.main && !inPinned ? (
-            <AgentFace name={d.agent_name} src={d.agent_id ? avatar(d.agent_id) : null} size={20} />
-          ) : (
-            <ListIcon name={d.status === "live" ? "desk" : "archive"} />
-          )
-        }
         title={name}
+        // When it last spoke; the badge or the live dot takes its place while something waits or runs.
+        time={ago(d.last_active)}
         // One mark at most beside the name, and only where it differs from its section (the status is on the right).
         flags={<HomeMark row={d} agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null} here={homes?.here} />}
         badge={r.badge}
@@ -353,6 +349,8 @@ export function DeskSidebar({
                 key={s.id}
                 title={s.title}
                 icon={s.id === "pinned" ? "pin" : undefined}
+                // The agent's face heads its section; its chats, the main one included, are plain rows.
+                face={s.agentId ? <AgentFace name={s.title} src={avatar(s.agentId)} size={16} /> : undefined}
                 // Folded, the section still says how many of its desks need you.
                 count={shut ? s.waiting : null}
                 aside={s.agentId ? homeAside(s.agentId) : undefined}
@@ -366,7 +364,7 @@ export function DeskSidebar({
                   ) : undefined
                 }
               >
-                {s.rows.map((r) => rowOf(r, s.id === "pinned"))}
+                {s.rows.map((r) => rowOf(r))}
               </ListSection>
             );
           })}
@@ -378,7 +376,7 @@ export function DeskSidebar({
               open={!folded(ARCHIVED)}
               onToggle={filtering ? undefined : () => fold(ARCHIVED)}
             >
-              {model.archived.map((r) => rowOf(r, false))}
+              {model.archived.map((r) => rowOf(r))}
             </ListSection>
           )}
           {model.empty && (
@@ -673,8 +671,11 @@ export function DeskSidebarView({
   );
 }
 
-/** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). */
-function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): DeskSidebarProps["homes"] {
+/** Where each agent lives and this Mac's id, as `homesOf` builds it. */
+export type Homes = NonNullable<DeskSidebarProps["homes"]>;
+
+/** Where each agent lives, by Mac name, once another Mac is paired; none before (one Mac needs no saying). The phone's Home reads it too. */
+export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id: string; home_mac?: string | null }>): DeskSidebarProps["homes"] {
   if (!macs?.peers.length) return undefined;
   const names = new Map([[macs.me.mac_id, macs.me.name], ...macs.peers.map((p) => [p.mac_id, p.name] as const)]);
   return {

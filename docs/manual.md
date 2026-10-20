@@ -96,9 +96,10 @@ width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘�
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
-  with a "+" for a new chat with that agent), then **Archived**, folded. A chat's name goes bold when its agent
-  wrote since you looked. On the right of each row, one mark at most: a red badge when it waits on you, else a green
-  dot that breathes while its agent is working. Opening a chat (or having it open, the window in front, when a
+  with its face, the Mac it lives on and a "+" for a new chat with that agent), then **Archived**, folded. Each chat
+  is one line, its name alone, the main chat included; the phone's Home draws it the same. A chat's name goes bold
+  when its agent wrote since you looked. On the right of each row, one thing: a red badge when it waits on you, else a
+  green dot that breathes while its agent is working, else when it last spoke ("5m", "3h", "2d"). Opening a chat (or having it open, the window in front, when a
   message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
   Inbox keeps the chat until it is **read**: what the Inbox's → does, a reply, an approval or an answer; by hand
   it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
@@ -347,7 +348,7 @@ reachable; a closed lid still sleeps.
    agent (a provider sign-in, an MCP server needing a sign-in) before you start.
 2. **Every list shows both Macs' chats.** Each agent's section in the sidebar names the Mac it lives on; a chat
    living on another Mac than its agent's has a small laptop icon (hover it for "on Mac mini"). The switcher marks
-   every chat on the other Mac, and the phone says "on Mac mini". While a Mac is asleep or off, its chats stay listed
+   every chat on the other Mac, and the phone's Home draws the same laptop and names each agent's Mac. While a Mac is asleep or off, its chats stay listed
    with a moon, "waiting for Mac mini": they do not open and take no message until it is back. Nothing is queued.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
    on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,

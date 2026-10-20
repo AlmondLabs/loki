@@ -730,6 +730,7 @@ export function ListRow({
 export function ListSection({
   title,
   icon,
+  face,
   count,
   aside,
   open = true,
@@ -739,6 +740,8 @@ export function ListSection({
 }: {
   title: string;
   icon?: IconName;
+  /** A face before the title in place of an icon (an agent's, on its section). */
+  face?: ReactNode;
   count?: number | null;
   /** Quiet words at the head's right, before the actions (the Mac an agent lives on). */
   aside?: ReactNode;
@@ -750,7 +753,7 @@ export function ListSection({
   const inner = (
     <>
       {onToggle && <Icon name="chevron-down" size={12} className={cx("loki-list-section-chev", !open && "loki-list-section-chev--folded")} />}
-      {icon && <Icon name={icon} size={14} />}
+      {face ?? (icon && <Icon name={icon} size={14} />)}
       <span className="loki-list-section-title">{title}</span>
       {count != null && count > 0 && <span className="loki-list-section-count">{countText(count)}</span>}
     </>

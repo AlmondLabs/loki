@@ -1,14 +1,15 @@
-import { homeNote } from "../../../core/desk-core.ts";
 import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
-import { previewLine } from "../shared/preview";
-import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../shared/ago";
 import { AgentFace } from "../desk/agent-chip";
+import type { Homes } from "../shell/desk-sidebar";
+import { HomeMark } from "../shell/home-mark";
+import { deskRowState } from "../shell/sidebar-model";
 import { avatarUrl } from "../desk/env";
 
 import { BADGE } from "../desk/catch-up";
-import { agentChips, deskMark } from "../shell/desk-tree";
+import { agentChips } from "../shell/desk-tree";
 import type { SidebarSection } from "../shell/sidebar-model";
 import { Button, Chip, Field, Sheet } from "../components";
 import { Icon, type IconName } from "./icons";
@@ -64,6 +65,7 @@ export function Home({
   onRename,
   recentFolders,
   onCreate,
+  homes,
 }: {
   me: Me;
   link: LinkState;
@@ -78,6 +80,8 @@ export function Home({
   banner?: ReactNode;
   /** Ask the mod for the list again (on mount, from the menu, and when the socket reopens). */
   onRefresh: () => void;
+  /** Where each agent lives, once Macs are paired (the Mac's homesOf): its section names the Mac, and a chat away from it is marked. */
+  homes?: Homes;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
   /** Null while the daemon cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
@@ -125,6 +129,7 @@ export function Home({
         <DeskSections
           groups={groups}
           marks={marks}
+          homes={homes}
           folded={folded}
           onToggle={toggleFold}
           empty={desks.length === 0}
@@ -249,6 +254,7 @@ function AttentionSection({ attention, more, waiting }: { attention: HomeAttenti
 function DeskSections({
   groups,
   marks,
+  homes,
   folded,
   onToggle,
   empty,
@@ -261,6 +267,7 @@ function DeskSections({
 }: {
   groups: SidebarSection[];
   marks: Map<string, AttentionItem>;
+  homes?: Homes;
   folded: string[];
   onToggle: (id: string) => void;
   empty: boolean;
@@ -281,6 +288,7 @@ function DeskSections({
             icon={pinned ? "pin" : "desk"}
             lead={pinned ? undefined : <AgentFace name={g.title} src={g.agentId ? avatarUrl(g.agentId) : null} size={20} />}
             title={g.title}
+            aside={g.agentId ? homes?.of(g.agentId)?.name : undefined}
             count={g.waiting}
             open={filtered || !folded.includes(g.id)}
             onToggle={filtered ? undefined : () => onToggle(g.id)}
@@ -292,7 +300,7 @@ function DeskSections({
                   desk={r.desk}
                   mark={marks.get(`${r.desk.agent_id}/${r.desk.conversation_id}`)}
                   onActions={() => onActions(r.desk)}
-                  inAgent={!pinned}
+                  homes={homes}
                   inPinned={pinned}
                 />
               ))}
@@ -413,9 +421,6 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
   );
 }
 
-/** The first words of the agent's last reply, on one line. */
-const snippet = (text: string | null | undefined) => previewLine(text);
-
 /** A waiting conversation: the agent's face, the desk's name (else the item's), agent · what it waits on, the time, a dot when unread. */
 function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
   const title = desk?.title ?? item.title ?? "new chat";
@@ -442,50 +447,42 @@ export function deskName(d: DeskSummary): string {
 }
 
 /**
- * One desk: the #, its name (bold while something in it is new), agent · the last reply or what it is
- * doing, the time or a dot. The same row draws an archived desk, quieter. `onActions` opens DeskActions.
+ * One chat, as the Mac's sidebar draws it (plan 027): its name (bold while something in it is new), the mark of where
+ * it lives when that is away from its agent's Mac, and on the right the count while it waits on you, the pulsing dot
+ * while it runs, else when it last spoke. No lead and no preview: its section says whose it is, and the Inbox is where
+ * a reply is read. The same row draws an archived chat, quieter. `onActions` opens DeskActions.
  */
 export function DeskRow({
   desk: d,
   mark,
   onActions,
-  inAgent = false,
+  homes,
   inPinned = false,
 }: {
   desk: DeskSummary;
   mark: AttentionItem | undefined;
   onActions: (() => void) | null;
-  /** Under its agent's section: the agent is the heading, so the row does not repeat it, and the main chat says so. */ inAgent?: boolean;
+  homes?: Homes;
   /** Under Pinned, where the pin would say it twice. */ inPinned?: boolean;
 }) {
-  const m = deskMark(mark, d.status);
-  const fresh = m.kind === "waits" || m.kind === "finished" || m.kind === "failed";
-  // A look (on either device) un-bolds a finished desk; its dot stays until it is done, as the desktop sidebar's ring does.
-  const looked = m.kind === "finished" && !!mark && !unviewed(mark);
-  const doing = m.kind === "running" ? "running…" : (m.kind === "waits" || m.kind === "failed") && mark ? BADGE[mark.status].label : null;
-  // A chat on another Mac says so, and while that Mac is out of reach that is all it says (plan 023).
-  const said =
-    (d.reachable === false ? homeNote(d) : null) ?? doing ?? snippet(mark?.lastAssistantText) ?? homeNote(d) ?? (d.status !== "live" ? d.status : null);
-  const main = d.conversation_id === "default";
-  const name = inAgent && main && !d.title ? "Main chat" : deskName(d);
-  const who = d.agent_name ?? "agent";
+  const row = deskRowState(mark, d);
+  const name = deskName(d);
+  const agentHome = d.agent_id ? homes?.of(d.agent_id)?.mac : null;
   return (
     <PhoneRow
-      lead={
-        inAgent && main ? (
-          <Avatar name={d.agent_name} src={d.agent_id ? avatarUrl(d.agent_id) : null} size={28} />
-        ) : (
-          <RowIcon name={d.status === "live" ? "desk" : "archive"} />
-        )
-      }
       title={name}
-      flags={d.pinned && !inPinned ? <Icon name="pin" size={14} title="pinned" className="loki-phone-row-flag" /> : null}
-      preview={inAgent ? (said ?? undefined) : said ? `${who} · ${said}` : who}
+      flags={
+        <>
+          {d.pinned && !inPinned && <Icon name="pin" size={14} title="pinned" className="loki-phone-row-flag" />}
+          <HomeMark row={d} agentHome={agentHome} here={homes?.here} />
+        </>
+      }
       time={ago(d.last_active)}
-      badge={fresh}
-      unread={fresh && !looked}
-      dim={d.status !== "live"}
-      label={`${name}, ${d.agent_name ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${looked ? "viewed, not done" : m.title}` : ""}`}
+      badge={row.badge}
+      live={row.live}
+      unread={row.unread}
+      dim={d.status !== "live" || d.reachable === false}
+      label={`${name}, ${d.agent_name ?? "agent"}${d.pinned ? ", pinned" : ""}${row.badgeNoun ? `, ${row.badgeNoun}` : row.note ? `, ${row.note}` : ""}`}
       launch={`desk:${d.scope}`}
       flip={d.conversation_id ? `conv:${d.agent_id}/${d.conversation_id}` : undefined}
       onOpen={() => openDesk(d)}
