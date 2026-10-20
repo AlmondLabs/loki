@@ -1,7 +1,6 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { contentText } from "../core/harness.ts";
-import { messageAt, messageSteps, type PiMessage } from "../core/attention/pi-steps.ts";
+import { messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
@@ -37,9 +36,12 @@ export class ChatEventConverter {
   /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
   private turnId: string | null = null;
   private readonly agentId: string;
+  /** Keeps the person's pictures as files a window loads (plan 029); without it they stay "[image]" lines. */
+  private readonly nameImage?: ImageNamer;
 
-  constructor(agentId = "") {
+  constructor(agentId = "", nameImage?: ImageNamer) {
     this.agentId = agentId;
+    this.nameImage = nameImage;
   }
 
   /** The answer being written now, as far as it has streamed; null between answers. */
@@ -71,7 +73,7 @@ export class ChatEventConverter {
           this.blocks.clear();
           return [];
         }
-        return [{ kind: "step", step: { kind: "user", raw: contentText(ev.message.content), at: messageAt(ev.message) ?? now } }];
+        return messageSteps(ev.message, messageAt(ev.message) ?? now, this.nameImage).map((step) => ({ kind: "step", step }));
       // The in-flight message changes in batches, and a batch's words can come in any of four shapes: a text block
       // begun (holding all it has so far: an answer's first words, often), words added to one, a block or the whole
       // message rewritten. Taking only the added words lost the first ones until the written answer replaced them.

@@ -1,4 +1,4 @@
-import { contentText } from "../harness.ts";
+import { contentImages, contentText } from "../harness.ts";
 import type { Step } from "./thread.ts";
 
 /**
@@ -22,6 +22,12 @@ export interface PiEntry {
   data?: unknown;
 }
 
+/**
+ * Names a picture in a user message as the mod serves it (plan 029; the daemon's ChatImages keeps the file), or null
+ * when it cannot be kept. Without one, a message's pictures stay the "[image]" lines its text carries.
+ */
+export type ImageNamer = (image: { data: string; mimeType: string }) => string | null;
+
 /** When a message was written, from its numeric timestamp; null when it has none. */
 export function messageAt(m: PiMessage): string | null {
   return typeof m.timestamp === "number" && Number.isFinite(m.timestamp) ? new Date(m.timestamp).toISOString() : null;
@@ -31,12 +37,15 @@ export function messageAt(m: PiMessage): string | null {
  * One message as steps: a user message with its text, the assistant's words then its tool calls, and a tool result
  * as the result of the call it names. System messages and thinking are nothing.
  */
-export function messageSteps(m: PiMessage, at: string | null): Step[] {
+export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): Step[] {
   if (m.role === "toolResult")
     return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
   if (m.role !== "user" && m.role !== "assistant") return [];
   const text = contentText(m.content);
-  if (m.role === "user") return [{ kind: "user", raw: text, at }];
+  if (m.role === "user") {
+    const images = nameImage ? contentImages(m.content).flatMap((image) => nameImage(image) ?? []) : [];
+    return [{ kind: "user", raw: text, at, ...(images.length ? { images } : {}) }];
+  }
   const out: Step[] = [{ kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
     const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
@@ -51,12 +60,12 @@ const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
 /** A message from off Letta's main path, in a chat imported from Letta (`loki.branch`): shown, never sent to the model. */
 const BRANCH = "loki.branch";
 
-/** One pi-durable entry as steps. */
-export function entrySteps(entry: PiEntry): Step[] {
+/** One pi-durable entry as steps; `nameImage` keeps a user message's pictures (plan 029). */
+export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): Step[] {
   if (entry.kind === BRANCH) {
     const message = (entry.data as { message?: PiMessage } | undefined)?.message;
-    return message ? messageSteps(message, messageAt(message)) : [];
+    return message ? messageSteps(message, messageAt(message), nameImage) : [];
   }
   if (!SHOWN.has(entry.kind)) return [];
-  return (entry.model ?? []).flatMap((m) => messageSteps(m, messageAt(m)));
+  return (entry.model ?? []).flatMap((m) => messageSteps(m, messageAt(m), nameImage));
 }

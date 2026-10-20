@@ -32,7 +32,7 @@ describe("chat projection", () => {
       const converted = lettaLogEntries(sampleLog());
       await store.importEntries(chat, converted, ctx);
       await chats.attach(AGENT, store);
-      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap(entrySteps)), more: false });
+      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap((e) => entrySteps(e))), more: false });
       expect(chats.page("local-conv-1", AGENT, 2).more).toBe(true);
       expect(chats.info("local-conv-1", AGENT)).toMatchObject({
         agentId: AGENT,

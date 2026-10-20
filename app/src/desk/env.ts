@@ -77,6 +77,17 @@ export function avatarUrl(agentId: string): string {
   return token ? `${url}?t=${encodeURIComponent(token)}` : url; // on the LAN the device cookie authenticates
 }
 
+/**
+ * A picture in a message: as it is when the row holds it whole (`data:`, the sending window's own copy), else the mod's
+ * URL for the name the daemon gave it (mod/chat-images.ts, plan 029), which a paired Mac's picture reaches too.
+ */
+export function chatImageUrl(src: string): string {
+  if (/^(data|blob|https?):/.test(src)) return src;
+  const token = injectedToken() ?? localStorage.getItem("loki.token") ?? "";
+  const url = `${modBase()}/chat-images/${encodeURIComponent(src)}`;
+  return token ? `${url}?t=${encodeURIComponent(token)}` : url; // on the LAN the device cookie authenticates
+}
+
 /** The token the Rust side injected, if any (browser tabs get it from the URL / localStorage instead). */
 export function injectedToken(): string | null {
   return window.__LOKI__?.token ?? null;

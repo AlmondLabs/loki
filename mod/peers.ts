@@ -428,6 +428,23 @@ export class Peers {
    * Send a file this Mac holds to a paired Mac's uploads (U5), for a chat that lives there; resolves to its path on
    * that Mac, or null when it could not be sent.
    */
+  /** A picture in a message, by its name, from a paired Mac that holds it (plan 029); null when it does not. */
+  async chatImage(macId: string, name: string): Promise<Buffer | null> {
+    const peer = this.opts.store.get(macId);
+    const token = await this.opts.keys.get(macId);
+    const base = peer ? peerBase(peer.host) : null;
+    if (!base || !token) return null;
+    try {
+      const res = await this.fetch(`${base}/peer/chat-images/${encodeURIComponent(name)}`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+    } catch {
+      return null;
+    }
+  }
+
   async upload(macId: string, file: { path: string; name: string; mime: string }): Promise<string | null> {
     const peer = this.opts.store.get(macId);
     const token = await this.opts.keys.get(macId);
