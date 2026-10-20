@@ -65,8 +65,8 @@ const badgeCount = (n: number) => (n > 99 ? "99+" : String(n));
 
 /** The props of the phone's list row: its lead, title and preview, the time or badge on the right, and its marks. */
 export interface PhoneRowProps {
-  /** The start: an Avatar or a RowIcon. */
-  lead: ReactNode;
+  /** The start: an Avatar or a RowIcon; none for a chat, whose section says whose it is. */
+  lead?: ReactNode;
   title: ReactNode;
   /** One muted line under the title, e.g. "atlas · needs approval". */
   preview?: ReactNode;
@@ -87,6 +87,8 @@ export interface PhoneRowProps {
   actionsLabel?: string;
   /** Drawn quieter: an archived desk. */
   dim?: boolean;
+  /** A turn is running: the pulsing dot on the right, in the time's place, as on the Mac. */
+  live?: boolean;
   /** `data-launch`, so focus comes back to this row after the page it opened (session.ts). */
   launch?: string;
   /** What the row is for its glide (kit/use-flip.ts) when that is not its launch key: a conversation, so it glides between sections. */
@@ -107,6 +109,7 @@ export function PhoneRow({
   onActions,
   actionsLabel,
   dim = false,
+  live = false,
   launch,
   flip,
 }: PhoneRowProps) {
@@ -142,6 +145,8 @@ export function PhoneRow({
         </span>
         {count !== null ? (
           <span className="loki-phone-badge">{badgeCount(count)}</span>
+        ) : live ? (
+          <span aria-hidden className="loki-phone-row-live" />
         ) : dot ? (
           <span className="loki-phone-badge loki-phone-badge--dot">
             <span className="loki-phone-sr-only">new</span>
@@ -174,6 +179,7 @@ export function RowSection({
   icon,
   lead,
   title,
+  aside,
   count,
   open = true,
   onToggle,
@@ -184,6 +190,8 @@ export function RowSection({
   icon: IconName;
   /** In the icon's place: an agent's face, for its section of desks. */ lead?: ReactNode;
   title: string;
+  /** Quiet words after the title: the Mac an agent lives on. */
+  aside?: ReactNode;
   count?: number | null;
   open?: boolean;
   onToggle?: () => void;
@@ -194,7 +202,10 @@ export function RowSection({
   const inner = (
     <>
       {lead ?? <Icon name={icon} size={18} />}
-      <span className="loki-phone-section-title">{title}</span>
+      <span className="loki-phone-section-title">
+        {title}
+        {aside && <span className="loki-phone-section-aside"> · {aside}</span>}
+      </span>
       {count != null && count > 0 && <span className="loki-phone-section-count">{badgeCount(count)}</span>}
       {(onTitle ?? onToggle) && (
         <Icon

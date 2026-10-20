@@ -1,4 +1,5 @@
 import { useTaskList, type TaskApi } from "../tasks/message-tasks";
+import { homesOf } from "../shell/desk-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/use-inline-widgets";
 import { useAttention } from "../../../core/attention/use-attention.ts";
@@ -639,6 +640,7 @@ function Screen({
         onRename={onRename}
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
+        homes={homesOf(desk.macs.view, catchUp.agents)}
       />
       <Inbox
         hidden={tab !== "inbox"}
