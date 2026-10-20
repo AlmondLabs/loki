@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { LabelView } from "../../../core/labels.ts";
-import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/transcript";
@@ -100,7 +100,9 @@ function CatchUpDeck(props: DeckProps) {
   /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
   const shown = useMemo(() => (agent ? items.filter((i) => i.agent_id === agent) : items), [items, agent]);
-  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent);
+  /** Going through the cards Next rested, asked for at the end of the pass. */
+  const [resting, setResting] = useState(false);
+  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent, resting);
   // What undo takes back: this agent's part of the visit.
   const decided = agent ? allDecided.filter((d) => d.item.agent_id === agent) : allDecided;
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
@@ -228,7 +230,7 @@ function CatchUpDeck(props: DeckProps) {
         <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown).length} />
         <AgentPills items={items} agent={agent} onAgent={(a) => (setAgent(a), props.onFilter?.(a))} />
         {!current ? (
-          <CaughtUp items={shown} decided={decided} replies={actions.replies} />
+          <CaughtUp items={shown} decided={decided} replies={actions.replies} resting={resting ? 0 : restingCount(shown)} onResting={() => setResting(true)} />
         ) : (
           <Card
             key={idOf(current)}

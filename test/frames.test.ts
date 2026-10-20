@@ -69,6 +69,7 @@ describe("the frame table", () => {
         "recall_lead_restore",
         "models_recent_add",
         "focus_add",
+        "card_rest",
         "desk_get",
         "tasks_list",
         "task_create",
@@ -187,7 +188,7 @@ describe("the frame table", () => {
     expect(FRAMES.task_status.parse({ id: "t1", status: "done" })).toBe("unknown status done");
     expect(FRAMES.memory_read.parse({ agent_id: "../etc" })).toBe("agent_id required");
     expect(FRAMES.lan_via_set.parse({ via: "bluetooth" })).toBe('via must be "tailscale" or "lan"');
-    expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer, decide or skip");
+    expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer or decide");
     expect(FRAMES.capture.parse({ event: "desk_switched", properties: [1] })).toEqual({ event: "desk_switched", properties: undefined });
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
       gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
@@ -313,6 +314,7 @@ describe("every frame in the table, through the real router", () => {
     seen_unmark: { conversation_id: "conv-1" },
     viewed_mark: { conversation_id: "conv-1" },
     focus_add: { conversation_id: "conv-1", action: "answer" },
+    card_rest: { conversation_id: "conv-1", rest: { n: 1, until: "2026-10-20T09:10:00Z", stamp: "s", at: "2026-10-20T09:00:00Z" } },
     capture: { event: "frames_walked" },
     history_get: { conversation_id: "conv-1" },
     recall_grade: { id: "k", grade: 3 },

@@ -12,6 +12,7 @@ import type { CardWithSchedule, RecallReply, RecallSnapshot } from "../../../cor
 import type { UsageReply } from "../../../core/usage.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
+import type { Rest } from "../../../core/attention/rest.ts";
 import type { TranscriptRow } from "../chat/transcript";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
@@ -93,6 +94,7 @@ export function useDesk() {
     seenMap,
     viewedMap,
     focusMap,
+    restMap,
     tasksVersion,
     recallVersion,
     usageVersion,
@@ -357,6 +359,9 @@ export function useDesk() {
     focus: focusMap,
     engage: (agentId: string, conversationId: string, action: EngageAction) =>
       send({ type: "focus_add", agent_id: agentId, conversation_id: conversationId, action }),
+    /** Each chat's Inbox rest (the mod's; core/attention/rest.ts), and a Next's new one. */
+    rests: restMap,
+    rest: (agentId: string, conversationId: string, rest: Rest) => send({ type: "card_rest", agent_id: agentId, conversation_id: conversationId, rest }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agent_id: agentId, conversation_id: conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */

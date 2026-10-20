@@ -198,9 +198,16 @@ export interface DeckState {
    */
   held: AttentionItem | null;
   pass: PassSummary;
+  /** Going through the cards Next rested (core/attention/rest.ts), asked for at the end of the pass. */
+  resting: boolean;
 }
 /** A pass not yet started: nothing dismissed, held or counted. */
-export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS });
+export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS, resting: false });
+
+/** Go through the rested cards: those moved past in this visit come back too, and the tally carries on. */
+export function throughResting(s: DeckState): DeckState {
+  return { ...EMPTY_DECK, pass: s.pass, resting: true };
+}
 
 /** The ways off a card: an approval only by its decision, anything else by Next or Archive; a main chat cannot be archived. */
 export function canCommit(item: AttentionItem, via: Via): boolean {
@@ -212,7 +219,7 @@ const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);
 
 /** The cards in this pass, in order: the queue minus what went, the held card (its live copy) if it left the queue, the top card first. */
 export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[] {
-  const visible = visibleQueue(inboxQueue(items), s.dismissed);
+  const visible = visibleQueue(inboxQueue(items, s.resting), s.dismissed);
   const held = s.held ? (items.find(same(s.held)) ?? null) : null;
   return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
 }
@@ -220,12 +227,12 @@ export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[]
 /** A card taken off by one of the four ways; a way it does not have (Later on an approval) changes nothing — the same state comes back. */
 export function commitCard(s: DeckState, item: AttentionItem, via: Via): DeckState {
   if (!canCommit(item, via)) return s;
-  return { dismissed: dismiss(s.dismissed, item), topId: null, held: null, pass: tally(s.pass, via) };
+  return { ...s, dismissed: dismiss(s.dismissed, item), topId: null, held: null, pass: tally(s.pass, via) };
 }
 
 /** Undo: the card returns on top, the tally takes it back, and a card that was held is held again. */
 export function undoCard(s: DeckState, item: AttentionItem, via: Via, wasHeld = false): DeckState {
-  return { dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
+  return { ...s, dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
 }
 
 /** Something went out from the card: keep it in hand (see `held`). */

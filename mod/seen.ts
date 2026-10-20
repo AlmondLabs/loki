@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
+import { isRest, type Rest } from "../core/attention/rest.ts";
 
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
@@ -10,22 +11,26 @@ import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry }
  *            is not done, so the two move apart: the sidebar's bold follows viewed, the Inbox follows seen
  *  - focus:  each chat's engagement weight, fading by half every 12 hours (core/attention/focus.ts): the
  *            inbox ranks by its share; your messages, answers, decisions and reads add to it
+ *  - rests:  how long Next has rested each chat's Inbox card, and on which rung (core/attention/rest.ts)
  * The browser decides what these mean; the mod only remembers them.
  *
  * Shared with paired Macs (plan 023, U8, KTD9): a mark is a time, so the later one wins wherever it was made, and
  * "not done" is a time too (`unseen`), so a later "not done" beats an earlier "done". Focus is engagement, which adds
  * up rather than overwrites: each Mac keeps its own entries, this Mac holds the others' last known (`remoteFocus`), and
- * the Inbox reads their sum. A Next anywhere is remembered (`skips`) and halves the other Macs' earlier weight too.
+ * the Inbox reads their sum. A rest is set at a time too, so the later one wins wherever Next was pressed.
  */
 
-/** What one Mac sends another of its marks: its done, not-done and viewed times, its own focus, and its Nexts. */
+/** What one Mac sends another of its marks: its done, not-done and viewed times, its own focus, and its rests. */
 export interface MarksSnapshot {
   seen: Record<string, string>;
   unseen: Record<string, string>;
   viewed: Record<string, string>;
   focus: Record<string, FocusEntry>;
-  skips: Record<string, string>;
+  /** Missing from a Mac on a loki from before rests (plan 026). */
+  rests?: Record<string, Rest>;
 }
+/** Rests set longer ago than this are dropped when the next is set: past the longest rest, and a month on the rung is stale. */
+const REST_FORGET_MS = 30 * 24 * 60 * 60_000;
 /** How long a burst of marks waits before it is written: one write per burst, and flush() on shutdown. */
 const PERSIST_DEBOUNCE_MS = 250;
 
@@ -41,8 +46,8 @@ export class SeenStore {
   private unseen: Record<string, string> = {};
   /** Each paired Mac's own focus entries, as it last sent them. */
   private remoteFocus: Record<string, Record<string, FocusEntry>> = {};
-  /** When Next was last pressed on each conversation, on any Mac. */
-  private skips: Record<string, string> = {};
+  /** Each conversation's Inbox rest, set by Next on any Mac. */
+  private rests: Record<string, Rest> = {};
   private readonly path: string;
   private readonly debounceMs: number;
   private readonly now: () => string;
@@ -62,7 +67,8 @@ export class SeenStore {
         if (parsed.unseen && typeof parsed.unseen === "object") this.unseen = parsed.unseen as Record<string, string>;
         if (parsed.remote_focus && typeof parsed.remote_focus === "object")
           this.remoteFocus = parsed.remote_focus as Record<string, Record<string, FocusEntry>>;
-        if (parsed.skips && typeof parsed.skips === "object") this.skips = parsed.skips as Record<string, string>;
+        if (parsed.rests && typeof parsed.rests === "object")
+          this.rests = Object.fromEntries(Object.entries(parsed.rests as Record<string, unknown>).filter((e): e is [string, Rest] => isRest(e[1])));
       } else {
         this.seen = parsed as Record<string, string>; // v1 file: a flat map of markers
       }
@@ -87,15 +93,30 @@ export class SeenStore {
   /** Every Mac's focus, added up (core/attention/focus.ts combineFocus); this Mac's alone while none is paired. */
   focusAll(): Record<string, FocusEntry> {
     const others = Object.values(this.remoteFocus);
-    return others.length ? combineFocus(this.focus, others, this.skips, Date.parse(this.now())) : { ...this.focus };
+    return others.length ? combineFocus(this.focus, others, Date.parse(this.now())) : { ...this.focus };
   }
 
-  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, and its Nexts. */
+  /** Every chat's Inbox rest. */
+  restsAll(): Record<string, Rest> {
+    return { ...this.rests };
+  }
+
+  /** A chat's Inbox card rested by Next (or its rest undone): false when an as late one is kept, so nothing moves. */
+  rest(agentId: string | null | undefined, conversationId: string, rest: Rest): boolean {
+    const key = SeenStore.key(agentId, conversationId);
+    if (key in this.rests && this.rests[key].at >= rest.at) return false;
+    const forget = new Date(Date.parse(this.now()) - REST_FORGET_MS).toISOString();
+    this.rests = Object.fromEntries([...Object.entries(this.rests).filter(([, r]) => r.at >= forget), [key, rest]]);
+    this.persist();
+    return true;
+  }
+
+  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, and the rests. */
   snapshot(): MarksSnapshot {
-    return { seen: { ...this.seen }, unseen: { ...this.unseen }, viewed: { ...this.viewed }, focus: { ...this.focus }, skips: { ...this.skips } };
+    return { seen: { ...this.seen }, unseen: { ...this.unseen }, viewed: { ...this.viewed }, focus: { ...this.focus }, rests: { ...this.rests } };
   }
 
-  /** Take a paired Mac's marks: every later time, its focus as its own, its Nexts. True when anything here moved. */
+  /** Take a paired Mac's marks: every later time, its focus as its own, every later rest. True when anything here moved. */
   applyRemote(macId: string, snap: MarksSnapshot): boolean {
     let moved = false;
     const later = (mine: Record<string, string>, theirs: Record<string, string>) => {
@@ -108,7 +129,11 @@ export class SeenStore {
     later(this.seen, snap.seen);
     later(this.unseen, snap.unseen);
     later(this.viewed, snap.viewed);
-    later(this.skips, snap.skips);
+    for (const [key, rest] of Object.entries(snap.rests ?? {})) {
+      if (!isRest(rest) || (key in this.rests && this.rests[key].at >= rest.at)) continue;
+      this.rests = { ...this.rests, [key]: rest };
+      moved = true;
+    }
     if (JSON.stringify(this.remoteFocus[macId] ?? {}) !== JSON.stringify(snap.focus)) {
       this.remoteFocus = { ...this.remoteFocus, [macId]: { ...snap.focus } };
       moved = true;
@@ -129,12 +154,7 @@ export class SeenStore {
   engage(agentId: string | null | undefined, conversationId: string, action: FocusAction): boolean {
     const key = SeenStore.key(agentId, conversationId);
     const next = addFocus(this.focus[key], action, Date.parse(this.now()));
-    // A Next halves the other Macs' weight for this chat too (focusAll), from now.
-    if (action === "skip") this.skips = { ...this.skips, [key]: this.now() };
-    if (!next) {
-      if (action === "skip") this.persist();
-      return action === "skip";
-    }
+    if (!next) return false;
     this.focus = { ...pruneFocus(this.focus, Date.parse(this.now())), [key]: next };
     this.persist();
     return true;
@@ -198,7 +218,7 @@ export class SeenStore {
             ...(Object.keys(this.focus).length ? { focus: this.focus } : {}),
             ...(Object.keys(this.unseen).length ? { unseen: this.unseen } : {}),
             ...(Object.keys(this.remoteFocus).length ? { remote_focus: this.remoteFocus } : {}),
-            ...(Object.keys(this.skips).length ? { skips: this.skips } : {}),
+            ...(Object.keys(this.rests).length ? { rests: this.rests } : {}),
           },
           null,
           2,

@@ -8,6 +8,7 @@ import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/mo
 import type { UsageReply } from "./usage.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
+import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
   DeskStatus,
@@ -265,8 +266,8 @@ export interface Pushes {
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
-  /** `viewed` and `focus` are missing from older mods. */
-  seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry> };
+  /** `viewed`, `focus` and `rests` are missing from older mods. */
+  seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry>; rests?: Record<string, Rest> };
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
   usage_changed: NoPayload;
@@ -432,7 +433,7 @@ export const FRAMES = {
   }),
 
   // Seen marks and focus
-  seen_list: send("the done and viewed marks and the focus weights", nothing, { phone: PHONE, causes: ["seen"] }),
+  seen_list: send("the done and viewed marks, the focus weights and the rests", nothing, { phone: PHONE, causes: ["seen"] }),
   seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen"] }),
   seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen"] }),
   viewed_mark: send("a look, not done (the sidebar's bold, the New line)", mark, { phone: PHONE, causes: ["seen"] }),
@@ -442,9 +443,16 @@ export const FRAMES = {
       const c = mark(m);
       if (typeof c === "string") return c;
       const action = m.action;
-      return action === "answer" || action === "decide" || action === "skip"
-        ? ({ ...c, action } satisfies { action: "answer" | "decide" | "skip" })
-        : "action must be answer, decide or skip";
+      return action === "answer" || action === "decide" ? ({ ...c, action } satisfies { action: "answer" | "decide" }) : "action must be answer or decide";
+    },
+    { phone: PHONE, causes: ["seen"] },
+  ),
+  card_rest: send(
+    "an Inbox card rested by Next, or its rest undone (core/attention/rest.ts)",
+    (m) => {
+      const c = mark(m);
+      if (typeof c === "string") return c;
+      return isRest(m.rest) ? { ...c, rest: m.rest } : "rest must be { n, until, stamp, at }";
     },
     { phone: PHONE, causes: ["seen"] },
   ),
@@ -925,7 +933,7 @@ export const FRAMES = {
   lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
   memory_changed: push("an agent's memory has new commits on this Mac"),
   state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
-  seen: push("the done and viewed marks and the focus weights, after any change", { lists: true }),
+  seen: push("the done and viewed marks, the focus weights and the rests, after any change", { lists: true }),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),

@@ -185,6 +185,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     viewed: attention.viewed,
     focus: attention.focus,
     engage: attention.engage,
+    rests: attention.rests,
+    rest: attention.rest,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,

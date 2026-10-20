@@ -25,11 +25,16 @@ export function catchUpQueue(items: AttentionItem[]): AttentionItem[] {
 /**
  * The Inbox: every chat you have not archived (a chat is not done until it is archived; the list the mod hands
  * over already leaves archived ones out), except one whose agent is mid-turn, where there is nothing for you to
- * do yet. Nothing is deferred: moving on (Next) keeps a chat in the Inbox for your next visit. Ranked by score,
- * so what needs you comes first (priority.ts).
+ * do yet, and one Next has rested (rest.ts) until it is due or something new comes; `resting` lets those in too,
+ * once you ask to go through them. Ranked by score, so what needs you comes first (priority.ts).
  */
-export function inboxQueue(items: AttentionItem[]): AttentionItem[] {
-  return items.filter((i) => i.status !== "running");
+export function inboxQueue(items: AttentionItem[], resting = false): AttentionItem[] {
+  return items.filter((i) => i.status !== "running" && (resting || !i.resting));
+}
+
+/** How many cards rest: what the end of a pass offers to go through. */
+export function restingCount(items: AttentionItem[]): number {
+  return items.filter((i) => i.status !== "running" && i.resting).length;
 }
 
 /** What you did with one card on an Inbox visit, kept so the visit can summarise itself and bring a card back when its chat moves on. */
@@ -55,8 +60,8 @@ export function popHead(queue: AttentionItem[]): AttentionItem[] {
  * has a newer message or a new approval, so a reply that lands while the deck is open is queued rather than
  * waiting for the next visit; being new, it lands near the top.
  */
-export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[]): AttentionItem[] {
-  const actionable = inboxQueue(items);
+export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], resting = false): AttentionItem[] {
+  const actionable = inboxQueue(items, resting);
   const actionableIds = new Set(actionable.map(idOf));
   const lastDecision = new Map<string, Decision>();
   for (const d of decided) lastDecision.set(idOf(d.item), d); // last decision wins
