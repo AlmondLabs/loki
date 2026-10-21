@@ -64,9 +64,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
     <main className="loki-phone loki-phone-shell loki-phone-pair">
       <div className="loki-phone-pair-inner">
         <div>
-          <span aria-hidden className="loki-phone-workspace">
-            L
-          </span>
+          <img src="/mark.png" alt="" aria-hidden className="loki-phone-workspace" width={44} height={44} />
           <h1 className="loki-phone-large-title loki-phone-pair-title">Pair with the Mac</h1>
           <p className="loki-phone-pair-lead">Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
         </div>

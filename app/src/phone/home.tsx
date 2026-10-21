@@ -346,9 +346,8 @@ function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; f
   return (
     <header className="loki-phone-topbar loki-phone-home-top">
       <div className="loki-phone-home-bar">
-        <span aria-hidden className="loki-phone-workspace">
-          L
-        </span>
+        {/* loki's mark, the L (app/public/mark.png): the app's icon at the size of a small one. */}
+        <img src="/mark.png" alt="" aria-hidden className="loki-phone-workspace" width={44} height={44} />
         <h1 className="loki-phone-large-title loki-phone-home-title" data-phone-heading tabIndex={-1}>
           loki
         </h1>

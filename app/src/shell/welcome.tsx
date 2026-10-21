@@ -62,6 +62,8 @@ export function Welcome({
     // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
     <Sheet label="welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 18 }}>
       <div>
+        {/* loki's mark, the L (app/public/mark.png). */}
+        <img src="/mark.png" alt="" aria-hidden width={48} height={48} style={{ display: "block", borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
         <Title page>Welcome to loki</Title>
         <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
