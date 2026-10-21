@@ -53,8 +53,6 @@
   --phone-nav-border: #484c53;
   --phone-nav-active: #50535a;
   /* loki's workspace mark in Home's header: a cream tile with a green letter, in both themes */
-  --phone-workspace: #f4f0e7;
-  --phone-on-workspace: #2d6e63;
   /* one sans stack for everything the phone presents; mono is left for code */
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
@@ -162,8 +160,6 @@
   --phone-nav-surface: rgba(255, 255, 255, 0.75);
   --phone-nav-border: #dddddd;
   --phone-nav-active: #ebebeb;
-  --phone-workspace: #f4f0e7;
-  --phone-on-workspace: #2d6e63;
   /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(54% 0.15 25);
   --loki-label-1: oklch(54% 0.15 65);
@@ -914,18 +910,13 @@ html:has(.loki-phone-shell) {
   min-height: 64px;
   padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
+/* loki's mark: the L on its dark tile, rounded as the app icon is. */
 .loki-phone-workspace {
-  display: grid;
-  place-items: center;
+  display: block;
   flex: none;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--loki-control-border);
-  border-radius: var(--phone-radius-pill);
-  background: var(--phone-workspace);
-  color: var(--phone-on-workspace);
-  font-size: var(--phone-text-body);
-  font-weight: var(--phone-weight-heavy);
+  border-radius: var(--phone-radius-md);
 }
 .loki-phone-home-title {
   flex: 1;

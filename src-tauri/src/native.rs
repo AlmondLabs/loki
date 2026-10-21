@@ -28,8 +28,10 @@ fn show_main(app: &AppHandle) {
 #[cfg(target_os = "macos")]
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID).tooltip("loki").title("").show_menu_on_left_click(false);
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone()).icon_as_template(true);
+    // The L in one colour, black on clear: macOS tints a template for a light or a dark menu bar. The app icon itself
+    // would show as a solid square there.
+    if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png")) {
+        builder = builder.icon(icon).icon_as_template(true);
     }
     builder
         .on_tray_icon_event(|tray, event| {
