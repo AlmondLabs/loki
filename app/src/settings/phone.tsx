@@ -44,76 +44,89 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
 
   return (
     <>
-      <Block>
-        <Setting
-          label="Phones can reach this Mac"
-          help={
-            <>
-              The inbox and your chats on a phone, over Tailscale or this Wi‑Fi; nothing to install.
-              {status.error && (
-                <span className="loki-meta--negative" style={{ display: "block" }}>
-                  {status.error}
-                </span>
-              )}
-              {on && !status.app_served && (
-                <span className="loki-meta--negative" style={{ display: "block" }}>
-                  The canvas build is missing; run npm run build:app.
-                </span>
-              )}
-            </>
-          }
-        >
-          <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" hideLabel />
-        </Setting>
-      </Block>
-
-      {on && (
-        <Block
-          title="Route"
-          help={`anyone on the lit route can open the page; only a paired phone can act. ${
-            status.via === "lan"
-              ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale."
-              : "The tailnet is yours alone; Funnel is never used."
-          }`}
-        >
-          <div style={{ padding: "12px 0" }}>
-            <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
-          </div>
-        </Block>
-      )}
-
-      {on && (
-        <Block title="Pair a phone">
-          <div>
-            <Setting label="A new phone" help="A code that lives ten minutes. Scan it with the phone's camera, then Add to Home Screen.">
-              <Button tone="positive" onClick={phone.beginPair}>
-                {lastCode ? "new code" : "pair a phone"}
-              </Button>
-            </Setting>
-            {lastCode && <PairPlate code={lastCode} status={status} />}
-          </div>
-        </Block>
-      )}
-
-      <Block title="Paired phones">
-        {devices === null ? (
-          <Setting label="Phones" help="—" />
-        ) : devices.length === 0 ? (
-          <Setting label="None yet" help={on ? "Pair one above." : "Switch on reaching this Mac to pair one."} />
-        ) : (
-          devices.map((d) => {
-            const via = viaLabel(d.last_via);
-            return (
-              <Setting key={d.id} label={d.name} help={via ? `${lastSeen(d.last_seen_at)} · came in via ${via}` : lastSeen(d.last_seen_at)}>
-                <Button size="sm" tone="negative" onClick={() => phone.forget(d.id)} title="this phone has to pair again">
-                  forget
-                </Button>
-              </Setting>
-            );
-          })
-        )}
-      </Block>
+      <ReachBlock phone={phone} status={status} />
+      {on && <RouteBlock phone={phone} status={status} />}
+      {on && <PairBlock phone={phone} status={status} lastCode={lastCode} />}
+      <PairedPhones devices={devices} on={on} onForget={phone.forget} />
     </>
+  );
+}
+
+/** Whether phones can reach this Mac: the switch, and what stops the listener when something does. */
+function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus }) {
+  const on = status.enabled;
+  return (
+    <Block>
+      <Setting
+        label="Phones can reach this Mac"
+        help={
+          <>
+            The inbox and your chats on a phone, over Tailscale or this Wi‑Fi; nothing to install.
+            {status.error && (
+              <span className="loki-meta--negative" style={{ display: "block" }}>
+                {status.error}
+              </span>
+            )}
+            {on && !status.app_served && (
+              <span className="loki-meta--negative" style={{ display: "block" }}>
+                The canvas build is missing; run npm run build:app.
+              </span>
+            )}
+          </>
+        }
+      >
+        <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" hideLabel />
+      </Setting>
+    </Block>
+  );
+}
+
+/** The way phones come in, and what anyone on it can do. */
+function RouteBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus }) {
+  const safety =
+    status.via === "lan" ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale." : "The tailnet is yours alone; Funnel is never used.";
+  return (
+    <Block title="Route" help={`anyone on the lit route can open the page; only a paired phone can act. ${safety}`}>
+      <div style={{ padding: "12px 0" }}>
+        <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
+      </div>
+    </Block>
+  );
+}
+
+/** Pairing a new phone: the button, then the code and its QR once one is minted. */
+function PairBlock({ phone, status, lastCode }: { phone: PhoneApi; status: PhoneLanStatus; lastCode: PairCode | null }) {
+  return (
+    <Block title="Pair a phone">
+      <div>
+        <Setting label="A new phone" help="A code that lives ten minutes. Scan it with the phone's camera, then Add to Home Screen.">
+          <Button tone="positive" onClick={phone.beginPair}>
+            {lastCode ? "new code" : "pair a phone"}
+          </Button>
+        </Setting>
+        {lastCode && <PairPlate code={lastCode} status={status} />}
+      </div>
+    </Block>
+  );
+}
+
+/** The phones paired with this Mac, each with when it was last seen, the route it came in by, and forget. */
+function PairedPhones({ devices, on, onForget }: { devices: PairedDevice[] | null; on: boolean; onForget: (id: string) => void }) {
+  return (
+    <Block title="Paired phones">
+      {devices === null && <Setting label="Phones" help="—" />}
+      {devices?.length === 0 && <Setting label="None yet" help={on ? "Pair one above." : "Switch on reaching this Mac to pair one."} />}
+      {devices?.map((d) => {
+        const via = viaLabel(d.last_via);
+        return (
+          <Setting key={d.id} label={d.name} help={via ? `${lastSeen(d.last_seen_at)} · came in via ${via}` : lastSeen(d.last_seen_at)}>
+            <Button size="sm" tone="negative" onClick={() => onForget(d.id)} title="this phone has to pair again">
+              forget
+            </Button>
+          </Setting>
+        );
+      })}
+    </Block>
   );
 }
 
