@@ -94,7 +94,7 @@ export function Phone() {
     return (
       <Splash>
         <h1 className="loki-phone-large-title">The Mac did not answer</h1>
-        <p className="loki-phone-body loki-phone-splash-line">Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</p>
+        <p className="loki-phone-body loki-phone-splash-line">Same Wi‑Fi, and loki open on the Mac with Preferences › Phone switched on.</p>
         <Button size="touch" tone="paper" onClick={check} className="loki-phone-splash-action">
           Try again
         </Button>

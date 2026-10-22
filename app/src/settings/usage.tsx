@@ -3,7 +3,7 @@ import { Chip, Row } from "../components";
 import { PERIOD_LABELS, PERIODS, modelName, money, originName, shareText, tokenCount, type UsagePeriod } from "../shared/usage-words";
 import { UsageBars } from "../shared/usage-bars";
 import { useUsage, type UsageApi } from "../shared/use-usage";
-import { Choice, Fact, Section } from "./layout";
+import { Block, Fact, Segmented } from "./layout";
 
 export type { UsageApi } from "../shared/use-usage";
 
@@ -14,20 +14,20 @@ export type { UsageApi } from "../shared/use-usage";
  */
 export function UsagePage({ usage }: { usage: UsageApi }) {
   const { period, pick, setFilter, failed, summary, priced, seededUntil, agentName, narrowed } = useUsage(usage);
-  if (!summary) return <Section title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Section>;
+  if (!summary) return <Block title="Usage">{<Fact label="Ledger" value={failed ? "loki's daemon did not answer" : "loading…"} />}</Block>;
   return (
     <>
       <SpendSection summary={summary} period={period} onPeriod={pick} narrowed={narrowed} onShowAll={() => setFilter({})} seededUntil={seededUntil} />
       <TokensSection summary={summary} />
-      <Section title="By origin" hint="your chats, the helpers they started, and loki's background passes">
+      <Block title="By origin" help="your chats, the helpers they started, and loki's background passes">
         <Breakdown lines={summary.by_origin} name={originName} priced={() => true} onPick={(key) => setFilter({ origin: key as UsageOrigin })} />
-      </Section>
-      <Section title="By agent">
+      </Block>
+      <Block title="By agent">
         <Breakdown lines={summary.by_agent} name={agentName} priced={() => true} onPick={(key) => setFilter({ agent_id: key })} />
-      </Section>
-      <Section title="By model">
+      </Block>
+      <Block title="By model">
         <Breakdown lines={summary.by_model} name={modelName} priced={priced} onPick={(key) => setFilter({ model: key })} />
-      </Section>
+      </Block>
     </>
   );
 }
@@ -50,8 +50,8 @@ function SpendSection({
 }) {
   const hourly = period === "24h";
   return (
-    <Section title="Spend" hint="estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
-      <Fact label="Period" value={<Choice options={[...PERIODS]} value={period} onPick={onPeriod} labels={PERIOD_LABELS} />} />
+    <Block title="Spend" help="estimated at each provider's API prices; a subscription sign-in is billed by its plan, not by these">
+      <Fact label="Period" value={<Segmented label="period" options={PERIODS} value={period} onPick={onPeriod} labels={PERIOD_LABELS} />} />
       {narrowed && (
         <Fact
           label="Showing"
@@ -81,7 +81,7 @@ function SpendSection({
           value={`${new Date(seededUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, cost comes from loki's analytics and is not split by token type`}
         />
       )}
-    </Section>
+    </Block>
   );
 }
 
@@ -89,7 +89,7 @@ function SpendSection({
 function TokensSection({ summary }: { summary: UsageSummary }) {
   const { tokens, cost } = summary;
   return (
-    <Section title="Tokens" hint="what was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
+    <Block title="Tokens" help="what was sent fresh, read from the provider's cache or written to it, and what the model wrote back">
       <Fact label="Input" value={<Amount tokens={tokens.input} cost={cost.input} />} />
       <Fact label="Cache read" value={<Amount tokens={tokens.cache_read} cost={cost.cache_read} />} />
       <Fact label="Cache write" value={<Amount tokens={tokens.cache_write} cost={cost.cache_write} />} />
@@ -99,7 +99,7 @@ function TokensSection({ summary }: { summary: UsageSummary }) {
       />
       {cost.other > 0 && <Fact label="Not split" value={money(cost.other)} />}
       <Fact label="Cache saved" value={`${money(summary.cache_savings)} against paying for the cache reads as fresh input`} />
-    </Section>
+    </Block>
   );
 }
 

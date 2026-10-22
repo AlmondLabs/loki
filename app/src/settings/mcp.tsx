@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useId, useState } from "react";
 import { Button, Chip, Dot, Field, Row, TextArea } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
 import { openExternal } from "../desk/env";
+import { Block, Segmented, Setting } from "./layout";
 
 /** What Settings › MCP asks of the daemon; each call resolves to the servers as they now are, or an error message. */
 export interface McpApi {
@@ -79,20 +80,20 @@ export function Mcp({ api }: { api: McpApi }) {
     };
   }, []);
 
-  if (!view) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
+  if (!view) return <Setting label="Servers" help={error ?? "asking loki…"} />;
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div className="loki-meta loki-meta--wrap">
-        Agents see each server and its tools' names; a tool's full definition is loaded only when the agent searches for it, unless it is checked "always
-        loaded". The file is <span style={{ fontFamily: "var(--loki-mono)" }}>{view.config_path}</span>.
-      </div>
-      {view.problems.map((p) => (
-        <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
-          {p}
-        </div>
-      ))}
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-      <div style={{ display: "grid", gap: 2 }}>
+    <>
+      <Block
+        help={
+          'servers your agents can use. An agent sees each server and its tools\' names; a tool loads only when the agent searches for it, unless it is "always loaded".'
+        }
+      >
+        {view.problems.map((p) => (
+          <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
+            {p}
+          </div>
+        ))}
+        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
         {view.servers.map((s) => (
           <ServerRow
             key={s.name}
@@ -104,28 +105,29 @@ export function Mcp({ api }: { api: McpApi }) {
             apply={apply}
           />
         ))}
-        {view.servers.length === 0 && (
-          <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
-            no servers yet
-          </div>
+        {view.servers.length === 0 && <Setting label="None yet" help="Add one below: GitHub, Linear, a database, anything that speaks MCP." />}
+      </Block>
+      <Block title={editing && editing !== "new" ? `Edit ${editing.entry}` : "Add a server"}>
+        {editing ? (
+          <ServerForm
+            key={editing === "new" ? "new" : editing.name}
+            server={editing === "new" ? null : editing}
+            configPath={view.config_path}
+            api={api}
+            onDone={(r) => {
+              if (r) apply(r);
+              setEditing(null);
+            }}
+          />
+        ) : (
+          <Setting label="Local or remote" help="A command loki starts on this computer, or a server's URL.">
+            <Button tone="positive" onClick={() => setEditing("new")}>
+              add a server
+            </Button>
+          </Setting>
         )}
-      </div>
-      {editing ? (
-        <ServerForm
-          key={editing === "new" ? "new" : editing.name}
-          server={editing === "new" ? null : editing}
-          api={api}
-          onDone={(r) => {
-            if (r) apply(r);
-            setEditing(null);
-          }}
-        />
-      ) : (
-        <Button size="sm" tone="brass" onClick={() => setEditing("new")} style={{ justifySelf: "start" }}>
-          + add a server
-        </Button>
-      )}
-    </div>
+      </Block>
+    </>
   );
 }
 
@@ -148,7 +150,7 @@ function ServerRow({
   const loaded = s.tools.filter((t) => t.always_load).map((t) => t.name);
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
-    <div style={{ display: "grid", gap: 6 }}>
+    <div style={{ display: "grid", gap: 6, padding: "6px 0" }}>
       <Row
         dense
         selected={open}
@@ -160,9 +162,6 @@ function ServerRow({
         <Dot color={STATE_TONE[s.state]} />
         <span style={{ minWidth: 0 }}>
           <strong>{s.entry}</strong>
-          <span className="loki-meta" style={{ marginLeft: 8 }}>
-            {s.kind}
-          </span>
           {s.purpose && (
             <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
               {s.purpose}
@@ -216,10 +215,10 @@ function ServerRow({
             </div>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button size="sm" tone="paper" onClick={() => void api.restart(s.name).then(apply)}>
+            <Button size="sm" onClick={() => void api.restart(s.name).then(apply)}>
               restart
             </Button>
-            <Button size="sm" tone="paper" onClick={onEdit}>
+            <Button size="sm" onClick={onEdit}>
               edit
             </Button>
             {confirm ? (
@@ -336,7 +335,17 @@ export async function editOf(form: Form, secure: (pairs: Record<string, string>)
 }
 
 /** Add or edit one server: local (a command loki starts) or remote (a URL), its env or headers as lines. */
-function ServerForm({ server, api, onDone }: { server: McpServerView | null; api: McpApi; onDone: (r: McpView | null) => void }) {
+function ServerForm({
+  server,
+  configPath,
+  api,
+  onDone,
+}: {
+  server: McpServerView | null;
+  configPath: string;
+  api: McpApi;
+  onDone: (r: McpView | null) => void;
+}) {
   const uid = useId();
   const [form, setForm] = useState(() => formOf(server));
   const set: SetField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -362,8 +371,7 @@ function ServerForm({ server, api, onDone }: { server: McpServerView | null; api
   };
 
   return (
-    <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
-      <strong>{server ? `Edit ${server.entry}` : "Add a server"}</strong>
+    <div style={{ display: "grid", gap: 8, padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>
@@ -376,14 +384,15 @@ function ServerForm({ server, api, onDone }: { server: McpServerView | null; api
         autoComplete="off"
         data-1p-ignore
       />
-      <div role="group" aria-label="Kind" style={{ display: "flex", gap: 4 }}>
-        <Chip active={form.kind === "local"} aria-pressed={form.kind === "local"} onClick={() => set("kind", "local")}>
-          local (a command)
-        </Chip>
-        <Chip active={form.kind === "remote"} aria-pressed={form.kind === "remote"} onClick={() => set("kind", "remote")}>
-          remote (a URL)
-        </Chip>
-      </div>
+      <span>
+        <Segmented
+          label="Kind"
+          options={["local", "remote"] as const}
+          value={form.kind}
+          onPick={(k) => set("kind", k)}
+          labels={{ local: "local (a command)", remote: "remote (a URL)" }}
+        />
+      </span>
       {form.kind === "local" ? <LocalFields uid={uid} form={form} set={set} /> : <RemoteFields uid={uid} form={form} set={set} />}
       <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
         <input type="checkbox" checked={keychain} onChange={(e) => setKeychain(e.target.checked)} />
@@ -399,6 +408,9 @@ function ServerForm({ server, api, onDone }: { server: McpServerView | null; api
         <Button size="sm" disabled={busy} onClick={() => onDone(null)}>
           cancel
         </Button>
+      </div>
+      <div className="loki-meta loki-meta--wrap">
+        Written to <span style={{ fontFamily: "var(--loki-mono)" }}>{configPath}</span>, which loki's daemon follows.
       </div>
     </div>
   );
@@ -483,19 +495,18 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const apply = (r: string[] | string) => (typeof r === "string" ? setError(r) : (setError(null), setTools(r)));
   const load = useEffectEvent(() => void api.list().then(apply));
   useEffect(() => load(), []);
-  if (tools === null) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
+  if (tools === null) return <Setting label="Tools" help={error ?? "asking loki…"} />;
   return (
-    <div style={{ display: "grid", gap: 4 }}>
-      {tools.length === 0 && <div className="loki-meta loki-meta--wrap">none: answer "always allow" on an approval to add one</div>}
+    <>
+      {tools.length === 0 && <Setting label="None yet" help={'Answer "always allow" on an approval to add its tool here.'} />}
       {tools.map((t) => (
-        <div key={t} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, flex: 1, overflowWrap: "anywhere" }}>{t}</span>
+        <Setting key={t} label={t} mono>
           <Button size="sm" onClick={() => void api.set(t, false).then(apply)}>
             take back
           </Button>
-        </div>
+        </Setting>
       ))}
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-    </div>
+    </>
   );
 }

@@ -40,7 +40,7 @@ function mac(opts: { signedIn: boolean; mcp?: Array<{ name: string; state: "conn
 
 describe("what a Mac lacks for an agent's chat", () => {
   test("no sign-in there for the agent's model provider is named (AE5)", async () => {
-    expect(await missingFor(mac({ signedIn: false }) as never, "agent-friday")).toEqual(["a sign-in for OpenAI: Settings › Providers"]);
+    expect(await missingFor(mac({ signedIn: false }) as never, "agent-friday")).toEqual(["a sign-in for OpenAI: Preferences › Providers"]);
     expect(await missingFor(mac({ signedIn: true }) as never, "agent-friday")).toEqual([]);
   });
 
@@ -55,7 +55,7 @@ describe("what a Mac lacks for an agent's chat", () => {
       ],
     });
     expect(await missingFor(m as never, "agent-friday")).toEqual([
-      "a sign-in for the MCP server notion: Settings › MCP",
+      "a sign-in for the MCP server notion: Preferences › MCP servers",
       "the MCP server fs, which is not running: fs-mcp not found",
     ]);
   });

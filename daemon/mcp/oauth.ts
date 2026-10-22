@@ -125,7 +125,7 @@ export class ServerOauth implements OAuthClientProvider {
 
   async codeVerifier(): Promise<string> {
     const v = await this.store.get<string>(this.server, "verifier");
-    if (!v) throw new Error("no sign-in is under way for this server; start it again from Settings › MCP");
+    if (!v) throw new Error("no sign-in is under way for this server; start it again from Preferences › MCP servers");
     return v;
   }
 

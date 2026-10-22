@@ -62,7 +62,7 @@ export function SkillsPage({
         )}
         <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
         <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>
-          Skills every agent reads are in Settings › skills.
+          Skills every agent reads are in Preferences › Skills.
         </div>
       </ListPane>
       <Pane>

@@ -131,7 +131,7 @@ function ProviderStep({
             .filter(isConnected)
             .map((p) => p.display_name)
             .join(", ")
-        : "none yet — Settings › providers, any time"}
+        : "none yet — Preferences › Providers, any time"}
     </span>
   );
 }

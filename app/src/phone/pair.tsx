@@ -36,8 +36,8 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
           onPaired((await r.json()) as Me);
           return;
         }
-        if (r.status === 404) setError("That code has expired. Open Settings › phone on the Mac for a new one.");
-        else setError(`The Mac answered ${r.status}. Try again from Settings › phone.`);
+        if (r.status === 404) setError("That code has expired. Open Preferences › Phone on the Mac for a new one.");
+        else setError(`The Mac answered ${r.status}. Try again from Preferences › Phone.`);
       })
       .catch(() => setError("The Mac did not answer. Same Wi‑Fi, and is it awake?"))
       .finally(() => setBusy(false));
@@ -66,7 +66,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
         <div>
           <img src="/mark.png" alt="" aria-hidden className="loki-phone-workspace" width={44} height={44} />
           <h1 className="loki-phone-large-title loki-phone-pair-title">Pair with the Mac</h1>
-          <p className="loki-phone-pair-lead">Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
+          <p className="loki-phone-pair-lead">Open Preferences › Phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
         </div>
         <form
           className="loki-phone-pair-form"

@@ -3,6 +3,7 @@ import { Button, Chip, Dot, Field, Row as PickRow } from "../components";
 import { useNow } from "../components/use-now";
 import { countdown, lastSeen } from "../phone/model";
 import { osWords } from "../shell/os-words";
+import { Block, Setting } from "./layout";
 import type { Pushes } from "../../../core/frames.ts";
 import type { TailnetDevice } from "../../../core/frame-types.ts";
 
@@ -29,31 +30,30 @@ export function Macs({ macs, connected }: { macs: MacsApi; connected: boolean })
   }, [connected]);
 
   const view = macs.view;
-  if (!connected || !view) return <div className="loki-meta loki-meta--wrap">asking the mod…</div>;
+  if (!connected || !view) return <Setting label="Macs" help="asking the mod…" />;
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <Row label={osWords().Machine}>
-        <span style={{ display: "grid", gap: 2 }}>
-          <span style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{view.me.name}</span>
-          {view.me.host ? (
-            <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)" }}>
-              {view.me.host}
-            </span>
-          ) : (
-            <span className="loki-meta loki-meta--wrap">not on a tailnet: open Tailscale and sign in to pair Macs</span>
-          )}
-        </span>
-      </Row>
-      <Row label="Pair">
-        <Pair macs={macs} />
-      </Row>
-      <Row label="Macs">
+    <>
+      <Block help="your other Macs running loki, over your tailnet only, never the Wi‑Fi or the internet. Each chat runs on one Mac; the others reach it through that Mac.">
+        <Setting
+          label={osWords().Machine}
+          help={
+            view.me.host ? (
+              <>
+                {view.me.name} · <span style={{ fontFamily: "var(--loki-mono)" }}>{view.me.host}</span>
+              </>
+            ) : (
+              `${view.me.name}, not on a tailnet: open Tailscale and sign in to pair Macs.`
+            )
+          }
+        />
+      </Block>
+      <Block title="Paired Macs">
         <PairedMacs peers={view.peers} onForget={macs.forget} />
-      </Row>
-      <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-muted)" }}>
-        Macs talk to each other over your tailnet only, never the Wi‑Fi or the internet. Each chat runs on one Mac; the others reach it through that Mac.
-      </div>
-    </div>
+      </Block>
+      <Block title="Pair a Mac">
+        <Pair macs={macs} />
+      </Block>
+    </>
   );
 }
 
@@ -76,41 +76,42 @@ function Pair({ macs }: { macs: MacsApi }) {
     });
   };
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      {macs.lastCode ? (
-        <PairCode code={macs.lastCode} onNew={macs.beginPair} />
-      ) : (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <Button size="sm" tone="positive" onClick={macs.beginPair}>
-            show a code
+    <>
+      <div>
+        <Setting label={`From ${osWords().machine}`} help="Show a code here, and type it on the other Mac.">
+          <Button tone="positive" onClick={macs.beginPair}>
+            {macs.lastCode ? "new code" : "show a code"}
           </Button>
-          <span className="loki-meta loki-meta--wrap">type it on the other Mac</span>
-        </span>
-      )}
-      <TailnetList devices={macs.view?.tailnet ?? []} picked={host} onPick={setHost} />
-      <form
-        style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (host.trim() && code.trim() && !busy) join();
-        }}
-      >
-        <Field
-          size="sm"
-          mono
-          aria-label="the other Mac's tailnet address"
-          placeholder="the other Mac's address"
-          value={host}
-          onChange={(e) => setHost(e.target.value)}
-          style={{ flex: "1 1 220px", minWidth: 0 }}
-        />
-        <Field size="sm" mono aria-label="its pairing code" placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 96 }} />
-        <Button size="sm" type="submit" disabled={busy || !host.trim() || !code.trim()}>
-          {busy ? "pairing…" : "pair"}
-        </Button>
-      </form>
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-    </div>
+        </Setting>
+        {macs.lastCode && <PairCode code={macs.lastCode} />}
+      </div>
+      <div style={{ display: "grid", gap: 10, paddingBottom: 12 }}>
+        <Setting label="From the other Mac" help="Pick it on your tailnet, or type its address, then the code it shows." />
+        <TailnetList devices={macs.view?.tailnet ?? []} picked={host} onPick={setHost} />
+        <form
+          style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (host.trim() && code.trim() && !busy) join();
+          }}
+        >
+          <Field
+            size="sm"
+            mono
+            aria-label="the other Mac's tailnet address"
+            placeholder="the other Mac's address"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            style={{ flex: "1 1 220px", minWidth: 0 }}
+          />
+          <Field size="sm" mono aria-label="its pairing code" placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 96 }} />
+          <Button size="sm" type="submit" disabled={busy || !host.trim() || !code.trim()}>
+            {busy ? "pairing…" : "pair"}
+          </Button>
+        </form>
+        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
+      </div>
+    </>
   );
 }
 
@@ -159,13 +160,13 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
   );
 }
 
-/** The code, the address to type beside it, and the time left; "new code" mints another. */
-function PairCode({ code, onNew }: { code: Pushes["peer_pair_code"]; onNew: () => void }) {
+/** The code, the address to type beside it, and the time left; the button above mints another. */
+function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const now = useNow(1000);
   const left = countdown(code.expires_at, now);
   const expired = left === "expired";
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div style={{ display: "grid", gap: 4, paddingBottom: 12 }}>
       <div style={{ fontFamily: "var(--loki-mono)", fontSize: 22, color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>{code.code}</div>
       {code.host && (
         <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
@@ -173,12 +174,7 @@ function PairCode({ code, onNew }: { code: Pushes["peer_pair_code"]; onNew: () =
         </div>
       )}
       <div style={{ fontSize: 12, color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
-        {expired ? "expired" : `${left} left`} · type both on the other Mac's Settings › Macs
-      </div>
-      <div>
-        <Button size="sm" tone={expired ? "brass" : "quiet"} onClick={onNew}>
-          new code
-        </Button>
+        {expired ? "expired" : `${left} left`} · type both on the other Mac's Preferences › Macs
       </div>
     </div>
   );
@@ -187,50 +183,29 @@ function PairCode({ code, onNew }: { code: Pushes["peer_pair_code"]; onNew: () =
 /** The Macs paired with this one: name, when last heard from, a note when one needs an update, and forget. */
 function PairedMacs({ peers, onForget }: { peers: Pushes["peers"]["peers"]; onForget: (macId: string) => void }) {
   const now = useNow();
-  if (peers.length === 0) return <span className="loki-meta loki-meta--wrap">no other Macs yet</span>;
+  if (peers.length === 0) return <Setting label="None yet" help="Pair one below." />;
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <>
       {peers.map((p) => (
-        <div
+        <Setting
           key={p.mac_id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "6px 10px",
-            border: "1px solid var(--loki-border)",
-            borderRadius: "var(--loki-radius-md)",
-          }}
+          label={p.name}
+          help={
+            <>
+              <span style={{ fontFamily: "var(--loki-mono)" }}>{p.host}</span> · {p.reachable ? "connected" : `out of reach, ${lastSeen(p.last_seen_at, now)}`}
+            </>
+          }
         >
-          <span style={{ flex: 1, minWidth: 0, display: "grid" }}>
-            <span style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-            <span className="loki-meta" style={{ fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {p.host}
-            </span>
-          </span>
           {p.outdated && (
             <Chip static label title={`${osWords().machine} and that one run different loki versions: nothing syncs until both are updated`}>
               needs an update
             </Chip>
           )}
-          <span className="loki-meta">{p.reachable ? "connected" : `out of reach · ${lastSeen(p.last_seen_at, now)}`}</span>
           <Button size="sm" tone="negative" onClick={() => onForget(p.mac_id)} title="both Macs forget each other; pair again to reconnect">
             forget
           </Button>
-        </div>
+        </Setting>
       ))}
-    </div>
-  );
-}
-
-/** A labelled row in the style of Settings' facts (the label column matches Settings › Phone). */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ paddingTop: 4 }}>
-        {label}
-      </span>
-      <div style={{ minWidth: 0 }}>{children}</div>
-    </div>
+    </>
   );
 }

@@ -123,7 +123,7 @@ export function ConnectionPage({
       </RowGroup>
       <p className="loki-phone-group-note">
         The link reconnects by itself. The route is the address this page was opened on; the other route (Wi‑Fi or Tailscale) is another address, paired on its
-        own from Settings › phone on the Mac.
+        own from Preferences › Phone on the Mac.
       </p>
       <RowGroup title="This phone">
         <FactRow label="Name" value={me.name} />
@@ -140,7 +140,7 @@ export function ConnectionPage({
           onConfirm={() => void unpair()}
           onClose={() => setConfirm(false)}
         >
-          This phone forgets the Mac and the Mac forgets it. To pair again, type a fresh code from Settings › phone on the Mac.
+          This phone forgets the Mac and the Mac forgets it. To pair again, type a fresh code from Preferences › Phone on the Mac.
         </ConfirmSheet>
       )}
     </Page>

@@ -508,13 +508,29 @@ export function Notices() {
 /** Show a notice (Sonner's `toast`): see `Notices`. */
 export const notify = toast;
 
-/** An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). */
-export function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {
+/**
+ * An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). `hideLabel` keeps the
+ * label for a screen reader only, where the setting's name already stands beside it.
+ */
+export function Switch({
+  on,
+  onToggle,
+  label,
+  small = false,
+  hideLabel = false,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  label: string;
+  small?: boolean;
+  hideLabel?: boolean;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={hideLabel ? label : undefined}
       onClick={onToggle}
       style={{
         display: "inline-flex",
@@ -554,7 +570,7 @@ export function Switch({ on, onToggle, label, small = false }: { on: boolean; on
           }}
         />
       </span>
-      {label}
+      {!hideLabel && label}
     </button>
   );
 }

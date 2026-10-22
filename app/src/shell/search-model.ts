@@ -5,7 +5,7 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
 import { createRecents } from "../shared/recents";
 import type { IconName } from "../shared/icons";
-import { PAGES, pageTitle, type SettingsPage } from "../settings/pages";
+import { PAGES, PAGE_WORDS, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
 import { osWords } from "./os-words";
 import type { DeskSummary } from "../../../core/frame-types.ts";
@@ -83,18 +83,6 @@ interface Page {
   keywords: string[];
 }
 
-/** Words for the Preferences pages beyond their names. */
-const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
-  loki: ["daemon", "node", "mod", "version", "update", "install", "import", "letta"],
-  usage: ["cost", "spend", "tokens", "price"],
-  inbox: ["order", "score", "focus", "archive"],
-  providers: ["models", "api key", "openai", "anthropic"],
-  phone: ["pairing", "wi-fi", "lan"],
-  appearance: ["theme", "dark mode", "light mode"],
-  learn: ["recall", "cards"],
-  keys: ["shortcuts", "keyboard"],
-};
-
 /** The places search opens by name: the rail's sections, Preferences, and each Preferences page. */
 export const DESTINATIONS: readonly Page[] = [
   {
@@ -144,7 +132,7 @@ export const DESTINATIONS: readonly Page[] = [
     icon: "settings",
     label: pageTitle(id),
     line: "Preferences",
-    keywords: PREF_WORDS[id] ?? [],
+    keywords: PAGE_WORDS[id] ?? [],
   })),
 ];
 

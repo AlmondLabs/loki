@@ -180,6 +180,6 @@ describe("Settings › labels (R6)", () => {
   });
   test("before the list arrives it says so; with none it says there are none", () => {
     expect(renderToStaticMarkup(createElement(Labels, { api: api(null) }))).toContain("asking loki…");
-    expect(renderToStaticMarkup(createElement(Labels, { api: api([]) }))).toContain("No labels yet.");
+    expect(renderToStaticMarkup(createElement(Labels, { api: api([]) }))).toContain("None yet");
   });
 });

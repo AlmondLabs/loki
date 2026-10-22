@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useId, useState } from "react";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
-import { Button, Chip, Dot, Field, Row } from "../components";
+import { Button, Dot, Field, Row } from "../components";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, sortProviders } from "./provider-model";
+import { Block, Segmented, Setting } from "./layout";
 
 /**
  * Model providers as rows: connected first, then the usual suspects, then everything the daemon
@@ -80,6 +81,102 @@ export function Providers({
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * Settings › providers (plan 031): the providers you use first, each opening into its key or sign-in; the rest of the
+ * daemon's catalogue only after "add a provider", behind a search, the usual ones on top.
+ */
+export function ProviderSettings({
+  providers,
+  onLoad,
+  onConnect,
+  onDisconnect,
+  onChanged,
+}: {
+  providers: ConnectProvider[] | null;
+  onLoad: () => Promise<unknown>;
+  onConnect: ConnectFn;
+  onDisconnect: DisconnectFn;
+  onChanged?: () => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const loading = providers === null;
+  const load = useEffectEvent(() => void onLoad());
+  useEffect(() => {
+    if (loading) load();
+  }, [loading]);
+
+  if (providers === null) return <Setting label="Providers" help="asking loki…" />;
+  const connected = sortProviders(providers).filter(isConnected);
+  const others = sortProviders(providers, filter).filter((p) => !isConnected(p));
+  const row = (p: ConnectProvider) => (
+    <ProviderRow
+      key={p.id}
+      p={p}
+      open={open === p.id}
+      onToggle={() => setOpen(open === p.id ? null : p.id)}
+      onConnect={onConnect}
+      onDisconnect={onDisconnect}
+      onChanged={onChanged}
+    />
+  );
+  return (
+    <>
+      <Block title="Connected" help="who answers your agents' models. A key is checked with the provider, then kept in this computer's keychain.">
+        {connected.length === 0 && <Setting label="None yet" help="Add a provider below to give your agents a model." />}
+        {connected.map(row)}
+      </Block>
+      <Block title="Add a provider">
+        {adding ? (
+          <div style={{ display: "grid", gap: 6, paddingTop: 10 }}>
+            <Field
+              size="sm"
+              type="search"
+              autoFocus
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (filter) setFilter("");
+                else setAdding(false);
+              }}
+              placeholder={`search ${providers.length - connected.length} providers`}
+              aria-label="search providers"
+              autoComplete="off"
+              data-1p-ignore
+              data-form-type="other"
+            />
+            <div style={{ display: "grid", gap: 2, maxHeight: 380, overflowY: "auto" }}>
+              {others.map(row)}
+              {others.length === 0 && (
+                <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
+                  nothing matches
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <Setting
+            label={`${providers.length - connected.length} providers`}
+            help={providers
+              .filter((p) => SHORTLIST.includes(p.id) && !isConnected(p))
+              .map((p) => p.display_name)
+              .concat("and others")
+              .join(", ")}
+          >
+            <Button tone="positive" onClick={() => setAdding(true)}>
+              add a provider
+            </Button>
+          </Setting>
+        )}
+      </Block>
+    </>
   );
 }
 
@@ -163,17 +260,14 @@ function ProviderRow({
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
         <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
-          <span style={{ fontSize: 13.5 }}>
-            {p.display_name}
-            {connected && (
-              <span className="loki-label" style={{ marginLeft: 8, color: "var(--loki-positive)" }}>
-                Connected
-              </span>
-            )}
-          </span>
+          <span style={{ fontSize: 13.5 }}>{p.display_name}</span>
           {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
-        <span className="loki-meta loki-meta--wrap">{p.id}</span>
+        {connected && (
+          <span className="loki-label" style={{ color: "var(--loki-positive)" }}>
+            Connected
+          </span>
+        )}
       </Row>
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
@@ -195,13 +289,15 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
   return (
     <>
       {p.auth_methods && p.auth_methods.length > 1 && (
-        <div role="radiogroup" aria-label="how to sign in" style={{ display: "inline-flex", gap: 4 }}>
-          {p.auth_methods.map((m) => (
-            <Chip key={m.id} label role="radio" aria-checked={authMethodId === m.id} active={authMethodId === m.id} onClick={() => setMethod(m.id)}>
-              {m.label}
-            </Chip>
-          ))}
-        </div>
+        <span>
+          <Segmented
+            label="how to sign in"
+            options={p.auth_methods.map((m) => m.id)}
+            value={authMethodId ?? p.auth_methods[0].id}
+            onPick={setMethod}
+            labels={Object.fromEntries(p.auth_methods.map((m) => [m.id, m.label]))}
+          />
+        </span>
       )}
       {fields.map((f) => (
         <label

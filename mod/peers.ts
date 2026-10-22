@@ -369,7 +369,7 @@ export class Peers {
   /** Pair with the Mac at `host` (its tailnet name, with a port or not) using the code it shows. Throws a message for the person. */
   async join(host: string, code: string): Promise<PeerSummary> {
     const base = peerBase(host);
-    if (!base) throw new Error("type the other Mac's tailnet name, as its Settings › Macs shows it");
+    if (!base) throw new Error("type the other Mac's tailnet name, as its Preferences › Macs shows it");
     const mine = mintPeerToken();
     const me = this.hello();
     const res = await this.call(`${base}/peer/pair`, { method: "POST", body: JSON.stringify({ code, hello: me, token: mine }) });

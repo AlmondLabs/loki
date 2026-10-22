@@ -501,7 +501,7 @@ export class PassRunner {
         return finish({
           outcome: "skipped",
           changes: 0,
-          report: "the memory review runs on the agent's own model, and it has none loki can reach; connect a provider in Settings › Providers",
+          report: "the memory review runs on the agent's own model, and it has none loki can reach; connect a provider in Preferences › Providers",
         });
       const dump = memoryDump(memoryRoot(this.deps.backendDir, agentId));
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });

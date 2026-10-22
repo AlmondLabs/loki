@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { afterSegmentKey } from "../app/src/settings/preferences.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PAGES, pageAfterKey, pageTitle, savedPage } from "../app/src/settings/pages.ts";
+import { GROUPS, PAGES, groupOf, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
 import { GlobalKeyRow } from "../app/src/settings/settings.tsx";
@@ -30,58 +30,83 @@ describe("Preferences: the segment keys over the sheet", () => {
 });
 
 describe("Preferences: the section list", () => {
-  test("every page has a sentence-case name, loki's proper nouns kept", () => {
+  test("the groups hold every page once, and the list is the groups' pages in order", () => {
+    expect(GROUPS.map((g) => g.title)).toEqual(["General", "Models and tools", "Your devices", "Inbox and Learn", "Labels", "loki"]);
     expect(PAGES.map((p) => pageTitle(p.id))).toEqual([
-      "loki",
-      "Usage",
-      "Inbox",
-      "Providers",
-      "Engines",
-      "MCP",
-      "Phone",
-      "Macs",
-      "Skills",
-      "Learn",
       "Appearance",
       "Chat",
+      "Keyboard shortcuts",
+      "Providers",
+      "Engines",
+      "MCP servers",
+      "Skills",
+      "Macs",
+      "Phone",
+      "Inbox",
+      "Learn",
       "Labels",
-      "Files",
-      "Keys",
+      "About",
+      "Usage",
     ]);
-    for (const p of PAGES) if (p.id !== "loki") expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
+    expect(new Set(PAGES.map((p) => p.id)).size).toBe(PAGES.length);
+    for (const p of PAGES) expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
   });
 
-  test("a saved page opens as it was; the old Letta page id opens the loki page", () => {
+  test("a saved page opens as it was; the old Letta and Files page ids open About; none opens the first page", () => {
     expect(savedPage("skills")).toBe("skills");
     expect(savedPage("letta")).toBe("loki");
-    expect(savedPage(null)).toBe("loki");
-    expect(savedPage("harness")).toBe("loki");
+    expect(savedPage("files")).toBe("loki");
+    expect(savedPage(null)).toBe("appearance");
+    expect(savedPage("harness")).toBe("appearance");
+  });
+
+  test("the filter keeps pages by name, group or word, case aside; empty keeps them all", () => {
+    expect(pagesMatching("")).toEqual(PAGES.map((p) => p.id));
+    expect(pagesMatching("  ")).toEqual(PAGES.map((p) => p.id));
+    expect(pagesMatching("pair")).toEqual(["macs", "phone"]);
+    expect(pagesMatching("DEVICES")).toEqual(["macs", "phone"]);
+    expect(pagesMatching("dark")).toEqual(["appearance"]);
+    expect(pagesMatching("shortcuts")).toEqual(["keys"]);
+    expect(pagesMatching("zzz")).toEqual([]);
   });
 });
 
 describe("Preferences: the section list is a vertical tablist (focus follows the chosen page)", () => {
-  test("↑↓ step the pages and wrap, Home and End jump; other keys are not the list's", () => {
-    expect(pageAfterKey("loki", "ArrowDown")).toBe("usage");
-    expect(pageAfterKey("usage", "ArrowUp")).toBe("loki");
-    expect(pageAfterKey("loki", "ArrowUp")).toBe("keys");
-    expect(pageAfterKey("keys", "ArrowDown")).toBe("loki");
-    expect(pageAfterKey("chat", "Home")).toBe("loki");
-    expect(pageAfterKey("chat", "End")).toBe("keys");
+  test("↑↓ step the groups and wrap, landing on a group's first page; Home and End jump; other keys are not the list's", () => {
+    expect(pageAfterKey("appearance", "ArrowDown")).toBe("providers");
+    expect(pageAfterKey("keys", "ArrowDown")).toBe("providers");
+    expect(pageAfterKey("mcp", "ArrowUp")).toBe("appearance");
+    expect(pageAfterKey("appearance", "ArrowUp")).toBe("loki");
+    expect(pageAfterKey("usage", "ArrowDown")).toBe("appearance");
+    expect(pageAfterKey("chat", "Home")).toBe("appearance");
+    expect(pageAfterKey("chat", "End")).toBe("loki");
     expect(pageAfterKey("chat", "ArrowRight")).toBeNull();
     expect(pageAfterKey("chat", "Enter")).toBeNull();
   });
-  test("the chosen page is the one Tab stop and says it is selected; the rest are reached by arrows", () => {
+  test("with a filter the keys walk the groups it left, from a page it hid too, landing on the pages it kept", () => {
+    const left = pagesMatching("pair");
+    expect(pageAfterKey("macs", "ArrowDown", left)).toBe("macs");
+    expect(pageAfterKey("skills", "ArrowDown", left)).toBe("macs");
+    const tools = pagesMatching("tools");
+    expect(tools).toEqual(["providers", "engines", "mcp", "skills"]);
+    expect(pageAfterKey("appearance", "ArrowDown", pagesMatching("dark"))).toBe("appearance");
+    expect(pageAfterKey("skills", "ArrowDown", [])).toBeNull();
+  });
+  test("each page is a tab of one group", () => {
+    for (const p of PAGES) expect(groupOf(p.id).pages).toContain(p.id);
+    expect(groupOf("usage").title).toBe("loki");
+  });
+  test("the chosen group is the one Tab stop and says it is selected; the rest are reached by arrows", () => {
     const out = renderToStaticMarkup(createElement(PageList, { page: "skills", onPick: () => {} }));
     expect(out).toContain('role="tablist"');
     expect(out).toContain('aria-orientation="vertical"');
-    const tabs = [...out.matchAll(/<button[^>]*>/g)].map((m) => m[0]);
-    expect(tabs).toHaveLength(PAGES.length);
+    const tabs = [...out.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
+    expect(tabs).toHaveLength(GROUPS.length);
     const chosen = tabs.filter((t) => t.includes('aria-selected="true"'));
     expect(chosen).toHaveLength(1);
-    expect(chosen[0]).toContain('data-page="skills"');
+    expect(chosen[0]).toContain('data-group="Models and tools"');
     expect(chosen[0]).toContain('tabindex="0"');
-    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(PAGES.length - 1);
-    for (const t of tabs) expect(t).toContain('role="tab"');
+    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(GROUPS.length - 1);
   });
 });
 
@@ -117,7 +142,7 @@ describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
   test("the Mac's phone page is as it was: the switch, the route and the code", () => {
     const out = text(renderToStaticMarkup(createElement(Phone, { phone, connected: true, os: "macos" })));
     expect(out).toContain('role="switch"');
-    expect(out).toContain("phones can reach this Mac");
+    expect(out).toContain("Phones can reach this Mac");
     expect(out).toContain("K7PQ2M");
     expect(out).not.toContain("isn't on");
     expect(renderToStaticMarkup(createElement(Phone, { phone, connected: true }))).toBe(
