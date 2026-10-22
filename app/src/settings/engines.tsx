@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useId, useState } from "react";
-import { Button, Dot, Field, TextArea } from "../components";
+import { Button, Dot, Field, TextArea, sentence } from "../components";
+import { Block, Setting } from "./layout";
 import type { EnginesView, EngineView } from "../../../core/frame-types.ts";
 
 /** What Settings › Engines asks of the daemon; each call resolves to the agents as they now stand, or an error message. */
@@ -64,84 +65,115 @@ export function Engines({ api }: { api: EnginesApi }) {
     setTrying(null);
   };
 
-  if (!view) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
+  if (!view) return <Setting label="Engines" help={error ?? "asking loki…"} />;
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div className="loki-meta loki-meta--wrap">
-        A chat picks its engine in the model picker before its first message. Claude Code runs signed in as you, through npx; others are added by the command
-        that starts them. Your own are kept in <span style={{ fontFamily: "var(--loki-mono)" }}>{view.config_path}</span>.
-      </div>
-      {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-      <div style={{ display: "grid", gap: 2 }}>
+    <>
+      <Block help="what a chat can run on besides loki's own models. A chat picks its engine in the model picker, before its first message.">
+        {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
         {view.engines.map((e) => (
-          // Not a Row: a row is a button, and this one holds buttons of its own.
-          <div
+          <EngineRow
             key={e.id}
-            role="group"
-            aria-label={`${e.name}, ${WORDS[e.status]}`}
-            style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10, padding: "6px 8px" }}
-          >
-            <Dot color={TONE[e.status]} />
-            <span style={{ minWidth: 0 }}>
-              <strong>{e.name}</strong>
-              <span className="loki-meta" style={{ marginLeft: 8 }}>
-                {WORDS[e.status]}
-                {e.builtin ? (e.changed ? " · started your way" : " · built in") : ""}
-              </span>
-              <span className="loki-meta loki-meta--wrap" style={{ display: "block", fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
-                {[e.command, ...e.args].join(" ")}
-              </span>
-              {e.detail && (
-                <span
-                  className={`loki-meta loki-meta--wrap${e.status === "failed" || e.status === "not_found" ? " loki-meta--negative" : ""}`}
-                  style={{ display: "block" }}
-                >
-                  {e.detail}
-                </span>
-              )}
-            </span>
-            <span style={{ display: "flex", gap: 6 }}>
-              <Button size="sm" onClick={() => void tryOne(e.id)} disabled={trying !== null} aria-label={`try starting ${e.name}`}>
-                {trying === e.id ? "starting…" : "try"}
-              </Button>
-              <Button size="sm" onClick={() => setEditing(e)} aria-label={`edit ${e.name}`}>
-                edit
-              </Button>
-              {(!e.builtin || e.changed) && (
-                <Button
-                  size="sm"
-                  tone="negative"
-                  onClick={() => void api.remove(e.id).then(apply)}
-                  aria-label={e.builtin ? `start ${e.name} as loki ships it` : `remove ${e.name}`}
-                >
-                  {e.builtin ? "reset" : "remove"}
-                </Button>
-              )}
-            </span>
-          </div>
+            e={e}
+            trying={trying}
+            onTry={() => void tryOne(e.id)}
+            onEdit={() => setEditing(e)}
+            onRemove={() => void api.remove(e.id).then(apply)}
+          />
         ))}
-      </div>
-      {editing ? (
-        <EngineForm
-          key={editing === "new" ? "new" : editing.id}
-          engine={editing === "new" ? null : editing}
-          api={api}
-          onDone={(r) => {
-            if (r) apply(r);
-            setEditing(null);
-          }}
-        />
-      ) : (
-        <Button size="sm" tone="brass" onClick={() => setEditing("new")} style={{ justifySelf: "start" }}>
-          + add an agent
+      </Block>
+      <Block title={editing && editing !== "new" ? `Edit ${editing.name}` : "Add an engine"}>
+        {editing ? (
+          <EngineForm
+            key={editing === "new" ? "new" : editing.id}
+            engine={editing === "new" ? null : editing}
+            configPath={view.config_path}
+            api={api}
+            onDone={(r) => {
+              if (r) apply(r);
+              setEditing(null);
+            }}
+          />
+        ) : (
+          <Setting label="Any agent that speaks ACP" help="Added by the command that starts it, such as Gemini CLI or Codex.">
+            <Button tone="positive" onClick={() => setEditing("new")}>
+              add an engine
+            </Button>
+          </Setting>
+        )}
+      </Block>
+    </>
+  );
+}
+
+/** One engine: its name and how it stands, the command that starts it behind "details", and try, edit and remove. */
+function EngineRow({
+  e,
+  trying,
+  onTry,
+  onEdit,
+  onRemove,
+}: {
+  e: EngineView;
+  trying: string | null;
+  onTry: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const [details, setDetails] = useState(false);
+  const bad = e.status === "failed" || e.status === "not_found";
+  return (
+    <div role="group" aria-label={`${e.name}, ${WORDS[e.status]}`}>
+      <Setting
+        label={e.name}
+        help={
+          <>
+            <Dot color={TONE[e.status]} style={{ marginRight: 6, verticalAlign: "middle" }} />
+            {sentence(WORDS[e.status])}
+            {e.builtin ? (e.changed ? ", started your way" : ", built in") : ""}.
+            {e.detail && (
+              <span className={`loki-meta--wrap${bad ? " loki-meta--negative" : ""}`} style={{ display: "block" }}>
+                {e.detail}
+              </span>
+            )}
+          </>
+        }
+      >
+        <Button size="sm" bare onClick={() => setDetails(!details)} aria-expanded={details}>
+          details
         </Button>
+        <Button size="sm" onClick={onTry} disabled={trying !== null} aria-label={`try starting ${e.name}`}>
+          {trying === e.id ? "starting…" : "try"}
+        </Button>
+        <Button size="sm" onClick={onEdit} aria-label={`edit ${e.name}`}>
+          edit
+        </Button>
+        {(!e.builtin || e.changed) && (
+          <Button size="sm" tone="negative" onClick={onRemove} aria-label={e.builtin ? `start ${e.name} as loki ships it` : `remove ${e.name}`}>
+            {e.builtin ? "reset" : "remove"}
+          </Button>
+        )}
+      </Setting>
+      {details && (
+        <div className="loki-meta loki-meta--wrap" style={{ paddingBottom: 12, fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
+          {[e.command, ...e.args].join(" ")}
+        </div>
       )}
     </div>
   );
 }
 
 /** Add an ACP agent, or change how one starts: its name, its command and its arguments, one per line. */
-function EngineForm({ engine, api, onDone }: { engine: EngineView | null; api: EnginesApi; onDone: (r: EnginesView | null) => void }) {
+function EngineForm({
+  engine,
+  configPath,
+  api,
+  onDone,
+}: {
+  engine: EngineView | null;
+  configPath: string;
+  api: EnginesApi;
+  onDone: (r: EnginesView | null) => void;
+}) {
   const uid = useId();
   const [name, setName] = useState(engine?.name ?? "");
   const [command, setCommand] = useState(engine?.command ?? "");
@@ -170,8 +202,7 @@ function EngineForm({ engine, api, onDone }: { engine: EngineView | null; api: E
     }
   };
   return (
-    <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
-      <strong>{engine ? `Edit ${engine.name}` : "Add an agent"}</strong>
+    <div style={{ display: "grid", gap: 8, padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>
@@ -195,12 +226,15 @@ function EngineForm({ engine, api, onDone }: { engine: EngineView | null; api: E
       />
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
       <div style={{ display: "flex", gap: 6 }}>
-        <Button size="sm" tone="brass" onClick={() => void save()} disabled={busy}>
+        <Button size="sm" tone="positive" onClick={() => void save()} disabled={busy}>
           {busy ? "saving…" : "save"}
         </Button>
         <Button size="sm" onClick={() => onDone(null)}>
           cancel
         </Button>
+      </div>
+      <div className="loki-meta loki-meta--wrap">
+        Kept in <span style={{ fontFamily: "var(--loki-mono)" }}>{configPath}</span>.
       </div>
     </div>
   );

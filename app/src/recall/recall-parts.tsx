@@ -11,6 +11,7 @@ import {
 } from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/catch-up-parts";
+import { Setting } from "../settings/layout";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
 
@@ -311,7 +312,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
         It asks the agent's model, so every run spends a little of your provider budget — up to {worker.daily_cap} cards a day, and nothing at all while no
         conversation has new text. Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until
-        you turn it on, and Settings › learn turns it off again.
+        you turn it on, and Preferences › Learn turns it off again.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {onEnable ? (
@@ -319,7 +320,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
             turn the writer on
           </Button>
         ) : (
-          <Meta>turn it on from the Mac: Learn, or Settings › learn</Meta>
+          <Meta>turn it on from the Mac: Learn, or Preferences › Learn</Meta>
         )}
       </div>
     </section>
@@ -340,22 +341,18 @@ export function RecallSettings({
 }) {
   const [cap, setCap] = useState(String(worker.daily_cap));
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <Line label="Writer">
-        <span style={{ display: "inline-grid", gap: 4 }}>
-          <Switch
-            on={worker.enabled}
-            onToggle={() => onSettings({ enabled: !worker.enabled })}
-            label={
-              worker.enabled
-                ? "on — reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping"
-                : "off — no conversation is read, nothing is written"
-            }
-          />
-          <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
-        </span>
-      </Line>
-      <Line label="Cards a day">
+    <>
+      <Setting
+        label="Card writer"
+        help={`${
+          worker.enabled
+            ? "Reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping."
+            : "Off: no conversation is read, nothing is written."
+        } Each run asks the agent's model, so it spends a little of your provider budget.`}
+      >
+        <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label="card writer" hideLabel />
+      </Setting>
+      <Setting label="Cards a day" help="The most new cards the writer adds in a day.">
         <Field
           size="sm"
           mono
@@ -365,38 +362,21 @@ export function RecallSettings({
           style={{ width: 64 }}
           aria-label="cards a day"
         />
-      </Line>
-      <Line label="Last run">
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Meta wrap>
-            {worker.last_run_at ? `${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "has not run yet"} · {writtenLine(worker)}
-          </Meta>
-          <Button
-            size="sm"
-            onClick={onRun}
-            disabled={running}
-            title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
-          >
-            {running ? "running…" : "run now"}
-          </Button>
-        </span>
-      </Line>
-      <Line label="Files">
-        <Meta>~/.loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta>
-      </Line>
-    </div>
-  );
-}
-
-/** A labelled line in Settings' fact grid (the label column matches Settings' own). */
-function Line({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ paddingTop: 4 }}>
-        {label}
-      </span>
-      <span style={{ minWidth: 0 }}>{children}</span>
-    </div>
+      </Setting>
+      <Setting
+        label="Last run"
+        help={`${worker.last_run_at ? `${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "Has not run yet"} · ${writtenLine(worker)}`}
+      >
+        <Button
+          size="sm"
+          onClick={onRun}
+          disabled={running}
+          title="read every conversation with something new now, instead of waiting for it to be quiet for half an hour"
+        >
+          {running ? "running…" : "run now"}
+        </Button>
+      </Setting>
+    </>
   );
 }
 
@@ -433,7 +413,7 @@ export function LeadList({
         <Empty card title="No leads yet.">
           {worker.enabled
             ? "When a conversation goes quiet, the writer names what went by in it without being understood — a concept, an acronym, something you took the agent's word for. They collect here, and each is a lesson away."
-            : "Leads come from the writer, and the writer is off. Turn it on under review or in Settings › recall and they will collect here as conversations go quiet."}
+            : "Leads come from the writer, and the writer is off. Turn it on under review or in Preferences › Learn and they will collect here as conversations go quiet."}
         </Empty>
       )}
       {leads.map((l) => (

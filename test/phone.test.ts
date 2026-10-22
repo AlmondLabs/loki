@@ -585,7 +585,7 @@ describe("Preferences: appearance on the phone is System, Light or Dark — no p
     const { readFileSync } = await import("node:fs");
     const settings = readFileSync(new URL("../app/src/phone/preferences.tsx", import.meta.url), "utf8");
     expect(settings).not.toMatch(/ThemeChoice|PALETTES|setPalette/);
-    const desktop = readFileSync(new URL("../app/src/settings/theme-choice.tsx", import.meta.url), "utf8");
-    expect(desktop).toMatch(/PALETTES\.map/);
+    const desktop = readFileSync(new URL("../app/src/settings/settings.tsx", import.meta.url), "utf8");
+    expect(desktop).toMatch(/options=\{PALETTES\}/);
   });
 });

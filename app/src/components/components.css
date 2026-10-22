@@ -1177,3 +1177,45 @@ button.loki-list-section-toggle {
     background: linear-gradient(to right, transparent 2px, var(--loki-accent) 2px, var(--loki-accent) 4px, transparent 4px);
   }
 }
+
+/* ---- Segmented: two to four values, one chosen, in one track (Preferences, plan 031) ----------------------- */
+.loki-segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-well);
+}
+.loki-segmented > button {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-segmented > button:hover:not([aria-pressed="true"]) {
+    color: var(--loki-fg);
+  }
+}
+.loki-segmented > button[aria-pressed="true"] {
+  border-color: var(--loki-control-border);
+  background: var(--loki-bg);
+  color: var(--loki-fg);
+  box-shadow: var(--loki-shadow-low);
+}
+
+/* ---- A Preferences block: its settings divided by hairlines (plan 031) ------------------------------------- */
+.loki-settings-block > * + * {
+  border-top: 1px solid var(--loki-border);
+}

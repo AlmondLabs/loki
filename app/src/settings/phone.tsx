@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import QRCode from "qrcode";
-import { Button, Chip, Dot, Row as PickRow, Switch } from "../components";
+import { Button, Dot, Row as PickRow, Switch } from "../components";
+import { Block, Setting } from "./layout";
 import { notYetOn, platform, type Platform } from "../desk/env";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
@@ -23,11 +24,10 @@ export interface PhoneApi {
 const ROUTE_NAME: Record<LanVia, string> = { tailscale: "Tailscale", lan: "this Wi‑Fi" };
 
 /**
- * Settings › phone, in four rows that answer four questions. Is the Mac reachable (a switch). Which way do
- * phones come in (the route: one lit row, Tailscale or this Wi‑Fi; the lit one is what the QR carries and
- * what a new phone bookmarks). How does a new phone join (the QR, whose URL follows the lit route). Which
- * phones are in, and which way did each one last arrive (the list). Nothing else is on the page: the
- * addresses that used to be listed live inside the route rows now, one per route.
+ * Settings › phone, in blocks that answer four questions (plan 031). Can phones reach this Mac (a switch). Which way do
+ * they come in (the route: one lit row, Tailscale or this Wi‑Fi; the lit one is what the QR carries and what a new
+ * phone bookmarks). How does a new phone join (the QR, whose URL follows the lit route). Which phones are in, and
+ * which way did each one last arrive.
  */
 export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; connected: boolean; os?: Platform }) {
   const { status, devices, lastCode } = phone;
@@ -38,106 +38,82 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
   }, [connected, here]);
 
   // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.
-  if (!here) return <div className="loki-meta loki-meta--wrap">{notYetOn("Phone pairing", os)}</div>;
-  if (!connected || !status) return <div className="loki-meta loki-meta--wrap">asking the mod…</div>;
+  if (!here) return <Setting label="Phone" help={notYetOn("Phone pairing", os)} />;
+  if (!connected || !status) return <Setting label="Phone" help="asking the mod…" />;
   const on = status.enabled;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <Row label="Phone">
-        <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" />
-        {status.error && (
-          <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>
-            {status.error}
-          </div>
-        )}
-        {on && !status.app_served && (
-          <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>
-            the canvas build is missing; run npm run build:app
-          </div>
-        )}
-      </Row>
+    <>
+      <Block>
+        <Setting
+          label="Phones can reach this Mac"
+          help={
+            <>
+              The inbox and your chats on a phone, over Tailscale or this Wi‑Fi; nothing to install.
+              {status.error && (
+                <span className="loki-meta--negative" style={{ display: "block" }}>
+                  {status.error}
+                </span>
+              )}
+              {on && !status.app_served && (
+                <span className="loki-meta--negative" style={{ display: "block" }}>
+                  The canvas build is missing; run npm run build:app.
+                </span>
+              )}
+            </>
+          }
+        >
+          <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" hideLabel />
+        </Setting>
+      </Block>
 
       {on && (
-        <Row label="Route">
-          <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
-        </Row>
+        <Block
+          title="Route"
+          help={`anyone on the lit route can open the page; only a paired phone can act. ${
+            status.via === "lan"
+              ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale."
+              : "The tailnet is yours alone; Funnel is never used."
+          }`}
+        >
+          <div style={{ padding: "12px 0" }}>
+            <Route status={status} onVia={phone.setVia} onServe={phone.setServe} />
+          </div>
+        </Block>
       )}
 
       {on && (
-        <Row label="Pair">
-          {lastCode ? (
-            <PairPlate code={lastCode} status={status} onNew={phone.beginPair} />
-          ) : (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-              <Button size="sm" tone="positive" onClick={phone.beginPair}>
-                pair a phone
+        <Block title="Pair a phone">
+          <div>
+            <Setting label="A new phone" help="A code that lives ten minutes. Scan it with the phone's camera, then Add to Home Screen.">
+              <Button tone="positive" onClick={phone.beginPair}>
+                {lastCode ? "new code" : "pair a phone"}
               </Button>
-              <span className="loki-meta loki-meta--wrap">a code that lives ten minutes</span>
-            </span>
-          )}
-        </Row>
-      )}
-
-      <Row label="Phones">
-        {devices === null ? (
-          <span className="loki-meta loki-meta--wrap">—</span>
-        ) : devices.length === 0 ? (
-          <span className="loki-meta loki-meta--wrap">no phones yet</span>
-        ) : (
-          <div style={{ display: "grid", gap: 4 }}>
-            {devices.map((d) => {
-              const via = viaLabel(d.last_via);
-              return (
-                <div
-                  key={d.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "6px 10px",
-                    border: "1px solid var(--loki-border)",
-                    borderRadius: "var(--loki-radius-md)",
-                  }}
-                >
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: 13.5,
-                      color: "var(--loki-fg)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {d.name}
-                  </span>
-                  {via && (
-                    <Chip static label title="the route this phone's last request came in by">
-                      via {via}
-                    </Chip>
-                  )}
-                  <span className="loki-meta">{lastSeen(d.last_seen_at)}</span>
-                  <Button size="sm" tone="negative" onClick={() => phone.forget(d.id)} title="this phone has to pair again">
-                    forget
-                  </Button>
-                </div>
-              );
-            })}
+            </Setting>
+            {lastCode && <PairPlate code={lastCode} status={status} />}
           </div>
-        )}
-      </Row>
-
-      {on && (
-        <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-muted)" }}>
-          Anyone on the lit route can open the page; only a paired phone can act.{" "}
-          {status.via === "lan"
-            ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale."
-            : "The tailnet is yours alone; Funnel is never used."}
-        </div>
+        </Block>
       )}
-    </div>
+
+      <Block title="Paired phones">
+        {devices === null ? (
+          <Setting label="Phones" help="—" />
+        ) : devices.length === 0 ? (
+          <Setting label="None yet" help={on ? "Pair one above." : "Switch on reaching this Mac to pair one."} />
+        ) : (
+          devices.map((d) => {
+            const via = viaLabel(d.last_via);
+            return (
+              <Setting key={d.id} label={d.name} help={via ? `${lastSeen(d.last_seen_at)} · came in via ${via}` : lastSeen(d.last_seen_at)}>
+                <Button size="sm" tone="negative" onClick={() => phone.forget(d.id)} title="this phone has to pair again">
+                  forget
+                </Button>
+              </Setting>
+            );
+          })
+        )}
+      </Block>
+    </>
   );
 }
 
@@ -240,8 +216,8 @@ function RouteRow({
   );
 }
 
-/** The QR, the six letters, the URL as text (following the lit route), and the time left; "new code" mints another. */
-function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanStatus; onNew: () => void }) {
+/** The QR, the six letters, the URL as text (following the lit route), and the time left; the button above mints another. */
+function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus }) {
   const url = pairUrlFor(status, code.code) ?? code.url;
   const [svg, setSvg] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -262,7 +238,7 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
   const left = countdown(code.expiresAt, now);
   const expired = left === "expired";
   return (
-    <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", paddingBottom: 12 }}>
       <div
         aria-label={`QR code for ${url}`}
         role="img"
@@ -278,26 +254,9 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
           {expired ? "expired" : `${left} left`} · over {ROUTE_NAME[status.via]}
         </div>
         <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-          Scan with the phone's camera, then Add to Home Screen. The new icon asks for this code once.
-        </div>
-        <div>
-          <Button size="sm" tone={expired ? "brass" : "quiet"} onClick={onNew}>
-            new code
-          </Button>
+          The new icon asks for this code once.
         </div>
       </div>
-    </div>
-  );
-}
-
-/** A labelled row in the style of Settings' facts (the label column matches). */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ paddingTop: 4 }}>
-        {label}
-      </span>
-      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }

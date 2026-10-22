@@ -3,6 +3,7 @@ import { Button, Field } from "../components";
 import { labelColor, paletteColor } from "../chat/labels";
 import { keyFor } from "../shell/keymap";
 import { LABEL_COLORS, LABEL_MAX, labelName, type LabelView } from "../../../core/labels.ts";
+import { Block, Setting } from "./layout";
 
 /** What Settings › labels asks of use-attention's labels: the list, and a rename, recolour or delete (an error, or null). */
 export interface LabelsApi {
@@ -19,28 +20,22 @@ type RowMode = "show" | "rename" | "color" | "remove";
  */
 export function Labels({ api }: { api: LabelsApi }) {
   const [error, setError] = useState<string | null>(null);
-  if (!api.list) return <div className="loki-meta loki-meta--wrap">asking loki…</div>;
+  if (!api.list) return <Setting label="Labels" help="asking loki…" />;
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div className="loki-meta loki-meta--wrap">
-        Labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in
-        the sidebar's filter or {keyFor("search.open")}.
-      </div>
+    <Block
+      help={`labels gather related chats across agents. Add them from a chat's row, its header, or /label in the message box; find a label's chats with label:name in the sidebar's filter or ${keyFor("search.open")}.`}
+    >
       {error && (
         <div role="alert" className="loki-meta loki-meta--negative loki-meta--wrap">
           {error}
         </div>
       )}
       {api.list.length === 0 ? (
-        <div className="loki-meta">No labels yet.</div>
+        <Setting label="None yet" help="Label a chat and it shows here." />
       ) : (
-        <div style={{ display: "grid", gap: 2 }}>
-          {api.list.map((l) => (
-            <LabelRow key={l.name} label={l} list={api.list} api={api} onError={setError} />
-          ))}
-        </div>
+        api.list.map((l) => <LabelRow key={l.name} label={l} list={api.list} api={api} onError={setError} />)
       )}
-    </div>
+    </Block>
   );
 }
 
@@ -62,7 +57,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
   const renamed = labelName(name);
   const chats = `${label.chats} ${label.chats === 1 ? "chat" : "chats"}`;
   return (
-    <div role="group" aria-label={`${label.name}, ${chats}`} style={{ display: "grid", gap: 6, padding: "6px 8px" }}>
+    <div role="group" aria-label={`${label.name}, ${chats}`} style={{ display: "grid", gap: 8, padding: "12px 0" }}>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
         <span aria-hidden className="loki-label-dot" style={{ "--label-tone": labelColor(label.name, list) } as CSSProperties} />
         <span style={{ minWidth: 0 }}>
@@ -102,7 +97,7 @@ function LabelRow({ label, list, api, onError }: { label: LabelView; list: Label
             onChange={(e) => setName(e.target.value)}
             style={{ flex: 1 }}
           />
-          <Button size="sm" tone="brass" type="submit" disabled={busy || !renamed || renamed === label.name}>
+          <Button size="sm" tone="positive" type="submit" disabled={busy || !renamed || renamed === label.name}>
             {busy ? "saving…" : renamed && renamed !== name.trim() ? `save as ${renamed}` : "save"}
           </Button>
         </form>

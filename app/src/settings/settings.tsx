@@ -6,10 +6,10 @@ import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/os-words";
-import { Button, Dot, IconButton, Sheet, Switch, sentence } from "../components";
+import { Button, Dot, Field, IconButton, Kbd, Sheet, Switch, TabRow, sentence } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
-import { Providers } from "./providers";
+import { ProviderSettings } from "./providers";
 import { Phone, type PhoneApi } from "./phone";
 import { Macs, type MacsApi } from "./macs";
 import { Skills, type GlobalSkillsApi } from "./skills";
@@ -21,12 +21,15 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
-import { ThemeChoice } from "./theme-choice";
-import { PAGES, SETTINGS_PAGE_KEY, pageTitle, savedPage, type SettingsPage } from "./pages";
+import { REST_FIRST_MS, REST_GROWTH } from "../../../core/attention/rest.ts";
+import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
-import { Choice, Fact, Section } from "./layout";
+import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import { UsagePage, type UsageApi } from "./usage";
-import { useTheme } from "../theme";
+import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
+
+/** The chat panel's widths at the side, narrow first. */
+const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
 
 const HOME = "~/.loki";
 
@@ -135,6 +138,7 @@ export function Settings({
 }) {
   const harness = useHarnessFacts();
   const [page, setPage] = useState<SettingsPage>(() => savedPage(sessionStorage.getItem(PAGE_KEY)));
+  const group = groupOf(page);
   const pick = (p: SettingsPage) => {
     setPage(p);
     sessionStorage.setItem(PAGE_KEY, p);
@@ -173,11 +177,7 @@ export function Settings({
     engines: () => <EnginesPage engines={engines} chatLink={chatLink} />,
     mcp: () => <McpPage mcp={mcp} chatLink={chatLink} />,
     phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
-    macs: () => (
-      <Section title="Macs" hint="your other Macs running loki, over Tailscale: every chat reachable from each">
-        <Macs macs={macs} connected={modConnection === "open"} />
-      </Section>
-    ),
+    macs: () => <Macs macs={macs} connected={modConnection === "open"} />,
     skills: () => <SkillsPage globalSkills={globalSkills} />,
     learn: () => <RecallPage recall={recall} />,
     appearance: () => <AppearancePage />,
@@ -191,7 +191,6 @@ export function Settings({
       />
     ),
     labels: () => <LabelsPage labels={labels} chatLink={chatLink} />,
-    files: () => <FilesPage />,
     keys: () => <KeysPage shortcut={shortcut} />,
   };
 
@@ -200,7 +199,7 @@ export function Settings({
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
       <nav
         aria-label="Preferences"
-        style={{ display: "grid", alignContent: "start", gap: 2, padding: "16px 10px", overflowY: "auto", borderRight: "1px solid var(--loki-border)" }}
+        style={{ display: "flex", flexDirection: "column", minHeight: 0, padding: "16px 10px 0", borderRight: "1px solid var(--loki-border)" }}
       >
         <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
           Preferences
@@ -208,8 +207,8 @@ export function Settings({
         <PageList
           page={page}
           onPick={pick}
-          extra={(p) =>
-            p === "phone" && phone.status?.enabled ? (
+          extra={(g) =>
+            g.pages.includes("phone") && phone.status?.enabled ? (
               <Dot aria-label="on" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} />
             ) : null
           }
@@ -224,11 +223,12 @@ export function Settings({
             gap: 8,
             minHeight: 48,
             padding: "0 12px 0 28px",
-            borderBottom: "1px solid var(--loki-border)",
+            // A group with tabs draws its rule under them instead.
+            borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
           }}
         >
           <h3 className="loki-title" style={{ margin: 0, flex: 1, minWidth: 0 }}>
-            {pageTitle(page)}
+            {group.title}
           </h3>
           {onClose && (
             <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: 17 }}>
@@ -236,25 +236,37 @@ export function Settings({
             </IconButton>
           )}
         </div>
+        {group.pages.length > 1 && (
+          <div style={{ flex: "none", padding: "0 8px", borderBottom: "1px solid var(--loki-border)" }}>
+            <TabRow label={group.title} tabs={group.pages.map((p) => ({ id: p, label: pageTitle(p) }))} current={page} onChange={pick} />
+          </div>
+        )}
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
           {pageBody[page]()}
-          <div className="loki-label" style={{ textAlign: "center", paddingTop: 12 }}>
-            loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
-          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/** Settings › appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
   return (
-    <Section title="Appearance" hint={`the colors on this device; system follows ${systemName(keyboard)} as it changes`}>
-      <Fact label="Theme" value={<ThemeChoice />} />
-      <Fact label="Using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
-    </Section>
+    <Block>
+      <Setting
+        label="Mode"
+        help={
+          theme.preference === "system" ? `Follows ${systemName(keyboard)} as it changes: ${theme.resolved} now.` : "On this device, whatever the system does."
+        }
+      >
+        <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} />
+      </Setting>
+      <Setting label="Palette" help="The colour family, in light and in dark.">
+        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={theme.setPalette} labels={PALETTE_LABEL} />
+      </Setting>
+    </Block>
   );
 }
 
@@ -278,20 +290,21 @@ function LokiPage({
 }) {
   return (
     <>
-      <Section title="loki" hint="this app; the only update it ever offers on its own">
+      <Block>
         <LokiVersionFact update={update} />
-      </Section>
+        <SystemFact />
+      </Block>
       {importLetta && (
-        <Section title="Import" hint="your agents, their memory and chats, keys and schedules, from Letta into loki; Letta's own files are left as they are">
+        <Block title="Import" help="your agents, their memory and chats, keys and schedules, from Letta into loki; Letta's own files are left as they are.">
           <ImportFact run={importLetta} status={importStatus} />
-        </Section>
+        </Block>
       )}
-      <Section title="Mod" hint="canvas layout, widget files, transcripts and chats, served by loki's daemon">
-        <Fact label="Endpoint" value={modBase()} mono />
+      <Block title="Mod" help="canvas layout, widget files, transcripts and chats, served by loki's daemon.">
         <Fact label="Link" value={<Status s={modConnection} />} />
         <Fact label="Chats" value={String(deskCount)} />
-      </Section>
-      <Section title="Requirements" hint="what loki needs on this machine, and where it found it">
+        <Fact label="Endpoint" value={modBase()} mono />
+      </Block>
+      <Block title="Requirements" help="what loki needs on this machine, and where it found it.">
         {inTauri && <NodeFact daemon={daemon} />}
         <Fact
           label="bd (beads)"
@@ -302,9 +315,9 @@ function LokiPage({
           }
           mono
         />
-        <SystemFact />
-      </Section>
-      {inTauri && <InstallSection install={harness.install} />}
+      </Block>
+      {inTauri && <InstallFold install={harness.install} />}
+      <FilesFold />
     </>
   );
 }
@@ -439,10 +452,10 @@ function ImportAttempt({ last, complete }: { last: Replies["chat_import_status"]
   return <Note tone={complete ? undefined : "warn"}>{`${when}: ${last.message}`}</Note>;
 }
 
-/** In the shell only: what launch did about the mod and the skill. */
-function InstallSection({ install }: { install: InstallReport | null }) {
+/** In the shell only: what launch did about the mod and the skill, folded shut. */
+function InstallFold({ install }: { install: InstallReport | null }) {
   return (
-    <Section title="Install" hint="on launch the app puts its mod, its daemon, the phone canvas and the skill in place">
+    <Fold title="What launch installed">
       <ModFact install={install} />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
       <Fact label="Canvas" value={install ? <InstallState s={install.app} /> : "—"} />
@@ -466,7 +479,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
       />
       <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
       {install?.error ? <Fact label="Error" value={<span style={{ color: "var(--loki-negative)" }}>{install.error}</span>} /> : null}
-    </Section>
+    </Fold>
   );
 }
 
@@ -510,37 +523,25 @@ function ProvidersPage({
   onDisconnectProvider: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
 }) {
-  return (
-    <Section title="Providers" hint="who answers the models; keys are checked, then kept in this computer's keychain">
-      {chatLink === "open" ? (
-        <Providers
-          providers={providers}
-          onLoad={onLoadProviders}
-          onConnect={onConnectProvider}
-          onDisconnect={onDisconnectProvider}
-          onChanged={onModelsChanged}
-        />
-      ) : (
-        <Fact label="Link" value="loki's daemon is not linked yet" />
-      )}
-    </Section>
+  return chatLink === "open" ? (
+    <ProviderSettings
+      providers={providers}
+      onLoad={onLoadProviders}
+      onConnect={onConnectProvider}
+      onDisconnect={onDisconnectProvider}
+      onChanged={onModelsChanged}
+    />
+  ) : (
+    <Setting label="Not linked" help="loki's daemon is not linked yet." />
   );
 }
 
 function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: ModConnection }) {
-  return (
-    <Section title="Phone" hint={platform === "macos" ? "the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install" : undefined}>
-      <Phone phone={phone} connected={modConnection === "open"} />
-    </Section>
-  );
+  return <Phone phone={phone} connected={modConnection === "open"} />;
 }
 
 function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
-  return (
-    <Section title="Skills" hint="~/.agents/skills — every agent reads these; an agent's own skills are on its page">
-      <Skills api={globalSkills} />
-    </Section>
-  );
+  return <Skills api={globalSkills} />;
 }
 
 function RecallPage({ recall }: { recall: RecallModel }) {
@@ -550,16 +551,13 @@ function RecallPage({ recall }: { recall: RecallModel }) {
     if (!snap) void recall.refresh();
   }, [snap, recall]);
   return (
-    <Section
-      title="Learn"
-      hint="flashcards written in the background from conversations that have gone quiet, and the leads it proposes; the writer is off until you switch it on"
-    >
+    <Block help="flashcards written in the background from conversations that have gone quiet, and the leads it proposes. The writer is off until you switch it on.">
       {snap ? (
         <RecallSettings worker={snap.worker} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} running={recall.running} />
       ) : (
-        <Fact label="Writer" value={recall.error ?? "loading…"} />
+        <Setting label="Card writer" help={recall.error ?? "loading…"} />
       )}
-    </Section>
+    </Block>
   );
 }
 
@@ -578,80 +576,89 @@ function ChatPage({
 }) {
   return (
     <>
-      <Section title="Chat" hint="how the panel sits on the sheet">
-        <Fact label="Position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
-        <Fact label="Side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
-        <Fact label="Empty canvas" value="opens the chat centred until the first widget lands" />
-      </Section>
-      <Section title="Always allowed" hint="tools that run without asking, in every chat and mode but strict">
-        {approvals ? <AlwaysAllowed api={approvals} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
-      </Section>
+      <Block title="Chat panel">
+        <Setting label="Position" help="Where the chat sits on the canvas. An empty canvas opens it centred until the first widget lands.">
+          <Segmented label="position" options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />
+        </Setting>
+        <Setting label="Width at the side" help="When the chat sits on the left or the right.">
+          <Segmented label="width at the side" options={CHAT_WIDTHS} value={chatWidth} onPick={onChatWidth} />
+        </Setting>
+      </Block>
+      <Block title="Always allowed" help="tools that run without asking, in every chat and every mode but strict.">
+        {approvals ? <AlwaysAllowed api={approvals} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
+      </Block>
     </>
   );
 }
 
 function LabelsPage({ labels, chatLink }: { labels: LabelsApi; chatLink: ChatLink }) {
-  return (
-    <Section title="Labels" hint="the labels on your chats: rename, recolour or delete one on every chat that carries it">
-      {chatLink === "open" ? <Labels api={labels} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
-    </Section>
-  );
+  return chatLink === "open" ? <Labels api={labels} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
 function EnginesPage({ engines, chatLink }: { engines: EnginesApi; chatLink: ChatLink }) {
-  return (
-    <Section title="Engines" hint="what a chat can run on besides loki's own models: Claude Code, and any agent that speaks ACP">
-      {chatLink === "open" ? <Engines api={engines} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
-    </Section>
-  );
+  return chatLink === "open" ? <Engines api={engines} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
 function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
-  return (
-    <Section title="MCP" hint="servers your agents can use; their tools load only when an agent searches for them">
-      {chatLink === "open" ? <Mcp api={mcp} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
-    </Section>
-  );
+  return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-/** Settings › inbox: how the deck orders its cards. */
+/** Settings › inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
 function InboxPage() {
   return (
     <>
-      <Section title="Order" hint="one score per card, one list; the card in front of you never moves until you act on it">
-        <Fact label="In it" value="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived" />
-        <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval or a question: an agent is stopped until you answer`} />
-        <Fact label="New" value={`+${NEW_POINTS} — the agent said something since you last looked`} />
-        <Fact
+      <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
+        <Setting
+          label="Next"
+          help={`Reads the card and rests it. A card with nothing new comes back in ${REST_FIRST_MS / 60_000} minutes, then ${REST_GROWTH} times longer each Next in a row, up to a week; anything new from the agent brings it back at once.`}
+        >
+          <Kbd>{keyFor("inbox.next")}</Kbd>
+        </Setting>
+        <Setting label="Archive" help="Done: the chat leaves the Inbox. Undo brings it back.">
+          <Kbd>{keyFor("inbox.archive")}</Kbd>
+        </Setting>
+        <Setting label="A reply" help="Keeps the card, so the answer streams in where you are; Next moves on, and the answer then brings the card back." />
+      </Block>
+      <Fold title="How the order works">
+        <Setting label="Blocked" help="An approval or a question: an agent is stopped until you answer.">
+          <Score>{`+${BLOCKED_POINTS}`}</Score>
+        </Setting>
+        <Setting label="New" help="The agent said something since you last looked.">
+          <Score>{`+${NEW_POINTS}`}</Score>
+        </Setting>
+        <Setting
           label="Focus"
-          value={`up to +${FOCUS_POINTS} — the chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. Learned from you: the task you are on rises, one you have moved on from fades`}
-        />
-        <Fact
-          label="Age"
-          value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first"
-        />
-        <Fact label="Next" value={`${keyFor("inbox.next")} reads the card and moves on; the chat stays for your next visit, in its place by score`} />
-        <Fact label="Archive" value={`${keyFor("inbox.archive")} is done: the chat leaves the Inbox (undo brings it back)`} />
-        <Fact
-          label="A reply"
-          value={`keeps the card, so the answer streams in where you are; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`}
-        />
-      </Section>
+          help={`The chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. The task you are on rises; one you have moved on from fades.`}
+        >
+          <Score>{`up to +${FOCUS_POINTS}`}</Score>
+        </Setting>
+        <Setting label="Age" help="Off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first.">
+          <Score>±0.1 an hour</Score>
+        </Setting>
+      </Fold>
     </>
   );
 }
 
-function FilesPage() {
+/** A score on the right of an Inbox row: what the rule adds. */
+function Score({ children }: { children: string }) {
+  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)" }}>{children}</span>;
+}
+
+/** Settings › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
+function FilesFold() {
   return (
-    <Section title="Files" hint="everything loki keeps, in one folder">
+    <Fold title="Where loki keeps things">
       <Fact label="Widgets" value={`${HOME}/widgets/<chat>/`} mono />
       <Fact label="Layout" value={`${HOME}/state/<chat>.json`} mono />
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
+      <Fact label="Pictures" value={`${HOME}/chat-images/`} mono />
+      <Fact label="Learn" value={`${HOME}/recall/  (cards, schedule and the deleted pile)`} mono />
       <Fact label="Tasks" value={`${HOME}/tasks  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
       <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/daemon.log`} mono />
       <Fact label="Mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />
-    </Section>
+    </Fold>
   );
 }
 
@@ -682,47 +689,82 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
   );
 }
 
+/** Settings › keyboard shortcuts: ⌥Space, then every key loki has, found by what it does, its keys or where it works. */
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const rows = keyRows().filter((b) => !q || [b.label, b.where, ...b.keys.map((k) => formatKeys(k))].some((w) => w.toLowerCase().includes(q)));
   return (
-    <Section title="Keys" hint={keyboard === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
-      <GlobalKeyRow shortcut={shortcut} />
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
-        <tbody>
-          {keyRows().map((b, i, rows) => (
-            <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
-              <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>
-                {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
-              </td>
-              <td
-                style={{ padding: "6px 12px 6px 0", width: 170, fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}
-              >
-                {b.keys.map((k) => formatKeys(k)).join(" · ")}
-              </td>
-              <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
-                {b.label}
-                {b.typing ? (
-                  ""
-                ) : b.where === "inbox" || b.where === "desk" ? (
-                  <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span>
-                ) : null}
-                {b.was && (
-                  <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-                    {wasFor(b)}
-                  </span>
-                )}
-                {takenBy(b).map((t) => (
-                  <span
-                    key={t.id}
-                    className="loki-meta loki-meta--wrap"
-                    style={{ display: "block" }}
-                  >{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Section>
+    <>
+      <Block>
+        <GlobalKeyRow shortcut={shortcut} />
+      </Block>
+      <Block title="Every key" help={keyboard === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems.` : undefined}>
+        <div style={{ padding: "12px 0" }}>
+          <Field
+            size="sm"
+            type="search"
+            placeholder="search keys"
+            aria-label="Search keyboard shortcuts"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query) {
+                e.preventDefault();
+                e.stopPropagation();
+                setQuery("");
+              }
+            }}
+          />
+        </div>
+        {rows.length === 0 && <Setting label="Nothing matches" help={`Try what the key does, such as archive, or a key, such as ${keyFor("search.open")}.`} />}
+        {rows.length > 0 && (
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
+            <tbody>
+              {rows.map((b, i, rows) => (
+                <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
+                  <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>
+                    {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
+                  </td>
+                  <td
+                    style={{
+                      padding: "6px 12px 6px 0",
+                      width: 170,
+                      fontFamily: "var(--loki-mono)",
+                      fontSize: 12,
+                      color: "var(--loki-fg)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {b.keys.map((k) => formatKeys(k)).join(" · ")}
+                  </td>
+                  <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
+                    {b.label}
+                    {b.typing ? (
+                      ""
+                    ) : b.where === "inbox" || b.where === "desk" ? (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span>
+                    ) : null}
+                    {b.was && (
+                      <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
+                        {wasFor(b)}
+                      </span>
+                    )}
+                    {takenBy(b).map((t) => (
+                      <span
+                        key={t.id}
+                        className="loki-meta loki-meta--wrap"
+                        style={{ display: "block" }}
+                      >{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Block>
+    </>
   );
 }
 

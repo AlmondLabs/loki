@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { Button, Field } from "../components";
+import { Block, Setting } from "./layout";
 import type { GlobalSkill } from "../../../core/frame-types.ts";
 
 /** Settings › skills: the folder every agent reads, and the two things you do to it. */
@@ -27,29 +28,23 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
     setTimeout(() => setNotice(null), 2500);
   };
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      {skills === null && <div className="loki-meta loki-meta--wrap">reading…</div>}
-      {skills?.length === 0 && <div className="loki-meta loki-meta--wrap">none</div>}
-      <div style={{ display: "grid", gap: 2 }}>
+    <>
+      <Block help="the folder every agent reads, ~/.agents/skills. An agent's own skills are on its page in Agents.">
+        {skills === null && <Setting label="Skills" help="reading…" />}
+        {skills?.length === 0 && <Setting label="None yet" help="Enable a folder below." />}
         {(skills ?? []).map((g) => (
-          <div
-            key={g.name}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: "var(--loki-radius-sm)" }}
-            title={g.description ?? g.path}
-          >
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
-            <span className="loki-meta" style={{ maxWidth: "45%" }}>
-              {g.source ?? (g.is_link ? "link" : "copy")}
-            </span>
+          <Setting key={g.name} label={g.name} help={g.description ?? g.source ?? (g.is_link ? "a link" : "a copy")}>
             <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>
               disable
             </Button>
-          </div>
+          </Setting>
         ))}
-      </div>
-      <PathAdd onAdd={(path) => api.enable(path).then((err) => (err ? err : (flash("enabled"), load(), null)))} />
-      {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
-    </div>
+        {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
+      </Block>
+      <Block title="Enable a skill" help="a folder holding a SKILL.md, linked into ~/.agents/skills.">
+        <PathAdd onAdd={(path) => api.enable(path).then((err) => (err ? err : (flash("enabled"), load(), null)))} />
+      </Block>
+    </>
   );
 }
 
@@ -71,7 +66,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
     }
   };
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div style={{ display: "grid", gap: 4, padding: "12px 0" }}>
       <div style={{ display: "flex", gap: 6 }}>
         <Field
           size="sm"
@@ -79,7 +74,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
           value={path}
           onChange={(e) => setPath(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void go()}
-          placeholder="enable a folder: /path/to/skill (holding a SKILL.md)"
+          placeholder="/path/to/skill"
           autoComplete="off"
           data-form-type="other"
           style={{ flex: 1 }}

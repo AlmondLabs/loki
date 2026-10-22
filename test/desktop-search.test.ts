@@ -113,6 +113,6 @@ describe("desktop search: recent places", () => {
   });
   test("desks and agents that are gone drop at read; junk drops; the rest become rows", () => {
     const hits = recentPlaceHits(["desk:a1/c-rev", "desk:a1/c-gone", "agent:a9", "agent:a2", "page:learn", "prefs:keys", "prefs:nope", "nonsense"], src);
-    expect(hits.map((h) => h.title)).toEqual(["Revenue dashboard", "ira", "Learn", "Keys"]);
+    expect(hits.map((h) => h.title)).toEqual(["Revenue dashboard", "ira", "Learn", "Keyboard shortcuts"]);
   });
 });
