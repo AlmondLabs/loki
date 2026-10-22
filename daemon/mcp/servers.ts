@@ -235,9 +235,9 @@ export class McpServers {
   }
 
   private needsSignIn(entry: Entry): void {
-    if (entry.state !== "signin") this.report(`mcp ${entry.config.name}: needs a sign-in (Settings › MCP)`);
+    if (entry.state !== "signin") this.report(`mcp ${entry.config.name}: needs a sign-in (Preferences › MCP servers)`);
     entry.state = "signin";
-    entry.error = "needs a sign-in: Settings › MCP";
+    entry.error = "needs a sign-in: Preferences › MCP servers";
     entry.tools = [];
     this.changed();
   }

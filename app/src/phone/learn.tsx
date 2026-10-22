@@ -212,7 +212,7 @@ function Leads({
               <p>
                 {snap.worker.enabled
                   ? "When a conversation goes quiet, the writer names what went by in it without being understood: a concept, an acronym, something you took the agent's word for. Each is a lesson away."
-                  : "Leads come from the writer on the Mac, and it is off. Turn it on from the Mac: Learn, or Settings › learn."}
+                  : "Leads come from the writer on the Mac, and it is off. Turn it on from the Mac: Learn, or Preferences › Learn."}
               </p>
             </div>
           ) : (
@@ -389,7 +389,7 @@ function Off({ dailyCap }: { dailyCap: number }) {
         Once it is on, a writer on the Mac turns conversations that have gone quiet into flashcards, and they wait here on a schedule. Each run spends a little
         of your provider budget, up to {dailyCap} cards a day.
       </p>
-      <p className="loki-phone-meta">Turn it on from the Mac: Learn, or Settings › learn.</p>
+      <p className="loki-phone-meta">Turn it on from the Mac: Learn, or Preferences › Learn.</p>
     </div>
   );
 }

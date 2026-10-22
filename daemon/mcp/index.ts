@@ -175,7 +175,7 @@ export class McpTools {
     const tools = this.toolsFor(agentId);
     const lines = status.map((s) => {
       if (s.state === "down") return `- ${s.name}: down (${s.error ?? "not connected"})`;
-      if (s.state === "signin") return `- ${s.name}: needs the person to sign in (Settings › MCP); its tools are not available until then`;
+      if (s.state === "signin") return `- ${s.name}: needs the person to sign in (Preferences › MCP servers); its tools are not available until then`;
       if (s.state === "starting") return `- ${s.name}: starting`;
       const names = tools.filter((t) => t.server === s.name).map((t) => t.name);
       const listed = names.slice(0, NAMES_LISTED).join(", ") + (names.length > NAMES_LISTED ? `, … and ${names.length - NAMES_LISTED} more` : "");
@@ -312,7 +312,7 @@ export class McpTools {
     }, context);
   }
 
-  // --- Settings › MCP and Agents › Profile ------------------------------------------------------------------------
+  // --- Preferences › MCP servers and Agents › Profile ------------------------------------------------------------------------
 
   /** Everything Settings shows: each server with its state, tools and their costs, and who has it switched off. */
   view(): McpView {
@@ -420,7 +420,11 @@ export class McpTools {
   async finishAuth(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }> {
     const server = params.state ? this.pendingStates.get(params.state) : undefined;
     if (!server)
-      return { ok: false, server: null, message: "This sign-in is not one loki started, or it was already used. Start it again from Settings › MCP." };
+      return {
+        ok: false,
+        server: null,
+        message: "This sign-in is not one loki started, or it was already used. Start it again from Preferences › MCP servers.",
+      };
     this.pendingStates.delete(params.state);
     const config = this.servers.configs().find((c) => c.name === server);
     // The page the browser shows names the server as you wrote it (its tool-safe name only when it is gone).

@@ -6,8 +6,9 @@ import { turnIdOf } from "./telemetry.ts";
 
 /** Why a message went unanswered, for the person. */
 function unanswered(reason: string | undefined): string {
-  if (reason === "no_model") return "this chat's model is not available — connect its provider in Settings › Providers, or pick another model for the chat";
-  if (reason === "model_error") return "the model could not be reached — is its provider connected in Settings › Providers? Or pick another model for the chat";
+  if (reason === "no_model") return "this chat's model is not available — connect its provider in Preferences › Providers, or pick another model for the chat";
+  if (reason === "model_error")
+    return "the model could not be reached — is its provider connected in Preferences › Providers? Or pick another model for the chat";
   return `the agent could not take this message up${reason ? ` (${reason})` : ""}`;
 }
 

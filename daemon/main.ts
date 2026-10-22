@@ -177,7 +177,7 @@ async function carryOverPasses(): Promise<void> {
   report(`background passes: settings and cursors carried over for ${list.length} chats`);
 }
 // The import from Letta (daemon/import/letta.ts), for a Mac that ran loki on Letta: on its own at start until one run
-// finishes, and again from Settings › loki › Import. A chat is held from the passes while its entries are written.
+// finishes, and again from Preferences › About › Import. A chat is held from the passes while its entries are written.
 const importPaths: ImportPaths = {
   letta: join(homedir(), ".letta"),
   backendDir: backend,
@@ -302,7 +302,7 @@ if (importNeeded(importPaths)) {
     report(`imported from Letta: ${describeReport(r)}${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
   } catch (error) {
     report(
-      `import from Letta not done, tried again at the next start or from Settings › loki › Import: ${error instanceof Error ? error.message : String(error)}`,
+      `import from Letta not done, tried again at the next start or from Preferences › About › Import: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }

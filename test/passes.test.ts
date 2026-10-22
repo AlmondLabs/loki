@@ -134,7 +134,7 @@ describe("background passes", () => {
       expect(s.state.cursor("reflection", s.agentId, "cc") ?? 0).toBe(0);
       const review = await s.runner.runDoctor(s.agentId);
       expect(review.outcome).toBe("skipped");
-      expect(review.report).toMatch(/Settings › Providers/);
+      expect(review.report).toMatch(/Preferences › Providers/);
       reachable = true;
       s.faux.setResponses([fauxAssistantMessage("kept")]);
       await s.runner.sweep();

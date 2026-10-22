@@ -367,7 +367,7 @@ export function Conversation({
                       tone="paper"
                       className="loki-approve-always"
                       onClick={() => onApprove("always")}
-                      title="allow this tool from now on, in every chat (Settings › Chat takes it back)"
+                      title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
                     >
                       always allow
                     </Button>
