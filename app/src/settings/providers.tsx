@@ -260,12 +260,12 @@ function ProviderRow({
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
         <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
-          <span style={{ fontSize: 13.5 }}>{p.display_name}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{p.display_name}</span>
           {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
         {connected && (
           <span className="loki-label" style={{ color: "var(--loki-positive)" }}>
-            Connected
+            {p.connected.auth_type === "oauth" ? "Signed in" : "API key"}
           </span>
         )}
       </Row>
@@ -340,7 +340,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
                 : "connect"}
         </Button>
         {connected && (
-          <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
+          <Button size="sm" tone="negative" onClick={() => void disconnect()} disabled={busy}>
             disconnect
           </Button>
         )}
