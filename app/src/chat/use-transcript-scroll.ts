@@ -126,11 +126,10 @@ export function useTranscriptScroll(
     });
     ro.observe(el);
     // The content is what grows (a picture loading, a step opening): watch each of the thread's own children.
-    const watch = () => {
-      for (const child of el.children) ro.observe(child);
-    };
-    watch();
-    const mo = new MutationObserver(watch);
+    for (const child of el.children) ro.observe(child);
+    const mo = new MutationObserver((changes) => {
+      for (const change of changes) for (const node of change.addedNodes) if (node instanceof Element) ro.observe(node);
+    });
     mo.observe(el, { childList: true });
     return () => {
       ro.disconnect();
