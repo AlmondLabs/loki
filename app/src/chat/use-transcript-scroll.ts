@@ -14,7 +14,10 @@ import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, thr
  * `reveal` mounts whatever find needs before the browser searches; "↓ latest" folds the window back.
  * At the top of everything loaded, `older` (when the log holds more) asks for the next page; the rows it adds
  * arrive above the old first row, which is found again so the window and the reader stay where they were.
- * Layout is read in scroll handlers and animation frames, not after every update.
+ * Scrolled up, the row being read also stays put when anything above it changes height (a picture loading, a step
+ * opening): the app's WebKit window has no scroll anchoring of its own, so the thread keeps its own (`overflow-anchor:
+ * none` on the thread, so a browser that has one does not move it twice).
+ * Layout is read in scroll handlers, size changes and animation frames, not after every update.
  */
 export function useTranscriptScroll(
   scrollRef: RefObject<HTMLDivElement | null>,
@@ -43,13 +46,22 @@ export function useTranscriptScroll(
   const askedOlder = useRef<number | null>(null);
   // Where the reader was when a reveal was asked for: put back once the rows above are in.
   const anchor = useRef<{ top: number; height: number } | null>(null);
+  // The row being read, scrolled up, and how far below the thread's top it sat: kept there when heights change.
+  const reading = useRef<Reading | null>(null);
+  // The offset at the last scroll: the reader leaves the bottom only by scrolling up from it.
+  const lastTop = useRef(0);
   const frame = useRef(0);
 
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    const pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const { pinned, stick } = afterScroll(gap, pinnedRef.current, el.scrollTop, lastTop.current);
+    lastTop.current = el.scrollTop;
+    if (stick) el.scrollTop = el.scrollHeight;
     pinnedRef.current = pinned;
+    // Scrolled up, put back what grew above since the last look (your own scroll is not undone), then look again.
+    reading.current = pinned ? null : keepReading(el, reading.current);
     setUnpinned(!pinned);
     setLeftAt((at) => (pinned ? null : (at ?? messages.length)));
     if (start > 0 && nearTop(el)) revealAbove(el, anchor, setWin);
@@ -103,13 +115,26 @@ export function useTranscriptScroll(
     if (!el) return;
     let height = el.clientHeight;
     // Any change of the thread's own height while the reader is at the bottom keeps them there: the message box
-    // growing a line as you type shrinks the thread, and without this its last lines slide under the box.
+    // growing a line as you type shrinks the thread, and without this its last lines slide under the box. Its
+    // content changing height does too, and scrolled up, the row being read is put back where it was.
     const ro = new ResizeObserver(() => {
-      if (el.clientHeight !== height && el.clientHeight > 0 && pinnedRef.current) el.scrollTop = el.scrollHeight;
+      if (el.clientHeight === 0) return;
+      if (pinnedRef.current) {
+        if (el.clientHeight !== height || el.scrollHeight - el.scrollTop - el.clientHeight >= 1) el.scrollTop = el.scrollHeight;
+      } else reading.current = keepReading(el, reading.current);
       height = el.clientHeight;
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    // The content is what grows (a picture loading, a step opening): watch each of the thread's own children.
+    for (const child of el.children) ro.observe(child);
+    const mo = new MutationObserver((changes) => {
+      for (const change of changes) for (const node of change.addedNodes) if (node instanceof Element) ro.observe(node);
+    });
+    mo.observe(el, { childList: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
   }, [scrollRef]);
   // Follow the bottom: one scroll per frame however many updates landed in it, read and written in the frame
   // (reading scrollHeight straight after each commit forced a layout per streamed update).
@@ -147,6 +172,52 @@ export function olderRowsAbove(messages: readonly TranscriptRow[], first: Transc
   if (!first) return 0;
   const at = messages.findIndex((r) => r.role === first.role && r.text === first.text && (r.at ?? null) === (first.at ?? null));
   return at > 0 ? at : 0;
+}
+
+/**
+ * After a scroll: whether the thread follows the bottom, and whether to go back down to it now. It follows near the
+ * bottom, or when it was following and this scroll did not go up: a scroll the thread made itself to follow its
+ * content can land short of a bottom that grew again meanwhile (a picture loading), and that one goes back down. The
+ * reader scrolling up is never pulled back, even a few pixels at a time near the bottom; far enough up, it stops
+ * following.
+ */
+export function afterScroll(gap: number, wasPinned: boolean, top: number, lastTop: number): { pinned: boolean; stick: boolean } {
+  const up = top < lastTop;
+  const pinned = gap < 48 || (wasPinned && !up);
+  return { pinned, stick: pinned && !up && gap >= 1 };
+}
+
+/**
+ * The row at the top of the thread's view: how far below the view's top it started (negative: partly above), and
+ * the scroll offset then, so a later look can tell the reader's own scrolling from content growing above.
+ */
+export interface Reading {
+  row: Element;
+  offset: number;
+  scrollTop: number;
+}
+
+/** The first row still on screen at the thread's top; null with no rows. */
+function readingAt(el: HTMLElement): Reading | null {
+  const top = el.getBoundingClientRect().top;
+  for (const row of el.querySelectorAll("[data-row]")) {
+    const box = row.getBoundingClientRect();
+    if (box.bottom > top + 1) return { row, offset: box.top - top, scrollTop: el.scrollTop };
+  }
+  return null;
+}
+
+/**
+ * Keep the row that was being read where the reader left it: scrolling moves it by exactly the scroll, so anything
+ * more is content above it that changed height, and the offset moves by that much. Then the row at the top now.
+ */
+export function keepReading(el: HTMLElement, was: Reading | null): Reading | null {
+  if (was?.row.isConnected) {
+    const expected = was.offset - (el.scrollTop - was.scrollTop);
+    const moved = was.row.getBoundingClientRect().top - el.getBoundingClientRect().top - expected;
+    if (Math.abs(moved) >= 1) el.scrollTop += moved;
+  }
+  return readingAt(el);
 }
 
 /** Near the top of what is mounted, on screen (a hidden thread has no height and reveals nothing). */

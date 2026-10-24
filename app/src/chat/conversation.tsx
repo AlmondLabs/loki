@@ -519,6 +519,8 @@ export const Thread = forwardRef<
           overflowY: "auto",
           overflowX: "hidden",
           overscrollBehavior: "contain",
+          // The thread keeps the row being read in place itself (use-transcript-scroll.ts); the browser's own would move it twice.
+          overflowAnchor: "none",
           padding: "16px 20px",
           fontSize: 13.5,
           lineHeight: 1.5,
