@@ -7,7 +7,7 @@ import { KIT_COMPONENTS } from "../kit";
 import { ChatBubble, ChatWindow, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ControlledDraft } from "../chat/use-draft";
 import type { useDesk, VisibleWidget } from "./use-desk";
-import type { useAttention } from "../../../core/attention/use-attention.ts";
+import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { Viewport } from "./viewport";
 import { WidgetFrame } from "./widget-frame";
 import { ModuleWidget, WidgetError } from "./module-widget";
@@ -258,8 +258,9 @@ function DeskChat({
   modeMenuTick = 0,
   draft,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
-  const { title, agentName, agentId } = desk;
-  const { view, actions } = deskConversation(desk, catchUp, chat, { onLoadModels, onPickModel, onPickMode });
+  const { title, agentName, agentId, conversationId } = desk;
+  const rows = useThreadRows(catchUp, agentId, conversationId);
+  const { view, actions } = deskConversation(desk, catchUp, chat, { onLoadModels, onPickModel, onPickMode }, rows);
   return (
     <ChatWindow
       title={title}

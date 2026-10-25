@@ -31,11 +31,20 @@ while any chat streams a reply, the whole app redraws up to seven times a second
    (`faceOf`, `core/attention/model.ts`). On each flush `useAttention` compares every chat's face with the one it last
    rendered; only when one moved does it copy the live map (so `items` and `conversation` change). Then it tells the
    thread watchers, and each one whose rows changed renders.
-3. **A thread is read through `useConversation(chats, agentId, conversationId)`**, which watches that chat's rows
-   (`useSyncExternalStore` on the cached array) and returns its view with them. `conversation()` keeps the face only,
-   so a caller that skipped the hook fails to compile rather than showing stale rows. The desk's chat, the desktop
-   Inbox card, the phone's conversation page and the phone's cards read it this way.
-4. **The last-message time moves when a reply starts, not with every piece.** A whole message, a call, a result and
+3. **A thread is read where it is drawn.** `useThreadRows(chats, agentId, conversationId)` watches one chat's rows
+   (`useSyncExternalStore` on the cached array); `useConversation` adds the face to them. `conversation()` keeps the
+   face only, so a caller that skipped the hooks fails to compile rather than showing stale rows. The hook sits as low
+   as the rows are needed, since whatever calls it redraws with each piece:
+   1. the desk: `DeskMessages` (the Messages tab's thread, its New line and widget rows) and the Canvas tab's inset
+      chat (`DeskChat`); `DeskPane` itself, with the header, the tabs and the Canvas, reads only the face;
+   2. the desktop Inbox: the card, not the deck around it;
+   3. the phone: the conversation page and each card. `ConversationScreen` uses the rows all through, so the page
+      still redraws whole with each piece; splitting it is a later change.
+4. **The message box no longer redraws with the thread.** Inside `Conversation` the box read `view` itself (for its
+   placeholder and send label), so the React Compiler kept the whole box under a memo keyed on `view`, which is new
+   with every piece; it reads `status`, `approval` and `question` instead. And `useSlashPalette` answered a draft
+   that is not a command with a fresh `[]`, which made its key handler, and so the whole box, new on every render.
+5. **The last-message time moves when a reply starts, not with every piece.** A whole message, a call, a result and
    the turn's end move it as before; the turn's end sets it to the end.
 
 Nothing changes on screen except that the time beside a chat in the sidebar shows when its reply started until the
@@ -58,6 +67,23 @@ reply ends, instead of ticking with each piece.
    (a streamed piece, a settle, a result onto a page row, a load).
 2. `test/attention-model.test.ts`: streamed pieces after the first leave the last-message time alone and the face
    unchanged; the first piece, the turn's end and an approval move it.
+
+## Measured
+
+On a throwaway daemon with made-up chats and a fake provider streaming a 600-word reply over about 15 seconds, the
+desktop page counted every component React rendered (a counter on the DevTools hook, React Scan on in both builds):
+
+| while a reply streams…                   | before (25b40c7) | after |
+| ---------------------------------------- | ---------------- | ----- |
+| in another chat: components rendered     | 4,809            | 510   |
+| ↳ the open chat's transcript             | 81               | 8     |
+| in the open chat: components rendered    | 5,292            | 1,445 |
+| ↳ shell, chat pane, message box (each)   | 81               | 8     |
+| ↳ sidebar rows                           | 324              | 32    |
+| ↳ thread and the streaming message (each) | 81               | 82    |
+
+What still redraws per piece is the thread and the message being written; everything else redraws only on the
+chat's face changing (the turn starting, the reply starting and settling, the turn ending).
 
 ## Not in this change
 

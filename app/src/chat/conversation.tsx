@@ -164,6 +164,9 @@ export function Conversation({
    */
   composer?: boolean;
 }) {
+  // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
+  // would be drawn again with each one (plan 032).
+  const status = view.status;
   const approval = view.approval ?? null;
   const question = view.question ?? null;
   const model = view.model ?? null;
@@ -218,7 +221,7 @@ export function Conversation({
   const hasFooter = canApprove || !!footer;
   const hasContent = !!draft.trim() || images.length > 0;
   // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
-  const running = view.status !== "idle";
+  const running = status !== "idle";
   const [stopping, setStopping] = useState(false);
   if (stopping && !running) setStopping(false);
   const onStop = actions.onStop;
@@ -265,7 +268,7 @@ export function Conversation({
         <Thread
           ref={threadRef}
           rows={view.rows}
-          status={view.status}
+          status={status}
           error={view.error ?? null}
           agentName={agentName}
           waiting={waiting}
@@ -306,7 +309,7 @@ export function Conversation({
               onBlur={() => onTyping?.(false)}
               images={images}
               onImages={setImages}
-              placeholder={placeholder ?? composerPlaceholder(view, agentName)}
+              placeholder={placeholder ?? composerPlaceholder({ status, approval, question }, agentName)}
               touch={touch}
               tools={
                 (hasModelPicker || hasModeMenu) && (
@@ -331,8 +334,8 @@ export function Conversation({
               canSend={hasContent}
               onStop={running ? stop : undefined}
               stopping={stopping}
-              sendLabel={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"}
-              sendTitle={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
+              sendLabel={status === "idle" ? "Send" : "Queue: sends when this turn ends"}
+              sendTitle={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
               {...palette.aria}
             />
           </div>

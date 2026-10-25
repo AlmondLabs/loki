@@ -165,10 +165,22 @@ export interface ChatViews {
 export function useConversation(chats: ChatViews, agentId: string, conversationId: string): ChatView;
 export function useConversation(chats: ChatViews, agentId: string | null, conversationId: string | null): ChatView | null;
 export function useConversation(chats: ChatViews, agentId: string | null, conversationId: string | null): ChatView | null {
-  const read = () => (agentId && conversationId ? chats.threadRows(agentId, conversationId) : undefined);
-  const rows = useSyncExternalStore(chats.watchThreads, read, read);
+  const rows = useThreadRows(chats, agentId, conversationId);
   if (!agentId || !conversationId) return null;
   return { ...chats.conversation(agentId, conversationId), rows };
+}
+
+/**
+ * A conversation's rows alone, redrawn as they move: for the part of a surface that draws the thread, so a streamed
+ * piece redraws that part and not the header and box around it (plan 032). Undefined until loaded, or without both ids.
+ */
+export function useThreadRows(
+  chats: Pick<ChatViews, "watchThreads" | "threadRows">,
+  agentId: string | null,
+  conversationId: string | null,
+): TranscriptRow[] | undefined {
+  const read = () => (agentId && conversationId ? chats.threadRows(agentId, conversationId) : undefined);
+  return useSyncExternalStore(chats.watchThreads, read, read);
 }
 
 /** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */

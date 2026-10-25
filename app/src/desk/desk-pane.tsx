@@ -1,15 +1,16 @@
 import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/message-tasks";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
+import type { MessageLayout } from "../chat/transcript";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction } from "../shell/keymap";
-import type { useAttention } from "../../../core/attention/use-attention.ts";
+import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
 import { Surface } from "./surface";
@@ -99,7 +100,8 @@ export function DeskPane(props: DeskPaneProps) {
   const [labeling, setLabeling] = useState(false);
   const chatLabels = desk.desks.list.find((d) => d.scope === scope)?.labels ?? [];
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
-  const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined });
+  // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.
+  const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined }, undefined);
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
@@ -109,10 +111,7 @@ export function DeskPane(props: DeskPaneProps) {
   // the New line goes before what came since the look held from before this open.
   const looking = visible === "messages" || (visible === "inset" && chatOpen);
   const heldLook = useViewed(agentId && conversationId ? keyOf(agentId, conversationId) : null, item, looking, attention.markViewed);
-  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
   useDoneKey(active, item, catchUp);
-  // The desk's widget changes among the messages, by time (R15). The compiler caches the handlers below on the
-  // desk and onTab, but not this (view comes from a plain function), so a hook keeps it stable while you type.
   const { onFrameWidget } = props;
   const frameWidget = onFrameWidget
     ? (widgetId: string) => {
@@ -121,17 +120,6 @@ export function DeskPane(props: DeskPaneProps) {
         onFrameWidget(widgetId);
       }
     : undefined;
-  // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
-  const { widgets, inline } = useInlineWidgets(desk, desk.scope, view.rows, agentName, { onOpen: frameWidget });
-  const layout = {
-    people,
-    dividerAt,
-    dividerDay: dayLabel(item?.last_message_at),
-    widgets,
-    inline,
-    onFrameWidget: frameWidget,
-    onShowDesk: () => onTab("desk"),
-  };
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
@@ -185,13 +173,18 @@ export function DeskPane(props: DeskPaneProps) {
           onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
         >
           <MessageTasks.Provider value={messageTasks}>
-            <Conversation
+            <DeskMessages
               key={scope}
+              desk={desk}
+              catchUp={catchUp}
+              item={item}
+              heldLook={heldLook}
+              people={people}
+              onFrameWidget={frameWidget}
+              onShowDesk={() => onTab("desk")}
               view={view}
               actions={actions}
               models={models}
-              agentName={agentName}
-              layout={layout}
               draft={draft}
               composer={onMessages}
               dim={false}
@@ -235,6 +228,39 @@ export function DeskPane(props: DeskPaneProps) {
       )}
     </div>
   );
+}
+
+/**
+ * The Messages tab's thread: the one part of the pane that reads the chat's rows (plan 032), so a streamed piece
+ * redraws it and leaves the header, the tabs and the Canvas behind it alone. The New line and the desk's widget
+ * changes among the messages (R15) come from the rows, so they are worked out here too.
+ */
+function DeskMessages({
+  desk,
+  catchUp,
+  item,
+  heldLook,
+  people,
+  onFrameWidget,
+  onShowDesk,
+  view,
+  ...conversation
+}: Omit<ComponentProps<typeof Conversation>, "layout" | "agentName"> & {
+  desk: ReturnType<typeof useDesk>;
+  catchUp: ReturnType<typeof useAttention>;
+  item: AttentionItem | null;
+  heldLook: string | null;
+  people: MessageLayout["people"];
+  onFrameWidget: ((widgetId: string) => void) | undefined;
+  onShowDesk: () => void;
+}) {
+  const { agentId, conversationId, agentName } = desk;
+  const rows = useThreadRows(catchUp, agentId, conversationId) ?? [];
+  const dividerAt = unreadBoundary(rows, item?.unread ?? false, item?.seenAt, heldLook);
+  // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
+  const { widgets, inline } = useInlineWidgets(desk, desk.scope, rows, agentName, { onOpen: onFrameWidget });
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
+  return <Conversation {...conversation} view={{ ...view, rows }} agentName={agentName} layout={layout} />;
 }
 
 /**
