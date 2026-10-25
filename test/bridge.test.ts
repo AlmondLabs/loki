@@ -436,6 +436,7 @@ describe("bridge history", () => {
               ]
             : [],
         more: false,
+        start: 0,
       }),
     });
     const c = client("c1");
@@ -457,13 +458,37 @@ describe("bridge history", () => {
       widgets: fakeWidgets([]),
       gestures: new GestureLog(),
       broadcast: () => {},
-      transcript: (_a, _c, limit) => (asked.push(limit), { rows: [], more: limit < 1200 }),
+      transcript: (_a, _c, limit) => (asked.push(limit), { rows: [], more: limit < 1200, start: 0 }),
     });
     const c = client("c1");
     for (const limit of [undefined, 800, 1200, 5, 1e9])
       bridge.onMessage(c, { type: "history_get", request_id: "h", agent_id: "a1", conversation_id: "c1", limit });
     expect(asked).toEqual([400, 800, 1200, 400, 20_000]);
     expect(c.sent.filter((m) => m.type === "history").map((m) => m.more)).toEqual([true, true, false, true, false]);
+  });
+  test("history_get pages back by position: `before` reaches the transcript, and the reply says where its rows start", () => {
+    const asked: Array<number | null> = [];
+    const bridge = bridgeOf({
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
+      transcript: (_a, _c, limit, before) => (
+        asked.push(before),
+        { rows: [], more: (before ?? 1000) - limit > 0, start: Math.max(0, (before ?? 1000) - limit) }
+      ),
+    });
+    const c = client("c1");
+    for (const before of [undefined, 600, 0, -3, "x"])
+      bridge.onMessage(c, { type: "history_get", request_id: "h", agent_id: "a1", conversation_id: "c1", before });
+    expect(asked).toEqual([null, 600, 0, null, null]);
+    expect(c.sent.filter((m) => m.type === "history").map((m) => [m.start, m.more])).toEqual([
+      [600, true],
+      [200, true],
+      [0, false],
+      [600, true],
+      [600, true],
+    ]);
   });
   test("history carries the desk's widget change log; a desk with none gets an empty list", () => {
     const log = new WidgetLog(null);
@@ -488,13 +513,22 @@ describe("bridge history", () => {
       widgets: fakeWidgets([]),
       gestures: new GestureLog(),
       broadcast: () => {},
-      transcript: () => ({ rows: [{ role: "user", text: "hi" }], more: false }),
+      transcript: () => ({ rows: [{ role: "user", text: "hi" }], more: false, start: 0 }),
       widgetLog: () => [],
     });
     const phone = { ...client("shared"), deviceId: "d1" };
     bridge.onMessage(phone, { type: "history_get", request_id: "p1", agent_id: "a1", conversation_id: "c1" });
     expect(phone.sent).toEqual([
-      { type: "history", request_id: "p1", agent_id: "a1", conversation_id: "c1", messages: [{ role: "user", text: "hi" }], more: false, widget_log: [] },
+      {
+        type: "history",
+        request_id: "p1",
+        agent_id: "a1",
+        conversation_id: "c1",
+        messages: [{ role: "user", text: "hi" }],
+        more: false,
+        start: 0,
+        widget_log: [],
+      },
     ]);
   });
 });

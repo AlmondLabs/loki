@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
-import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type Step } from "../core/attention/thread.ts";
+import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
@@ -270,6 +270,77 @@ describe("slash command rows", () => {
     // An end without a start still lands as a row.
     applyEvent(l, d({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
     expect(rowsOf(l.thread).find((r) => r.text === "/clear")).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
+  });
+});
+
+describe("pages by position (plan 033)", () => {
+  // The chat's whole thread: row n says "row n", every few a tool call, so pages can be cut anywhere.
+  const thread = (n: number): HistoryRow[] =>
+    Array.from({ length: n }, (_, i) =>
+      i % 5 === 4
+        ? {
+            role: "tool" as const,
+            text: `Read · ${i}`,
+            tool: { name: "Read", id: `t${i}`, input: `${i}.ts` },
+            at: `2026-10-25T09:${String(i % 60).padStart(2, "0")}:00.000Z`,
+          }
+        : { role: i % 2 ? ("assistant" as const) : ("user" as const), text: `row ${i}`, at: `2026-10-25T09:${String(i % 60).padStart(2, "0")}:00.000Z` },
+    );
+  const texts = (t: ThreadModel) => rowsOf(t).map((r) => r.text);
+
+  test("an older page goes in front, and the rows since the last page stay after it", () => {
+    const all = thread(30);
+    const t = new ThreadModel();
+    t.load(all.slice(20), 20);
+    t.own({ role: "user", text: "just sent", at: "2026-10-25T10:00:00.000Z" }, "just sent");
+    expect(t.firstPosition).toBe(20);
+    t.prepend(all.slice(10, 20), 10);
+    expect(t.firstPosition).toBe(10);
+    t.prepend(all.slice(0, 10), 0);
+    expect(t.firstPosition).toBe(0);
+    expect(texts(t)).toEqual([...all.map((r) => r.text), "just sent"]);
+  });
+
+  test("a page that overlaps what is loaded adds only the rows before it; one without positions changes nothing", () => {
+    const all = thread(20);
+    const t = new ThreadModel();
+    t.load(all.slice(10), 10);
+    t.prepend(all.slice(5, 15), 5);
+    expect(texts(t)).toEqual(all.slice(5).map((r) => r.text));
+    const legacy = new ThreadModel();
+    legacy.load(all.slice(10));
+    const before = rowsOf(legacy);
+    legacy.prepend(all.slice(0, 10), 0);
+    expect(rowsOf(legacy)).toBe(before);
+    expect(legacy.firstPosition).toBeNull();
+  });
+
+  test("opening again: the newest page keeps the older pages in front, and unchanged rows keep their objects", () => {
+    const all = thread(30);
+    const t = new ThreadModel();
+    t.load(all.slice(20), 20);
+    t.prepend(all.slice(10, 20), 10);
+    const was = rowsOf(t);
+    // Two more rows were written since; the newest page now starts at 22, and row 24's tool got its result.
+    const now = [...thread(32)];
+    now[24] = { ...now[24], tool: { name: "Read", id: "t24", input: "24.ts", output: "done" } };
+    t.load(now.slice(22), 22);
+    const after = rowsOf(t);
+    expect(after.map((r) => r.text)).toEqual(now.slice(10).map((r) => r.text));
+    expect(t.firstPosition).toBe(10);
+    for (const i of [10, 15, 22, 23, 29]) expect(after[i - 10], `row ${i}`).toBe(was[i - 10]);
+    expect(after[24 - 10]).not.toBe(was[24 - 10]);
+    expect(after[24 - 10].tool?.output).toBe("done");
+  });
+
+  test("a page without a position replaces what was loaded, as an older Mac's answer does", () => {
+    const all = thread(30);
+    const t = new ThreadModel();
+    t.load(all.slice(20), 20);
+    t.prepend(all.slice(10, 20), 10);
+    t.load(all.slice(25));
+    expect(texts(t)).toEqual(all.slice(25).map((r) => r.text));
+    expect(t.firstPosition).toBeNull();
   });
 });
 

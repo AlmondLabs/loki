@@ -78,6 +78,8 @@ export interface UseAttentionOptions {
     agentId: string,
     conversationId: string,
     limit?: number,
+    /** The position of the oldest row loaded: the page ends before it (plan 033); absent, the newest rows. */
+    before?: number,
   ) => Promise<{
     rows: Array<{
       role: "user" | "assistant" | "tool" | "event";
@@ -89,6 +91,8 @@ export interface UseAttentionOptions {
       files?: FileRef[];
     }>;
     more: boolean;
+    /** Where the rows start in the chat's whole thread; a paired Mac on an older loki leaves it out. */
+    start?: number;
   }>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
@@ -519,37 +523,66 @@ export function useAttention(opts: UseAttentionOptions) {
     optsRef.current.capture?.("inbox_filtered", { agent });
   }, []);
 
-  // A chat's thread comes from the mod, which reads the whole of it from the daemon's store.
+  /** Whether a chat's log holds rows older than those loaded: by position when the thread knows its own, else as the page said. */
+  const markOlder = useCallback((key: string, more: boolean) => {
+    setOlder((o) => (!!o[key] === more ? o : more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
+  }, []);
+
+  /**
+   * A chat's thread comes from the mod, which reads it from the daemon's store: the newest page, with the older
+   * pages already read kept in front of it (plan 033). A paired Mac on an older loki pages by a growing limit
+   * instead, and its answer replaces what was loaded.
+   */
   const loadThread = useCallback(
     async (rt: Runtime) => {
       const key = keyOf(rt.agent_id, rt.conversation_id);
       if (loading.current.has(key)) return;
       loading.current.add(key);
       const read = async () => {
-        const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
+        const thread = liveOf(key).thread;
+        const limit = thread.firstPosition === null ? (historyLimits.current.get(key) ?? HISTORY_PAGE) : HISTORY_PAGE;
+        const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, limit);
         const rows: HistoryRow[] = page?.rows ?? [];
-        setOlder((o) =>
-          !!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key)),
-        );
-        liveOf(key).thread.load(rows);
+        thread.load(rows, page?.start);
+        const first = thread.firstPosition;
+        markOlder(key, first === null ? !!page?.more : first > 0);
         publish();
       };
       // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
       await read().catch((err: unknown) => console.warn("loki: thread", err));
       loading.current.delete(key);
     },
-    [liveOf, publish],
+    [liveOf, publish, markOlder],
   );
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
-  /** The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. */
+  /**
+   * The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. Only
+   * that page travels (plan 033): the rows before the oldest one loaded, put in front of it.
+   */
   const loadOlder = useCallback(
     (rt: Runtime) => {
       const key = keyOf(rt.agent_id, rt.conversation_id);
       if (loading.current.has(key)) return;
-      historyLimits.current.set(key, (historyLimits.current.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
-      void loadThread(rt);
+      const thread = liveOf(key).thread;
+      const before = thread.firstPosition;
+      if (before === null) {
+        historyLimits.current.set(key, (historyLimits.current.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
+        void loadThread(rt);
+        return;
+      }
+      loading.current.add(key);
+      const read = async () => {
+        const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, HISTORY_PAGE, before);
+        if (page?.start !== undefined) thread.prepend(page.rows, page.start);
+        const first = thread.firstPosition;
+        markOlder(key, first !== null && first > 0);
+        publish();
+      };
+      void read()
+        .catch((err: unknown) => console.warn("loki: older thread", err))
+        .then(() => loading.current.delete(key));
     },
-    [loadThread],
+    [liveOf, loadThread, publish, markOlder],
   );
 
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */

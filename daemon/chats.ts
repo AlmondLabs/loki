@@ -4,7 +4,7 @@ import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-w
 import { conversationDirName } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
 import { entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
-import { foldSteps, type Step } from "../core/attention/thread.ts";
+import { foldSteps, ThreadModel, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
@@ -45,6 +45,11 @@ interface Chat {
   entries: Kept[];
   /** The newest entry id kept: entries arrive in id order, so anything at or below it is already here. */
   lastId: number;
+  /**
+   * The chat's thread as folded so far, and how many entries went into it (plan 033): made when the chat is first read,
+   * then fed only the entries since, so a page never folds the whole log again.
+   */
+  fold?: { thread: ThreadModel; entries: number };
 }
 
 /** The message an entry carries for the person to read: a branch entry's own, else the model's. */
@@ -259,11 +264,26 @@ export class ChatProjection implements ChatSource {
     return this.find(conversationId)?.agentId ?? null;
   }
 
-  page(conversationId: string, agentId: string | null, limit: number): { rows: TranscriptRow[]; more: boolean } {
+  /**
+   * Up to `limit` rows of a chat's thread ending before position `before` (its newest when null), where they start,
+   * and whether older ones remain (plan 033). A row's position is its index in the whole thread, which only grows at
+   * the end, so a reader pages back by the position of the oldest row it has.
+   */
+  page(conversationId: string, agentId: string | null, limit: number, before: number | null = null): { rows: TranscriptRow[]; more: boolean; start: number } {
     const chat = this.find(conversationId, agentId);
-    if (!chat) return { rows: [], more: false };
-    const rows = foldSteps(chat.entries.flatMap((e) => e.steps));
-    return rows.length > limit ? { rows: rows.slice(rows.length - limit), more: true } : { rows, more: false };
+    if (!chat) return { rows: [], more: false, start: 0 };
+    const all = this.folded(chat);
+    const end = before === null ? all.length : Math.max(0, Math.min(all.length, Math.floor(before)));
+    const start = Math.max(0, end - Math.max(1, Math.floor(limit)));
+    return { rows: all.slice(start, end), more: start > 0, start };
+  }
+
+  /** A chat's whole thread, folded once and fed only the entries that arrived since it was last read. */
+  private folded(chat: Chat): readonly TranscriptRow[] {
+    const fold = (chat.fold ??= { thread: new ThreadModel(), entries: 0 });
+    for (; fold.entries < chat.entries.length; fold.entries++) for (const step of chat.entries[fold.entries].steps) fold.thread.apply(step);
+    // Entry steps never stream, so nothing waits to settle; if one ever did, fold it whole as foldSteps would.
+    return fold.thread.streaming ? foldSteps(chat.entries.flatMap((e) => e.steps)) : fold.thread.folded();
   }
 
   /** A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. */

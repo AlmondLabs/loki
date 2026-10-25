@@ -60,6 +60,21 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.queued === b.queued &&
   a.at === b.at;
 
+/** Two values the same, or the same once written out: a page's tool steps and file lists are new objects each time. */
+const sameValue = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+/** The same row in two pages read at different times: everything it shows is the same (plan 033). */
+const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
+  a.role === b.role &&
+  a.text === b.text &&
+  a.summary === b.summary &&
+  a.detail === b.detail &&
+  a.at === b.at &&
+  a.queued === b.queued &&
+  sameValue(a.images, b.images) &&
+  sameValue(a.files, b.files) &&
+  sameValue(a.tool, b.tool);
+
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
 const instant = (iso: string | undefined) => (iso ? Date.parse(iso) : Number.NaN);
@@ -75,8 +90,10 @@ function fromHistory(m: HistoryRow): TranscriptRow {
 
 /** One conversation's thread: takes steps from history pages and live events, folds them into transcript rows, and hands out the rows the transcript draws. */
 export class ThreadModel {
-  /** The last history page loaded; null until one is. */
+  /** The last history page loaded, with any older pages in front of it; null until one is. */
   private history: TranscriptRow[] | null = null;
+  /** The position of the history's first row in the chat's whole thread (plan 033); null when the page did not say. */
+  private historyStart: number | null = null;
   /** Rows that arrived since that page, in order (the streaming reply is not one until it settles). */
   private tail: TranscriptRow[] = [];
   private streamingText = "";
@@ -99,6 +116,11 @@ export class ThreadModel {
 
   constructor(settled?: (text: string) => void) {
     this.settled = settled;
+  }
+
+  /** The position of the oldest row loaded in the chat's whole thread, the `before` of the next older page; null when unknown. */
+  get firstPosition(): number | null {
+    return this.historyStart;
   }
 
   /** Whether the agent's reply is streaming in right now. */
@@ -301,7 +323,7 @@ export class ThreadModel {
    * while it is still pending or arrived after the page's newest row. Rows the last page had lend their times too,
    * so a page without times keeps the ones the thread knew.
    */
-  load(page: HistoryRow[]): void {
+  load(page: HistoryRow[], start?: number): void {
     if (!page.length && this.tail.length) {
       // An empty page (a log not written yet, a link that answered nothing) says nothing about the rows since.
       this.history ??= [];
@@ -356,8 +378,34 @@ export class ThreadModel {
       const i = r.tool?.id ? byId.get(r.tool.id) : byText.get(pairKey(r))?.pop();
       if (i !== undefined) lend(i, r.at);
     }
-    this.history = rows;
+    // With positions on both sides (plan 033): a row unchanged since the last read keeps its object, so the
+    // transcript's memo holds, and the older rows loaded before this page stay in front of it.
+    const was = this.history ?? [];
+    const wasStart = this.historyStart;
+    let front: TranscriptRow[] = [];
+    if (start !== undefined && wasStart !== null) {
+      for (let i = 0; i < rows.length; i++) {
+        const old = was[start + i - wasStart] as TranscriptRow | undefined;
+        if (old && samePageRow(old, rows[i])) rows[i] = old;
+      }
+      if (wasStart < start) front = was.slice(0, start - wasStart);
+    }
+    this.history = front.length ? [...front, ...rows] : rows;
+    this.historyStart = start === undefined ? null : front.length ? wasStart : start;
     this.tail = kept;
+    this.touch();
+  }
+
+  /**
+   * An older page arrived (plan 033): rows from position `start`, up to the oldest one loaded, go in front of the
+   * history; the rows since the last page stay as they are. Nothing happens without positions to go by.
+   */
+  prepend(page: HistoryRow[], start: number): void {
+    if (this.history === null || this.historyStart === null) return;
+    const take = Math.max(0, Math.min(page.length, this.historyStart - start));
+    if (!take) return;
+    this.history = [...page.slice(0, take).map(fromHistory), ...this.history];
+    this.historyStart -= take;
     this.touch();
   }
 

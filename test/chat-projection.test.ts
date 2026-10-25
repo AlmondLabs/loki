@@ -32,7 +32,7 @@ describe("chat projection", () => {
       const converted = lettaLogEntries(sampleLog());
       await store.importEntries(chat, converted, ctx);
       await chats.attach(AGENT, store);
-      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap((e) => entrySteps(e))), more: false });
+      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap((e) => entrySteps(e))), more: false, start: 0 });
       expect(chats.page("local-conv-1", AGENT, 2).more).toBe(true);
       expect(chats.info("local-conv-1", AGENT)).toMatchObject({
         agentId: AGENT,
@@ -70,6 +70,61 @@ describe("chat projection", () => {
       const next = chats.since("c", AGENT, cursor.lines);
       expect(next.rows.map((r) => r.text)).toEqual(["second question", "second answer"]);
       expect(chats.digest("c", AGENT)).toEqual({ last_role: "assistant", last_assistant_text: "second answer", last_ask: "person" });
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
+  test("pages by position put back together make the whole thread, each saying where it starts", async () => {
+    const { store, model, chats } = await setup();
+    try {
+      const chat = await store.createChat("local-conv-1", { agent: { model } }, ctx);
+      const converted = lettaLogEntries(sampleLog());
+      await store.importEntries(chat, converted, ctx);
+      await chats.attach(AGENT, store);
+      const whole = foldSteps(converted.flatMap((e) => entrySteps(e)));
+      expect(whole.length).toBeGreaterThan(3);
+      const pages: Array<{ rows: unknown[]; more: boolean; start: number }> = [];
+      let before: number | null = null;
+      do {
+        const page = chats.page("local-conv-1", AGENT, 2, before);
+        pages.unshift(page);
+        before = page.start;
+      } while (pages[0].more);
+      expect(pages.flatMap((p) => p.rows)).toEqual(whole);
+      expect(pages[0].start).toBe(0);
+      expect(pages.at(-1)?.start).toBe(whole.length - 2);
+      // A position past the end is the end; one before the start is nothing.
+      expect(chats.page("local-conv-1", AGENT, 2, whole.length + 10).rows).toEqual(whole.slice(-2));
+      expect(chats.page("local-conv-1", AGENT, 2, 0)).toEqual({ rows: [], more: false, start: 0 });
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
+  test("a thread read between turns is the same as one folded whole at the end", async () => {
+    const { store, faux, model, chats } = await setup();
+    try {
+      const chat = await store.createChat("c", { agent: { model } }, ctx);
+      await chats.attach(AGENT, store);
+      const answers = ["first answer", "second answer", "third answer"];
+      for (const [i, answer] of answers.entries()) {
+        faux.setResponses([fauxAssistantMessage(answer)]);
+        await (await chat.submit({ type: "input", content: `question ${i + 1}` }, ctx)).wait(ctx);
+        // Read each time, so the fold is fed in steps rather than all at once.
+        expect(chats.page("c", AGENT, 100).rows.at(-1)?.text).toBe(answer);
+      }
+      const fresh = new ChatProjection(ctx, () => "Ada");
+      await fresh.attach(AGENT, store);
+      expect(chats.page("c", AGENT, 100)).toEqual(fresh.page("c", AGENT, 100));
+      expect(chats.page("c", AGENT, 100).rows.map((r) => r.text)).toEqual([
+        "question 1",
+        "first answer",
+        "question 2",
+        "second answer",
+        "question 3",
+        "third answer",
+      ]);
     } finally {
       await store.close(ctx);
     }
@@ -135,7 +190,7 @@ describe("chat projection", () => {
   test("an unknown chat reads as nothing", async () => {
     const { chats } = await setup();
     expect(chats.info("nope", AGENT)).toBeNull();
-    expect(chats.page("nope", AGENT, 10)).toEqual({ rows: [], more: false });
+    expect(chats.page("nope", AGENT, 10)).toEqual({ rows: [], more: false, start: 0 });
     expect(chats.since("nope", AGENT, 0)).toEqual({ rows: [], lines: 0 });
     expect(chats.digest("nope", AGENT)).toEqual({ last_role: null, last_assistant_text: null, last_ask: null });
   });
