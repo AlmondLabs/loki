@@ -7,6 +7,7 @@ import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../c
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
+import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { TranscriptRow } from "../chat/transcript";
 import { Conversation, Thread } from "../chat/conversation";
 import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/model-picker";
@@ -374,7 +375,7 @@ export function Inbox({
   available,
   hidden = false,
   banner,
-  conversation,
+  chats,
   deck,
   backLabel,
   onClose,
@@ -399,8 +400,8 @@ export function Inbox({
   hidden?: boolean;
   /** "Mac unreachable · last seen …", or null while the link is fine. In a pass it takes the card's notice line. */
   banner?: ReactNode;
-  /** The live thread behind a card; `rows` is undefined until loaded. */
-  conversation: (agentId: string, conversationId: string) => CardView;
+  /** The live threads behind the cards (useAttention's), read through useConversation. */
+  chats: ChatViews;
   /** The pass, from `useDeck` in the parent. */
   deck: Deck;
   /** Where the top bar's back chevron goes, as a word ("Home"). */
@@ -498,7 +499,7 @@ export function Inbox({
               approval={approval}
               refused={refused}
               reduced={reduced}
-              conversation={conversation}
+              chats={chats}
               handlers={swipe.handlers}
               deck={deck}
               banner={banner}
@@ -655,7 +656,7 @@ function Stack({
   approval,
   refused,
   reduced,
-  conversation,
+  chats,
   handlers,
   deck,
   banner,
@@ -672,7 +673,7 @@ function Stack({
   approval: boolean;
   refused: boolean;
   reduced: boolean;
-  conversation: (agentId: string, conversationId: string) => CardView;
+  chats: ChatViews;
   handlers: CardHandlers;
   deck: Deck;
   banner?: ReactNode;
@@ -704,7 +705,7 @@ function Stack({
             transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
           }}
         >
-          <ReadOnlyThread item={item} view={conversation(item.agent_id, item.id)} />
+          <ReadOnlyThread item={item} chats={chats} />
         </Card>
       );
     if (role === "top") {
@@ -727,7 +728,7 @@ function Stack({
             onOpen(item);
           }}
         >
-          <CardConversation item={item} view={conversation(item.agent_id, item.id)} banner={banner} card={card} onHold={() => deck.hold(item)} />
+          <LiveCardConversation item={item} chats={chats} banner={banner} card={card} onHold={() => deck.hold(item)} />
         </Card>
       );
     }
@@ -807,6 +808,12 @@ function Card({
       {veil > 0 && <div aria-hidden className="loki-phone-card-veil" style={{ opacity: veil }} />}
     </article>
   );
+}
+
+/** The top card's conversation, redrawn as its thread moves (useConversation). */
+function LiveCardConversation({ chats, ...card }: { chats: ChatViews } & Omit<Parameters<typeof CardConversation>[0], "view">) {
+  const view = useConversation(chats, card.item.agent_id, card.item.id);
+  return <CardConversation {...card} view={view} />;
 }
 
 /**
@@ -897,7 +904,8 @@ export function CardConversation({
 }
 
 /** The card flying off: its thread as it was, nothing to type into. */
-function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView }) {
+function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews }) {
+  const view = useConversation(chats, item.agent_id, item.id);
   return <Thread rows={view.rows} status={view.status} agentName={item.agent_name} dim={false} older={view.older ?? null} />;
 }
 

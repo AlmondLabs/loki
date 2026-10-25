@@ -4,12 +4,12 @@ import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import type { TranscriptRow } from "../chat/transcript";
+import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import { Conversation, type ChatStatus } from "../chat/conversation";
+import { Conversation } from "../chat/conversation";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
-import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
@@ -42,11 +42,8 @@ interface CatchUpProps {
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (
-    agentId: string,
-    conversationId: string,
-  ) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; engine?: ChatEngineView | null; older?: (() => void) | null };
+  /** The live conversations behind the cards (useAttention's), read through useConversation. */
+  chats: ChatViews;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -96,7 +93,7 @@ export type PassSummaryHandler = (pass: {
 type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
-  const { onClose, items, conversation, loadHistory, onOpenDesk } = props;
+  const { onClose, items, loadHistory, onOpenDesk } = props;
   /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
   const shown = useMemo(() => (agent ? items.filter((i) => i.agent_id === agent) : items), [items, agent]);
@@ -117,7 +114,6 @@ function CatchUpDeck(props: DeckProps) {
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
-  const thread = current ? conversation(current.agent_id, current.id) : undefined;
 
   // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
   const runCommand = (item: AttentionItem, id: string, args: string) => {
@@ -235,7 +231,6 @@ function CatchUpDeck(props: DeckProps) {
           <Card
             key={idOf(current)}
             current={current}
-            thread={thread}
             decided={decided}
             typing={typing}
             setTyping={setTyping}
@@ -259,7 +254,6 @@ function CatchUpDeck(props: DeckProps) {
  */
 function Card({
   current,
-  thread,
   decided,
   typing,
   setTyping,
@@ -271,7 +265,6 @@ function Card({
   modeTick,
 }: {
   current: AttentionItem;
-  thread: ReturnType<CatchUpProps["conversation"]> | undefined;
   decided: Decision[];
   typing: boolean;
   setTyping: (v: boolean) => void;
@@ -285,10 +278,12 @@ function Card({
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agent_id: agentId, id } = current;
+  // The card reads its chat itself, so a streamed piece redraws the card and not the deck around it (plan 032).
+  const thread = useConversation(deck.chats, agentId, id);
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop } = deck;
   const question = current.pendingQuestion;
   // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
-  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agent_name ?? null);
+  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   return (
     <div
@@ -307,17 +302,17 @@ function Card({
     >
       <Conversation
         view={{
-          rows: thread?.rows,
-          status: thread?.status ?? "idle",
+          rows: thread.rows,
+          status: thread.status,
           error: current.status === "failed" ? current.error : null,
           model: modelFor?.(agentId, id) ?? null,
           reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
           // The live thread's mode wins over the record's.
-          mode: thread?.mode ?? modeFor?.(agentId, id) ?? null,
-          engine: thread?.engine ?? null,
+          mode: thread.mode ?? modeFor?.(agentId, id) ?? null,
+          engine: thread.engine,
           approval: current.pendingApproval ?? null,
           question: current.pendingQuestion ?? null,
-          older: thread?.older ?? null,
+          older: thread.older,
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),

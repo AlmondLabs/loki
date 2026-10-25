@@ -1,9 +1,11 @@
 import { applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
 import {
+  applyChatEvent,
   buildItems,
   cancelQueued,
   emptyLive,
+  faceOf,
   keyOf,
   sendMode,
   takeQueued,
@@ -240,6 +242,52 @@ describe("a loop status that repeats changes nothing", () => {
     l.error = "the turn failed";
     expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(true); // a running status clears the error
     expect(l.error).toBeNull();
+  });
+});
+
+describe("a streaming reply moves its thread, not the list (plan 032)", () => {
+  const piece = (text: string) => ({ kind: "step" as const, step: { kind: "assistant" as const, text, at: null, chunk: true } });
+
+  test("the first piece moves the last-message time; the pieces after it leave the time and the face alone", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "loop", state: "running" }, "2026-10-25T09:00:00.000Z");
+    applyChatEvent(l, piece("Let "), "2026-10-25T09:00:01.000Z");
+    expect(l.lastMessageAt).toBe("2026-10-25T09:00:01.000Z");
+    const face = faceOf(l);
+    const revision = l.thread.revision;
+    expect(applyChatEvent(l, piece("me "), "2026-10-25T09:00:02.000Z").changed).toBe(true);
+    applyChatEvent(l, piece("look"), "2026-10-25T09:00:03.000Z");
+    expect(l.lastMessageAt).toBe("2026-10-25T09:00:01.000Z");
+    expect(faceOf(l)).toEqual(face);
+    expect(l.thread.revision).toBeGreaterThan(revision);
+  });
+
+  test("the turn's end, a whole message and an approval move the face", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "loop", state: "running" }, "2026-10-25T09:00:00.000Z");
+    applyChatEvent(l, piece("Done"), "2026-10-25T09:00:01.000Z");
+    let face = faceOf(l);
+    applyChatEvent(l, { kind: "turn_end" }, "2026-10-25T09:00:05.000Z");
+    expect(l.lastMessageAt).toBe("2026-10-25T09:00:05.000Z");
+    expect(faceOf(l)).not.toEqual(face);
+    face = faceOf(l);
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "A note.", at: null } }, "2026-10-25T09:01:00.000Z");
+    expect(l.lastMessageAt).toBe("2026-10-25T09:01:00.000Z");
+    expect(faceOf(l)).not.toEqual(face);
+    face = faceOf(l);
+    applyChatEvent(l, { kind: "approval", request_id: "q1", tool_name: "bash", input: {} }, "2026-10-25T09:02:00.000Z");
+    expect(faceOf(l)).not.toEqual(face);
+  });
+
+  test("a reply starting and settling moves the face, since the chat box shows streaming apart from thinking", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "loop", state: "running" }, "2026-10-25T09:00:00.000Z");
+    const thinking = faceOf(l);
+    applyChatEvent(l, piece("Hi"), "2026-10-25T09:00:01.000Z");
+    const streaming = faceOf(l);
+    expect(streaming).not.toEqual(thinking);
+    applyChatEvent(l, { kind: "settle" }, "2026-10-25T09:00:02.000Z");
+    expect(faceOf(l)).not.toEqual(streaming);
   });
 });
 

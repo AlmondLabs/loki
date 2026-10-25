@@ -3,6 +3,7 @@ import type { useAttention } from "../../../core/attention/use-attention.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
 import type { ModelSelection } from "../../../core/models.ts";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { runAction } from "../shell/keymap";
 import type { useDesk } from "./use-desk";
 import type { DeskChatModel } from "./use-desk-chat";
@@ -26,17 +27,19 @@ export interface DeskConversationHandlers {
 /**
  * The desk's conversation as the shared Conversation takes it: what it looks like and what can be done to
  * it. One builder for both views of a desk (the Messages tab and the Desk tab's inset), so they never drift.
+ * `rows` come from the view that draws them (useThreadRows), so a streamed piece redraws only that view.
  */
 export function deskConversation(
   desk: ReturnType<typeof useDesk>,
   catchUp: ReturnType<typeof useAttention>,
   chat: DeskChatModel,
   { onLoadModels, onPickModel, onPickMode, onOpenLabels }: DeskConversationHandlers,
+  rows: TranscriptRow[] | undefined,
 ): { view: ConversationView; actions: ConversationActions } {
   const { scope, title, attention } = desk;
   const { deskRuntime, deskChat, pendingApproval, pendingQuestion } = chat;
   const view: ConversationView = {
-    rows: deskChat?.rows ?? [],
+    rows: rows ?? [],
     status: deskChat?.status ?? "idle",
     error: !attention.available ? "chat needs loki's daemon — is it running?" : (deskChat?.error ?? null),
     model: desk.model,

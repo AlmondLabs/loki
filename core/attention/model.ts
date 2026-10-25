@@ -178,6 +178,29 @@ export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "stream
 }
 
 /**
+ * What the list and the chat box read of a chat's live state, as values to compare (plan 032): while only its thread
+ * moves (a reply streaming in, a call's input growing), this stays the same and only the thread's watchers redraw.
+ */
+export function faceOf(l: Live): readonly unknown[] {
+  return [
+    l.loop,
+    l.inTurn,
+    l.turns,
+    l.pending,
+    l.pendingAsk,
+    l.error,
+    l.lastRole,
+    l.lastMessageAt,
+    l.lastAssistantText,
+    l.lastAsk,
+    l.mode,
+    l.cwd,
+    l.engine,
+    l.thread.streaming,
+  ];
+}
+
+/**
  * How a message the person sends now leaves (plan 025): at once to an idle chat; at once into the running turn on
  * loki's own engine, which places it after the current tool round; or, on an agent (ACP), which takes one prompt at a
  * time, queued until the turn ends.
@@ -287,10 +310,12 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed: after.some((v, i) => v !== before[i]), userSpoke: false };
     }
     case "step": {
+      // A reply's time is when it started: moved by every piece, it changed the list (and sent a look) many times a second.
+      const starts = e.step.kind === "assistant" && (!e.step.chunk || !l.thread.streaming);
       const { changed, spoke } = l.thread.apply(e.step);
       if (e.step.kind === "assistant") {
         l.lastRole = "assistant";
-        l.lastMessageAt = now;
+        if (starts) l.lastMessageAt = now;
         return { changed: true, userSpoke: false }; // the agent spoke, even with nothing to show yet
       }
       if (spoke === null) return { changed, userSpoke: false };

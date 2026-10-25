@@ -1,5 +1,5 @@
 import type { FileRef, ToolStep } from "./transcript.ts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Runtime } from "./protocol.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import type { AppliedModel, ChatEngineView, ModelSelection } from "../models.ts";
@@ -11,6 +11,7 @@ import {
   cancelQueued as dropQueued,
   chatStatusOf,
   emptyLive,
+  faceOf,
   keyOf,
   sendMode,
   takeQueued,
@@ -133,6 +134,55 @@ function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | nul
   return note.text ?? undefined;
 }
 
+/** A conversation as a chat surface reads it from useAttention's `conversation`: everything but its rows. */
+export interface ChatFace {
+  status: "idle" | "thinking" | "streaming";
+  pending: PendingApproval | null;
+  question: PendingQuestion | null;
+  error: string | null;
+  mode: string | null;
+  cwd: string | null;
+  engine: ChatEngineView | null;
+  older: (() => void) | null;
+}
+
+/** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
+export interface ChatView extends ChatFace {
+  rows: TranscriptRow[] | undefined;
+}
+
+/** The parts of useAttention's result a chat surface reads a conversation through. */
+export interface ChatViews {
+  conversation: (agentId: string, conversationId: string) => ChatFace;
+  watchThreads: (onChange: () => void) => () => void;
+  threadRows: (agentId: string, conversationId: string) => TranscriptRow[] | undefined;
+}
+
+/**
+ * One conversation for a chat surface, redrawn when its rows move (plan 032): useAttention's result changes only when
+ * the list does, so a streaming reply reaches the thread drawing it and nothing else. Null without both ids.
+ */
+export function useConversation(chats: ChatViews, agentId: string, conversationId: string): ChatView;
+export function useConversation(chats: ChatViews, agentId: string | null, conversationId: string | null): ChatView | null;
+export function useConversation(chats: ChatViews, agentId: string | null, conversationId: string | null): ChatView | null {
+  const rows = useThreadRows(chats, agentId, conversationId);
+  if (!agentId || !conversationId) return null;
+  return { ...chats.conversation(agentId, conversationId), rows };
+}
+
+/**
+ * A conversation's rows alone, redrawn as they move: for the part of a surface that draws the thread, so a streamed
+ * piece redraws that part and not the header and box around it (plan 032). Undefined until loaded, or without both ids.
+ */
+export function useThreadRows(
+  chats: Pick<ChatViews, "watchThreads" | "threadRows">,
+  agentId: string | null,
+  conversationId: string | null,
+): TranscriptRow[] | undefined {
+  const read = () => (agentId && conversationId ? chats.threadRows(agentId, conversationId) : undefined);
+  return useSyncExternalStore(chats.watchThreads, read, read);
+}
+
 /** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */
 export const HISTORY_PAGE = 400;
 
@@ -143,7 +193,10 @@ export function useAttention(opts: UseAttentionOptions) {
   /** False until the first agent_list answered: an empty list before that means nothing. */
   const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [digests, setDigests] = useState<Map<string, Digest>>(new Map());
-  /** The live map as render sees it: a fresh copy each time `bump` fires. The handlers mutate `liveRef` in place. */
+  /**
+   * The live map as render sees it: a fresh copy each time a flush finds a chat's face moved (publish). The handlers
+   * mutate `liveRef` in place; the threads inside are read through useConversation.
+   */
   const [live, setLive] = useState<Map<string, Live>>(() => new Map());
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
   /** From the chat client's serverInfo: the daemon's name and the commands it runs. */
@@ -189,13 +242,42 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Re-read the list now (the sidebar archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
   const reload = useCallback(() => reloadRef.current?.(), []);
 
+  /** Each chat's face as last rendered (faceOf): what a flush compares to tell a list change from a thread change. */
+  const faces = useRef(new Map<string, readonly unknown[]>());
+  /** Every useConversation on screen, told on each flush; each one redraws only when its own rows moved. */
+  const threadWatchers = useRef(new Set<() => void>());
+  /**
+   * Hand the live state to render (plan 032). A streaming reply moves only its thread, so the list, the Inbox and
+   * everything else holding this hook's result stay as they are, and only that thread's watchers draw again.
+   */
+  const publish = useCallback(() => {
+    let moved = false;
+    for (const [key, l] of liveRef.current) {
+      const face = faceOf(l);
+      const was = faces.current.get(key);
+      if (was && face.every((v, i) => v === was[i])) continue;
+      faces.current.set(key, face);
+      moved = true;
+    }
+    if (moved) setLive(new Map(liveRef.current));
+    for (const watch of threadWatchers.current) watch();
+  }, []);
   const bump = useCallback(() => {
     if (notifyTimer.current) return;
     notifyTimer.current = setTimeout(() => {
       notifyTimer.current = null;
-      setLive(new Map(liveRef.current));
+      publish();
     }, 150);
+  }, [publish]);
+  /** Watch every thread for useConversation; returns the way to stop. Stable. */
+  const watchThreads = useCallback((onChange: () => void) => {
+    threadWatchers.current.add(onChange);
+    return () => {
+      threadWatchers.current.delete(onChange);
+    };
   }, []);
+  /** A chat's rows as they stand now, the same array until they change (ThreadModel.rows). Stable. */
+  const threadRows = useCallback((agentId: string, conversationId: string) => liveRef.current.get(keyOf(agentId, conversationId))?.thread.rows(), []);
 
   // Connect / disconnect with `enabled`.
   useEffect(() => {
@@ -450,13 +532,13 @@ export function useAttention(opts: UseAttentionOptions) {
           !!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key)),
         );
         liveOf(key).thread.load(rows);
-        setLive(new Map(liveRef.current));
+        publish();
       };
       // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
       await read().catch((err: unknown) => console.warn("loki: thread", err));
       loading.current.delete(key);
     },
-    [liveOf],
+    [liveOf, publish],
   );
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
   /** The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. */
@@ -505,30 +587,14 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
 
   /**
-   * Everything a chat surface needs for one conversation: the transcript with
-   * live rows and the streaming reply appended, the box status, and the pending
-   * approval. `rows` is undefined until the transcript has been asked for.
+   * A chat surface's view of one conversation besides its rows: the box status, the pending approval or question,
+   * mode, folder, engine, and the way to older history. The rows come through useConversation, which redraws on them.
    */
   const conversation = useCallback(
-    (
-      agentId: string,
-      conversationId: string,
-    ): {
-      rows: TranscriptRow[] | undefined;
-      status: "idle" | "thinking" | "streaming";
-      pending: PendingApproval | null;
-      question: PendingQuestion | null;
-      error: string | null;
-      mode: string | null;
-      cwd: string | null;
-      engine: ChatEngineView | null;
-      older: (() => void) | null;
-    } => {
+    (agentId: string, conversationId: string): ChatFace => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
-      // The thread's rows keep their identity from update to update; only what changed is new.
       return {
-        rows: l?.thread.rows(),
         status: chatStatusOf(l),
         pending: l?.pending ?? null,
         question: l?.pendingAsk ?? null,
@@ -1103,6 +1169,8 @@ export function useAttention(opts: UseAttentionOptions) {
     loadThread,
     subscribe,
     conversation,
+    watchThreads,
+    threadRows,
     approve,
     decide,
     answer,
