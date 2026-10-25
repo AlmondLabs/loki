@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
@@ -8,8 +8,9 @@ import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion }
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import type { TranscriptRow } from "../chat/transcript";
-import { Conversation, type ChatStatus } from "../chat/conversation";
+import type { MessageLayout } from "../chat/transcript";
+import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
+import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
@@ -37,11 +38,11 @@ export interface Thread {
 }
 
 /**
- * What the phone's conversation page shows of a chat: its thread (rows undefined until loaded), what the agent is
- * doing, the approval or question waiting, the turn's error, and a way to load older rows when there are any.
+ * What the phone's conversation page shows of a chat besides its rows: what the agent is doing, the approval or
+ * question waiting, the turn's error, and a way to load older rows when there are any. The rows are read by the
+ * thread itself (ScreenThread), so a streamed piece redraws the thread and not the page around it (plan 032).
  */
 export interface ThreadView {
-  rows: TranscriptRow[] | undefined;
   status: ChatStatus;
   pending: PendingApproval | null;
   question: PendingQuestion | null;
@@ -62,6 +63,7 @@ export interface ThreadView {
 export function ConversationScreen({
   thread,
   view,
+  chats,
   model = null,
   reasoningEffort = null,
   models = null,
@@ -91,6 +93,8 @@ export function ConversationScreen({
 }: {
   thread: Thread;
   view: ThreadView;
+  /** Where the thread's rows are read (useAttention's), by ScreenThread. */
+  chats: Pick<ChatViews, "watchThreads" | "threadRows">;
   /** The model the conversation runs on (the mod's desks list) and its effort; null when not known. */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -163,14 +167,6 @@ export function ConversationScreen({
   );
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
-  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), view.rows, thread.agentName ?? null, {
-    readOnly: true,
-  });
-  const layout = useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline }),
-    [people, dividerAt, item?.last_message_at, widgets, inline],
-  );
   const messageTasks = useMessageTasksScope(
     { agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) },
     taskApi,
@@ -196,12 +192,13 @@ export function ConversationScreen({
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
           <MessageTasks.Provider value={messageTasks}>
-            <Conversation
-              touch
-              dim={false}
-              gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+            <ScreenThread
+              chats={chats}
+              thread={thread}
+              item={item}
+              heldLook={heldLook}
+              people={people}
               view={{
-                rows: view.rows,
                 status: view.status,
                 error: view.error,
                 model,
@@ -222,7 +219,6 @@ export function ConversationScreen({
               }}
               agentName={agentName}
               prefill={prefill}
-              layout={layout}
               notice={notice || null}
               placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
               draft={{ value: draft, onChange: setDraft }}
@@ -289,6 +285,48 @@ export function ConversationScreen({
         <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
       )}
     </>
+  );
+}
+
+/**
+ * The page's thread and box: the one part of the page that reads the chat's rows (plan 032), so a streamed piece
+ * redraws it and not the header, the sheets or the page around it. The New line and the widget rows come from the
+ * rows, so they are worked out here.
+ */
+function ScreenThread({
+  chats,
+  thread,
+  item,
+  heldLook,
+  people,
+  view,
+  ...conversation
+}: Omit<ComponentProps<typeof Conversation>, "view" | "layout" | "touch" | "dim" | "gutter"> & {
+  chats: Pick<ChatViews, "watchThreads" | "threadRows">;
+  thread: Thread;
+  item: AttentionItem | null;
+  heldLook: string | null;
+  people: MessageLayout["people"];
+  view: Omit<ConversationView, "rows">;
+}) {
+  const rows = useThreadRows(chats, thread.agentId, thread.conversationId);
+  const dividerAt = unreadBoundary(rows, item?.unread ?? false, item?.seenAt, heldLook);
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), rows, thread.agentName ?? null, {
+    readOnly: true,
+  });
+  const layout = useMemo(
+    () => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline }),
+    [people, dividerAt, item?.last_message_at, widgets, inline],
+  );
+  return (
+    <Conversation
+      {...conversation}
+      touch
+      dim={false}
+      gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+      view={{ ...view, rows }}
+      layout={layout}
+    />
   );
 }
 

@@ -38,8 +38,8 @@ while any chat streams a reply, the whole app redraws up to seven times a second
    1. the desk: `DeskMessages` (the Messages tab's thread, its New line and widget rows) and the Canvas tab's inset
       chat (`DeskChat`); `DeskPane` itself, with the header, the tabs and the Canvas, reads only the face;
    2. the desktop Inbox: the card, not the deck around it;
-   3. the phone: the conversation page and each card. `ConversationScreen` uses the rows all through, so the page
-      still redraws whole with each piece; splitting it is a later change.
+   3. the phone: `ScreenThread`, the conversation page's thread and box (its New line and widget rows too), so the
+      page's header and sheets do not redraw; and each Inbox card, which is its conversation.
 4. **The message box no longer redraws with the thread.** Inside `Conversation` the box read `view` itself (for its
    placeholder and send label), so the React Compiler kept the whole box under a memo keyed on `view`, which is new
    with every piece; it reads `status`, `approval` and `question` instead. And `useSlashPalette` answered a draft
@@ -81,6 +81,17 @@ desktop page counted every component React rendered (a counter on the DevTools h
 | ↳ shell, chat pane, message box (each)   | 81               | 8     |
 | ↳ sidebar rows                           | 324              | 32    |
 | ↳ thread and the streaming message (each) | 81               | 82    |
+
+The phone's conversation page, the same way (the built page in development mode, served by the phone listener, a
+375-pixel viewport), with the reply streaming into the chat on screen:
+
+| on the phone, while a reply streams in the open chat | before (25b40c7) | after |
+| ---------------------------------------------------- | ---------------- | ----- |
+| components rendered                                  | 6,446            | 1,696 |
+| ↳ the page and its header (each)                     | 81               | 7     |
+| ↳ message box and model picker (each)                | 162              | 14    |
+| ↳ Home's rows behind the page                        | 320              | 20    |
+| ↳ the thread (`ScreenThread`)                        | (the page, 81)   | 81    |
 
 What still redraws per piece is the thread and the message being written; everything else redraws only on the
 chat's face changing (the turn starting, the reply starting and settling, the turn ending).
