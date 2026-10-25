@@ -4,12 +4,12 @@ import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import type { TranscriptRow } from "../chat/transcript";
+import { useConversation, type ChatView, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import { Conversation, type ChatStatus } from "../chat/conversation";
+import { Conversation } from "../chat/conversation";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
-import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
@@ -42,11 +42,8 @@ interface CatchUpProps {
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (
-    agentId: string,
-    conversationId: string,
-  ) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; engine?: ChatEngineView | null; older?: (() => void) | null };
+  /** The live conversations behind the cards (useAttention's), read through useConversation. */
+  chats: ChatViews;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -96,7 +93,7 @@ export type PassSummaryHandler = (pass: {
 type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
-  const { onClose, items, conversation, loadHistory, onOpenDesk } = props;
+  const { onClose, items, chats, loadHistory, onOpenDesk } = props;
   /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
   const shown = useMemo(() => (agent ? items.filter((i) => i.agent_id === agent) : items), [items, agent]);
@@ -117,7 +114,7 @@ function CatchUpDeck(props: DeckProps) {
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
-  const thread = current ? conversation(current.agent_id, current.id) : undefined;
+  const thread = useConversation(chats, current ? current.agent_id : null, current ? current.id : null);
 
   // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
   const runCommand = (item: AttentionItem, id: string, args: string) => {
@@ -271,7 +268,7 @@ function Card({
   modeTick,
 }: {
   current: AttentionItem;
-  thread: ReturnType<CatchUpProps["conversation"]> | undefined;
+  thread: ChatView | null;
   decided: Decision[];
   typing: boolean;
   setTyping: (v: boolean) => void;

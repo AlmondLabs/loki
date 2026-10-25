@@ -531,6 +531,43 @@ describe("rows keep their identity until they change", () => {
     expect(third[1].summary).toBe("reloaded");
   });
 
+  test("the rows are one array until something changes, and a new one after each kind of change", () => {
+    const t = new ThreadModel();
+    expect(t.rows()).toBeUndefined();
+    t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }]);
+    const loaded = rowsOf(t);
+    expect(rowsOf(t)).toBe(loaded);
+    const changes: Array<[string, () => void]> = [
+      ["a streamed piece", () => t.apply({ kind: "assistant", text: "Let ", at: "2026-09-23T09:00:01.000Z", chunk: true })],
+      ["another piece", () => t.apply({ kind: "assistant", text: "me", at: null, chunk: true })],
+      ["a call, which settles the reply", () => t.apply({ kind: "call", name: "Read", args: { path: "a.ts" }, id: "r1", at: "2026-09-23T09:00:02.000Z" })],
+      ["its result", () => t.apply({ kind: "result", id: "r1", output: "a", failed: false })],
+      [
+        "a page",
+        () =>
+          t.load([
+            { role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" },
+            { role: "assistant", text: "Let me", at: "2026-09-23T09:00:01.000Z" },
+          ]),
+      ],
+      [
+        "a result onto the page's call",
+        () => (t.load([{ role: "tool", text: "Read", tool: { name: "Read", id: "r2" } }]), t.apply({ kind: "result", id: "r2", output: "b", failed: false })),
+      ],
+    ];
+    let before = rowsOf(t);
+    for (const [what, change] of changes) {
+      change();
+      const after = rowsOf(t);
+      expect(after, what).not.toBe(before);
+      expect(rowsOf(t), `${what}, read again`).toBe(after);
+      before = after;
+    }
+    // A step that moves nothing (a piece with no text) leaves the array as it was.
+    t.apply({ kind: "assistant", text: "", at: null, chunk: true });
+    expect(rowsOf(t)).toBe(before);
+  });
+
   test("a result landing on a call makes only that row new; the page's rows stay the same objects", () => {
     const t = new ThreadModel();
     t.load([{ role: "user", text: "go", at: "2026-09-23T09:00:00.000Z" }]);

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent } from "react";
-import type { useAttention } from "../../../core/attention/use-attention.ts";
+import { useConversation, type useAttention } from "../../../core/attention/use-attention.ts";
 
 /**
  * The desk's conversation, from the same model the inbox uses: subscribed while the desk is open,
@@ -18,7 +18,7 @@ export function useDeskChat({
   catchUp: ReturnType<typeof useAttention>;
 }) {
   const deskRuntime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
-  const deskChat = deskRuntime ? catchUp.conversation(deskRuntime.agent_id, deskRuntime.conversation_id) : null;
+  const deskChat = useConversation(catchUp, agentId, conversationId);
   const pendingApproval = deskChat?.pending ?? null;
   const pendingQuestion = deskChat?.question ?? null;
   const subscribe = useEffectEvent(() => {

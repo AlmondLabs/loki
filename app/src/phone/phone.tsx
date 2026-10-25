@@ -2,7 +2,7 @@ import { useTaskList, type TaskApi } from "../tasks/message-tasks";
 import { homesOf } from "../shell/desk-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/use-inline-widgets";
-import { useAttention } from "../../../core/attention/use-attention.ts";
+import { useAttention, useConversation } from "../../../core/attention/use-attention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { modBase } from "../desk/env";
@@ -475,6 +475,7 @@ function ConversationPage({
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
   const item = catchUp.items.find((i) => i.agent_id === thread.agentId && i.id === thread.conversationId) ?? null;
   const scope = scopeFor(thread.conversationId, thread.agentId);
+  const view = useConversation(catchUp, thread.agentId, thread.conversationId);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -491,7 +492,7 @@ function ConversationPage({
     <ConversationScreen
       taskApi={taskApi}
       thread={thread}
-      view={catchUp.conversation(thread.agentId, thread.conversationId)}
+      view={view}
       model={desk.modelOf(scope)}
       reasoningEffort={desk.reasoningEffortOf(scope)}
       models={models}
@@ -652,7 +653,7 @@ function Screen({
         loaded={catchUp.agentsLoaded}
         available={attention.available}
         banner={cardNote ? <Banner>{cardNote}</Banner> : banner}
-        conversation={catchUp.conversation}
+        chats={catchUp}
         deck={deck}
         backLabel={inboxBack}
         onClose={closeInbox}

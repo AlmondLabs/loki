@@ -105,7 +105,7 @@ export function InboxView({
         if (item) catchUp.decided(item, "open", via());
         onOpenDesk(agentId, conversationId, { chat: true });
       }}
-      conversation={catchUp.conversation}
+      chats={catchUp}
       loadHistory={(item) => void catchUp.loadHistory(item)}
       widgetSource={desk}
       modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}

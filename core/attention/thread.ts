@@ -89,6 +89,8 @@ export class ThreadModel {
   private readonly echoes: string[] = [];
   private readonly shown = new WeakMap<TranscriptRow, TranscriptRow>();
   private streamingRow: TranscriptRow | null = null;
+  /** The rows as last drawn and the revision they were drawn at. */
+  private drawn: { revision: number; rows: TranscriptRow[] | undefined } | null = null;
   /** Goes up on every change, so a caller can tell whether a step moved anything. */
   revision = 0;
 
@@ -106,9 +108,15 @@ export class ThreadModel {
 
   /**
    * The thread as the transcript draws it: the history page, the rows since, then the streaming reply. Undefined
-   * until a page was loaded or anything arrived. A row is the same object from one read to the next until it changes.
+   * until a page was loaded or anything arrived. A row is the same object from one read to the next until it changes,
+   * and so is the array: a watcher can tell whether anything moved by comparing it (useConversation).
    */
   rows(): TranscriptRow[] | undefined {
+    if (this.drawn?.revision !== this.revision) this.drawn = { revision: this.revision, rows: this.draw() };
+    return this.drawn.rows;
+  }
+
+  private draw(): TranscriptRow[] | undefined {
     if (this.history === null && !this.tail.length && !this.streamingText) return undefined;
     const out = [...(this.history ?? []), ...this.tail.map((r) => this.copyOf(r))];
     if (this.streamingText) {
