@@ -534,7 +534,11 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
   and a Mac showing a chat that lives on another asks that Mac for its pictures.
 - **Images the agent looks at** with its `view_image` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
-  file go as they are, and so does every image on Windows and Linux.
+  file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
+  are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
+  `npm run shrink-images -- --apply` to do it. It copies each store it changes to `~/.loki/stores/backup-<date>/`
+  first (delete the copies once you are happy), shrinks only images in tool results, leaves your own pasted images as
+  they are, and refuses while loki is running. Each chat it touched writes its prompt cache once more on its next turn.
 - **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
   `~/.loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
   its name and the upload's progress; send waits until it is there. × before sending deletes it again. The message
