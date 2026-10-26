@@ -76,7 +76,7 @@ export function coreSize(root: string): { bytes: number; files: Array<{ path: st
 }
 
 /**
- * When a failed tool call is worth a note (plan 033), as reflection and the memory review are told it: a lesson that
+ * When a failed tool call is worth a note (plan 036), as reflection and the memory review are told it: a lesson that
  * recurs or a lasting fact about the Mac, not the one-off; and memory cannot prevent a provider's error.
  */
 export const FAILURE_RULE = `A failed tool call ([failed …] in a conversation, with [then … worked] when the next try did) is worth a note when the same mistake comes back in more than one conversation, or when it shows a fact about this Mac and its tools that will still be true tomorrow: a command that does not exist and what to use instead, where a file lives, the right flag of a command. Write the lesson as what to do (use python3; that folder is at …), in a note outside system/ whose description says when it applies. A failure memory cannot prevent is no lesson: a provider's error, a slow service, a test that failed because the code was wrong; an expired sign-in is a lesson only as "ask the person to renew it, do not retry". Keep such a lesson until memory shows it is no longer true.`;

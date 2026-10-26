@@ -74,7 +74,7 @@ The skills list goes from 18.5 KB to 10.4 KB. About 35k tokens becomes about 11k
 ## Risks
 
 1. **The agent may not read a note it needed.** The description is what it decides by, so reflection is told to
-   write it as when-to-read, not as a title. Plan 033 shows the effect: a failure that comes back after its lesson was
+   write it as when-to-read, not as a title. Plan 036 shows the effect: a failure that comes back after its lesson was
    filed means a description is not doing its work.
 2. **A move loses something.** Reflection moves text rather than rewriting it, and every move is a commit.
 

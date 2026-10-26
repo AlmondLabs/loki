@@ -63,7 +63,7 @@ export function overlappingCards<T extends { front: string; back: string; tags: 
   return scored.slice(0, cap).map((x) => x.c);
 }
 
-/** How much of a failed call's input and error a transcript shows (plan 033). */
+/** How much of a failed call's input and error a transcript shows (plan 036). */
 const CALL_CHARS = 200;
 
 const clip = (text: string) => {
@@ -73,7 +73,7 @@ const clip = (text: string) => {
 
 /**
  * "you: …" / "<agent>: …" lines; harness notices are left out, and so are tool calls unless `failedCalls`. With it
- * (reflection, plan 033), a call that failed is a line where it happened, `[failed bash: <input> → <error>]`, and the
+ * (reflection, plan 036), a call that failed is a line where it happened, `[failed bash: <input> → <error>]`, and the
  * next call of the same tool that worked follows as `[then bash worked: <input>]`, so the fix is there beside the
  * mistake. Calls that worked otherwise stay out.
  */

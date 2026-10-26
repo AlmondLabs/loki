@@ -17,7 +17,7 @@ const call = (name: string, input: string, output: string, failed = false): Tran
   tool: withResult({ name, input }, output, failed),
 });
 
-describe("reflection reads the calls that failed, and the one that fixed each (plan 033)", () => {
+describe("reflection reads the calls that failed, and the one that fixed each (plan 036)", () => {
   const rows = [
     said("user", "count the pages"),
     call("bash", "python count.py", "/bin/bash: python: command not found", true),

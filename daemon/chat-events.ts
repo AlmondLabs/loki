@@ -4,7 +4,7 @@ import { messageAt, messageSteps, type ImageNamer, type PiMessage } from "../cor
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
-/** How much of the provider's own message an unanswered turn passes on (plan 033). */
+/** How much of the provider's own message an unanswered turn passes on (plan 036). */
 const DETAIL_CHARS = 300;
 
 /**
