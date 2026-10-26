@@ -10,6 +10,7 @@ import {
   stepFailed,
   stepIcon,
   stepTarget,
+  stepTitle,
   stepVerb,
   toolRuns,
   workSummary,
@@ -36,6 +37,14 @@ describe("the line for a run of tools", () => {
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
     expect(stepVerb("bash_background")).toBe("Started in background");
+  });
+
+  test("pi's shell tool reads as a command too, and a step's sheet is titled by its tool (plan 038)", () => {
+    expect(stepVerb("bash")).toBe("Ran");
+    expect(stepIcon("bash")).toBe("terminal");
+    expect(stepTitle("bash")).toBe("Bash");
+    expect(stepTitle("memory_read")).toBe("Memory read");
+    expect(stepTitle("mcp__linear__list_issues")).toBe("linear.list_issues");
   });
 
   test("a background task reads by the name Letta gave it, or by loki's command as written, quotes and all", () => {
