@@ -57,6 +57,13 @@ line in front matter.
 The skills section (`daemon/skills.ts:56`, and `daemon/acp/prompt.ts` for Claude Code chats) shows each description
 cut at a word to 200 characters. Not at the first sentence: on the measured agent that drops the "use when…" part from 22 of the 31 descriptions that have one, against 7 for the plain cut. The whole text still comes with the Skill tool.
 
+### 4. The memory review (/doctor) does the same, at once
+
+Added after the first part landed (2026-10-26). `/doctor` gets the same rule for what belongs in the core
+(`CORE_RULE`, `daemon/memory.ts`) and, when the core is over budget, the same paragraph naming its size and biggest
+notes. Reflection moves some notes per run; a review, which sees all of memory, can bring the core within budget in
+one go. Both read the rule and the paragraph from one place.
+
 ## What it saves
 
 Measured on the same agent. The list of notes, with each description cut to 200 characters like a skill's, comes to

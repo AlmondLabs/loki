@@ -1,5 +1,5 @@
 import { CONFLICTS_PATH, pendingConflicts } from "./memory-sync.ts";
-import { CORE_BUDGET, coreSize, MEMORY_TOOLS } from "./memory.ts";
+import { CORE_RULE, MEMORY_TOOLS, overBudget } from "./memory.ts";
 import type { PassJob } from "./passes.ts";
 
 /**
@@ -11,20 +11,7 @@ import type { PassJob } from "./passes.ts";
  */
 
 /** The system instructions of reflection's hidden chat. */
-export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations, each in its own <conversation> tag, and keep its memory true and useful for its future conversations: what it learned about the person, their work and preferences, decisions made, and anything it should do differently next time. Keep only what will still be true and matter in later conversations; leave out one-off details of the task at hand (which file was edited, which command failed, what was tried along the way). Change memory only with the memory tools; edit what is there before adding new files, keep files short and specific, and leave alone what the conversation did not touch. Read the conversations together: something that comes up in several of them (a preference, a habit, a recurring problem) is evidence that it lasts, even when each mention alone looks passing; and where they disagree, the newer one (the later conversation) wins, and memory should say what changed. Do not link conversations only because they share words: a pattern needs the same thing to recur. Your core notes (system/) are in every conversation in full, so keep them to who you are, who the person is and how they like to work, and rules that hold for any task; a project's or a tool's conventions and gotchas go in a note outside system/. Every note outside system/ starts with front matter whose description says in one line when the note is worth reading (---, description: …, ---): the conversation sees that line, not the note, so write it as when to read, not as a title, and add one to a note you write or edit that has none. When nothing is worth keeping, change nothing and say so in one line.`;
-
-const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
-
-/**
- * The paragraph that asks reflection to bring the core back within CORE_BUDGET (plan 034), naming its biggest notes;
- * null while it fits. A large core takes a few runs: each run moves some, and the next one sees what is left.
- */
-export function overBudget(root: string): string | null {
-  const size = coreSize(root);
-  if (!size || size.bytes <= CORE_BUDGET) return null;
-  const biggest = size.files.slice(0, 5).map((f) => `- ${f.path} (${kb(f.bytes)})`);
-  return `Also: your core notes (system/) come to ${kb(size.bytes)}, over their budget of ${kb(CORE_BUDGET)}. Move what is not needed in every conversation into notes outside system/, each with a description, leaving at most a line in its place. The biggest:\n${biggest.join("\n")}`;
-}
+export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations, each in its own <conversation> tag, and keep its memory true and useful for its future conversations: what it learned about the person, their work and preferences, decisions made, and anything it should do differently next time. Keep only what will still be true and matter in later conversations; leave out one-off details of the task at hand (which file was edited, which command failed, what was tried along the way). Change memory only with the memory tools; edit what is there before adding new files, keep files short and specific, and leave alone what the conversation did not touch. Read the conversations together: something that comes up in several of them (a preference, a habit, a recurring problem) is evidence that it lasts, even when each mention alone looks passing; and where they disagree, the newer one (the later conversation) wins, and memory should say what changed. Do not link conversations only because they share words: a pattern needs the same thing to recur. ${CORE_RULE} When nothing is worth keeping, change nothing and say so in one line.`;
 
 const WRITES = new Set(MEMORY_TOOLS.filter((t) => t !== "memory_read"));
 

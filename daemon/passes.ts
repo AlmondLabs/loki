@@ -7,7 +7,7 @@ import { isWriterChat } from "../core/recall/model.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
-import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS } from "./memory.ts";
+import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget } from "./memory.ts";
 import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
 import { modelRef } from "./loki-engine.ts";
 import { createHash } from "node:crypto";
@@ -503,14 +503,15 @@ export class PassRunner {
           changes: 0,
           report: "the memory review runs on the agent's own model, and it has none loki can reach; connect a provider in Preferences › Providers",
         });
-      const dump = memoryDump(memoryRoot(this.deps.backendDir, agentId));
+      const root = memoryRoot(this.deps.backendDir, agentId);
+      const dump = memoryDump(root);
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
       const answer = await this.ask(agentId, record?.model ?? "", {
         chatId: doctorChatId(agentId),
         title: "doctor",
         instructions: DOCTOR_INSTRUCTIONS,
         tools: DOCTOR_TOOLS,
-        prompt: doctorPrompt(dump, started),
+        prompt: doctorPrompt(dump, started, overBudget(root)),
         requestId,
       });
       const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
