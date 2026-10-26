@@ -258,7 +258,7 @@ export function memoryExtension(backendDir: string): Extension {
             const { root } = await who(api, api.conversationId, context);
             const full = inside(root, (args as { path?: string }).path);
             if (!existsSync(full)) throw new Error(`no memory file ${(args as { path: string }).path}`);
-            return { content: [{ type: "text", text: readFileSync(full, "utf8") }] };
+            return { output: [{ type: "text", text: readFileSync(full, "utf8") }] };
           },
         }),
       ),
@@ -279,7 +279,7 @@ export function memoryExtension(backendDir: string): Extension {
             mkdirSync(dirname(full), { recursive: true });
             writeFileSync(full, a.content);
             await commit(root, full, a.message?.trim() || `Update ${a.path}`, author);
-            return { content: [{ type: "text", text: `wrote ${a.path}` }] };
+            return { output: [{ type: "text", text: `wrote ${a.path}` }] };
           },
         }),
       ),
@@ -304,7 +304,7 @@ export function memoryExtension(backendDir: string): Extension {
             if (text.includes(a.old_text, at + 1)) throw new Error("that passage is in the file more than once; quote more of it");
             writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
             await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
-            return { content: [{ type: "text", text: `edited ${a.path}` }] };
+            return { output: [{ type: "text", text: `edited ${a.path}` }] };
           },
         }),
       ),
@@ -340,7 +340,7 @@ export function memoryExtension(backendDir: string): Extension {
                 full,
               );
             });
-            return { content: [{ type: "text", text: `deleted ${a.path}` }] };
+            return { output: [{ type: "text", text: `deleted ${a.path}` }] };
           },
         }),
       ),

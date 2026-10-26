@@ -54,7 +54,7 @@ export function askExtension(approvals: Approvals): Extension {
             );
             const answers = (reply.answers.answers ?? {}) as Record<string, string>;
             const lines = Object.entries(answers).map(([q, a]) => `"${q}": ${a}`);
-            return { content: [{ type: "text", text: lines.length ? `The user answered:\n${lines.join("\n")}` : "The user gave no answers." }] };
+            return { output: [{ type: "text", text: lines.length ? `The user answered:\n${lines.join("\n")}` : "The user gave no answers." }] };
           },
         }),
       ),

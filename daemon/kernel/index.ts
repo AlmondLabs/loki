@@ -8,6 +8,7 @@ import {
   type EntryId,
   type EntryRecord,
   type HarnessOptions,
+  type HarnessSettings,
   type Storage,
   UsageDoc,
   type UsageState,
@@ -21,12 +22,19 @@ import type { ImportedEntry } from "../import/convert.ts";
  * about a chat (KTD6). When pi-durable's API changes, this module changes and nothing that imports it does.
  */
 
+/**
+ * When a document writes a whole copy instead of a change (pi-durable 1.4 asks each to say, plan 039): never, for
+ * loki's: each is a few fields and changes whole, so its changes stay small, as they were before.
+ */
+const smallDoc = (): boolean => false;
+
 /** loki's chat id → pi-durable conversation id, for one agent's store. */
 export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
   kind: "loki.chats",
   version: 1,
   scope: "session",
   initial: () => ({ chats: {} }),
+  checkpointWhen: smallDoc,
 });
 
 /** What loki keeps about one chat, committed with the chat it describes. */
@@ -81,6 +89,7 @@ export const ChatDoc = defineDoc<ChatInfo>({
   history: "latest",
   fork: "initial",
   initial: () => ({ id: "", title: null, archived: false, hidden: false, createdAt: "" }),
+  checkpointWhen: smallDoc,
 });
 
 /** Which agent a store belongs to, so a tool or section can name it without asking the daemon. */
@@ -89,6 +98,7 @@ export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   version: 1,
   scope: "session",
   initial: () => ({ id: "", name: "" }),
+  checkpointWhen: smallDoc,
 });
 
 /** Tokens and cost to add to a chat's totals: what an ACP agent reported for a turn (AgentStore.appendEntries). */
@@ -100,6 +110,12 @@ export interface UsageAdd {
   /** Dollars, as the agent estimated them; the agent gives no split by token type. */
   cost: number;
 }
+
+/**
+ * A message sent while a run fails is answered next, on its own (plan 039). pi-durable 1.4's default, `keep`, leaves it
+ * unshown until the person sends another, which reads as a message lost.
+ */
+const AFTER_FAILED_RUN: HarnessSettings = { afterFailedRun: "continue" };
 
 /** The Harness options a store is opened with; the storage is the store's own (AgentStore.open). */
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
@@ -119,7 +135,9 @@ export class AgentStore {
   static async open(where: { file: string } | { storage: Storage }, options: StoreOptions, context: Context): Promise<AgentStore> {
     const storage =
       "storage" in where ? where.storage : await (await import("@earendil-works/pi-durable/storage/sqlite/node")).openNodeSqliteStorage(where.file);
-    return new AgentStore(await Harness.open(storage, options, context));
+    const given = options.settings;
+    const settings = typeof given === "function" ? () => ({ ...AFTER_FAILED_RUN, ...given() }) : { ...AFTER_FAILED_RUN, ...given };
+    return new AgentStore(await Harness.open(storage, { ...options, settings }, context));
   }
 
   /** Record which agent this store is, once, or when its name changes. */

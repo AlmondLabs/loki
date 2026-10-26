@@ -223,7 +223,7 @@ export class McpTools {
             .map((s) => `${s.name} (${s.state === "connected" ? `${s.tools} tools` : s.state})`)
             .join(", ");
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: `No MCP tool matches "${query}". Servers: ${servers || "none"}. Try other words, or "select:server.tool" with a name from the mcp section.`,
@@ -233,7 +233,7 @@ export class McpTools {
         }
         const lines = found.map((t) => `- ${t.key}: ${summary(t)}`);
         return {
-          content: [{ type: "text", text: `Loaded ${found.length} tool${found.length === 1 ? "" : "s"}, available from your next step:\n${lines.join("\n")}` }],
+          output: [{ type: "text", text: `Loaded ${found.length} tool${found.length === 1 ? "" : "s"}, available from your next step:\n${lines.join("\n")}` }],
           control: { addTools: found.map((t) => t.key) },
         };
       },
@@ -260,7 +260,7 @@ export class McpTools {
             spilled: mapped.spilled !== null,
             chars: mapped.chars,
           });
-          return { content: mapped.content, isError: mapped.isError };
+          return { output: mapped.content, isError: mapped.isError };
         } catch (error) {
           this.capture("mcp_call", { server: t.server, tool: t.name, ms: Date.now() - started, error: true, spilled: false, chars: 0 });
           throw error;

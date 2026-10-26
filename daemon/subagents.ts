@@ -58,7 +58,7 @@ export function subagentExtension(): Extension {
               }
               return "";
             }, context);
-            return { content: [{ type: "text", text: answer || "The helper finished without an answer." }] };
+            return { output: [{ type: "text", text: answer || "The helper finished without an answer." }] };
           },
         }),
       ),

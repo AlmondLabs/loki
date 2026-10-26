@@ -287,7 +287,7 @@ export function scheduleExtension(schedules: Schedules): Extension {
     const [agent, chat] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(ChatDoc, api.conversationId, context)]);
     return { agentId: agent?.id ?? "", chatId: chat?.id ?? "" };
   };
-  const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
+  const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
   return defineExtension({
     name: "loki.schedule",
     tools: [

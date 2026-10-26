@@ -70,7 +70,7 @@ export function globTest(glob: string): (rel: string) => boolean {
   return glob.includes("/") ? (rel) => re.test(rel) : (rel) => re.test(rel.split("/").pop() ?? rel);
 }
 
-const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
+const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 
@@ -185,7 +185,7 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
             if (!existsSync(file)) throw new Error(`no such file: ${file}`);
             // Shrunk as a pasted image is: the result is kept in the chat's store for good (plan 029).
             const image = await shrink(file, mimeType);
-            return { content: [{ type: "image", data: image.data.toString("base64"), mimeType: image.mimeType }] };
+            return { output: [{ type: "image", data: image.data.toString("base64"), mimeType: image.mimeType }] };
           },
         }),
       ),

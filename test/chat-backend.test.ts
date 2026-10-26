@@ -45,7 +45,7 @@ async function setup(
             name: "slow",
             description: "slow",
             parameters: { type: "object", properties: {} } as never,
-            execute: async () => (await tool(() => {}), { content: [{ type: "text", text: opts.toolText ?? "slow done" }] }),
+            execute: async () => (await tool(() => {}), { output: [{ type: "text", text: opts.toolText ?? "slow done" }] }),
           }),
         ],
       }),

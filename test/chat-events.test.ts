@@ -281,7 +281,7 @@ describe("chat event converter", () => {
             name: "echo",
             description: "echo",
             parameters: { type: "object", properties: {} } as never,
-            execute: () => Promise.resolve({ content: [{ type: "text", text: "echoed" }] }),
+            execute: () => Promise.resolve({ output: [{ type: "text", text: "echoed" }] }),
           }),
         ],
       }),

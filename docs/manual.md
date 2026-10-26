@@ -84,6 +84,11 @@ Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`,
 re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
 write, so a checkout wired up for development (below) keeps working.
 
+An update can change how a chat store (`~/.loki/stores/<agent>.sqlite`) is laid out, for good: the update to pi 1.4
+in October 2026 did. Before the first start rewrites a store, loki copies it whole to
+`~/.loki/stores/backup-schema-<version>-<date>/`. An older loki cannot open the rewritten store, so those copies are the
+way back to it; delete them once you are happy. Each Mac copies and rewrites its own stores on its own first start.
+
 ## The window
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
@@ -496,7 +501,9 @@ the next turn.
 **Sending while the agent works.** A message you send while the agent works goes out at once and joins the turn:
 once the tool running now finishes, the agent reads it before its next step, so "use pnpm, not npm" changes what
 it does next. If the agent is only writing its answer, with no tool running, your message waits for that answer and
-starts the next turn. A message that joined a turn cannot be taken back; **stop** still ends a turn going the wrong way.
+starts the next turn. If the turn fails instead (the model could not be reached, say), a message that was waiting for it
+starts the next turn on its own. A message that joined a turn cannot be taken back; **stop** still ends a turn going
+the wrong way.
 
 **Chat through Claude Code.** Any agent's chat can run through Claude Code instead of one of loki's models, signed
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
