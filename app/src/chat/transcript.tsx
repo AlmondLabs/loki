@@ -11,6 +11,7 @@ import { AgentFace } from "../desk/agent-chip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
+import { streamBlocks } from "./stream-blocks";
 import { ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
 import { messageKey } from "../../../core/task-source.ts";
@@ -631,13 +632,32 @@ export function rehypeWords() {
   return (tree: HastNode) => wrap(tree, false);
 }
 const LIVE_PLUGINS = [rehypeWords];
+const REMARK_PLUGINS = [remarkGfm];
+
+/**
+ * One block of a reply still being written (plan 039): parsed again only when its own text changes, so the blocks
+ * before the last are drawn once and left alone while the last one grows. The same component draws every block, so
+ * the last one, once finished, keeps its element and its words do not fade in twice.
+ */
+const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
+  return (
+    <Markdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={LIVE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+      {text}
+    </Markdown>
+  );
+});
 
 function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={cursor ? LIVE_PLUGINS : undefined} components={MARKDOWN_COMPONENTS}>
-        {m.text}
-      </Markdown>
+      {cursor ? (
+        // Blocks are only added at the end, so a block's place is its key.
+        streamBlocks(m.text).map((block, i) => <LiveBlock key={i} text={block} />)
+      ) : (
+        <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+          {m.text}
+        </Markdown>
+      )}
       {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
     </div>
   );
