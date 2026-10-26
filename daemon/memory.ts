@@ -75,6 +75,25 @@ export function coreSize(root: string): { bytes: number; files: Array<{ path: st
   return { bytes: sized.reduce((n, f) => n + f.bytes, 0), files: sized };
 }
 
+/**
+ * What belongs in the core, as reflection and the memory review (/doctor) are told it (plan 034): the conversation sees
+ * the core in full and the other notes by their description, so the rule covers both.
+ */
+export const CORE_RULE = `Your core notes (system/) are in every conversation in full, so keep them to who you are, who the person is and how they like to work, and rules that hold for any task; a project's or a tool's conventions and gotchas go in a note outside system/. Every note outside system/ starts with front matter whose description says in one line when the note is worth reading (---, description: …, ---): the conversation sees that line, not the note, so write it as when to read, not as a title, and add one to a note you write or edit that has none.`;
+
+const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
+
+/**
+ * The paragraph that asks reflection or the memory review (/doctor) to bring the core back within CORE_BUDGET (plan 034), naming its biggest notes;
+ * null while it fits. Reflection may take a few runs over a large core: each moves some, and the next sees what is left.
+ */
+export function overBudget(root: string): string | null {
+  const size = coreSize(root);
+  if (!size || size.bytes <= CORE_BUDGET) return null;
+  const biggest = size.files.slice(0, 5).map((f) => `- ${f.path} (${kb(f.bytes)})`);
+  return `Also: your core notes (system/) come to ${kb(size.bytes)}, over their budget of ${kb(CORE_BUDGET)}. Move what is not needed in every conversation into notes outside system/, each with a description, leaving at most a line in its place. The biggest:\n${biggest.join("\n")}`;
+}
+
 /** A note's line in the list: its path, and its front matter's `description:` when it has one. */
 function listed(root: string, path: string, shown: string): string {
   const description = path.endsWith(".md") ? skillDescription(readFileSync(join(root, path), "utf8")) : null;

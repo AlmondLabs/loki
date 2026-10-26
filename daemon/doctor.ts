@@ -1,4 +1,4 @@
-import { MEMORY_TOOLS } from "./memory.ts";
+import { CORE_RULE, MEMORY_TOOLS } from "./memory.ts";
 
 /**
  * The memory review (`/doctor`), Letta's /doctor on loki: the agent reads all of its own memory at once and cleans it
@@ -17,6 +17,7 @@ Tidy:
 - Split a file that mixes unrelated subjects, or has grown too long to scan; merge tiny files on one subject.
 - Remove one-off details of past tasks that will not matter again (which file was edited, which command failed, what was tried along the way).
 - Fix formatting that gets in the way (broken lists, headings that no longer match their content).
+- Keep the core small: ${CORE_RULE}
 
 Judge:
 - Stale facts: dates that have passed, projects that are finished, plans that were replaced. Keep what still matters as history in one line; remove the rest.
@@ -33,7 +34,8 @@ export const DOCTOR_TOOLS = MEMORY_TOOLS;
 /** The review's hidden chat for an agent; its prefix is how memory.ts names the commits' author. */
 export const doctorChatId = (agentId: string): string => `doctor-${agentId}`;
 
-/** What the review is asked: the date (so it can tell what has passed), and every memory file. */
-export function doctorPrompt(dump: { text: string; files: number; chars: number }, now: Date): string {
-  return `Today is ${now.toISOString().slice(0, 10)}. Here is all of your memory: ${dump.files} file${dump.files === 1 ? "" : "s"}, ${dump.chars} characters.\n\n${dump.text}`;
+/** What the review is asked: the date (so it can tell what has passed), every memory file, and when the core is over its budget, that (memory.ts overBudget). */
+export function doctorPrompt(dump: { text: string; files: number; chars: number }, now: Date, over: string | null = null): string {
+  const memory = `Today is ${now.toISOString().slice(0, 10)}. Here is all of your memory: ${dump.files} file${dump.files === 1 ? "" : "s"}, ${dump.chars} characters.\n\n${dump.text}`;
+  return over ? `${memory}\n\n${over}` : memory;
 }

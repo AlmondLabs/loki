@@ -2,8 +2,9 @@ import { describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CORE_BUDGET, coreSize, memorySection } from "../daemon/memory.ts";
-import { overBudget, reflectionJob } from "../daemon/reflection.ts";
+import { CORE_BUDGET, CORE_RULE, coreSize, memorySection, overBudget } from "../daemon/memory.ts";
+import { DOCTOR_INSTRUCTIONS, doctorPrompt } from "../daemon/doctor.ts";
+import { reflectionJob } from "../daemon/reflection.ts";
 import { briefDescription } from "../mod/skills.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -79,6 +80,24 @@ describe("reflection keeps the core within its budget", () => {
       const prompt = must(await reflectionJob.prompt(input(root)), "the prompt");
       expect(prompt).toContain("come to 14 KB, over their budget of 12 KB");
       expect(prompt.indexOf("- system/gotchas.md (12 KB)")).toBeLessThan(prompt.indexOf("- system/persona.md (2 KB)"));
+    }),
+  );
+});
+
+describe("the memory review (/doctor) keeps the core within its budget too", () => {
+  const dump = { text: '<file path="system/persona.md">x</file>', files: 1, chars: 40 };
+
+  test("it is told what belongs in the core, as reflection is", () => {
+    expect(DOCTOR_INSTRUCTIONS).toContain(CORE_RULE);
+  });
+
+  test(
+    "over the budget its prompt names the size and the biggest notes; within it, nothing is added",
+    withMemory({ "system/gotchas.md": "x".repeat(CORE_BUDGET + 1024) }, (root) => {
+      const now = new Date("2026-10-26T00:00:00Z");
+      expect(doctorPrompt(dump, now, overBudget(root))).toContain("come to 13 KB, over their budget of 12 KB");
+      expect(doctorPrompt(dump, now, overBudget(root))).toContain("- system/gotchas.md (13 KB)");
+      expect(doctorPrompt(dump, now, null)).not.toContain("budget");
     }),
   );
 });

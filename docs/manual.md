@@ -581,7 +581,8 @@ box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K searc
 - `/doctor` reviews the agent's whole memory and cleans it up, after Letta Code's command of the same name. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
-  from the rest of memory). It edits directly, each change a commit by "Doctor"; the command's row shows its report,
+  from the rest of memory). It also keeps the core notes (`system/`) under their 12 KB, moving what not every chat
+  needs into described notes, all in one review where reflection takes a few runs. It edits directly, each change a commit by "Doctor"; the command's row shows its report,
   one line per change, and Agents › changes lists the commits, each with revert. It runs in the agent's hidden
   `doctor-<agent>` chat, in the same queue as reflection and Learn, and only when you ask.
 
