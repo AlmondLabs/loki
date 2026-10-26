@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { lazy, Suspense, type RefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
@@ -16,7 +16,6 @@ import type { ModelEntry } from "../chat/model-picker";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
 import { DeskTree } from "./desk-tree";
-import { Preferences } from "../settings/settings";
 import { Welcome } from "./welcome";
 import type { DaemonStatus } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
@@ -217,6 +216,9 @@ export function AgentsView({
   );
 }
 
+/** The Settings sheet, loaded the first time it opens (plan 038): it is opened now and then, and is a large part of the page. */
+const Preferences = lazy(() => import("../settings/settings").then((m) => ({ default: m.Preferences })));
+
 /** Preferences (the Settings sheet): the daemon and mod facts come from the two models and the shell; the chat preferences from useChatLayout. */
 export function SettingsView({
   desk,
@@ -246,43 +248,46 @@ export function SettingsView({
   onModelsChanged: () => void;
 }) {
   const { attention } = desk;
+  // Nothing while the sheet's chunk loads: a moment on the Mac, where it is read from disk.
   return (
-    <Preferences
-      onClose={onClose}
-      chatLink={catchUp.status === "off" ? "connecting" : catchUp.status}
-      modConnection={desk.connection}
-      deskCount={desk.desks.list.filter((d) => d.status === "live").length}
-      chatWidth={chatWidth}
-      onChatWidth={onChatWidth}
-      chatPlacement={chatPlacement}
-      onChatPlacement={onChatPlacement}
-      providers={catchUp.providers}
-      onLoadProviders={catchUp.loadProviders}
-      onConnectProvider={catchUp.connectProvider}
-      onDisconnectProvider={catchUp.disconnectProvider}
-      onModelsChanged={onModelsChanged}
-      daemon={daemon}
-      phone={desk.phone}
-      macs={desk.macs}
-      globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
-      mcp={catchUp.mcp}
-      engines={catchUp.engines}
-      labels={{
-        list: catchUp.labels.list,
-        // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
-        edit: async (change) => {
-          const err = await catchUp.labels.edit(change);
-          if (!err) desk.desks.request();
-          return err;
-        },
-      }}
-      update={update}
-      shortcut={shortcut}
-      recall={recall}
-      usage={{ ...desk.usage, agents: catchUp.agents }}
-      importLetta={attention.importLetta}
-      importStatus={attention.importStatus}
-    />
+    <Suspense fallback={null}>
+      <Preferences
+        onClose={onClose}
+        chatLink={catchUp.status === "off" ? "connecting" : catchUp.status}
+        modConnection={desk.connection}
+        deskCount={desk.desks.list.filter((d) => d.status === "live").length}
+        chatWidth={chatWidth}
+        onChatWidth={onChatWidth}
+        chatPlacement={chatPlacement}
+        onChatPlacement={onChatPlacement}
+        providers={catchUp.providers}
+        onLoadProviders={catchUp.loadProviders}
+        onConnectProvider={catchUp.connectProvider}
+        onDisconnectProvider={catchUp.disconnectProvider}
+        onModelsChanged={onModelsChanged}
+        daemon={daemon}
+        phone={desk.phone}
+        macs={desk.macs}
+        globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
+        mcp={catchUp.mcp}
+        engines={catchUp.engines}
+        labels={{
+          list: catchUp.labels.list,
+          // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
+          edit: async (change) => {
+            const err = await catchUp.labels.edit(change);
+            if (!err) desk.desks.request();
+            return err;
+          },
+        }}
+        update={update}
+        shortcut={shortcut}
+        recall={recall}
+        usage={{ ...desk.usage, agents: catchUp.agents }}
+        importLetta={attention.importLetta}
+        importStatus={attention.importStatus}
+      />
+    </Suspense>
   );
 }
 

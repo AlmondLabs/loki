@@ -3,8 +3,6 @@ import "./styles.css";
 import { inLan, installShellLogging, openExternal } from "./desk/env";
 
 installShellLogging();
-import { Shell } from "./shell/shell";
-import { Phone } from "./phone/phone";
 import { ThemeProvider } from "./theme";
 
 /**
@@ -28,7 +26,13 @@ document.addEventListener(
   true,
 );
 
-// Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk.
+// Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk. Only the surface this
+// client shows is loaded (plan 038): each is a chunk of its own, and a phone never parses the desktop, nor it the phone.
 const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
-createRoot(root).render(<ThemeProvider>{inLan ? <Phone /> : <Shell />}</ThemeProvider>);
+const Surface = inLan ? (await import("./phone/phone")).Phone : (await import("./shell/shell")).Shell;
+createRoot(root).render(
+  <ThemeProvider>
+    <Surface />
+  </ThemeProvider>,
+);
