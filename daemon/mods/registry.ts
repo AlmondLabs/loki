@@ -241,7 +241,7 @@ export class ModRegistry {
             output: (text) => api.output(text),
           });
           const text = resultText(value);
-          return text === undefined ? {} : { content: [{ type: "text", text }] };
+          return text === undefined ? {} : { output: [{ type: "text", text }] };
         },
       }),
     );

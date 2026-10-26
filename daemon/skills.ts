@@ -77,7 +77,7 @@ export function skillsExtension(backendDir: string, globalDir?: string): Extensi
             const agent = await api.snapshot(AgentInfoDoc, context);
             const skill = skillsOf(backendDir, agent?.id, globalDir).find((s) => s.name === name);
             if (!skill) throw new Error(`no skill named ${name}`);
-            return { content: [{ type: "text", text: `<skill_content name="${name}">\n${readFileSync(skill.file, "utf8")}\n</skill_content>` }] };
+            return { output: [{ type: "text", text: `<skill_content name="${name}">\n${readFileSync(skill.file, "utf8")}\n</skill_content>` }] };
           },
         }),
       ),

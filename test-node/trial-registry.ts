@@ -16,7 +16,7 @@ export function trialRegistry() {
             // The crash test kills its child here, once the call's intent is committed and the call is running.
             if (process.env.LOKI_CRASH_SIGNAL) process.stdout.write("under-way\n");
             await new Promise((resolve) => setTimeout(resolve, args.ms));
-            return { content: [{ type: "text", text: "waited" }] };
+            return { output: [{ type: "text", text: "waited" }] };
           },
         }),
       ],

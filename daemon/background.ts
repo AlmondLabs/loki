@@ -243,7 +243,7 @@ async function caller(api: ToolExecutionApi, context: Context) {
   return { agentId: agent?.id ?? "", chatId: chat?.id || `conversation-${api.conversationId}`, cwd: resolved.cwd ?? process.cwd() };
 }
 
-const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
+const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 const idParam = { task_id: { type: "string" } };
 
 /**

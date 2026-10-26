@@ -84,7 +84,7 @@ export function webSearchExtension(search: (query: string, signal?: AbortSignal)
             const text = results.length
               ? results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`).join("\n")
               : `No results from duckduckgo for: ${query}`;
-            return { content: [{ type: "text", text }] };
+            return { output: [{ type: "text", text }] };
           },
         }),
       ),

@@ -9,6 +9,7 @@ import { createRegistry, MemoryStorage, type ConversationId, type DocumentReader
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ChatEnv, chatEnvs, toolResultsDir } from "../daemon/tool-results.ts";
+import { errorOf } from "../core/harness.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const conversation = 7 as ConversationId;
@@ -83,6 +84,30 @@ describe("tool results", () => {
       // In JSON a Windows path's backslashes are doubled, so the result is searched for the file's name.
       expect(result).toContain("Full output:");
       expect(result).toContain(files[0]);
+    } finally {
+      await store.close(ctx);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  test("a command that fails ends with pi's own note, the line reflection reads the error from (plan 036, kept on 1.4, plan 039)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-results-"));
+    const registry = createRegistry();
+    registry.install(CodingTools);
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry, env: chatEnvs(dir) }, ctx);
+    try {
+      const chat = await store.createChat("c1", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id }, cwd: dir } }, ctx);
+      const command = `"${process.execPath.replaceAll("\\", "/")}" -e "console.log('no such thing'); process.exit(3)"`;
+      faux.setResponses([fauxAssistantMessage(fauxToolCall("bash", { command }), { stopReason: "toolUse" }), fauxAssistantMessage("done")]);
+      await (await chat.submit({ type: "input", content: "fail" }, ctx)).wait(ctx);
+      const result = (await store.entries(chat, ctx)).find((e) => e.kind === "pi.tool-result")?.model?.[0] as
+        { isError?: boolean; content?: Array<{ type: string; text?: string }> } | undefined;
+      const text = (result?.content ?? []).map((p) => p.text ?? "").join("\n");
+      expect(result?.isError).toBe(true);
+      expect(text).toMatch(/<harness>\n\[error\] Command exited with code 3\n<\/harness>$/);
+      expect(errorOf(text)).toBe("no such thing");
     } finally {
       await store.close(ctx);
       rmSync(dir, { recursive: true, force: true });

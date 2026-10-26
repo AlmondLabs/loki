@@ -112,6 +112,36 @@ describe("agent store", () => {
     }
   });
 
+  test("a message sent while a run fails is answered next, without another message (plan 039)", async () => {
+    const { store, faux, reply, model } = await fauxStore();
+    try {
+      const chat = await store.createChat("c", { agent: { model } }, ctx);
+      // The first request holds until the second message is queued, then fails in a way that is not retried.
+      let started!: () => void;
+      const asked = new Promise<void>((r) => (started = r));
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      faux.setResponses([
+        async () => {
+          started();
+          await held;
+          return fauxAssistantMessage("", { stopReason: "error", errorMessage: "the model refused this request" });
+        },
+        reply("answered"),
+      ]);
+      const first = await chat.submit({ type: "input", content: "first" }, ctx);
+      await asked;
+      const second = await chat.submit({ type: "input", content: "second" }, ctx);
+      release();
+      expect((await first.wait(ctx)).status).not.toBe("done");
+      expect((await second.wait(ctx)).status).toBe("done");
+      const rows = foldSteps((await store.entries(chat, ctx)).flatMap((e) => entrySteps(e))).map((r) => r.text);
+      expect(rows.slice(-2)).toEqual(["second", "answered"]);
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
   test("two agents' stores run chats at the same time without crossing", async () => {
     const a = await fauxStore();
     const b = await fauxStore();

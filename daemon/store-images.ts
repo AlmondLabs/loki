@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { SHRINK_ABOVE_BYTES, shrinkImage, type Run } from "./image-shrink.ts";
+import { copyStore } from "./store-backup.ts";
 
 /**
  * The pictures already in a chat's store, made the size `view_image` makes new ones (plan 032). Plan 029 shrinks a
@@ -80,11 +81,7 @@ export async function shrinkStoreImages(
     }
     if (!opts.apply || changed.length === 0) return report;
 
-    mkdirSync(opts.backupDir, { recursive: true });
-    const backup = join(opts.backupDir, basename(file));
-    // VACUUM INTO writes one consistent file, with whatever the write-ahead log still holds.
-    db.prepare("VACUUM INTO ?").run(backup);
-    report.backup = backup;
+    report.backup = copyStore(db, file, opts.backupDir);
     const update = db.prepare("UPDATE entries SET record = ? WHERE id = ?");
     db.exec("BEGIN");
     try {
