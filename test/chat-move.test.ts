@@ -109,8 +109,8 @@ describe("a moved chat's schedules", () => {
   test("keep their id and when they last fired, so a slot fired on the old Mac does not fire again here", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-adopt-"));
     try {
-      const book = new Schedules(join(dir, "book.json"), () => Promise.resolve());
-      const mini = new Schedules(join(dir, "mini.json"), () => Promise.resolve());
+      const book = new Schedules(join(dir, "book.json"), () => Promise.resolve(null));
+      const mini = new Schedules(join(dir, "mini.json"), () => Promise.resolve(null));
       const task = book.create({
         agent_id: "agent-ira",
         conversation_id: "conv-1",

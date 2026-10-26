@@ -288,7 +288,7 @@ export class ChatProjection implements ChatSource {
 
   /**
    * A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. Tool rows keep
-   * their step (the call, its input and its result) only with `steps`: reflection reads failed calls (plan 033), Learn
+   * their step (the call, its input and its result) only with `steps`: reflection reads failed calls (plan 036), Learn
    * reads words.
    */
   since(conversationId: string, agentId: string | null, from: number, to?: number, steps = false): { rows: TranscriptRow[]; lines: number } {

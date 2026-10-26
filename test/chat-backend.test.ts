@@ -127,7 +127,7 @@ describe("the daemon's chats", () => {
 
   test("loki's own message steered in while a turn works goes in at its next step, not as a turn after the answer", async () => {
     // A background task ends while the agent is still at work (here, inside a tool call): its notice is delivered then.
-    let notice: () => Promise<void> = async () => {};
+    let notice: () => Promise<unknown> = async () => {};
     const s = await setup({
       tool: async () => {
         await notice();

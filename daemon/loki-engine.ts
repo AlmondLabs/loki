@@ -9,7 +9,7 @@ import type { ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
 import { ChatEventConverter } from "./chat-events.ts";
-import type { Engine, EngineChat } from "./engine.ts";
+import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { McpTools } from "./mcp/index.ts";
 import { piHandle } from "./model-handle.ts";
@@ -100,9 +100,14 @@ export class LokiEngine implements Engine {
     await c.chat.submit({ type: "input", content: content as never, ...whenBusy, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
   }
 
-  async deliver(c: EngineChat, text: string, whenBusy: "steer" | "followUp"): Promise<void> {
+  async deliver(c: EngineChat, text: string, whenBusy: "steer" | "followUp"): Promise<Delivery> {
     await this.ready(c);
-    await c.chat.submit({ type: "input", content: text, whenBusy }, this.deps.context);
+    const submission = await c.chat.submit({ type: "input", content: text, whenBusy }, this.deps.context);
+    return {
+      outcome: submission
+        .wait(this.deps.context)
+        .then((s) => (s.status === "done" ? { status: "done" as const } : { status: "unanswered" as const, reason: s.reason })),
+    };
   }
 
   async abort(c: EngineChat): Promise<void> {

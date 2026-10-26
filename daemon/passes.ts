@@ -95,7 +95,7 @@ export interface PassJob {
   tools(registry: Registry): ReadonlyArray<{ name: string }>;
   /** Reflection reads a just-compacted chat without waiting for it to go quiet. */
   onCompaction?: boolean;
-  /** Reflection reads the calls that failed, and the one that fixed each (plan 033); Learn reads words only. */
+  /** Reflection reads the calls that failed, and the one that fixed each (plan 036); Learn reads words only. */
   failedCalls?: boolean;
   /** Whether the job can run today at all (Learn: room left under the day's cap). */
   open?(settings: PassSettings, now: Date): boolean;

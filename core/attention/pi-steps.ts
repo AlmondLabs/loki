@@ -13,6 +13,9 @@ export interface PiMessage {
   toolCallId?: unknown;
   isError?: unknown;
   timestamp?: unknown;
+  /** An assistant message's end: "error" when the model call failed, with the provider's `errorMessage`. */
+  stopReason?: unknown;
+  errorMessage?: unknown;
 }
 
 /** A pi-durable transcript entry: its kind, the messages it gives the model, and its own data. */
@@ -52,6 +55,9 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
     if (p?.type === "toolCall" && p.name)
       out.push(shownStep({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at }));
   }
+  // A model call that failed with nothing said: what the provider answered, as a row of its own (plan 037).
+  if (out.length === 1 && !text.trim() && m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim())
+    return [{ kind: "failed", message: m.errorMessage.trim().replace(/\s+/g, " "), at }];
   return out;
 }
 

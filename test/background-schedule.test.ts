@@ -134,7 +134,7 @@ describe("scheduled tasks", () => {
       const fired: string[] = [];
       const schedules = new Schedules(join(dir, "crons.json"), (_a, chatId, text) => {
         fired.push(`${chatId}: ${text}`);
-        return Promise.resolve();
+        return Promise.resolve(null);
       });
       const made = new Date("2026-10-10T00:00:00Z");
       schedules.create(
@@ -184,7 +184,7 @@ describe("scheduled tasks", () => {
   test("a bad cron expression or timezone is refused when the task is made", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
     try {
-      const schedules = new Schedules(join(dir, "crons.json"), async () => {});
+      const schedules = new Schedules(join(dir, "crons.json"), () => Promise.resolve(null));
       const base = { agent_id: "a", conversation_id: "c", name: "x", description: null, recurring: true, prompt: "p" };
       expect(() => schedules.create({ ...base, cron: "every day", timezone: "UTC" })).toThrow();
       expect(() => schedules.create({ ...base, cron: "0 9 * * *", timezone: "Mars/Olympus" })).toThrow();
@@ -206,6 +206,7 @@ describe("scheduled tasks", () => {
         schedules.create({ ...base, name: "later", cron: "0 18 * * *", prompt: "evening" }, new Date("2026-10-10T09:00:00Z"));
         schedules.cancel("agent-a", "other");
         await new Promise<void>((r) => (release = r));
+        return null;
       });
       const made = new Date("2026-10-10T00:00:00Z");
       schedules.create({ ...base, name: "standup", cron: "0 9 * * *", prompt: "post" }, made);

@@ -23,7 +23,9 @@ export type Step =
   /** The approval request for a call: it belongs to the open call of that tool when there is one. */
   | { kind: "approval"; name: string; args: unknown; id: string | null; at: string | null }
   /** What came back from the call with this id. */
-  | { kind: "result"; id: string; output: unknown; failed: boolean };
+  | { kind: "result"; id: string; output: unknown; failed: boolean }
+  /** A model call that ended in an error with nothing said (plan 037): the provider's message, from history and live alike. */
+  | { kind: "failed"; message: string; at: string | null };
 
 /** A row as a history page carries it (the mod's history_get, from the daemon's projection): times may be null. */
 export type HistoryRow = Omit<TranscriptRow, "at"> & { at?: string | null };
@@ -77,6 +79,10 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
+/** A failed model call's row (plan 037): its words, and how much of the provider's message it keeps. */
+export const MODEL_ERROR_TEXT = "the model could not be reached";
+const MODEL_ERROR_CHARS = 300;
+
 const instant = (iso: string | undefined) => (iso ? Date.parse(iso) : Number.NaN);
 
 /** A history page's row as a transcript row: a null time left off. */
@@ -96,6 +102,8 @@ export class ThreadModel {
   private historyStart: number | null = null;
   /** Rows that arrived since that page, in order (the streaming reply is not one until it settles). */
   private tail: TranscriptRow[] = [];
+  /** The rows that stand for failed model calls, with how many tries each counts. */
+  private readonly modelErrors = new WeakMap<TranscriptRow, number>();
   private streamingText = "";
   private streamingAt: string | null = null;
   /** Calls already shown, by id: the same id again is more of that call's arguments. */
@@ -185,7 +193,33 @@ export class ThreadModel {
         return { changed: this.call(step.name, step.args, step.id, step.at), spoke: null };
       case "result":
         return { changed: this.result(step.id, step.output, step.failed), spoke: null };
+      case "failed":
+        return this.modelFailed(step.message, step.at);
     }
+  }
+
+  /**
+   * A model call that failed (plan 037): one quiet row, "the model could not be reached", the provider's message behind
+   * it. Retries that fail the same way count on that row ("4 tries") instead of adding rows; an answer that comes after
+   * takes its place (written), since the turn did get through.
+   */
+  private modelFailed(message: string, at: string | null): { changed: boolean; spoke: string | null } {
+    this.streamingText = "";
+    this.streamingAt = null;
+    const detail = message.length > MODEL_ERROR_CHARS ? `${message.slice(0, MODEL_ERROR_CHARS - 1)}…` : message;
+    const last = this.tail.at(-1);
+    const tries = last ? this.modelErrors.get(last) : undefined;
+    if (last && tries !== undefined && last.detail === detail) {
+      const row = { ...last, summary: `${tries + 1} tries` };
+      this.tail[this.tail.length - 1] = row;
+      this.modelErrors.set(row, tries + 1);
+      this.touch();
+      return { changed: true, spoke: null };
+    }
+    const row: TranscriptRow = { role: "event", text: MODEL_ERROR_TEXT, summary: null, detail, ...rowAt(at) };
+    this.modelErrors.set(row, 1);
+    this.push(row);
+    return { changed: true, spoke: null };
   }
 
   /**
@@ -199,6 +233,9 @@ export class ThreadModel {
     this.streamingText = "";
     this.streamingAt = null;
     const t = text.trim();
+    // An attempt failed, a later one answered: the turn got through, so the failure's row goes.
+    const last = this.tail.at(-1);
+    if (t && last && this.modelErrors.has(last)) this.tail.pop();
     if (t) this.push({ role: "assistant", text: t, ...rowAt(at) });
     else if (replaced) this.touch();
     if (t) this.settled?.(t); // live only: a history page comes through load, not here

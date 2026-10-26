@@ -37,9 +37,9 @@ export class AcpEngine implements Engine {
     return Promise.resolve();
   }
 
-  deliver(c: EngineChat, text: string): Promise<void> {
+  deliver(c: EngineChat, text: string): Promise<null> {
     this.deps.acp.deliver(c.agentId, c.conversationId, text, engineOf(c));
-    return Promise.resolve();
+    return Promise.resolve(null);
   }
 
   abort(c: EngineChat): Promise<void> {
