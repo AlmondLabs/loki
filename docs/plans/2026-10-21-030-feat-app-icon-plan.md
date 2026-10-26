@@ -29,6 +29,19 @@ are.
 
 Both are cuts of generated images, a little soft at the edges; a vector version can replace them later.
 
+## Changed 2026-10-26: the Mac's icon is the L
+
+The person chose the L for the Dock. The Mac's icon (`icon.icns`, every size from 16 to 1,024) and the window icons
+the Mac and Linux read (`icon.png`, `128x128.png`, `128x128@2x.png`) now come from `l-1024.png`, which already sits on
+macOS's grid (an 824 px tile in 1,024). A small size is the L too, so Finder's lists show an L, not a blur. The phone's
+home screen, the web app's icons, Windows' icon and tiles keep the mask.
+
+`npx tauri icon` makes every file from one master, so run it on `mask-1024.png` for the others, then make the Mac's
+from `l-1024.png`: an iconset of its ten sizes with `sips -z`, joined by `iconutil -c icns`, and the three PNGs with
+`sips -z`.
+
+<img src="../images/dock-l-icon.png" width="600" alt="The L as the Mac's icon in a light and a dark Dock beside the old mask, and at 128, 32 and 16 px">
+
 ## Tests
 
 By hand on a demo Mac and phone: the welcome sheet, the phone's Home header and pairing page, and every icon at its
