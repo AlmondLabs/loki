@@ -182,7 +182,8 @@ describe("the frame table", () => {
       question_id: "q1",
       input: {},
     });
-    expect(FRAMES.history_get.parse({ conversation_id: "c", limit: 99999 })).toEqual({ agent_id: null, conversation_id: "c", limit: 99999 });
+    expect(FRAMES.history_get.parse({ conversation_id: "c", limit: 99999 })).toEqual({ agent_id: null, conversation_id: "c", limit: 99999, before: null });
+    expect(FRAMES.history_get.parse({ conversation_id: "c", before: 400 })).toEqual({ agent_id: null, conversation_id: "c", limit: null, before: 400 });
     expect(FRAMES.task_assign.parse({ ids: ["t1"], conversation_id: "c" })).toBe("assign needs a conversation and a chat");
     expect(FRAMES.task_status.parse({ id: "t1", status: "open" })).toEqual({ ids: ["t1"], status: "open" });
     expect(FRAMES.task_status.parse({ id: "t1", status: "done" })).toBe("unknown status done");
@@ -244,7 +245,7 @@ describe("every frame in the table, through the real router", () => {
     deleteWidgetFile: () => "gone",
     setPin: () => true,
     recentModels: { read: () => [], add: (h) => [h] },
-    transcript: () => ({ rows: [], more: false }),
+    transcript: () => ({ rows: [], more: false, start: 0 }),
     widgetLog: () => [],
     folders: {
       recent: () => ({ by_agent: {}, by_conversation: {} }),

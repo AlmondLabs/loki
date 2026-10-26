@@ -161,7 +161,11 @@ export interface Replies {
   memory_commits: { agent_id: string; commits: MemoryCommit[] };
   memory_diff: { agent_id: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
-  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; widget_log: WidgetLogEntry[] };
+  /**
+   * `start` is the position of the first of `messages` in the chat's whole thread (plan 033); a paired Mac on an
+   * older loki leaves it out.
+   */
+  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start?: number; widget_log: WidgetLogEntry[] };
   chat_state: ChatState;
   chat_created: { agent_id: string; conversation_id: string };
   chat_accepted: { accepted: boolean };
@@ -471,10 +475,15 @@ export const FRAMES = {
   // History and the Inbox
   history_get: request(
     "history",
-    "a chat's last `limit` rows from its log, whether older ones remain, and its desk's widget log",
+    "up to `limit` rows of a chat's log before position `before` (its newest without), where they start, whether older ones remain, and its desk's widget log",
     (m) =>
       str(m.conversation_id)
-        ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id, limit: isNum(m.limit) ? m.limit : null }
+        ? {
+            agent_id: strOr(m.agent_id, null),
+            conversation_id: m.conversation_id,
+            limit: isNum(m.limit) ? m.limit : null,
+            before: isNum(m.before) && m.before >= 0 ? m.before : null,
+          }
         : "conversation_id required",
     PHONE,
     BY_CHAT,

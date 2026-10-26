@@ -373,11 +373,20 @@ export function useDesk() {
      * The conversation's transcript from the daemon's store, through the mod; empty if the mod does not know it.
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
-    loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
-      request("history_get", { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}) }, 8000).then((r) => {
+    loadHistory: (
+      agentId: string,
+      conversationId: string,
+      limit?: number,
+      before?: number,
+    ): Promise<{ rows: TranscriptRow[]; more: boolean; start?: number }> =>
+      request(
+        "history_get",
+        { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}), ...(before !== undefined ? { before } : {}) },
+        8000,
+      ).then((r) => {
         if (!r.ok) return { rows: [], more: false };
         setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
-        return { rows: r.reply.messages, more: r.reply.more };
+        return { rows: r.reply.messages, more: r.reply.more, start: r.reply.start };
       }),
     /** What the Mac a new chat would live on lacks for its agent (plan 023, U10): lines for the person, none when nothing. */
     requirements: (agentId: string, home?: string): Promise<string[]> =>
