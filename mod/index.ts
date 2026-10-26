@@ -23,7 +23,7 @@ import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
 import { PeerSync } from "./peer-sync.ts";
 import { Awake } from "../daemon/awake.ts";
-import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
+import { isPassChat, passChats, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { TaskStore, TasksNotice } from "./tasks.ts";
 import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
@@ -61,6 +61,7 @@ import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
+import { stateFolders } from "../core/frames.ts";
 
 /**
  * loki — a memory palace your agent builds.
@@ -152,7 +153,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   const broadcast = (msg: object, scope?: Scope) => {
     ws?.broadcast(msg, scope);
     lan?.broadcast(msg, scope);
-    if (STATE_PUSHES.has((msg as { type?: string }).type ?? "")) stateSync.peerState?.changed();
+    const type = (msg as { type?: string }).type ?? "";
+    // Learn's files travel to a paired Mac only when they changed (plan 040).
+    if (STATE_PUSHES.has(type)) stateSync.peerState?.changed(type === "recall_changed" ? "learn" : undefined);
   };
 
   store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
@@ -203,7 +206,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     layouts: () => store.scopes(),
     widgets,
     pins: () => readPins(),
-    passChat,
+    passChats: () => passChats(recallStore),
     activeScope: () => activeScope,
   });
   const deskInfo = (scope: Scope) => listing.info(scope);
@@ -306,7 +309,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       {
         name: "state",
         reached: (id) => peerState.pull(id),
-        pushes: { state_changed: (id) => peerState.pull(id) },
+        // A Mac from before plan 040 names no folders, which asks for all of them.
+        pushes: { state_changed: (id, f) => peerState.pull(id, stateFolders(f.folders)) },
       },
       // Every Mac paired with every other (addendum D): join the Macs that one is paired with and this one is not.
       {
@@ -386,23 +390,23 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
-    snapshot: () => ({
+    snapshot: (folders) => ({
       marks: seen.snapshot(),
       pins: pinChanges(),
       labels: chatBackend.labelColors(),
-      learn: recallSnapshot(recallDir()),
       mcp: mcpSnapshot(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json")),
-      mods: filesSnapshot(join(paths.data, "mods"), MOD_FILES),
+      ...(folders.includes("learn") ? { learn: recallSnapshot(recallDir()) } : {}),
+      ...(folders.includes("mods") ? { mods: filesSnapshot(join(paths.data, "mods"), MOD_FILES) } : {}),
     }),
     apply: (id, theirs) => {
       const moved = {
         marks: seen.applyRemote(id, theirs.marks),
         pins: applyPinChanges(theirs.pins),
         labels: chatBackend.applyLabelColors(theirs.labels),
-        learn: applyRecall(recallDir(), theirs.learn),
+        learn: theirs.learn ? applyRecall(recallDir(), theirs.learn) : false,
         // The daemon follows mcp.json and the mods folder itself: a change written here is picked up there.
         mcp: applyMcp(join(paths.data, "mcp.json"), join(paths.state, "mcp-sync.json"), theirs.mcp),
-        mods: applyFiles(join(paths.data, "mods"), MOD_FILES, theirs.mods),
+        mods: theirs.mods ? applyFiles(join(paths.data, "mods"), MOD_FILES, theirs.mods) : false,
       };
       if (moved.marks) broadcast(seenFrame({ seen }));
       if (moved.pins) broadcast({ type: "desks", desks: listDesks() });
@@ -411,7 +415,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       return moved;
     },
     link: (id) => links.get(id),
-    tell: () => lan?.broadcast({ type: "state_changed" }),
+    tell: (folders) => lan?.broadcast({ type: "state_changed", folders }),
   });
   stateSync.peerState = peerState;
   // An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again every few minutes.
@@ -573,7 +577,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       hello: () => peers.hello(),
       agents: () => peerAgents.snapshot(),
       chats: () => ({ desks: listLocalDesks(), inbox: listLocalInbox() }),
-      state: () => peerState.snapshotNow(),
+      state: (folders) => peerState.snapshotNow(folders),
       where: (chat) => directory.answer(chat),
       group: {
         macs: () => peerStore.list().map((p) => ({ mac_id: p.mac_id, name: p.name, host: p.host })),

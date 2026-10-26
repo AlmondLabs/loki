@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SHARED_SCOPE, backendName, type Scope } from "../core/desk-core.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
+import type { LocalAgent } from "../core/frame-types.ts";
+import { readLocalAgent } from "../mod/agents.ts";
 import { ChatListing } from "../mod/chat-listing.ts";
 import { DeskRegistry, type LocalConversationInfo, type LocalConversationRow } from "../mod/desks.ts";
 
@@ -58,16 +60,17 @@ const source: ChatSource = {
   folders: () => ({ recent: [], by_conversation: {}, by_agent: {} }),
 };
 
-const listing = () =>
+const listing = (readAgent?: (agentId: string) => LocalAgent | null) =>
   new ChatListing({
     chats: source,
     desks,
     layouts: () => layouts,
     widgets: { entries: (scope) => canvases.filter((s) => scope === undefined || s === scope).map((s) => ({ scope: s })) },
     pins: () => new Set([`${IRA}/conv-pinned`]),
-    passChat: (id) => passChats.has(id),
+    passChats: () => (id) => passChats.has(id),
     activeScope: () => SHARED_SCOPE,
     backendDir: dir,
+    readAgent,
   });
 
 beforeEach(() => {
@@ -126,6 +129,26 @@ describe("which chats show", () => {
     rows = [chat("conv-pinned", IRA)];
     const [, row] = listing().desks();
     expect(row).toMatchObject({ scope: "conv-pinned", pinned: true, agent_name: "ira", agent_id: IRA, model: "anthropic/claude-fable-5" });
+  });
+});
+
+describe("a list reads each agent once (plan 040)", () => {
+  test("however many chats an agent has, in either list; a record changed between lists shows in the next", () => {
+    rows = Array.from({ length: 30 }, (_, i) => chat(`conv-${i}`, i % 3 === 0 ? HELPER : IRA));
+    for (const r of rows.slice(0, 10)) desks.remember(r.conversationId, r.agentId);
+    const reads = new Map<string, number>();
+    const l = listing((id) => {
+      reads.set(id, (reads.get(id) ?? 0) + 1);
+      return readLocalAgent(id, dir);
+    });
+    expect(l.desks()).toHaveLength(21);
+    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [HELPER]: 1 });
+    reads.clear();
+    expect(l.inbox()).toHaveLength(20);
+    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [HELPER]: 1 });
+
+    writeFileSync(join(dir, "agents", `${backendName(IRA)}.json`), JSON.stringify({ id: IRA, name: "Ira two", model: "anthropic/claude-fable-5", tags: [] }));
+    expect(new Set(l.desks().flatMap((d) => (d.agent_name ? [d.agent_name] : [])))).toEqual(new Set(["Ira two"]));
   });
 });
 

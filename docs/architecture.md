@@ -307,7 +307,8 @@ on, its **home**. The Macs talk to each other directly over the tailnet; there i
 6. **The person's state and config** (`mod/peer-state.ts`). One snapshot, pulled on connect, on `state_changed` and
    every five minutes: marks with times (`unseen` beside `seen`), focus per Mac summed (`combineFocus`), pins and
    label colours with change times, Learn and mods file by file (`mod/recall-sync.ts`), mcp.json entry by entry
-   (`daemon/config-sync.ts`).
+   (`daemon/config-sync.ts`). A `state_changed` names the folders that changed (`learn`, `mods`), and only those of
+   Learn's and the mods' files come with the small parts; on connect and every five minutes all of it comes.
 7. **Moving chats** (`daemon/chat-move.ts`, `mod/chat-moves.ts`). Once after pairing, and when an agent's home is
    set, a Mac takes over the idle chats of agents homed on it: copied out, imported under the same id, then hidden on
    the old Mac with its schedules stopped. `chat_move` moves one chat by hand: routed to the Mac it lives on, which

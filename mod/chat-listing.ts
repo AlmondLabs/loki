@@ -1,15 +1,27 @@
 import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
-import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
+import type { DeskInfo, DeskSummary, InboxRow, LocalAgent } from "../core/frame-types.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
-import { backendDir, isSubagent, readLocalAgent } from "./agents.ts";
+import { backendDir, isSubagentRecord, readLocalAgent } from "./agents.ts";
 import type { ChatSource } from "./chat-source.ts";
-import { agentHasMemory, hiddenScopes, lookupLocalAgentName, type DeskRegistry, type LocalConversationRow } from "./desks.ts";
+import { agentHasMemory, hiddenScopes, type DeskRegistry, type LocalConversationRow } from "./desks.ts";
 import { sortDesks } from "./frames/desks.ts";
 import { log } from "./log.ts";
 
 /** A desk's facts with when its chat last spoke, for sorting the chat list. */
 export type DeskFacts = DeskInfo & { last_active: string | null };
+
+/**
+ * One list's view of the agents (plan 040): each agent's record read, and its memory folder looked for, once however
+ * many of its chats the list holds. A list makes its own, so a record changed on disk shows in the next one.
+ */
+interface Agents {
+  record(agentId: string): LocalAgent | null;
+  hasMemory(agentId: string): boolean;
+}
+
+/** The agent's name as its record gives it; null when the record has none (readLocalAgent then falls back to the id). */
+const nameOf = (agent: LocalAgent | null): string | null => (agent && agent.name !== agent.id ? agent.name : null);
 
 /** The frame that tells open tabs a chat's title, status, agent or model changed. */
 export interface DeskTitleFrame {
@@ -42,11 +54,13 @@ export class ChatListing {
     widgets: { entries: (scope?: Scope) => ReadonlyArray<{ scope: Scope }> };
     /** Pinned chats, as `agent_id/conversation_id`. */
     pins: () => Set<string>;
-    /** Whether a conversation is one of the background passes' (reflection's, Learn's). */
-    passChat: (conversationId: string) => boolean;
+    /** Which conversations are the background passes' (reflection's, Learn's): the rule as it stands, for one list. */
+    passChats: () => (conversationId: string) => boolean;
     activeScope: () => Scope;
     /** Where agents' records and memory folders live; the daemon's own by default. */
     backendDir?: string;
+    /** Reads an agent's record; readLocalAgent in backendDir by default. */
+    readAgent?: (agentId: string) => LocalAgent | null;
   };
 
   constructor(opts: ChatListing["opts"]) {
@@ -56,11 +70,13 @@ export class ChatListing {
   /** This Mac's chat list: every desk with its facts, the shared desk first. */
   desks(): DeskSummary[] {
     const { chats, desks, widgets } = this.opts;
-    this.tidy();
+    const agents = this.agents();
+    const passChat = this.opts.passChats();
+    this.tidy(agents, passChat);
     const scopes = new Set<Scope>([SHARED_SCOPE, ...this.opts.layouts(), ...desks.all().map((d) => d.scope)]);
     for (const e of widgets.entries()) scopes.add(e.scope);
     const rows = chats.list();
-    for (const c of this.shown(rows)) scopes.add(desks.remember(c.conversationId, c.agentId));
+    for (const c of this.shown(rows, agents, passChat)) scopes.add(desks.remember(c.conversationId, c.agentId));
     // A chat let go to another Mac lives there now, though its canvas may still be here.
     const hidden = hiddenScopes(rows);
     const pins = this.opts.pins();
@@ -69,7 +85,7 @@ export class ChatListing {
       [...scopes]
         .filter((scope) => !hidden.has(scope))
         .map((scope) => {
-          const info = this.info(scope);
+          const info = this.info(scope, agents);
           const rt = desks.get(scope);
           return {
             scope,
@@ -98,17 +114,16 @@ export class ChatListing {
    */
   inbox(): InboxRow[] {
     const { chats } = this.opts;
-    const names = new Map<string, string | null>();
+    const agents = this.agents();
     const out: InboxRow[] = [];
-    for (const c of this.shown(chats.list())) {
+    for (const c of this.shown(chats.list(), agents, this.opts.passChats())) {
       if (c.archived) continue;
       const info = chats.info(c.conversationId, c.agentId);
       if (isLearnTitle(info?.title)) continue;
-      if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId, this.dir()));
       out.push({
         id: c.conversationId,
         agent_id: c.agentId,
-        agent_name: names.get(c.agentId) ?? null,
+        agent_name: nameOf(agents.record(c.agentId)),
         title: info?.title ?? null,
         last_message_at: c.lastMessageAt,
         archived: false,
@@ -120,16 +135,16 @@ export class ChatListing {
   }
 
   /** One desk's facts: its chat's title and status, its agent, and the model and mode it runs on. */
-  info(scope: Scope): DeskFacts {
+  info(scope: Scope, agents = this.agents()): DeskFacts {
     const none = { title: null, status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null } as const;
     if (scope === SHARED_SCOPE) return { ...none, title: "shared" };
     const rt = this.opts.desks.get(scope);
     if (!rt) return none;
-    const agent = readLocalAgent(rt.agent_id, this.dir());
+    const agent = agents.record(rt.agent_id);
     const agentModel = agent?.model ?? null;
     const agentEffort = reasoningEffortFromSettings(agent?.model_settings);
     const info = this.opts.chats.info(rt.conversation_id, rt.agent_id);
-    const facts = { agent_name: lookupLocalAgentName(rt.agent_id, this.dir()), agent_id: rt.agent_id, mode: info?.mode ?? "unrestricted" };
+    const facts = { agent_name: nameOf(agent), agent_id: rt.agent_id, mode: info?.mode ?? "unrestricted" };
     if (!info) return { ...facts, title: null, status: "deleted", model: agentModel, reasoning_effort: agentEffort, last_active: null };
     return {
       ...facts,
@@ -159,27 +174,43 @@ export class ChatListing {
   }
 
   /** The person's own chats among `rows`: the rule both lists share. */
-  private shown(rows: LocalConversationRow[]): LocalConversationRow[] {
-    const dir = this.dir();
+  private shown(rows: LocalConversationRow[], agents: Agents, passChat: (conversationId: string) => boolean): LocalConversationRow[] {
     const withDesk = new Set(this.opts.desks.all().map((d) => d.agent_id));
     return rows.filter(
       (c) =>
         !c.hidden &&
-        !this.opts.passChat(c.conversationId) &&
+        !passChat(c.conversationId) &&
         // A deleted agent leaves its memory folder behind: its record must still exist too.
-        (withDesk.has(c.agentId) || (agentHasMemory(c.agentId, dir) && readLocalAgent(c.agentId, dir) !== null)) &&
+        (withDesk.has(c.agentId) || (agents.hasMemory(c.agentId) && agents.record(c.agentId) !== null)) &&
         // Helper agents have records too, and a desk once their turn ran; their one-off chats stay out.
-        !isSubagent(c.agentId, dir),
+        !isSubagentRecord(agents.record(c.agentId)),
     );
   }
 
   /** Forget the desks an older loki kept for helper agents and the passes' chats, so they do not come back. */
-  private tidy(): void {
+  private tidy(agents: Agents, passChat: (conversationId: string) => boolean): void {
     const { desks } = this.opts;
     for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
-      if (isSubagent(agentId, this.dir()) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
-    const evicted = desks.forgetConversations(this.opts.passChat);
+      if (isSubagentRecord(agents.record(agentId)) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
+    const evicted = desks.forgetConversations(passChat);
     if (evicted) log("desks:evict-pass-chats", { evicted });
+  }
+
+  private agents(): Agents {
+    const dir = this.dir();
+    const read = this.opts.readAgent ?? ((agentId: string) => readLocalAgent(agentId, dir));
+    const records = new Map<string, LocalAgent | null>();
+    const memory = new Map<string, boolean>();
+    return {
+      record: (agentId) => {
+        if (!records.has(agentId)) records.set(agentId, read(agentId));
+        return records.get(agentId) ?? null;
+      },
+      hasMemory: (agentId) => {
+        if (!memory.has(agentId)) memory.set(agentId, agentHasMemory(agentId, dir));
+        return memory.get(agentId) === true;
+      },
+    };
   }
 
   private dir(): string {
