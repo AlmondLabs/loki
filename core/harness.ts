@@ -182,7 +182,35 @@ export function looksLikeQuestion(text: string | null): boolean {
 /** The most of a tool's input or output a step keeps: enough to read, not a whole log on every frame. */
 export const TOOL_TEXT_MAX = 4000;
 
-const cap = (s: string): string => (s.length > TOOL_TEXT_MAX ? `${s.slice(0, TOOL_TEXT_MAX)}\n… ${s.length - TOOL_TEXT_MAX} more characters` : s);
+/** The line `cap` ends a cut text with. */
+const MORE = /\n… \d+ more characters$/;
+
+/**
+ * A text cut to TOOL_TEXT_MAX, with a line saying how much more there was. A text already cut is left as it is: the
+ * daemon caps a tool's output before it sends it (plan 035), and the app caps what it is given again.
+ */
+const cap = (s: string): string => {
+  if (s.length <= TOOL_TEXT_MAX) return s;
+  const more = MORE.exec(s);
+  if (more && s.length - more[0].length === TOOL_TEXT_MAX) return s;
+  return `${s.slice(0, TOOL_TEXT_MAX)}\n… ${s.length - TOOL_TEXT_MAX} more characters`;
+};
+
+const shrink = (v: unknown): unknown => {
+  if (typeof v === "string") return v.length > TOOL_TEXT_MAX ? v.slice(0, TOOL_TEXT_MAX) : v;
+  if (Array.isArray(v)) return v.map(shrink);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shrink(x)]));
+  return v;
+};
+
+/**
+ * A tool's arguments as a thread needs them (plan 035): every string in them, however deep, cut to TOOL_TEXT_MAX, so
+ * a `write` does not carry its whole file to every client. Its label and shown input read the same, since neither
+ * shows more than that. Arguments still arriving as text are left whole: cut, they might not parse.
+ */
+export function toolArgsShown(args: unknown): unknown {
+  return typeof args === "string" ? args : shrink(args);
+}
 
 const argsOf = (input: unknown): Record<string, unknown> | null => {
   if (input && typeof input === "object" && !Array.isArray(input)) return input as Record<string, unknown>;

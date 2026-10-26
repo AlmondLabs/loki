@@ -450,7 +450,8 @@ describe("ACP agents (plan 020)", () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((c) => c.name === "Write a.txt")).toBe(true);
     const result = s.events().find((e) => e.kind === "step" && e.step.kind === "result");
-    expect(result).toMatchObject({ step: { output: [{ type: "text", text: "--- a.txt\n+++ a.txt\n+a" }] } });
+    // As every result leaves the daemon (plan 035): its text, not its parts.
+    expect(result).toMatchObject({ step: { output: "--- a.txt\n+++ a.txt\n+a" } });
   });
 
   test("Settings › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
