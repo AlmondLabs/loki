@@ -6,6 +6,7 @@ import { formatTranscript } from "../mod/recall-worker.ts";
 import { isWriterChat } from "../core/recall/model.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
+import { unansweredWhy } from "./chat-events.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget } from "./memory.ts";
 import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
@@ -94,6 +95,8 @@ export interface PassJob {
   tools(registry: Registry): ReadonlyArray<{ name: string }>;
   /** Reflection reads a just-compacted chat without waiting for it to go quiet. */
   onCompaction?: boolean;
+  /** Reflection reads the calls that failed, and the one that fixed each (plan 033); Learn reads words only. */
+  failedCalls?: boolean;
   /** Whether the job can run today at all (Learn: room left under the day's cap). */
   open?(settings: PassSettings, now: Date): boolean;
   /** What to ask, or null when the material holds nothing this job wants (the cursor moves on). */
@@ -313,7 +316,7 @@ export class PassRunner {
         continue;
       }
       const cursor = state.cursor(job.name, agentId, chatId) ?? 0;
-      const stretch = this.stretch(chatId, agentId, cursor, agentName);
+      const stretch = this.stretch(job, chatId, agentId, cursor, agentName);
       if (stretch.lines <= cursor) continue;
       if (!stretch.transcript.length || (!force && stretch.transcript.length < MIN_NEW_CHARS)) {
         state.setCursor(job.name, agentId, chatId, stretch.lines);
@@ -452,7 +455,7 @@ export class PassRunner {
     } finally {
       clearTimeout(timer);
     }
-    if (settled.status !== "done") throw new Error(`the pass did not finish: ${settled.status}`);
+    if (settled.status !== "done") throw new Error(`the pass did not finish: ${unansweredWhy(settled)}`);
     const answer: PassAnswer = { text: "", toolCalls: [] };
     for (const entry of (await store.entries(chat, context)).slice(before)) {
       const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
@@ -528,10 +531,17 @@ export class PassRunner {
    * so a long stretch is read over several runs and none of it is skipped. A single entry longer than that is read
    * from its start.
    */
-  private stretch(chatId: string, agentId: string, from: number, agentName: string | null): { rows: TranscriptRow[]; lines: number; transcript: string } {
+  private stretch(
+    job: PassJob,
+    chatId: string,
+    agentId: string,
+    from: number,
+    agentName: string | null,
+  ): { rows: TranscriptRow[]; lines: number; transcript: string } {
+    const failedCalls = job.failedCalls === true;
     const read = (to?: number) => {
-      const { rows, lines } = this.deps.chats.since(chatId, agentId, from, to);
-      return { rows, lines, transcript: formatTranscript(rows, agentName) };
+      const { rows, lines } = this.deps.chats.since(chatId, agentId, from, to, failedCalls);
+      return { rows, lines, transcript: formatTranscript(rows, agentName, { failedCalls }) };
     };
     const all = read();
     if (all.transcript.length <= MAX_MATERIAL_CHARS) return all;

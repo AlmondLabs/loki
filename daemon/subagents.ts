@@ -1,4 +1,5 @@
 import { configure, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
+import { unansweredWhy } from "./chat-events.ts";
 import { ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
 
@@ -42,7 +43,7 @@ export function subagentExtension(): Extension {
             const handle = await api.conversation(child, context);
             if (!handle) throw new Error("the helper's conversation is gone");
             const settled = await (await handle.submit({ type: "input", content: prompt, requestId: `subagent:${api.taskId}` }, context)).wait(context);
-            if (settled.status !== "done") throw new Error(`the helper did not finish: ${settled.status}`);
+            if (settled.status !== "done") throw new Error(`the helper did not finish: ${unansweredWhy(settled)}`);
             const answer = await api.commit(async (tx) => {
               for (const entry of (await tx.scanEntries({ conversationId: child }, 50)).items) {
                 const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;

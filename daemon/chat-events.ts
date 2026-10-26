@@ -4,12 +4,35 @@ import { messageAt, messageSteps, type ImageNamer, type PiMessage } from "../cor
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
-/** Why a message went unanswered, for the person. */
-function unanswered(reason: string | undefined): string {
-  if (reason === "no_model") return "this chat's model is not available — connect its provider in Preferences › Providers, or pick another model for the chat";
+/** How much of the provider's own message an unanswered turn passes on (plan 033). */
+const DETAIL_CHARS = 300;
+
+/**
+ * What pi-durable recorded about an unanswered input beyond its reason — for a model error, the provider's own message
+ * (a rate limit, a prompt too long, a dropped connection) — on one line, cut to DETAIL_CHARS; null when it kept none.
+ */
+export function unansweredDetail(detail: unknown): string | null {
+  if (detail === undefined || detail === null) return null;
+  const text = (typeof detail === "string" ? detail : JSON.stringify(detail)).replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return text.length > DETAIL_CHARS ? `${text.slice(0, DETAIL_CHARS - 1)}…` : text;
+}
+
+/** Why an input went unanswered, for a log or a tool result: its reason, then the provider's message when there is one. */
+export function unansweredWhy(settled: { status: string; reason?: string; detail?: unknown }): string {
+  const detail = unansweredDetail(settled.detail);
+  return `${settled.reason ?? settled.status}${detail ? `: ${detail}` : ""}`;
+}
+
+/** Why a message went unanswered, for the person: what to do, then what the provider said when it said something. */
+function unanswered(reason: string | undefined, detail: unknown): string {
+  const said = unansweredDetail(detail);
+  const tail = said ? ` (${said})` : "";
+  if (reason === "no_model")
+    return `this chat's model is not available — connect its provider in Preferences › Providers, or pick another model for the chat${tail}`;
   if (reason === "model_error")
-    return "the model could not be reached — is its provider connected in Preferences › Providers? Or pick another model for the chat";
-  return `the agent could not take this message up${reason ? ` (${reason})` : ""}`;
+    return `the model could not be reached — is its provider connected in Preferences › Providers? Or pick another model for the chat${tail}`;
+  return `the agent could not take this message up${reason ? ` (${reason}${said ? `: ${said}` : ""})` : tail}`;
 }
 
 /** A message's text blocks by content index. */
@@ -120,7 +143,7 @@ export class ChatEventConverter {
       case "submission":
         if (ev.record.status !== "unanswered") return [];
         return [
-          { kind: "error", message: unanswered(ev.record.reason) },
+          { kind: "error", message: unanswered(ev.record.reason, ev.record.detail) },
           { kind: "settle" },
           { kind: "loop", state: "idle" },
           { kind: "turn_end", turn_id: turnIdOf(this.agentId, [ev.record.id]) ?? undefined },

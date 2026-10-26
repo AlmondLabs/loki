@@ -1,4 +1,4 @@
-import { CORE_RULE, MEMORY_TOOLS } from "./memory.ts";
+import { CORE_RULE, FAILURE_RULE, MEMORY_TOOLS } from "./memory.ts";
 
 /**
  * The memory review (`/doctor`), Letta's /doctor on loki: the agent reads all of its own memory at once and cleans it
@@ -15,7 +15,7 @@ export const DOCTOR_INSTRUCTIONS = `You are this agent's memory doctor. You revi
 Tidy:
 - Merge files or passages that say the same thing; keep the clearest wording and delete what the merge made redundant.
 - Split a file that mixes unrelated subjects, or has grown too long to scan; merge tiny files on one subject.
-- Remove one-off details of past tasks that will not matter again (which file was edited, which command failed, what was tried along the way).
+- Remove one-off details of past tasks that will not matter again (which file was edited, what was tried along the way). Keep a lesson from failed tool calls while it is still true: ${FAILURE_RULE}
 - Fix formatting that gets in the way (broken lists, headings that no longer match their content).
 - Keep the core small: ${CORE_RULE}
 

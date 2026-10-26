@@ -63,7 +63,7 @@ describe("app-server history as a thread", () => {
         { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "error" },
       ]),
     );
-    expect(rows).toEqual([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a.ts", failed: true } }]);
+    expect(rows).toEqual([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a.ts", failed: true, error: "a.ts" } }]);
   });
 });
 
@@ -575,6 +575,7 @@ describe("every source makes the same thread", () => {
       description: "Clean the build",
       output: "permission denied",
       failed: true,
+      error: "permission denied",
     });
   });
 });
