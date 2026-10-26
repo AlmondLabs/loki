@@ -286,14 +286,17 @@ export class ChatProjection implements ChatSource {
     return fold.thread.streaming ? foldSteps(chat.entries.flatMap((e) => e.steps)) : fold.thread.folded();
   }
 
-  /** A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. */
-  since(conversationId: string, agentId: string | null, from: number, to?: number): { rows: TranscriptRow[]; lines: number } {
+  /**
+   * A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. Tool rows keep
+   * their step (the call, its input and its result) only with `steps`: reflection reads failed calls (plan 033), Learn
+   * reads words.
+   */
+  since(conversationId: string, agentId: string | null, from: number, to?: number, steps = false): { rows: TranscriptRow[]; lines: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], lines: 0 };
     const end = Math.min(chat.entries.length, to ?? chat.entries.length);
-    // Learn reads words: tool rows keep their one-line label and leave their step behind.
-    const rows = foldSteps(chat.entries.slice(Math.max(0, from), end).flatMap((e) => e.steps)).map(({ tool: _tool, ...row }) => row);
-    return { rows, lines: end };
+    const rows = foldSteps(chat.entries.slice(Math.max(0, from), end).flatMap((e) => e.steps));
+    return { rows: steps ? rows : rows.map(({ tool: _tool, ...row }) => row), lines: end };
   }
 
   digest(conversationId: string, agentId: string | null): LocalDigest {

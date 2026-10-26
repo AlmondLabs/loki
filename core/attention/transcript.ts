@@ -15,6 +15,8 @@ export interface ToolStep {
   description?: string;
   output?: string;
   failed?: boolean;
+  /** On a failed call: what went wrong, one line from the end of its whole result (core/harness.ts errorOf). */
+  error?: string;
 }
 
 /** A file a message carried (its attachment tag), shown as a chip on the bubble. */

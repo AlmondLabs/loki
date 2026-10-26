@@ -221,8 +221,8 @@ export function toolInput(name: string, input: unknown): string | undefined {
   return json === "{}" ? undefined : cap(json);
 }
 
-/** What came back from a tool, as text: a string, the text of content parts, or JSON for anything else. */
-export function toolOutput(raw: unknown): string | undefined {
+/** A tool result's whole text: its text parts joined, or the value as JSON; undefined when it has none. */
+function toolText(raw: unknown): string | undefined {
   let text: string;
   if (typeof raw === "string") text = raw;
   else if (Array.isArray(raw))
@@ -233,6 +233,12 @@ export function toolOutput(raw: unknown): string | undefined {
       .join("\n");
   else if (raw === undefined || raw === null) return undefined;
   else text = JSON.stringify(raw, null, 2);
+  return text || undefined;
+}
+
+/** What came back from a tool, as text: a string, the text of content parts, or JSON for anything else., cut to TOOL_TEXT_MAX. */
+export function toolOutput(raw: unknown): string | undefined {
+  const text = toolText(raw);
   return text ? cap(text) : undefined;
 }
 
@@ -250,10 +256,34 @@ export function toolStep(name: string, input: unknown, id?: string | null): Tool
   return step;
 }
 
-/** The step once its result came back (a new object: rows that changed are new). */
+/** An error's last line that says something: where a shell or a tool says how it ended. */
+const lastLine = (text: string) =>
+  text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .at(-1) ?? "";
+
+/**
+ * What a failed call's result says went wrong: its last line before the harness's own note (pi closes a failed bash
+ * result with `<harness>[error] Command exited with code 127</harness>`), and that note too when it says more than an
+ * exit code (a timeout).
+ */
+export function errorOf(output: string): string {
+  const note = /<harness>\s*([\s\S]*?)\s*<\/harness>\s*$/.exec(output);
+  const said = lastLine(note ? output.slice(0, note.index) : output);
+  const why = note ? lastLine(note[1]).replace(/^\[error\]\s*/, "") : "";
+  return [said, /exited with code \d+/.test(why) ? "" : why].filter(Boolean).join(" — ");
+}
+
+/**
+ * The step once its result came back (a new object: rows that changed are new). A failed one keeps what went wrong
+ * (`error`), read from the whole result before it is cut to TOOL_TEXT_MAX: the error is at the end, which the cut drops.
+ */
 export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolStep {
   const output = toolOutput(raw);
-  return { ...step, ...(output !== undefined ? { output } : {}), ...(failed ? { failed: true } : {}) };
+  const error = failed ? errorOf(toolText(raw) ?? "") : "";
+  return { ...step, ...(output !== undefined ? { output } : {}), ...(failed ? { failed: true } : {}), ...(error ? { error } : {}) };
 }
 
 /**

@@ -63,13 +63,35 @@ export function overlappingCards<T extends { front: string; back: string; tags: 
   return scored.slice(0, cap).map((x) => x.c);
 }
 
-/** "you: …" / "<agent>: …" lines; tool markers and harness notices are left out. */
-export function formatTranscript(rows: TranscriptRow[], agentName: string | null): string {
+/** How much of a failed call's input and error a transcript shows (plan 033). */
+const CALL_CHARS = 200;
+
+const clip = (text: string) => {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length > CALL_CHARS ? `${line.slice(0, CALL_CHARS - 1)}…` : line;
+};
+
+/**
+ * "you: …" / "<agent>: …" lines; harness notices are left out, and so are tool calls unless `failedCalls`. With it
+ * (reflection, plan 033), a call that failed is a line where it happened, `[failed bash: <input> → <error>]`, and the
+ * next call of the same tool that worked follows as `[then bash worked: <input>]`, so the fix is there beside the
+ * mistake. Calls that worked otherwise stay out.
+ */
+export function formatTranscript(rows: TranscriptRow[], agentName: string | null, { failedCalls = false }: { failedCalls?: boolean } = {}): string {
   const who = agentName ?? "agent";
-  return rows
-    .filter((r) => r.role === "user" || r.role === "assistant")
-    .map((r) => `${r.role === "user" ? "you" : who}: ${r.text.trim()}`)
-    .join("\n");
+  const failing = new Set<string>();
+  const lines: string[] = [];
+  for (const r of rows) {
+    if (r.role === "user" || r.role === "assistant") lines.push(`${r.role === "user" ? "you" : who}: ${r.text.trim()}`);
+    else if (failedCalls && r.role === "tool" && r.tool?.output !== undefined) {
+      const { name, input = "" } = r.tool;
+      if (r.tool.failed) {
+        failing.add(name);
+        lines.push(`[failed ${name}: ${clip(input)} → ${clip(r.tool.error ?? "")}]`);
+      } else if (failing.delete(name)) lines.push(`[then ${name} worked: ${clip(input)}]`);
+    }
+  }
+  return lines.join("\n");
 }
 
 /**

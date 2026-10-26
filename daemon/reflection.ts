@@ -1,5 +1,5 @@
 import { CONFLICTS_PATH, pendingConflicts } from "./memory-sync.ts";
-import { CORE_RULE, MEMORY_TOOLS, overBudget } from "./memory.ts";
+import { CORE_RULE, FAILURE_RULE, MEMORY_TOOLS, overBudget } from "./memory.ts";
 import type { PassJob } from "./passes.ts";
 
 /**
@@ -11,7 +11,7 @@ import type { PassJob } from "./passes.ts";
  */
 
 /** The system instructions of reflection's hidden chat. */
-export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations, each in its own <conversation> tag, and keep its memory true and useful for its future conversations: what it learned about the person, their work and preferences, decisions made, and anything it should do differently next time. Keep only what will still be true and matter in later conversations; leave out one-off details of the task at hand (which file was edited, which command failed, what was tried along the way). Change memory only with the memory tools; edit what is there before adding new files, keep files short and specific, and leave alone what the conversation did not touch. Read the conversations together: something that comes up in several of them (a preference, a habit, a recurring problem) is evidence that it lasts, even when each mention alone looks passing; and where they disagree, the newer one (the later conversation) wins, and memory should say what changed. Do not link conversations only because they share words: a pattern needs the same thing to recur. ${CORE_RULE} When nothing is worth keeping, change nothing and say so in one line.`;
+export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations, each in its own <conversation> tag, and keep its memory true and useful for its future conversations: what it learned about the person, their work and preferences, decisions made, and anything it should do differently next time. Keep only what will still be true and matter in later conversations; leave out one-off details of the task at hand (which file was edited, what was tried along the way). ${FAILURE_RULE} Change memory only with the memory tools; edit what is there before adding new files, keep files short and specific, and leave alone what the conversation did not touch. Read the conversations together: something that comes up in several of them (a preference, a habit, a recurring problem) is evidence that it lasts, even when each mention alone looks passing; and where they disagree, the newer one (the later conversation) wins, and memory should say what changed. Do not link conversations only because they share words: a pattern needs the same thing to recur. ${CORE_RULE} When nothing is worth keeping, change nothing and say so in one line.`;
 
 const WRITES = new Set(MEMORY_TOOLS.filter((t) => t !== "memory_read"));
 
@@ -23,6 +23,7 @@ export const reflectionJob: PassJob = {
   instructions: INSTRUCTIONS,
   tools: () => MEMORY_TOOLS.map((name) => ({ name })),
   onCompaction: true,
+  failedCalls: true,
   prompt: (input) => {
     const said =
       input.parts.length === 1
