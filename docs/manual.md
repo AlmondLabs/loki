@@ -158,7 +158,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
   every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
-  chats, counting what recurs across them (and reads a chat right after its context is compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
+  chats, counting what recurs across them (and reads a chat right after its context is compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, and the Skill tool gives the rest. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`

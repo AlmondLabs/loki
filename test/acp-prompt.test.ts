@@ -26,7 +26,7 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       expect(prompt).not.toContain("memory_read");
       expect(prompt).toContain(`- pruning: how to prune roses (${join(root, "skills", "pruning", "SKILL.md")})`);
       // loki's own chats keep the memory tools' wording.
-      expect(memorySection(root)).toContain("read them with memory_read");
+      expect(memorySection(root)).toContain("read one with memory_read");
       expect(agentPrompt(dir, "agent-nobody", null, globalSkills)).toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
