@@ -1,6 +1,5 @@
 import type { ComponentType } from "react";
-import { useMemo, useRef, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { lazy, Suspense, useRef, useState } from "react";
 
 /**
  * loki widget kit v1. Every component takes the widget's `data` and an
@@ -141,50 +140,20 @@ export function ListCard({ data, onSet }: KitProps) {
   );
 }
 
-/** The kit's chart of `data.points` (x, y), drawn as a line, a bar or an area chart by `data.kind` (line when unset). */
-export function ChartCard({ data }: KitProps) {
-  const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }> | undefined) ?? []).map((p) => ({ ...p })), [data.points]);
-  const kind = (data.kind as string | undefined) ?? "line";
-  const common = {
-    data: points,
-    margin: { top: 8, right: 8, bottom: 0, left: -18 },
-  };
-  const axes = (
-    <>
-      <CartesianGrid stroke="var(--loki-border)" strokeDasharray="3 3" />
-      <XAxis dataKey="x" stroke="var(--loki-muted)" fontSize={11} tickLine={false} />
-      <YAxis stroke="var(--loki-muted)" fontSize={11} tickLine={false} />
-      <Tooltip
-        contentStyle={{
-          background: "var(--loki-panel)",
-          border: "1px solid var(--loki-border)",
-          borderRadius: "var(--loki-radius-md)",
-          fontSize: 12,
-        }}
-      />
-    </>
-  );
+/** A chart card's height: the chart's, and its placeholder's while the chart loads, so the card does not jump. */
+export const CHART_HEIGHT = 180;
+
+const ChartView = lazy(() => import("./chart-view").then((m) => ({ default: m.ChartView })));
+
+/**
+ * The kit's chart of `data.points` (x, y), drawn as a line, a bar or an area chart by `data.kind` (line when unset).
+ * `chart-view.tsx` draws it, loaded the first time a chart shows (plan 038).
+ */
+export function ChartCard(props: KitProps) {
   return (
-    <div className="loki-widget-body" style={{ height: 180 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        {kind === "bar" ? (
-          <BarChart {...common}>
-            {axes}
-            <Bar dataKey="y" fill="var(--loki-accent)" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        ) : kind === "area" ? (
-          <AreaChart {...common}>
-            {axes}
-            <Area dataKey="y" stroke="var(--loki-accent)" fill="var(--loki-accent-soft)" />
-          </AreaChart>
-        ) : (
-          <LineChart {...common}>
-            {axes}
-            <Line dataKey="y" stroke="var(--loki-accent)" dot={false} strokeWidth={2} />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
-    </div>
+    <Suspense fallback={<div className="loki-widget-body" style={{ height: CHART_HEIGHT }} />}>
+      <ChartView {...props} />
+    </Suspense>
   );
 }
 
