@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
 import { serial } from "./repo-queue.ts";
+import { briefDescription, skillDescription } from "../mod/skills.ts";
 
 /**
  * An agent's memory on loki's daemon (plan 017, U9): the git repo at `<backend>/memfs/<agentId>/memory`, Letta's
@@ -52,24 +53,51 @@ function files(root: string, dir = root, out: string[] = []): string[] {
   return out;
 }
 
+/** The core files: `system/`'s markdown, or without that folder the top-level markdown files. */
+function coreOf(all: string[]): string[] {
+  return all.some((f) => f.startsWith("system/"))
+    ? all.filter((f) => f.startsWith("system/") && f.endsWith(".md"))
+    : all.filter((f) => !f.includes("/") && f.endsWith(".md"));
+}
+
 /**
- * The memory section's text: the core files in full, the rest by path. Undefined when the agent has no memory.
- * `files` is for an agent without loki's memory tools (an ACP agent, plan 020): the rest is named by full path for it
- * to read, and it is told loki keeps the files.
+ * How big the core may grow (plan 034). It is in every chat in full, so reflection keeps it to this and moves the rest
+ * into notes the agent reads when they apply; loki never cuts it.
+ */
+export const CORE_BUDGET = 12 * 1024;
+
+/** The core files' total size in bytes, and each file's, biggest first; undefined when the agent has no memory. */
+export function coreSize(root: string): { bytes: number; files: Array<{ path: string; bytes: number }> } | undefined {
+  if (!existsSync(root)) return undefined;
+  const sized = coreOf(files(root))
+    .map((path) => ({ path, bytes: statSync(join(root, path)).size }))
+    .sort((a, b) => b.bytes - a.bytes);
+  return { bytes: sized.reduce((n, f) => n + f.bytes, 0), files: sized };
+}
+
+/** A note's line in the list: its path, and its front matter's `description:` when it has one. */
+function listed(root: string, path: string, shown: string): string {
+  const description = path.endsWith(".md") ? skillDescription(readFileSync(join(root, path), "utf8")) : null;
+  return `- ${shown}${description ? ` — ${briefDescription(description)}` : ""}`;
+}
+
+/**
+ * The memory section's text: the core files in full, the other notes by path and description, for the agent to read
+ * when one applies (plan 034). The agent's own skills (`skills/`) are left out: the skills section names them. Undefined
+ * when the agent has no memory. `files` is for an agent without loki's memory tools (an ACP agent, plan 020): the rest
+ * is named by full path for it to read, and it is told loki keeps the files.
  */
 export function memorySection(root: string, how: "tools" | "files" = "tools"): string | undefined {
   if (!existsSync(root)) return undefined;
   const all = files(root);
-  const core = all.some((f) => f.startsWith("system/"))
-    ? all.filter((f) => f.startsWith("system/") && f.endsWith(".md"))
-    : all.filter((f) => !f.includes("/") && f.endsWith(".md"));
+  const core = coreOf(all);
   const parts = core.map((f) => `<file path="${f}">\n${readFileSync(join(root, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
-  const rest = all.filter((f) => !core.includes(f));
+  const rest = all.filter((f) => !core.includes(f) && !f.startsWith("skills/"));
   if (rest.length)
     parts.push(
-      `Other memory files (${how === "tools" ? "read them with memory_read" : "read them at their paths"} when you need them):\n${rest
+      `Other memory files (${how === "tools" ? "read one with memory_read" : "read one at its path"} when its description fits what you are doing):\n${rest
         .slice(0, LISTED)
-        .map((f) => `- ${how === "tools" ? f : join(root, f)}`)
+        .map((f) => listed(root, f, how === "tools" ? f : join(root, f)))
         .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
     );
   const intro =

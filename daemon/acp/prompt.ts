@@ -1,4 +1,5 @@
 import { memoryRoot, memorySection } from "../memory.ts";
+import { briefDescription } from "../../mod/skills.ts";
 import { skillsOf } from "../skills.ts";
 
 /**
@@ -14,7 +15,7 @@ export function agentPrompt(backendDir: string, agentId: string, name: string | 
   const who = `You are ${name ?? "one of the person's agents"}, an agent of theirs in loki, working here through this harness. What follows is yours from loki.`;
   const skillText = skills.length
     ? `Skills you have. Before doing the kind of work one describes, read its instructions at its path.\n${skills
-        .map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ""} (${s.file})`)
+        .map((s) => `- ${s.name}${s.description ? `: ${briefDescription(s.description)}` : ""} (${s.file})`)
         .join("\n")}`
     : null;
   return [who, memory ? `<memory>\n${memory}\n</memory>` : null, skillText ? `<skills>\n${skillText}\n</skills>` : null].filter(Boolean).join("\n\n");

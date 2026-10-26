@@ -22,6 +22,20 @@ export function skillDescription(text: string): string | null {
   return /^#+\s*(.+)$/m.exec(text.replace(/^---[\s\S]*?---/, ""))?.[1]?.trim() ?? null;
 }
 
+/** The most of a description the prompt's lists show (plan 034): skills, and memory notes beyond the core. */
+const BRIEF_LIMIT = 200;
+
+/**
+ * A skill's or a note's description as the prompt lists it: cut at a word to BRIEF_LIMIT characters. Not at its first sentence:
+ * many descriptions say what the skill is first and when to use it after, and the when is what the agent decides by.
+ */
+export function briefDescription(description: string): string {
+  const text = description.trim().replace(/\s+/g, " ");
+  if (text.length <= BRIEF_LIMIT) return text;
+  const cut = text.slice(0, BRIEF_LIMIT - 1);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : cut.length).trimEnd()}…`;
+}
+
 /**
  * The skills in the global folder, by name: each entry (a link is followed) that holds a SKILL.md, with its description.
  * Empty when the folder cannot be read.
