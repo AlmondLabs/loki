@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { TOOL_TEXT_MAX, toolInput, toolOutput, toolStep } from "../core/harness.ts";
+import { TOOL_TEXT_MAX, toolInput, toolLabel, toolOutput, toolStep, withResult } from "../core/harness.ts";
+import { shownStep } from "../core/attention/pi-steps.ts";
 import { must } from "./fixtures/must.ts";
 import {
   withoutSkillCalls,
@@ -117,6 +118,42 @@ describe("tool inputs and outputs are kept", () => {
     const long = must(toolOutput("x".repeat(TOOL_TEXT_MAX + 10)), "the tool's output");
     expect(long.startsWith("x".repeat(TOOL_TEXT_MAX))).toBe(true);
     expect(long.endsWith("10 more characters")).toBe(true);
+    // Capped once by the daemon and again by the app (plan 035): the second does nothing.
+    expect(toolOutput(long)).toBe(long);
+    expect(toolOutput(toolOutput("y".repeat(TOOL_TEXT_MAX * 3)))).toBe(toolOutput("y".repeat(TOOL_TEXT_MAX * 3)));
+  });
+});
+
+describe("what leaves the daemon of a tool (plan 035)", () => {
+  const big = "z".repeat(100_000);
+  test("a result is its text, capped; a picture in it leaves nothing", () => {
+    const raw = [
+      { type: "image", data: "iVBORw0KGgo".repeat(50_000), mimeType: "image/png" },
+      { type: "text", text: big },
+    ];
+    const step = shownStep({ kind: "result", id: "t1", output: raw, failed: false });
+    expect(step).toEqual({ kind: "result", id: "t1", output: toolOutput(raw), failed: false });
+    expect(JSON.stringify(step).length).toBeLessThan(TOOL_TEXT_MAX + 200);
+    // The thread folds it as it would have folded the whole result.
+    expect(withResult({ name: "Read" }, step.kind === "result" ? step.output : null, false)).toEqual(withResult({ name: "Read" }, raw, false));
+  });
+  test("a call's long strings are cut, nested ones too, and it reads the same", () => {
+    const args = { path: "notes.md", content: big, edits: [{ old_text: big, new_text: "short" }] };
+    const step = shownStep({ kind: "call", name: "write", args, id: "c1", at: null });
+    const cut = step.kind === "call" ? (step.args as typeof args) : args;
+    expect(cut.content.length).toBe(TOOL_TEXT_MAX);
+    expect(cut.edits[0].old_text.length).toBe(TOOL_TEXT_MAX);
+    expect(cut.edits[0].new_text).toBe("short");
+    expect(cut.path).toBe("notes.md");
+    expect(toolStep("write", cut, "c1")).toEqual(toolStep("write", args, "c1"));
+    expect(toolLabel("write", cut)).toBe(toolLabel("write", args));
+    // Arguments still arriving as text stay whole: cut, they might not parse.
+    const streaming = shownStep({ kind: "call", name: "write", args: `{"content":"${big}`, id: "c1", at: null });
+    expect(streaming.kind === "call" && streaming.args).toBe(`{"content":"${big}`);
+  });
+  test("words and messages pass as they are", () => {
+    const words = { kind: "assistant" as const, text: big, at: null };
+    expect(shownStep(words)).toBe(words);
   });
 });
 

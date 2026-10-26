@@ -1,4 +1,4 @@
-import { contentImages, contentText } from "../harness.ts";
+import { contentImages, contentText, toolArgsShown, toolOutput } from "../harness.ts";
 import type { Step } from "./thread.ts";
 
 /**
@@ -39,7 +39,7 @@ export function messageAt(m: PiMessage): string | null {
  */
 export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageNamer): Step[] {
   if (m.role === "toolResult")
-    return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
+    return typeof m.toolCallId === "string" ? [shownStep({ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true })] : [];
   if (m.role !== "user" && m.role !== "assistant") return [];
   const text = contentText(m.content);
   if (m.role === "user") {
@@ -49,9 +49,21 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
   const out: Step[] = [{ kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
     const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
-    if (p?.type === "toolCall" && p.name) out.push({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at });
+    if (p?.type === "toolCall" && p.name)
+      out.push(shownStep({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at }));
   }
   return out;
+}
+
+/**
+ * A step as a window needs it (plan 035): a tool's result as its text, capped as the transcript caps it (pictures and
+ * other parts that are not text leave nothing, as they do in a window), and a call's arguments with every string cut.
+ * The daemon keeps steps this way and sends them this way; the store and the model keep everything.
+ */
+export function shownStep(step: Step): Step {
+  if (step.kind === "result") return { ...step, output: toolOutput(step.output) };
+  if (step.kind === "call" || step.kind === "approval") return { ...step, args: toolArgsShown(step.args) };
+  return step;
 }
 
 /** The entry kinds a thread shows; prompt changes, resets and compaction summaries are the model's, not the person's. */

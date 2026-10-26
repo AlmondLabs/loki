@@ -15,6 +15,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
+import { TOOL_TEXT_MAX } from "../core/harness.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -23,6 +24,8 @@ async function setup(
   opts: {
     tokensPerSecond?: number;
     tool?: (done: () => void) => Promise<void>;
+    /** What the `slow` tool answers with; "slow done" when absent. */
+    toolText?: string;
     passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"];
     macId?: string;
   } = {},
@@ -42,7 +45,7 @@ async function setup(
             name: "slow",
             description: "slow",
             parameters: { type: "object", properties: {} } as never,
-            execute: async () => (await tool(() => {}), { content: [{ type: "text", text: "slow done" }] }),
+            execute: async () => (await tool(() => {}), { content: [{ type: "text", text: opts.toolText ?? "slow done" }] }),
           }),
         ],
       }),
@@ -95,6 +98,33 @@ const until = async (check: () => boolean, ms = 2000) => {
 const kinds = (pushed: Array<{ events: ChatEvent[] }>) => pushed.flatMap((p) => p.events.map((e) => (e.kind === "step" ? `step:${e.step.kind}` : e.kind)));
 
 describe("the daemon's chats", () => {
+  test("a tool's whole output and long arguments stay in the daemon: windows get them cut, the model gets them all (plan 035)", async () => {
+    const big = "q".repeat(100_000);
+    const s = await setup({ tool: async () => {}, toolText: big });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      await s.chats.open(agent.id, conversationId);
+      let modelSaw = "";
+      s.faux.setResponses([
+        () => fauxAssistantMessage(fauxToolCall("slow", { note: big }), { stopReason: "toolUse" }),
+        (context: { messages: unknown[] }) => ((modelSaw = JSON.stringify(context.messages)), fauxAssistantMessage("Done.")),
+      ]);
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "go", images: [], send_id: "s1", context: null });
+      await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
+      const steps = s.pushed.flatMap((p) => p.events).flatMap((e) => (e.kind === "step" ? [e.step] : []));
+      const result = steps.find((st) => st.kind === "result");
+      const call = steps.find((st) => st.kind === "call");
+      expect(result?.kind === "result" && typeof result.output === "string" && result.output.length).toBeLessThan(TOOL_TEXT_MAX + 100);
+      expect(call?.kind === "call" && (call.args as { note: string }).note.length).toBe(TOOL_TEXT_MAX);
+      expect(JSON.stringify(s.pushed).length).toBeLessThan(30_000);
+      // The model and the store keep it whole.
+      expect(modelSaw.includes(big)).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("loki's own message steered in while a turn works goes in at its next step, not as a turn after the answer", async () => {
     // A background task ends while the agent is still at work (here, inside a tool call): its notice is delivered then.
     let notice: () => Promise<void> = async () => {};

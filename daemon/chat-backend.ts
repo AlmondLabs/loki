@@ -6,7 +6,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, un
 import { basename, join } from "node:path";
 import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
-import type { ImageNamer } from "../core/attention/pi-steps.ts";
+import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
@@ -119,10 +119,20 @@ export class DaemonChats implements ChatBackend {
     deps.stores.onOpen((agentId) => this.loki.forgetAgent(agentId));
   }
 
+  /**
+   * Where chat events go: to every window following the chat (the mod's sockets). Every engine's events pass here,
+   * so this is where a step is cut to what a window shows (plan 035): a tool's whole output never leaves the daemon.
+   */
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void {
-    this.push = push;
-    this.deps.approvals.attach(push);
-    this.deps.acp?.attach(push);
+    const shown = (agentId: string, conversationId: string, events: ChatEvent[]) =>
+      push(
+        agentId,
+        conversationId,
+        events.map((e) => (e.kind === "step" ? { kind: "step", step: shownStep(e.step) } : e)),
+      );
+    this.push = shown;
+    this.deps.approvals.attach(shown);
+    this.deps.acp?.attach(shown);
   }
 
   private get acp(): AcpChats {
