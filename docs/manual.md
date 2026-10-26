@@ -338,6 +338,13 @@ The small "https on the tailnet" switch runs `tailscale serve` in front of the l
 stays inside the tailnet — loki never uses Funnel. Whichever way you switch, the address the phone bookmarked has
 changed, so it pairs once more.
 
+**The agent's work on the phone.** A run of tool calls is one line in the chat ("Ran 4 commands, used 3 tools · 2
+failed"). Tapping it opens a sheet, as in Claude's app: each step is what kind it was ("Ran", "Read memory", "Asked an
+agent") over what it was for on one line, and a step opens to its description, command and output under the tool's
+name.
+
+<img src="images/phone-steps-sheet.png" width="300" alt="The phone's steps sheet: each step as what kind it was over what it was for, with a chevron, two marked failed">
+
 ## Your Macs
 
 loki on more than one Mac is one set of agents. Friday is the same agent on your MacBook and your Mac mini: one

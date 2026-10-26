@@ -1319,6 +1319,8 @@ span.loki-phone-section-btn {
 /* ---- Bottom sheets (Home's menu, a desk's actions, a new desk) ------------------------------------ */
 .loki-sheet-card.loki-phone-sheet {
   display: grid;
+  /* one column the sheet's width: a long line inside wraps or cuts instead of widening the sheet past the screen */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--phone-space-3);
   padding: var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-right)) calc(var(--phone-space-4) + var(--phone-safe-bottom))
     calc(var(--phone-gutter) + var(--phone-safe-left));
@@ -2133,9 +2135,9 @@ span.loki-phone-section-btn {
 .loki-phone .loki-steps-bar {
   width: 100%;
   display: grid;
-  grid-template-columns: var(--phone-touch) minmax(0, 1fr) var(--phone-touch);
+  grid-template-columns: var(--phone-touch) minmax(0, 1fr);
   align-items: center;
-  gap: var(--phone-space-2);
+  gap: var(--phone-space-3);
   padding-bottom: var(--phone-space-3);
 }
 .loki-phone .loki-steps-round {
@@ -2150,14 +2152,10 @@ span.loki-phone-section-btn {
   color: var(--loki-fg);
   cursor: pointer;
 }
-.loki-phone .loki-steps-round-spacer {
-  width: var(--phone-touch);
-  height: var(--phone-touch);
-}
 .loki-phone .loki-steps-title {
   margin: 0;
   overflow: hidden;
-  text-align: center;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--phone-text-emph);
@@ -2201,8 +2199,17 @@ span.loki-phone-section-btn {
   margin-top: 0;
   color: var(--loki-muted);
 }
+.loki-phone .loki-steps-timeline .loki-steps-text {
+  flex: 1;
+}
 .loki-phone .loki-steps-timeline .loki-steps-verb {
   font-size: var(--phone-text-emph);
+}
+/* the row opens its step: a chevron at the end, as Claude's app has it */
+.loki-phone .loki-steps-open-chev {
+  flex: none;
+  align-self: center;
+  color: var(--loki-muted);
 }
 .loki-phone .loki-steps-timeline .loki-steps-target {
   font-size: var(--phone-text-body);

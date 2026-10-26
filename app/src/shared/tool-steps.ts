@@ -15,6 +15,7 @@ import type { IconName } from "./icons";
 // loki's tools under their names before October 2026 (bash_background, Agent, Skill…) stay here for old chats.
 const SHELL = new Set([
   "Bash",
+  "bash", // pi's, on loki's own engine
   "background_run",
   "bash_background",
   "BashOutput",
@@ -55,7 +56,15 @@ const isSkillTool = (name: string): boolean => name === "skill" || name === "Ski
 /** Tools that hand work to another agent. */
 const AGENTS = new Set(["Task", "subagent", "Agent", "SendAgentMessage"]);
 
-/** What a step did, as the list's first line. */
+/** A tool's name as a sheet's title shows it (plan 038): "Bash", "Memory read", an MCP tool as server.tool. */
+export function stepTitle(name: string): string {
+  const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  if (mcp) return `${mcp[1]}.${mcp[2]}`;
+  const words = name.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** What a step did: the phone's first line (plan 038), the desktop list's second. */
 export function stepVerb(name: string): string {
   if (name === "Background task") return "Ran in background";
   if (name === "mcp_search") return "Loaded MCP tools";

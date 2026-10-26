@@ -2,7 +2,19 @@ import { createContext, memo, useContext, useState } from "react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Sheet } from "../components";
 import { Icon } from "../shared/icons";
-import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/tool-steps";
+import {
+  isNamedStep,
+  withoutSkillCalls,
+  lastFailure,
+  stepFailed,
+  stepIcon,
+  stepKind,
+  stepName,
+  stepTarget,
+  stepTitle,
+  stepVerb,
+  workSummary,
+} from "../shared/tool-steps";
 
 /**
  * A stretch of the agent's work in the thread (tool calls, background tasks, skills it loaded), as one quiet line:
@@ -64,15 +76,18 @@ export const ToolSteps = memo(
 );
 
 /** One step's two lines: the verb, and what it was done to; a failed step says so. */
-function StepText({ row }: { row: TranscriptRow }) {
+function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: boolean }) {
   const target = stepTarget(row);
+  const verb = stepVerb(stepName(row));
+  // The phone reads as Claude's app does (plan 038): what kind of step on top, what it was for under it on one line.
+  const [first, second] = verbFirst || !target ? [verb, target] : [target, verb];
   return (
     <span className="loki-steps-text">
       <span className="loki-steps-verb">
-        {target ?? stepVerb(stepName(row))}
+        {first}
         {stepFailed(row) && <span className="loki-steps-failed">Failed</span>}
       </span>
-      {target && <span className="loki-steps-target">{stepVerb(stepName(row))}</span>}
+      {second && <span className="loki-steps-target">{second}</span>}
     </span>
   );
 }
@@ -158,11 +173,11 @@ function Filters({ rows, value, onChange }: { rows: TranscriptRow[]; value: Filt
 }
 
 /** A step's line in the open list: its icon (a cross when it failed) and its two lines; housekeeping reads quieter. */
-function StepLine({ row, size }: { row: TranscriptRow; size: number }) {
+function StepLine({ row, size, verbFirst = false }: { row: TranscriptRow; size: number; verbFirst?: boolean }) {
   return (
     <>
       <Icon name={stepFailed(row) ? "close" : stepIcon(stepName(row))} size={size} className="loki-steps-icon" />
-      <StepText row={row} />
+      <StepText row={row} verbFirst={verbFirst} />
     </>
   );
 }
@@ -211,8 +226,7 @@ function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; ti
               <Icon name="close" size={20} />
             </button>
           )}
-          <h2 className="loki-steps-title">{step ? (stepTarget(step) ?? stepName(step)) : title}</h2>
-          <span aria-hidden className="loki-steps-round-spacer" />
+          <h2 className="loki-steps-title">{step ? stepTitle(stepName(step)) : title}</h2>
         </div>
       </div>
       {step ? (
@@ -222,7 +236,8 @@ function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; ti
           {rows.map((row, k) => (
             <li key={k}>
               <button type="button" className="loki-steps-step" data-minor={!isNamedStep(row) || undefined} onClick={() => setAt(k)}>
-                <StepLine row={row} size={20} />
+                <StepLine row={row} size={20} verbFirst />
+                <Icon name="chevron-right" size={18} className="loki-steps-open-chev" />
               </button>
             </li>
           ))}
