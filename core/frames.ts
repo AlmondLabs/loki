@@ -53,6 +53,15 @@ export type Parse<P> = (m: Raw) => P | string;
 const str = (v: unknown): v is string => typeof v === "string";
 const strOr = <T>(v: unknown, or: T): string | T => (typeof v === "string" ? v : or);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter(str) : []);
+
+/** The person's state kept as folders of files, which another Mac asks for only when they changed (plan 040). */
+export const STATE_FOLDERS = ["learn", "mods"] as const;
+/** One of STATE_FOLDERS. */
+export type StateFolder = (typeof STATE_FOLDERS)[number];
+/** The folders a frame names; undefined when it names none, as an older loki's frames do, which means all of them. */
+export function stateFolders(v: unknown): StateFolder[] | undefined {
+  return Array.isArray(v) ? STATE_FOLDERS.filter((f) => v.includes(f)) : undefined;
+}
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isPoint = (v: unknown): boolean => typeof v === "object" && v !== null && isNum((v as Raw).x) && isNum((v as Raw).y);
 
@@ -197,9 +206,10 @@ export interface Replies {
   peer_memory: { agent_id: string; bundle: string | null };
   /**
    * The person's own state for another Mac (plan 023, U8): Inbox marks and focus, pins, label colours and Learn's
-   * files, each in the shape its store merges (mod/peer-state.ts).
+   * files, each in the shape its store merges (mod/peer-state.ts). Learn's and the mods' files come only when asked for
+   * (plan 040).
    */
-  peer_state: { marks: object; pins: object; labels: object; learn: object; mcp: object; mods: object };
+  peer_state: { marks: object; pins: object; labels: object; learn?: object; mcp: object; mods?: object };
   /** The chats here of agents that live on the asking Mac, for it to take over on first pairing (plan 023, U9). */
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
   /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
@@ -282,8 +292,11 @@ export interface Pushes {
   lists_changed: NoPayload;
   /** An agent's memory has new commits on this Mac: a paired Mac asks for them (plan 023, U7). */
   memory_changed: { agent_id: string };
-  /** The person's marks, pins, label colours or Learn changed on this Mac: a paired Mac asks for them (plan 023, U8). */
-  state_changed: NoPayload;
+  /**
+   * The person's marks, pins, label colours or Learn changed on this Mac: a paired Mac asks for them (plan 023, U8),
+   * with the folders named here (plan 040).
+   */
+  state_changed: { folders: StateFolder[] };
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expires_at: string };
@@ -896,7 +909,13 @@ export const FRAMES = {
     false,
     BETWEEN_MACS,
   ),
-  peer_state_get: request("peer_state", "the person's marks, pins, label colours and Learn, for another Mac", nothing, false, BETWEEN_MACS),
+  peer_state_get: request(
+    "peer_state",
+    "the person's marks, pins, label colours and MCP servers, with the folders of files named (all when none is), for another Mac",
+    (m) => ({ folders: stateFolders(m.folders) }),
+    false,
+    BETWEEN_MACS,
+  ),
   peer_moves_get: request("peer_moves", "the chats here whose agent lives on the asking Mac", nothing, false, BETWEEN_MACS),
   peer_chat_export: request("peer_chat", "a chat copied out for the Mac it moves to; marks it moving here", chatRef, false, BETWEEN_MACS),
   peer_chat_moved: request("chat_done", "the asking Mac holds the chat now: hide it here and stop its schedules", chatRef, false, BETWEEN_MACS),

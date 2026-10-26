@@ -1,5 +1,5 @@
 import type { MacIdentity, PeerSummary } from "../../core/frame-types.ts";
-import type { Pushes, Replies } from "../../core/frames.ts";
+import type { Pushes, Replies, StateFolder } from "../../core/frames.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
 /** The frames' side of moving chats between Macs: what another Mac asks of this one, and the person's own move. */
@@ -45,8 +45,8 @@ export interface PeersDeps {
     };
     /** Whether this Mac holds a chat, and where it went if this Mac let it go, for `peer_where` (addendum B2). */
     where?: (chat: { agent_id: string | null; conversation_id: string }) => Replies["peer_here"];
-    /** The person's state, for another Mac's `peer_state_get` (U8). */
-    state: () => Replies["peer_state"];
+    /** The person's state, for another Mac's `peer_state_get` (U8): the folders it named, or all of them. */
+    state: (folders?: StateFolder[]) => Replies["peer_state"];
     /** An agent's memory commits another Mac lacks, for its `peer_memory_get` (U7). */
     memory: (agentId: string, have: string[]) => Promise<Replies["peer_memory"]>;
   };
@@ -69,7 +69,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
     },
     peer_agents_get: () => reply(need().agents()),
     peer_chats_get: () => reply(need().chats()),
-    peer_state_get: () => reply(need().state()),
+    peer_state_get: ({ folders }) => reply(need().state(folders)),
     // Only another Mac asks these, and it names itself by its socket (U9).
     peer_moves_get: async (_, ctx) => {
       const moves = need().moves;

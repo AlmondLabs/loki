@@ -25,7 +25,12 @@ export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lok
  * as subagents. The daemon's own helpers (daemon/subagents.ts) are not agent records at all.
  */
 export function isSubagent(agentId: string, dir = backendDir()): boolean {
-  return readLocalAgent(agentId, dir)?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
+  return isSubagentRecord(readLocalAgent(agentId, dir));
+}
+
+/** isSubagent for a record already read. */
+export function isSubagentRecord(agent: LocalAgent | null): boolean {
+  return agent?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
 }
 
 /**
