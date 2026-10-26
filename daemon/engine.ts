@@ -11,6 +11,11 @@ export interface EngineChat {
   engine: ChatEngine | null;
 }
 
+/** How a message loki delivered fared: its turn's end, once the turn is over (plan 037). */
+export interface Delivery {
+  outcome: Promise<{ status: "done" | "unanswered"; reason?: string }>;
+}
+
 /**
  * What a chat runs on (glossary: Engine), as the daemon's chats drive it: loki's own engine on pi-durable
  * (daemon/loki-engine.ts) or an ACP agent (daemon/acp/engine.ts). The daemon's chats (daemon/chat-backend.ts) find each
@@ -24,8 +29,12 @@ export interface Engine {
   busy(c: EngineChat): Promise<boolean>;
   /** The person's message, after every mod's transform where the engine runs them. */
   send(c: EngineChat, p: PayloadOf<"chat_send">): Promise<void>;
-  /** A message from loki itself; `steer` puts it into a running turn where the engine can. */
-  deliver(c: EngineChat, text: string, whenBusy: "steer" | "followUp"): Promise<void>;
+  /**
+   * A message from loki itself; `steer` puts it into a running turn where the engine can. Resolves once it is handed
+   * over, with how its turn ends where the engine can tell (loki's own; null for an ACP agent's), for a schedule that
+   * tries again after a model error (plan 037).
+   */
+  deliver(c: EngineChat, text: string, whenBusy: "steer" | "followUp"): Promise<Delivery | null>;
   abort(c: EngineChat): Promise<void>;
   /** The chat's working folder, changed; refused where the engine cannot move a running session. */
   folder(c: EngineChat, cwd: string): Promise<ChatState>;

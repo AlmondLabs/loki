@@ -14,7 +14,7 @@ import { isReasoningEffort, type ModelEntry } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import type { Approvals } from "./approvals.ts";
-import type { Engine, EngineChat } from "./engine.ts";
+import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { ImportReport, ImportStatus } from "./import/letta.ts";
@@ -268,9 +268,9 @@ export class DaemonChats implements ChatBackend {
    * A message from loki itself (a background task's notice, a schedule's prompt). `steer` puts it into a running turn
    * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own.
    */
-  async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<void> {
+  async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {
     const { c, engine } = await this.resolve(agentId, conversationId);
-    await engine.deliver(c, text, whenBusy);
+    return engine.deliver(c, text, whenBusy);
   }
 
   importLetta(): Promise<ImportReport> {

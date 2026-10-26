@@ -19,7 +19,7 @@ function builtins() {
     approvals,
     backendDir: dir,
     background: new BackgroundTasks(() => {}),
-    schedules: new Schedules(join(dir, "crons.json"), () => Promise.resolve()),
+    schedules: new Schedules(join(dir, "crons.json"), () => Promise.resolve(null)),
   });
   return { extensions, dir };
 }

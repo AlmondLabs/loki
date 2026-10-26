@@ -1,7 +1,7 @@
 ---
 title: A model error stays in the chat, and a scheduled run tries again
 date: 2026-10-26
-status: draft
+status: active
 ---
 
 # A model error stays in the chat, and a scheduled run tries again
@@ -35,7 +35,8 @@ did. The store shows what happened:
    history fold to the same rows. The window's error line stays for what is not a turn's (a folder that did not
    change).
 3. A run that failed and then worked shows nothing: the answer is there. The row is for a turn that ended without one.
-4. The row is the person's, not the model's: it is not sent back to the model in later turns.
+4. The window's error line still comes live for a message that went unanswered (with the provider's message, plan 036);
+   the row is what stays.
 
 ### 2. A scheduled run that hit a model error tries again
 
@@ -55,13 +56,13 @@ did. The store shows what happened:
    error followed by an answer shows only the answer.
 2. Live and history give the same rows for the same entries (`test/thread-model.test.ts`'s every-source test gains an
    error).
-3. The row is not in what the model is sent.
-4. Schedules, with an injected clock and fire:
+3. Schedules, with an injected clock and fire:
    1. An outcome of `model_error` sets `retry_at` 5 minutes on, and the next ticks fire at 5, 15 and 60, then stop.
    2. `done`, or another reason, sets no retry.
    3. A retry survives a reload of the file.
    4. A slot that comes due replaces a waiting retry.
    5. A retry's prompt says it is another try.
+   6. A turn that ends after its task fired again changes nothing: that newer firing's own end decides.
 
 ## Manual
 

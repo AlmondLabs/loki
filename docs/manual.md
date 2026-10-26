@@ -693,6 +693,18 @@ into the card, and a follow-up typed then goes out while the conversation's prom
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
 its chat's focus — behind whatever you are reading then.
 
+## Scheduled tasks
+
+An agent sets a scheduled task with its `schedule_create` tool: a prompt that arrives in a chat on a cron schedule,
+in a timezone, once or again and again (`schedule_list` and `schedule_delete` show and remove them). The prompt
+begins "Scheduled task", so the Inbox knows it is not yours, and a slot missed while loki was closed fires once at the
+next start.
+
+A run that cannot reach the model (the Mac had no network, the provider was down) tries again after 5, 15 and 60
+minutes, its prompt saying it is another try. A turn that got through, or ended any other way, is not tried again, and
+the next slot due replaces a try still waiting. Any chat whose model could not be reached says so in its thread, with
+the provider's message ("the model could not be reached · 4 tries"), after a reload too.
+
 ## Tasks
 
 One task list shared by you and every agent, backed by

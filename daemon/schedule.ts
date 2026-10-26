@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import type { Delivery } from "./engine.ts";
 import { withKind } from "./tool-kinds.ts";
 
 /**
@@ -29,6 +30,10 @@ export interface ScheduledTask {
   created_at: string;
   last_fired_at: string | null;
   fire_count: number;
+  /** When its last firing could not reach the model, when it tries again (plan 037); absent otherwise. */
+  retry_at?: string | null;
+  /** How many tries that firing has had after the first, at most RETRY_AFTER_MINUTES.length. */
+  retries?: number;
 }
 
 interface Fields {
@@ -107,8 +112,25 @@ export function dueBetween(fields: Fields, timezone: string, from: Date, to: Dat
   return false;
 }
 
-/** How a schedule's prompt reaches its chat: in the daemon, as a message from loki that waits for a running turn to end (DaemonChats.deliver). */
-export type Fire = (agentId: string, conversationId: string, text: string) => Promise<void>;
+/**
+ * How a schedule's prompt reaches its chat: in the daemon, as a message from loki that waits for a running turn to end
+ * (DaemonChats.deliver). It resolves once the prompt is handed over, with how the turn ends where the engine can tell.
+ */
+export type Fire = (agentId: string, conversationId: string, text: string) => Promise<Delivery | null>;
+
+/**
+ * After a firing could not reach the model (no network, a provider down), how many minutes until each try again
+ * (plan 037): three tries, the last an hour on, which covers a Mac waking from sleep. Any other end is not tried again.
+ */
+export const RETRY_AFTER_MINUTES = [5, 15, 60];
+
+/** A task's prompt as it arrives; a retry says it is one, with when the first try was, in the task's timezone. */
+function promptOf(task: ScheduledTask, retry: boolean): string {
+  const text = `Scheduled task "${task.name}": ${task.prompt}`;
+  if (!retry || !task.last_fired_at) return text;
+  const first = new Intl.DateTimeFormat("en-GB", { timeZone: task.timezone, hour: "2-digit", minute: "2-digit" }).format(new Date(task.last_fired_at));
+  return `${text}\n\n(another try: at ${first} the model could not be reached)`;
+}
 
 /** The scheduled tasks in their file: `start` checks them once a minute and fires what came due, and the tools add, list and cancel them. */
 export class Schedules {
@@ -118,10 +140,13 @@ export class Schedules {
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
 
-  constructor(file: string, fire: Fire, report: (message: string) => void = () => {}) {
+  private readonly now: () => Date;
+
+  constructor(file: string, fire: Fire, report: (message: string) => void = () => {}, now: () => Date = () => new Date()) {
     this.file = file;
     this.fire = fire;
     this.report = report;
+    this.now = now;
   }
 
   list(): ScheduledTask[] {
@@ -179,7 +204,7 @@ export class Schedules {
    * its prompt goes out, against the list as it is then, so a task made or cancelled while another fires is kept. A tick
    * that starts while one is still firing (a slow chat) does nothing.
    */
-  async tick(now = new Date()): Promise<number> {
+  async tick(now = this.now()): Promise<number> {
     if (this.ticking) return 0;
     this.ticking = true;
     try {
@@ -187,28 +212,61 @@ export class Schedules {
       for (const { id } of this.list()) {
         const tasks = this.list();
         const task = tasks.find((t) => t.id === id);
-        if (task?.status !== "active") continue;
+        if (!task || task.status === "cancelled") continue;
         let due = false;
-        try {
-          due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
-        } catch (error) {
-          this.report(`schedule ${task.name}: ${String(error)}`);
-          continue;
-        }
-        if (!due) continue;
-        task.last_fired_at = now.toISOString();
-        task.fire_count += 1;
-        if (!task.recurring) task.status = "done";
+        if (task.status === "active")
+          try {
+            due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
+          } catch (error) {
+            this.report(`schedule ${task.name}: ${String(error)}`);
+            continue;
+          }
+        // A slot that comes due replaces a retry still waiting: one task never has two runs open.
+        const retry = !due && !!task.retry_at && Date.parse(task.retry_at) <= now.getTime();
+        if (!due && !retry) continue;
+        if (due) {
+          task.last_fired_at = now.toISOString();
+          task.fire_count += 1;
+          task.retries = 0;
+          if (!task.recurring) task.status = "done";
+        } else task.retries = (task.retries ?? 0) + 1;
+        task.retry_at = null;
         this.save(tasks);
         fired++;
-        await this.fire(task.agent_id, task.conversation_id, `Scheduled task "${task.name}": ${task.prompt}`).catch((error: unknown) =>
-          this.report(`schedule ${task.name} did not fire: ${String(error)}`),
-        );
+        const delivery = await this.fire(task.agent_id, task.conversation_id, promptOf(task, retry)).catch((error: unknown) => {
+          this.report(`schedule ${task.name} did not fire: ${String(error)}`);
+          return null;
+        });
+        // How the turn ends comes later; the tick does not wait for it, so one slow turn holds no other task back.
+        const firing = { fireCount: task.fire_count, retries: task.retries ?? 0 };
+        if (delivery)
+          void delivery.outcome.then(
+            (outcome) => this.settled(task.id, outcome, firing),
+            (error: unknown) => this.report(`schedule ${task.name}: ${String(error)}`),
+          );
       }
       return fired;
     } finally {
       this.ticking = false;
     }
+  }
+
+  /**
+   * A firing's turn ended (plan 037). One that could not reach the model is tried again after the next of
+   * RETRY_AFTER_MINUTES, while tries are left and the task has not fired anew since; anything else ends its tries.
+   */
+  settled(id: string, outcome: Awaited<Delivery["outcome"]>, firing: { fireCount: number; retries: number }): void {
+    const tasks = this.list();
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.status === "cancelled") return;
+    // The task fired again (a slot, or a retry) before this turn ended: that firing's own end decides.
+    if (task.fire_count !== firing.fireCount || (task.retries ?? 0) !== firing.retries) return;
+    const tries = task.retries ?? 0;
+    const wait = outcome.status === "unanswered" && outcome.reason === "model_error" ? RETRY_AFTER_MINUTES[tries] : undefined;
+    task.retry_at = wait === undefined ? null : new Date(this.now().getTime() + wait * 60_000).toISOString();
+    if (wait === undefined) task.retries = 0;
+    else this.report(`schedule ${task.name}: the model could not be reached; trying again in ${wait} minutes`);
+    this.save(tasks);
   }
 
   /** Check at start (a slot missed while closed) and then once a minute. */
