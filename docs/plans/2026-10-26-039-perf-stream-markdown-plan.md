@@ -23,7 +23,8 @@ That stays as it is.
 ## What changes
 
 1. **While a reply streams, it is drawn in blocks** (`streamBlocks`, `app/src/chat/stream-blocks.ts`): cut at blank
-   lines, never inside a fenced code block, each block its own memoised `Markdown` keyed by its place. A block before
+   lines, never inside a fenced code block, each block its own memoised `Markdown` keyed by where it starts in the
+   reply (which words added after it never change). A block before
    the last no longer changes, so it is neither parsed nor compared again; only the last one is, as its words arrive.
    Words keep their spans, so a new word still fades in and the words before it stay put.
 2. **When the turn ends the reply renders whole, as now**, so a finished message is exactly what it was.

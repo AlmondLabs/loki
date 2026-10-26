@@ -5,23 +5,29 @@ import { streamBlocks } from "../app/src/chat/stream-blocks.ts";
 import { Transcript } from "../app/src/chat/transcript.tsx";
 
 describe("a reply still being written, in blocks (plan 039)", () => {
+  const texts = (text: string) => streamBlocks(text).map((b) => b.text);
+
   test("blocks end at blank lines, however many", () => {
-    expect(streamBlocks("# Plan\n\nFirst para\nstill first\n\n\n- one\n- two\n\nlast wo")).toEqual([
-      "# Plan",
-      "First para\nstill first",
-      "- one\n- two",
-      "last wo",
-    ]);
-    expect(streamBlocks("")).toEqual([]);
-    expect(streamBlocks("one\n\n")).toEqual(["one"]);
+    expect(texts("# Plan\n\nFirst para\nstill first\n\n\n- one\n- two\n\nlast wo")).toEqual(["# Plan", "First para\nstill first", "- one\n- two", "last wo"]);
+    expect(texts("")).toEqual([]);
+    expect(texts("one\n\n")).toEqual(["one"]);
   });
 
   test("a fenced block keeps its blank lines, whether it is closed yet or not", () => {
     const code = "Run this:\n\n```ts\nconst a = 1;\n\nconst b = 2;\n```\n\nThen this.";
-    expect(streamBlocks(code)).toEqual(["Run this:", "```ts\nconst a = 1;\n\nconst b = 2;\n```", "Then this."]);
-    expect(streamBlocks("Run this:\n\n~~~~\nfirst\n\nsecond")).toEqual(["Run this:", "~~~~\nfirst\n\nsecond"]);
+    expect(texts(code)).toEqual(["Run this:", "```ts\nconst a = 1;\n\nconst b = 2;\n```", "Then this."]);
+    expect(texts("Run this:\n\n~~~~\nfirst\n\nsecond")).toEqual(["Run this:", "~~~~\nfirst\n\nsecond"]);
     // A shorter or different fence inside does not close it.
-    expect(streamBlocks("````md\n```\n\nstill code\n````\n\nafter")).toEqual(["````md\n```\n\nstill code\n````", "after"]);
+    expect(texts("````md\n```\n\nstill code\n````\n\nafter")).toEqual(["````md\n```\n\nstill code\n````", "after"]);
+  });
+
+  test("a block is named by where it starts, which words added after it do not move", () => {
+    const reply = "# Plan\n\n\nFirst para\nstill first\n\n```\na\n\nb\n```\n\nlast wo";
+    for (const block of streamBlocks(reply)) expect(reply.slice(block.at, block.at + block.text.length)).toBe(block.text);
+    const before = streamBlocks(reply);
+    const after = streamBlocks(`${reply}rds and more\n\nA new one`);
+    expect(after.slice(0, before.length).map((b) => b.at)).toEqual(before.map((b) => b.at));
+    expect(after.at(-1)?.at).toBeGreaterThan(before.at(-1)?.at ?? 0);
   });
 });
 

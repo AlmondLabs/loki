@@ -651,8 +651,8 @@ function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
       {cursor ? (
-        // Blocks are only added at the end, so a block's place is its key.
-        streamBlocks(m.text).map((block, i) => <LiveBlock key={i} text={block} />)
+        // A block is named by where it starts in the reply: words added after it leave it as it is.
+        streamBlocks(m.text).map((block) => <LiveBlock key={block.at} text={block.text} />)
       ) : (
         <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
           {m.text}
