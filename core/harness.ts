@@ -182,6 +182,15 @@ export function looksLikeQuestion(text: string | null): boolean {
 /** The most of a tool's input or output a step keeps: enough to read, not a whole log on every frame. */
 export const TOOL_TEXT_MAX = 4000;
 
+/**
+ * A copy of `s` that holds its own characters (plan 042). V8 keeps a cut of a long text as a view into the whole of it,
+ * so a 4,000-character cut of a megabyte of tool output kept the megabyte for as long as the daemon kept the step. A
+ * round trip through JSON is the one copy every engine makes whole, lone surrogates included.
+ */
+export function ownText(s: string): string {
+  return JSON.parse(JSON.stringify(s)) as string;
+}
+
 /** The line `cap` ends a cut text with. */
 const MORE = /\n… \d+ more characters$/;
 
@@ -193,11 +202,11 @@ const cap = (s: string): string => {
   if (s.length <= TOOL_TEXT_MAX) return s;
   const more = MORE.exec(s);
   if (more && s.length - more[0].length === TOOL_TEXT_MAX) return s;
-  return `${s.slice(0, TOOL_TEXT_MAX)}\n… ${s.length - TOOL_TEXT_MAX} more characters`;
+  return ownText(`${s.slice(0, TOOL_TEXT_MAX)}\n… ${s.length - TOOL_TEXT_MAX} more characters`);
 };
 
 const shrink = (v: unknown): unknown => {
-  if (typeof v === "string") return v.length > TOOL_TEXT_MAX ? v.slice(0, TOOL_TEXT_MAX) : v;
+  if (typeof v === "string") return v.length > TOOL_TEXT_MAX ? ownText(v.slice(0, TOOL_TEXT_MAX)) : v;
   if (Array.isArray(v)) return v.map(shrink);
   if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shrink(x)]));
   return v;

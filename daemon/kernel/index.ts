@@ -318,13 +318,21 @@ export class AgentStore {
   /** Every entry of a chat, oldest first, including those before its newest compaction. */
   async entries(conversation: Conversation, context: Context): Promise<EntryRecord[]> {
     const out: EntryRecord[] = [];
+    await this.eachEntry(conversation, context, (entry) => out.push(entry));
+    return out;
+  }
+
+  /**
+   * Every entry of a chat, oldest first, handed over a page at a time (plan 042): a reader that keeps less than the
+   * whole record, as the chat projection does, then never holds a long chat's every record at once.
+   */
+  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void): Promise<void> {
     let cursor: Parameters<Conversation["entries"]>[2];
     do {
       const page = await conversation.entries({ order: "ascending" }, 500, cursor, context);
-      out.push(...page.items);
+      for (const entry of page.items) fn(entry);
       cursor = page.next;
     } while (cursor !== undefined);
-    return out;
   }
 
   close(context: Context): Promise<void> {
