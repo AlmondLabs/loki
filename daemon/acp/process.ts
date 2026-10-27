@@ -14,7 +14,7 @@ import type { AcpAgentConfig } from "./agents.ts";
 export interface AcpHandlers {
   update(n: acp.SessionNotification): void;
   permission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse>;
-  /** The agent asks the person to open a page, such as an MCP server's sign-in (plan 042); a form it asks for is declined. */
+  /** The agent asks the person to open a page, such as an MCP server's sign-in (plan 044); a form it asks for is declined. */
   elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse>;
 }
 
@@ -106,7 +106,7 @@ export class AcpProcess {
       const init = await Promise.race([
         connection.agent.request(methods.agent.initialize, {
           protocolVersion: PROTOCOL_VERSION,
-          // Pages to open (an MCP server's sign-in, plan 042), shown as a card; no forms.
+          // Pages to open (an MCP server's sign-in, plan 044), shown as a card; no forms.
           clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false, elicitation: { url: {} } },
           clientInfo: { name: "loki", version: "1" },
         }),

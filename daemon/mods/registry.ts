@@ -180,7 +180,7 @@ export class ModRegistry {
     if (extension) this.registry.uninstall(extension);
   }
 
-  /** Every loaded mod's tools, for a chat on an ACP agent (plan 042); each runs as it does on loki's own engine. */
+  /** Every loaded mod's tools, for a chat on an ACP agent (plan 044); each runs as it does on loki's own engine. */
   chatTools(): ChatTool[] {
     return [...this.loaded.values()].flatMap((entry) => entry.pieces.tools.map(modChatTool));
   }

@@ -523,7 +523,7 @@ describe("ACP agents (plan 020)", () => {
     expect(without.words()).toMatch(/^system: none \| first: <loki-agent>\nYou are Ada.\n<\/loki-agent>/);
   });
 
-  test("a session opens with loki's tools and the agent's MCP servers, and runs the read-only ones without asking (plan 042)", async () => {
+  test("a session opens with loki's tools and the agent's MCP servers, and runs the read-only ones without asking (plan 044)", async () => {
     const asked: string[] = [];
     const servers: AcpChatsDeps["mcpServers"] = (agentId, conversationId) => {
       asked.push(`${agentId} ${conversationId}`);
@@ -552,7 +552,7 @@ describe("ACP agents (plan 020)", () => {
     expect(prompts.at(-1)).toBe(false);
   });
 
-  test("the agent's sign-in page is a card first, and opens in this Mac's browser once allowed (plan 042)", async () => {
+  test("the agent's sign-in page is a card first, and opens in this Mac's browser once allowed (plan 044)", async () => {
     const opened: string[] = [];
     const s = setup({ openUrl: (url) => opened.push(url) });
     const id = await s.chat();

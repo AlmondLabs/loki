@@ -3,7 +3,7 @@ import { defineTool, type ConversationId, type DocumentReader } from "@earendil-
 import { withKind, type KindedTool, type ToolKind } from "./tool-kinds.ts";
 
 /**
- * One call of a loki tool, whichever engine the chat runs on (plan 042): what the tool reads the chat through. On
+ * One call of a loki tool, whichever engine the chat runs on (plan 044): what the tool reads the chat through. On
  * loki's own engine it comes from pi-durable's tool API; for a chat on an ACP agent, from the agent's store and the
  * chat that loki's MCP endpoint was called for (daemon/acp/loki-tools.ts).
  */
@@ -24,7 +24,7 @@ export interface ChatToolResult {
 }
 
 /**
- * A tool of loki's that runs for any engine's chats (plan 042): memory, schedules, ask_user and the mods' tools. Its
+ * A tool of loki's that runs for any engine's chats (plan 044): memory, schedules, ask_user and the mods' tools. Its
  * kind is the one the approval gate reads on loki's engine; on an ACP agent, a read runs without the agent asking.
  */
 export interface ChatTool {

@@ -486,7 +486,7 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
   });
 });
 
-describe("the servers an agent has on, for its chats on an ACP agent (plan 042)", () => {
+describe("the servers an agent has on, for its chats on an ACP agent (plan 044)", () => {
   test("each passed as itself with its secrets filled in; one switched off, in its own folder or not found is left out", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-acp-"));
     const reported: string[] = [];

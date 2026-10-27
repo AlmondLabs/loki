@@ -164,7 +164,7 @@ export class McpTools {
   }
 
   /**
-   * The servers an agent has on, as an ACP session takes them (plan 042): the agent connects to each itself, with its
+   * The servers an agent has on, as an ACP session takes them (plan 044): the agent connects to each itself, with its
    * `${keychain:…}` values filled in, and signs in itself to one that wants OAuth (loki's sign-in stays loki's). A
    * local server's command goes by its full path, as ACP names it. A local server with its own folder (ACP has no
    * field for one), or whose command or secret cannot be found, is left out with a line in the daemon's log.

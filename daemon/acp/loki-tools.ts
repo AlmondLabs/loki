@@ -15,7 +15,7 @@ interface ChatKey {
 }
 
 /**
- * loki's own tools for chats on an ACP agent (plan 042): an MCP endpoint on loopback, handed to each session as an
+ * loki's own tools for chats on an ACP agent (plan 044): an MCP endpoint on loopback, handed to each session as an
  * HTTP server named `loki` with a key that names the chat, so every call runs as that chat on the same bodies loki's
  * engine runs (daemon/chat-tools.ts). Keys live in memory only; a session reopened after a restart gets a new one. The
  * MCP servers set up in loki are not served here: the agent connects to them itself (daemon/mcp/ acpServers).

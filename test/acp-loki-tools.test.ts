@@ -75,7 +75,7 @@ const http = (s: acp.McpServer | undefined) => {
   return s;
 };
 
-describe("loki's tools for a chat on an ACP agent (plan 042)", () => {
+describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
   test("a session gets loki's tools as one HTTP server, and each runs as the chat its key names", async () => {
     const { tools, conversationId } = await setup();
     const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));

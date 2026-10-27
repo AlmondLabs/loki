@@ -40,14 +40,14 @@ export interface AcpChatsDeps {
   /** The folder a chat with none set runs in. */
   homeDir: string;
   /**
-   * The MCP servers a chat's session opens with (plan 042): loki's own tools (daemon/acp/loki-tools.ts) and the
+   * The MCP servers a chat's session opens with (plan 044): loki's own tools (daemon/acp/loki-tools.ts) and the
    * servers set up in loki that are on for the agent, which it connects to itself; absent, none. Those over HTTP or SSE go only to an agent that
    * says it takes them.
    */
   mcpServers?: (agentId: string, conversationId: string) => Promise<acp.McpServer[]>;
-  /** Opens a web page in this Mac's browser: an MCP server's sign-in the agent asked for (plan 042); absent, none opens. */
+  /** Opens a web page in this Mac's browser: an MCP server's sign-in the agent asked for (plan 044); absent, none opens. */
   openUrl?: (url: string) => void;
-  /** Tools the agent runs without asking (plan 042): those that only read, as Claude Code names them. */
+  /** Tools the agent runs without asking (plan 044): those that only read, as Claude Code names them. */
   allowedTools?: (agentId: string) => string[];
   /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
   capture?: (event: string, properties: Record<string, unknown>) => void;
@@ -930,7 +930,7 @@ export class AcpChats {
   }
 
   /**
-   * The agent asks the person to open a page (plan 042): Claude Code's sign-in to an MCP server, whose answer comes
+   * The agent asks the person to open a page (plan 044): Claude Code's sign-in to an MCP server, whose answer comes
    * back to a listener Claude Code runs on this Mac. A loki card asks first, in the chat, on the Mac and the phone;
    * allowed, the page opens in this Mac's browser wherever the card was answered. Claude Code keeps the token for
    * every later session, so each server asks once. A form, or a page that is not a web address, is declined; the card

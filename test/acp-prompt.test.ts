@@ -28,7 +28,7 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       // loki's own chats keep the memory tools' wording.
       expect(memorySection(root)).toContain("read one with memory_read");
       expect(agentPrompt(dir, "agent-nobody", null, false, globalSkills)).toBeNull();
-      // With loki's tools (plan 042), the memory is changed through them, as in loki's own chats.
+      // With loki's tools (plan 044), the memory is changed through them, as in loki's own chats.
       const withTools = must(agentPrompt(dir, id, "Ada", true, globalSkills));
       expect(withTools).toContain("mcp__loki__memory_read");
       expect(withTools).toContain("never by editing the files");

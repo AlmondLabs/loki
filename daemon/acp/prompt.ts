@@ -5,7 +5,7 @@ import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
 
 /**
  * What an ACP agent's system prompt gains for one of loki's agents (plan 020, KD5): who it is, its memory (persona
- * included, as loki's own chats have it) and its skills. With loki's tools (plan 042) it changes its memory with them,
+ * included, as loki's own chats have it) and its skills. With loki's tools (plan 044) it changes its memory with them,
  * as in loki's own chats; without them, the memory is named by path for it to read and loki keeps it up to date through
  * its passes. The skills are named by path either way. Null when the agent has neither.
  */

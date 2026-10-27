@@ -177,7 +177,7 @@ every chat gets, the chats, then the mods.
     `pi.tool-result` entries in the chat's own store, written without pi (`AgentStore.appendEntries`), so the
     projection, the Inbox, history and the passes read it as any chat; its reported usage goes into `pi.usage` for
     the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona, memory and skills go in its
-    system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts` (plan 042): an MCP
+    system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts` (plan 044): an MCP
     endpoint on a loopback port, one HTTP server per session with a key that names the chat, running the same tool
     bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are handed over
     as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in asks

@@ -225,7 +225,7 @@ async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
     throw error;
   }
 }
-// loki's own tools, served on loopback to chats on an ACP agent (plan 042): the same tool bodies loki's engine runs.
+// loki's own tools, served on loopback to chats on an ACP agent (plan 044): the same tool bodies loki's engine runs.
 const lokiTools = new LokiTools({
   tools: () => [...memoryTools(backend), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
   stores,
