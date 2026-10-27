@@ -6,7 +6,7 @@ import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
-import type { MessageLayout } from "../chat/transcript";
+import type { MessageLayout, TranscriptRow } from "../chat/transcript";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction } from "../shell/keymap";
@@ -29,6 +29,8 @@ const TABS: ReadonlyArray<Tab<DeskTab>> = [
   { id: "desk", label: "Canvas" },
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
+/** No rows yet: what the unread mark and the inline widgets read while the first page loads. */
+const NO_ROWS: TranscriptRow[] = [];
 
 /** The props of the chat pane (`DeskPane`): the chat and Inbox models, whether the pane is on screen, its tab, and the inset chat's layout. */
 export interface DeskPaneProps extends DeskConversationHandlers {
@@ -255,10 +257,12 @@ function DeskMessages({
   onShowDesk: () => void;
 }) {
   const { agentId, conversationId, agentName } = desk;
-  const rows = useThreadRows(catchUp, agentId, conversationId) ?? [];
-  const dividerAt = unreadBoundary(rows, item?.unread ?? false, item?.seenAt, heldLook);
+  // Undefined until the first page came, so the thread can say it is loading (plan 041); the marks read an empty list.
+  const rows = useThreadRows(catchUp, agentId, conversationId);
+  const list = rows ?? NO_ROWS;
+  const dividerAt = unreadBoundary(list, item?.unread ?? false, item?.seenAt, heldLook);
   // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
-  const { widgets, inline } = useInlineWidgets(desk, desk.scope, rows, agentName, { onOpen: onFrameWidget });
+  const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
   return <Conversation {...conversation} view={{ ...view, rows }} agentName={agentName} layout={layout} />;
 }

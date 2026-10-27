@@ -505,7 +505,8 @@ export class ThreadModel {
       for (let i = rows.length - 1; i >= 0; i--) {
         const r = rows[i];
         if (r.role === "user" || r.role === "assistant") return null;
-        if (r.role === "tool" && (r.tool?.name ?? r.text) === name && r.tool?.output === undefined && !r.tool?.failed) return r;
+        // A lean row (a page's, plan 041) is a finished call whose output stayed behind.
+        if (r.role === "tool" && (r.tool?.name ?? r.text) === name && r.tool?.output === undefined && !r.tool?.failed && r.tool?.row === undefined) return r;
       }
     }
     return null;

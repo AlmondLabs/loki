@@ -451,6 +451,41 @@ describe("bridge history", () => {
     bridge.onMessage(c, { type: "history_get", request_id: "h2", agent_id: "a1", conversation_id: "unknown" });
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ request_id: "h2", messages: [] });
   });
+  test("history_get sends tool rows lean, and history_step_get answers one row's whole step (plan 041)", () => {
+    const step = { name: "Bash", id: "t1", input: "ls -la", output: "a\nb" };
+    const bridge = bridgeOf({
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
+      transcript: () => ({
+        rows: [
+          { role: "user", text: "hi" },
+          { role: "tool", text: "Bash · ls -la", tool: step },
+        ],
+        more: true,
+        start: 7,
+      }),
+      step: (agentId, conversationId, row) => (agentId === "a1" && conversationId === "c9" && row === 8 ? step : null),
+    });
+    const c = client("c1");
+    bridge.onConnect(c);
+    bridge.onMessage(c, { type: "history_get", request_id: "h1", agent_id: "a1", conversation_id: "c9" });
+    const reply = must(
+      c.sent.find((m) => m.type === "history"),
+      "the history reply",
+    );
+    expect(reply.messages).toEqual([
+      { role: "user", text: "hi" },
+      { role: "tool", text: "Bash · ls -la", tool: { name: "Bash", id: "t1", row: 8 } },
+    ]);
+    bridge.onMessage(c, { type: "history_step_get", request_id: "s1", agent_id: "a1", conversation_id: "c9", row: 8 });
+    bridge.onMessage(c, { type: "history_step_get", request_id: "s2", agent_id: "a1", conversation_id: "c9", row: 7 });
+    expect(c.sent.filter((m) => m.type === "history_step")).toEqual([
+      { type: "history_step", request_id: "s1", step },
+      { type: "history_step", request_id: "s2", step: null },
+    ]);
+  });
   test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {
     const asked: number[] = [];
     const bridge = bridgeOf({

@@ -91,7 +91,8 @@ export const Transcript = memo(function Transcript({
       if (end === undefined) return null; // inside a run, drawn with its first row
       const run = rows.slice(i, end);
       const tail = run[run.length - 1];
-      const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output;
+      // A lean row from a page (plan 041) finished; its output stayed on the Mac the chat lives on.
+      const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
       return (
         <Fragment key={i}>
           {dividerAt === i && <Divider day={timed ? null : dividerDay} />}

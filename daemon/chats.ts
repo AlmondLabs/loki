@@ -5,7 +5,7 @@ import { conversationDirName } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
 import { entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type Step } from "../core/attention/thread.ts";
-import type { TranscriptRow } from "../core/attention/transcript.ts";
+import type { ToolStep, TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
@@ -276,6 +276,13 @@ export class ChatProjection implements ChatSource {
     const end = before === null ? all.length : Math.max(0, Math.min(all.length, Math.floor(before)));
     const start = Math.max(0, end - Math.max(1, Math.floor(limit)));
     return { rows: all.slice(start, end), more: start > 0, start };
+  }
+
+  /** The whole step of the tool row at position `row` of a chat's thread, as a lean page left it out (plan 041). */
+  step(conversationId: string, agentId: string | null, row: number): ToolStep | null {
+    const chat = this.find(conversationId, agentId);
+    const r = chat ? this.folded(chat)[row] : undefined;
+    return r?.role === "tool" ? (r.tool ?? null) : null;
   }
 
   /** A chat's whole thread, folded once and fed only the entries that arrived since it was last read. */

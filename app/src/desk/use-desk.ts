@@ -14,6 +14,7 @@ import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
 import type { Rest } from "../../../core/attention/rest.ts";
 import type { TranscriptRow } from "../chat/transcript";
+import type { ToolStep } from "../../../core/attention/transcript.ts";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
 import { requestResult, type InputOf, type Replies, type ReplyOf, type RequestName, type RequestResult } from "../../../core/frames.ts";
@@ -57,6 +58,11 @@ const recallSnapshot = (r: RequestResult<RecallReply>): RecallSnapshot | null =>
 
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
+/**
+ * How long a page of a chat's history, or one of its steps, may take (plan 041): a chat on another Mac comes over the
+ * tailnet from a Mac that may have just woken, which took up to 22 seconds on 2026-10-27; this Mac answers in milliseconds.
+ */
+const HISTORY_WAIT_MS = 30_000;
 
 /**
  * The tab's view of the desk: manifest + geometry per scope, synced from the
@@ -378,16 +384,20 @@ export function useDesk() {
       conversationId: string,
       limit?: number,
       before?: number,
-    ): Promise<{ rows: TranscriptRow[]; more: boolean; start?: number }> =>
+    ): Promise<{ rows: TranscriptRow[]; more: boolean; start?: number } | null> =>
       request(
         "history_get",
         { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}), ...(before !== undefined ? { before } : {}) },
-        8000,
+        HISTORY_WAIT_MS,
       ).then((r) => {
-        if (!r.ok) return { rows: [], more: false };
+        // Null, not empty: a page that did not come is a chat not loaded, which the thread says (plan 041).
+        if (!r.ok) return null;
         setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
         return { rows: r.reply.messages, more: r.reply.more, start: r.reply.start };
       }),
+    /** The whole step of a lean tool row (plan 041), from the Mac the chat lives on; null when it did not come. */
+    loadStep: (agentId: string, conversationId: string, row: number): Promise<ToolStep | null> =>
+      request("history_step_get", { agent_id: agentId, conversation_id: conversationId, row }, HISTORY_WAIT_MS).then((r) => (r.ok ? r.reply.step : null)),
     /** What the Mac a new chat would live on lacks for its agent (plan 023, U10): lines for the person, none when nothing. */
     requirements: (agentId: string, home?: string): Promise<string[]> =>
       request("chat_requirements", { agent_id: agentId, ...(home ? { home } : {}) }, 8000).then((r) => (r.ok ? r.reply.missing : [])),

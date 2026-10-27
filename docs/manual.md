@@ -346,7 +346,8 @@ changed, so it pairs once more.
 **The agent's work on the phone.** A run of tool calls is one line in the chat ("Ran 4 commands, used 3 tools · 2
 failed"). Tapping it opens a sheet, as in Claude's app: each step is what kind it was ("Ran", "Read memory", "Asked an
 agent") over what it was for on one line, and a step opens to its description, command and output under the tool's
-name.
+name. A chat's history arrives without each step's command and output, which were most of its size; opening a
+step asks the Mac the chat lives on for them ("Loading this step…"), on the phone and the desktop alike.
 
 <img src="images/phone-steps-sheet.png" width="300" alt="The phone's steps sheet: each step as what kind it was over what it was for, with a chevron, two marked failed">
 
@@ -379,6 +380,9 @@ reachable; a closed lid still sleeps.
    living on another Mac than its agent's has a small laptop icon (hover it for "on Mac mini"). The switcher marks
    every chat on the other Mac, and the phone's Home draws the same laptop and names each agent's Mac. While a Mac is asleep or off, its chats stay listed
    with a moon, "waiting for Mac mini": they do not open and take no message until it is back. Nothing is queued.
+   Opening a chat that lives on the other Mac says "loading from Mac mini…" until its messages come; if they do not
+   come within half a minute, it says "could not load this chat from Mac mini" with **try again**, rather than
+   showing an empty chat.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
    on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
    schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP

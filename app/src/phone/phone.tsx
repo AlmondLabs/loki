@@ -191,6 +191,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,
+    loadLocalStep: attention.loadStep,
     listConversations: attention.listInbox,
     capture,
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.

@@ -25,6 +25,7 @@ import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
+import type { ToolStep } from "../../../core/attention/transcript.ts";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
 import { ModeSwitch } from "./permission-mode";
 import { engineControls } from "./engine-controls";
@@ -34,7 +35,7 @@ import { useDraft, type ControlledDraft } from "./use-draft";
 import { useModelAndMode } from "./use-model-and-mode";
 import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
-import { StepsTouch } from "./tool-steps";
+import { StepsLoad, StepsTouch } from "./tool-steps";
 import { readTurnError, retryMessage } from "./turn-error";
 import { useRevealMessage } from "../tasks/message-tasks";
 
@@ -55,6 +56,12 @@ export interface ConversationView {
   question?: PendingQuestion | null;
   /** Load the page of history older than `rows` (the reader reached the top); null or absent when there is none. */
   older?: (() => void) | null;
+  /** The thread's first page did not come (plan 041): try again. Null or absent while it loads, or once it came. */
+  loadFailed?: (() => void) | null;
+  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
+  loadStep?: (row: number) => Promise<ToolStep | null>;
+  /** The name of the Mac the chat lives on, when it is another one: the thread says it is loading from there. */
+  home?: string | null;
 }
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
@@ -276,6 +283,9 @@ export function Conversation({
           onCancelQueued={actions.onCancelQueued}
           onRetry={(text) => actions.onSend(text)}
           older={view.older ?? null}
+          loadFailed={view.loadFailed ?? null}
+          loadStep={view.loadStep}
+          home={view.home ?? null}
           layout={layout}
           style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }}
         />
@@ -483,10 +493,31 @@ export const Thread = forwardRef<
     onCancelQueued?: (text: string) => void;
     onRetry?: (text: string) => void;
     older?: (() => void) | null;
+    loadFailed?: (() => void) | null;
+    loadStep?: (row: number) => Promise<ToolStep | null>;
+    home?: string | null;
     layout?: MessageLayout;
     style?: CSSProperties;
   }
->(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, older = null, layout, style }, ref) {
+>(function Thread(
+  {
+    rows,
+    status = "idle",
+    error = null,
+    agentName,
+    waiting = false,
+    dim = true,
+    onCancelQueued,
+    onRetry,
+    older = null,
+    loadFailed = null,
+    loadStep,
+    home = null,
+    layout,
+    style,
+  },
+  ref,
+) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
@@ -509,6 +540,12 @@ export const Thread = forwardRef<
     cancelQueuedRef.current = onCancelQueued;
   }, [onCancelQueued]);
   const cancelQueued = useCallback((row: TranscriptRow) => cancelQueuedRef.current?.(row.text), []);
+  // The step loader the same way: a fresh one each render would redraw every run of steps through the context.
+  const loadStepRef = useRef(loadStep);
+  useEffect(() => {
+    loadStepRef.current = loadStep;
+  }, [loadStep]);
+  const stableLoadStep = useCallback((row: number) => loadStepRef.current?.(row) ?? Promise.resolve(null), []);
   const who = agentName ?? "the agent";
   return (
     <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -531,27 +568,37 @@ export const Thread = forwardRef<
           ...style,
         }}
       >
-        {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
+        {!rows && !loadFailed && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>{home ? `loading from ${home}…` : "loading the thread…"}</div>}
+        {!rows && loadFailed && (
+          <div className="loki-thread-error" role="alert">
+            <span>{home ? `could not load this chat from ${home}` : "could not load this chat"}</span>
+            <Button size="sm" onClick={loadFailed}>
+              try again
+            </Button>
+          </div>
+        )}
         {rows?.length === 0 && (
           <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>
         )}
         {rows && (
-          <Transcript
-            rows={rows}
-            streaming={status === "streaming"}
-            dim={dim}
-            onCancelQueued={onCancelQueued ? cancelQueued : undefined}
-            people={layout?.people}
-            dividerAt={layout?.dividerAt}
-            dividerDay={layout?.dividerDay}
-            widgets={layout?.widgets}
-            onFrameWidget={layout?.onFrameWidget}
-            onShowDesk={layout?.onShowDesk}
-            inline={layout?.inline}
-            from={start}
-            arrivedFrom={arrivedFrom}
-            busy={status !== "idle"}
-          />
+          <StepsLoad.Provider value={stableLoadStep}>
+            <Transcript
+              rows={rows}
+              streaming={status === "streaming"}
+              dim={dim}
+              onCancelQueued={onCancelQueued ? cancelQueued : undefined}
+              people={layout?.people}
+              dividerAt={layout?.dividerAt}
+              dividerDay={layout?.dividerDay}
+              widgets={layout?.widgets}
+              onFrameWidget={layout?.onFrameWidget}
+              onShowDesk={layout?.onShowDesk}
+              inline={layout?.inline}
+              from={start}
+              arrivedFrom={arrivedFrom}
+              busy={status !== "idle"}
+            />
+          </StepsLoad.Provider>
         )}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">

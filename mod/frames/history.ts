@@ -1,5 +1,5 @@
 import type { WidgetLogEntry } from "../../core/desk-core.ts";
-import type { TranscriptRow } from "../../core/attention/transcript.ts";
+import { leanPage, type ToolStep, type TranscriptRow } from "../../core/attention/transcript.ts";
 import type { InboxRow } from "../../core/frame-types.ts";
 import { HISTORY_MAX, HISTORY_PAGE } from "../desks.ts";
 import { reply, type FrameHandlers } from "./context.ts";
@@ -16,6 +16,8 @@ export interface HistoryDeps {
     limit: number,
     before: number | null,
   ) => { rows: TranscriptRow[]; more: boolean; start: number };
+  /** The whole step of the tool row at position `row` of a chat's log; null when there is none (plan 041). */
+  step?: (agentId: string | null, conversationId: string, row: number) => ToolStep | null;
   /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
   widgetLog?: (agentId: string | null, conversationId: string) => WidgetLogEntry[];
   /** Every open conversation of the user's own agents, with its digest, for the Inbox (mod/desks.ts). */
@@ -33,12 +35,14 @@ export function historyFrames(deps: HistoryDeps): FrameHandlers {
       return reply({
         agent_id: agentId,
         conversation_id: conversationId,
-        messages: page.rows,
+        // Lean: a tool row's input and output come when it is opened (history_step_get, plan 041).
+        messages: leanPage(page.rows, page.start),
         more: page.more,
         start: page.start,
         widget_log: deps.widgetLog?.(agentId, conversationId) ?? [],
       });
     },
+    history_step_get: ({ agent_id: agentId, conversation_id: conversationId, row }) => reply({ step: deps.step?.(agentId, conversationId, row) ?? null }),
     inbox_list: () => reply({ conversations: deps.listInbox?.() ?? [] }),
   };
 }
