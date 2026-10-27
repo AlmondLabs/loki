@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { CURRENT_SQLITE_SCHEMA_VERSION } from "@earendil-works/pi-durable/storage/sqlite";
 import { AgentStore, type StoreOptions } from "./index.ts";
 import { backupBeforeMigration } from "../store-backup.ts";
+import { acpConversations, markToolNamesDone, renameStoredTools, toolNamesDone } from "../store-tool-names.ts";
 
 /**
  * Every agent's store (plan 017, KTD2, KTD18): one pi-durable Harness over one SQLite file per agent, opened on first
@@ -33,13 +34,25 @@ export class StoreManager {
     this.report = report;
     this.openStore =
       openStore ??
-      ((file) => {
+      (async (file) => {
         mkdirSync(dir, { recursive: true });
         // A newer pi-durable migrates the store as it opens it, for good: copy it first (plan 039). A copy that fails
         // stops the store from opening, reported, rather than leaving it with no way back.
         const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION);
         if (copy) report(`store ${file} copied to ${copy} before pi-durable migrates it`);
-        return AgentStore.open({ file }, options, context);
+        const renaming = !toolNamesDone(file);
+        const store = await AgentStore.open({ file }, options, context);
+        // Saved chats take loki's tool names now, once, before anything reads them (plan 044); copied first, as above.
+        if (renaming) {
+          const renamed = renameStoredTools(
+            file,
+            await acpConversations(store, context),
+            join(dir, `backup-tool-names-${new Date().toISOString().slice(0, 10)}`),
+          );
+          if (renamed.backup) report(`store ${file}: ${renamed.entries} saved tool calls and results renamed, copied first to ${renamed.backup}`);
+          markToolNamesDone(file);
+        }
+        return store;
       });
   }
 

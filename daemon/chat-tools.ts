@@ -11,7 +11,7 @@ export interface ChatCall {
   /** The agent's store, for the chat's and the agent's documents (ChatDoc, AgentInfoDoc). */
   read: DocumentReader;
   conversationId: ConversationId;
-  /** Unique to this call, for the requests it makes of the person (an ask_user card). */
+  /** Unique to this call, for the requests it makes of the person (a user_ask card). */
   callId: string;
   signal: AbortSignal;
   /** Output streamed while the tool runs; dropped where the engine shows none. */
@@ -24,7 +24,7 @@ export interface ChatToolResult {
 }
 
 /**
- * A tool of loki's that runs for any engine's chats (plan 044): memory, schedules, ask_user and the mods' tools. Its
+ * A tool of loki's that runs for any engine's chats (plan 044): memory, schedules, user_ask and the mods' tools. Its
  * kind is the one the approval gate reads on loki's engine; on an ACP agent, a read runs without the agent asking.
  */
 export interface ChatTool {

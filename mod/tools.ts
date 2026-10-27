@@ -10,7 +10,7 @@ import type { TaskStore } from "./tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 /**
- * Two desk tools, and tasks when Tasks is ready. Rendering and authoring are file writes, not tool calls — the
+ * Two canvas tools, and four task tools when Tasks is ready. Rendering and authoring are file writes, not tool calls — the
  * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
  * reading back and for directing attention.
  */
@@ -53,7 +53,7 @@ export function scopeForCall(deps: ToolDeps, ctx: { args?: Record<string, unknow
 }
 
 /**
- * A desk's widgets as desk_state answers: each one's file, kind, title and data with the person's edits merged in, its
+ * A desk's widgets as canvas_read answers: each one's file, kind, title and data with the person's edits merged in, its
  * place on the desk when it has one, and any error.
  */
 export function deskSnapshot(deps: ToolDeps, scope: Scope) {
@@ -91,8 +91,8 @@ interface LokiTool {
 const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 /**
- * Registers the agent's tools with the daemon (desk_state, desk_camera, and tasks when Tasks is ready); returns
- * the functions that unregister them.
+ * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and task_create, task_list, task_comment and
+ * task_close when Tasks is ready); returns the functions that unregister them.
  */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
@@ -121,7 +121,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   disposers.push(
     tools.register({
-      name: "desk_state",
+      name: "canvas_read",
       annotations: { readOnly: true },
       description:
         "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
@@ -140,9 +140,9 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       },
       async run(ctx) {
         const args = ctx.args;
-        log("tool:desk_state:start", args);
+        log("tool:canvas_read:start", args);
         // A scan must never hold a turn hostage; the manifest is at most one scan stale.
-        await withTimeout(deps.widgets.rescan(), 2000, "desk_state rescan", undefined);
+        await withTimeout(deps.widgets.rescan(), 2000, "canvas_read rescan", undefined);
         const scope = scopeForCall(deps, ctx);
         const out: Record<string, unknown> = {
           desk: scope,
@@ -155,7 +155,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         }
         const pending = [...deps.gestures.peek(scope), ...(scope !== SHARED_SCOPE ? deps.gestures.peek(SHARED_SCOPE) : [])];
         if (pending.length) out.pending_canvas_activity = pending;
-        log("tool:desk_state:done", { desk: scope, widgets: (out.widgets as unknown[]).length });
+        log("tool:canvas_read:done", { desk: scope, widgets: (out.widgets as unknown[]).length });
         return JSON.stringify(out, null, 2);
       },
     }),
@@ -163,7 +163,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   disposers.push(
     tools.register({
-      name: "desk_camera",
+      name: "canvas_focus",
       annotations: { readOnly: true },
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
@@ -173,7 +173,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       parameters: {
         type: "object",
         properties: {
-          widget_id: { type: "string", description: 'One widget id as returned by desk_state, e.g. "shared/sleep"' },
+          widget_id: { type: "string", description: 'One widget id as returned by canvas_read, e.g. "shared/sleep"' },
           widget_ids: { type: "array", items: { type: "string" }, description: "Several widget ids to fit in view together" },
           dwell: { type: "number", description: "Milliseconds to hold before returning (0–8000)." },
         },
@@ -186,10 +186,10 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           : typeof args.widget_id === "string" && args.widget_id
             ? [args.widget_id]
             : [];
-        log("tool:desk_camera", { ids, dwell: args.dwell });
+        log("tool:canvas_focus", { ids, dwell: args.dwell });
         if (ids.length === 0) return { status: "error", content: "give widget_id or widget_ids" };
         const missing = ids.filter((id) => !deps.widgets.get(id));
-        if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check desk_state` };
+        if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read` };
         const scopes = new Set(ids.map(scopeOfId));
         const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE; // mixed desks: every tab may have them
         deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
@@ -204,106 +204,166 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
 
   if (deps.tasks) {
     const store = deps.tasks;
+    /** The call's chat and agent, as a task's stamp and the ownership check read them. */
+    const who = (ctx: Call) => ({ conversation: ctx.conversation.id, agentId: ctx.agent.id, agent: ctx.agent.name });
+    /** A task of this conversation's, or the error that says why it is not one. */
+    const ownOrError = async (
+      id: unknown,
+      conversation: string,
+      doing: "task_comment" | "task_close",
+    ): Promise<{ task: Task } | { error: { status: "error"; content: string } }> => {
+      const error = (content: string) => ({ error: { status: "error" as const, content } });
+      if (typeof id !== "string") return error(`${doing} needs id`);
+      const task = await store.find(id);
+      if (!task) return error(`no task ${id} in Tasks`);
+      if (ownTask(task, conversation)) return { task };
+      return error(
+        `${id} is not this conversation's task${task.metadata.assigned_to ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${doing === "task_close" ? "closed" : "commented on"} here`,
+      );
+    };
+    /** A tool body's error as the agent reads it. */
+    const failed = (err: unknown) => ({ status: "error", content: err instanceof Error ? err.message : String(err) });
+    const idArg = { type: "string", description: "The task id (lk-…)." };
+
     disposers.push(
       tools.register({
-        name: "tasks",
+        name: "task_create",
         description:
-          "The user's Tasks: one task list shared by the user and every agent (beads). Use it when the user asks to " +
-          "note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your own " +
-          "initiative mid-task. `create` files a task (title, description, labels, priority 0–4; the source conversation, " +
-          "desk and folder are stamped automatically) and returns its id: tell the user the id. `list` shows this " +
-          "conversation's tasks (or every open task with all:true). `comment` adds progress and `close` finishes one with a " +
-          "reason, on this conversation's tasks only: those assigned to it, or filed from it and not assigned elsewhere. " +
-          "Only the user closes a task the user filed: your `close` marks it done and waiting for the user to confirm, " +
-          "so say what you did in the reason. Comment on small steps; close only when the whole task is done. " +
-          "When the tasks assigned to this conversation change, the new list is attached to the user's next message inside <loki-tasks>.",
+          "File a task in the user's Tasks: one task list shared by the user and every agent (beads). Use it when the user " +
+          "asks to note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your " +
+          "own initiative mid-task. The source conversation, desk and folder are stamped automatically; it returns the " +
+          "task's id: tell the user the id. When the tasks assigned to this conversation change, the new list is attached " +
+          "to the user's next message inside <loki-tasks>.",
         parameters: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["create", "list", "comment", "close"], description: "What to do." },
-            title: { type: "string", description: 'create: one line, imperative ("rotate the SSO creds before the audit").' },
-            description: { type: "string", description: "create: what, why, where to look. Enough for someone starting cold." },
-            labels: {
-              type: "array",
-              items: { type: "string" },
-              description: "create: short tags (aws, security, docs). The project's folder name is added for you.",
-            },
-            priority: { type: "number", description: "create: 0 (urgent) to 4 (someday); default 2." },
-            id: { type: "string", description: "comment / close: the task id (lk-…)." },
-            text: { type: "string", description: "comment: the progress note." },
-            reason: { type: "string", description: "close: what was done, one line; the user reads it when confirming a task they filed." },
-            all: { type: "boolean", description: "list: every open task in Tasks, not just this conversation's." },
+            title: { type: "string", description: 'One line, imperative ("rotate the SSO creds before the audit").' },
+            description: { type: "string", description: "What, why, where to look. Enough for someone starting cold." },
+            labels: { type: "array", items: { type: "string" }, description: "Short tags (aws, security, docs). The project's folder name is added for you." },
+            priority: { type: "number", description: "0 (urgent) to 4 (someday); default 2." },
           },
-          required: ["action"],
+          required: ["title"],
           additionalProperties: false,
         },
         async run(ctx) {
-          const args = ctx.args;
-          const action = argText(args.action);
-          const conversation = ctx.conversation.id;
-          const agentId = ctx.agent.id;
-          const agent = ctx.agent.name;
-          log("tool:tasks", { action, agent, conversation });
+          const { args } = ctx;
+          const { conversation, agentId, agent } = who(ctx);
+          log("tool:task_create", { agent, conversation });
           try {
-            if (action === "create") {
-              const task = await store.create({
-                title: argText(args.title),
-                description: typeof args.description === "string" ? args.description : undefined,
-                labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
-                priority: typeof args.priority === "number" ? args.priority : undefined,
-                stamp: { by: "agent", agent, agentId, conversation, desk: scopeForCall(deps, ctx), folder: deps.folderFor?.(agentId, conversation) ?? null },
-              });
-              deps.broadcast({ type: "tasks_changed" });
-              return JSON.stringify({ filed: task.id, title: task.title, priority: task.priority, labels: task.labels });
-            }
-            if (action === "list") {
-              const tasks = await store.list();
-              const mine = args.all === true ? tasks : tasks.filter((t) => ownTask(t, conversation));
-              return JSON.stringify(
-                mine.map((t) => ({
-                  id: t.id,
-                  title: t.title,
-                  status: t.status,
-                  priority: t.priority,
-                  labels: t.labels,
-                  assigned_to: t.metadata.assigned_to ?? null,
-                  description: t.description,
-                })),
-                null,
-                2,
-              );
-            }
-            if (action === "comment" || action === "close") {
-              if (typeof args.id !== "string") return { status: "error", content: `${action} needs id` };
-              if (action === "comment" && typeof args.text !== "string") return { status: "error", content: "comment needs id and text" };
-              const task = await store.find(args.id);
-              if (!task) return { status: "error", content: `no task ${args.id} in Tasks` };
-              if (!ownTask(task, conversation))
-                return {
-                  status: "error",
-                  content: `${args.id} is not this conversation's task${task.metadata.assigned_to ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here`,
-                };
-              if (action === "comment") {
-                await store.comment(args.id, String(args.text));
-                // The note shows on the message the task came from (its chip), so other tabs refetch.
-                deps.broadcast({ type: "tasks_changed" });
-                return `noted on ${args.id}`;
-              }
-              if (task.status === "closed") return `${args.id} is already closed`;
-              const reason = typeof args.reason === "string" ? args.reason : undefined;
-              if (task.metadata.by === "you") {
-                // The user's own task: done when the user says so (Tasks › Waiting for you).
-                await store.askDone(args.id, { reason, by: agent });
-                deps.broadcast({ type: "tasks_changed" });
-                return `${args.id} was filed by the user: it is marked done and waits for the user to confirm (or reopen it). It stays open until then.`;
-              }
-              await store.close([args.id], reason, { actor: task.assignee ?? agent });
-              deps.broadcast({ type: "tasks_changed" });
-              return `${args.id} closed`;
-            }
-            return { status: "error", content: `unknown action "${action}" — create, list, comment, close` };
+            const task = await store.create({
+              title: argText(args.title),
+              description: typeof args.description === "string" ? args.description : undefined,
+              labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
+              priority: typeof args.priority === "number" ? args.priority : undefined,
+              stamp: { by: "agent", agent, agentId, conversation, desk: scopeForCall(deps, ctx), folder: deps.folderFor?.(agentId, conversation) ?? null },
+            });
+            deps.broadcast({ type: "tasks_changed" });
+            return JSON.stringify({ filed: task.id, title: task.title, priority: task.priority, labels: task.labels });
           } catch (err) {
-            return { status: "error", content: err instanceof Error ? err.message : String(err) };
+            return failed(err);
+          }
+        },
+      }),
+    );
+
+    disposers.push(
+      tools.register({
+        name: "task_list",
+        annotations: { readOnly: true },
+        description: "List this conversation's tasks in the user's Tasks: those assigned to it, or filed from it; with all:true, every open task.",
+        parameters: {
+          type: "object",
+          properties: { all: { type: "boolean", description: "Every open task in Tasks, not just this conversation's." } },
+          additionalProperties: false,
+        },
+        async run(ctx) {
+          const { conversation } = who(ctx);
+          log("tool:task_list", { conversation });
+          try {
+            const tasks = await store.list();
+            const mine = ctx.args.all === true ? tasks : tasks.filter((t) => ownTask(t, conversation));
+            return JSON.stringify(
+              mine.map((t) => ({
+                id: t.id,
+                title: t.title,
+                status: t.status,
+                priority: t.priority,
+                labels: t.labels,
+                assigned_to: t.metadata.assigned_to ?? null,
+                description: t.description,
+              })),
+              null,
+              2,
+            );
+          } catch (err) {
+            return failed(err);
+          }
+        },
+      }),
+    );
+
+    disposers.push(
+      tools.register({
+        name: "task_comment",
+        description:
+          "Add a progress note to one of this conversation's tasks (assigned to it, or filed from it and not assigned elsewhere). Comment on small steps.",
+        parameters: {
+          type: "object",
+          properties: { id: idArg, text: { type: "string", description: "The progress note." } },
+          required: ["id", "text"],
+          additionalProperties: false,
+        },
+        async run(ctx) {
+          const { conversation } = who(ctx);
+          log("tool:task_comment", { conversation });
+          try {
+            if (typeof ctx.args.text !== "string") return { status: "error", content: "task_comment needs id and text" };
+            const own = await ownOrError(ctx.args.id, conversation, "task_comment");
+            if ("error" in own) return own.error;
+            await store.comment(own.task.id, ctx.args.text);
+            // The note shows on the message the task came from (its chip), so other tabs refetch.
+            deps.broadcast({ type: "tasks_changed" });
+            return `noted on ${own.task.id}`;
+          } catch (err) {
+            return failed(err);
+          }
+        },
+      }),
+    );
+
+    disposers.push(
+      tools.register({
+        name: "task_close",
+        description:
+          "Finish one of this conversation's tasks with a reason, only when the whole task is done. Only the user closes " +
+          "a task the user filed: on one of those, this marks it done and waiting for the user to confirm, so say what you " +
+          "did in the reason.",
+        parameters: {
+          type: "object",
+          properties: { id: idArg, reason: { type: "string", description: "What was done, one line; the user reads it when confirming a task they filed." } },
+          required: ["id"],
+          additionalProperties: false,
+        },
+        async run(ctx) {
+          const { conversation, agent } = who(ctx);
+          log("tool:task_close", { agent, conversation });
+          try {
+            const own = await ownOrError(ctx.args.id, conversation, "task_close");
+            if ("error" in own) return own.error;
+            const task = own.task;
+            if (task.status === "closed") return `${task.id} is already closed`;
+            const reason = typeof ctx.args.reason === "string" ? ctx.args.reason : undefined;
+            if (task.metadata.by === "you") {
+              // The user's own task: done when the user says so (Tasks › Waiting for you).
+              await store.askDone(task.id, { reason, by: agent });
+              deps.broadcast({ type: "tasks_changed" });
+              return `${task.id} was filed by the user: it is marked done and waits for the user to confirm (or reopen it). It stays open until then.`;
+            }
+            await store.close([task.id], reason, { actor: task.assignee ?? agent });
+            deps.broadcast({ type: "tasks_changed" });
+            return `${task.id} closed`;
+          } catch (err) {
+            return failed(err);
           }
         },
       }),

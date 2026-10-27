@@ -5,7 +5,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
 
 /**
- * ask_user (plan 017, U7): the agent asks the person a few questions with options, shown as a question card on
+ * user_ask (plan 017, U7; `ask_user` until plan 044): the agent asks the person a few questions with options, shown as a question card on
  * every client following the chat; the first client to answer settles it, and the answers come back as the tool's
  * result. The input and the answers have the shape Letta's tool used (core/attention/content.ts), so the card is the
  * same one.
@@ -13,7 +13,7 @@ import { piTool, type ChatTool } from "./chat-tools.ts";
 export function askTool(approvals: Approvals): ChatTool {
   return {
     kind: "read",
-    name: "ask_user",
+    name: "user_ask",
     description:
       "Ask the user one or more questions, each with a short list of options, when you need their choice to go on. They answer in a card; you get their answers back.",
     parameters: {
@@ -55,7 +55,7 @@ export function askTool(approvals: Approvals): ChatTool {
   };
 }
 
-/** ask_user as an extension, for loki's own engine. */
+/** user_ask as an extension, for loki's own engine. */
 export function askExtension(approvals: Approvals): Extension {
   return defineExtension({ name: "loki.ask", tools: [piTool(askTool(approvals))] });
 }

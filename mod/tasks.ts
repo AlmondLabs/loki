@@ -10,8 +10,8 @@ import { migrateKeys, OLD_TASK_METADATA_KEYS } from "../core/snake-keys.ts";
 
 /**
  * Tasks: the shared task list, kept by beads (`bd`, embedded Dolt) in ONE shared
- * database for every agent and folder. Agents reach it through the `tasks`
- * tool and the app through bridge frames; both land here, and every bd call runs
+ * database for every agent and folder. Agents reach it through the `task_*`
+ * tools and the app through bridge frames; both land here, and every bd call runs
  * through a single serial queue (the embedded engine wants one writer).
  *
  * Every task carries the same stamp in beads' metadata: who filed it (an agent,
@@ -274,7 +274,7 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
     `Tasks assigned to this conversation in the user's Tasks (${mine.length}):`,
     ...lines,
     "Pick one up when the user's message is about it or when asked to work through Tasks; otherwise acknowledge briefly and carry on.",
-    'Add progress with tasks {action:"comment", id, text}. When the whole task is done, call {action:"close", id, reason}: one the user filed then waits for the user to confirm.',
+    "Add progress with task_comment {id, text}. When the whole task is done, call task_close {id, reason}: one the user filed then waits for the user to confirm.",
     "</loki-tasks>",
   ].join("\n");
 }
@@ -285,7 +285,7 @@ export const TASKS_CLEARED = "<loki-tasks>\nNo tasks are assigned to this conver
 /**
  * What each conversation was last told about its tasks. The block rides along only when it would say something
  * new (a task assigned, closed, edited or started), not on every message: the agent keeps the earlier one in
- * its history, and `tasks` {action:"list"} reads the task list whenever it wants. Held in memory, so a restart of the mod
+ * its history, and `task_list` reads the task list whenever it wants. Held in memory, so a restart of the mod
  * tells each conversation once more.
  */
 export class TasksNotice {

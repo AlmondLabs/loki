@@ -94,8 +94,8 @@ every chat gets, the chats, then the mods.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
    the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
-   crash never asks twice. `ask_user` shows a question card the same way.
-5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `view_image`
+   crash never asks twice. `user_ask` shows a question card the same way.
+5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
@@ -199,8 +199,8 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform, with any tasks assigned to the chat.
-3. **The agent's tools.** `desk_state` (the canvas as you left it), `desk_camera` (move your view to a widget) and
-   `tasks` (Tasks).
+3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget) and
+   `task_create`, `task_list`, `task_comment` and `task_close` (Tasks).
 4. **Tasks.** The shared task list in beads, through `bd`.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.

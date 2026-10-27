@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
-import { CODING_TOOL_KINDS, RENAMED_TOOLS, type ToolKind } from "./tool-kinds.ts";
+import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
  * Approvals (plan 017, U7, KTD8): before a tool runs, the chat's permission mode decides whether the person is asked.
@@ -23,7 +23,7 @@ export const isPermissionMode = (m: unknown): m is PermissionMode => m === "stri
 export type { ToolKind } from "./tool-kinds.ts";
 
 /** A tool that is never a permission: a question card asks for answers, not leave. */
-const NEVER_ASK = new Set(["ask_user"]);
+const NEVER_ASK = new Set(["user_ask"]);
 
 /**
  * A tool's kind for the mode table, when it is not one of loki's own (those declare theirs; daemon/extensions.ts
@@ -92,10 +92,10 @@ export class Approvals {
   constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string } = {}) {
     this.widgetsDir = opts.widgetsDir;
     this.alwaysPath = opts.alwaysPath ?? null;
-    // Tools allowed under their names from before October 2026 carry over to the new names, written back once.
+    // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools), written back once.
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
-    this.alwaysAllowed = new Set(stored.map((name) => RENAMED_TOOLS[name] ?? name));
-    if (stored.some((name) => name in RENAMED_TOOLS)) this.saveAlways();
+    this.alwaysAllowed = new Set(stored.flatMap(renamedTools));
+    if (stored.some((name) => name in RENAMED_TOOLS || name in SPLIT_TOOLS)) this.saveAlways();
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 

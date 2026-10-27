@@ -82,14 +82,18 @@ npm run build:app && npm run build:mod && npm run smoke
 
 **Agent tools** **checked** (`test/extensions.test.ts`, `test/tools.test.ts`):
 
-- A tool's name and its arguments are snake_case: `background_watch`, `desk_camera { widget_id }`. Tools of one family
-  share its prefix (`memory_`, `schedule_`, `background_`, `desk_`).
+- A tool's name and its arguments are snake_case: `background_watch`, `canvas_focus { widget_id }`. A name of two
+  words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `task_close`, `user_ask`), so tools of
+  one family share its prefix (`memory_`, `schedule_`, `background_`, `canvas_`, `task_`). One tool per action, not
+  one tool with an `action` argument.
 - Every built-in tool declares its kind (read, edit or command) on its definition with `withKind`
   (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
 - Names loki does not choose stay as their owners write them: pi-durable's `read`, `write`, `edit` and `bash`, and MCP's
   `mcp__<server>__<tool>`.
-- A rename is a hard rename: the old name goes, the stored "always allow" list is migrated (`RENAMED_TOOLS`), and code
-  that reads old chats knows both names.
+- A rename is a hard rename: the old name goes everywhere. `RENAMED_TOOLS` (and `SPLIT_TOOLS` for one tool made
+  several) carries the stored "always allow" list over, and every store's saved calls and results are renamed once when
+  it opens (`daemon/store-tool-names.ts`), so no code that reads history knows an old name. A chat on an ACP agent keeps
+  its agent's own names.
 
 ## 3. TypeScript
 

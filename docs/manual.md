@@ -89,6 +89,13 @@ in October 2026 did. Before the first start rewrites a store, loki copies it who
 `~/.loki/stores/backup-schema-<version>-<date>/`. An older loki cannot open the rewritten store, so those copies are the
 way back to it; delete them once you are happy. Each Mac copies and rewrites its own stores on its own first start.
 
+When loki renames one of its tools, saved chats take the new name too, so an old chat reads and resumes like a new
+one. The first start after such an update renames each store's tool calls once, after copying the store whole to
+`~/.loki/stores/backup-tool-names-<date>/`; `~/.loki/stores/tool-names.json` lists the stores already done. Chats on
+Claude Code keep its names. In October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became
+`canvas_read` and `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and
+`view_image` became `image_view`.
+
 ## The window
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
@@ -428,7 +435,7 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
-- tools: `desk_state`, `desk_camera` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
+- tools: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
 
 ## Install (development)
 
@@ -558,7 +565,7 @@ Whether your Claude plan allows use through another app is between you and Anthr
 
 ## Questions from the agent
 
-When an agent calls `ask_user`, the conversation (on either tab) and the inbox card show
+When an agent calls `user_ask`, the conversation (on either tab) and the inbox card show
 a question card instead of a permission block: each question with its options
 (pick one, or pick many), and an "or answer in your own words" line. Answer
 sends everything back in one go. A typed reply in the message box while a
@@ -573,7 +580,7 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
   the long edge before sending. The picture shows on your message in every window, after a reload too, on the Mac
   the chat lives on and the phone: the daemon keeps a copy of each in `~/.loki/chat-images/`, named by its content,
   and a Mac showing a chat that lives on another asks that Mac for its pictures.
-- **Images the agent looks at** with its `view_image` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
+- **Images the agent looks at** with its `image_view` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
   file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
   are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
@@ -750,7 +757,7 @@ One task list shared by you and every agent, backed by
 [beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at `~/.loki/tasks`. (Tasks was called the Board
 until October 2026; its list in `~/.loki/board` moves to `~/.loki/tasks` the first time the new version starts, and
 stays where it is if it cannot move.) A task is work to be done: you do it yourself, or hand it to an agent. Agents
-file tasks only when asked, through the `tasks` tool, which stamps the source chat and its folder; you file them
+file tasks only when asked, through `task_create`, which stamps the source chat and its folder; you file them
 from the "+" in Tasks or ⌘T anywhere.
 
 **Views.** The Tasks segment (⌘3) lists its built-in views in the sidebar, each with its count:

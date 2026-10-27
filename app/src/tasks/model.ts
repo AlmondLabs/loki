@@ -270,7 +270,7 @@ export function filterTasks(tasks: Task[], query: string): Task[] {
 
 /**
  * The message a dispatch posts into the target conversation. Plain and complete: the agent
- * may be starting cold, and the ids let it close the tasks through the `tasks` tool.
+ * may be starting cold, and the ids let it close the tasks with `task_close`.
  */
 export function dispatchMessage(tasks: Task[]): string {
   const one = tasks.length === 1;
@@ -287,7 +287,7 @@ export function dispatchMessage(tasks: Task[]): string {
     ...lines,
     "",
     one
-      ? 'When it is done, close it with the tasks tool: { action: "close", id, reason }. Ask if anything is unclear before starting.'
-      : 'Work them in order unless one blocks another. Close each with the tasks tool, { action: "close", id, reason }, as you finish. Ask if anything is unclear before starting.',
+      ? "When it is done, close it with task_close { id, reason }. Ask if anything is unclear before starting."
+      : "Work them in order unless one blocks another. Close each with task_close { id, reason } as you finish. Ask if anything is unclear before starting.",
   ].join("\n");
 }

@@ -9,7 +9,7 @@ import { withKind } from "./tool-kinds.ts";
 import { shrinkImage } from "./image-shrink.ts";
 
 /**
- * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `view_image`, beside its own
+ * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `image_view`, beside its own
  * read, write, edit and bash. Paths are the chat's folder's, as the built-in tools' are. `grep` uses ripgrep when the
  * machine has it, which is what Letta's search used, and walks the folder itself otherwise.
  */
@@ -75,7 +75,7 @@ const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 
 /**
- * The file tools above (`ls`, `find`, `grep`, `view_image`), as one extension every chat selects. `shrink` makes an
+ * The file tools above (`ls`, `find`, `grep`, `image_view`), as one extension every chat selects. `shrink` makes an
  * image the size it is kept at (daemon/image-shrink.ts); tests pass their own.
  */
 export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: string) => Promise<{ data: Buffer; mimeType: string }> } = {}): Extension {
@@ -175,7 +175,7 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
       withKind(
         "read",
         defineTool({
-          name: "view_image",
+          name: "image_view",
           description: "Look at an image file (PNG, JPEG, GIF or WebP).",
           parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
           execute: async (args, api, context) => {

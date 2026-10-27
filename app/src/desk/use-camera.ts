@@ -20,7 +20,7 @@ function boundsOf(els: HTMLElement[]) {
 
 /**
  * The camera over the sheet: fit all (⌘0), zoom (⌘= / ⌘-), back to 1:1 (⌘⇧0), focus on one widget,
- * and the glide when a widget lands or desk_camera asks. Every framing move centres in the stage, the
+ * and the glide when a widget lands or canvas_focus asks. Every framing move centres in the stage, the
  * part of the viewport the chat does not cover. Registers the sheet's keymap actions once, and keeps
  * the set of widgets the camera is pointing at, which glow for a few seconds so the eye finds them.
  */
@@ -121,7 +121,7 @@ export function useCamera({
     setTimeout(() => setHighlighted((h) => (h.has(id) && h.size === 1 ? new Set() : h)), 2500);
   };
 
-  // Camera glide when a widget lands or desk_camera asks. One id: zoom to it. Several: fit them all.
+  // Camera glide when a widget lands or canvas_focus asks. One id: zoom to it. Several: fit them all.
   // Elements may mount a beat after the frame arrives, so retry briefly.
   /** Frame the target's widgets when all of them are on the sheet; false while some have yet to mount. */
   const frameTarget = useEffectEvent((ids: string[]) => {
