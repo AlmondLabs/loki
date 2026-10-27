@@ -29,7 +29,7 @@ describe("the permission modes", () => {
   });
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
-    expect(asks("strict", "ask_user", {}, {})).toBe(false);
+    expect(asks("strict", "user_ask", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });
 });
@@ -208,7 +208,7 @@ describe("approvals in a chat", () => {
     try {
       const input = { questions: [{ question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multi_select: false }] };
       s.faux.setResponses([
-        s.reply(fauxAssistantMessage(fauxToolCall("ask_user", input, { id: "q1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("user_ask", input, { id: "q1" }), { stopReason: "toolUse" })),
         s.reply(fauxAssistantMessage("Blue it is")),
       ]);
       const run = (await s.chat.submit({ type: "input", content: "pick" }, ctx)).wait(ctx);

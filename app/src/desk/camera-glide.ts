@@ -3,7 +3,7 @@ import { prefersReducedMotion } from "../kit/motion";
 import { settleTime, springAt, SPRINGS } from "../kit/spring";
 
 /**
- * The camera's glide to a widget (a widget landing, desk_camera, focus, fit all) on the smooth spring, as the
+ * The camera's glide to a widget (a widget landing, canvas_focus, focus, fit all) on the smooth spring, as the
  * rest of loki moves, instead of the pan-zoom library's fixed ease-out. The library draws the canvas one
  * transform at a time, so the spring is stepped once a frame here and each step handed to it at once.
  *

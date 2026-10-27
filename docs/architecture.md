@@ -94,12 +94,13 @@ every chat gets, the chats, then the mods.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
    the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
-   crash never asks twice. `ask_user` shows a question card the same way.
-5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `view_image`
+   crash never asks twice. `user_ask` shows a question card the same way.
+5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
-   definition (`daemon/tool-kinds.ts`). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
+   definition (`daemon/tool-kinds.ts`). The memory, schedule and question tools, and the mods' tools, are written once
+   as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones. Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
    own environment except that `bash` output past its limits is saved to the chat's `tool-results` folder, where
    MCP's big results go too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
@@ -176,7 +177,11 @@ every chat gets, the chats, then the mods.
     `pi.tool-result` entries in the chat's own store, written without pi (`AgentStore.appendEntries`), so the
     projection, the Inbox, history and the passes read it as any chat; its reported usage goes into `pi.usage` for
     the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona, memory and skills go in its
-    system prompt (`prompt.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
+    system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts` (plan 044): an MCP
+    endpoint on a loopback port, one HTTP server per session with a key that names the chat, running the same tool
+    bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are handed over
+    as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in asks
+    for its page (a URL elicitation), shown as a card and opened in the Mac's browser (`open-url.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
     `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in
     `state/acp-offered.json` for the picker. Settings › Engines shows how each stands.
 
@@ -194,8 +199,8 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform, with any tasks assigned to the chat.
-3. **The agent's tools.** `desk_state` (the canvas as you left it), `desk_camera` (move your view to a widget) and
-   `tasks` (Tasks).
+3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget) and
+   `task_create`, `task_list`, `task_comment` and `task_close` (Tasks).
 4. **Tasks.** The shared task list in beads, through `bd`.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.

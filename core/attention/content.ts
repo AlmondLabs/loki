@@ -143,7 +143,7 @@ function localTime(now: Date, locale?: string): string {
   });
 }
 
-/** One question from the ask_user tool (daemon/ask.ts, in the shape Letta's used). */
+/** One question from the user_ask tool (daemon/ask.ts, in the shape Letta's used). */
 export interface AskQuestion {
   question: string;
   header?: string;
@@ -153,7 +153,7 @@ export interface AskQuestion {
 
 /**
  * Read the tool's input defensively: only questions with text and at least one option count. `multi_select` is the
- * ask_user tool's; `multiSelect` is how older chats and Letta's logs wrote it.
+ * user_ask tool's; `multiSelect` is how older chats and Letta's logs wrote it.
  */
 export function askQuestions(input: unknown): AskQuestion[] {
   const qs = (input as { questions?: unknown } | null)?.questions;

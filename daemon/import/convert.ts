@@ -1,3 +1,5 @@
+import { renameToolsIn } from "../tool-kinds.ts";
+
 /**
  * Letta's conversation logs into pi-durable entries (plan 017, KTD6). Letta Code's local backend writes each
  * conversation as Pi's session format v3 (`messages.jsonl`): a session header, then message and compaction entries
@@ -96,11 +98,15 @@ export function lettaLogEntries(text: string): ImportedEntry[] {
   }
 
   const out: ImportedEntry[] = [];
+  // Calls under loki's old tool names take the names now, as saved chats did (plan 044); a result follows its call.
+  const calls = new Map<string, string>();
   for (const { line, id: sourceId, index } of lines) {
     if (!seen.has(sourceId)) {
       const m = line.message;
       if (line.type === "message" && m && typeof m.role === "string" && m.role in FIELDS) {
-        out.push({ sourceId, line: index, kind: BRANCH_KIND, data: { message: cleanMessage(m as Record<string, unknown> & { role: string }, timeOf(line)) } });
+        const message = cleanMessage(m as Record<string, unknown> & { role: string }, timeOf(line));
+        renameToolsIn([message], calls);
+        out.push({ sourceId, line: index, kind: BRANCH_KIND, data: { message } });
       }
       continue;
     }
@@ -121,6 +127,7 @@ export function lettaLogEntries(text: string): ImportedEntry[] {
     const m = line.message;
     if (!m || typeof m.role !== "string" || !(m.role in FIELDS)) continue;
     const message = cleanMessage(m as Record<string, unknown> & { role: string }, timeOf(line));
+    renameToolsIn([message], calls);
     if (m.role === "user") out.push({ sourceId, line: index, kind: "pi.user", model: [message] });
     else if (m.role === "assistant") out.push({ sourceId, line: index, kind: "pi.assistant", model: [message] });
     else out.push({ sourceId, line: index, kind: "pi.tool-result", model: [message], data: { diagnostics: [] } });

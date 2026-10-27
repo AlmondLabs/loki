@@ -22,8 +22,8 @@ within a second.
 Older notes may name `~/.letta/loki/widgets/…`; that path is a link to `~/.loki` and still works, but write new
 files under `~/.loki`.
 
-`<desk>` is this conversation's canvas id (the tool keeps its old name). `desk_state` returns it as `desk` and
-the absolute directory as `widgetsDir`. Call `desk_state` first if you do not
+`<desk>` is this conversation's canvas id. `canvas_read` returns it as `desk` and
+the absolute directory as `widgets_dir`. Call `canvas_read` first if you do not
 know it. Widget id = `<desk>/<name>`.
 
 ## Kit widget (.json)
@@ -91,9 +91,9 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
 - **Automatically:** what the user did on the canvas since your last turn (moves,
   slider values, checkboxes, closes, render errors) is appended to their next
   message inside `<loki-desk>` tags.
-- **On demand:** `desk_state` returns every widget with its data *as the user
+- **On demand:** `canvas_read` returns every widget with its data *as the user
   left it*, its position, and any build or runtime `error`.
-- **Camera:** `desk_camera({ widget_id })` glides the user's view to a widget;
+- **Camera:** `canvas_focus({ widget_id })` glides the user's view to a widget;
   `{ widget_ids: [...] }` frames several together. Targets are highlighted
   briefly. New files glide automatically.
 - **In the thread:** each widget you add, change or remove shows as a line in the
@@ -105,7 +105,7 @@ earlier version, forget them: write the file.
 
 ## After writing a widget
 
-Call `desk_state`. If the widget has an `error`, fix the file and check again.
+Call `canvas_read`. If the widget has an `error`, fix the file and check again.
 A syntax error is caught before the tab sees it; a runtime error shows in the
 widget's frame and in `error`.
 
@@ -114,24 +114,24 @@ widget's frame and in `error`.
 - No real money amounts on screen, in files, or in recordings. Synthetic
   finances only. Real data in safe domains only (travel, chores, sleep, gym).
 - A widget the user minimised sits in the canvas tray; its file still exists and
-  `desk_state` marks it `minimisedByUser`. Rewrite the file if you want it back.
+  `canvas_read` marks it `minimised_by_user`. Rewrite the file if you want it back.
   A widget the user trashed is gone: its file was deleted.
 - Write only inside the widgets directory. The loki repo itself is the easel,
   not the painting.
 
-## Tasks for later: the board (`tasks`)
+## Tasks for later: the board (`task_*`)
 
 The user keeps a board of tasks for later (beads, one board shared by every agent
-and folder; the loki app shows it). You touch it only through `tasks`, never
+and folder; the loki app shows it). You touch it only through the `task_*` tools, never
 with `bd` directly, and only when asked — "park this", "make a task for…", "file
 the follow-ups" — or when you are wrapping up with explicit follow-ups. Never
 file tasks silently in the middle of unrelated work.
 
 ```
-tasks { action: "create", title, description, labels?, priority? }   → { filed: "lk-…" }
-tasks { action: "list", all? }         tasks assigned to this conversation, or filed here unassigned (all: every open task)
-tasks { action: "comment", id, text }  progress note
-tasks { action: "close", id, reason }  done
+task_create { title, description?, labels?, priority? }   → { filed: "lk-…" }
+task_list { all? }                     tasks assigned to this conversation, or filed here unassigned (all: every open task)
+task_comment { id, text }              progress note
+task_close { id, reason }              done
 ```
 
 - Title: one imperative line. Description: what, why, where to look — enough for
@@ -141,6 +141,6 @@ tasks { action: "close", id, reason }  done
 - Always tell the user the id you filed.
 - When the user assigns tasks to your conversation from the board, they arrive
   inside `<loki-tasks>` on their next message, and again only when that list
-  changes (the latest block is the current list; `tasks { action: "list" }` reads it any time). Pick one up when the message is
+  changes (the latest block is the current list; `task_list` reads it any time). Pick one up when the message is
   about it or when asked to work the board; otherwise acknowledge in a line and
-  carry on. Close it through `tasks` when done.
+  carry on. Close it with `task_close` when done.

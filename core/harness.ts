@@ -242,8 +242,8 @@ const argOf = (args: Record<string, unknown>): string | undefined => {
   return key ? (args[key] as string).trim() : undefined;
 };
 
-/** The question card's tool: `ask_user`, or `AskUserQuestion` in chats from before October 2026 and from Letta. */
-const isQuestionTool = (name: string): boolean => name === "ask_user" || name === "AskUserQuestion";
+/** The question card's tool, `user_ask`. Saved chats are renamed to it once (daemon/store-tool-names.ts, plan 044). */
+const isQuestionTool = (name: string): boolean => name === "user_ask";
 
 /**
  * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the

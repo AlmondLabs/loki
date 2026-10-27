@@ -36,7 +36,7 @@ describe("the line for a run of tools", () => {
     expect(stepVerb("mcp_thing")).toBe("Used mcp_thing");
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
-    expect(stepVerb("bash_background")).toBe("Started in background");
+    expect(stepVerb("background_run")).toBe("Started in background");
   });
 
   test("pi's shell tool reads as a command too, and a step's sheet is titled by its tool (plan 038)", () => {
@@ -89,27 +89,28 @@ describe("the line for a run of tools", () => {
   });
 });
 
-describe("loki's tools under their names since October 2026, and before", () => {
-  test("each reads the same under either name, so old chats still read well", () => {
-    for (const [now, before, verb] of [
-      ["background_run", "bash_background", "Started in background"],
-      ["background_write", "write_stdin", "Typed into a command"],
+describe("loki's tools, and Claude Code's names for the same steps", () => {
+  test("each reads the same under either name; loki's own old names are gone, saved chats renamed (plan 044)", () => {
+    for (const [loki, claude, verb] of [
       ["background_output", "TaskOutput", "Read a command's output"],
       ["background_watch", "Monitor", "Waited on a command"],
       ["background_stop", "TaskStop", "Stopped a command"],
       ["subagent", "Agent", "Asked an agent"],
       ["skill", "Skill", "Loaded skill"],
-      ["ask_user", "AskUserQuestion", "Asked you"],
+      ["user_ask", "AskUserQuestion", "Asked you"],
     ] as const) {
-      expect(stepVerb(now), now).toBe(verb);
-      expect(stepVerb(before), before).toBe(verb);
-      expect(stepIcon(now), now).toBe(stepIcon(before));
+      expect(stepVerb(loki), loki).toBe(verb);
+      expect(stepVerb(claude), claude).toBe(verb);
+      expect(stepIcon(loki), loki).toBe(stepIcon(claude));
     }
+    expect(stepVerb("background_run")).toBe("Started in background");
+    expect(stepVerb("bash_background")).toBe("Used bash_background");
+    expect(stepVerb("ask_user")).toBe("Used ask_user");
   });
 
-  test("the question card's tool shows its first question, under either name", () => {
+  test("the question card's tool shows its whole input, the questions with their options", () => {
     const input = { questions: [{ question: "Which colour?", options: [{ label: "Red" }], multi_select: false }] };
-    expect(toolInput("ask_user", input)).toBe(toolInput("AskUserQuestion", input));
+    expect(toolInput("user_ask", input)).toBe(JSON.stringify(input, null, 2));
   });
 });
 

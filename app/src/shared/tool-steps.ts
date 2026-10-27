@@ -12,12 +12,12 @@ import type { IconName } from "./icons";
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
-// loki's tools under their names before October 2026 (bash_background, Agent, Skill…) stay here for old chats.
+// The capitalised names are Claude Code's and Letta Code's own (Bash, Agent, Skill, TaskOutput…), as their chats name
+// steps. loki's own old names are not here: saved chats are renamed once (daemon/store-tool-names.ts, plan 044).
 const SHELL = new Set([
   "Bash",
   "bash", // pi's, on loki's own engine
   "background_run",
-  "bash_background",
   "BashOutput",
   "Shell",
   "run_command",
@@ -41,17 +41,8 @@ const EDITS = new Set([
   "memory_delete",
 ]);
 /** The background-task tools beside the one that starts a command: they read, type into, wait on and stop it. */
-const BACKGROUND = new Set([
-  "background_write",
-  "background_output",
-  "background_watch",
-  "background_stop",
-  "write_stdin",
-  "TaskOutput",
-  "Monitor",
-  "TaskStop",
-]);
-/** The tool that loads a skill: `skill`, or `Skill` in older chats. */
+const BACKGROUND = new Set(["background_write", "background_output", "background_watch", "background_stop", "TaskOutput", "Monitor", "TaskStop"]);
+/** The tool that loads a skill: loki's `skill`, or Claude Code's `Skill`. */
 const isSkillTool = (name: string): boolean => name === "skill" || name === "Skill";
 /** Tools that hand work to another agent. */
 const AGENTS = new Set(["Task", "subagent", "Agent", "SendAgentMessage"]);
@@ -71,7 +62,7 @@ export function stepVerb(name: string): string {
   // mcp__<server>__<tool> (daemon/mcp/servers.ts toolKey): the server and the tool, as the person named them.
   const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
   if (mcp) return `Used ${mcp[1]}.${mcp[2]}`;
-  if (name === "background_run" || name === "bash_background") return "Started in background";
+  if (name === "background_run") return "Started in background";
   if (isSkillTool(name)) return "Loaded skill";
   if (SHELL.has(name)) return "Ran";
   switch (name) {
@@ -111,7 +102,6 @@ export function stepVerb(name: string): string {
     case "UpdatePlan":
       return "Updated the plan";
     case "background_write":
-    case "write_stdin":
       return "Typed into a command";
     case "background_output":
     case "TaskOutput":
@@ -122,7 +112,7 @@ export function stepVerb(name: string): string {
     case "background_stop":
     case "TaskStop":
       return "Stopped a command";
-    case "ask_user":
+    case "user_ask":
     case "AskUserQuestion":
       return "Asked you";
     default:

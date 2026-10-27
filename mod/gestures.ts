@@ -75,7 +75,7 @@ export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~
     `<loki-desk desk="${scope}">`,
     "Canvas activity since your last turn (the user's gestures on the loki canvas):",
     ...lines.map((l) => `- ${l}`),
-    `Widget files live under ${widgetsDir}/${scope}/; call desk_state for the full picture.`,
+    `Widget files live under ${widgetsDir}/${scope}/; call canvas_read for the full picture.`,
     "</loki-desk>",
   ].join("\n");
 }

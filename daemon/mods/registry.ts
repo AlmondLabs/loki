@@ -2,7 +2,6 @@ import type { Context } from "@earendil-works/chord";
 import {
   createRegistry,
   defineExtension,
-  defineTool,
   GenerationTask,
   hook,
   section,
@@ -13,6 +12,8 @@ import {
   type HookRegistration,
   type Registry,
 } from "@earendil-works/pi-durable";
+import { kindOf } from "../approvals.ts";
+import { piTool, type ChatTool } from "../chat-tools.ts";
 import { AgentInfoDoc, ChatDoc } from "../kernel/index.ts";
 import {
   MOD_API_VERSION,
@@ -65,6 +66,21 @@ async function chatRef(read: DocumentReader, conversationId: ConversationId, con
 function resultText(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+/** A mod's tool as one of loki's chat tools: it hears the chat's ids, the abort signal and an output stream. */
+function modChatTool(tool: ModTool): ChatTool {
+  return {
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    kind: kindOf(tool.name, tool.annotations),
+    run: async (args, call, context) => {
+      const ref = await chatRef(call.read, call.conversationId, context);
+      const text = resultText(await tool.execute(args, { ...ref, signal: call.signal, output: call.output }));
+      return text === undefined ? {} : { output: [{ type: "text", text }] };
+    },
+  };
 }
 
 /** The daemon's mods, by name, each as one pi-durable extension in the shared `registry`. */
@@ -164,6 +180,11 @@ export class ModRegistry {
     if (extension) this.registry.uninstall(extension);
   }
 
+  /** Every loaded mod's tools, for a chat on an ACP agent (plan 044); each runs as it does on loki's own engine. */
+  chatTools(): ChatTool[] {
+    return [...this.loaded.values()].flatMap((entry) => entry.pieces.tools.map(modChatTool));
+  }
+
   /** What a mod says a tool of its does (daemon/approvals.ts), when one of the loaded mods has it. */
   annotations(toolName: string): ModTool["annotations"] | undefined {
     for (const { pieces } of this.loaded.values()) {
@@ -228,23 +249,7 @@ export class ModRegistry {
   /** One mod's pieces as a pi-durable extension. */
   private extension(name: string, pieces: Pieces): Extension {
     const notify = <K extends keyof ModEvents>(event: K, payload: ModEvents[K]) => this.notify(name, pieces, event, payload);
-    const tools = pieces.tools.map((tool) =>
-      defineTool({
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters as never,
-        execute: async (args, api, context) => {
-          const ref = await chatRef(api, api.conversationId, context);
-          const value = await tool.execute(args, {
-            ...ref,
-            signal: context.abortSignal ?? NO_SIGNAL,
-            output: (text) => api.output(text),
-          });
-          const text = resultText(value);
-          return text === undefined ? {} : { output: [{ type: "text", text }] };
-        },
-      }),
-    );
+    const tools = pieces.tools.map((tool) => piTool(modChatTool(tool)));
     const sections = pieces.sections.map(({ key, render }) =>
       section(key, async (input, context) => render({ ...(await chatRef(input.read, input.conversationId, context)), cwd: input.agent.cwd })),
     );

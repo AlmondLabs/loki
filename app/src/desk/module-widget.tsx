@@ -10,7 +10,7 @@ import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, typ
  * daemon token and approve its own commands. The frame (app/src/frame/) has its own React and kit; this side
  * hands it the module, the data overlay, the page's styles and theme, and reads back only what widget-bridge.ts
  * lets through. A new hash reloads the module in place; load and render errors show here and go back to the mod
- * so desk_state (and the next turn) can report them.
+ * so canvas_read (and the next turn) can report them.
  */
 
 /** The frame body's padding and border, inside WidgetFrame's reading width. */

@@ -6,7 +6,7 @@ import { SHRINK_ABOVE_BYTES, shrinkImage, type Run } from "./image-shrink.ts";
 import { copyStore } from "./store-backup.ts";
 
 /**
- * The pictures already in a chat's store, made the size `view_image` makes new ones (plan 032). Plan 029 shrinks a
+ * The pictures already in a chat's store, made the size `image_view` makes new ones (plan 032). Plan 029 shrinks a
  * picture before the model gets it; the ones read before that are in the store whole, base64 inside the tool result's
  * entry, and a store grew hundreds of MB on them. Only tool results are touched: a picture the person pasted is small
  * already, and the window's copy of it is named by its bytes (daemon/chat-images.ts). The daemon must not have the

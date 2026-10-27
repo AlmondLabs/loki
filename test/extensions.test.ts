@@ -33,7 +33,7 @@ describe("the built-in tools", () => {
       expect(new Set(names).size).toBe(names.length);
       expect(names.sort()).toEqual(
         [
-          "ask_user",
+          "user_ask",
           "background_output",
           "background_run",
           "background_stop",
@@ -54,7 +54,7 @@ describe("the built-in tools", () => {
           "schedule_list",
           "skill",
           "subagent",
-          "view_image",
+          "image_view",
           "web_search",
           "write",
         ].sort(),

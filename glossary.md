@@ -141,8 +141,8 @@ others are files in `~/.loki/mods`. Letta mods do not load.
 | acceptEdits | commands; edits and reads run freely |
 | unrestricted | nothing (the default) |
 
-Each of loki's tools declares its kind (`daemon/tool-kinds.ts`). Reads are `read`, `grep`, `find`, `ls`, `view_image`,
-`desk_state`, `desk_camera`, `web_search`, `skill`, `background_output`, `background_watch`, `schedule_list`, and a
+Each of loki's tools declares its kind (`daemon/tool-kinds.ts`). Reads are `read`, `grep`, `find`, `ls`, `image_view`,
+`canvas_read`, `canvas_focus`, `task_list`, `web_search`, `skill`, `background_output`, `background_watch`, `schedule_list`, and a
 mod's or an MCP server's tools marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked
 about) count as reads too. Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget
-folder never asks, and a question card (`ask_user`) is never a permission.
+folder never asks, and a question card (`user_ask`) is never a permission.

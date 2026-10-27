@@ -79,7 +79,7 @@ export function useDeskSocket() {
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
   const [restMap, setRestMap] = useState<Record<string, Rest>>({});
-  /** Bumped when the mod says the task list changed (another tab, an agent's `tasks` tool call). */
+  /** Bumped when the mod says the task list changed (another tab, an agent's task tool call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
   const [recallVersion, setRecallVersion] = useState(0);
