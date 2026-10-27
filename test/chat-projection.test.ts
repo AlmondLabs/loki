@@ -187,6 +187,24 @@ describe("chat projection", () => {
     }
   });
 
+  test("a store with more chats than load at once, one longer than a page of entries, loads every chat whole", async () => {
+    const { store, model, chats } = await setup();
+    try {
+      const converted = lettaLogEntries(sampleLog());
+      const long = Array.from({ length: Math.ceil(1200 / converted.length) }, () => converted).flat();
+      for (let i = 0; i < 7; i++) {
+        const chat = await store.createChat(`c${i}`, { agent: { model } }, ctx);
+        await store.importEntries(chat, i === 0 ? long : converted, ctx);
+      }
+      await chats.attach(AGENT, store);
+      expect(chats.list()).toHaveLength(7);
+      expect(chats.answers("c0", AGENT, 0).entries).toBe(long.length);
+      for (let i = 1; i < 7; i++) expect(chats.page(`c${i}`, AGENT, 1000).rows).toEqual(foldSteps(converted.flatMap((e) => entrySteps(e))));
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
   test("an unknown chat reads as nothing", async () => {
     const { chats } = await setup();
     expect(chats.info("nope", AGENT)).toBeNull();
