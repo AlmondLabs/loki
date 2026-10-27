@@ -318,7 +318,7 @@ export interface Pushes {
    * this Mac let it go, or null when it has no note. Absent on every other error.
    */
   error: { message: string; request_id?: string; moved_to?: string | null };
-  /** A checkout's daemon code changed (plan 024): `file` names it; the window offers a restart. */
+  /** A checkout's code changed (plans 024 and 041): `file` names it; the window offers the update (a build, a restart). */
   restart_due: { file: string | null };
   /** The Macs this one is paired with changed (addendum D1). */
   group_changed: NoPayload;
@@ -882,10 +882,14 @@ export const FRAMES = {
   devices_list: send("the paired phones", nothing, { causes: ["devices"] }),
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
-  // loki's daemon (plan 024): restart it, as the window's restart notice asks
-  daemon_restart: request("chat_done", "restart loki's daemon; refused while a chat works or an approval waits, unless `anyway`", (m) => ({
-    anyway: m.anyway === true,
-  })),
+  // loki's daemon (plans 024 and 041): update it, as the window's update notice asks
+  daemon_restart: request(
+    "chat_done",
+    "update a checkout's loki: build the page if due, then restart the daemon; a restart is refused while a chat works or an approval waits, unless `anyway`",
+    (m) => ({
+      anyway: m.anyway === true,
+    }),
+  ),
 
   // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Settings › Macs
   peers_get: send("this Mac and the Macs paired with it", nothing, { causes: ["peers"] }),
@@ -986,7 +990,7 @@ export const FRAMES = {
   app_build: push("the build a phone is served, so it can offer a reload"),
   chat_event: push("what happened in a chat a client has open", { relay: "chat", lists: LISTED_EVENTS }),
   error: push("a failed request (with its request_id) or a frame the mod could not take"),
-  restart_due: push("a checkout's daemon code changed, so a restart is due; the window offers it (plan 024)"),
+  restart_due: push("a checkout's code changed, so an update is due (a page build, a restart); the window offers it (plans 024 and 041)"),
   group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
   chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
 } as const;

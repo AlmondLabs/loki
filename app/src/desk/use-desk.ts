@@ -447,13 +447,14 @@ export function useDesk() {
    * state above; a join answers with the reply or the reason it failed, in words for the person.
    */
   /**
-   * Restarting loki's daemon (plan 024): the change that made a restart due (its file, and a count that goes up with
-   * each change), and restarting now. Null once under way, else why not; `anyway` cuts off a chat that is working.
+   * Updating a checkout's loki (plans 024 and 041): the change that made an update due (its file, and a count that goes
+   * up with each change), and updating now: building the page, which takes a while (hence the long wait), then
+   * restarting the daemon. Null once done or under way, else why not; `anyway` cuts off a chat that is working.
    */
   const daemon = {
     restartDue,
     restart: (anyway: boolean): Promise<string | null> =>
-      request("daemon_restart", { anyway }, 10_000).then((r) => (r.ok ? null : r.timed_out ? "loki did not answer" : r.error)),
+      request("daemon_restart", { anyway }, 120_000).then((r) => (r.ok ? null : r.timed_out ? "loki did not answer" : r.error)),
   };
 
   const macs = {

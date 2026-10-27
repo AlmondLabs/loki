@@ -1,6 +1,6 @@
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
-/** What the restart frame handler needs from its host: restarting the daemon (plan 024), when it can. */
+/** What the update frame handler needs from its host: updating a checkout's loki (plans 024 and 041), when it can. */
 export interface DaemonDeps {
   daemon?: {
     restartDue: () => string | null;
@@ -8,7 +8,7 @@ export interface DaemonDeps {
   };
 }
 
-/** Restarting loki's daemon when the person asks (plan 024): refused while a chat works, unless `anyway`. */
+/** Updating loki when the person asks (plans 024 and 041): the page built if due, then a restart, refused while a chat works unless `anyway`. */
 export function daemonFrames({ daemon }: DaemonDeps): FrameHandlers {
   return {
     daemon_restart: async ({ anyway }) => {

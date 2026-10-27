@@ -441,20 +441,28 @@ npm start
 `npm start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
 `~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
 command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
-that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
-would otherwise show. It then starts Vite on 127.0.0.1:5173, a watching build of `app/dist` for the phone, and
-`tauri dev`, which bundles the mod and opens the window (the first build compiles the shell, a few minutes). The
+that nothing else answers on port 5173, which the window would otherwise show. It then builds the page into
+`app/dist` when one of its sources is newer (about fifteen seconds), and starts `tauri dev`, which bundles the mod,
+serves `app/dist` on 127.0.0.1:5173 and opens the window (the first build compiles the shell, a few minutes). The
 window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`). The script
 waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the daemon's
-log, `~/.loki/logs/daemon.log`, instead of leaving you Vite's proxy errors. Ctrl-C stops all of it.
+log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it.
 
-It keeps up with the checkout after a `git pull`: the window reloads when `app/` changes and the mod reloads in place
-when `mod/` or `core/` changes. A change to `daemon/` or `core/` needs the daemon restarted, which loki never does by
-itself: the window shows "loki's code changed" with **restart** and **later**. While a chat is working or waiting for
-you, **restart** says so and offers **restart anyway**, which cuts it off. The window reconnects a second later.
-`npm start --check` reports all of it without starting anything.
+`npm start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
+in place when `mod/` or `core/` changes. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
+changed" with **update** and **later**, and loki never updates by itself. **update** builds the page if it changed
+(the window and the phone reload on the new build) and restarts the daemon if its code changed (the window reconnects
+a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
+or waiting for you, a restart would cut it off: **update** says so and offers **update anyway**.
 
-Or run the pieces yourself: `npm run dev` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
+`npm run dev` hot-reloads instead: the window runs Vite on 127.0.0.1:5173 and shows a change to `app/` as you save,
+and a watching build keeps `app/dist` current for the phone. The mod reloads as above, and a change to `daemon/` or
+`core/` still waits for **update**. It costs more while it runs: Vite and the watching build hold well over a
+gigabyte, and React's development build keeps a timing record for every render, so the window's memory grows for as
+long as it stays open. `npm start --check` and `npm run dev -- --check` report what each would do without starting
+anything.
+
+Or run the pieces yourself: `npm run dev:vite` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
 against a Vite already running, in a second terminal).
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it); the daemon runs the checkout's

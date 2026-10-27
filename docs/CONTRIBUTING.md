@@ -9,8 +9,9 @@ macOS 13+, Node 22.19 or newer (it runs npm, Vite, the Tauri CLI, the tests and 
 
 ```bash
 npm install
-npm start              # Vite on 127.0.0.1:5173, the Tauri window (which starts the daemon), and app/dist rebuilt for the phone as you edit (Ctrl-C stops all)
-npm run dev            # Vite alone, for a browser tab
+npm start              # the Tauri window (which starts the daemon) on the built page; code changes wait for update in the window (Ctrl-C stops all)
+npm run dev            # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
+npm run dev:vite       # Vite alone, for a browser tab
 npm run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
