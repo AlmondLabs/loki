@@ -14,6 +14,7 @@ import type { Client } from "../mod/server.ts";
 import { join } from "node:path";
 import { must } from "./fixtures/must.ts";
 import type { DeskSummary, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
+import { LEAN_DETAIL_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
   const runtime = new Map<string, string>();
@@ -451,22 +452,21 @@ describe("bridge history", () => {
     bridge.onMessage(c, { type: "history_get", request_id: "h2", agent_id: "a1", conversation_id: "unknown" });
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ request_id: "h2", messages: [] });
   });
-  test("history_get sends tool rows lean, and history_step_get answers one row's whole step (plan 041)", () => {
+  test("history_get sends tool rows and long event details lean, and history_step_get makes one row whole (plans 041 and 043)", () => {
     const step = { name: "Bash", id: "t1", input: "ls -la", output: "a\nb" };
+    const result = "r".repeat(LEAN_DETAIL_MAX + 1);
+    const rows: TranscriptRow[] = [
+      { role: "user", text: "hi" },
+      { role: "tool", text: "Bash · ls -la", tool: step },
+      { role: "event", text: "background task", summary: "done", detail: result },
+    ];
     const bridge = bridgeOf({
       store: new DeskStore(),
       widgets: fakeWidgets([]),
       gestures: new GestureLog(),
       broadcast: () => {},
-      transcript: () => ({
-        rows: [
-          { role: "user", text: "hi" },
-          { role: "tool", text: "Bash · ls -la", tool: step },
-        ],
-        more: true,
-        start: 7,
-      }),
-      step: (agentId, conversationId, row) => (agentId === "a1" && conversationId === "c9" && row === 8 ? step : null),
+      transcript: () => ({ rows, more: true, start: 7 }),
+      row: (agentId, conversationId, row) => (agentId === "a1" && conversationId === "c9" ? (rows[row - 7] ?? null) : null),
     });
     const c = client("c1");
     bridge.onConnect(c);
@@ -478,12 +478,20 @@ describe("bridge history", () => {
     expect(reply.messages).toEqual([
       { role: "user", text: "hi" },
       { role: "tool", text: "Bash · ls -la", tool: { name: "Bash", id: "t1", row: 8 } },
+      { role: "event", text: "background task", summary: "done", detail: null, row: 9 },
     ]);
-    bridge.onMessage(c, { type: "history_step_get", request_id: "s1", agent_id: "a1", conversation_id: "c9", row: 8 });
-    bridge.onMessage(c, { type: "history_step_get", request_id: "s2", agent_id: "a1", conversation_id: "c9", row: 7 });
+    for (const [id, row] of [
+      ["s1", 8],
+      ["s2", 9],
+      ["s3", 7],
+      ["s4", 40],
+    ] as const)
+      bridge.onMessage(c, { type: "history_step_get", request_id: id, agent_id: "a1", conversation_id: "c9", row });
     expect(c.sent.filter((m) => m.type === "history_step")).toEqual([
-      { type: "history_step", request_id: "s1", step },
-      { type: "history_step", request_id: "s2", step: null },
+      { type: "history_step", request_id: "s1", step, detail: null },
+      { type: "history_step", request_id: "s2", step: null, detail: result },
+      { type: "history_step", request_id: "s3", step: null, detail: null },
+      { type: "history_step", request_id: "s4", step: null, detail: null },
     ]);
   });
   test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {

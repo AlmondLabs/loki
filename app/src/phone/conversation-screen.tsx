@@ -9,7 +9,7 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import type { MessageLayout } from "../chat/transcript";
-import type { ToolStep } from "../../../core/attention/transcript.ts";
+import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
@@ -53,8 +53,8 @@ export interface ThreadView {
   older?: (() => void) | null;
   /** The thread's first page did not come (plan 041): try again. */
   loadFailed?: (() => void) | null;
-  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
-  loadStep?: (row: number) => Promise<ToolStep | null>;
+  /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
+  loadStep?: (row: number) => Promise<WholeRow | null>;
 }
 
 /**

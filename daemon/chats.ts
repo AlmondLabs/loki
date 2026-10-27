@@ -2,10 +2,10 @@ import { DEFAULT_MODE, isPermissionMode } from "./approvals.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName } from "../core/desk-core.ts";
-import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
+import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
 import { entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type Step } from "../core/attention/thread.ts";
-import type { ToolStep, TranscriptRow } from "../core/attention/transcript.ts";
+import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
@@ -65,7 +65,10 @@ function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: I
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
   const text = contentText(message.content).trim();
-  return { steps, role: message.role, text: message.role === "user" ? stripHarnessMarkup(text).trim() : text, at: messageAt(message) };
+  if (message.role !== "user") return { steps, role: message.role, text, at: messageAt(message) };
+  // Markup taken out leaves a cut of a text nothing else keeps, which would hold the whole of it (core/harness.ts ownText).
+  const said = stripHarnessMarkup(text).trim();
+  return { steps, role: message.role, text: said === text ? text : ownText(said), at: messageAt(message) };
 }
 
 const EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
@@ -77,6 +80,12 @@ function effortOf(level: string | undefined): ReasoningEffort | null {
 }
 
 const DIGEST_TEXT_LIMIT = 700;
+
+/**
+ * How many of a store's chats load at once when it opens (plan 042). Loading every chat together held every chat's
+ * records at the same moment: 519 MB of heap at the start against 233 MB after, on one person's 196 chats.
+ */
+const LOAD_AT_ONCE = 4;
 
 /**
  * The projection: every chat's details and its entries as thread steps, kept in memory and current
@@ -124,24 +133,26 @@ export class ChatProjection implements ChatSource {
       store.harness.subscribeCommits((publication) => (loading ? pending.push(publication) : this.apply(agentId, publication))),
     );
     const index = await store.harness.snapshot(ChatIndex, this.context);
+    const load = async ([chatId, conversationId]: [string, number]) => {
+      const conversation = await store.harness.conversation(conversationId as ConversationId, this.context);
+      if (!conversation) return;
+      // Each record is kept as its steps as it is read, so only a page of whole records is ever held (plan 042).
+      const entries: Kept[] = [];
+      let lastId = 0;
+      const [, info, settings] = await Promise.all([
+        store.eachEntry(conversation, this.context, (e) => {
+          entries.push(keep(e, this.nameImage));
+          lastId = e.id;
+        }),
+        store.chatInfo(conversation.id, this.context),
+        store.agentSettings(conversation.id, this.context),
+      ]);
+      this.chats.set(this.key(agentId, chatId), { agentId, chatId, conversationId, info: info ?? null, settings: settings ?? {}, entries, lastId });
+    };
+    const waiting = Object.entries(index?.chats ?? {});
     await Promise.all(
-      Object.entries(index?.chats ?? {}).map(async ([chatId, conversationId]) => {
-        const conversation = await store.harness.conversation(conversationId as ConversationId, this.context);
-        if (!conversation) return;
-        const [entries, info, settings] = await Promise.all([
-          store.entries(conversation, this.context),
-          store.chatInfo(conversation.id, this.context),
-          store.agentSettings(conversation.id, this.context),
-        ]);
-        this.chats.set(this.key(agentId, chatId), {
-          agentId,
-          chatId,
-          conversationId,
-          info: info ?? null,
-          settings: settings ?? {},
-          entries: entries.map((e) => keep(e, this.nameImage)),
-          lastId: entries.at(-1)?.id ?? 0,
-        });
+      Array.from({ length: Math.min(LOAD_AT_ONCE, waiting.length) }, async () => {
+        for (let next = waiting.shift(); next; next = waiting.shift()) await load(next);
       }),
     );
     loading = false;
@@ -278,11 +289,10 @@ export class ChatProjection implements ChatSource {
     return { rows: all.slice(start, end), more: start > 0, start };
   }
 
-  /** The whole step of the tool row at position `row` of a chat's thread, as a lean page left it out (plan 041). */
-  step(conversationId: string, agentId: string | null, row: number): ToolStep | null {
+  /** The row at position `row` of a chat's thread, whole, for what a lean page left out of it (plans 041 and 043). */
+  row(conversationId: string, agentId: string | null, row: number): TranscriptRow | null {
     const chat = this.find(conversationId, agentId);
-    const r = chat ? this.folded(chat)[row] : undefined;
-    return r?.role === "tool" ? (r.tool ?? null) : null;
+    return (chat ? this.folded(chat)[row] : undefined) ?? null;
   }
 
   /** A chat's whole thread, folded once and fed only the entries that arrived since it was last read. */

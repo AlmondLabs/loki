@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decodeEntities, extractHarnessEvents, movedMark, stripHarnessMarkup } from "../core/harness.ts";
+import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup } from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>Background command "Re-auth dev" completed</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>\nFull transcript available at: /var/x/bash_24.log`;
@@ -65,5 +65,11 @@ describe("a chat's move mark (plan 023, addendum A5)", () => {
     const mark = movedMark("Deepak's MacBook", 'Mac "mini"');
     expect(extractHarnessEvents(mark)).toEqual([{ text: 'moved to Mac "mini"', summary: "came over from Deepak's MacBook", detail: null }]);
     expect(stripHarnessMarkup(mark).trim()).toBe("");
+  });
+});
+
+describe("a text's own copy (plan 042)", () => {
+  test("reads the same as the text, a lone surrogate and markup included", () => {
+    for (const text of ["", "plain", "a \ud800 lone half", '<b>\n\t"quoted"</b> é 🚀', "x".repeat(5000).slice(10, 4010)]) expect(ownText(text)).toBe(text);
   });
 });

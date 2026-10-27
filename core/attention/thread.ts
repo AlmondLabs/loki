@@ -56,6 +56,7 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.text === b.text &&
   a.summary === b.summary &&
   a.detail === b.detail &&
+  a.row === b.row &&
   a.images === b.images &&
   a.files === b.files &&
   a.tool === b.tool &&
@@ -71,6 +72,7 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.text === b.text &&
   a.summary === b.summary &&
   a.detail === b.detail &&
+  a.row === b.row &&
   a.at === b.at &&
   a.queued === b.queued &&
   sameValue(a.images, b.images) &&

@@ -55,7 +55,7 @@ const source: ChatSource = {
   },
   agentOf: (id) => rows.find((r) => r.conversationId === id)?.agentId ?? null,
   page: () => ({ rows: [], more: false, start: 0 }),
-  step: () => null,
+  row: () => null,
   since: () => ({ rows: [], lines: 0 }),
   digest: () => ({ last_role: null, last_assistant_text: null, last_ask: null }),
   folders: () => ({ recent: [], by_conversation: {}, by_agent: {} }),
