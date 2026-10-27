@@ -1,8 +1,8 @@
-import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
+import { defineExtension, type Extension } from "@earendil-works/pi-durable";
 import { askQuestions } from "../core/attention/content.ts";
 import type { Approvals } from "./approvals.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
-import { withKind } from "./tool-kinds.ts";
+import { piTool, type ChatTool } from "./chat-tools.ts";
 
 /**
  * ask_user (plan 017, U7): the agent asks the person a few questions with options, shown as a question card on
@@ -10,54 +10,52 @@ import { withKind } from "./tool-kinds.ts";
  * result. The input and the answers have the shape Letta's tool used (core/attention/content.ts), so the card is the
  * same one.
  */
-export function askExtension(approvals: Approvals): Extension {
-  return defineExtension({
-    name: "loki.ask",
-    tools: [
-      withKind(
-        "read",
-        defineTool({
-          name: "ask_user",
-          description:
-            "Ask the user one or more questions, each with a short list of options, when you need their choice to go on. They answer in a card; you get their answers back.",
-          parameters: {
+export function askTool(approvals: Approvals): ChatTool {
+  return {
+    kind: "read",
+    name: "ask_user",
+    description:
+      "Ask the user one or more questions, each with a short list of options, when you need their choice to go on. They answer in a card; you get their answers back.",
+    parameters: {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          items: {
             type: "object",
             properties: {
-              questions: {
+              question: { type: "string" },
+              header: { type: "string", description: "A short label, a few words" },
+              options: {
                 type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    question: { type: "string" },
-                    header: { type: "string", description: "A short label, a few words" },
-                    options: {
-                      type: "array",
-                      items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } }, required: ["label"] },
-                    },
-                    multi_select: { type: "boolean" },
-                  },
-                  required: ["question", "options"],
-                },
+                items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } }, required: ["label"] },
               },
+              multi_select: { type: "boolean" },
             },
-            required: ["questions"],
-          } as never,
-          execute: async (args, api, context) => {
-            const [chat, agent] = await Promise.all([api.snapshot(ChatDoc, api.conversationId, context), api.snapshot(AgentInfoDoc, context)]);
-            const input = args as Record<string, unknown>;
-            if (!askQuestions(input).length) throw new Error("each question needs its text and at least one option");
-            const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
-              agent?.id ?? "",
-              chat?.id || `conversation-${api.conversationId}`,
-              { kind: "question", request_id: `question-${api.callId}`, input },
-              context.abortSignal,
-            );
-            const answers = (reply.answers.answers ?? {}) as Record<string, string>;
-            const lines = Object.entries(answers).map(([q, a]) => `"${q}": ${a}`);
-            return { output: [{ type: "text", text: lines.length ? `The user answered:\n${lines.join("\n")}` : "The user gave no answers." }] };
+            required: ["question", "options"],
           },
-        }),
-      ),
-    ],
-  });
+        },
+      },
+      required: ["questions"],
+    },
+    run: async (args, call, context) => {
+      const [chat, agent] = await Promise.all([call.read.snapshot(ChatDoc, call.conversationId, context), call.read.snapshot(AgentInfoDoc, context)]);
+      const input = args;
+      if (!askQuestions(input).length) throw new Error("each question needs its text and at least one option");
+      const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
+        agent?.id ?? "",
+        chat?.id || `conversation-${call.conversationId}`,
+        { kind: "question", request_id: `question-${call.callId}`, input },
+        call.signal,
+      );
+      const answers = (reply.answers.answers ?? {}) as Record<string, string>;
+      const lines = Object.entries(answers).map(([q, a]) => `"${q}": ${a}`);
+      return { output: [{ type: "text", text: lines.length ? `The user answered:\n${lines.join("\n")}` : "The user gave no answers." }] };
+    },
+  };
+}
+
+/** ask_user as an extension, for loki's own engine. */
+export function askExtension(approvals: Approvals): Extension {
+  return defineExtension({ name: "loki.ask", tools: [piTool(askTool(approvals))] });
 }

@@ -14,6 +14,8 @@ import { dirname, join } from "node:path";
 import type { McpServerView, McpView } from "../../core/frame-types.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import { auth } from "@modelcontextprotocol/client";
+import type * as acp from "@agentclientprotocol/sdk";
+import { commandPath } from "../acp/agents.ts";
 import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
 import { OauthStore, ServerOauth, callbackUrl } from "./oauth.ts";
 import { toolResultsDir } from "../tool-results.ts";
@@ -159,6 +161,42 @@ export class McpTools {
   /** The servers an agent has switched off. */
   offFor(agentId: string | null | undefined): Set<string> {
     return new Set(agentId ? (this.off[agentId] ?? []) : []);
+  }
+
+  /**
+   * The servers an agent has on, as an ACP session takes them (plan 042): the agent connects to each itself, with its
+   * `${keychain:…}` values filled in, and signs in itself to one that wants OAuth (loki's sign-in stays loki's). A
+   * local server's command goes by its full path, as ACP names it. A local server with its own folder (ACP has no
+   * field for one), or whose command or secret cannot be found, is left out with a line in the daemon's log.
+   */
+  async acpServers(agentId: string): Promise<acp.McpServer[]> {
+    const off = this.offFor(agentId);
+    const secrets = this.secrets;
+    const out: acp.McpServer[] = [];
+    for (const config of this.servers.configs().filter((c) => !off.has(c.name))) {
+      try {
+        const c = await withSecrets(config, (name) => (secrets ? secrets.get(`mcp.${name}`) : Promise.resolve(null)));
+        const pairs = (values: Record<string, string>) => Object.entries(values).map(([name, value]) => ({ name, value }));
+        if (c.kind === "remote") {
+          out.push({ type: "http", name: c.name, url: c.url, headers: pairs(c.headers) });
+          continue;
+        }
+        if (c.cwd) throw new Error("it runs in its own folder, which an ACP agent cannot be told");
+        const command = commandPath(c.command);
+        if (!command) throw new Error(`${c.command} is not on the PATH`);
+        out.push({ name: c.name, command, args: c.args, env: pairs(c.env) });
+      } catch (e) {
+        this.report(`MCP server ${config.name} left out of ACP chats: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return out;
+  }
+
+  /** The tools that only read, of the servers an agent has on, as an ACP agent names them: it runs them without asking. */
+  acpReadOnly(agentId: string): string[] {
+    return this.toolsFor(agentId)
+      .filter((t) => t.readOnly)
+      .map((t) => `mcp__${t.server}__${t.name}`);
   }
 
   /** The tools an agent can use: its switched-off servers' left out. */

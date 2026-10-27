@@ -22,7 +22,9 @@ import { Approvals, kindOf } from "./approvals.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
-import { Schedules } from "./schedule.ts";
+import { Schedules, scheduleTools } from "./schedule.ts";
+import { memoryTools } from "./memory.ts";
+import { askTool } from "./ask.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
 import { chatEnvs } from "./tool-results.ts";
 import { reflectionJob } from "./reflection.ts";
@@ -50,6 +52,8 @@ import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 import { UsageLedger } from "./usage.ts";
 import { readAcpAgents } from "./acp/agents.ts";
 import { AcpChats } from "./acp/chats.ts";
+import { LokiTools } from "./acp/loki-tools.ts";
+import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
@@ -221,6 +225,14 @@ async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
     throw error;
   }
 }
+// loki's own tools, served on loopback to chats on an ACP agent (plan 042): the same tool bodies loki's engine runs.
+const lokiTools = new LokiTools({
+  tools: () => [...memoryTools(backend), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
+  stores,
+  context,
+  version: appVersion(paths.root) ?? "0",
+});
+await lokiTools.start();
 // Chats on ACP agents (plan 020): Claude Code built in, others added in state/acp.json.
 const acpFile = join(args.dir, "state", "acp.json");
 const acp = new AcpChats({
@@ -228,8 +240,15 @@ const acp = new AcpChats({
   approvals,
   context,
   agents: () => readAcpAgents(acpFile),
-  systemPrompt: (agentId) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null),
+  systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
   homeDir: homedir(),
+  // A session gets loki's tools and the MCP servers its agent has on, which it connects to and signs in to itself.
+  mcpServers: async (agentId, conversationId) => {
+    const own = lokiTools.serverFor(agentId, conversationId);
+    return [...(own ? [own] : []), ...(await mcp.acpServers(agentId))];
+  },
+  allowedTools: (agentId) => [...lokiTools.readOnly(), ...mcp.acpReadOnly(agentId)],
+  openUrl: (url) => openInBrowser(url, report),
   configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),
   // An ACP turn is not in pi-durable's runs, which TurnTelemetry follows, so the chats measure it themselves.
@@ -397,6 +416,7 @@ function stop(signal: string) {
     background.stopAll();
     void mcp.close();
     void acp.close();
+    void lokiTools.stop();
     for (const name of mods.names()) mods.unload(name);
   } finally {
     void stores.closeAll().finally(() => {

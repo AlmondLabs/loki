@@ -13,7 +13,7 @@ import { Providers } from "../daemon/providers.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
-import { AcpChats } from "../daemon/acp/chats.ts";
+import { AcpChats, type AcpChatsDeps } from "../daemon/acp/chats.ts";
 import { acpHandle, CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
@@ -35,7 +35,15 @@ afterEach(async () => {
 });
 
 /** A daemon with ACP chats on the fake agent; `restart` makes a new one over the same stores, as after a restart. */
-function setup(opts: { systemPrompt?: (agentId: string) => string | null; env?: Record<string, string> } = {}) {
+function setup(
+  opts: {
+    systemPrompt?: (agentId: string, withTools: boolean) => string | null;
+    env?: Record<string, string>;
+    mcpServers?: AcpChatsDeps["mcpServers"];
+    allowedTools?: AcpChatsDeps["allowedTools"];
+    openUrl?: AcpChatsDeps["openUrl"];
+  } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "loki-acp-"));
   const models = createModels();
   models.setProvider(fauxProvider().provider);
@@ -57,6 +65,9 @@ function setup(opts: { systemPrompt?: (agentId: string) => string | null; env?: 
       context: ctx,
       agents: () => [{ ...FAKE, ...(opts.env ? { env: opts.env } : {}) }],
       ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
+      ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
+      ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
+      ...(opts.openUrl ? { openUrl: opts.openUrl } : {}),
       homeDir: dir,
       cacheFile: join(dir, "state", "acp-offered.json"),
       capture: (event, properties) => captured.push({ event, properties }),
@@ -510,5 +521,59 @@ describe("ACP agents (plan 020)", () => {
     const b = await without.chat();
     await without.say(b, "prompt?");
     expect(without.words()).toMatch(/^system: none \| first: <loki-agent>\nYou are Ada.\n<\/loki-agent>/);
+  });
+
+  test("a session opens with loki's tools and the agent's MCP servers, and runs the read-only ones without asking (plan 042)", async () => {
+    const asked: string[] = [];
+    const servers: AcpChatsDeps["mcpServers"] = (agentId, conversationId) => {
+      asked.push(`${agentId} ${conversationId}`);
+      return Promise.resolve([
+        { type: "http", name: "loki", url: "http://127.0.0.1:1/mcp/loki", headers: [] },
+        { type: "http", name: "notes", url: "http://127.0.0.1:1/mcp/notes", headers: [] },
+      ]);
+    };
+    const prompts: boolean[] = [];
+    const systemPrompt = (_agentId: string, withTools: boolean) => {
+      prompts.push(withTools);
+      return null;
+    };
+    const s = setup({ mcpServers: servers, allowedTools: () => ["mcp__loki__memory_read"], systemPrompt });
+    const id = await s.chat();
+    await s.say(id, "mcp?");
+    expect(s.words()).toBe("mcp: loki http://127.0.0.1:1/mcp/loki, notes http://127.0.0.1:1/mcp/notes | allowed: mcp__loki__memory_read");
+    expect(asked).toContain(`ada ${id}`);
+    expect(prompts.at(-1)).toBe(true);
+
+    // An agent that takes no MCP server over HTTP gets none, and its prompt keeps the memory read-only.
+    const plain = setup({ mcpServers: servers, systemPrompt, env: { FAKE_ACP_NO_HTTP_MCP: "1" } });
+    const other = await plain.chat();
+    await plain.say(other, "mcp?");
+    expect(plain.words()).toBe("mcp: none | allowed: none");
+    expect(prompts.at(-1)).toBe(false);
+  });
+
+  test("the agent's sign-in page is a card first, and opens in this Mac's browser once allowed (plan 042)", async () => {
+    const opened: string[] = [];
+    const s = setup({ openUrl: (url) => opened.push(url) });
+    const id = await s.chat();
+    await s.chats.send({ agent_id: "ada", conversation_id: id, text: "signin", images: [], context: null, send_id: null });
+    await until(() => s.events().some((e) => e.kind === "approval"));
+    const card = must(s.events().find((e): e is Extract<ChatEvent, { kind: "approval" }> => e.kind === "approval"));
+    expect(card).toMatchObject({ tool_name: "Authenticate with MCP server notion", input: { url: "https://signin.example.com/authorize?state=1" } });
+    expect(opened).toEqual([]);
+    await s.chats.approve({ agent_id: "ada", conversation_id: id, approval_id: card.request_id, allow: true, always: false, message: null });
+    await until(() => s.events().some((e) => e.kind === "turn_end"));
+    expect(opened).toEqual(["https://signin.example.com/authorize?state=1"]);
+    expect(s.words()).toBe("sign-in accept");
+
+    // Denied: nothing opens, and the agent hears it declined.
+    const other = await s.chat();
+    await s.chats.send({ agent_id: "ada", conversation_id: other, text: "signin", images: [], context: null, send_id: null });
+    await until(() => s.events().filter((e) => e.kind === "approval").length === 2);
+    const second = must(s.events().filter((e): e is Extract<ChatEvent, { kind: "approval" }> => e.kind === "approval")[1]);
+    await s.chats.approve({ agent_id: "ada", conversation_id: other, approval_id: second.request_id, allow: false, always: false, message: null });
+    await until(() => s.events().filter((e) => e.kind === "turn_end").length === 2);
+    expect(opened).toHaveLength(1);
+    expect(s.words()).toContain("sign-in decline");
   });
 });

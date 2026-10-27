@@ -14,6 +14,8 @@ import type { AcpAgentConfig } from "./agents.ts";
 export interface AcpHandlers {
   update(n: acp.SessionNotification): void;
   permission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse>;
+  /** The agent asks the person to open a page, such as an MCP server's sign-in (plan 042); a form it asks for is declined. */
+  elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse>;
 }
 
 /** How much of the agent's stderr is kept, to say why it failed (R11). */
@@ -82,6 +84,11 @@ export class AcpProcess {
     const stream = ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>);
     const connection = client({ name: "loki" })
       .onRequest(methods.client.session.requestPermission, (ctx) => this.handlers.permission(ctx.params))
+      // A page the agent asks the person to open. Its later `elicitation/complete` is left unhandled on purpose: the card
+      // is already answered, and a second notification handler makes the SDK deliver `session/update`s out of order
+      // with responses, so a loaded session's replayed history leaked into the next turn (found 2026-10-27).
+      .onRequest(methods.client.elicitation.create, (ctx) => this.handlers.elicit(ctx.params))
+
       .onNotification(methods.client.session.update, (ctx) => {
         this.handlers.update(ctx.params);
       })
@@ -99,7 +106,8 @@ export class AcpProcess {
       const init = await Promise.race([
         connection.agent.request(methods.agent.initialize, {
           protocolVersion: PROTOCOL_VERSION,
-          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+          // Pages to open (an MCP server's sign-in, plan 042), shown as a card; no forms.
+          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false, elicitation: { url: {} } },
           clientInfo: { name: "loki", version: "1" },
         }),
         exited.then((e) => Promise.reject(e)),

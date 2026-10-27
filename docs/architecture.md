@@ -99,7 +99,8 @@ every chat gets, the chats, then the mods.
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
-   definition (`daemon/tool-kinds.ts`). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
+   definition (`daemon/tool-kinds.ts`). The memory, schedule and question tools, and the mods' tools, are written once
+   as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones. Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
    own environment except that `bash` output past its limits is saved to the chat's `tool-results` folder, where
    MCP's big results go too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
@@ -176,7 +177,11 @@ every chat gets, the chats, then the mods.
     `pi.tool-result` entries in the chat's own store, written without pi (`AgentStore.appendEntries`), so the
     projection, the Inbox, history and the passes read it as any chat; its reported usage goes into `pi.usage` for
     the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona, memory and skills go in its
-    system prompt (`prompt.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
+    system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts` (plan 042): an MCP
+    endpoint on a loopback port, one HTTP server per session with a key that names the chat, running the same tool
+    bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are handed over
+    as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in asks
+    for its page (a URL elicitation), shown as a card and opened in the Mac's browser (`open-url.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
     `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in
     `state/acp-offered.json` for the picker. Settings › Engines shows how each stands.
 

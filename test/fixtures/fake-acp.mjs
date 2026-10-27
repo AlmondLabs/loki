@@ -11,6 +11,8 @@
 //   "prompt?" answers with the system prompt and the first prompt's words it was given
 //   "mode?"   answers with its current mode and model
 //   "effort?" answers with its current model and effort
+//   "signin"  asks the client to open an MCP server's sign-in page (a URL elicitation) and says how it was answered
+//   "mcp?"    answers with the MCP servers its session opened with and the tools it may run without asking
 // Plain JavaScript, so a test starts it with `node` and nothing else.
 import { createInterface } from "node:readline";
 
@@ -65,7 +67,9 @@ const options = (s) => [modelOption(s.model), effortOption(s)];
 
 function open(sessionId, params) {
   const prompt = params.systemPrompt?.content?.map((c) => c.text).join("\n") ?? null;
-  const s = { mode: "default", model: "default", effort: "default", systemPrompt: prompt, firstPrompt: null };
+  const servers = (params.mcpServers ?? []).map((m) => `${m.name} ${m.url ?? m.command}`).join(", ") || "none";
+  const allowed = params._meta?.claudeCode?.options?.allowedTools?.join(", ") || "none";
+  const s = { mode: "default", model: "default", effort: "default", systemPrompt: prompt, firstPrompt: null, servers, allowed };
   sessions.set(sessionId, s);
   return { modes: { ...MODES }, configOptions: options(s) };
 }
@@ -86,6 +90,21 @@ async function prompt(params) {
   }
   if (text.includes("prompt?")) {
     say(id, `system: ${s.systemPrompt ?? "none"} | first: ${s.firstPrompt}`);
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("signin")) {
+    const answer = await ask("elicitation/create", {
+      mode: "url",
+      sessionId: id,
+      message: "Authenticate with MCP server notion",
+      url: "https://signin.example.com/authorize?state=1",
+      elicitationId: "sign-in-1",
+    });
+    say(id, `sign-in ${answer.action}`);
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("mcp?")) {
+    say(id, `mcp: ${s.servers} | allowed: ${s.allowed}`);
     return { stopReason: "end_turn" };
   }
   if (text.includes("effort?")) {
@@ -179,6 +198,7 @@ async function handle(msg) {
         agentCapabilities: {
           loadSession: true,
           promptCapabilities: { image: true },
+          mcpCapabilities: process.env.FAKE_ACP_NO_HTTP_MCP ? {} : { http: true },
           sessionCapabilities: process.env.FAKE_ACP_NO_SYSTEM_PROMPT ? {} : { systemPrompt: { mode: { append: {} } } },
         },
         agentInfo: { name: "fake-acp", version: "1" },

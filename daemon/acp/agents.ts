@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { delimiter, dirname, isAbsolute, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 
 /**
  * The ACP agents a chat can run on (plan 020, KD1): programs loki starts and talks to over stdio, in the role an
@@ -80,10 +80,16 @@ export function writeAcpAgents(file: string, agents: readonly AcpAgentConfig[]):
  * bare name there). Only a check for Settings; starting it is the proof.
  */
 export function commandFound(command: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) return existsSync(command);
+  return commandPath(command, env) !== null;
+}
+
+/** Where a command is, as a full path: as given when it names a file, else the first match on PATH; null when nowhere. */
+export function commandPath(command: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) return existsSync(command) ? resolve(command) : null;
   const exts = process.platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [];
   const dirs = (env.PATH ?? env.Path ?? "").split(delimiter).filter(Boolean);
-  return dirs.some((dir) =>
-    [command, ...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`)].some((name) => existsSync(join(dir, name))),
-  );
+  for (const dir of dirs)
+    for (const name of [command, ...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`)])
+      if (existsSync(join(dir, name))) return join(dir, name);
+  return null;
 }

@@ -537,9 +537,20 @@ terminal). In such a chat:
 - a message sent while Claude Code works waits for the turn to end, shown as queued, and until then **take back**
   removes it: Claude Code takes one message at a time;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
-  starts, beside Claude Code's own `CLAUDE.md`. Claude Code can read the memory files and is asked not to change them;
-  Reflection, Learn and /doctor keep them up to date from these chats as from any other, on the agent's own model in
-  loki. With no provider set up in loki, they wait until there is one.
+  starts, beside Claude Code's own `CLAUDE.md`. Reflection, Learn and /doctor keep the memory up to date from these
+  chats as from any other, on the agent's own model in loki. With no provider set up in loki, they wait until there
+  is one;
+- the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
+  committed as in loki's chats), schedules, questions in loki's card, the canvas and Tasks, and any your mods add.
+  Claude Code's own tools cover files, commands, web search and subagents;
+- every MCP server the agent has on in loki (Agents › Profile) is there too, under its own name: loki hands Claude
+  Code each one's settings and Claude Code connects to it. A server that signs in (Notion, say) asks once, the first
+  time a Claude Code chat uses it: a card in the chat asks to open its sign-in page, and **allow** opens it in this
+  Mac's browser. Claude Code keeps that sign-in for every later chat; loki's own sign-in stays for loki's chats. A
+  local server you gave its own folder can't be handed over and stays out (the daemon's log says so). Servers you set
+  up in Claude Code itself load as well;
+- tools that only read, and loki's memory and question tools, run without a card, as they do in loki's own chats;
+  anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
 

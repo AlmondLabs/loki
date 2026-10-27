@@ -485,3 +485,57 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
     }
   });
 });
+
+describe("the servers an agent has on, for its chats on an ACP agent (plan 042)", () => {
+  test("each passed as itself with its secrets filled in; one switched off, in its own folder or not found is left out", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-acp-"));
+    const reported: string[] = [];
+    writeFileSync(
+      join(dir, "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          tracker: { command: process.execPath, args: ["server.js"], env: { TOKEN: "${keychain:tracker.TOKEN}" } },
+          notion: { url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer ${keychain:notion.TOKEN}" } },
+          signin: { url: "https://signin.example.com/mcp" },
+          folder: { command: process.execPath, cwd: dir },
+          missing: { command: "no-such-command-anywhere" },
+          quiet: { command: process.execPath },
+        },
+      }),
+    );
+    const secrets = new Map([
+      ["mcp.tracker.TOKEN", "t0ken"],
+      ["mcp.notion.TOKEN", "n0tion"],
+    ]);
+    const mcp = new McpTools({
+      registry: createRegistry(),
+      configPath: join(dir, "mcp.json"),
+      lokiDir: dir,
+      report: (m) => reported.push(m),
+      servers: new McpServers({ connect: inMemory().connect }),
+      secrets: { get: (a) => Promise.resolve(secrets.get(a) ?? null), set: () => Promise.resolve() },
+    });
+    try {
+      mcp.start();
+      await until(() => mcp.servers.tools().some((t) => t.server === "tracker"));
+      mcp.setAgentServer("agent-local-a", "quiet", false);
+      const servers = await mcp.acpServers("agent-local-a");
+      expect(servers).toEqual([
+        { name: "tracker", command: process.execPath, args: ["server.js"], env: [{ name: "TOKEN", value: "t0ken" }] },
+        { type: "http", name: "notion", url: "https://mcp.example.com/mcp", headers: [{ name: "Authorization", value: "Bearer n0tion" }] },
+        // No header of its own: the agent signs in to it itself.
+        { type: "http", name: "signin", url: "https://signin.example.com/mcp", headers: [] },
+      ]);
+      expect(reported.filter((m) => m.includes("left out of ACP chats"))).toEqual([
+        "MCP server folder left out of ACP chats: it runs in its own folder, which an ACP agent cannot be told",
+        "MCP server missing left out of ACP chats: no-such-command-anywhere is not on the PATH",
+      ]);
+      // Its read-only tools run without asking, under the names the agent gives them; a switched-off server's do not.
+      expect(mcp.acpReadOnly("agent-local-a")).toContain("mcp__tracker__list_issues");
+      expect(mcp.acpReadOnly("agent-local-a").some((t) => t.startsWith("mcp__quiet__"))).toBe(false);
+    } finally {
+      await mcp.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

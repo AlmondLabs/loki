@@ -18,7 +18,7 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       writeFileSync(join(root, "notes", "roses.md"), "prune in March\n");
       mkdirSync(join(root, "skills", "pruning"), { recursive: true });
       writeFileSync(join(root, "skills", "pruning", "SKILL.md"), "---\nname: pruning\ndescription: how to prune roses\n---\nCut above a bud.\n");
-      const prompt = must(agentPrompt(dir, id, "Ada", globalSkills));
+      const prompt = must(agentPrompt(dir, id, "Ada", false, globalSkills));
       expect(prompt).toMatch(/^You are Ada, an agent of theirs in loki/);
       expect(prompt).toContain("I keep the garden notes.");
       expect(prompt).toContain(`- ${join(root, "notes", "roses.md")}`);
@@ -27,7 +27,13 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       expect(prompt).toContain(`- pruning: how to prune roses (${join(root, "skills", "pruning", "SKILL.md")})`);
       // loki's own chats keep the memory tools' wording.
       expect(memorySection(root)).toContain("read one with memory_read");
-      expect(agentPrompt(dir, "agent-nobody", null, globalSkills)).toBeNull();
+      expect(agentPrompt(dir, "agent-nobody", null, false, globalSkills)).toBeNull();
+      // With loki's tools (plan 042), the memory is changed through them, as in loki's own chats.
+      const withTools = must(agentPrompt(dir, id, "Ada", true, globalSkills));
+      expect(withTools).toContain("mcp__loki__memory_read");
+      expect(withTools).toContain("never by editing the files");
+      expect(withTools).toContain("read one with memory_read");
+      expect(withTools).not.toContain("do not edit them");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

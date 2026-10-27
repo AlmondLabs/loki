@@ -13,10 +13,13 @@ import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView, EngineView } from "../../core/frame-types.ts";
+import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
 import { CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
 import { AcpProcess } from "./process.ts";
 import { acpTurnProperties } from "../telemetry.ts";
 
+/** How long a page the agent asks the person to open waits for them: Claude Code's own wait for a sign-in. */
+const SIGN_IN_WAIT_MS = 10 * 60_000;
 /**
  * Chats that run on an ACP agent (plan 020). Each chat has a session on its agent's process; a message is a
  * `session/prompt`, and what the agent reports as it works (`session/update`) becomes loki's chat events for every
@@ -25,16 +28,27 @@ import { acpTurnProperties } from "../telemetry.ts";
  * (R9). The agent's permission requests are loki's approval cards (KD10).
  */
 
-interface Deps {
+/** What the ACP chats are made with. */
+export interface AcpChatsDeps {
   stores: StoreManager;
   approvals: Approvals;
   context: Context;
   /** The ACP agents loki knows (daemon/acp/agents.ts), read on each use so an added agent needs no restart. */
   agents: () => AcpAgentConfig[];
   /** What is added to the agent's system prompt for a loki agent: its persona and memory (KD5); null for nothing. */
-  systemPrompt?: (agentId: string) => string | null;
+  systemPrompt?: (agentId: string, withTools: boolean) => string | null;
   /** The folder a chat with none set runs in. */
   homeDir: string;
+  /**
+   * The MCP servers a chat's session opens with (plan 042): loki's own tools (daemon/acp/loki-tools.ts) and the
+   * servers set up in loki that are on for the agent, which it connects to itself; absent, none. Those over HTTP or SSE go only to an agent that
+   * says it takes them.
+   */
+  mcpServers?: (agentId: string, conversationId: string) => Promise<acp.McpServer[]>;
+  /** Opens a web page in this Mac's browser: an MCP server's sign-in the agent asked for (plan 042); absent, none opens. */
+  openUrl?: (url: string) => void;
+  /** Tools the agent runs without asking (plan 042): those that only read, as Claude Code names them. */
+  allowedTools?: (agentId: string) => string[];
   /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
   capture?: (event: string, properties: Record<string, unknown>) => void;
   /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
@@ -178,13 +192,15 @@ export class AcpChats {
   private readonly bySession = new Map<string, Live>();
   /** Updates for a session loki has not registered yet (they can arrive with its `session/new` answer), replayed once it has. */
   private readonly early = new Map<string, acp.SessionNotification[]>();
+  /** Who waits for a session to be registered: a sign-in it asks for while it opens (see `elicit`). */
+  private readonly registering = new Map<string, Array<(live: Live) => void>>();
   private readonly processes = new Map<string, AcpProcess>();
   private readonly offered: Map<string, Offered>;
   /** How each agent last went: a message through, a start, or a failure with its reason (Settings › Engines). */
   private readonly health = new Map<string, { status: "ready" | "started" | "failed"; detail: string | null }>();
-  private readonly deps: Deps;
+  private readonly deps: AcpChatsDeps;
 
-  constructor(deps: Deps) {
+  constructor(deps: AcpChatsDeps) {
     this.deps = deps;
     this.offered = new Map(Object.entries(this.readCache()));
   }
@@ -370,6 +386,7 @@ export class AcpChats {
       proc = new AcpProcess(config, {
         update: (n) => this.update(n),
         permission: (r) => this.permission(r),
+        elicit: (r) => this.elicit(r),
       });
       this.processes.set(agent, proc);
     }
@@ -555,9 +572,20 @@ export class AcpChats {
     if (live.sessionId && live.epoch === proc.epoch()) return live.sessionId;
     const settings = (await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined;
     const cwd = settings?.cwd ?? this.deps.homeDir;
-    const prompt = this.deps.systemPrompt?.(live.agentId) ?? null;
     const takesPrompt = Boolean(caps.sessionCapabilities?.systemPrompt);
+    const mcpServers = (this.deps.mcpServers ? await this.deps.mcpServers(live.agentId, live.conversationId) : []).filter((m) =>
+      !("type" in m) ? true : m.type === "http" ? Boolean(caps.mcpCapabilities?.http) : m.type === "sse" ? Boolean(caps.mcpCapabilities?.sse) : false,
+    );
+    const prompt =
+      this.deps.systemPrompt?.(
+        live.agentId,
+        mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER),
+      ) ?? null;
     const systemPrompt = prompt && takesPrompt ? { systemPrompt: { mode: "append" as const, content: [{ type: "text" as const, text: prompt }] } } : {};
+    const allowedTools = this.deps.allowedTools?.(live.agentId) ?? [];
+    // Claude's adapter takes the tools it may run without asking as one of its options; another agent ignores it.
+    const meta = allowedTools.length ? { _meta: { claudeCode: { options: { allowedTools } } } } : {};
+    const opening = { cwd, mcpServers, ...systemPrompt, ...meta };
     if (live.sessionId) this.bySession.delete(live.sessionId);
     let opened: { sessionId: string; modes?: acp.SessionModeState | null; configOptions?: acp.SessionConfigOption[] | null } | null = null;
     if (engine.session_id && caps.loadSession) {
@@ -565,7 +593,7 @@ export class AcpChats {
       this.bySession.set(engine.session_id, live);
       live.loading = true;
       try {
-        opened = { sessionId: engine.session_id, ...(await proc.loadSession({ sessionId: engine.session_id, cwd, mcpServers: [], ...systemPrompt })) };
+        opened = { sessionId: engine.session_id, ...(await proc.loadSession({ sessionId: engine.session_id, ...opening })) };
       } catch {
         // The agent no longer has it (its own history was cleared, say): a new session, said so below.
         opened = null;
@@ -578,7 +606,7 @@ export class AcpChats {
         const note = "the agent could not pick up where this chat left off, so it starts afresh; it does not remember the messages above";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
       }
-      opened = await proc.newSession({ cwd, mcpServers: [], ...systemPrompt });
+      opened = await proc.newSession(opening);
       // Known before anything else is awaited: the agent sends its commands right after it answers.
       this.register(opened.sessionId, live);
       // Only while the chat is still on this agent: one opened early may have moved on while the agent started.
@@ -785,6 +813,8 @@ export class AcpChats {
   private register(sessionId: string, live: Live): void {
     if (this.bySession.get(sessionId) === live) return;
     this.bySession.set(sessionId, live);
+    for (const waiting of this.registering.get(sessionId) ?? []) waiting(live);
+    this.registering.delete(sessionId);
     const early = this.early.get(sessionId) ?? [];
     this.early.delete(sessionId);
     for (const n of early) this.update(n);
@@ -897,6 +927,50 @@ export class AcpChats {
     turn.responses++;
     const output = call.output || raw || (failed ? "the tool failed" : "done");
     turn.writes.push(this.chat(live.agentId, live.conversationId).then(({ store, chat }) => this.writeCall(live, store, chat, id, call, failed, output)));
+  }
+
+  /**
+   * The agent asks the person to open a page (plan 042): Claude Code's sign-in to an MCP server, whose answer comes
+   * back to a listener Claude Code runs on this Mac. A loki card asks first, in the chat, on the Mac and the phone;
+   * allowed, the page opens in this Mac's browser wherever the card was answered. Claude Code keeps the token for
+   * every later session, so each server asks once. A form, or a page that is not a web address, is declined; the card
+   * waits as long as the agent does (ten minutes).
+   */
+  private async elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {
+    // The request's type keeps room for modes a later ACP adds, so its fields are read as unknown and checked.
+    const url = r.mode === "url" && "url" in r && typeof r.url === "string" && /^https?:\/\//i.test(r.url) ? r.url : null;
+    const sessionId = "sessionId" in r && typeof r.sessionId === "string" ? r.sessionId : null;
+    const openUrl = this.deps.openUrl;
+    if (!url || !sessionId || !openUrl) return { action: "decline" };
+    const signal = AbortSignal.timeout(SIGN_IN_WAIT_MS);
+    const live = await this.sessionLive(sessionId, signal);
+    if (!live) return { action: "cancel" };
+    const event = { kind: "approval" as const, request_id: `acp-page-${randomUUID()}`, tool_name: r.message, input: { url } };
+    try {
+      const d = await this.deps.approvals.ask<{ allow: boolean }>(live.agentId, live.conversationId, event, signal, { remember: false });
+      if (!d.allow) return { action: "decline" };
+      openUrl(url);
+      return { action: "accept" };
+    } catch {
+      return { action: "cancel" };
+    }
+  }
+
+  /** The chat a session belongs to, waiting for it to be registered when the agent asks before `session/new` answers. */
+  private sessionLive(sessionId: string, signal: AbortSignal): Promise<Live | null> {
+    const known = this.bySession.get(sessionId);
+    if (known) return Promise.resolve(known);
+    return new Promise((resolve) => {
+      const waiting = (live: Live) => resolve(live);
+      this.registering.set(sessionId, [...(this.registering.get(sessionId) ?? []), waiting]);
+      signal.addEventListener("abort", () => {
+        this.registering.set(
+          sessionId,
+          (this.registering.get(sessionId) ?? []).filter((w) => w !== waiting),
+        );
+        resolve(null);
+      });
+    });
   }
 
   /**
