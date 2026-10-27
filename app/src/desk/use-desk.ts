@@ -14,7 +14,7 @@ import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
 import type { Rest } from "../../../core/attention/rest.ts";
 import type { TranscriptRow } from "../chat/transcript";
-import type { ToolStep } from "../../../core/attention/transcript.ts";
+import type { WholeRow } from "../../../core/attention/transcript.ts";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
 import { requestResult, type InputOf, type Replies, type ReplyOf, type RequestName, type RequestResult } from "../../../core/frames.ts";
@@ -395,9 +395,11 @@ export function useDesk() {
         setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
         return { rows: r.reply.messages, more: r.reply.more, start: r.reply.start };
       }),
-    /** The whole step of a lean tool row (plan 041), from the Mac the chat lives on; null when it did not come. */
-    loadStep: (agentId: string, conversationId: string, row: number): Promise<ToolStep | null> =>
-      request("history_step_get", { agent_id: agentId, conversation_id: conversationId, row }, HISTORY_WAIT_MS).then((r) => (r.ok ? r.reply.step : null)),
+    /** What a page left out of a lean row (plans 041 and 043), from the Mac the chat lives on; null when it did not come. */
+    loadStep: (agentId: string, conversationId: string, row: number): Promise<WholeRow | null> =>
+      request("history_step_get", { agent_id: agentId, conversation_id: conversationId, row }, HISTORY_WAIT_MS).then((r) =>
+        r.ok ? { step: r.reply.step, detail: r.reply.detail ?? null } : null,
+      ),
     /** What the Mac a new chat would live on lacks for its agent (plan 023, U10): lines for the person, none when nothing. */
     requirements: (agentId: string, home?: string): Promise<string[]> =>
       request("chat_requirements", { agent_id: agentId, ...(home ? { home } : {}) }, 8000).then((r) => (r.ok ? r.reply.missing : [])),

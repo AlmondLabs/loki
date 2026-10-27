@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useState } from "react";
-import type { ToolStep, TranscriptRow } from "../../../core/attention/transcript.ts";
+import type { TranscriptRow, WholeRow } from "../../../core/attention/transcript.ts";
 import { Button, Sheet } from "../components";
 import { Icon } from "../shared/icons";
 import {
@@ -29,43 +29,65 @@ import {
 /** The conversation is the phone's (Conversation's `touch`): steps open as a bottom sheet rather than in place. */
 export const StepsTouch = createContext(false);
 
-/** Fetches the whole step of a tool row a history page sent lean (plan 041); null where nothing can. */
-export const StepsLoad = createContext<((row: number) => Promise<ToolStep | null>) | null>(null);
+/**
+ * Fetches what a history page left out of a lean row: a tool row's whole step (plan 041) or an event's whole detail
+ * (plan 043); null where nothing can.
+ */
+export const StepsLoad = createContext<((row: number) => Promise<WholeRow | null>) | null>(null);
 
-/** Whole steps already fetched, by the lean row they fill: opening a step again does not ask again. */
-const fetched = new WeakMap<TranscriptRow, ToolStep>();
+/** Lean rows already filled, by the row: opening one again does not ask again. */
+const fetched = new WeakMap<TranscriptRow, WholeRow>();
+
+/** What a row is shown with when opened, from the row itself: its step, or an event's detail. */
+const ownWhole = (row: TranscriptRow): WholeRow => ({ step: row.tool ?? null, detail: row.detail ?? null });
+
+/** Whether `whole` has what `row` is opened for: an event's detail, a tool row's step. */
+const fills = (row: TranscriptRow, whole: WholeRow | null): whole is WholeRow => (row.role === "event" ? !!whole?.detail : !!whole?.step);
 
 /**
- * A tool row's step to show opened: the row's own, or for a lean one (plan 041) the whole step, asked for from the Mac
- * the chat lives on. "loading" until it comes, "failed" with a retry when it does not.
+ * A row as it shows opened: its own step or detail, or for a lean one (plans 041 and 043) what the page left out,
+ * asked for from the Mac the chat lives on. "loading" until it comes, "failed" with a retry when it does not.
  */
-function useWholeStep(row: TranscriptRow): { step: ToolStep | undefined; state: "ready" | "loading" | "failed"; retry: () => void } {
+function useWhole(row: TranscriptRow): { whole: WholeRow | undefined; state: "ready" | "loading" | "failed"; retry: () => void } {
   const load = useContext(StepsLoad);
-  const lean = row.tool?.row;
-  const [got, setGot] = useState<{ row: TranscriptRow; step: ToolStep | null } | null>(null);
+  const lean = row.tool?.row ?? row.row;
+  const [got, setGot] = useState<{ row: TranscriptRow; whole: WholeRow | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const have = fetched.get(row) ?? (got?.row === row ? got.step : undefined);
+  const have = fetched.get(row) ?? (got?.row === row ? got.whole : undefined);
   useEffect(() => {
     if (lean === undefined || !load || fetched.has(row)) return;
     let live = true;
-    void load(lean).then((step) => {
-      if (step) fetched.set(row, step);
-      if (live) setGot({ row, step });
+    void load(lean).then((whole) => {
+      const filled = fills(row, whole) ? whole : null;
+      if (filled) fetched.set(row, filled);
+      if (live) setGot({ row, whole: filled });
     });
     return () => {
       live = false;
     };
   }, [row, lean, load, attempt]);
-  if (lean === undefined || !load) return { step: row.tool, state: "ready", retry: () => {} };
-  if (have) return { step: have, state: "ready", retry: () => {} };
+  if (lean === undefined || !load) return { whole: ownWhole(row), state: "ready", retry: () => {} };
+  if (have) return { whole: have, state: "ready", retry: () => {} };
   return {
-    step: undefined,
+    whole: undefined,
     state: have === null ? "failed" : "loading",
     retry: () => {
       setGot(null);
       setAttempt((n) => n + 1);
     },
   };
+}
+
+/** "Could not load this step." with a way to try again, for a lean row whose rest did not come. */
+function NotLoaded({ retry }: { retry: () => void }) {
+  return (
+    <p className="loki-steps-none">
+      Could not load this step.{" "}
+      <Button size="sm" onClick={retry}>
+        Try again
+      </Button>
+    </p>
+  );
 }
 
 /**
@@ -133,37 +155,46 @@ function StepText({ row, verbFirst = false }: { row: TranscriptRow; verbFirst?: 
 
 /** A step's input and output, as they were recorded; a background task's notice carries its result; older rows kept neither. */
 export function StepDetail({ row }: { row: TranscriptRow }) {
-  if (row.role === "event") {
-    return row.detail ? (
-      <div className="loki-steps-detail">
-        <section>
-          <h3 className="loki-steps-heading">{stepKind(row) === "skill" ? "Skill" : stepFailed(row) ? "Result · failed" : "Result"}</h3>
-          <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>
-            {row.detail}
-          </pre>
-        </section>
-      </div>
-    ) : (
-      <p className="loki-steps-none">Nothing more was recorded for this step.</p>
-    );
-  }
-  return <ToolDetail row={row} />;
+  return row.role === "event" ? <EventResult row={row} /> : <ToolDetail row={row} />;
+}
+
+/** A background task's or skill's notice opened as a step: its detail, a lean one's (plan 043) fetched when it opens. */
+function EventResult({ row }: { row: TranscriptRow }) {
+  const { whole, state, retry } = useWhole(row);
+  if (state === "loading") return <p className="loki-steps-none">Loading this step…</p>;
+  if (state === "failed") return <NotLoaded retry={retry} />;
+  return whole?.detail ? (
+    <div className="loki-steps-detail">
+      <section>
+        <h3 className="loki-steps-heading">{stepKind(row) === "skill" ? "Skill" : stepFailed(row) ? "Result · failed" : "Result"}</h3>
+        <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>
+          {whole.detail}
+        </pre>
+      </section>
+    </div>
+  ) : (
+    <p className="loki-steps-none">Nothing more was recorded for this step.</p>
+  );
+}
+
+/**
+ * An event row's detail under its line, opened (`EventRow` in transcript.tsx): the row's own, or a lean one's (plan
+ * 043) fetched now, so a closed row never asks.
+ */
+export function EventDetail({ row }: { row: TranscriptRow }) {
+  const { whole, state, retry } = useWhole(row);
+  if (state === "loading") return <p className="loki-steps-none">Loading…</p>;
+  if (state === "failed") return <NotLoaded retry={retry} />;
+  return whole?.detail ? <pre className="loki-event-detail">{whole.detail}</pre> : null;
 }
 
 /** A tool call's description, input and output; a lean one's (plan 041) fetched when it opens. */
 function ToolDetail({ row }: { row: TranscriptRow }) {
-  const { step: t, state, retry } = useWholeStep(row);
+  const { whole, state, retry } = useWhole(row);
+  const t = whole?.step ?? undefined;
   const shell = stepIcon(stepName(row)) === "terminal";
   if (state === "loading") return <p className="loki-steps-none">Loading this step…</p>;
-  if (state === "failed")
-    return (
-      <p className="loki-steps-none">
-        Could not load this step.{" "}
-        <Button size="sm" onClick={retry}>
-          Try again
-        </Button>
-      </p>
-    );
+  if (state === "failed") return <NotLoaded retry={retry} />;
   if (!t?.input && !t?.output && !t?.description) return <p className="loki-steps-none">No input or output was recorded for this step.</p>;
   return (
     <div className="loki-steps-detail">

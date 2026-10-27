@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
-import { leanPage, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
+import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { must } from "./fixtures/must.ts";
@@ -671,6 +671,17 @@ describe("rows keep their identity until they change", () => {
     expect(lean[2].text).toBe("Bash · false");
     expect(lean[3]).toBe(rows[3]);
     expect(lean[4]).toBe(rows[4]);
+  });
+  test("a history page sends an event's long detail lean, with its position; a short one goes whole (plan 043)", () => {
+    const rows: TranscriptRow[] = [
+      { role: "event", text: "background task", summary: "done", detail: "x".repeat(LEAN_DETAIL_MAX + 1) },
+      { role: "event", text: "skill loaded", summary: "plan", detail: "y".repeat(LEAN_DETAIL_MAX) },
+      { role: "event", text: "moved to this Mac", summary: null, detail: null },
+    ];
+    const lean = leanPage(rows, 12);
+    expect(lean[0]).toEqual({ role: "event", text: "background task", summary: "done", detail: null, row: 12 });
+    expect(lean[1]).toBe(rows[1]);
+    expect(lean[2]).toBe(rows[2]);
   });
   test("a lean row in a loaded page is a finished call: a live approval for that tool does not take it (plan 041)", () => {
     const t = new ThreadModel();

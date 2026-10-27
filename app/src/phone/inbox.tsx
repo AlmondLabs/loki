@@ -9,7 +9,7 @@ import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.
 import { formatInput } from "../../../core/attention/format.ts";
 import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { TranscriptRow } from "../chat/transcript";
-import type { ToolStep } from "../../../core/attention/transcript.ts";
+import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
 import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/model-picker";
 import { avatarUrl } from "../desk/env";
@@ -86,8 +86,8 @@ export interface CardView {
   older?: (() => void) | null;
   /** The thread's first page did not come (plan 041): try again. */
   loadFailed?: (() => void) | null;
-  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
-  loadStep?: (row: number) => Promise<ToolStep | null>;
+  /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
+  loadStep?: (row: number) => Promise<WholeRow | null>;
 }
 
 /**

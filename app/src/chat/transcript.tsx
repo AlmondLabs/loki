@@ -12,7 +12,7 @@ import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
-import { ToolSteps } from "./tool-steps";
+import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
 import { messageKey } from "../../../core/task-source.ts";
 import { MessageTaskArea, rememberMessage, useMessageTasks } from "../tasks/message-tasks";
@@ -454,14 +454,17 @@ function Message({
   );
 }
 
+/** A harness event as one quiet line; its detail, a lean one's (plan 043) fetched, only once it is opened. */
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const [open, setOpen] = useState(false);
+  const more = !!m.detail || m.row !== undefined;
   return (
-    <details data-row="event" data-arrived={arrived} className="loki-event-row">
-      <summary className="loki-event-summary" style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none" }}>
+    <details data-row="event" data-arrived={arrived} className="loki-event-row" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="loki-event-summary" style={{ cursor: more ? "pointer" : "default", listStyle: more ? "disclosure-closed" : "none" }}>
         ⟳ {m.text}
         {m.summary && <span className="loki-event-aside">{m.summary}</span>}
       </summary>
-      {m.detail && <pre className="loki-event-detail">{m.detail}</pre>}
+      {open && more && <EventDetail row={m} />}
     </details>
   );
 }
