@@ -222,8 +222,9 @@ Rust from [rustup](https://rustup.rs) (stable; open a new terminal after install
 
 ```bash
 npm install
-npm start                                         # Vite on 127.0.0.1:5173, the Tauri window, and app/dist rebuilt for the phone as you edit; Ctrl-C stops all three
-npm run dev                                       # Vite alone, for a browser tab
+npm start                                         # the Tauri window on the built page (app/dist); changes wait for update in the window; Ctrl-C stops it
+npm run dev                                       # the same window on Vite with hot reload, and app/dist rebuilt for the phone as you edit
+npm run dev:vite                                  # Vite alone, for a browser tab
 npm run desktop:dev                               # the Tauri window against a Vite already running
 npm test && npm run typecheck && npm run lint     # vitest, tsc, eslint (typescript-eslint + React compiler rules)
 npm run test:node                                 # the tests that need Node: SQLite stores, resuming after a crash, mod reloads

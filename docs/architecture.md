@@ -372,7 +372,7 @@ and provider credentials in the OS keychain.
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `root.rs` moves the root to `~/.loki`; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar.
-6. `scripts/`: `dev.ts` (`npm start`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
+6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
    timing trial), `pi-import-check.ts` (checks the import against real Letta logs), `cask.ts`, `release.ts` and
    `analytics.ts`.
 7. `test/` (vitest, on Node) and `test-node/` (Node's own runner: SQLite stores, resuming after a crash, mods from a folder).

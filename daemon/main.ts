@@ -37,6 +37,7 @@ import { listAgents, healRecordModel } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
+import { buildPage, isPageSource } from "./page-build.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
 import { ModRegistry, type LoadResult } from "./mods/registry.ts";
@@ -337,14 +338,18 @@ const loadCore = (): Promise<LoadResult> =>
         },
       }),
   });
-// A checkout keeps up with its sources (plan 024): the mod (mod/boot.ts bundles mod/index.ts and core afresh on every
-// activate) reloads when mod/ or core/ changes, and a change to daemon/ or core/ makes a restart due, which the window
-// offers; the restart itself is the person's (any loki can be asked for one).
+// A checkout keeps up with its sources (plans 024 and 041): the mod (mod/boot.ts bundles mod/index.ts and core afresh on
+// every activate) reloads when mod/ or core/ changes, and a change to daemon/ or core/ makes a restart due. Under
+// `npm start` (LOKI_BUILT_PAGE) the window runs the built page, so a change to app/ or core/ makes a build due too. The
+// window offers what is due; the update itself is the person's (any loki can be asked for a restart).
+const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
+const builtPage = checkout && process.env.LOKI_BUILT_PAGE === "1" ? checkout : null;
 const devReload: DevReload = new DevReload({
   reloadMod: async () => {
     const result = await loadCore();
     return "loaded" in result ? "ok" : result.refused;
   },
+  ...(builtPage ? { buildPage: () => buildPage(builtPage) } : {}),
   // A moment later, so the window hears that the restart is under way before its socket closes.
   restart: (why) => void setTimeout(() => stop(`${why}, restarting as asked`), 200),
   idle: async () => {
@@ -354,16 +359,17 @@ const devReload: DevReload = new DevReload({
   report,
 });
 await loadCore();
-const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [
       watchFiles(join(checkout, "mod"), sources, (file) => devReload.modChanged(`mod/${file}`)),
       watchFiles(join(checkout, "core"), sources, (file) => {
         devReload.daemonChanged(`core/${file}`);
+        devReload.pageChanged(`core/${file}`);
         return devReload.modChanged(`core/${file}`);
       }),
       watchFiles(join(checkout, "daemon"), sources, (file) => devReload.daemonChanged(`daemon/${file}`)),
+      ...(builtPage ? [watchFiles(join(checkout, "app"), isPageSource, (file) => devReload.pageChanged(`app/${file}`))] : []),
     ]
   : [];
 const stopWatchingCore = () => {

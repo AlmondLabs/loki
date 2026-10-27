@@ -8,7 +8,8 @@
   "description": "A memory palace your agent builds — a desktop app running its own agent daemon on Pi, with a live widget canvas the agent writes files into",
   "scripts": {
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/dev.ts",
-    "dev": "vite --config app/vite.config.ts",
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/dev.ts --hot",
+    "dev:vite": "vite --config app/vite.config.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",

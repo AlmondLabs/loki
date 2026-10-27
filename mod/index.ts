@@ -97,8 +97,9 @@ export interface Host {
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
   /**
-   * Restarting the daemon (plan 024): the file whose change in a checkout made a restart due (null when none, always in
-   * the installed app), hearing when one becomes due, and restarting now: null once under way, else why not.
+   * Updating a checkout's loki (plans 024 and 041): the file whose change made an update due (null when none, always in
+   * the installed app), hearing when one becomes due, and updating now (a page build, a restart): null once done or
+   * under way, else why not.
    */
   daemon?: {
     restartDue: () => string | null;
@@ -498,7 +499,7 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
   let usagePush: ReturnType<typeof setTimeout> | null = null;
-  // A restart due after a checkout's daemon code changed (plan 024): every window offers it.
+  // An update due after a checkout's code changed (plans 024 and 041): every window offers it.
   const stopRestartDue = host.daemon?.onRestartDue((file) => ws?.broadcast({ type: "restart_due", file }));
   const stopUsage = host.usage?.onChange(() => {
     usagePush ??= setTimeout(() => {
