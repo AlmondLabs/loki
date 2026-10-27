@@ -73,7 +73,7 @@ export interface UseAttentionOptions {
   rest?: (agentId: string, conversationId: string, rest: Rest) => void;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
-  /** Full transcript from the daemon's store, through the mod (compaction-proof); may resolve empty. */
+  /** Full transcript from the daemon's store, through the mod (compaction-proof); null when no page came (plan 041). */
   loadLocalHistory?: (
     agentId: string,
     conversationId: string,
@@ -93,7 +93,9 @@ export interface UseAttentionOptions {
     more: boolean;
     /** Where the rows start in the chat's whole thread; a paired Mac on an older loki leaves it out. */
     start?: number;
-  }>;
+  } | null>;
+  /** The whole step of a lean tool row (plan 041), from the Mac the chat lives on; null when it did not come. */
+  loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<ToolStep | null>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
@@ -148,6 +150,10 @@ export interface ChatFace {
   cwd: string | null;
   engine: ChatEngineView | null;
   older: (() => void) | null;
+  /** The thread's first page did not come (plan 041): load it again. Null while it loads, once it came, or before it is asked for. */
+  loadFailed: (() => void) | null;
+  /** Fetch the whole step of a lean tool row (plan 041). */
+  loadStep: (row: number) => Promise<ToolStep | null>;
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
@@ -187,6 +193,10 @@ export function useThreadRows(
   return useSyncExternalStore(chats.watchThreads, read, read);
 }
 
+/** A flag map without `key`. */
+const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
+
 /** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */
 export const HISTORY_PAGE = 400;
 
@@ -207,6 +217,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[]; only?: string[] } | null>(null);
   /** Chats whose log holds rows older than the ones loaded; the reader reaching the top asks for the next page. */
   const [older, setOlder] = useState<Partial<Record<string, true>>>({});
+  /** Chats whose first page did not come (plan 041): their thread says so and offers to try again. */
+  const [failed, setFailed] = useState<Partial<Record<string, true>>>({});
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
   const historyLimits = useRef(new Map<string, number>());
   const loading = useRef(new Set<string>());
@@ -525,7 +537,7 @@ export function useAttention(opts: UseAttentionOptions) {
 
   /** Whether a chat's log holds rows older than those loaded: by position when the thread knows its own, else as the page said. */
   const markOlder = useCallback((key: string, more: boolean) => {
-    setOlder((o) => (!!o[key] === more ? o : more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
+    setOlder((o) => (!!o[key] === more ? o : more ? { ...o, [key]: true } : withoutKey(o, key)));
   }, []);
 
   /**
@@ -542,6 +554,10 @@ export function useAttention(opts: UseAttentionOptions) {
         const thread = liveOf(key).thread;
         const limit = thread.firstPosition === null ? (historyLimits.current.get(key) ?? HISTORY_PAGE) : HISTORY_PAGE;
         const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, limit);
+        // A page that did not come leaves a thread never loaded unloaded, not empty; one already loaded stays as it is.
+        const unreached = page === null;
+        setFailed((f) => (!!f[key] === (unreached && thread.rows() === undefined) ? f : unreached ? { ...f, [key]: true } : withoutKey(f, key)));
+        if (unreached) return;
         const rows: HistoryRow[] = page?.rows ?? [];
         thread.load(rows, page?.start);
         const first = thread.firstPosition;
@@ -636,9 +652,11 @@ export function useAttention(opts: UseAttentionOptions) {
         cwd: l?.cwd ?? null,
         engine: l?.engine ?? null,
         older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null,
+        loadFailed: failed[key] ? () => void loadThread({ agent_id: agentId, conversation_id: conversationId }) : null,
+        loadStep: (row) => optsRef.current.loadLocalStep?.(agentId, conversationId, row) ?? Promise.resolve(null),
       };
     },
-    [live, older, loadOlder],
+    [live, older, failed, loadOlder, loadThread],
   );
 
   const decide = useCallback(

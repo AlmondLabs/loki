@@ -50,6 +50,7 @@ describe("the frame table", () => {
         "seen_unmark",
         "viewed_mark",
         "history_get",
+        "history_step_get",
         "inbox_list",
         "pin_set",
         "folders_get",
@@ -485,6 +486,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_send",
       "chat_update",
       "history_get",
+      "history_step_get",
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual(["chat_requirements", "folder_check", "folder_complete", "folders_get"]);

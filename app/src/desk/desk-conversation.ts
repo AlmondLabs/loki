@@ -38,8 +38,10 @@ export function deskConversation(
 ): { view: ConversationView; actions: ConversationActions } {
   const { scope, title, attention } = desk;
   const { deskRuntime, deskChat, pendingApproval, pendingQuestion } = chat;
+  const row = desk.desks.list.find((d) => d.scope === scope);
   const view: ConversationView = {
-    rows: rows ?? [],
+    // Undefined until the first page came: the thread says it is loading, or that it could not (plan 041).
+    rows,
     status: deskChat?.status ?? "idle",
     error: !attention.available ? "chat needs loki's daemon — is it running?" : (deskChat?.error ?? null),
     model: desk.model,
@@ -49,6 +51,9 @@ export function deskConversation(
     approval: pendingApproval,
     question: pendingQuestion,
     older: deskChat?.older ?? null,
+    loadFailed: deskChat?.loadFailed ?? null,
+    loadStep: deskChat?.loadStep,
+    home: row?.home ? (row.home_name ?? "another Mac") : null,
   };
   const actions: ConversationActions = {
     onSend: (text, images) =>

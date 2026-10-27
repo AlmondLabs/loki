@@ -9,6 +9,7 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import type { MessageLayout } from "../chat/transcript";
+import type { ToolStep } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
@@ -50,6 +51,10 @@ export interface ThreadView {
   /** The ACP agent the chat runs on (plan 020), whose models the picker offers once the chat has started. */
   engine?: ChatEngineView | null;
   older?: (() => void) | null;
+  /** The thread's first page did not come (plan 041): try again. */
+  loadFailed?: (() => void) | null;
+  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
+  loadStep?: (row: number) => Promise<ToolStep | null>;
 }
 
 /**
@@ -207,6 +212,8 @@ export function ConversationScreen({
                 approval: view.pending,
                 question: view.question,
                 older: view.older ?? null,
+                loadFailed: view.loadFailed ?? null,
+                loadStep: view.loadStep,
               }}
               models={models}
               actions={{

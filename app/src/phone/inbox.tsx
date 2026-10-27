@@ -9,6 +9,7 @@ import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.
 import { formatInput } from "../../../core/attention/format.ts";
 import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { TranscriptRow } from "../chat/transcript";
+import type { ToolStep } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
 import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/model-picker";
 import { avatarUrl } from "../desk/env";
@@ -83,6 +84,10 @@ export interface CardView {
   question?: PendingQuestion | null;
   error?: string | null;
   older?: (() => void) | null;
+  /** The thread's first page did not come (plan 041): try again. */
+  loadFailed?: (() => void) | null;
+  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
+  loadStep?: (row: number) => Promise<ToolStep | null>;
 }
 
 /**
@@ -877,6 +882,8 @@ export function CardConversation({
           model: model?.modelOf(item) ?? null,
           reasoningEffort: model?.effortOf(item) ?? null,
           older: view.older ?? null,
+          loadFailed: view.loadFailed ?? null,
+          loadStep: view.loadStep,
         }}
         models={model?.models ?? null}
         actions={{
@@ -906,7 +913,17 @@ export function CardConversation({
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews }) {
   const view = useConversation(chats, item.agent_id, item.id);
-  return <Thread rows={view.rows} status={view.status} agentName={item.agent_name} dim={false} older={view.older ?? null} />;
+  return (
+    <Thread
+      rows={view.rows}
+      status={view.status}
+      agentName={item.agent_name}
+      dim={false}
+      older={view.older ?? null}
+      loadFailed={view.loadFailed ?? null}
+      loadStep={view.loadStep}
+    />
+  );
 }
 
 /**

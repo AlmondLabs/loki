@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
-import type { TranscriptRow } from "../core/attention/transcript.ts";
+import { leanPage, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { must } from "./fixtures/must.ts";
@@ -651,5 +651,34 @@ describe("rows keep their identity until they change", () => {
     expect(after[0]).toBe(before[0]);
     expect(after[1]).not.toBe(before[1]);
     expect(after[2]).toBe(before[2]);
+  });
+
+  test("a history page sends finished tool rows lean, with their position; a call still waiting and every other row go whole (plan 041)", () => {
+    const long = `cd /repo && ${"grep -rn thing ".repeat(40)}\nsecond line`;
+    const rows: TranscriptRow[] = [
+      { role: "user", text: "look" },
+      { role: "tool", text: long, tool: { name: long, id: "c1", input: long, output: "x".repeat(4000), description: "Search the repo" } },
+      { role: "tool", text: "Bash · false", tool: { name: "Bash", id: "c2", input: "false", failed: true, error: "exit 1" } },
+      { role: "tool", text: "Bash · sleep 9", tool: { name: "Bash", id: "c3", input: "sleep 9" } },
+      { role: "event", text: "background task", detail: "the whole result" },
+    ];
+    const lean = leanPage(rows, 40);
+    expect(lean[0]).toBe(rows[0]);
+    expect(lean[1].tool).toEqual({ name: lean[1].text, id: "c1", description: "Search the repo", row: 41 });
+    expect(lean[1].text.length).toBeLessThanOrEqual(LEAN_LINE_MAX + 1);
+    expect(lean[1].text.endsWith("…")).toBe(true);
+    expect(lean[2].tool).toEqual({ name: "Bash", id: "c2", failed: true, error: "exit 1", row: 42 });
+    expect(lean[2].text).toBe("Bash · false");
+    expect(lean[3]).toBe(rows[3]);
+    expect(lean[4]).toBe(rows[4]);
+  });
+  test("a lean row in a loaded page is a finished call: a live approval for that tool does not take it (plan 041)", () => {
+    const t = new ThreadModel();
+    t.load(leanPage([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a\nb" } }], 0));
+    t.apply({ kind: "approval", name: "Bash", args: { command: "rm x" }, id: "p2", at: null });
+    const shown = tools(t.rows());
+    expect(shown).toHaveLength(2);
+    expect(shown[0].tool).toMatchObject({ id: "c1", row: 0 });
+    expect(shown[1].tool).toMatchObject({ name: "Bash", id: "p2" });
   });
 });

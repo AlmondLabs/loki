@@ -313,6 +313,8 @@ function Card({
           approval: current.pendingApproval ?? null,
           question: current.pendingQuestion ?? null,
           older: thread.older,
+          loadFailed: thread.loadFailed,
+          loadStep: thread.loadStep,
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),

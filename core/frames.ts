@@ -6,7 +6,7 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { UsageReply } from "./usage.ts";
-import type { TranscriptRow } from "./attention/transcript.ts";
+import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
@@ -175,6 +175,8 @@ export interface Replies {
    * older loki leaves it out.
    */
   history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start?: number; widget_log: WidgetLogEntry[] };
+  /** One tool row's whole step (plan 041); null when that row is not a tool call. */
+  history_step: { step: ToolStep | null };
   chat_state: ChatState;
   chat_created: { agent_id: string; conversation_id: string };
   chat_accepted: { accepted: boolean };
@@ -498,6 +500,16 @@ export const FRAMES = {
             before: isNum(m.before) && m.before >= 0 ? m.before : null,
           }
         : "conversation_id required",
+    PHONE,
+    BY_CHAT,
+  ),
+  history_step_get: request(
+    "history_step",
+    "the whole step (input and output) of the tool row at position `row` of a chat's log, which a history page sent lean",
+    (m) =>
+      str(m.conversation_id) && isNum(m.row) && m.row >= 0
+        ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id, row: Math.floor(m.row) }
+        : "conversation_id and row required",
     PHONE,
     BY_CHAT,
   ),
