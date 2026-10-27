@@ -531,7 +531,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     deleteWidgetFile,
     seen,
     transcript: (agentId, conversationId, limit, before) => chats.page(conversationId, agentId, limit, before),
-    step: (agentId, conversationId, row) => chats.step(conversationId, agentId, row),
+    row: (agentId, conversationId, row) => chats.row(conversationId, agentId, row),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),

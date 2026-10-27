@@ -25,7 +25,7 @@ import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
-import type { ToolStep } from "../../../core/attention/transcript.ts";
+import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
 import { ModeSwitch } from "./permission-mode";
 import { engineControls } from "./engine-controls";
@@ -58,8 +58,8 @@ export interface ConversationView {
   older?: (() => void) | null;
   /** The thread's first page did not come (plan 041): try again. Null or absent while it loads, or once it came. */
   loadFailed?: (() => void) | null;
-  /** Fetch the whole step of a tool row a history page sent lean (plan 041). */
-  loadStep?: (row: number) => Promise<ToolStep | null>;
+  /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
+  loadStep?: (row: number) => Promise<WholeRow | null>;
   /** The name of the Mac the chat lives on, when it is another one: the thread says it is loading from there. */
   home?: string | null;
 }
@@ -494,7 +494,7 @@ export const Thread = forwardRef<
     onRetry?: (text: string) => void;
     older?: (() => void) | null;
     loadFailed?: (() => void) | null;
-    loadStep?: (row: number) => Promise<ToolStep | null>;
+    loadStep?: (row: number) => Promise<WholeRow | null>;
     home?: string | null;
     layout?: MessageLayout;
     style?: CSSProperties;

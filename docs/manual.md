@@ -346,8 +346,10 @@ changed, so it pairs once more.
 **The agent's work on the phone.** A run of tool calls is one line in the chat ("Ran 4 commands, used 3 tools · 2
 failed"). Tapping it opens a sheet, as in Claude's app: each step is what kind it was ("Ran", "Read memory", "Asked an
 agent") over what it was for on one line, and a step opens to its description, command and output under the tool's
-name. A chat's history arrives without each step's command and output, which were most of its size; opening a
-step asks the Mac the chat lives on for them ("Loading this step…"), on the phone and the desktop alike.
+name. A chat's history arrives without each step's command and output, which were most of its size, and without a
+background task's or loaded skill's result longer than 1,000 characters; opening a step or that line asks the Mac the
+chat lives on for them ("Loading this step…"), on the phone and the desktop alike. Find in a chat does not search what
+has not been opened yet.
 
 <img src="images/phone-steps-sheet.png" width="300" alt="The phone's steps sheet: each step as what kind it was over what it was for, with a chevron, two marked failed">
 

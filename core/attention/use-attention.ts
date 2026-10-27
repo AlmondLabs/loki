@@ -1,4 +1,4 @@
-import type { FileRef, ToolStep } from "./transcript.ts";
+import type { FileRef, ToolStep, WholeRow } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Runtime } from "./protocol.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
@@ -86,6 +86,8 @@ export interface UseAttentionOptions {
       text: string;
       summary?: string | null;
       detail?: string | null;
+      /** On an event sent lean (plan 043): where its detail is (TranscriptRow's `row`). */
+      row?: number;
       at?: string | null;
       tool?: ToolStep;
       files?: FileRef[];
@@ -94,8 +96,8 @@ export interface UseAttentionOptions {
     /** Where the rows start in the chat's whole thread; a paired Mac on an older loki leaves it out. */
     start?: number;
   } | null>;
-  /** The whole step of a lean tool row (plan 041), from the Mac the chat lives on; null when it did not come. */
-  loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<ToolStep | null>;
+  /** What a page left out of a lean row (plans 041 and 043), from the Mac the chat lives on; null when it did not come. */
+  loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<WholeRow | null>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
@@ -152,8 +154,8 @@ export interface ChatFace {
   older: (() => void) | null;
   /** The thread's first page did not come (plan 041): load it again. Null while it loads, once it came, or before it is asked for. */
   loadFailed: (() => void) | null;
-  /** Fetch the whole step of a lean tool row (plan 041). */
-  loadStep: (row: number) => Promise<ToolStep | null>;
+  /** Fetch what a page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
+  loadStep: (row: number) => Promise<WholeRow | null>;
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
