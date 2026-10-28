@@ -199,7 +199,9 @@ export function ModuleWidget({
           width: fill ? "100%" : (size?.width ?? 0),
           maxWidth: "100%",
           height: visible ? (size?.height ?? 0) : 0,
-          visibility: visible ? "visible" : "hidden",
+          // Inherit, never visible: a child marked visible shows through a hidden parent, and the Canvas tab is hidden
+          // behind Messages, so a loaded widget drew over the chat.
+          visibility: visible ? "inherit" : "hidden",
         }}
       />
     </>
