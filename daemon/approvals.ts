@@ -19,6 +19,8 @@ export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestrict
 export const DEFAULT_MODE: PermissionMode = "unrestricted";
 /** Whether a stored value is one of the four modes; a chat whose mode is anything else runs in DEFAULT_MODE. */
 export const isPermissionMode = (m: unknown): m is PermissionMode => m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted";
+/** The mode a chat on loki's engine runs in: the one stored for it, or DEFAULT_MODE when that is none of the four. */
+export const modeOf = (stored: unknown): PermissionMode => (isPermissionMode(stored) ? stored : DEFAULT_MODE);
 
 export type { ToolKind } from "./tool-kinds.ts";
 
@@ -210,7 +212,7 @@ export class Approvals {
       api.snapshot(AgentInfoDoc, context),
       api.snapshot(PiAgentDoc, api.conversationId, context),
     ]);
-    const mode = isPermissionMode(chat?.mode) ? chat.mode : DEFAULT_MODE;
+    const mode = modeOf(chat?.mode);
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";

@@ -45,3 +45,16 @@ export interface Engine {
   /** A slash command other than loki's passes (/reflect, /doctor), run the engine's way. */
   command(c: EngineChat, p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }>;
 }
+
+/**
+ * Why a chat may not move from its saved engine to the one it asks for, or null when it may (plan 020, KD4). Before
+ * its first message a chat moves freely; after it, only between one engine's models, since what it said lives there.
+ * `wanted` is the ACP agent asked for, or null for loki's own models.
+ */
+export function engineMoveRefused(current: ChatEngine | null, wanted: string | null, started: boolean): string | null {
+  const moves = wanted !== null ? current?.agent !== wanted : current !== null;
+  if (!moves || !started) return null;
+  return wanted !== null
+    ? "this chat has started on another engine; start a new chat to use this one"
+    : "this chat has started on an ACP agent; start a new chat to use loki's models";
+}

@@ -1,4 +1,4 @@
-import { DEFAULT_MODE, isPermissionMode } from "./approvals.ts";
+import { modeOf } from "./approvals.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName } from "../core/desk-core.ts";
@@ -266,7 +266,7 @@ export class ChatProjection implements ChatSource {
       model,
       // An ACP chat's effort is the level chosen for it (plan 021), when loki has a word for it.
       reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
-      mode: engine ? (chat.info?.mode ?? "default") : isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
+      mode: engine ? (chat.info?.mode ?? "default") : modeOf(chat.info?.mode),
       labels: chat.info?.labels ?? [],
     };
   }
