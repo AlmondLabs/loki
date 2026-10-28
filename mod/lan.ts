@@ -274,6 +274,8 @@ export class LanListener {
 
   /** Announce a new canvas build to every phone (`app_build {build}`); they offer to reload. */
   checkBuild(): void {
+    // Nobody to tell: a phone that connects later loads the page as it is now (plan 048).
+    if (this.clientCount() === 0) return;
     const build = buildIdOf(this.dist);
     if (!build || build === this.announcedBuild) return;
     this.announcedBuild = build;
