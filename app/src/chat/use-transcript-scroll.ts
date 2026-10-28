@@ -33,13 +33,15 @@ export function useTranscriptScroll(
   const [leftAt, setLeftAt] = useState<number | null>(null);
   // The window, per thread: a new first row is a new thread and opens on its newest rows again.
   const id = threadId(messages);
-  const [win, setWin] = useState<Win>(() => ({ id, start: openStart(messages.length, dividerAt), first: messages[0] ?? null }));
+  const [win, setWin] = useState<Win>(() => ({ id, start: openStart(messages.length, dividerAt), first: messages[0] ?? null, above: 0 }));
   // Older history loaded above: the old first row is further down now, by as many rows as arrived.
   const shift = win.id === id ? 0 : olderRowsAbove(messages, win.first);
   const start = win.id === id || shift > 0 ? keepStart(win.start + shift, messages.length, dividerAt) : openStart(messages.length, dividerAt);
+  // Every row loaded above since the thread opened: the transcript keys rows past it, so a page above remounts nothing.
+  const above = win.id === id ? win.above : shift > 0 ? win.above + shift : 0;
   // Stored as it is drawn (React's "adjust state while rendering"), so reveals count from here and a New line
   // that goes away does not fold the window under the reader.
-  if (win.id !== id || win.start !== start) setWin({ id, start, first: messages[0] ?? null });
+  if (win.id !== id || win.start !== start) setWin({ id, start, first: messages[0] ?? null, above });
   // Rows loaded above are not new: the count of what came in since you scrolled away moves with them.
   if (shift > 0 && leftAt !== null) setLeftAt(leftAt + shift);
   // One ask for older history per page: the thread's length when asked; a new length means the page came.
@@ -158,13 +160,14 @@ export function useTranscriptScroll(
   );
   // Rows that came in since the reader scrolled away (a new thread starts at none).
   const fresh = unpinned && leftAt !== null ? Math.max(0, messages.length - leftAt) : 0;
-  return { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal };
+  return { unpinned, fresh, onScroll, jumpToLatest, unpin, start, above, reveal };
 }
 
 interface Win {
   id: string;
   start: number;
   first: TranscriptRow | null;
+  above: number;
 }
 
 /** How many rows now sit above what was the first row (0 when it is not there: another thread, or nothing new above). */
