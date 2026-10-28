@@ -436,6 +436,7 @@ export class PassRunner {
     // thousands, and reading them whole twice a run parsed tens of megabytes. The newest entry is read before the
     // submission, never alongside it: the run's own entries must all come after it, or some would be skipped.
     const before = await store.newestEntryId(chat, context);
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content: spec.prompt, requestId: spec.requestId }, context);
     // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
     const limited = withCancel(context);
