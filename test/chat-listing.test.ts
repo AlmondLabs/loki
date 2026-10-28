@@ -10,7 +10,7 @@ import { ChatListing } from "../mod/chat-listing.ts";
 import { DeskRegistry, type LocalConversationInfo, type LocalConversationRow } from "../mod/desks.ts";
 
 const IRA = "agent-ira";
-const HELPER = "agent-helper";
+const OTTO = "agent-otto";
 const GONE = "agent-gone";
 
 type Chat = LocalConversationRow & { title: string | null };
@@ -83,14 +83,14 @@ beforeEach(() => {
   canvases = [];
   passChats = new Set();
   agent(IRA);
-  agent(HELPER, { tags: ["role:subagent"] });
+  agent(OTTO);
   agent(GONE, { record: false });
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("which chats show", () => {
-  test("both lists leave out hidden chats, the passes' chats, helper agents' and a deleted agent's", () => {
-    rows = [chat("conv-1", IRA), chat("conv-hidden", IRA, { hidden: true }), chat("conv-pass", IRA), chat("conv-helper", HELPER), chat("conv-gone", GONE)];
+  test("both lists leave out hidden chats, the passes' chats and a deleted agent's", () => {
+    rows = [chat("conv-1", IRA), chat("conv-hidden", IRA, { hidden: true }), chat("conv-pass", IRA), chat("conv-gone", GONE)];
     passChats.add("conv-pass");
     const l = listing();
     expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
@@ -135,27 +135,26 @@ describe("which chats show", () => {
 
 describe("a list reads each agent once (plan 040)", () => {
   test("however many chats an agent has, in either list; a record changed between lists shows in the next", () => {
-    rows = Array.from({ length: 30 }, (_, i) => chat(`conv-${i}`, i % 3 === 0 ? HELPER : IRA));
+    rows = Array.from({ length: 30 }, (_, i) => chat(`conv-${i}`, i % 3 === 0 ? OTTO : IRA));
     for (const r of rows.slice(0, 10)) desks.remember(r.conversationId, r.agentId);
     const reads = new Map<string, number>();
     const l = listing((id) => {
       reads.set(id, (reads.get(id) ?? 0) + 1);
       return readLocalAgent(id, dir);
     });
-    expect(l.desks()).toHaveLength(21);
-    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [HELPER]: 1 });
+    expect(l.desks()).toHaveLength(31);
+    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [OTTO]: 1 });
     reads.clear();
-    expect(l.inbox()).toHaveLength(20);
-    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [HELPER]: 1 });
+    expect(l.inbox()).toHaveLength(30);
+    expect(Object.fromEntries(reads)).toEqual({ [IRA]: 1, [OTTO]: 1 });
 
     writeFileSync(join(dir, "agents", `${backendName(IRA)}.json`), JSON.stringify({ id: IRA, name: "Ira two", model: "anthropic/claude-fable-5", tags: [] }));
-    expect(new Set(l.desks().flatMap((d) => (d.agent_name ? [d.agent_name] : [])))).toEqual(new Set(["Ira two"]));
+    expect(new Set(l.desks().flatMap((d) => (d.agent_name ? [d.agent_name] : [])))).toEqual(new Set(["Ira two", "otto"]));
   });
 });
 
 describe("listing tidies the desks an older loki kept", () => {
-  test("a helper agent's desk and a pass chat's desk are forgotten", () => {
-    desks.remember("conv-helper", HELPER);
+  test("a pass chat's desk is forgotten", () => {
     desks.remember("conv-pass", IRA);
     passChats.add("conv-pass");
     expect(

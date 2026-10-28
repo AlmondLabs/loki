@@ -18,7 +18,7 @@ import type { StoreManager } from "./kernel/stores.ts";
  * the Inbox, a thread's page, Learn's cursor), and pi-durable answers asynchronously, so the daemon keeps a
  * projection: each chat's details and its entries as thread steps, loaded when a store opens and kept current from
  * the store's commits, which pi-durable publishes synchronously after each one. A position in a chat is an entry's
- * index, which is what Learn's cursor counts (it counted log lines on Letta; the import converts it).
+ * index, which is what Learn's cursor counts.
  */
 
 /** One entry as the projection keeps it: its thread steps, and who spoke and what, for the Inbox's digest. */

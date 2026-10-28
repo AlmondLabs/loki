@@ -1,7 +1,7 @@
 /**
  * The harness injects machinery into transcripts as ordinary messages:
  * background-task notifications, skill bodies, loki's own desk-activity block,
- * and, in history imported from Letta, its system reminders and compaction notes.
+ * the tasks assigned to a chat, and system reminders.
  * Both halves of loki need to recognise them: the mod for the chat mirror, the
  * browser for the Catch Up thread.
  */
@@ -12,20 +12,16 @@ import type { FileRef, ToolStep } from "./attention/transcript.ts";
 export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
-    .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the tasks assigned to this conversation in Tasks, from the mod
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
-    .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads, Letta's channels): a chip, not words
+    .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
-    .replace(/<channel-notification[^>]*>[\s\S]*?<\/channel-notification>/g, "")
-    .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
-    .replace(/^\s*Full transcript available at: \S+\s*$/gm, "")
-    .replace(/^\s*\{"type":\s*"system_alert"[\s\S]*?\}\s*$/gm, "");
+    .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "");
 }
 
-/** Undo the HTML escaping inside task-notification results (daemon/background.ts escapes them, as Letta did). */
+/** Undo the HTML escaping inside task-notification results (daemon/background.ts escapes them). */
 export function decodeEntities(text: string): string {
   return text
     .replace(/&lt;/g, "<")
@@ -97,19 +93,6 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       summary: summary ? decodeEntities(summary) : null,
       detail: result ? decodeEntities(result) : null,
     });
-  }
-  for (const m of text.matchAll(/^\s*(\{"type":\s*"system_alert"[\s\S]*?\})\s*$/gm)) {
-    try {
-      const alert = JSON.parse(m[1]) as { message?: string };
-      const msg = typeof alert.message === "string" ? alert.message : "";
-      out.push({
-        text: /hidden from view|compact/i.test(msg) ? "context compacted" : "system alert",
-        summary: msg.split("\n")[0]?.slice(0, 160) ?? null,
-        detail: msg || null,
-      });
-    } catch {
-      // not JSON after all; leave it to the text
-    }
   }
   return out;
 }
@@ -233,16 +216,16 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
 };
 
 /**
- * The part of a tool's input a reader recognises, trimmed: the shell command (`cmd` in Letta's Codex-style toolset,
- * `command` in Claude-style Bash), the path, the pattern, … in this order; the step's input and its label both use it.
+ * The part of a tool's input a reader recognises, trimmed: the shell command, the path, the pattern, … in this order;
+ * the step's input and its label both use it.
  */
-const ARG_KEYS = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
+const ARG_KEYS = ["command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
 const argOf = (args: Record<string, unknown>): string | undefined => {
   const key = ARG_KEYS.find((k) => typeof args[k] === "string" && args[k].trim());
   return key ? (args[key] as string).trim() : undefined;
 };
 
-/** The question card's tool, `user_ask`. Saved chats are renamed to it once (daemon/store-tool-names.ts, plan 044). */
+/** The question card's tool, `user_ask`. Saved chats are renamed to it once (daemon/store-migration.ts, plan 044). */
 const isQuestionTool = (name: string): boolean => name === "user_ask";
 
 /**

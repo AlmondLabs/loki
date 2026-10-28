@@ -114,7 +114,7 @@ said they were for; reads, edits, searches and skills quieter. Past 8 steps, chi
 Files and search. A step opens its description, command
 and output under it, one at a time (on the phone, in the same sheet with a way back); a background task opens its
 result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
-from the live stream, Letta's history and the local log alike.
+from the live stream and the stored history alike.
 
 `test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
@@ -198,14 +198,14 @@ line each, so a widget edited ten times is drawn once. Every chat surface draws 
 card (which asks the mod for that chat's widgets, `desk_get`) and the phone, where kit widgets draw read only and a
 custom module says to open the chat on the Mac (the phone cannot load modules yet). Tool and event lines sit in the message column under the text they
 follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
-on the well, the text on top and a row inside it: a round "+" (attach images and files: files upload to the Mac at once, mod/uploads.ts, and go as Letta attachment tags), the **model pill** (the model's
+on the well, the text on top and a row inside it: a round "+" (attach images and files: files upload to the Mac at once, mod/uploads.ts, and go as attachment tags), the **model pill** (the model's
 name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic
 (only where dictation works) and a round send, Slack's green once there is something to send and a muted
 circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44
 target). The pill opens **Select model**: a popover over the box here (↑↓ Home End, Enter, Esc or a click away
 closes, focus returns to the pill; ⌘⇧M opens it too), a bottom sheet on the phone (grip, a round × at the top
 left, the title centred). Both show a card of the quick picks (the models you used lately, latest first — loki's
-list, least recently used: picking a model or sending a message in a chat moves that chat's model to the front, kept by the mod for the Mac and the phone alike, then Letta Code's own `recentModels` — then the harness's
+list, least recently used: picking a model or sending a message in a chat moves that chat's model to the front, kept by the mod for the Mac and the phone alike — then the
 featured models up to five, only ones your account can reach per `available_handles`, and the current
 one; each row the name, its own description or else its handle, a check in the accent on the current one),
 then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
@@ -363,7 +363,7 @@ box is one for both, its sizes set by `touch`.
 
 The review of 2026-09-08 (`docs/research/2026-09-08-ui-review.md`) scored 26/40 on heuristics and 13/20 on
 the code audit. Closed the same day: the primitive vocabulary; focus rings; contrast; reduced motion; the
-mod's desk block and Letta's skill bodies rendering as the user's words (they are event rows now); modal
+mod's desk block and the harness's skill bodies rendering as the user's words (they are event rows now); modal
 sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on the desks tree and the model
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for

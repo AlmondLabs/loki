@@ -4,10 +4,9 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
-import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
-import { assistantLine, headerLine, logText, sampleLog, userLine } from "./fixtures/letta-log.ts";
+import { branchEntries, sampleEntries } from "./fixtures/entries.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -43,11 +42,11 @@ describe("agent store", () => {
     }
   });
 
-  test("an imported Letta chat reads back as the same rows, and continues with its history sent to the model", async () => {
+  test("entries written into a chat read back as the same rows, and it continues with its history sent to the model", async () => {
     const { store, faux, sent, reply, model } = await fauxStore();
     try {
       const chat = await store.createChat("local-conv-test", { agent: { model } }, ctx);
-      const converted = lettaLogEntries(sampleLog());
+      const converted = sampleEntries();
       const lines = await store.importEntries(chat, converted, ctx);
       expect([...lines.keys()]).toEqual([1, 2, 3, 4, 5, 6]);
 
@@ -73,17 +72,11 @@ describe("agent store", () => {
     }
   });
 
-  test("a reply imported from off Letta's main path shows in the thread and is never sent to the model", async () => {
+  test("a branch entry (a reply the person saw, the model never did) shows in the thread and is never sent to the model", async () => {
     const { store, faux, sent, reply, model } = await fauxStore();
     try {
       const chat = await store.createChat("b", { agent: { model } }, ctx);
-      const text = logText([
-        headerLine(),
-        userLine("a", null, "2026-10-01T10:00:01.000Z", "first try"),
-        assistantLine("x", "a", "2026-10-01T10:00:02.000Z", "abandoned answer"),
-        assistantLine("y", "a", "2026-10-01T10:00:03.000Z", "kept answer"),
-      ]);
-      await store.importEntries(chat, lettaLogEntries(text), ctx);
+      await store.importEntries(chat, branchEntries(), ctx);
       const rows = foldSteps((await store.entries(chat, ctx)).flatMap((e) => entrySteps(e))).map((r) => r.text);
       expect(rows).toEqual(["first try", "abandoned answer", "kept answer"]);
       faux.setResponses([reply("ok")]);

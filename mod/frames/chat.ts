@@ -71,8 +71,6 @@ export interface ChatBackend {
   mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<Replies["chat_mcp_secret"]>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
   disableSkill(name: string): Promise<void>;
-  importLetta(): Promise<Replies["chat_imported"]>;
-  importStatus(): Promise<Replies["chat_import_status"]>;
 }
 
 /** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
@@ -151,12 +149,6 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         ctx,
       );
     },
-    chat_import: (_p, ctx) =>
-      agentsChange(
-        served(b, (x) => x.importLetta()),
-        ctx,
-      ),
-    chat_import_status: () => served(b, (x) => x.importStatus()),
     chat_passes_get: () => served(b, (x) => x.passes()),
     // Asked of the Mac a new chat will live on (plan 023, U10); the router sends it there when `home` is another Mac.
     chat_requirements: ({ agent_id: agentId }) => served(b, async (x) => ({ agent_id: agentId, missing: await missingFor(x, agentId) })),

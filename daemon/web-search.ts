@@ -2,8 +2,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { withKind } from "./tool-kinds.ts";
 
 /**
- * Web search (plan 017, U12): DuckDuckGo's plain HTML results, which need no key and are what Letta Code's web_search
- * used. A result is its title, link and snippet; the tool keeps the first few.
+ * Web search (plan 017, U12): DuckDuckGo's plain HTML results, which need no key. A result is its title, link and snippet; the tool keeps the first few.
  */
 
 /** One search result: `url` is the real address, not DuckDuckGo's redirect, and `snippet` is empty when the page had none. */

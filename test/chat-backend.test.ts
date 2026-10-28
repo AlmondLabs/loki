@@ -363,24 +363,6 @@ describe("the daemon's chats", () => {
     }
   });
 
-  test("a chat whose model carries Letta's name for it is renamed and answered", async () => {
-    const s = await setup();
-    try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
-      const store = await s.stores.get(agent.id);
-      await store.createChat("imported", { agent: { model: { provider: "chatgpt-plus-pro", modelId: s.handle } } }, ctx);
-      await s.chats.open(agent.id, "imported");
-      s.faux.setResponses([s.reply("answered")]);
-      await s.chats.send({ agent_id: agent.id, conversation_id: "imported", text: "hi", images: [], send_id: "h1", context: null });
-      await until(() => kinds(s.pushed).includes("turn_end"));
-      expect(s.pushed.flatMap((p) => p.events).some((e) => e.kind === "error")).toBe(false);
-      const chat = must(await store.chat("imported", ctx), "the imported chat");
-      expect(((await store.agentSettings(chat.id, ctx)) as { model?: { provider: string } }).model?.provider).toBe(s.faux.provider.id);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
   test("a message into a chat no client opened since the daemon started is still heard: its events go out", async () => {
     const s = await setup();
     try {

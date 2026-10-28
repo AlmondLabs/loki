@@ -88,85 +88,11 @@ export function isReasoningEffort(value: unknown): value is ReasoningEffort {
   return typeof value === "string" && (REASONING_EFFORTS as readonly string[]).includes(value);
 }
 
-/** A wire field as text: a string as it is, a number or boolean written out, anything else empty. */
-const wireText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
-
-/**
- * Normalize the list_models wire entries while retaining effort metadata from each preset. `availableHandles`
- * is the reply's `available_handles`: a list marks every other handle unavailable; null (the lookup failed) or
- * absent (an older harness) marks none.
- */
-export function modelEntriesFromWire(value: unknown, availableHandles?: unknown): ModelEntry[] {
-  if (!Array.isArray(value)) return [];
-  const reachable = Array.isArray(availableHandles) ? new Set(availableHandles.filter((h): h is string => typeof h === "string")) : null;
-  return value.flatMap((raw) => {
-    if (!raw || typeof raw !== "object") return [];
-    const entry = raw as Record<string, unknown>;
-    const id = wireText(entry.id ?? entry.handle);
-    const handle = wireText(entry.handle ?? entry.id);
-    if (!handle) return [];
-    const updateArgs = entry.updateArgs && typeof entry.updateArgs === "object" ? (entry.updateArgs as Record<string, unknown>) : null;
-    const base: ModelEntry = {
-      id,
-      handle,
-      label: wireText(entry.label ?? entry.handle),
-      ...(typeof entry.description === "string" ? { description: entry.description } : {}),
-      ...(entry.isDefault === true ? { is_default: true } : {}),
-      ...(entry.isFeatured === true ? { is_featured: true } : {}),
-      ...(reachable && !reachable.has(handle) ? { available: false as const } : {}),
-    };
-    const efforts = reasoningEffortsFromWireEntry(entry, updateArgs, handle);
-    return efforts.length ? efforts.map((reasoningEffort) => ({ ...base, reasoning_effort: reasoningEffort })) : [base];
-  });
-}
-
-function reasoningEffortsFromWireEntry(entry: Record<string, unknown>, updateArgs: Record<string, unknown> | null, handle: string): ReasoningEffort[] {
-  if (updateArgs && isReasoningEffort(updateArgs.reasoning_effort)) return [updateArgs.reasoning_effort];
-
-  const capabilities =
-    entry.reasoning_capabilities && typeof entry.reasoning_capabilities === "object" ? (entry.reasoning_capabilities as Record<string, unknown>) : null;
-  const advertised: unknown[] | null = Array.isArray(entry.reasoning_levels)
-    ? entry.reasoning_levels
-    : Array.isArray(entry.reasoningLevels)
-      ? entry.reasoningLevels
-      : Array.isArray(capabilities?.supported_efforts)
-        ? capabilities.supported_efforts
-        : null;
-  if (advertised) {
-    const normalized = new Set<ReasoningEffort>();
-    for (const level of advertised) {
-      const effort = level === "off" ? "none" : level;
-      if (isReasoningEffort(effort) && !(capabilities?.mandatory === true && effort === "none")) normalized.add(effort);
-    }
-    return REASONING_EFFORTS.filter((effort) => normalized.has(effort));
-  }
-
-  // Letta Code 0.32.6 removes `reasoning_levels` while building list_models, but still marks
-  // ChatGPT OAuth rows and accepts reasoning_effort for them in update_model. Keep this fallback
-  // narrower than the provider: these are the distinct levels its bundled OpenAI registry exposes.
-  if (updateArgs?.provider_type === "chatgpt_oauth") return chatGptOauthEfforts(handle);
-  return [];
-}
-
-function chatGptOauthEfforts(handle: string): ReasoningEffort[] {
-  const model = handle.slice(handle.lastIndexOf("/") + 1).replace(/-fast$/, "");
-  if (model.startsWith("gpt-5.6")) return ["none", "low", "medium", "high", "xhigh", "max"];
-  if (model.startsWith("gpt-6")) return ["low", "medium", "high", "xhigh", "max"];
-  return ["none", "low", "medium", "high", "xhigh"];
-}
-
-/** Read the applied level from the provider-specific model_settings shapes Letta persisted (imported agent records carry them). */
+/** The agent's own effort, as its record's `model_settings` keeps it (`reasoning_effort`); null leaves the model's. */
 export function reasoningEffortFromSettings(value: unknown): ReasoningEffort | null {
   if (!value || typeof value !== "object") return null;
-  const settings = value as Record<string, unknown>;
-  if (isReasoningEffort(settings.reasoning_effort)) return settings.reasoning_effort;
-  if (isReasoningEffort(settings.effort)) return settings.effort;
-  if (settings.reasoning && typeof settings.reasoning === "object") {
-    const effort = (settings.reasoning as Record<string, unknown>).reasoning_effort;
-    if (isReasoningEffort(effort)) return effort;
-  }
-  if (settings.thinking && typeof settings.thinking === "object" && (settings.thinking as Record<string, unknown>).type === "disabled") return "none";
-  return null;
+  const effort = (value as Record<string, unknown>).reasoning_effort;
+  return isReasoningEffort(effort) ? effort : null;
 }
 
 /** The entries with each handle's place among the models used lately (`recent`, 0 the latest); the rest unmarked. */

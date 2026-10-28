@@ -67,7 +67,7 @@ const isPoint = (v: unknown): boolean => typeof v === "object" && v !== null && 
 
 /**
  * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the
- * backend's memfs. Only the shape agent ids take (`agent-…`, as Letta made them and the daemon still does) is
+ * backend's memfs. Only the shape agent ids take (`agent-…`, as the daemon makes them) is
  * allowed: letters, digits, `.`, `_`, `-`, not starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
  */
 export function isAgentId(id: unknown): id is string {
@@ -233,10 +233,6 @@ export interface Replies {
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
-  /** What the import from Letta brought over (daemon/import/letta.ts). */
-  chat_imported: { agents: string[]; chats: number; kept: number; credentials: string[]; schedules: number; notes: string[] };
-  /** Whether Letta is here, whether an import finished with it, and how the last run went (at start or from Settings). */
-  chat_import_status: { letta: boolean; complete: boolean; last: { at: string; ok: boolean; message: string } | null };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -640,8 +636,6 @@ export const FRAMES = {
       : "agent_id required",
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
-  chat_import: request("chat_imported", "import agents, chats, keys and schedules from Letta (again: only what is missing)", nothing),
-  chat_import_status: request("chat_import_status", "whether Letta is here, whether an import finished, and how the last one went", nothing),
   chat_passes_get: request("chat_passes", "whether reflection and Learn run in the background, and Learn's cards a day", nothing),
   chat_passes_set: request("chat_passes", "turn reflection or Learn on or off, or set Learn's cards a day", (m) => {
     const part = (v: unknown) => (v && typeof v === "object" ? (v as Raw) : undefined);

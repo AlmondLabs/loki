@@ -12,7 +12,6 @@ import { ChatEventConverter } from "./chat-events.ts";
 import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { McpTools } from "./mcp/index.ts";
-import { piHandle } from "./model-handle.ts";
 import type { ModRegistry } from "./mods/registry.ts";
 import { turnIdOf } from "./telemetry.ts";
 
@@ -160,9 +159,8 @@ export class LokiEngine implements Engine {
     }
   }
 
-  /** Before a message goes in: the model healed, the chat's MCP tools set, and the chat followed. */
+  /** Before a message goes in: the chat's MCP tools set, and the chat followed. */
   private async ready(c: EngineChat): Promise<void> {
-    await this.healModel(c.store, c.chat);
     await this.deps.mcp?.prepare(c.store, c.chat, this.deps.context);
     await this.watch(c);
   }
@@ -203,14 +201,6 @@ export class LokiEngine implements Engine {
       cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,
       ...(streaming ? { streaming } : {}),
     };
-  }
-
-  /** A chat whose model pi-ai cannot name (one imported from Letta under Letta's name) is moved to the name it can. */
-  private async healModel(store: AgentStore, chat: Conversation): Promise<void> {
-    const model = ((await store.agentSettings(chat.id, this.deps.context)) as { model?: { provider?: string; modelId?: string } } | undefined)?.model;
-    if (!model?.provider || !model.modelId || this.deps.models.getProvider(model.provider)) return;
-    const healed = modelRef(piHandle(`${model.provider}/${model.modelId}`, (id) => Boolean(this.deps.models.getProvider(id))));
-    if (healed && healed.provider !== model.provider) await chat.configure({ model: healed }, this.deps.context);
   }
 
   /**

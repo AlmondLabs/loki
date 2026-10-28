@@ -5,11 +5,10 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ChatProjection } from "../daemon/chats.ts";
-import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
 import { conversationDirName } from "../core/desk-core.ts";
-import { sampleLog } from "./fixtures/letta-log.ts";
+import { sampleEntries } from "./fixtures/entries.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const AGENT = "agent-local-a";
@@ -29,7 +28,7 @@ describe("chat projection", () => {
     const { store, model, chats } = await setup();
     try {
       const chat = await store.createChat("local-conv-1", { title: "Readme", agent: { model, cwd: "/work/loki" } }, ctx);
-      const converted = lettaLogEntries(sampleLog());
+      const converted = sampleEntries();
       await store.importEntries(chat, converted, ctx);
       await chats.attach(AGENT, store);
       expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap((e) => entrySteps(e))), more: false, start: 0 });
@@ -79,7 +78,7 @@ describe("chat projection", () => {
     const { store, model, chats } = await setup();
     try {
       const chat = await store.createChat("local-conv-1", { agent: { model } }, ctx);
-      const converted = lettaLogEntries(sampleLog());
+      const converted = sampleEntries();
       await store.importEntries(chat, converted, ctx);
       await chats.attach(AGENT, store);
       const whole = foldSteps(converted.flatMap((e) => entrySteps(e)));
@@ -190,7 +189,7 @@ describe("chat projection", () => {
   test("a store with more chats than load at once, one longer than a page of entries, loads every chat whole", async () => {
     const { store, model, chats } = await setup();
     try {
-      const converted = lettaLogEntries(sampleLog());
+      const converted = sampleEntries();
       const long = Array.from({ length: Math.ceil(1200 / converted.length) }, () => converted).flat();
       for (let i = 0; i < 7; i++) {
         const chat = await store.createChat(`c${i}`, { agent: { model } }, ctx);

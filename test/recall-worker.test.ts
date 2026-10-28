@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { scopeFor } from "../core/desk-core.ts";
@@ -43,20 +43,11 @@ describe("Learn's shared pieces", () => {
     expect(t).toBe("you: hi\nira: hello");
   });
 
-  test("Learn's own hidden chats are today's writer chats and the ones Letta's worker kept", () => {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "worker.json"), JSON.stringify({ writers: { a1: "local-conv-old-writer" }, recallConversations: { a1: "local-conv-older" } }));
-    expect(ownsRecallChat(store, "recall-a1")).toBe(true);
-    expect(ownsRecallChat(store, "local-conv-old-writer")).toBe(true);
-    expect(ownsRecallChat(store, "local-conv-older")).toBe(true);
-    expect(ownsRecallChat(store, "local-conv-person")).toBe(false);
-  });
-
-  test("the background passes' chats, reflection's and Learn's, are none of the person's chats", () => {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "worker.json"), JSON.stringify({ writers: { a1: "local-conv-old-writer" } }));
-    for (const id of ["recall-a1", "reflection-a1", "local-conv-old-writer"]) expect(isPassChat(store, id), id).toBe(true);
-    for (const id of ["default", "local-conv-person", "reflections-on-design"]) expect(isPassChat(store, id), id).toBe(false);
+  test("Learn's own hidden chats are its writer chats; the passes' chats, Learn's, reflection's and a review's, are none of the person's", () => {
+    expect(ownsRecallChat("recall-a1")).toBe(true);
+    expect(ownsRecallChat("local-conv-person")).toBe(false);
+    for (const id of ["recall-a1", "reflection-a1", "doctor-a1"]) expect(isPassChat(id), id).toBe(true);
+    for (const id of ["default", "local-conv-person", "reflections-on-design"]) expect(isPassChat(id), id).toBe(false);
   });
 });
 

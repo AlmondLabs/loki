@@ -30,10 +30,9 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("recall store", () => {
-  test("a fresh dir has no cards, no rejections and no old hidden chats", () => {
+  test("a fresh dir has no cards and no rejections", () => {
     expect(store.cards()).toEqual([]);
     expect(store.rejected()).toEqual([]);
-    expect(store.legacyChats()).toEqual([]);
   });
   test("an id that is not one never becomes a path: nothing outside the folder is written or removed", () => {
     const outside = join(dir, "..", `${basename(dir)}-victim.json`); // basename: Windows paths use backslashes

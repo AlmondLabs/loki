@@ -22,12 +22,11 @@ const backend = (fail = false) =>
     createAgent: async () => (fail ? Promise.reject(new Error("no")) : { id: "agent-local-new", name: "test" }),
     updateAgent: async () => (fail ? Promise.reject(new Error("no")) : undefined),
     deleteAgent: async () => (fail ? Promise.reject(new Error("no")) : undefined),
-    importLetta: async () => (fail ? Promise.reject(new Error("no")) : { agents: [], chats: 0, kept: 0, credentials: [], schedules: 0, notes: [] }),
     agents: () => Promise.resolve([]),
   }) as unknown as ChatBackend;
 
 describe("agents_changed", () => {
-  test("creating, renaming, deleting and importing agents each tell every client once it is done", async () => {
+  test("creating, renaming and deleting agents each tell every client once it is done", async () => {
     const h = chatFrames({ chat: backend() });
     const calls: Array<[string, () => Promise<unknown>]> = [];
     const { c, broadcasts } = ctx();
@@ -37,9 +36,8 @@ describe("agents_changed", () => {
       () => Promise.resolve(must(h.chat_agent_update, "the chat_agent_update handler")({ agent_id: "agent-local-a", name: "test" } as never, c)),
     ]);
     calls.push(["delete", () => Promise.resolve(must(h.chat_agent_delete, "the chat_agent_delete handler")({ agent_id: "agent-local-a" }, c))]);
-    calls.push(["import", () => Promise.resolve(must(h.chat_import, "the chat_import handler")({}, c))]);
     for (const [, call] of calls) expect(await call()).toMatchObject({ ok: true });
-    expect(broadcasts).toEqual([{ type: "agents_changed" }, { type: "agents_changed" }, { type: "agents_changed" }, { type: "agents_changed" }]);
+    expect(broadcasts).toEqual([{ type: "agents_changed" }, { type: "agents_changed" }, { type: "agents_changed" }]);
   });
 
   test("a change that failed tells no one, and reading the agents is not a change", async () => {

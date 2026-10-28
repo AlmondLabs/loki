@@ -18,14 +18,6 @@ import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type 
  */
 export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-/** Learn's settings, cursors and last run live in the daemon (daemon/passes-state.ts); worker.json is read for this only. */
-interface LegacyWorkerFile {
-  /** Before 2026-09-14: the hidden conversation per agent the worker cleared before each ask. */
-  recallConversations?: Record<string, string>;
-  /** The writer's long-running conversation per agent, by agent id (Letta's era). */
-  writers?: Record<string, string>;
-}
-
 /** A JSON file's contents, or null when it is missing or not JSON; the caller says what it holds. */
 function readJson(path: string): unknown {
   try {
@@ -217,12 +209,6 @@ export class RecallStore {
     writeJson(this.f("lessons", id), lesson);
     rmSync(this.f("leads", id), { force: true });
     return lesson;
-  }
-
-  /** Learn's hidden chats from before the background passes, still its own: never a desk, never an inbox card. */
-  legacyChats(): string[] {
-    const w = (readJson(this.p("worker.json")) as LegacyWorkerFile | null) ?? {};
-    return [...Object.values(w.writers ?? {}), ...Object.values(w.recallConversations ?? {})];
   }
 
   exists(): boolean {

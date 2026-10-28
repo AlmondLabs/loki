@@ -43,7 +43,6 @@ async function setup() {
     context: ctx,
     jobs: [],
     busy: () => Promise.resolve(false),
-    isSubagent: () => false,
     capture: (_e, p) => events.push(p),
   });
   const asked: Array<{ systemPrompt?: string; messages: unknown[] }> = [];

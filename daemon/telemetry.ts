@@ -74,15 +74,14 @@ export interface FinishedTurn {
   endedAt: number;
   /** An input's reason for going unanswered, else the run task's outcome when it was not `completed`. */
   failure: string | null;
-  agentIsSubagent: boolean;
   harnessVersion: string | null;
   /** The chat's model, for a turn that wrote no response. */
   model: string | null;
 }
 
-/** Where a turn came from, judged by its agent, its request id, its chat and its first message, checked in that order. */
-export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries" | "agentIsSubagent">): TurnOrigin {
-  if (t.agentIsSubagent || t.requestId?.startsWith("subagent:")) return "subagent";
+/** Where a turn came from, judged by its request id, its chat and its first message, checked in that order. */
+export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries">): TurnOrigin {
+  if (t.requestId?.startsWith("subagent:")) return "subagent";
   // A background pass's run (daemon/passes.ts) says which job it is in its request id.
   if (t.requestId?.startsWith("pass:learn:")) return "recall";
   if (t.requestId?.startsWith("pass:reflection:")) return "reflection";
@@ -220,7 +219,6 @@ interface Running {
 interface Deps {
   capture: (event: string, properties: Record<string, unknown>) => void;
   harnessVersion: string | null;
-  isSubagent: (agentId: string) => boolean;
   context: Context;
   report?: (message: string) => void;
   now?: () => number;
@@ -334,7 +332,6 @@ export class TurnTelemetry {
           firstOutputAt: run.firstOutputAt,
           endedAt,
           failure,
-          agentIsSubagent: this.deps.isSubagent(agentId),
           harnessVersion: this.deps.harnessVersion,
           model: model?.provider && model.modelId ? `${model.provider}/${model.modelId}` : null,
         }),

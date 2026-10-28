@@ -23,7 +23,7 @@ import { PeerState } from "./peer-state.ts";
 import { ChatMoves } from "./chat-moves.ts";
 import { PeerSync } from "./peer-sync.ts";
 import { Awake } from "../daemon/awake.ts";
-import { isPassChat, passChats, startLessonViaChats } from "./recall-worker.ts";
+import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { TaskStore, TasksNotice } from "./tasks.ts";
 import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
@@ -31,7 +31,7 @@ import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
-import { backendDir, isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
+import { backendDir, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
 import { sortDesks } from "./frames/desks.ts";
@@ -131,7 +131,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const gestures = new GestureLog();
   // Learn's cards (daemon/learn.ts writes them; mod/recall.ts reads them), and which chats are the passes' own.
   const recallStore = new RecallStore();
-  const passChat = (id: string) => isPassChat(recallStore, id);
+  const passChat = isPassChat;
 
   let activeScope: Scope = SHARED_SCOPE;
 
@@ -207,7 +207,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     layouts: () => store.scopes(),
     widgets,
     pins: () => readPins(),
-    passChats: () => passChats(recallStore),
+    passChats: () => isPassChat,
     activeScope: () => activeScope,
   });
   const deskInfo = (scope: Scope) => listing.info(scope);
@@ -702,8 +702,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   const titleRefreshes = new ScopeDebouncer();
   /** What each conversation was last told about its assigned tasks: the block rides along only when it changes. */
   const tasksNotice = new TasksNotice();
-  /** Helper agents' chats and the background passes' own get no desk, and the tab does not follow them. */
-  const ignored = (e: ChatRef) => isSubagent(e.agentId) || passChat(e.chatId);
+  /** The background passes' own chats get no desk, and the tab does not follow them. */
+  const ignored = (e: ChatRef) => passChat(e.chatId);
 
   eventDisposers.push(
     api.events.on("chat_open", (e) => {
@@ -721,7 +721,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   // assigned to this conversation (only when those changed since the agent was last told).
   eventDisposers.push(
     api.message.transform((m) => {
-      if (isSubagent(m.agentId)) return undefined;
       // A background pass's turn is the pass's: no desk, nothing rides along, the tab does not follow it.
       if (passChat(m.chatId)) return undefined;
       const scope = desks.remember(m.chatId, m.agentId);

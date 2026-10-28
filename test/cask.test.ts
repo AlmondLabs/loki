@@ -35,10 +35,9 @@ describe("homebrew cask", () => {
     const rb = renderCask({ owner: "example", version: "2026.9.28", sha256: sha });
     expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
     expect(rb).toContain('depends_on formula: "node"'); // the daemon runs on Node; nothing else
-    expect(rb).not.toContain("letta-code");
-    // Everything loki keeps, and the link an older loki's folder left at the old path.
-    for (const p of ["~/.loki", "~/.letta/loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
-    expect(rb).not.toContain("~/.letta/mods");
+    // Everything loki keeps, and nothing of Letta's.
+    for (const p of ["~/.loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
+    expect(rb).not.toContain(".letta");
     expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
     expect(rb).not.toContain("--no-quarantine"); // gone from Homebrew 7: "invalid option"
   });

@@ -1,16 +1,14 @@
 import type { Context } from "@earendil-works/chord";
 import { existsSync } from "node:fs";
 import { contentText, messageFiles, movedMark } from "../core/harness.ts";
-import { BRANCH_KIND } from "./import/convert.ts";
-import type { ImportedEntry } from "./import/convert.ts";
-import type { AgentStore } from "./kernel/index.ts";
+import { BRANCH_KIND, type AgentStore, type ImportedEntry } from "./kernel/index.ts";
 import type { ScheduledTask } from "./schedule.ts";
 
 /**
  * Moving one chat to the Mac it now belongs on (plan 023, U9, KTD11): the Mac it lived on copies it out, the Mac it
  * moves to writes it into its own store under the same loki id, and only once that is done does the first Mac hide its
- * copy and stop its schedules. The chat's whole log goes, as pi-durable's entries (re-minted, compactions relinked, as
- * the import from Letta writes them), with its title, folder, model, mode and labels, its schedules and its passes'
+ * copy and stop its schedules. The chat's whole log goes, as pi-durable's entries (re-minted, compactions relinked),
+ * with its title, folder, model, mode and labels, its schedules and its passes'
  * cursors. Usage totals stay on the Mac they were spent on.
  */
 

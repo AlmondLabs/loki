@@ -12,18 +12,14 @@ mod menu;
 mod native;
 mod node;
 mod procs;
-mod root;
 mod widgets;
 
 use std::path::{Path, PathBuf};
 use tauri::{Manager, State};
 
-/// The root this launch runs on, chosen once in `run` (root.rs `root_in_use`): ~/.loki, or the old folder while it
-/// could not be moved there.
-static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-
+/// loki's root, where the daemon, the mod and the shell keep everything: ~/.loki.
 fn loki_dir() -> PathBuf {
-    ROOT.get().cloned().unwrap_or_else(|| home_dir().join(".loki"))
+    home_dir().join(".loki")
 }
 
 fn read_token() -> Option<String> {
@@ -330,21 +326,6 @@ pub fn run() {
         eprintln!("loki: {HOME_VAR} is not set, so there is no home folder for ~/.loki; set it and start loki again");
         std::process::exit(1);
     }
-    // loki's root is ~/.loki, with a link at ~/.letta/loki: moved once, before anything opens a file in it (root.rs).
-    // A failed move is said and loki runs on the old folder, where the person's data still is, making nothing at the
-    // new path (the token, the installed bundles), so the next launch can try the move again.
-    let moved = root::move_root(&home_dir());
-    match &moved {
-        Ok(moved) => eprintln!("loki: root: {moved:?}"),
-        Err(e) => eprintln!("loki: root not moved: {e}"),
-    }
-    let root = root::root_in_use(&home_dir(), &moved);
-    if root != home_dir().join(".loki") {
-        eprintln!("loki: running on {}", root.display());
-        // The daemon and the mod find the root through LOKI_DIR (mod/paths.ts); set before any thread starts.
-        std::env::set_var("LOKI_DIR", &root);
-    }
-    let _ = ROOT.set(root);
     let _ = ensure_token();
     let script = init_script();
     let builder = tauri::Builder::default();

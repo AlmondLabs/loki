@@ -30,12 +30,12 @@ import { chatEnvs } from "./tool-results.ts";
 import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
-import { JOBS, PassState } from "./passes-state.ts";
-import { describeReport, importFromLetta, importNeeded, importStatus, recordAttempt, type ImportPaths, type ImportReport } from "./import/letta.ts";
+import { PassState } from "./passes-state.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
-import { listAgents, healRecordModel } from "./store/agents.ts";
+import { listAgents } from "./store/agents.ts";
+import { migrateAgents } from "./agent-migration.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
@@ -45,7 +45,6 @@ import type { Host } from "../mod/index.ts";
 import { ModRegistry, type LoadResult } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { McpTools } from "./mcp/index.ts";
-import { isSubagent } from "../mod/agents.ts";
 import { paths } from "../mod/paths.ts";
 import { RecallStore, recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
@@ -161,12 +160,11 @@ const passes = new PassRunner({
     if (slash <= 0) return available.length > 0;
     return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
   },
-  isSubagent: (id) => isSubagent(id, backend),
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
 // The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
-// store has its chats loaded (before an import from Letta, whose chats then get cursors of their own).
+// store has its chats loaded.
 const oldPassFiles = {
   reflectionSettings: join(args.dir, "state", "reflection.json"),
   reflectionRoot: join(args.dir, "reflection"),
@@ -180,50 +178,6 @@ async function carryOverPasses(): Promise<void> {
     .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
   passState.migrate(oldPassFiles, list);
   report(`background passes: settings and cursors carried over for ${list.length} chats`);
-}
-// The import from Letta (daemon/import/letta.ts), for a Mac that ran loki on Letta: on its own at start until one run
-// finishes, and again from Preferences › About › Import. A chat is held from the passes while its entries are written.
-const importPaths: ImportPaths = {
-  letta: join(homedir(), ".letta"),
-  backendDir: backend,
-  doneFile: join(args.dir, "state", "letta-import.json"),
-  schedulesFile,
-  pinsFile: process.env.LOKI_PINS_FILE,
-  recallWorkerFile: oldPassFiles.learnWorker,
-};
-let importing: Promise<ImportReport> | null = null;
-const importLetta = (): Promise<ImportReport> =>
-  (importing ??= (async () => {
-    await carryOverPasses();
-    return recorded(
-      importFromLetta({
-        paths: importPaths,
-        stores,
-        credentials: credentials ?? new KeychainCredentials(memorySecrets()),
-        knownProviders: new Set(models.getProviders().map((p) => p.id)),
-        context,
-        passes: {
-          importing: (agentId, chatId) => {
-            for (const job of JOBS) passState.setCursor(job, agentId, chatId, Number.MAX_SAFE_INTEGER);
-          },
-          imported: (agentId, chatId, cursors) => {
-            passState.setCursor("reflection", agentId, chatId, cursors.entries);
-            passState.setCursor("learn", agentId, chatId, cursors.learn);
-          },
-        },
-      }),
-    );
-  })().finally(() => (importing = null)));
-/** Each run's outcome is kept for Settings (daemon/import/letta.ts, recordAttempt), whichever way it went. */
-async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
-  try {
-    const r = await run;
-    recordAttempt(importPaths, true, describeReport(r) + (r.notes.length ? `; ${r.notes.join("; ")}` : ""));
-    return r;
-  } catch (error) {
-    recordAttempt(importPaths, false, error instanceof Error ? error.message : String(error));
-    throw error;
-  }
 }
 // loki's own tools, served on loopback to chats on an ACP agent (plan 044): the same tool bodies loki's engine runs.
 const lokiTools = new LokiTools({
@@ -268,8 +222,6 @@ const chat: DaemonChats = new DaemonChats({
   backendDir: backend,
   context,
   report,
-  importLetta,
-  importStatus: () => importStatus(importPaths),
   macId: installId(),
   schedules,
 });
@@ -286,7 +238,6 @@ mcp.start();
 const telemetry = new TurnTelemetry({
   capture: (event, properties) => analytics.capture("mod", event, properties),
   harnessVersion: harnessVersion(paths.root),
-  isSubagent: (id) => isSubagent(id, backend),
   context,
   report,
 });
@@ -300,32 +251,27 @@ const usage = new UsageLedger({
     const slash = model.indexOf("/");
     return slash > 0 ? (models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost.input ?? null) : null;
   },
-  isSubagent: (id) => isSubagent(id, backend),
   eventsFiles: [`${paths.events}.1`, paths.events],
   report,
 });
 usage.follow(stores);
-// An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
-const knownProvider = (id: string) => Boolean(models.getProvider(id));
-for (const id of listAgents(backend)) if (healRecordModel(backend, id, knownProvider)) report(`${id}: its model now goes by pi-ai's name`);
+// What the import from Letta brought over, in loki's shapes, once on this Mac (plan 045): records, memory, chats' settings.
+await migrateAgents({
+  backendDir: backend,
+  stores,
+  known: (id) => Boolean(models.getProvider(id)),
+  learnWorkerFile: oldPassFiles.learnWorker,
+  stateFile: join(paths.state, "migrations.json"),
+  backupDir: join(backend, `backup-letta-${new Date().toISOString().slice(0, 10)}`),
+  context,
+  report,
+});
 await Promise.all(
   listAgents(backend).map(async (id) => {
     const store = await stores.get(id);
     await store.setAgent({ id, name: readLocalAgent(id, backend)?.name ?? id }, context);
   }),
 );
-
-// Before the mod opens its sockets, so the window never offers Welcome's first agent while Letta's are on their way.
-if (importNeeded(importPaths)) {
-  try {
-    const r = await importLetta();
-    report(`imported from Letta: ${describeReport(r)}${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
-  } catch (error) {
-    report(
-      `import from Letta not done, tried again at the next start or from Preferences › About › Import: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
 
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };

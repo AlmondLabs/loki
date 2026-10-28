@@ -8,7 +8,7 @@ export interface ImageAttachment {
 
 /**
  * A file attached to a message that is not an image: already uploaded to the Mac (mod/uploads.ts), so the
- * message carries only where it is, in an attachment tag (the shape Letta's channels used), and the agent reads it
+ * message carries only where it is, in an attachment tag, and the agent reads it
  * with its own tools.
  */
 export interface FileAttachment {
@@ -28,7 +28,7 @@ export const isFileAttachment = (a: Attachment): a is FileAttachment => "kind" i
 
 const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** A file as an attachment tag, the shape Letta's channels handed one to an agent in: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
+/** A file as the attachment tag a message carries it in: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
 export function attachmentTag(f: { path: string; name: string; size: number; mime: string }): string {
   return `<attachment kind="file" local_path="${xmlAttr(f.path)}" name="${xmlAttr(f.name)}" mime_type="${xmlAttr(f.mime)}" size_bytes="${f.size}" />`;
 }
@@ -44,7 +44,7 @@ export function withAttachments(text: string, files: Array<{ path: string; name:
 export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
 
 /**
- * A user message's `content` in the shape Letta's create_message took: a plain string when there are
+ * A user message's `content`: a plain string when there are
  * no images, otherwise text and image parts
  * (`{ type: "image", source: { type: "base64", media_type, data } }`). The chat client sends images apart
  * (chat_send), so the tests are its only callers.
@@ -59,7 +59,7 @@ export function buildUserContent(text: string, images: ImageAttachment[] = [], c
 }
 
 /**
- * The environment note, in the shape Letta Desktop used, so an agent talked to from loki keeps its sense of time
+ * The environment note, so an agent talked to from loki keeps its sense of time
  * (it has no clock, and chats run for days) and knows which chat you are on. The folder is not in it: the chat's
  * folder is its working directory on the daemon, where its tools run. Rendered transcripts strip system reminders,
  * so you never see it. This is the full note, a chat's first; `environmentNote` decides when a chat needs one again.
@@ -143,7 +143,7 @@ function localTime(now: Date, locale?: string): string {
   });
 }
 
-/** One question from the user_ask tool (daemon/ask.ts, in the shape Letta's used). */
+/** One question from the user_ask tool (daemon/ask.ts), as the question card reads it. */
 export interface AskQuestion {
   question: string;
   header?: string;
@@ -152,8 +152,8 @@ export interface AskQuestion {
 }
 
 /**
- * Read the tool's input defensively: only questions with text and at least one option count. `multi_select` is the
- * user_ask tool's; `multiSelect` is how older chats and Letta's logs wrote it.
+ * Read the tool's input defensively: only questions with text and at least one option count, and `multi_select` lets
+ * a question take more than one.
  */
 export function askQuestions(input: unknown): AskQuestion[] {
   const qs = (input as { questions?: unknown } | null)?.questions;
@@ -170,7 +170,7 @@ export function askQuestions(input: unknown): AskQuestion[] {
       question: q.question,
       header: typeof q.header === "string" ? q.header : undefined,
       options,
-      multiSelect: q.multi_select === true || q.multiSelect === true,
+      multiSelect: q.multi_select === true,
     });
   }
   return out;
@@ -178,8 +178,8 @@ export function askQuestions(input: unknown): AskQuestion[] {
 
 /**
  * The tool input handed back with the answers filled in, keyed by question text
- * (multi-select answers are labels joined with ", "), the way Letta's channel
- * clients answered, which the daemon's tool keeps: an allow decision with this as `updated_input`.
+ * (multi-select answers are labels joined with ", "), which the daemon's tool reads: an allow decision with this as
+ * `updated_input`.
  */
 export function buildQuestionAnswer(input: unknown, answers: Record<string, string | string[]>): Record<string, unknown> {
   const base = input && typeof input === "object" ? (input as Record<string, unknown>) : {};

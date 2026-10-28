@@ -4,8 +4,7 @@ The words loki's code and docs use for its own concepts. The UI's words come fir
 name, it is given. `docs/architecture.md` explains how these fit together.
 
 **Chat**: one conversation with an agent, as loki shows it. The code and the mod's wire protocol call it a _desk_.
-Its id keeps the form Letta used (`local-conv-…`, or `default` for an agent's main chat), so chats imported from
-Letta keep theirs.
+Its id is `local-conv-…`, or `default` for an agent's main chat, and stays the same for the chat's life.
 
 **Thread**: a chat's rows in order: your messages, the agent's, tool steps and quiet harness events. The `Thread`
 component draws it; the ThreadModel builds it.
@@ -27,7 +26,7 @@ steps:
    compaction has dropped from the agent's context.
 2. **Stream**: the daemon's live `chat_event` pushes (`daemon/chat-events.ts`).
 
-Chats imported from Letta keep its off-path replies as `loki.branch` entries: shown in the thread, never sent to the model.
+A `loki.branch` entry holds a reply off the chat's main path: shown in the thread, never sent to the model.
 
 **Tail**: the rows that streamed in since the last history page was loaded.
 
@@ -130,7 +129,7 @@ this in.
 
 **Mod**: code that extends every chat through loki's mod API (`daemon/mods/api.ts`, version 1): tools, prompt
 sections, a say before a tool runs, a transform of your message, turn events. loki's own mod is `mod/index.ts`;
-others are files in `~/.loki/mods`. Letta mods do not load.
+others are files in `~/.loki/mods`.
 
 **Permission mode**: which tool calls ask you first, per chat. On loki's daemon (`daemon/approvals.ts`):
 

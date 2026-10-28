@@ -233,8 +233,7 @@ export function cancelQueued(l: Live, text: string): boolean {
 
 /**
  * What happens in a chat while it runs, in loki's own words (plan 017, U5): the daemon pushes these over the mod's
- * socket, and one function folds them into a chat's live state. (The tests write Letta's events in this shape too,
- * test/fixtures/letta-events.ts.)
+ * socket, and one function folds them into a chat's live state.
  */
 export type ChatEvent =
   /** The agent asks to run a tool. */
@@ -288,8 +287,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed, userSpoke: false };
     }
     case "loop": {
-      // A backend may repeat a status (Letta said WAITING_ON_INPUT for every idle conversation every few seconds): a
-      // repeat that moves nothing is no change, so nothing re-renders on it.
+      // A backend may repeat a status: a repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       l.loop = e.state;
       if (e.turn_id) l.turnId = e.turn_id;

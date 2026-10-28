@@ -5,7 +5,6 @@ node_modules/
 app/dist
 app/.dist-next
 app/.dist-old
-.letta/
 src-tauri/resources/
 .claude/worktrees/
 

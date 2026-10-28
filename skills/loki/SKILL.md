@@ -19,9 +19,6 @@ within a second.
 ~/.loki/widgets/shared/…              # widgets that belong to no conversation
 ```
 
-Older notes may name `~/.letta/loki/widgets/…`; that path is a link to `~/.loki` and still works, but write new
-files under `~/.loki`.
-
 `<desk>` is this conversation's canvas id. `canvas_read` returns it as `desk` and
 the absolute directory as `widgets_dir`. Call `canvas_read` first if you do not
 know it. Widget id = `<desk>/<name>`.

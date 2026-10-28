@@ -11,7 +11,7 @@ import { shrinkImage } from "./image-shrink.ts";
 /**
  * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `image_view`, beside its own
  * read, write, edit and bash. Paths are the chat's folder's, as the built-in tools' are. `grep` uses ripgrep when the
- * machine has it, which is what Letta's search used, and walks the folder itself otherwise.
+ * machine has it, and walks the folder itself otherwise.
  */
 
 const run = promisify(execFile);

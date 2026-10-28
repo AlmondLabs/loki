@@ -13,12 +13,11 @@ import {
   UsageDoc,
   type UsageState,
 } from "@earendil-works/pi-durable";
-import type { ImportedEntry } from "../import/convert.ts";
 
 /**
  * The daemon's only door to pi-durable (plan 017, KTD1). Each agent has one store, a Harness over one SQLite file
  * (KTD2), holding every chat of that agent. pi-durable numbers its conversations itself, so a session document maps
- * loki's chat ids (Letta's `local-conv-…`, `default`) to them, and a conversation document carries what loki keeps
+ * loki's chat ids (`local-conv-…`, `default`) to them, and a conversation document carries what loki keeps
  * about a chat (KTD6). When pi-durable's API changes, this module changes and nothing that imports it does.
  */
 
@@ -43,7 +42,7 @@ export type ChatInfo = {
   id: string;
   title: string | null;
   archived: boolean;
-  /** Kept out of lists: Learn's writer chats, reflection's passes, and side threads imported from Letta. */
+  /** Kept out of lists: Learn's writer chats, reflection's passes, and other side threads. */
   hidden: boolean;
   createdAt: string;
   /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted. */
@@ -80,6 +79,27 @@ export type ChatInfo = {
  */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- part of ChatInfo, a pi-durable document
 export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null };
+
+/** A message as pi-ai and pi-durable carry it, written into a chat by `importEntries`. */
+export type ImportedMessage = Record<string, unknown> & { role: string; timestamp: number };
+
+/**
+ * A message the person saw but the model never did, kept for the thread with no model messages
+ * (core/attention/pi-steps.ts reads it): the mark a chat move leaves (daemon/chat-move.ts).
+ */
+export const BRANCH_KIND = "loki.branch";
+
+/** One entry written into a chat by `importEntries`: its pi-durable draft, where it came from, and its place there. */
+export interface ImportedEntry {
+  sourceId: string;
+  line: number;
+  kind: "pi.user" | "pi.assistant" | "pi.tool-result" | "pi.compaction" | typeof BRANCH_KIND;
+  /** Absent for a branch entry: the model does not see it. */
+  model?: ImportedMessage[];
+  data?: { diagnostics: [] } | { reason: "threshold" } | { message: ImportedMessage };
+  /** For a compaction: the source entry its summary keeps from. */
+  headSourceId?: string;
+}
 
 /** The pi-durable document that holds a chat's ChatInfo, one per conversation, keeping only its latest state; a fork starts from the empty one. */
 export const ChatDoc = defineDoc<ChatInfo>({
@@ -255,8 +275,8 @@ export class AgentStore {
   }
 
   /**
-   * Write converted Letta entries into a chat, in one commit, without asking the model anything. Returns each source
-   * line's new entry id, which is what a Learn cursor into the old log becomes (daemon/import/letta.ts).
+   * Write entries brought from elsewhere into a chat (a chat moving from another Mac, daemon/chat-move.ts), in one
+   * commit, without asking the model anything. Returns each source line's new entry id.
    */
   async importEntries(conversation: Conversation, entries: readonly ImportedEntry[], context: Context): Promise<Map<number, EntryId>> {
     return conversation.commit(async (tx) => {

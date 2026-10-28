@@ -29,7 +29,7 @@ export interface Tombstone extends Stamp {
   id: string;
 }
 
-/** The record fields that sync between Macs. Anything else in a record (Letta's leftovers) stays where it is. */
+/** The record fields that sync between Macs. Anything else in a record stays where it is. */
 export const SYNCED_FIELDS = ["name", "description", "system", "model", "model_settings", "tags", "hidden", "home_mac"] as const;
 /** One of the record fields that sync. */
 export type SyncedField = (typeof SYNCED_FIELDS)[number];
@@ -98,7 +98,7 @@ export function readRecord(backendDir: string, id: string): Record<string, unkno
 }
 
 /**
- * The agents this Mac shares: every record of the person's (Letta's helper agents left out), each with `home_mac` set,
+ * The agents this Mac shares: every record of the person's, each with `home_mac` set,
  * a record without one being this Mac's, stamped as older than any change.
  */
 export function sharedAgents(backendDir: string, thisMac: string): SharedAgent[] {

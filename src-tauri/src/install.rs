@@ -392,7 +392,6 @@ mod tests {
         assert_eq!(r.skill, State::Installed);
         assert_eq!(r.mod_path, data.join("mod").join("loki-mod.mjs").display().to_string());
         assert!(data.join("mod").join("loki-mod.mjs").is_file());
-        assert!(!home.join(".letta").exists(), "nothing goes to Letta's folders any more");
         assert!(skill_dir(&home).join("SKILL.md").is_file());
 
         let r = run(&resources, &data, &home);

@@ -1,7 +1,7 @@
 /**
  * Plan 017, U2: the timed trial. The prompts run on the daemon's kernel (in a throwaway store) with one model on
  * OpenRouter, and every turn is measured from what the store saved (daemon/timing.ts). Writes the raw results as JSON
- * and prints the medians; Letta's numbers from the original trial are in docs/research/2026-10-pi-trial.md.
+ * and prints the medians; the original trial's numbers are in docs/research/2026-10-pi-trial.md.
  *
  *   OPENROUTER_API_KEY=… node --experimental-strip-types --no-warnings scripts/trial.ts --model <model> [--instructions file] [--runs 5] [--out file]
  *

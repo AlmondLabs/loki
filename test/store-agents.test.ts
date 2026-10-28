@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgent, listAgents, writeRecord } from "../daemon/store/agents.ts";
+import { createAgent, listAgents } from "../daemon/store/agents.ts";
 import { memoryTree, readLocalAgent } from "../mod/agents.ts";
 
 describe("daemon agents", () => {
@@ -28,13 +28,10 @@ describe("daemon agents", () => {
     }
   });
 
-  test("helper agents and memory folders without a record are not the person's agents", async () => {
+  test("memory folders without a record are not the person's agents", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-agents-"));
     try {
       const mine = await createAgent(dir, { name: "Mine" });
-      const helper = "agent-local-00000000-0000-0000-0000-000000000001";
-      mkdirSync(join(dir, "memfs", helper, "memory"), { recursive: true });
-      writeRecord(dir, helper, { id: helper, name: "Letta Code", tags: ["role:subagent"] });
       mkdirSync(join(dir, "memfs", "agent-local-00000000-0000-0000-0000-000000000002", "memory"), { recursive: true });
       expect(listAgents(dir)).toEqual([mine]);
     } finally {

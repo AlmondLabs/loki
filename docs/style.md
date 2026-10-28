@@ -65,7 +65,7 @@ npm run build:app && npm run build:mod && npm run smoke
   Identifiers stay camelCase: `const { agent_id: agentId } = desk`, `{ agent_id: agentId }`.
 - State that never leaves the app (React state, view models, `AttentionItem`'s own fields) is camelCase like any
   identifier.
-- Formats loki does not own keep their names: `mcp.json` (`mcpServers`, `alwaysLoad`), Letta's files, pi-durable's
+- Formats loki does not own keep their names: `mcp.json` (`mcpServers`, `alwaysLoad`), pi-durable's
   documents, provider APIs, the browser's `dataset`.
 - A field renamed in saved data is read through `migrateKeys` (`core/snake-keys.ts`, OLD_KEYS; task metadata through
   OLD_TASK_METADATA_KEYS) and written back once; only listed names are renamed, since a map's keys may be ids.
@@ -92,7 +92,7 @@ npm run build:app && npm run build:mod && npm run smoke
   `mcp__<server>__<tool>`.
 - A rename is a hard rename: the old name goes everywhere. `RENAMED_TOOLS` (and `SPLIT_TOOLS` for one tool made
   several) carries the stored "always allow" list over, and every store's saved calls and results are renamed once when
-  it opens (`daemon/store-tool-names.ts`), so no code that reads history knows an old name. A chat on an ACP agent keeps
+  it opens (`daemon/store-migration.ts`), so no code that reads history knows an old name. A chat on an ACP agent keeps
   its agent's own names.
 
 ## 3. TypeScript

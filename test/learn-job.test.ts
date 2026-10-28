@@ -53,7 +53,6 @@ async function setup(opts: { cap?: number } = {}) {
     context: ctx,
     jobs: [learnJob({ store: recall, state, chats })],
     busy: () => Promise.resolve(false),
-    isSubagent: () => false,
     report: (m) => reports.push(m),
     now: () => now,
     quietMs: 0,

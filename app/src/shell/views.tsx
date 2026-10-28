@@ -247,7 +247,6 @@ export function SettingsView({
   onChatPlacement: (p: ChatPlacement) => void;
   onModelsChanged: () => void;
 }) {
-  const { attention } = desk;
   // Nothing while the sheet's chunk loads: a moment on the Mac, where it is read from disk.
   return (
     <Suspense fallback={null}>
@@ -284,8 +283,6 @@ export function SettingsView({
         shortcut={shortcut}
         recall={recall}
         usage={{ ...desk.usage, agents: catchUp.agents }}
-        importLetta={attention.importLetta}
-        importStatus={attention.importStatus}
       />
     </Suspense>
   );

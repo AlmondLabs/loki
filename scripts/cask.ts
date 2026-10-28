@@ -65,7 +65,6 @@ ${
   zap trash: [
     "~/.agents/skills/loki",
     "~/.loki",
-    "~/.letta/loki",
   ]
 
   caveats <<~EOS

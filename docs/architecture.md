@@ -4,7 +4,8 @@ loki runs its agents itself. A small Rust shell opens the window and keeps one l
 loki's **daemon**, which holds every agent, every chat and every tool. This document is the map: which processes
 run on your machine, what each one owns, the path a message takes, and where each piece lives in the repo.
 
-Until October 2026 loki sat on top of Letta Code and ran inside its `letta server` process. Plan 017
+Until October 2026 loki sat on top of Letta Code and ran inside its `letta server` process; nothing of Letta is left
+in it now. Plan 017
 (`docs/plans/2026-10-09-017-refactor-loki-pi-harness-plan.md`) moved it onto its own daemon, built on Earendil's
 Pi libraries. The reason was speed and control: every turn passed through Letta's app-server and local backend,
 whose protocol and mod API were unversioned and changed on Letta's schedule. The measured trial
@@ -62,7 +63,7 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
 4. **The daemon dies with loki.** On Windows it runs with no console window inside a Job Object that ends the whole
    tree when loki's handle closes. On Linux it is started with the parent-death signal. On the Mac, where neither
    exists, a leftover from a crash is found and stopped at the next launch.
-5. **There are no other long-lived processes.** No Letta, no app-server, no port 41600. The children are short-lived
+5. **There are no other long-lived processes.** The children are short-lived
    or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits, `bd` for Tasks,
    `rg` for search when it is installed. The exception is the MCP servers you list in `~/.loki/mcp.json`: each local
    one runs as long as the daemon does, restarted with backoff if it exits.
@@ -79,13 +80,17 @@ every chat gets, the chats, then the mods.
    model step and tool result before it is shown, so a turn cut off by a crash resumes from its last save when the
    store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats; the
    store manager reopens it. pi-durable numbers its own conversations, so a document in each store maps loki's chat
-   ids (`local-conv-…`, and `default` for an agent's main chat) to them. Keeping the old id format means chats
-   imported from Letta keep their ids, and with them their widgets, Inbox marks, pins and task stamps.
-2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`, in the
-   layout Letta's local backend used: `agents/<id>.json` for the record, `memfs/<id>/memory/` for the memory repo.
-   Keeping the layout let agents imported from Letta come over as they were and let the Agents page read them unchanged. The
-   memory repo's `system/` files go into the prompt; the rest is listed by path. Each change is a git commit, by
-   the agent, or by "Reflection".
+   ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat keeps its id for life, and its
+   widgets, Inbox marks, pins and task stamps are keyed by it. An update that changes what a store holds migrates
+   it on open, after a whole copy (`daemon/store-backup.ts`): pi-durable's own schema, to
+   `stores/backup-schema-<version>-<date>/`; and loki's entries, in `daemon/store-migration.ts`, one pass of
+   rewrites over a store's entries in one transaction (old tool names, and the shapes chats imported from Letta
+   carried), versioned per store in `stores/migrations.json`. It replaced `store-tool-names.ts` and its
+   `tool-names.json`. Chats on an ACP agent keep their agent's own names and shapes.
+2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
+   `agents/<id>.json` for the record, `memfs/<id>/memory/` for the memory repo. The memory repo's `system/` files go
+   into the prompt; the rest is listed by path. Each change is a git commit, by the agent, or by "Reflection".
+   `daemon/agent-migration.ts` migrates the records and memory once, noted in `state/migrations.json`.
 3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials
    (API keys, or the tokens from signing in with ChatGPT) are kept in the OS keychain through `@napi-rs/keyring`,
    one entry per provider under the service "loki". A key is tried before it is kept. Anthropic's subscription
@@ -146,21 +151,13 @@ every chat gets, the chats, then the mods.
     `daemon/chat-events.ts`).** `DaemonChats` runs chats for the mod's chat frames: open, send, steer, abort,
     approve, answer, models, agents, providers, the passes, memory and skills. It finds each chat's engine and hands
     every per-chat call to it through one interface (`Engine`), with two adapters: `LokiEngine` on pi-durable, and
-    `AcpEngine` (item 15). `DaemonChats` keeps only the rules about which engine a chat runs on: chosen before the
+    `AcpEngine` (item 14). `DaemonChats` keeps only the rules about which engine a chat runs on: chosen before the
     first message, fixed after it. On loki's engine, a message sent while the chat is busy waits its turn, or with
     `steer` joins it; pi-durable's events become loki's chat events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
     its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
     chats often and needs an answer at once (the chat list, the Inbox, a thread's page, Learn's cursor), while
     pi-durable answers asynchronously.
-13. **The import from Letta (`daemon/import/`).** For a Mac that ran loki on Letta Code: the daemon runs it at
-    start, before the mod opens its sockets, until one run finishes, and Settings › loki › Import runs it again. It
-    copies agents (with their memory's git history), every conversation under its Letta id, keys into the keychain,
-    permission modes and folders onto chats, and schedules, and gives each chat its background passes' cursors
-    (Letta's reflection and Learn had read it). It refuses while Letta runs (the letta program itself, not a command
-    line that mentions it) and never writes to Letta's files. A second run imports only what is missing; a run that
-    brought no agent over though Letta has some is not finished, and runs again at the next start. Each run's outcome
-    is kept beside what it did (`state/letta-import.json`, `last`) and shown in Settings › loki › Import.
-14. **The usage ledger (`daemon/usage.ts`).** What every model call cost, by hour, agent, model and origin (the
+13. **The usage ledger (`daemon/usage.ts`).** What every model call cost, by hour, agent, model and origin (the
     person's chats, helpers, or a background pass), in `state/usage.json`, for the usage page. pi-durable adds each
     call's tokens and cost into its conversation's `pi.usage` but keeps no time, so the ledger follows each store's
     commits and adds what grew to the commit's hour. It remembers each chat's last totals in the same file, so a
@@ -168,7 +165,7 @@ every chat gets, the chats, then the mods.
     once from analytics instead: on its first start the ledger reads the `turn_finished` lines from before it began
     (`seeded_until` in the file), their cost as `other` since a line has only the total. It does not depend on
     analytics otherwise: `LOKI_ANALYTICS=0` leaves it on.
-15. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on
+14. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on
     pi-durable: its engine is `AcpEngine` (`daemon/acp/engine.ts`), which hands its send, stop, mode, model and
     commands to `AcpChats`. Each agent is one process
     (`process.ts`, on `@agentclientprotocol/sdk`, started on first use and again after it exits), offered no files
@@ -328,18 +325,17 @@ on, its **home**. The Macs talk to each other directly over the tailnet; there i
 
 ## Where things live on disk
 
-Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second loki). On first start the shell
-renames an old `~/.letta/loki` to `~/.loki` and leaves a link at the old path (a symlink, or a junction on
-Windows), so paths written in agents' memories and old widget references still resolve (`src-tauri/src/root.rs`).
+Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second loki).
 
 1. `token`: the capability token the shell, the page and the daemon share.
 2. `daemon.lock`: the pid of the daemon serving this folder.
 3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
-4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format.
+4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; `stores/migrations.json`, each
+   store's migration version; and `stores/backup-…/`, whole copies made before a migration.
 5. `backend/`: agent records (`agents/`) and memory repos (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
 7. `state/`: small JSON files: schedules (`crons.json`), pins, the Inbox's marks (`attention.json`), the LAN switch,
-   paired devices, each chat's canvas, and a record of the import from Letta (`letta-import.json`).
+   paired devices, each chat's canvas, and which migrations of records and memory have run (`migrations.json`).
 8. `mods/`: mods of your own, loaded after loki's.
 9. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
    (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
@@ -353,7 +349,7 @@ and provider credentials in the OS keychain.
 ## Where the code lives
 
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
-   `mods/` the mod API and registry; `import/` the import from Letta; the rest one file per capability
+   `mods/` the mod API and registry; the rest one file per capability
    (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
 2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
@@ -364,8 +360,8 @@ and provider credentials in the OS keychain.
    `recall.ts` back Tasks, pins, folders, the Agents pages and Learn; `pairing.ts`, `devices.ts`,
    `tailscale.ts` and `static.ts` are the phone listener; `boot.ts` re-bundles the mod on each reload in a checkout.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
-   `frames.ts` (the frame table) with `frame-types.ts`, `harness.ts` (recognising harness markup in transcripts,
-   including imported Letta history), `attention/` (the Inbox: the chat client, the attention model, queue and focus
+   `frames.ts` (the frame table) with `frame-types.ts`, `harness.ts` (recognising harness markup in transcripts),
+   `attention/` (the Inbox: the chat client, the attention model, queue and focus
    ranking, `useAttention`; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
    `recall/` (Learn's cards and scheduling).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K
@@ -374,11 +370,11 @@ and provider credentials in the OS keychain.
    `phone/` the phone; `shared/` logic both surfaces share; `components/` the chrome primitives; `kit/` the tokens
    and the widget kit (`@loki/kit`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
-   `node.rs` finds Node; `procs.rs` finds a leftover daemon; `root.rs` moves the root to `~/.loki`; `install.rs`
+   `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar.
 6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
-   timing trial), `pi-import-check.ts` (checks the import against real Letta logs), `cask.ts`, `release.ts` and
+   timing trial), `smoke.ts` (the built bundle in a scratch home), `cask.ts`, `release.ts` and
    `analytics.ts`.
 7. `test/` (vitest, on Node) and `test-node/` (Node's own runner: SQLite stores, resuming after a crash, mods from a folder).
 
