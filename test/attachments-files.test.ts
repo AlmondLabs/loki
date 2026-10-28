@@ -1,18 +1,18 @@
-import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
 import { attachmentTag, withAttachments } from "../core/attention/content.ts";
 import { messageFiles, stripHarnessMarkup } from "../core/harness.ts";
 import { emptyLive } from "../core/attention/model.ts";
+import { push, user } from "./fixtures/chat-events.ts";
 import { foldSteps, ownSendKey } from "../core/attention/thread.ts";
 import { fileSize, isInlineImage } from "../app/src/chat/attachments.ts";
 
-const report = { path: '/Users/me/.letta/loki/uploads/2026-09-30/Q3 "final".pdf', name: 'Q3 "final".pdf', size: 482113, mime: "application/pdf" };
+const report = { path: '/Users/me/.loki/uploads/2026-09-30/Q3 "final".pdf', name: 'Q3 "final".pdf', size: 482113, mime: "application/pdf" };
 
-describe("files on a message: Letta's attachment tag", () => {
-  test("a file goes as the tag Letta's channels use, after the text", () => {
+describe("files on a message: the attachment tag", () => {
+  test("a file goes as an attachment tag, after the text", () => {
     const tag = attachmentTag(report);
     expect(tag).toBe(
-      '<attachment kind="file" local_path="/Users/me/.letta/loki/uploads/2026-09-30/Q3 &quot;final&quot;.pdf" name="Q3 &quot;final&quot;.pdf" mime_type="application/pdf" size_bytes="482113" />',
+      '<attachment kind="file" local_path="/Users/me/.loki/uploads/2026-09-30/Q3 &quot;final&quot;.pdf" name="Q3 &quot;final&quot;.pdf" mime_type="application/pdf" size_bytes="482113" />',
     );
     expect(withAttachments("read this", [report])).toBe(`read this\n\n${tag}`);
     expect(withAttachments("", [report])).toBe(tag);
@@ -31,24 +31,16 @@ describe("files on a message: Letta's attachment tag", () => {
   });
 
   test("history keeps the file on the row, even a message that was only a file", () => {
-    const rows = foldSteps(historySteps([{ message_type: "user_message", content: withAttachments("", [report]), date: "2026-09-30T10:00:00Z" }]));
+    const rows = foldSteps([user(withAttachments("", [report]), "2026-09-30T10:00:00Z")]);
     expect(rows).toEqual([{ role: "user", text: "", at: "2026-09-30T10:00:00Z", files: [report] }]);
   });
 
   test("the echo of a message sent with a file is recognised, and not shown twice", () => {
     const l = emptyLive();
     l.thread.expectEcho(ownSendKey("", [report]));
-    applyEvent(l, {
-      type: "stream_delta",
-      runtime: { agent_id: "a", conversation_id: "c" },
-      delta: { message_type: "user_message", content: withAttachments("", [report]) },
-    });
+    push(l, user(withAttachments("", [report])));
     expect(l.thread.rows() ?? []).toEqual([]);
-    applyEvent(l, {
-      type: "stream_delta",
-      runtime: { agent_id: "a", conversation_id: "c" },
-      delta: { message_type: "user_message", content: withAttachments("from the phone", [report]) },
-    });
+    push(l, user(withAttachments("from the phone", [report])));
     expect(l.thread.rows()).toMatchObject([{ role: "user", text: "from the phone", files: [report] }]);
   });
 });

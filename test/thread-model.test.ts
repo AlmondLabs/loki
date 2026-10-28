@@ -1,80 +1,52 @@
-import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
-import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
-import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
+import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model.ts";
+import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
+import { approval, call, piece, push, result, said, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
-const rt = { agent_id: "a", conversation_id: "c" };
-const delta = (messageType: string, extra: Record<string, unknown> = {}) => ({
-  type: "stream_delta",
-  runtime: rt,
-  delta: { message_type: messageType, ...extra },
-});
-const msg = (messageType: string, extra: Record<string, unknown>) => ({ message_type: messageType, date: "2026-09-05T08:00:00Z", ...extra });
+const at0 = "2026-09-05T08:00:00Z";
 const tools = (rows: TranscriptRow[] | undefined) => (rows ?? []).filter((r) => r.role === "tool");
 const rowsOf = (thread: ThreadModel) => must(thread.rows(), "the thread's rows");
 
-describe("app-server history as a thread", () => {
-  test("protocol messages fold into a readable thread: markup stripped, machinery as events, reasoning and returns dropped", () => {
-    const t = foldSteps(
-      historySteps([
-        msg("user_message", { content: "<system-reminder>x</system-reminder>go" }),
-        msg("reasoning_message", { reasoning: "hmm" }),
-        msg("tool_call_message", { tool_call: { name: "Bash" } }),
-        msg("tool_return_message", { tool_return: "ok" }),
-        msg("user_message", {
-          content: "<task-notification><task-id>b1</task-id><status>completed</status><summary>ran</summary><result>a &gt; b</result></task-notification>",
-        }),
-        msg("assistant_message", { content: "Done." }),
-      ]),
-    );
+describe("history as a thread", () => {
+  test("history steps fold into a readable thread: markup stripped, machinery as events", () => {
+    const t = foldSteps([
+      user("<system-reminder>x</system-reminder>go", at0),
+      call("Bash", null, undefined, at0),
+      user("<task-notification><task-id>b1</task-id><status>completed</status><summary>ran</summary><result>a &gt; b</result></task-notification>", at0),
+      said("Done.", at0),
+    ]);
     expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:go", "tool:Bash", "event:background task b1 completed", "assistant:Done."]);
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
   });
 
   test("history with times yields rows with times; history without yields rows without", () => {
-    expect(
-      foldSteps(
-        historySteps([
-          { message_type: "user_message", content: "hi", date: "2026-09-23T08:00:00Z" },
-          { message_type: "assistant_message", content: "hello", date: "2026-09-23T08:00:05Z" },
-        ]),
-      ),
-    ).toEqual([
+    expect(foldSteps([user("hi", "2026-09-23T08:00:00Z"), said("hello", "2026-09-23T08:00:05Z")])).toEqual([
       { role: "user", text: "hi", at: "2026-09-23T08:00:00Z" },
       { role: "assistant", text: "hello", at: "2026-09-23T08:00:05Z" },
     ]);
-    const bare = foldSteps(historySteps([{ message_type: "assistant_message", content: "hello" }]));
+    const bare = foldSteps([said("hello")]);
     expect(bare).toEqual([{ role: "assistant", text: "hello" }]);
     expect("at" in bare[0]).toBe(false);
   });
 
   test("a call is paired with its return by id; its approval request with the same id is the same row", () => {
-    const rows = foldSteps(
-      historySteps([
-        { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-        { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-        { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "error" },
-      ]),
-    );
+    const rows = foldSteps([call("Bash", "c1", '{"command":"ls"}'), approval("Bash", "c1", '{"command":"ls"}'), result("c1", "a.ts", true)]);
     expect(rows).toEqual([{ role: "tool", text: "Bash · ls", tool: { name: "Bash", id: "c1", input: "ls", output: "a.ts", failed: true, error: "a.ts" } }]);
   });
 });
 
 describe("one row per tool call", () => {
-  const call = (name: string, id: string | null, args?: unknown): Step => ({ kind: "call", name, args, id, at: null });
-  const approval = (name: string, id: string | null): Step => ({ kind: "approval", name, args: undefined, id, at: null });
-
   test("live, an approval request with its own id, or none, belongs to the call it asks about", () => {
     const l = emptyLive();
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "AskUserQuestion", tool_call_id: "t1" } }));
-    applyEvent(l, delta("approval_request_message", { tool_call: { name: "AskUserQuestion", tool_call_id: "approval-9" } }));
-    applyEvent(l, delta("approval_request_message", { tool_call: { name: "AskUserQuestion" } }));
+    push(l, call("AskUserQuestion", "t1"));
+    push(l, approval("AskUserQuestion", "approval-9"));
+    push(l, approval("AskUserQuestion", null));
     expect(tools(l.thread.rows()).length).toBe(1);
     // a genuinely new call of the same tool after some text is a new row
-    applyEvent(l, delta("assistant_message", { content: "and again" }));
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "AskUserQuestion", tool_call_id: "t2" } }));
+    push(l, piece("and again"));
+    push(l, call("AskUserQuestion", "t2"));
     expect(tools(l.thread.rows()).length).toBe(2);
   });
 
@@ -101,11 +73,11 @@ describe("one row per tool call", () => {
 
   test("live, the input fills in as it streams and the result lands on its row", () => {
     const l = emptyLive();
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "c1", arguments: '{"comm' } }), "2026-09-26T09:00:00Z");
+    push(l, call("Bash", "c1", '{"comm'), "2026-09-26T09:00:00Z");
     expect(rowsOf(l.thread)[0].tool).toEqual({ name: "Bash", id: "c1" });
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "c1", arguments: 'and":"ls"}' } }), "2026-09-26T09:00:01Z");
+    push(l, call("Bash", "c1", 'and":"ls"}'), "2026-09-26T09:00:01Z");
     expect(rowsOf(l.thread)[0]).toMatchObject({ text: "Bash · ls", tool: { input: "ls" } });
-    applyEvent(l, delta("tool_return_message", { tool_call_id: "c1", tool_return: "a.ts", status: "success" }), "2026-09-26T09:00:02Z");
+    push(l, result("c1", "a.ts"), "2026-09-26T09:00:02Z");
     expect(rowsOf(l.thread)[0].tool).toEqual({ name: "Bash", id: "c1", input: "ls", output: "a.ts" });
   });
 
@@ -120,49 +92,49 @@ describe("the live thread", () => {
   test("user, tool and assistant rows fold in order; own sends are not echoed twice; streaming settles", () => {
     const l = emptyLive();
     l.thread.own({ role: "user", text: "hello" }, "hello");
-    applyEvent(l, delta("user_message", { content: "hello" }));
+    push(l, user("hello"));
     expect(l.thread.rows()).toMatchObject([{ role: "user", text: "hello" }]); // echo recognised
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    applyChatEvent(l, { kind: "loop", state: "running" });
     expect(chatStatusOf(l)).toBe("thinking");
-    applyEvent(l, delta("assistant_message", { content: "Let me " }));
+    push(l, piece("Let me "));
     expect(chatStatusOf(l)).toBe("streaming");
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } }));
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } })); // same call, more deltas
+    push(l, call("Bash", "t1"));
+    push(l, call("Bash", "t1")); // same call, more deltas
     expect(l.thread.rows()).toMatchObject([
       { role: "user", text: "hello" },
       { role: "assistant", text: "Let me" },
       { role: "tool", text: "Bash" },
     ]);
-    applyEvent(l, delta("assistant_message", { content: "done." }));
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    push(l, piece("done."));
+    applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ role: "assistant", text: "done." });
     expect(l.lastAssistantText).toBe("done.");
     expect(chatStatusOf(l)).toBe("idle");
     // a message typed elsewhere (Desktop) shows up as a user row
-    applyEvent(l, delta("user_message", { content: "from desktop" }));
+    push(l, user("from desktop"));
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ role: "user", text: "from desktop" });
   });
 
   test("the desk block and a loaded skill become event rows; the user's own words stay a user row", () => {
     const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: 'build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>' }));
+    push(l, user('build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>'));
     expect(l.thread.rows()).toMatchObject([
       { role: "event", text: "canvas activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
       { role: "user", text: "build it" },
     ]);
     // a message that is only machinery changes the thread but is not the user speaking
-    const r = applyEvent(l, delta("user_message", { content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' }));
+    const r = push(l, user('<skill_content name="unslop">\n# Unslop\n</skill_content>'));
     expect(r).toEqual({ changed: true, userSpoke: false });
     expect(rowsOf(l.thread)[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
   });
 
   test("user, tool, event and settled assistant rows carry the time they arrived; the reply keeps the time it started", () => {
     const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: "go" }), "2026-09-23T09:00:00.000Z");
-    applyEvent(l, delta("assistant_message", { content: "Let " }), "2026-09-23T09:00:02.000Z");
-    applyEvent(l, delta("assistant_message", { content: "me" }), "2026-09-23T09:00:03.000Z");
+    push(l, user("go"), "2026-09-23T09:00:00.000Z");
+    push(l, piece("Let "), "2026-09-23T09:00:02.000Z");
+    push(l, piece("me"), "2026-09-23T09:00:03.000Z");
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ text: "Let me", at: "2026-09-23T09:00:02.000Z" });
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } }), "2026-09-23T09:00:04.000Z");
+    push(l, call("Bash", "t1"), "2026-09-23T09:00:04.000Z");
     l.thread.beginCommand("/reload", "2026-09-23T09:00:06.000Z");
     expect(rowsOf(l.thread).map((r) => [r.role, r.at])).toEqual([
       ["user", "2026-09-23T09:00:00.000Z"],
@@ -186,16 +158,16 @@ describe("the live thread", () => {
 
   test("the agent starting to speak counts as a change even before any words arrive", () => {
     const l = emptyLive();
-    expect(applyEvent(l, delta("assistant_message", { content: "" })).changed).toBe(true);
+    expect(push(l, piece("")).changed).toBe(true);
     expect(l.lastRole).toBe("assistant");
   });
 
   test("the whole last reply, not the Inbox's digest of it", () => {
     const l = emptyLive();
     const long = "word ".repeat(400).trim();
-    applyEvent(l, delta("assistant_message", { content: long }));
+    push(l, piece(long));
     expect(l.thread.lastReply()).toBe(long);
-    applyEvent(l, { type: "turn_finished", runtime: rt });
+    applyChatEvent(l, { kind: "turn_end" });
     expect(l.thread.lastReply()).toBe(long);
     expect(must(l.lastAssistantText, "the last assistant text").length).toBe(700);
   });
@@ -235,35 +207,25 @@ describe("slash command rows", () => {
     expect(rowsOf(t)[1].detail).toMatch(/link.*dropped/);
     expect(t.settleCommands()).toBe(false);
   });
-  test("slash_command_start / _end deltas become one event row: running, then the outcome", () => {
+  test("a command's start and end events become one event row: running, then the outcome", () => {
     const l = emptyLive();
-    const d = (x: Record<string, unknown>) => ({ type: "stream_delta", delta: x });
-    applyEvent(l, d({ message_type: "slash_command_start", command_id: "reload", input: "/reload" }));
+    applyChatEvent(l, { kind: "command", phase: "start", input: "/reload" });
     expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "running…" }]);
-    applyEvent(l, d({ message_type: "slash_command_end", command_id: "reload", input: "/reload", output: "Reloaded 2 mods.", success: true }));
+    applyChatEvent(l, { kind: "command", phase: "end", input: "/reload", output: "Reloaded 2 mods.", success: true });
     expect(l.thread.rows()).toMatchObject([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
     // A long output goes behind the disclosure; a failure says so.
-    applyEvent(l, d({ message_type: "slash_command_start", command_id: "compact", input: "/compact all" }));
-    applyEvent(l, d({ message_type: "slash_command_end", command_id: "compact", input: "/compact all", output: "line one\nline two", success: false }));
+    applyChatEvent(l, { kind: "command", phase: "start", input: "/compact all" });
+    applyChatEvent(l, { kind: "command", phase: "end", input: "/compact all", output: "line one\nline two", success: false });
     expect(rowsOf(l.thread)[1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
     // A short failure says why on the row itself.
-    applyEvent(l, d({ message_type: "slash_command_start", command_id: "doctor", input: "/doctor" }));
-    applyEvent(
-      l,
-      d({
-        message_type: "slash_command_end",
-        command_id: "doctor",
-        input: "/doctor",
-        output: "a memory review of this agent is already running",
-        success: false,
-      }),
-    );
+    applyChatEvent(l, { kind: "command", phase: "start", input: "/doctor" });
+    applyChatEvent(l, { kind: "command", phase: "end", input: "/doctor", output: "a memory review of this agent is already running", success: false });
     expect(rowsOf(l.thread).find((r) => r.text === "/doctor")).toMatchObject({
       summary: "failed: a memory review of this agent is already running",
       detail: null,
     });
     // An end without a start still lands as a row.
-    applyEvent(l, d({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
+    applyChatEvent(l, { kind: "command", phase: "end", input: "/clear", output: "Cleared.", success: true });
     expect(rowsOf(l.thread).find((r) => r.text === "/clear")).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
   });
 });
@@ -362,7 +324,7 @@ describe("a history page arriving", () => {
     ]);
   });
 
-  test("a row Letta never echoes (the answers to a question) goes once the page is newer than it", () => {
+  test("a row the daemon never echoes (the answers to a question) goes once the page is newer than it", () => {
     const t = new ThreadModel();
     t.own({ role: "user", text: "yes · ship it", at: t1001 });
     t.load([{ role: "assistant", text: "shipping", at: t1002 }]);
@@ -485,37 +447,28 @@ describe("every source makes the same thread", () => {
 
   test("the history and the live stream fold to equal rows", () => {
     // The chat's history for the conversation.
-    const fromHistory = foldSteps(
-      historySteps([
-        { message_type: "user_message", content: [{ type: "text", text: `read this ${report}` }], date: dates[0] },
-        { message_type: "assistant_message", content: "On it.", date: dates[1] },
-        { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
-        { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: args, tool_call_id: "c1" }, date: dates[1] },
-        { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "permission denied", status: "error", date: dates[2] },
-        { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>', date: dates[3] },
-        {
-          message_type: "assistant_message",
-          content: [
-            { type: "text", text: "Two parts," },
-            { type: "text", text: "one reply." },
-          ],
-          date: dates[4],
-        },
-      ]),
-    );
+    const fromHistory = foldSteps([
+      user(`read this ${report}`, dates[0]),
+      said("On it.", dates[1]),
+      call("Bash", "c1", args, dates[1]),
+      approval("Bash", "c1", args, dates[1]),
+      result("c1", "permission denied", true),
+      user('<skill_content name="unslop">\n# Unslop\n</skill_content>', dates[3]),
+      said("Two parts,\none reply.", dates[4]),
+    ]);
 
     // The same turn as it streams in, the reply in pieces.
     const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: [{ type: "text", text: `read this ${report}` }] }), dates[0]);
-    applyEvent(l, delta("assistant_message", { content: "On " }), dates[1]);
-    applyEvent(l, delta("assistant_message", { content: "it." }), dates[1]);
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", arguments: args.slice(0, 12), tool_call_id: "c1" } }), dates[1]);
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", arguments: args.slice(12), tool_call_id: "c1" } }), dates[1]);
-    applyEvent(l, delta("approval_request_message", { tool_call: { name: "Bash", arguments: args, tool_call_id: "approval-1" } }), dates[1]);
-    applyEvent(l, delta("tool_return_message", { tool_call_id: "c1", tool_return: "permission denied", status: "error" }), dates[2]);
-    applyEvent(l, delta("user_message", { content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' }), dates[3]);
-    applyEvent(l, delta("assistant_message", { content: "Two parts,\none reply." }), dates[4]);
-    applyEvent(l, { type: "turn_finished", runtime: rt }, dates[5]);
+    push(l, user(`read this ${report}`), dates[0]);
+    push(l, piece("On "), dates[1]);
+    push(l, piece("it."), dates[1]);
+    push(l, call("Bash", "c1", args.slice(0, 12)), dates[1]);
+    push(l, call("Bash", "c1", args.slice(12)), dates[1]);
+    push(l, approval("Bash", "approval-1", args), dates[1]);
+    push(l, result("c1", "permission denied", true), dates[2]);
+    push(l, user('<skill_content name="unslop">\n# Unslop\n</skill_content>'), dates[3]);
+    push(l, piece("Two parts,\none reply."), dates[4]);
+    applyChatEvent(l, { kind: "turn_end" }, dates[5]);
     const live = l.thread.rows();
 
     expect(live).toEqual(fromHistory);
@@ -542,11 +495,11 @@ describe("every source makes the same thread", () => {
 describe("rows keep their identity until they change", () => {
   test("live rows keep their identity between updates; a row that changed is a new object", () => {
     const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: "go" }), "2026-09-23T09:00:00.000Z");
+    push(l, user("go"), "2026-09-23T09:00:00.000Z");
     l.thread.beginCommand("/reload", "2026-09-23T09:00:01.000Z");
-    applyEvent(l, delta("assistant_message", { content: "Let " }), "2026-09-23T09:00:02.000Z");
+    push(l, piece("Let "), "2026-09-23T09:00:02.000Z");
     const first = rowsOf(l.thread);
-    applyEvent(l, delta("assistant_message", { content: "me" }), "2026-09-23T09:00:03.000Z");
+    push(l, piece("me"), "2026-09-23T09:00:03.000Z");
     const second = rowsOf(l.thread);
     expect(second.length).toBe(3);
     expect(second[0]).toBe(first[0]);
