@@ -12,8 +12,8 @@ import type { IconName } from "./icons";
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
-// The capitalised names are Claude Code's and Letta Code's own (Bash, Agent, Skill, TaskOutput…), as their chats name
-// steps. loki's own old names are not here: saved chats are renamed once (daemon/store-tool-names.ts, plan 044).
+// The capitalised names are Claude Code's own (Bash, Agent, Skill, TaskOutput…), as its chats name
+// steps. loki's own old names are not here: saved chats are renamed once (daemon/store-migration.ts, plan 044).
 const SHELL = new Set([
   "Bash",
   "bash", // pi's, on loki's own engine
@@ -169,9 +169,6 @@ export const stepName = (row: TranscriptRow): string =>
 
 /** The step's second line: what the agent said it is for, else what it was done to (the label's tail), or nothing. */
 export function stepTarget(row: TranscriptRow): string | null {
-  // Letta's notice names the command (`Background command "Re-auth dev" completed`); loki's is the command itself,
-  // whose own quotes are not a name.
-  if (isBackgroundTask(row)) return row.summary?.match(/^\w+ command "(.+)" \w+(?: \(.*\))?$/)?.[1] ?? row.summary ?? null;
   if (row.role === "event") return row.summary ?? null;
   if (row.tool?.description) return row.tool.description;
   const i = row.text.indexOf(" · ");

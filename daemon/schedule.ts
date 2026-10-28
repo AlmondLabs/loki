@@ -9,13 +9,12 @@ import { piTool, type ChatCall, type ChatTool } from "./chat-tools.ts";
 
 /**
  * Scheduled tasks (plan 017, U11): a prompt the agent sets to arrive in a chat on a cron schedule, in a timezone, once
- * or again and again. They are kept in one file in Letta's record shape (so the import carries Letta's over, U14) and
- * checked once a minute; a slot missed while loki was closed fires once at the next start, never once per slot. A
+ * or again and again. They are kept in one file, snake_case, and checked once a minute; a slot missed while loki was closed fires once at the next start, never once per slot. A
  * fired prompt begins "Scheduled task", which is how the Inbox tells a schedule's turn from yours
  * (core/attention/priority.ts).
  */
 
-/** One scheduled task, in Letta's record shape (snake_case, as the file keeps it). A one-time task is `done` once it fires; `cancelled` is a deleted one, kept in the file. */
+/** One scheduled task, as the file keeps it (snake_case). A one-time task is `done` once it fires; `cancelled` is a deleted one, kept in the file. */
 export interface ScheduledTask {
   id: string;
   agent_id: string;

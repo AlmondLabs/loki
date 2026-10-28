@@ -50,7 +50,6 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
     context: ctx,
     jobs: [reflectionJob],
     busy: () => Promise.resolve(false),
-    isSubagent: () => false,
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,

@@ -1,13 +1,8 @@
 import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
-import { afterEach, describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "vitest";
 import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
-import { conversationDirName } from "../core/desk-core.ts";
-import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { must } from "./fixtures/must.ts";
 
 const rt = { agent_id: "a", conversation_id: "c" };
@@ -487,44 +482,9 @@ describe("every source makes the same thread", () => {
     "2026-10-09T10:00:05.000Z",
   ];
   const args = '{"command":"rm -rf build","description":"Clean the build"}';
-  const backend = mkdtempSync(join(tmpdir(), "loki-thread-"));
-  afterEach(() => rmSync(backend, { recursive: true, force: true }));
 
-  test("the local log, the app-server's history and the live stream fold to equal rows", () => {
-    // The local backend's log.
-    const dir = join(backend, "conversations", conversationDirName("conv-same"));
-    mkdirSync(dir, { recursive: true });
-    const lines = [
-      { type: "message", timestamp: dates[0], message: { role: "user", content: [{ type: "text", text: `read this ${report}` }] } },
-      {
-        type: "message",
-        timestamp: dates[1],
-        message: {
-          role: "assistant",
-          content: [
-            { type: "text", text: "On it." },
-            { type: "toolCall", id: "c1", name: "Bash", arguments: JSON.parse(args) as unknown },
-          ],
-        },
-      },
-      { type: "message", message: { role: "toolResult", toolCallId: "c1", content: [{ type: "text", text: "permission denied" }], isError: true } },
-      { type: "message", timestamp: dates[3], message: { role: "user", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } },
-      {
-        type: "message",
-        timestamp: dates[4],
-        message: {
-          role: "assistant",
-          content: [
-            { type: "text", text: "Two parts," },
-            { type: "text", text: "one reply." },
-          ],
-        },
-      },
-    ];
-    writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
-    const fromLog = readLocalTranscriptPage("conv-same", null, 400, backend).rows;
-
-    // Letta's message list for the same conversation.
+  test("the history and the live stream fold to equal rows", () => {
+    // The chat's history for the conversation.
     const fromHistory = foldSteps(
       historySteps([
         { message_type: "user_message", content: [{ type: "text", text: `read this ${report}` }], date: dates[0] },
@@ -558,17 +518,16 @@ describe("every source makes the same thread", () => {
     applyEvent(l, { type: "turn_finished", runtime: rt }, dates[5]);
     const live = l.thread.rows();
 
-    expect(fromHistory).toEqual(fromLog);
-    expect(live).toEqual(fromLog);
-    expect(fromLog.map((r) => `${r.role}:${r.text}`)).toEqual([
+    expect(live).toEqual(fromHistory);
+    expect(fromHistory.map((r) => `${r.role}:${r.text}`)).toEqual([
       "user:read this",
       "assistant:On it.",
       "tool:Bash · rm -rf build",
       "event:skill loaded",
       "assistant:Two parts,\none reply.",
     ]);
-    expect(fromLog[0].files).toEqual([{ path: "/tmp/r.pdf", name: "r.pdf" }]);
-    expect(fromLog[2].tool).toEqual({
+    expect(fromHistory[0].files).toEqual([{ path: "/tmp/r.pdf", name: "r.pdf" }]);
+    expect(fromHistory[2].tool).toEqual({
       name: "Bash",
       id: "c1",
       input: "rm -rf build",

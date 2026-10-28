@@ -9,7 +9,7 @@ import { withKind } from "./tool-kinds.ts";
 /**
  * Skills and project instructions on loki's daemon (plan 017, U10, KTD19). The agent's prompt lists every skill it
  * has, its own (in its memory, `skills/<name>/SKILL.md`) and the global ones (mod/skills.ts), by name and description;
- * the Skill tool hands it a skill's whole text when it needs it, as Letta's did (`<skill_content>`). The chat's folder
+ * the Skill tool hands it a skill's whole text when it needs it (`<skill_content>`). The chat's folder
  * brings its AGENTS.md (or CLAUDE.md) as a section of its own.
  */
 

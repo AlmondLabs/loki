@@ -7,7 +7,7 @@ import type { MemoryCommit, ReflectionState } from "../core/frame-types.ts";
  * daemon's setting, read and written through the mod's chat frames, not here.
  */
 
-/** A pass's commits are by "Reflection" (by "Reflection Subagent" in history imported from Letta); the agent's own carry its name. */
+/** A pass's commits are by "Reflection" (by "Reflection Subagent" in older memory history); the agent's own carry its name. */
 export const isReflectionCommit = (c: MemoryCommit): boolean => /reflection/i.test(c.author);
 
 /**

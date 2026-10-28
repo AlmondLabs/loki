@@ -1,7 +1,7 @@
 /**
  * Where one turn's time went (plan 017, R2): waiting for the model, running tools, or the harness itself. pi-durable
  * saves each model response with the time it started and ended, and each tool result with when it finished, so one
- * function measures a turn from what the store saved (the trial measured Letta's turns the same way), plus two
+ * function measures a turn from what the store saved, plus two
  * moments only a client sees: when the message was sent and when its first word arrived.
  */
 

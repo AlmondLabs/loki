@@ -2,7 +2,7 @@ import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
 import type { DeskInfo, DeskSummary, InboxRow, LocalAgent } from "../core/frame-types.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
-import { backendDir, isSubagentRecord, readLocalAgent } from "./agents.ts";
+import { backendDir, readLocalAgent } from "./agents.ts";
 import type { ChatSource } from "./chat-source.ts";
 import { agentHasMemory, hiddenScopes, type DeskRegistry, type LocalConversationRow } from "./desks.ts";
 import { sortDesks } from "./frames/desks.ts";
@@ -181,17 +181,13 @@ export class ChatListing {
         !c.hidden &&
         !passChat(c.conversationId) &&
         // A deleted agent leaves its memory folder behind: its record must still exist too.
-        (withDesk.has(c.agentId) || (agents.hasMemory(c.agentId) && agents.record(c.agentId) !== null)) &&
-        // Helper agents have records too, and a desk once their turn ran; their one-off chats stay out.
-        !isSubagentRecord(agents.record(c.agentId)),
+        (withDesk.has(c.agentId) || (agents.hasMemory(c.agentId) && agents.record(c.agentId) !== null)),
     );
   }
 
-  /** Forget the desks an older loki kept for helper agents and the passes' chats, so they do not come back. */
+  /** Forget the desks an older loki kept for the passes' chats, so they do not come back. */
   private tidy(agents: Agents, passChat: (conversationId: string) => boolean): void {
     const { desks } = this.opts;
-    for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
-      if (isSubagentRecord(agents.record(agentId)) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
     const evicted = desks.forgetConversations(passChat);
     if (evicted) log("desks:evict-pass-chats", { evicted });
   }

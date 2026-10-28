@@ -52,9 +52,8 @@ describe("Preferences: the section list", () => {
     for (const p of PAGES) expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
   });
 
-  test("a saved page opens as it was; the old Letta and Files page ids open About; none opens the first page", () => {
+  test("a saved page opens as it was; the old Files page id opens About; none opens the first page", () => {
     expect(savedPage("skills")).toBe("skills");
-    expect(savedPage("letta")).toBe("loki");
     expect(savedPage("files")).toBe("loki");
     expect(savedPage(null)).toBe("appearance");
     expect(savedPage("harness")).toBe("appearance");

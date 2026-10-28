@@ -60,7 +60,6 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     jobs: [job],
     busy: () => Promise.resolve(opts.busy?.() ?? false),
     ...(opts.canRun ? { canRun: () => Promise.resolve(opts.canRun?.() ?? true) } : {}),
-    isSubagent: () => false,
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,

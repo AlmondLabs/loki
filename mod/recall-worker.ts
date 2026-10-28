@@ -22,25 +22,16 @@ export const MAX_QUOTED_CARDS = 80;
 /** Open learning leads the pile holds at most; past this the writer is not asked for more until some are started or dismissed. */
 export const MAX_OPEN_LEADS = 12;
 
-/** True for Learn's own hidden chats (the daemon's writer chats, and the ones the import brought from Letta), which must never become desks or inbox cards. */
-export function ownsRecallChat(store: RecallStore, conversationId: string): boolean {
-  return isWriterChat(conversationId) || store.legacyChats().includes(conversationId);
-}
+/** True for Learn's own hidden chats (the daemon's writer chats), which must never become desks or inbox cards. */
+export const ownsRecallChat = (conversationId: string): boolean => isWriterChat(conversationId);
 
 /**
- * A background pass's own chat, which is never a desk, an inbox card or a chat in the list: Learn's (above) or
- * reflection's (`reflection-<agent>`, daemon/memory.ts isReflectionChat). What they did shows as cards and memory
- * changes instead.
+ * A background pass's own chat, which is never a desk, an inbox card or a chat in the list: Learn's (above),
+ * reflection's (`reflection-<agent>`, daemon/memory.ts isReflectionChat) or a memory review's (`doctor-<agent>`). What
+ * they did shows as cards and memory changes instead.
  */
-export function isPassChat(store: RecallStore, conversationId: string): boolean {
-  return passChats(store)(conversationId);
-}
-
-/** The rule of isPassChat with Learn's old chats read once, for checking a whole list of chats (plan 040). */
-export function passChats(store: RecallStore): (conversationId: string) => boolean {
-  const legacy = new Set(store.legacyChats());
-  return (id) => isWriterChat(id) || legacy.has(id) || id.startsWith("reflection-") || id.startsWith("doctor-");
-}
+export const isPassChat = (conversationId: string): boolean =>
+  ownsRecallChat(conversationId) || conversationId.startsWith("reflection-") || conversationId.startsWith("doctor-");
 
 /**
  * The cards worth quoting to the model: those whose front, back or tags share a word of five letters or more

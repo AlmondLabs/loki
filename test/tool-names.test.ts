@@ -3,9 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Approvals } from "../daemon/approvals.ts";
-import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { RENAMED_TOOLS, SPLIT_TOOLS, renameToolsIn, renamedCall } from "../daemon/tool-kinds.ts";
-import { assistantLine, headerLine, logText, toolResultLine, userLine } from "./fixtures/letta-log.ts";
 
 /** loki's tools under their names now, and every old name moving to one (plan 044). */
 describe("loki's tool names, old and now", () => {
@@ -55,20 +53,5 @@ describe("loki's tool names, old and now", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  test("a chat imported from Letta comes in under the names now", () => {
-    const at = "2026-10-01T10:00:00.000Z";
-    const entries = lettaLogEntries(
-      logText([
-        headerLine(),
-        userLine("e1", null, at, "which colour?"),
-        assistantLine("e2", "e1", at, "asking", [{ id: "q1", name: "AskUserQuestion", arguments: { questions: [] } }]),
-        toolResultLine("e3", "e2", at, "q1", "AskUserQuestion", "Blue"),
-      ]),
-    );
-    expect(JSON.stringify(entries)).not.toContain("AskUserQuestion");
-    expect(JSON.stringify(entries[1].model)).toContain('"name":"user_ask"');
-    expect(JSON.stringify(entries[2].model)).toContain('"toolName":"user_ask"');
   });
 });

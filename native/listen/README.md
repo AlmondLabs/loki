@@ -7,7 +7,7 @@ Records a call's two sides and transcribes them on this Mac, with no bot in the 
 - **You:** the microphone.
 
 Apple's on-device SpeechAnalyzer turns both into text. No audio is saved and nothing leaves the Mac. The transcript
-is written as the call goes, to `~/.letta/loki/calls/<yyyy-MM-dd-HHmm>.md` (or `$LOKI_CALLS_DIR`).
+is written as the call goes, to `~/.loki/calls/<yyyy-MM-dd-HHmm>.md` (or `$LOKI_CALLS_DIR`).
 
 It needs macOS 26 and Xcode or the Command Line Tools.
 

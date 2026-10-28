@@ -1,7 +1,7 @@
 import { CORE_RULE, FAILURE_RULE, MEMORY_TOOLS } from "./memory.ts";
 
 /**
- * The memory review (`/doctor`), Letta's /doctor on loki: the agent reads all of its own memory at once and cleans it
+ * The memory review (`/doctor`): the agent reads all of its own memory at once and cleans it
  * up, in its hidden `doctor-<agent>` chat, on the background passes' runner (PassRunner.runDoctor), so it never edits
  * memory while reflection or Learn does. Where reflection adds what new conversations taught, the review looks only at
  * what memory already says: it tidies (duplicates, size, one-off details) and makes the judgement calls (stale facts,

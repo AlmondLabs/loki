@@ -2,25 +2,23 @@
 // (src-tauri/resources/daemon/daemon.mjs and mod/loki-mod.mjs). Two bugs reached people that way on 2026-10-11:
 // every sign-in failed in the bundle (a module pi-ai loads by a variable path was not in it), and agents went missing
 // after an upgrade. This starts the bundled daemon the way the shell does (src-tauri/src/harness.rs), in a scratch
-// home that holds a Letta-era agent, and asks it over its socket what the app would:
+// home, and asks it over its socket what the app would:
 //   - it starts, serves /health and takes the token
-//   - the Letta agent was imported on its own, and an agent made now is still there after a restart
+//   - an agent made now is still there after a restart
 //   - every provider that signs in names its page (a provider unreachable from here only warns; a missing module or
 //     any other error in loki's own code fails)
 // Nothing outside the scratch folder is touched: HOME, USERPROFILE and LOKI_DIR point into it, analytics are off.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { backendName } from "../core/desk-core.ts";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const resources = process.env.LOKI_SMOKE_RESOURCES ?? join(repo, "src-tauri", "resources");
 const daemonEntry = join(resources, "daemon", "daemon.mjs");
 const modEntry = join(resources, "mod", "loki-mod.mjs");
-const LETTA_AGENT = "agent-local-smoke-letta";
 const START_MS = 30_000;
 const REQUEST_MS = 20_000;
 
@@ -132,28 +130,6 @@ async function connect(home: string, port: number) {
   return { request, close: () => ws.close() };
 }
 
-/** A Letta-era Mac: an agent in ~/.letta's local backend, as letta-code kept it (a record and a memory folder). */
-function seedLetta(home: string): void {
-  const file = join(home, ".letta", "lc-local-backend", "agents", `${backendName(LETTA_AGENT)}.json`);
-  mkdirSync(join(file, ".."), { recursive: true });
-  const memory = join(home, ".letta", "lc-local-backend", "memfs", LETTA_AGENT, "memory");
-  mkdirSync(memory, { recursive: true });
-  writeFileSync(join(memory, "persona.md"), "I came over from Letta.\n");
-  writeFileSync(
-    file,
-    JSON.stringify({
-      id: LETTA_AGENT,
-      name: "From Letta",
-      description: null,
-      system: "",
-      tags: ["origin:letta-code"],
-      model: "openrouter/some-model",
-      model_settings: {},
-      hidden: false,
-    }),
-  );
-}
-
 /** Errors in loki's own code, as opposed to a provider this runner cannot reach. */
 const OURS = /Cannot find module|ERR_MODULE_NOT_FOUND|is not a function|is not defined|Cannot read properties|is not supported/;
 
@@ -167,7 +143,6 @@ async function main(): Promise<void> {
   for (const f of [daemonEntry, modEntry]) if (!existsSync(f)) throw new Error(`${f} is missing: run npm run build:mod first`);
   const home = mkdtempSync(join(tmpdir(), "loki-smoke-"));
   console.log(`smoke: the bundle in ${resources}, home ${home}`);
-  seedLetta(home);
   let daemon: Daemon | null = null;
   let earlier = "";
   try {
@@ -175,16 +150,6 @@ async function main(): Promise<void> {
     ok("the bundled daemon starts and serves /health");
     let sock = await connect(home, daemon.port);
     ok("the socket takes the token");
-
-    // The import runs on its own at start; give it a moment.
-    let list: Array<{ id: string; name: string }> = [];
-    for (let i = 0; i < 40; i++) {
-      list = await agents(sock);
-      if (list.some((a) => a.id === LETTA_AGENT)) break;
-      await sleep(250);
-    }
-    if (list.some((a) => a.id === LETTA_AGENT)) ok("the Letta-era agent was imported");
-    else fail(`the Letta-era agent was not imported (agents: ${JSON.stringify(list)})`);
 
     const created = await sock.request("chat_agent_create", { name: "Smoke" });
     if (created.type !== "chat_agent_created") fail(`chat_agent_create: ${created.message ?? created.type}`);
@@ -216,12 +181,8 @@ async function main(): Promise<void> {
     daemon = await start(home);
     sock = await connect(home, daemon.port);
     const after = await agents(sock);
-    for (const [id, name] of [
-      [LETTA_AGENT, "the Letta-era agent"],
-      [created.id, "the agent made before"],
-    ] as const)
-      if (typeof id === "string" && after.some((a) => a.id === id)) ok(`${name} is there after a restart`);
-      else fail(`${name} is gone after a restart (agents: ${JSON.stringify(after)})`);
+    if (typeof created.id === "string" && after.some((a) => a.id === created.id)) ok("the agent made before is there after a restart");
+    else fail(`the agent made before is gone after a restart (agents: ${JSON.stringify(after)})`);
     sock.close();
 
     const log = earlier + daemon.log();

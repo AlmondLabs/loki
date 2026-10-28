@@ -200,8 +200,7 @@ function Identity({
   }
   const settings = d.agent.model_settings;
   const bits = [
-    settings.effort ? `effort ${typeof settings.effort === "string" ? settings.effort : JSON.stringify(settings.effort)}` : null,
-    settings.thinking ? "thinking" : null,
+    typeof settings.reasoning_effort === "string" ? `effort ${settings.reasoning_effort}` : null,
     settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null,
   ].filter(Boolean);
   return (

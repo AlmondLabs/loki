@@ -46,7 +46,7 @@ export const pageTitle = (p: SettingsPage): string => TITLES[p];
 
 /** Other words a page is found by, in the list's filter and in ⌘K search. */
 export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
-  loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "import", "letta", "files", "folders", "logs"],
+  loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
   inbox: ["order", "score", "focus", "archive"],
   providers: ["models", "api key", "openai", "anthropic"],
@@ -75,11 +75,11 @@ export function isSettingsPage(v: unknown): v is SettingsPage {
 export const SETTINGS_PAGE_KEY = "loki.settingsPage";
 
 /**
- * A saved page as Preferences opens on it: "letta" (the loki page's old id) and "files" (folded into it by plan 031)
- * are About; anything unknown is the first page.
+ * A saved page as Preferences opens on it: "files" (folded into the loki page by plan 031) is About; anything
+ * unknown is the first page.
  */
 export function savedPage(v: unknown): SettingsPage {
-  if (v === "letta" || v === "files") return "loki";
+  if (v === "files") return "loki";
   return isSettingsPage(v) ? v : PAGES[0].id;
 }
 

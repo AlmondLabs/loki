@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { modelEntriesFromWire, withRecent, type Harness, type ModelEntry } from "../core/models.ts";
+import { withRecent, type Harness, type ModelEntry } from "../core/models.ts";
 import { ComposerBar } from "../app/src/chat/chat-input.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 import { ModelChoices, ModelPill, modelLine, modelLists, modelName, nameInHarness, pickerKey, returnsFocus } from "../app/src/chat/model-picker.tsx";
@@ -185,10 +185,10 @@ describe("select model", () => {
   test("quick picks lead with the models used lately, then featured ones up to five, only ones the account can reach", () => {
     const many: ModelEntry[] = [
       ...MODELS,
-      { id: "f1", handle: "letta/f1", label: "F1", is_featured: true },
-      { id: "f2", handle: "letta/f2", label: "F2", is_featured: true },
-      { id: "f3", handle: "letta/f3", label: "F3", is_featured: true },
-      { id: "gated", handle: "letta/gated", label: "Gated", is_featured: true, available: false },
+      { id: "f1", handle: "lab/f1", label: "F1", is_featured: true },
+      { id: "f2", handle: "lab/f2", label: "F2", is_featured: true },
+      { id: "f3", handle: "lab/f3", label: "F3", is_featured: true },
+      { id: "gated", handle: "lab/gated", label: "Gated", is_featured: true, available: false },
     ];
     // gpt and llama were used lately (gpt the latest); the featured ones fill the rest, the unreachable one never
     const used = withRecent(many, ["openai/gpt-6", "ollama/llama-5"]);
@@ -197,32 +197,22 @@ describe("select model", () => {
       "ollama/llama-5",
       "anthropic/claude-opus-5-5",
       "anthropic/claude-sonnet-5",
-      "letta/f1",
+      "lab/f1",
     ]);
     // the unreachable model is still in More models, where the filter finds it
-    expect(modelLists(used, null).more.map((g) => g.handle)).toContain("letta/gated");
+    expect(modelLists(used, null).more.map((g) => g.handle)).toContain("lab/gated");
     // an unreachable recent model is left out of the quick picks too
-    const gatedRecent = withRecent(many, ["letta/gated", "openai/gpt-6"]);
+    const gatedRecent = withRecent(many, ["lab/gated", "openai/gpt-6"]);
     expect(modelLists(gatedRecent, null).short[0].handle).toBe("openai/gpt-6");
     // the current model outside the picks is added after them, so its check is in view
     expect(
-      modelLists(used, "letta/f3")
+      modelLists(used, "lab/f3")
         .short.map((g) => g.handle)
         .at(-1),
-    ).toBe("letta/f3");
+    ).toBe("lab/f3");
     // nothing recent or featured: the first few the account can reach
     const plain = many.map(({ is_featured: _f, ...e }) => e);
-    expect(modelLists(plain, null).short.map((g) => g.handle)).not.toContain("letta/gated");
-  });
-
-  test("list_models' available_handles marks the rest unreachable; null or absent marks none", () => {
-    const wire = [
-      { id: "a", handle: "anthropic/a", label: "A" },
-      { id: "b", handle: "letta/b", label: "B" },
-    ];
-    expect(modelEntriesFromWire(wire, ["anthropic/a"]).map((e) => e.available)).toEqual([undefined, false]);
-    expect(modelEntriesFromWire(wire, null).some((e) => e.available === false)).toBe(false);
-    expect(modelEntriesFromWire(wire).some((e) => e.available === false)).toBe(false);
+    expect(modelLists(plain, null).short.map((g) => g.handle)).not.toContain("lab/gated");
   });
 
   test("each row's line is the model's own description, else its handle; never invented", () => {

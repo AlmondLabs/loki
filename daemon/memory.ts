@@ -10,8 +10,7 @@ import { serial } from "./repo-queue.ts";
 import { briefDescription, skillDescription } from "../mod/skills.ts";
 
 /**
- * An agent's memory on loki's daemon (plan 017, U9): the git repo at `<backend>/memfs/<agentId>/memory`, Letta's
- * layout. Its `system/` files (or, without that folder, its top-level markdown files) are in the agent's prompt as the
+ * An agent's memory on loki's daemon (plan 017, U9): the git repo at `<backend>/memfs/<agentId>/memory`. Its `system/` files (or, without that folder, its top-level markdown files) are in the agent's prompt as the
  * `memory` section; everything else is listed by path for the agent to read when it needs it. The memory tools read,
  * write, edit and delete files there, each change a commit, by the agent, by "Reflection" in a reflection pass, or by
  * "Doctor" in a memory review (daemon/doctor.ts), which is how the Agents page tells them apart. A section changes only when memory does, so the prompt cache holds.
@@ -31,7 +30,7 @@ export const isReflectionChat = (chatId: string): boolean => chatId.startsWith("
 /** A memory review's chat (daemon/doctor.ts, /doctor): its commits are the Doctor's. */
 export const isDoctorChat = (chatId: string): boolean => chatId.startsWith("doctor-");
 
-/** Where an agent's memory repo is, in Letta's backend layout. */
+/** Where an agent's memory repo is: `memfs/<id>/memory` in the backend folder. */
 export function memoryRoot(backendDir: string, agentId: string): string {
   return join(backendDir, "memfs", agentId, "memory");
 }
@@ -158,9 +157,14 @@ const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "
 export { serial } from "./repo-queue.ts";
 
 function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
+  return commitMemoryFiles(root, [path], message, author);
+}
+
+/** Files of a memory repo, already written, committed together as `author` (also daemon/agent-migration.ts). */
+export function commitMemoryFiles(root: string, paths: readonly string[], message: string, author: { name: string; email: string }): Promise<void> {
   return serial(root, async () => {
-    await git(root, "add", "--", path);
-    await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", path);
+    await git(root, "add", "--", ...paths);
+    await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", ...paths);
   });
 }
 

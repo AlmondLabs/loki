@@ -31,7 +31,7 @@ export const CODING_TOOL_KINDS: Readonly<Partial<Record<string, ToolKind>>> = { 
  * loki's tools as they were once named, and their names now: before every name followed docs/style.md's snake_case
  * (October 2026), and before every name was `<subject>_<verb>` (plan 044). The "always allow" list kept on disk is
  * carried over through this map once, and each store's saved calls and results are renamed once
- * (daemon/store-tool-names.ts), so nothing that reads history knows an old name.
+ * (daemon/store-migration.ts), so nothing that reads history knows an old name.
  */
 export const RENAMED_TOOLS: Readonly<Partial<Record<string, string>>> = {
   Agent: "subagent",

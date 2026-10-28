@@ -143,16 +143,6 @@ others) or signing in with ChatGPT. Anthropic's subscription sign-in is not offe
 key is checked with the provider and kept in your system's keychain, and you pay that provider for what you use.
 Then loki helps you name your first agent; ask it to put something on the canvas.
 
-### Coming from Letta
-
-loki used to run on Letta Code. On a Mac that ran it there, the first start brings your agents over by itself:
-each agent with its memory and its history, every conversation under its old id (so canvases, pins and tasks
-still find it), your provider keys, permission modes, folders and scheduled tasks. Quit Letta first; the import
-refuses while it runs and tries again at the next start, or from Settings › loki › Import, which also says how the
-last run went. Letta's own files are
-only read, never changed, and the import can run again to pick up what is missing. loki's folder moves from
-`~/.letta/loki` to `~/.loki` on its own, with a link left at the old path.
-
 ## Your first widget
 
 Say, in the chat:
@@ -197,7 +187,7 @@ has the long version.
 
 ```text
 daemon/         loki's daemon (Node): the agent stores on pi-durable, providers and keychain, approvals, tools, memory,
-                reflection, skills, subagents, background and scheduled tasks, the mod registry, the import from Letta
+                reflection, skills, subagents, background and scheduled tasks, the mod registry, ACP agents, MCP
 mod/            loki's own mod, run inside the daemon: canvas, gestures, Tasks, Learn, the sockets for app and phone;
                 boot.ts re-bundles it on each change in a checkout (no manual build)
 core/           desk-core (types + the pure gesture reducer both halves use), the frame table, attention, recall —

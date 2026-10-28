@@ -56,7 +56,7 @@ jobs:
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod
-      # The bundle people run, started in a scratch home: sign-in, an import from Letta, agents across a restart
+      # The bundle people run, started in a scratch home: sign-in and agents across a restart
       # (scripts/smoke.ts). Source tests passed while the bundle's sign-in was broken (2026.1011.1).
       - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
         run: npm run smoke

@@ -47,10 +47,9 @@ describe("the line for a run of tools", () => {
     expect(stepTitle("mcp__linear__list_issues")).toBe("linear.list_issues");
   });
 
-  test("a background task reads by the name Letta gave it, or by loki's command as written, quotes and all", () => {
+  test("a background task reads by its command as written, quotes and all", () => {
     const notice = (summary: string): TranscriptRow => ({ role: "event", text: "background task bg-1 completed", summary });
-    expect(stepTarget(notice('Background command "Re-auth dev" completed'))).toBe("Re-auth dev");
-    expect(stepTarget(notice('Exec command "Deploy" failed (exit 1)'))).toBe("Deploy");
+    expect(stepTarget(notice("Re-auth dev"))).toBe("Re-auth dev");
     const command = `python3 -c "import re; print(re.findall(r'href=\\'([^\\']+)', open('a.html').read()))"`;
     expect(stepTarget(notice(command))).toBe(command);
   });
@@ -172,7 +171,7 @@ describe("a stretch of work", () => {
   const bg = (name: string, m: number, failed = false): TranscriptRow => ({
     role: "event",
     text: `background task exec_${m} ${failed ? "failed" : "completed"}`,
-    summary: `Exec command "${name}" ${failed ? "failed" : "completed"}`,
+    summary: name,
     detail: failed ? "tasks failed ELB health checks" : "ok",
     at: at(m),
   });
@@ -211,14 +210,14 @@ describe("a stretch of work", () => {
   });
 });
 
-describe("Letta's Codex-style tools", () => {
-  test("exec_command is a command, its `cmd` the command shown; patches are edits; web_search searches", async () => {
+describe("Codex-style tools", () => {
+  test("exec_command is a command, its `command` the command shown; patches are edits; web_search searches", async () => {
     const { toolStep, toolLabel } = await import("../core/harness.ts");
-    const args = { cmd: "git fetch origin prod && git log --oneline -5 origin/prod", description: "Fetch prod and inspect new commits" };
+    const args = { command: "git fetch origin prod && git log --oneline -5 origin/prod", description: "Fetch prod and inspect new commits" };
     const step = toolStep("exec_command", args);
-    expect(step.input).toBe(args.cmd);
+    expect(step.input).toBe(args.command);
     expect(step.description).toBe(args.description);
-    expect(toolLabel("exec_command", args)).toBe(`exec_command · ${args.cmd}`);
+    expect(toolLabel("exec_command", args)).toBe(`exec_command · ${args.command}`);
     const row: TranscriptRow = { role: "tool", text: toolLabel("exec_command", args), tool: step };
     expect(isNamedStep(row)).toBe(true);
     expect(workSummary([row])).toBe("Ran Fetch prod and inspect new commits");

@@ -17,7 +17,6 @@ import type { Approvals } from "./approvals.ts";
 import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { AcpEngine } from "./acp/engine.ts";
-import type { ImportReport, ImportStatus } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
 import type { McpTools } from "./mcp/index.ts";
@@ -59,13 +58,10 @@ interface Deps {
   labelsFile?: string;
   /** Keeps the person's pictures as files a window loads (daemon/chat-images.ts, plan 029); absent in tests that need none. */
   nameImage?: ImageNamer;
-  /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
+  /** The daemon's agents' folder (daemon/store/agents.ts). */
   backendDir: string;
   context: Context;
   report?: (message: string) => void;
-  /** The import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
-  importLetta?: () => Promise<ImportReport>;
-  importStatus?: () => ImportStatus;
   /** This Mac's install id (plan 023): stamped on agent record changes so paired Macs keep the later one. */
   macId?: string;
   /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
@@ -271,15 +267,6 @@ export class DaemonChats implements ChatBackend {
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {
     const { c, engine } = await this.resolve(agentId, conversationId);
     return engine.deliver(c, text, whenBusy);
-  }
-
-  importLetta(): Promise<ImportReport> {
-    if (!this.deps.importLetta) throw new Error("this daemon does not import from Letta");
-    return this.deps.importLetta();
-  }
-
-  importStatus(): Promise<ImportStatus> {
-    return settled(() => this.deps.importStatus?.() ?? { letta: false, complete: false, last: null });
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {

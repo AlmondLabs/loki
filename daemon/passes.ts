@@ -120,7 +120,6 @@ interface Deps {
    * Absent, every model is taken as reachable.
    */
   canRun?(model: string): Promise<boolean>;
-  isSubagent(agentId: string): boolean;
   capture?(event: string, properties: Record<string, unknown>): void;
   report?(message: string): void;
   now?(): Date;
@@ -180,14 +179,7 @@ export class PassRunner {
   private chats() {
     return this.deps.chats
       .list()
-      .filter(
-        (row) =>
-          !row.hidden &&
-          !isReflectionChat(row.conversationId) &&
-          !isDoctorChat(row.conversationId) &&
-          !isWriterChat(row.conversationId) &&
-          !this.deps.isSubagent(row.agentId),
-      );
+      .filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isDoctorChat(row.conversationId) && !isWriterChat(row.conversationId));
   }
 
   /** One look over every chat: queue a batch for each agent with chats due, then work the queue. */

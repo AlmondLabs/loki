@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /**
- * Pinned conversations, in <loki>/state/pins.json (the import copied Letta Desktop's pins in once):
+ * Pinned conversations, in <loki>/state/pins.json:
  *   { version: 1, agents: { [agentId]: [conversationId, …] }, changed?: { "agentId/conversationId": {pinned, at} } }
  * `changed` says when each pin was last set or cleared (plan 023, U8), so paired Macs keep the later; a pin from
  * before it reads as set long ago, which any change made since beats.

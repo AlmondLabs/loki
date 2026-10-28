@@ -259,8 +259,7 @@ export function liveDesksLabel(n: number): string {
 export function modelBits(model: string | null | undefined, settings: Record<string, unknown>): string[] {
   return [
     model ?? null,
-    settings.effort ? `effort ${typeof settings.effort === "string" ? settings.effort : JSON.stringify(settings.effort)}` : null,
-    settings.thinking ? "thinking" : null,
+    typeof settings.reasoning_effort === "string" ? `effort ${settings.reasoning_effort}` : null,
     settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null,
   ].filter(Boolean) as string[];
 }

@@ -14,7 +14,7 @@ export interface LocalAgent {
   name: string;
   description: string | null;
   model: string | null;
-  /** Provider, effort, thinking, context window… as the agent record keeps them (Letta's shape, which imported agents carry). */
+  /** The agent's own effort (`reasoning_effort`), context window and the like, as its record keeps them. */
   model_settings: Record<string, unknown>;
   tags: string[];
   favourite: boolean;

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backendName } from "../core/desk-core.ts";
-import { isSubagent, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
+import { memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
 import { isAgentId } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -57,17 +57,6 @@ describe("agents: the record", () => {
     expect(profilePath("../../" + AGENT, dir)).toBeNull();
     expect(() => memoryRoot("../x", dir)).toThrow("invalid agent id");
     expect(() => memoryTree("../x", dir)).toThrow("invalid agent id");
-  });
-
-  test("a role:subagent record is Letta's helper, not the user's agent", () => {
-    const helper = "agent-local-helper-0001";
-    writeFileSync(
-      join(dir, "agents", `${backendName(helper)}.json`),
-      JSON.stringify({ id: helper, name: "Letta Code", tags: ["origin:letta-code", "role:subagent", "type:general-purpose", `parent:${AGENT}`] }),
-    );
-    expect(isSubagent(helper, dir)).toBe(true);
-    expect(isSubagent(AGENT, dir)).toBe(false);
-    expect(isSubagent("agent-local-nobody", dir)).toBe(false);
   });
 
   test("unknown agent is null", () => {

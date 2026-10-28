@@ -8,15 +8,15 @@ labels: bug
 
 **What you expected**
 
-**Setup** (Settings › Letta shows all of this: loki, the harness, requirements, install)
+**Setup** (Preferences › About shows most of this: loki's version and channel, the system, the daemon's Node)
 
-- loki version:
-- Letta Code version (Settings shows it next to the tested one):
-- Harness: Letta Desktop / a `letta server` you started / loki's own
-- macOS version:
-- Where: the Mac window / the phone / both
+- loki version and channel (stable or nightly):
+- System and version (macOS, or the Windows or Linux preview):
+- Node version the daemon runs on:
+- Where: the Mac window / the phone / a browser tab / more than one
+- The chat's agent: loki's own, or an ACP agent (Claude Code, or your own)
 
 **Logs**
 
-`~/.letta/loki/mod.log` and `~/.letta/loki/logs/harness.log`, trimmed to the relevant part. Please
-remove anything personal, and never paste money figures or agent memory.
+`~/.loki/logs/daemon.log` (the daemon's output) and `~/.loki/mod.log`, trimmed to the relevant part (on Windows `~`
+is `%USERPROFILE%`). Please remove anything personal, and never paste tokens, keys, money figures or agent memory.

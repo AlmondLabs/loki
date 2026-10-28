@@ -75,7 +75,7 @@ export function shownStep(step: Step): Step {
 /** The entry kinds a thread shows; prompt changes, resets and compaction summaries are the model's, not the person's. */
 const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
 
-/** A message from off Letta's main path, in a chat imported from Letta (`loki.branch`): shown, never sent to the model. */
+/** A message off the chat's main path (`loki.branch`, the mark a chat move leaves): shown, never sent to the model. */
 const BRANCH = "loki.branch";
 
 /** One pi-durable entry as steps; `nameImage` keeps a user message's pictures (plan 029). */

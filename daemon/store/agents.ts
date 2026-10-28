@@ -1,17 +1,15 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { backendName } from "../../core/desk-core.ts";
-import { isSubagent, readLocalAgent } from "../../mod/agents.ts";
-import { piHandle } from "../model-handle.ts";
+import { readLocalAgent } from "../../mod/agents.ts";
 
 /**
- * The daemon's agents (plan 017, U6), kept in the layout Letta's local backend used, under the daemon's own backend
- * folder: `agents/<base64 id>.json` for the record and `memfs/<id>/memory/` for the memory, a git repo. The mod's
- * readers (mod/agents.ts: the Agents page, memory, skills) read it by its folder; agents imported from Letta came in
- * as they were.
+ * The daemon's agents (plan 017, U6), under the daemon's own backend folder: `agents/<base64 id>.json` for the
+ * record and `memfs/<id>/memory/` for the memory, a git repo. The mod's readers (mod/agents.ts: the Agents page,
+ * memory, skills) read it by its folder.
  */
 
 const run = promisify(execFile);
@@ -60,25 +58,6 @@ export function writeRecord(backendDir: string, id: string, record: Record<strin
   renameSync(`${file}.tmp`, file);
 }
 
-/**
- * Rename an agent's model to the name pi-ai runs it by, when its record carries Letta's (daemon/model-handle.ts);
- * true when the record changed.
- */
-export function healRecordModel(backendDir: string, id: string, known: (provider: string) => boolean): boolean {
-  const file = join(backendDir, "agents", `${backendName(id)}.json`);
-  let record: Record<string, unknown>;
-  try {
-    record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-  } catch {
-    return false;
-  }
-  if (typeof record.model !== "string") return false;
-  const healed = piHandle(record.model, known);
-  if (healed === record.model) return false;
-  writeRecord(backendDir, id, { ...record, model: healed });
-  return true;
-}
-
 /** The person's agents: those with a record and a memory folder, helper agents left out. */
 export function listAgents(backendDir: string): string[] {
   let ids: string[];
@@ -87,5 +66,5 @@ export function listAgents(backendDir: string): string[] {
   } catch {
     return [];
   }
-  return ids.filter((id) => readLocalAgent(id, backendDir) && !isSubagent(id, backendDir));
+  return ids.filter((id) => readLocalAgent(id, backendDir));
 }

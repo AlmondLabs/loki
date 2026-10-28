@@ -56,7 +56,7 @@ export interface SkillSourcesOptions {
   exec?: (bin: string, args: string[], opts: { cwd?: string; timeoutMs: number }) => Promise<string>;
 }
 
-/** Commit subjects that mean "this copy came from outside" — loki's installer (mod/skills.ts), Letta's (in imported history) and our refresh. */
+/** Commit subjects that mean "this copy came from outside" — loki's installer (mod/skills.ts), an older installer's (in older history) and our refresh. */
 export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) )/;
 
 const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");

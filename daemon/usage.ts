@@ -121,8 +121,6 @@ export interface UsageLedgerDeps {
   context: Context;
   /** `provider/modelId`'s input price per million tokens, or null when pi-ai has none. */
   inputRate: (model: string) => number | null;
-  /** Whether an agent is a helper agent (the Letta-era subagent records), whose calls count as helpers. */
-  isSubagent?: (agentId: string) => boolean;
   now?: () => number;
   report?: (message: string) => void;
   /** The analytics files to seed history from once, oldest first (`events.jsonl.1`, then `events.jsonl`). */
@@ -350,7 +348,6 @@ export class UsageLedger {
     let origin = this.origins.get(key);
     if (!origin) {
       origin = (async () => {
-        if (this.deps.isSubagent?.(agentId)) return "helpers";
         const info = await store.chatInfo(conversationId, this.deps.context);
         // A conversation with no chat of loki's is a helper's child conversation.
         return info?.id ? originOfChat(info.id, agentId) : "helpers";

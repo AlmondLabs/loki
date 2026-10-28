@@ -7,7 +7,7 @@ import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/
 import { isAgentId } from "../core/frames.ts";
 
 /**
- * What the daemon keeps per agent on this machine (in Letta's local-backend layout), read for the Agents page:
+ * What the daemon keeps per agent on this machine, read for the Agents page:
  *   <backend>/agents/<b64 id>.json          the record: name, description, model, settings, tags
  *   <backend>/memfs/<id>/memory/            the memory filesystem — a git repo: system/{persona,human}.md,
  *                                           reference/**, skills/<name>/SKILL.md, profile.png
@@ -17,21 +17,6 @@ import { isAgentId } from "../core/frames.ts";
 
 /** The local backend's folder: backend/ in the loki folder (lokiDir), unless LOKI_BACKEND_DIR points elsewhere. */
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
-
-/**
- * Letta spawned helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
- * history-analyzer), all named "Letta Code", and the import may bring their records over. They were the
- * harness's, not the user's: no desk, no tree row, no inbox card. Unknown agents (no record) are not treated
- * as subagents. The daemon's own helpers (daemon/subagents.ts) are not agent records at all.
- */
-export function isSubagent(agentId: string, dir = backendDir()): boolean {
-  return isSubagentRecord(readLocalAgent(agentId, dir));
-}
-
-/** isSubagent for a record already read. */
-export function isSubagentRecord(agent: LocalAgent | null): boolean {
-  return agent?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
-}
 
 /**
  * An agent's record as the Agents page shows it, read from <backend>/agents/<b64 id>.json; null for an invalid id or a

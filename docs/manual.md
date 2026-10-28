@@ -70,15 +70,12 @@ Whichever way, the cask brings Node; the `.dmg`, source, Windows and Linux route
 1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
    skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "what launch installed".
    Then it finds Node and starts the daemon, which hosts the mod.
-2. If you used Letta Code before, loki imports it on the first start: your agents, their memory, chats, keys,
-   pins and schedules come over from `~/.letta`, which is only read, never changed. It waits while Letta is
-   running; Preferences › About › Import runs it again.
-3. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
+2. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
    the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
    the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
    agent, with a description, a persona and a model. You land on its main chat, on Messages, with the message box
    focused.
-4. Ask your agent to put something on the canvas.
+3. Ask your agent to put something on the canvas.
 
 Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app
 re-installs its daemon and mod on launch when the bundle changed. It never overwrites a skill folder it did not
@@ -95,6 +92,15 @@ one. The first start after such an update renames each store's tool calls once, 
 Claude Code keep its names. In October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became
 `canvas_read` and `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and
 `view_image` became `image_view`.
+
+The update that left Letta behind migrates each store once more, on its first start. Chats imported from Letta still
+carried its shapes (its tool arguments, notices and paths); they are rewritten as loki writes them now, after a whole
+copy of the store to `~/.loki/stores/backup-letta-<date>/`. `~/.loki/stores/migrations.json` notes each store's
+version and replaces `tool-names.json`. Once on each Mac (noted in `~/.loki/state/migrations.json`), agent records
+take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named
+`~/.letta/loki` name `~/.loki` in a commit by loki, chats run on pi-ai's model names in folders under `~/.loki`, and
+Learn's chats from Letta are hidden; a helper agent Letta made is moved to `~/.loki/backend/backup-letta-<date>/`.
+loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's.
 
 ## The window
 
@@ -225,7 +231,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   6. **loki**
      1. **About**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
         hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
-        the preview note), the system it runs on, importing from Letta, how the app reaches the mod, requirements
+        the preview note), the system it runs on, how the app reaches the mod, requirements
         (the daemon's Node, beads), and, folded, what the last install put in place and where loki keeps things.
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
@@ -626,7 +632,7 @@ box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K searc
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays).
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
-- `/doctor` reviews the agent's whole memory and cleans it up, after Letta Code's command of the same name. It tidies (merges what says the
+- `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
   from the rest of memory). It also keeps the core notes (`system/`) under their 12 KB, moving what not every chat

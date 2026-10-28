@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { CURRENT_SQLITE_SCHEMA_VERSION } from "@earendil-works/pi-durable/storage/sqlite";
 import { AgentStore, type StoreOptions } from "./index.ts";
 import { backupBeforeMigration } from "../store-backup.ts";
-import { acpConversations, markToolNamesDone, renameStoredTools, toolNamesDone } from "../store-tool-names.ts";
+import { STORE_VERSION, acpConversations, markStoreVersion, migrateStoredEntries, storeVersion } from "../store-migration.ts";
 
 /**
  * Every agent's store (plan 017, KTD2, KTD18): one pi-durable Harness over one SQLite file per agent, opened on first
@@ -40,17 +40,17 @@ export class StoreManager {
         // stops the store from opening, reported, rather than leaving it with no way back.
         const copy = backupBeforeMigration(file, CURRENT_SQLITE_SCHEMA_VERSION);
         if (copy) report(`store ${file} copied to ${copy} before pi-durable migrates it`);
-        const renaming = !toolNamesDone(file);
+        const behind = storeVersion(file) < STORE_VERSION;
         const store = await AgentStore.open({ file }, options, context);
-        // Saved chats take loki's tool names now, once, before anything reads them (plan 044); copied first, as above.
-        if (renaming) {
-          const renamed = renameStoredTools(
+        // Saved chats take the shapes loki writes now, once, before anything reads them (plans 044, 045); copied first.
+        if (behind) {
+          const migrated = migrateStoredEntries(
             file,
             await acpConversations(store, context),
-            join(dir, `backup-tool-names-${new Date().toISOString().slice(0, 10)}`),
+            join(dir, `backup-letta-${new Date().toISOString().slice(0, 10)}`),
           );
-          if (renamed.backup) report(`store ${file}: ${renamed.entries} saved tool calls and results renamed, copied first to ${renamed.backup}`);
-          markToolNamesDone(file);
+          if (migrated.backup) report(`store ${file}: ${migrated.entries} saved entries rewritten as loki writes them now, copied first to ${migrated.backup}`);
+          markStoreVersion(file);
         }
         return store;
       });

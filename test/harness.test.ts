@@ -2,23 +2,18 @@ import { describe, expect, test } from "vitest";
 import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup } from "../core/harness.ts";
 
 describe("harness markup", () => {
-  const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>Background command "Re-auth dev" completed</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>\nFull transcript available at: /var/x/bash_24.log`;
-  test("task notifications and compaction alerts become events; the rest of the text stays", () => {
+  const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>aws sso login</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>`;
+  test("a task notification becomes an event; the rest of the text stays", () => {
     const text = `${notif}\n\nplease continue`;
     const events = extractHarnessEvents(text);
     expect(events).toEqual([
       {
         text: "background task bash_24 completed",
-        summary: 'Background command "Re-auth dev" completed',
+        summary: "aws sso login",
         detail: "$ cd /tmp\nnohup aws sso login > /tmp/x 2>&1 &",
       },
     ]);
     expect(stripHarnessMarkup(text).trim()).toBe("please continue");
-    const alert = extractHarnessEvents(
-      '{"type":"system_alert","message":"Note: 14 messages from the beginning of the conversation have been hidden from view due to memory constraints.\\nSummary…"}',
-    );
-    expect(alert[0]).toMatchObject({ text: "context compacted" });
-    expect(stripHarnessMarkup('{"type":"system_alert","message":"x"}').trim()).toBe("");
     expect(decodeEntities("a &lt;b&gt; &amp;&quot;")).toBe('a <b> &"');
   });
 });
@@ -26,7 +21,7 @@ describe("harness markup", () => {
 describe("the mod's desk block and a loaded skill are events, not the user's words", () => {
   test("desk activity becomes one event with the gestures as detail; older 'loci' builds are read too", () => {
     const text =
-      'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.letta/loki/widgets/local-conv-1/; call desk_state for the full picture.\n</loci-desk>';
+      'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.loki/widgets/local-conv-1/; call canvas_read for the full picture.\n</loci-desk>';
     expect(extractHarnessEvents(text)).toEqual([
       {
         text: "canvas activity",
