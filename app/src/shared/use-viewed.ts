@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { viewStamp, type AttentionItem } from "../../../core/attention/model.ts";
 import { holdMark, type HeldMark } from "./thread";
 
+/** Whether the window is on screen and has the focus now. */
+const read = () => typeof document === "undefined" || (document.visibilityState === "visible" && document.hasFocus());
+
 /** The window is on screen and has the focus (a widget's frame holding it counts): someone can be reading. */
 function useAttending(): boolean {
-  const read = () => typeof document === "undefined" || (document.visibilityState === "visible" && document.hasFocus());
   const [on, setOn] = useState(read);
   useEffect(() => {
     const up = () => setOn(read());

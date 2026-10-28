@@ -797,12 +797,14 @@ function TaskCard({
   );
 }
 
+/** A click handler that does `fn` and goes no further, so the card under the button is not selected too. */
+const stop = (fn: () => void) => (e: React.MouseEvent) => {
+  e.stopPropagation();
+  fn();
+};
+
 /** An agent's word that your task is done: who, why, and the two answers. The buttons do not select the card. */
 function DoneAsked({ id, task: t, onConfirm, onReopen }: { id?: string; task: Task; onConfirm: () => void; onReopen: () => void }) {
-  const stop = (fn: () => void) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    fn();
-  };
   return (
     <div id={id} style={{ display: "grid", gap: 6, padding: "6px 8px", borderRadius: "var(--loki-radius)", background: "var(--loki-selection)" }}>
       <span className="loki-meta loki-meta--wrap" style={{ color: "var(--loki-fg)" }}>

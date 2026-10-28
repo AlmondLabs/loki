@@ -7,6 +7,8 @@ import { Icon } from "../shared/icons";
 import { cmdHeld } from "../shell/keymap";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
+/** No pictures attached: one list for every render, so what watches `images` sees no change. */
+const NO_IMAGES: Attachment[] = [];
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
 
 /**
@@ -61,7 +63,7 @@ export const ChatInput = forwardRef<
     onEscape,
     onFocus,
     onBlur,
-    images = [],
+    images = NO_IMAGES,
     onImages,
     placeholder,
     disabled,
