@@ -13,6 +13,7 @@ import {
   UsageDoc,
   type UsageState,
 } from "@earendil-works/pi-durable";
+import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
 
 /**
  * The daemon's only door to pi-durable (plan 017, KTD1). Each agent has one store, a Harness over one SQLite file
@@ -61,6 +62,12 @@ export type ChatInfo = {
   engine?: ChatEngine | null;
   /** The person's labels on the chat (plan 022), as core/labels.ts names them; absent, none. */
   labels?: string[];
+  /** The person's one line on what the chat is for, which agents read and never write (plan 047, R11); absent or null, none. */
+  purpose?: string | null;
+  /** A suggestion saved as a draft for this chat's message box (plan 047, KTD7); absent or null, none. */
+  draft?: SavedDraft | null;
+  /** The suggestions agents made in this chat (plan 047, KTD1), settled ones included; absent, none. */
+  suggestions?: Suggestion[];
   /**
    * Put on this Mac on purpose (plan 023, addendum A2): moved here by hand, or started here away from its agent's home.
    * The hand-over of an agent's chats to its home leaves it where it is.
@@ -188,10 +195,10 @@ export class AgentStore {
     return this.harness.snapshot(PiAgentDoc, conversationId, context);
   }
 
-  /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
+  /** Change what loki keeps about a chat: its title, whether it is archived or hidden, its labels, purpose, draft or suggestions. */
   async updateChat(
     id: string,
-    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "placed" | "moved">>,
+    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved">>,
     context: Context,
   ): Promise<boolean> {
     const chat = await this.chat(id, context);
@@ -204,6 +211,9 @@ export class AgentStore {
       if (change.mode !== undefined) info.mode = change.mode;
       if (change.engine !== undefined) info.engine = change.engine;
       if (change.labels !== undefined) info.labels = change.labels;
+      if (change.purpose !== undefined) info.purpose = change.purpose;
+      if (change.draft !== undefined) info.draft = change.draft;
+      if (change.suggestions !== undefined) info.suggestions = change.suggestions;
       if (change.placed !== undefined) info.placed = change.placed;
       if (change.moved !== undefined) info.moved = change.moved;
     }, context);

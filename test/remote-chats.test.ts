@@ -71,6 +71,15 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(state.changes).toBe(1);
   });
 
+  test("a paired Mac's rows keep each chat's purpose, draft mark and folder (plan 047, U1)", async () => {
+    const { remote, state } = fixture();
+    const more = { purpose: "the website", has_draft: true, cwd: "/work/site" };
+    state.lists = { desks: [{ ...desk("conv-1", "plan the week"), ...more }], inbox: [{ ...row("conv-1"), ...more }] };
+    await remote.refresh(MINI);
+    expect(remote.desks()[0]).toMatchObject(more);
+    expect(remote.inbox()[0]).toMatchObject(more);
+  });
+
   test("a Mac going out of reach keeps its chats, marked waiting, and its return brings them back", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);

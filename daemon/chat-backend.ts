@@ -281,6 +281,8 @@ export class DaemonChats implements ChatBackend {
       ...(p.archived !== undefined ? { archived: p.archived } : {}),
       ...(p.hidden !== undefined ? { hidden: p.hidden } : {}),
       ...(p.labels !== undefined ? { labels: p.labels } : {}),
+      ...(p.purpose !== undefined ? { purpose: p.purpose } : {}),
+      ...(p.draft !== undefined ? { draft: p.draft } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
     // A new label takes its colour now, so every client shows it the same from the start.

@@ -48,6 +48,29 @@ describe("a chat moving to another Mac", () => {
     expect(moved.cursors).toEqual({ reflection: 3 });
   });
 
+  test("keeps its purpose line, its saved draft and its suggestions (plan 047, U1)", async () => {
+    const s = await stores();
+    await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
+    const draft = { text: "check the deploy", suggestion_id: "sug-2", source: { agent_id: "agent-ira", conversation_id: "conv-9" } };
+    const suggestions = [
+      {
+        id: "sug-1",
+        title: "fix upload",
+        text: "the upload test is flaky",
+        target: { agent_id: "agent-ira", conversation_id: "conv-5" },
+        status: "rejected" as const,
+        decided_by: "desktop",
+        decided_at: "2026-10-29T11:00:00.000Z",
+        created_at: "2026-10-29T10:00:00.000Z",
+      },
+    ];
+    await s.book.updateChat("conv-1", { purpose: "the website", draft, suggestions }, ctx);
+    const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
+    expect(await importChat(s.mini, JSON.parse(JSON.stringify(moved)) as typeof moved, ctx)).toBe(true);
+    const info = must(await s.mini.chatInfo(must(await s.mini.chat("conv-1", ctx), "chat").id, ctx), "info");
+    expect(info).toMatchObject({ purpose: "the website", draft, suggestions });
+  });
+
   test("moved again (a move tried twice) changes nothing, and a chat that is not there exports nothing", async () => {
     const s = await stores();
     s.faux.setResponses([fauxAssistantMessage("hello")]);

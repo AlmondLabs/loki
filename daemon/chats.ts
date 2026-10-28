@@ -193,7 +193,9 @@ export class ChatProjection implements ChatSource {
 
   /** One commit of one agent's store. Documents first: a chat's index entry may arrive with its first messages. */
   private apply(agentId: string, publication: CommitPublication): void {
-    for (const change of publication.changes) {
+    const isIndex = (change: CommitPublication["changes"][number]) => change.type === "document" && change.record.kind === ChatIndex.definition.kind;
+    // The index first: the commit that makes a chat may write its settings (its folder) before its index entry.
+    for (const change of [...publication.changes].sort((a, b) => Number(isIndex(b)) - Number(isIndex(a)))) {
       if (change.type !== "document" || change.value === null) continue;
       if (change.record.kind === ChatIndex.definition.kind) {
         const index = (change.value as { chats?: Record<string, number> }).chats ?? {};
@@ -268,6 +270,9 @@ export class ChatProjection implements ChatSource {
       reasoningEffort: engine ? (isReasoningEffort(engine.effort) ? engine.effort : null) : effortOf(chat.settings.thinkingLevel),
       mode: engine ? (chat.info?.mode ?? "default") : isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
       labels: chat.info?.labels ?? [],
+      purpose: chat.info?.purpose ?? null,
+      hasDraft: !!chat.info?.draft,
+      cwd: chat.settings.cwd ?? null,
     };
   }
 

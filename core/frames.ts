@@ -32,6 +32,7 @@ import type {
   RecentFolders,
   ReflectionState,
   RefreshOutcome,
+  SavedDraft,
   Task,
 } from "./frame-types.ts";
 import { parseTaskSource } from "./task-source.ts";
@@ -137,6 +138,13 @@ const chatRef = (m: Raw) =>
   isAgentId(m.agent_id) && str(m.conversation_id) && m.conversation_id
     ? { agent_id: m.agent_id, conversation_id: m.conversation_id }
     : "agent_id and conversation_id required";
+/** A saved draft as `chat_update` takes it: its text, its suggestion and the chat that suggestion was made in; null when it is not one. */
+const savedDraft = (v: unknown): SavedDraft | null => {
+  const d = typeof v === "object" && v !== null ? (v as Raw) : {};
+  const source = typeof d.source === "object" && d.source !== null ? (d.source as Raw) : {};
+  if (!str(d.text) || !d.text || !str(d.suggestion_id) || !isAgentId(source.agent_id) || !str(source.conversation_id) || !source.conversation_id) return null;
+  return { text: d.text, suggestion_id: d.suggestion_id, source: { agent_id: source.agent_id, conversation_id: source.conversation_id } };
+};
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
@@ -579,16 +587,23 @@ export const FRAMES = {
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
   chat_update: request(
     "chat_done",
-    "rename, archive or hide a chat, or set its labels",
+    "rename, archive or hide a chat, or set its labels, purpose line or saved draft",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
+      if (m.purpose !== undefined && m.purpose !== null && !str(m.purpose)) return "purpose must be text";
+      const draft = m.draft === undefined || m.draft === null ? m.draft : savedDraft(m.draft);
+      if (draft === null && m.draft !== null) return "draft needs text, suggestion_id and source";
       return {
         ...c,
         title: m.title === null || str(m.title) ? m.title : undefined,
         archived: typeof m.archived === "boolean" ? m.archived : undefined,
         hidden: typeof m.hidden === "boolean" ? m.hidden : undefined,
         labels: Array.isArray(m.labels) ? chatLabels(strings(m.labels)) : undefined,
+        // Absent when not given, so the callers that build this payload need not name them. A purpose is one line,
+        // and an empty one clears it.
+        ...(m.purpose !== undefined ? { purpose: (str(m.purpose) && m.purpose.replace(/\s+/g, " ").trim()) || null } : {}),
+        ...(draft !== undefined ? { draft } : {}),
       };
     },
     PHONE,

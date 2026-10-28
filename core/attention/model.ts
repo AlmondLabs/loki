@@ -45,6 +45,12 @@ export interface ConversationInfo {
   archived: boolean;
   /** The person's labels on the chat (plan 022), as the Inbox list carries them. */
   labels?: string[];
+  /** The person's one line on what the chat is for (plan 047). */
+  purpose?: string | null;
+  /** A suggestion saved as a draft waits in the chat's message box (plan 047, R9). */
+  has_draft?: boolean;
+  /** The folder the chat works in. */
+  cwd?: string | null;
 }
 
 /** From the last few protocol messages of a conversation. */
