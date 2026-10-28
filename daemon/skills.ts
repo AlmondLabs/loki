@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { briefDescription, listGlobalSkills, skillDescription } from "../mod/skills.ts";
 import { AgentInfoDoc } from "./kernel/index.ts";
 import { memoryRoot } from "./memory.ts";
+import { sections } from "./section-cache.ts";
 import { withKind } from "./tool-kinds.ts";
 
 /**
@@ -51,9 +52,11 @@ export function skillsExtension(backendDir: string, globalDir?: string): Extensi
     sections: [
       section("skills", async (input, context) => {
         const agent = await input.read.snapshot(AgentInfoDoc, context);
-        const skills = skillsOf(backendDir, agent?.id, globalDir);
-        if (!skills.length) return undefined;
-        return `Skills you have. Before doing the kind of work one describes, load its instructions with the Skill tool.\n${skills.map((s) => `- ${s.name}${s.description ? `: ${briefDescription(s.description)}` : ""}`).join("\n")}`;
+        return sections.get(`skills\u0000${backendDir}\u0000${agent?.id ?? ""}\u0000${globalDir ?? ""}`, () => {
+          const skills = skillsOf(backendDir, agent?.id, globalDir);
+          if (!skills.length) return undefined;
+          return `Skills you have. Before doing the kind of work one describes, load its instructions with the Skill tool.\n${skills.map((s) => `- ${s.name}${s.description ? `: ${briefDescription(s.description)}` : ""}`).join("\n")}`;
+        });
       }),
       section("project", (input) => {
         const cwd = input.agent.cwd;

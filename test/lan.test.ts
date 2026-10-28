@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient, type RawData } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
+import { HOST_TTL_MS, LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import { request as httpRequest, type IncomingMessage } from "node:http";
@@ -43,6 +43,7 @@ function fixture(
     appDist?: string | null;
     tailscale?: Tailscale;
     host?: () => string | null;
+    now?: () => number;
     interfaces?: () => ReturnType<typeof networkInterfaces>;
   } = {},
 ) {
@@ -73,6 +74,7 @@ function fixture(
     onChange: (what, status) => changes.push([what, status]),
     tailscale: opts.tailscale,
     host: opts.host,
+    now: opts.now,
     interfaces: opts.interfaces,
   });
   const cleanup = () => rmSync(dir, { recursive: true, force: true });
@@ -383,6 +385,22 @@ describe("LAN listener", () => {
       await f.lan.stop();
       f.cleanup();
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the Bonjour host is read once a minute, not on every status (plan 047)", () => {
+    let now = 0;
+    let reads = 0;
+    const f = fixture({ host: () => `mac-${++reads}.local`, now: () => now });
+    try {
+      expect(f.lan.status().host).toBe("mac-1.local");
+      now = HOST_TTL_MS - 1;
+      expect(f.lan.status().host).toBe("mac-1.local");
+      now = HOST_TTL_MS;
+      expect(f.lan.status().host).toBe("mac-2.local");
+      expect(reads).toBe(2);
+    } finally {
+      f.cleanup();
     }
   });
 

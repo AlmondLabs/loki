@@ -29,6 +29,7 @@ import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
+import { keepSame } from "../same-data.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
@@ -108,6 +109,11 @@ export interface UseAttentionOptions {
   sent?: (rt: Runtime) => void;
   /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
   activity?: Activity;
+  /**
+   * Reports the page shown or hidden (app/src/shared/page-activity.ts), as `activity` does for in front: while hidden the
+   * clock tick and the list poll stop (plan 047), since nothing on screen needs them and coming back reloads the lists.
+   */
+  visibility?: Activity;
   /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
   makeClient: () => ChatClient;
 }
@@ -226,6 +232,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<ChatClient | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** Whether the page is shown (opts.visibility): the list poll skips while it is not. */
+  const visibleRef = useRef(true);
   /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
   const liveOf = useCallback((key: string): Live => {
     let l = liveRef.current.get(key);
@@ -378,6 +386,8 @@ export function useAttention(opts: UseAttentionOptions) {
     });
 
     let cancelled = false;
+    /** The list's last answer on this connection, to tell a repeat from a change. */
+    let lastRows: unknown = null;
     /** Whether the cleanup has run: read through a call, since it changes while the load awaits. */
     const stopped = () => cancelled;
     const subscribeLimit = optsRef.current.subscribeLimit ?? 30;
@@ -393,21 +403,27 @@ export function useAttention(opts: UseAttentionOptions) {
       const agents = await sock.listAgents();
       const shown = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a]));
       if (!cancelled) {
-        setAgents([...shown.values()].map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null })));
+        const next = [...shown.values()].map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
+        setAgents((was) => keepSame(was, next));
         setAgentsLoaded(true);
       }
       // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await optsRef.current.listConversations();
       if (cancelled) return;
+      lastReload.current = Date.now();
+      // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
+      const same = keepSame(lastRows, rows) === lastRows;
+      lastRows = rows;
       const convs: ConversationInfo[] = rows
         .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
         .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
-      lastReload.current = Date.now();
-      knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
-      setConversations(convs);
-      setDigests(
-        new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
-      );
+      if (!same) {
+        knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
+        setConversations(convs);
+        setDigests(
+          new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
+        );
+      }
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, subscribeLimit)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
@@ -420,7 +436,9 @@ export function useAttention(opts: UseAttentionOptions) {
     reloadRef.current = () => void load();
     void load();
     // The poll is the fallback; an agent changed elsewhere, a reconnect or a return from the background asks at once.
-    const refresh = setInterval(() => void load(), 60_000);
+    const refresh = setInterval(() => {
+      if (visibleRef.current) void load();
+    }, 60_000);
     const offStale = sock.onListsStale(() => void load());
     return () => {
       cancelled = true;
@@ -444,9 +462,21 @@ export function useAttention(opts: UseAttentionOptions) {
   );
 
   // The clock tick: focus fades and cards age without any other event, so the items are rebuilt twice a minute.
+  // Nothing on screen ages while the page is hidden, so the tick redraws nothing then; back in view, it catches up at once (plan 047).
   const [now, setNow] = useState(() => Date.now());
+  const visibility = opts.visibility;
+  useEffect(
+    () =>
+      visibility?.((shown) => {
+        if (shown && !visibleRef.current) setNow(Date.now());
+        visibleRef.current = shown;
+      }),
+    [visibility],
+  );
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
+    const t = setInterval(() => {
+      if (visibleRef.current) setNow(Date.now());
+    }, 30_000);
     return () => clearInterval(t);
   }, []);
   const items = useMemo(

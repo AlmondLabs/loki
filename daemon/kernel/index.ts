@@ -344,15 +344,22 @@ export class AgentStore {
 
   /**
    * Every entry of a chat, oldest first, handed over a page at a time (plan 042): a reader that keeps less than the
-   * whole record, as the chat projection does, then never holds a long chat's every record at once.
+   * whole record, as the chat projection does, then never holds a long chat's every record at once. With `after`, only
+   * the entries newer than that one (plan 047).
    */
-  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void): Promise<void> {
+  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void, after?: EntryId): Promise<void> {
     let cursor: Parameters<Conversation["entries"]>[2];
     do {
-      const page = await conversation.entries({ order: "ascending" }, 500, cursor, context);
-      for (const entry of page.items) fn(entry);
+      const page = await conversation.entries({ order: "ascending", ...(after === undefined ? {} : { minEntryId: after }) }, 500, cursor, context);
+      for (const entry of page.items) if (entry.id !== after) fn(entry);
       cursor = page.next;
     } while (cursor !== undefined);
+  }
+
+  /** The id of a chat's newest entry, undefined when it has none: where a later `eachEntry(…, after)` starts. */
+  async newestEntryId(conversation: Conversation, context: Context): Promise<EntryId | undefined> {
+    const page = await conversation.entries({ order: "descending" }, 1, undefined, context);
+    return page.items[0]?.id;
   }
 
   close(context: Context): Promise<void> {

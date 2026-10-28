@@ -43,7 +43,7 @@ import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
-import { pageActivity } from "../shared/page-activity";
+import { pageActivity, pageVisibility } from "../shared/page-activity";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -100,6 +100,7 @@ export function Shell() {
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
+    visibility: pageVisibility,
   });
   /** A line at the bottom of the window for four seconds (Notices). */
   const notice = (m: string) => void notify(m);

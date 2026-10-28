@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { keepSame, macsFromFrame, withScope } from "../app/src/desk/use-desk-socket.ts";
+import { macsFromFrame, withScope } from "../app/src/desk/use-desk-socket.ts";
+import { keepSame } from "../core/same-data.ts";
 
 /**
  * The mod repeats itself: every mark broadcasts the whole seen frame, and the desk list and titles come again
