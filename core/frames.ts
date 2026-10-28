@@ -268,6 +268,8 @@ export interface Replies {
    * among them what already happened to it and from where (R17).
    */
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
+  /** A suggestion just made in the chat a frame named, pending (plan 047, U7). */
+  suggestion_added: { suggestion: Suggestion };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -636,6 +638,21 @@ export const FRAMES = {
       return target ? { ...r, target } : "target needs agent_id and a conversation_id or a folder";
     },
     PHONE,
+    BY_CHAT,
+  ),
+  // Only the move of Tasks into suggestions sends it (mod/task-migration.ts), to the Mac a task's source chat lives
+  // on; an agent's own suggestions are made where its chat runs, and the phone never makes one.
+  suggestion_add: request(
+    "suggestion_added",
+    "a new suggestion in this chat: its title, its message and the chat it is for",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      if (!str(m.title) || !m.title.trim() || !str(m.text) || !m.text.trim()) return "title and text required";
+      const target = parseSuggestionTarget(m.target);
+      return target ? { ...c, title: m.title, text: m.text, target } : "target needs agent_id and a conversation_id or a folder";
+    },
+    false,
     BY_CHAT,
   ),
   chat_update: request(

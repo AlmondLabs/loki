@@ -53,6 +53,7 @@ import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts"
 import { RemoteChats } from "./remote-chats.ts";
 import { ChatRouter } from "./chat-router.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
+import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { ChatDirectory } from "./chat-directory.ts";
 import { PeerGroup } from "./peer-group.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -319,6 +320,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
       // Once after pairing, the chats there of agents that live here (U9).
       { name: "moves", after: "memory", reached: (id) => chatMoves.takeOver(id) },
+      // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 047, U7).
+      { name: "tasks", after: "moves", reached: () => moveOpenTasks() },
       {
         name: "state",
         reached: (id) => peerState.pull(id),
@@ -417,6 +420,30 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
+  // Tasks retired into suggestions (plan 047, U7): each open task moves to the chat it was filed from once, at start and
+  // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
+  // at a time, so two runs never add the same task twice; start does not wait for it.
+  let taskMove: Promise<unknown> = Promise.resolve();
+  const moveOpenTasks = (): Promise<unknown> => {
+    if (!suggestions) return taskMove;
+    const s = suggestions;
+    taskMove = taskMove
+      .then(() =>
+        moveTasks({
+          run: bdReader(tasksDir()),
+          stateFile: join(paths.state, "migrations.json"),
+          route: router,
+          suggestions: s,
+          folderOf: (c) =>
+            listDesks().find((d) => d.conversation_id === c.conversation_id && (d.agent_id ?? c.agent_id) === c.agent_id)?.cwd ??
+            folderFor(c.agent_id, c.conversation_id),
+          report: (message) => log("tasks:move", message),
+        }),
+      )
+      .catch((err: unknown) => log("tasks:move-failed", err instanceof Error ? err.message : String(err)));
+    return taskMove;
+  };
+  void moveOpenTasks();
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
     snapshot: (folders) => ({

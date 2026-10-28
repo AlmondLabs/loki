@@ -343,6 +343,7 @@ describe("every frame in the table, through the real router", () => {
     peer_forget: { mac_id: "mac-2" },
     suggestion_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", action: "reject" },
     suggestion_retarget: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", target: { agent_id: "agent-local-a", folder: "/w" } },
+    suggestion_add: { agent_id: "agent-local-a", conversation_id: "conv-1", title: "t", text: "x", target: { agent_id: "agent-local-a", folder: "/w" } },
   };
 
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
@@ -442,6 +443,19 @@ describe("frames: suggestions (plan 047)", () => {
       "target needs agent_id and a conversation_id or a folder",
     );
   });
+
+  test("an add names the chat, a title, a text and a target; the phone may not send one", () => {
+    const target = { agent_id: "agent-local-b", folder: "/w" };
+    expect(parse("suggestion_add", { ...chat, title: "Fix it", text: "Fix the lock test", target })).toEqual({
+      ...chat,
+      title: "Fix it",
+      text: "Fix the lock test",
+      target,
+    });
+    expect(parse("suggestion_add", { ...chat, title: " ", text: "x", target })).toBe("title and text required");
+    expect(parse("suggestion_add", { ...chat, title: "t", text: "x", target: {} })).toBe("target needs agent_id and a conversation_id or a folder");
+    expect(FRAMES.suggestion_add.phone).toBe(false);
+  });
 });
 
 describe("frames: approvals and MCP settings", () => {
@@ -516,6 +530,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_update",
       "history_get",
       "history_step_get",
+      "suggestion_add",
       "suggestion_decide",
       "suggestion_retarget",
     ]);
