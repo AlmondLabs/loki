@@ -1,4 +1,3 @@
-import { applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "vitest";
 import {
   applyChatEvent,
@@ -12,8 +11,10 @@ import {
   unviewed,
   viewStamp,
   type ConversationInfo,
+  type ChatEvent,
   type Live,
 } from "../core/attention/model.ts";
+import { call, piece, push, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
 describe("attention model (browser)", () => {
@@ -34,20 +35,10 @@ describe("attention model (browser)", () => {
     ]);
     const live = new Map<string, Live>();
     const appr = emptyLive();
-    applyEvent(
-      appr,
-      {
-        type: "control_request",
-        request_id: "perm-1",
-        request: { subtype: "can_use_tool", tool_name: "Bash", input: { command: "ls" } },
-        agent_id: "a",
-        conversation_id: "appr",
-      },
-      "2026-09-05T09:30:00Z",
-    );
+    applyChatEvent(appr, { kind: "approval", request_id: "perm-1", tool_name: "Bash", input: { command: "ls" } }, "2026-09-05T09:30:00Z");
     live.set(keyOf("a", "appr"), appr);
     const run = emptyLive();
-    applyEvent(run, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "run" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    applyChatEvent(run, { kind: "loop", state: "running" });
     live.set(keyOf("a", "run"), run);
     const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" }, new Date("2026-09-05T10:00:00Z").getTime());
     // by score (priority.ts): the two blocked cards first, the one waiting longest (the question, from 07:00) ahead; then the finished one; the rest by age
@@ -60,35 +51,26 @@ describe("attention model (browser)", () => {
     ).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
   });
 
-  test("applyEvent: streaming text lands on stop, user speaking resets and reports", () => {
+  test("applyChatEvent: streaming text lands on stop, user speaking resets and reports", () => {
     const l = emptyLive();
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "Hel" } });
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "lo." } });
+    push(l, piece("Hel"));
+    push(l, piece("lo."));
     expect(l.lastAssistantText).toBeNull();
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "stop_reason", stop_reason: "end_turn" } });
+    applyChatEvent(l, { kind: "settle" });
     expect(l.lastAssistantText).toBe("Hello.");
-    const r = applyEvent(l, {
-      type: "stream_delta",
-      runtime: { agent_id: "a", conversation_id: "c" },
-      delta: { message_type: "user_message", content: "thanks" },
-    });
+    const r = push(l, user("thanks"));
     expect(r.userSpoke).toBe(true);
     expect(l.lastRole).toBe("user");
   });
 });
 
 describe("AskUserQuestion as a pending question", () => {
-  test("a can_use_tool for AskUserQuestion becomes a question, not an approval, and clears when the loop moves on", () => {
+  test("a question becomes a pending question, not an approval, and clears when the loop moves on", () => {
     const l = emptyLive();
-    applyEvent(l, {
-      type: "control_request",
+    applyChatEvent(l, {
+      kind: "question",
       request_id: "perm-q1",
-      runtime: { agent_id: "a", conversation_id: "c" },
-      request: {
-        subtype: "can_use_tool",
-        tool_name: "AskUserQuestion",
-        input: { questions: [{ question: "Ship it?", options: [{ label: "yes" }, { label: "no" }] }] },
-      },
+      input: { questions: [{ question: "Ship it?", options: [{ label: "yes" }, { label: "no" }] }] },
     });
     expect(l.pending).toBeNull();
     expect(l.pendingAsk?.requestId).toBe("perm-q1");
@@ -101,40 +83,38 @@ describe("AskUserQuestion as a pending question", () => {
     );
     expect(items[0].status).toBe("question");
     expect(items[0].pendingQuestion?.requestId).toBe("perm-q1");
-    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    applyChatEvent(l, { kind: "loop", state: "running" });
     expect(l.pendingAsk).toBeNull();
   });
 });
 
 describe("a finished reply re-queues a decided card", () => {
-  test("lastAssistantText updates when the loop goes idle before stop_reason/turn_finished, so the stamp changes", () => {
+  test("lastAssistantText updates when the loop goes idle before the reply settles or the turn ends, so the stamp changes", () => {
     const l = emptyLive();
     l.lastAssistantText = "earlier";
-    const rt = { agent_id: "a", conversation_id: "c" };
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    applyChatEvent(l, { kind: "loop", state: "running" });
+    push(l, piece("here is the answer"));
+    applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(must(l.thread.rows(), "the thread's rows").at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
-    applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
+    applyChatEvent(l, { kind: "turn_end" }); // arrives late, with nothing left to settle
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(must(l.thread.rows(), "the thread's rows").length).toBe(1);
   });
 });
 
 describe("a turn that ends in a tool call still counts as new", () => {
-  test("turns increments once per completed turn, on idle or turn_finished, never on streaming alone", () => {
+  test("turns increments once per completed turn, on idle or turn end, never on streaming alone", () => {
     const l = emptyLive();
-    const rt = { agent_id: "a", conversation_id: "c" };
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "SENDING_API_REQUEST" } });
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "Write", tool_call_id: "t1" } } });
+    applyChatEvent(l, { kind: "loop", state: "running" });
+    push(l, call("Write", "t1"));
     expect(l.turns).toBe(0);
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(l.turns).toBe(1);
-    applyEvent(l, { type: "turn_finished", runtime: rt }); // same turn, reported again: no double count
+    applyChatEvent(l, { kind: "turn_end" }); // same turn, reported again: no double count
     expect(l.turns).toBe(1);
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
-    applyEvent(l, { type: "turn_finished", runtime: rt });
+    applyChatEvent(l, { kind: "loop", state: "running" });
+    applyChatEvent(l, { kind: "turn_end" });
     expect(l.turns).toBe(2);
     const items = buildItems(
       [{ id: "c", agent_id: "a", agent_name: "ira", title: "t", last_message_at: "2026-09-06T00:00:00Z", archived: false }],
@@ -147,15 +127,14 @@ describe("a turn that ends in a tool call still counts as new", () => {
 });
 
 describe("messages typed mid-turn", () => {
-  const rt = { agent_id: "a", conversation_id: "c" };
   test("nothing leaves while the turn runs; one goes at each turn end, and its row stops being queued", () => {
     const l = emptyLive();
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "SENDING_API_REQUEST" } });
+    applyChatEvent(l, { kind: "loop", state: "running" });
     l.queued.push({ text: "first", images: [] }, { text: "second", images: [] });
     l.thread.queue({ role: "user", text: "first" });
     l.thread.queue({ role: "user", text: "second" });
     expect(takeQueued(l)).toBeNull();
-    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    applyChatEvent(l, { kind: "loop", state: "idle" });
     expect(takeQueued(l)).toEqual({ text: "first", images: [] });
     expect(must(l.thread.rows(), "the thread's rows").map((r) => [r.text, r.queued === true])).toEqual([
       ["first", false],
@@ -220,27 +199,26 @@ describe("viewed, apart from done", () => {
 });
 
 describe("a loop status that repeats changes nothing", () => {
-  const rt = { agent_id: "a", conversation_id: "c" };
-  const loop = (status: string) => ({ type: "update_loop_status", runtime: rt, loop_status: { status } });
+  const loop = (state: "running" | "idle"): ChatEvent => ({ kind: "loop", state });
 
-  test("WAITING_ON_INPUT again, while idle, reports no change (nothing re-renders on it)", () => {
+  test("idle again, while idle, reports no change (nothing re-renders on it)", () => {
     const l = emptyLive();
-    applyEvent(l, loop("PROCESSING_API_RESPONSE"));
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "Done." } });
-    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(true); // the turn ends: the reply settles, the turn counts
+    applyChatEvent(l, loop("running"));
+    push(l, piece("Done."));
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(true); // the turn ends: the reply settles, the turn counts
     expect(l.turns).toBe(1);
-    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(false);
-    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(false);
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(false);
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(false);
     expect(l.turns).toBe(1);
   });
 
   test("the first status on a fresh conversation, a new status, and a repeat that still clears something all count", () => {
     const l = emptyLive();
-    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(true); // unknown → idle
-    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(true);
-    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(false);
+    expect(applyChatEvent(l, loop("idle")).changed).toBe(true); // unknown → idle
+    expect(applyChatEvent(l, loop("running")).changed).toBe(true);
+    expect(applyChatEvent(l, loop("running")).changed).toBe(false);
     l.error = "the turn failed";
-    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(true); // a running status clears the error
+    expect(applyChatEvent(l, loop("running")).changed).toBe(true); // a running status clears the error
     expect(l.error).toBeNull();
   });
 });

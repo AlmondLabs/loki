@@ -242,8 +242,8 @@ export type ChatEvent =
   | { kind: "question"; request_id: string; input: unknown }
   /** The chat's permission mode, folder or engine, as the backend has them now. */
   | { kind: "device"; mode?: string; cwd?: string; engine?: ChatEngineView | null }
-  /** Whether the chat is running, idle, or waiting on an approval; `detail` is the backend's own word for it. */
-  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string; turn_id?: string }
+  /** Whether the chat is running, idle, or waiting on an approval. */
+  | { kind: "loop"; state: "running" | "idle" | "approval"; turn_id?: string }
   /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
   | { kind: "step"; step: Step }
   /** The turn failed. */
