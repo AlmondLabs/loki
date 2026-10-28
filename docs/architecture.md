@@ -205,7 +205,8 @@ the mod's bundle.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
 6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
-   listener on `0.0.0.0:41415` for paired phones (off by default).
+   listener on `0.0.0.0:41415` for paired phones (off by default). `mod/sockets.ts` holds both, and every push
+   names who it is for: everyone, this Mac's tabs, or the paired Macs only (plan 049).
 7. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
    One rule decides which chats are the person's own: not hidden, not a background pass's, of an agent the person
    has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
@@ -354,7 +355,7 @@ and provider credentials in the OS keychain.
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
    `mods/` the mod API and registry; the rest one file per capability
    (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
-2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
+2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports, and `sockets.ts` pushes to them; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
    Tasks, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas
    and watch widget files; `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the

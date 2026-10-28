@@ -99,4 +99,49 @@ describe("loki server", () => {
       await s.close();
     }
   });
+
+  test("a push for the paired Macs reaches a Mac's socket, and no tab or phone (plan 049)", async () => {
+    const s = await startServer({ port: 0 });
+    // Who each socket is, from its URL: what the LAN listener reads from a cookie or a Mac's key.
+    const bridge = attachWs(
+      s.server,
+      (_req, url) => ({ ok: true, peerId: url.searchParams.get("peer") ?? undefined, deviceId: url.searchParams.get("device") ?? undefined }),
+      {
+        onConnect: (c) => c.send({ type: "hello" }),
+        onMessage: () => {},
+      },
+    );
+    const open = (query: string) =>
+      new Promise<{ ws: WebSocket; got: string[] }>((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${s.port}/ws?desk=c1&${query}`);
+        const got: string[] = [];
+        ws.onmessage = (ev) => {
+          const type = (JSON.parse(String(ev.data)) as { type: string }).type;
+          if (type === "hello") resolve({ ws, got });
+          else got.push(type);
+        };
+      });
+    const lastOf = (socket: { ws: WebSocket; got: string[] }) =>
+      new Promise<void>((resolve) => {
+        const before = socket.ws.onmessage;
+        socket.ws.onmessage = (ev) => {
+          before?.call(socket.ws, ev);
+          if ((JSON.parse(String(ev.data)) as { type: string }).type === "last") resolve();
+        };
+      });
+    try {
+      const [mac, phone, tab] = await Promise.all([open("peer=m2"), open("device=d1"), open("tab=1")]);
+      const done = Promise.all([mac, phone, tab].map(lastOf));
+      bridge.broadcast({ type: "group_changed" }, undefined, "macs");
+      bridge.broadcast({ type: "last" });
+      await done;
+      expect(mac.got).toEqual(["group_changed", "last"]);
+      expect(phone.got).toEqual(["last"]);
+      expect(tab.got).toEqual(["last"]);
+      for (const c of [mac, phone, tab]) c.ws.close();
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
 });

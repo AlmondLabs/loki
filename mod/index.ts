@@ -38,7 +38,8 @@ import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import type { UsageDeps } from "./frames/usage.ts";
 import { join } from "node:path";
-import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer, type WsBridge } from "./server.ts";
+import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer } from "./server.ts";
+import { Sockets } from "./sockets.ts";
 import { chatImageRoute } from "./chat-images.ts";
 import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
@@ -141,16 +142,9 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   let activeScope: Scope = SHARED_SCOPE;
 
-  let srv: LokiServer | null = null;
-  let ws: WsBridge | null = null;
-  let starting: Promise<LokiServer> | null = null;
-  /** Set when the mod stops: a server still starting then closes as soon as it is up, so the next mod can have its port. */
-  let stopped = false;
-  let lan: LanListener | null = null; // the phone listener, built after the bridge (it serves the same handlers)
-  const phones = (): LanListener => {
-    if (!lan) throw new Error("the phone listener is not up yet");
-    return lan;
-  };
+  /** Both listeners, and who each push is for (mod/sockets.ts). */
+  const sockets = new Sockets<LanListener>();
+  const phones = (): LanListener => sockets.phones();
   /** loki's mods folder as it syncs between Macs (plan 023, U10). */
   const MOD_FILES = { list: listModFiles, safe: isModPath };
   /** The person's state on paired Macs (plan 023, U8), told when a push here says some of it changed. */
@@ -158,8 +152,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const STATE_PUSHES = new Set(["seen", "desks", "recall_changed"]);
   // Every frame goes to the desktop's tabs and to paired phones alike.
   const broadcast = (msg: object, scope?: Scope) => {
-    ws?.broadcast(msg, scope);
-    lan?.broadcast(msg, scope);
+    sockets.push(msg, { scope });
     const type = (msg as { type?: string }).type ?? "";
     // Learn's files travel to a paired Mac only when they changed (plan 040).
     if (STATE_PUSHES.has(type)) stateSync.peerState?.changed(type === "recall_changed" ? "learn" : undefined);
@@ -249,7 +242,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const build = appVersion(paths.root);
   /** This Mac's tailnet address for other Macs, or null when Tailscale is not running here. */
   const tailnetHost = (): string | null => {
-    const s = lan?.status();
+    const s = sockets.phoneListener()?.status();
     return s?.tailscale?.running && s.tailscale.name ? `${s.tailscale.name}:${s.port}` : null;
   };
   /** Until when a Mac pairing code may be redeemed: the listener stays up for it. */
@@ -272,7 +265,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     token: (id) => peerKeys.get(id),
     defaults: { protocol: PEER_PROTOCOL },
     onStatus: (id, status) => {
-      ws?.broadcast({ type: "peers", ...peersView() });
+      sockets.push({ type: "peers", ...peersView() }, { to: "desktop" });
       remoteChats.setReachable(id, status === "reachable");
       // A Mac back in reach: take what changed there while the link was down.
       if (status === "reachable") void sync.reached(id);
@@ -359,7 +352,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       const r = await link.request({ type: "peer_where", agent_id: chat.agent_id ?? null, conversation_id: chat.conversation_id });
       return { held: r.held === true, moved_to: typeof r.moved_to === "string" ? r.moved_to : null };
     },
-    tell: (frame) => lan?.broadcast(frame),
+    tell: (frame) => sockets.push(frame, { to: "macs" }),
   });
   // Each chat answered by the Mac it lives on (U5): frames about another Mac's chats go there.
   const router: ChatRouter = new ChatRouter({
@@ -422,7 +415,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       return moved;
     },
     link: (id) => links.get(id),
-    tell: (folders) => lan?.broadcast({ type: "state_changed", folders }),
+    tell: (folders) => sockets.push({ type: "state_changed", folders }, { to: "macs" }),
   });
   stateSync.peerState = peerState;
   // An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again every few minutes.
@@ -437,7 +430,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     macId,
     link: (id) => links.get(id),
     homeOf: (agentId) => recordHome(readRecord(backendDir(), agentId), macId),
-    tell: (agentId) => lan?.broadcast({ type: "memory_changed", agent_id: agentId }),
+    tell: (agentId) => sockets.push({ type: "memory_changed", agent_id: agentId }, { to: "macs" }),
     onCloned: () => broadcast({ type: "agents_changed" }),
   });
   peerMemory.start();
@@ -469,17 +462,17 @@ export default function activate(api: ModApi, host: Host): () => void {
     me: () => ({ mac_id: macId, name: thisMacName, host: tailnetHost() ?? "", build, protocol: PEER_PROTOCOL }),
     onChange: () => {
       // The Macs this one is paired with changed: they join any they lack (addendum D1).
-      lan?.broadcast({ type: "group_changed" });
+      sockets.push({ type: "group_changed" }, { to: "macs" });
       awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
       remoteChats.sync(peerStore.list().map((p) => p.mac_id));
       for (const id of known) if (!peerStore.get(id)) directory.forget(id);
       known = new Set(peerStore.list().map((p) => p.mac_id));
-      ws?.broadcast({ type: "peers", ...peersView() });
-      void lan?.setPeersNeeded(peersNeeded());
+      sockets.push({ type: "peers", ...peersView() }, { to: "desktop" });
+      void sockets.phoneListener()?.setPeersNeeded(peersNeeded());
     },
     onForget: (id) => {
-      lan?.closePeer(id);
+      sockets.phoneListener()?.closePeer(id);
       seen.forgetMac(id); // its focus no longer counts here
     },
   });
@@ -511,7 +504,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
   let usagePush: ReturnType<typeof setTimeout> | null = null;
   // An update due after a checkout's code changed (plans 024 and 041): every window offers it.
-  const stopRestartDue = host.daemon?.onRestartDue((file) => ws?.broadcast({ type: "restart_due", file }));
+  const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
   const stopUsage = host.usage?.onChange(() => {
     usagePush ??= setTimeout(() => {
       usagePush = null;
@@ -638,32 +631,25 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return null;
   };
-  const ensureServer = async (): Promise<LokiServer> => {
-    if (srv) return srv;
-    starting ??= startServer({
-      port: modPort,
-      token,
-      profile: (agentId) => profilePath(agentId),
-      uploads: paths.uploads,
-      // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
-      routes: [
-        oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params)),
-        chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
-      ],
-      health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
-    }).then(async (s) => {
-      if (stopped) {
-        await s.close();
-        throw new Error("the mod stopped while its server was starting");
-      }
-      ws = attachWs(s.server, token, bridge);
-      log("server:listening", { port: s.port });
-      return (srv = s);
-    });
+  const serve = async (): Promise<LokiServer> => {
+    const start = () =>
+      startServer({
+        port: modPort,
+        token,
+        profile: (agentId) => profilePath(agentId),
+        uploads: paths.uploads,
+        // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
+        routes: [
+          oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params)),
+          chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
+        ],
+        health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: sockets.tabs() }),
+      });
     try {
-      return await starting;
+      const s = await sockets.serve(start, (started) => attachWs(started.server, token, bridge));
+      log("server:listening", { port: s.port });
+      return s;
     } catch (err) {
-      starting = null;
       log("server:failed", err instanceof Error ? err.message : String(err));
       api.diagnostics.report({
         message: `loki: server failed to start on ${modPort} (${err instanceof Error ? err.message : String(err)})`,
@@ -673,14 +659,14 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
   };
   // The desk server is always up while the mod is: the loki app (or a browser tab) connects whenever it likes.
-  void ensureServer().catch((err: unknown) => log("server:error", err instanceof Error ? err.message : String(err)));
+  void serve().catch((err: unknown) => log("server:error", err instanceof Error ? err.message : String(err)));
 
   // --- phones ----------------------------------------------------------
   // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.
   // Tailscale, when installed, is the way off the Wi‑Fi (Addendum 3): the QR prefers the tailnet name or
   // the https front `tailscale serve` puts on this port; the CLI is only read, never installed.
   const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
-  lan = new LanListener({
+  const lan: LanListener = new LanListener({
     port: lanPort,
     tailscale,
     stateFile: paths.lan,
@@ -692,18 +678,19 @@ export default function activate(api: ModApi, host: Host): () => void {
     uploads: paths.uploads,
     chatImages: { dir: paths.chatImages, fetchRemote: chatImageFromPeers },
     peers,
-    health: () => ({ phones: lan?.clientCount() ?? 0 }),
+    health: () => ({ phones: lan.clientCount() }),
     // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they
     // go to its tabs, not to the phones themselves, which never read them.
     onChange: (what, status) => {
       if (what === "status") {
         log("lan:status", status);
-        ws?.broadcast({ type: "lan_status", ...status });
+        sockets.push({ type: "lan_status", ...status }, { to: "desktop" });
       } else {
-        ws?.broadcast({ type: "devices", devices: devices.list() });
+        sockets.push({ type: "devices", devices: devices.list() }, { to: "desktop" });
       }
     },
   });
+  sockets.attachPhones(lan);
   if (lan.enabled()) void lan.start();
   if (peerStore.size() > 0) void lan.setPeersNeeded(true);
   links.sync(peerStore.list());
@@ -801,19 +788,13 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
-    stopped = true;
-    ws?.close();
-    void srv?.close();
-    void lan.stop(); // the socket only; the setting stays so the listener returns with the mod
+    sockets.stop(); // the sockets only; the phone listener's setting stays so it returns with the mod
     links.stop(); // the links to other Macs reopen with the mod
     remoteChats.stop();
     peerMemory.stop();
     peerState.stop();
     clearInterval(statePoll);
     awake.set(false);
-    ws = null;
-    srv = null;
-    starting = null;
     widgets.close();
     titleRefreshes.clear();
     clearInterval(tasksTimer);
