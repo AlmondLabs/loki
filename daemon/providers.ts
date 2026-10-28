@@ -44,12 +44,14 @@ export class Providers {
   }
 
   async list(): Promise<ConnectProvider[]> {
+    const shown = this.models.getProviders().filter((p) => (p.auth.apiKey?.login ? true : this.signsIn(p.id)));
+    // Each provider's kept sign-in is read at once: one at a time, the list waited on every read in turn.
+    const checks = await Promise.all(shown.map((p) => this.models.checkAuth(p.id).catch(() => undefined)));
     const out: ConnectProvider[] = [];
-    for (const p of this.models.getProviders()) {
+    for (const [i, p] of shown.entries()) {
       const key = p.auth.apiKey?.login ? p.auth.apiKey : undefined;
       const signIn = this.signsIn(p.id) ? p.auth.oauth : undefined;
-      if (!key && !signIn) continue;
-      const check = await this.models.checkAuth(p.id).catch(() => undefined);
+      const check = checks[i];
       const methods = [
         ...(key ? [{ id: "api_key", label: "API key", fields: [{ key: "api_key", label: key.name || "API key", secret: true, required: true }] }] : []),
         ...(signIn ? [{ id: "oauth", label: signIn.loginLabel ?? "Sign in", description: signIn.name, fields: [] }] : []),

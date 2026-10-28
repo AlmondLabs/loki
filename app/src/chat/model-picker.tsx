@@ -97,6 +97,16 @@ export function effortLabel(effort: ReasoningEffort): string {
   return effort;
 }
 
+/** A line in place of the list: loading, nothing found, nothing listed yet. */
+const status = (text: string) => (
+  <p role="status" className="loki-model-status">
+    {text}
+  </p>
+);
+
+/** Keep an event from bubbling further. */
+const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
 /** How many models the quick picks hold (the current model may make one more). */
 const SHORT_MAX = 5;
 /** How many models the short list shows when nothing is recent or featured. */
@@ -287,12 +297,6 @@ export function ModelChoices({
     option(group.handle, nameInHarness(group, shown), shown.id === null ? modelLine(group) : agentLine(group), group.handle === current, () =>
       onPick(selectionOf(preferredModelEntry(group, currentEffort))),
     );
-  const status = (text: string) => (
-    <p role="status" className="loki-model-status">
-      {text}
-    </p>
-  );
-
   let content;
   if (!entries) content = status(loading ? "Loading models…" : "No models from the harness");
   else if (view === "more") {
@@ -560,9 +564,8 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, start
     );
     // The Sheet draws itself at the phone shell's root, out of the Inbox card's transform. React still bubbles a
     // portal's events through the tree it came from: without this a drag in the sheet would swipe the card underneath.
-    const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
     return (
-      <div style={{ display: "contents" }} onPointerDown={stop} onPointerMove={stop} onPointerUp={stop} onPointerCancel={stop}>
+      <div style={{ display: "contents" }} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
         {sheet}
       </div>
     );

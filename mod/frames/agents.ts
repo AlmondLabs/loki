@@ -44,8 +44,10 @@ export function agentsFrames({ agents: ag }: AgentsDeps): FrameHandlers {
       if (!ag) return off();
       const agent = ag.get(agentId);
       if (!agent) return fail("no local record for this agent");
-      const last = await ag.log(agentId, { limit: 1 }).catch((): MemoryCommit[] => []);
-      const skills = await (ag.skillsInfo ? ag.skillsInfo(agentId).catch(() => ag.skills(agentId)) : ag.skills(agentId));
+      const [last, skills] = await Promise.all([
+        ag.log(agentId, { limit: 1 }).catch((): MemoryCommit[] => []),
+        ag.skillsInfo ? ag.skillsInfo(agentId).catch(() => ag.skills(agentId)) : ag.skills(agentId),
+      ]);
       return reply({ agent, files: ag.tree(agentId), skills, has_profile: ag.hasProfile(agentId), last_commit: last[0] ?? null });
     },
     memory_read: ({ agent_id: agentId, path }) => (ag ? reply({ agent_id: agentId, path, content: ag.read(agentId, path) }) : off()),

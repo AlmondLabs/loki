@@ -187,8 +187,11 @@ export class LokiEngine implements Engine {
   }
 
   private async state({ store, chat, agentId, conversationId }: EngineChat): Promise<ChatState> {
-    const [view, settings] = await Promise.all([store.harness.snapshot(LiveDoc, chat.id, this.deps.context), store.agentSettings(chat.id, this.deps.context)]);
-    const info = await store.chatInfo(chat.id, this.deps.context);
+    const [view, settings, info] = await Promise.all([
+      store.harness.snapshot(LiveDoc, chat.id, this.deps.context),
+      store.agentSettings(chat.id, this.deps.context),
+      store.chatInfo(chat.id, this.deps.context),
+    ]);
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
     // The answer in flight so far: the client that opens now missed its first pieces (they went out before it listened).
     const streaming = view?.run ? (this.converters.get(keyOf(agentId, conversationId))?.inFlight() ?? null) : null;
