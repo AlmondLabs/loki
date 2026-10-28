@@ -548,7 +548,10 @@ terminal). In such a chat:
 - the picker's effort row offers the levels Claude Code gives the model you're on (low to max, depending on the
   model). loki starts Claude Code as soon as you pick it, so they show a moment later, before you send anything,
   and they're kept for next time;
-- Stop cancels the turn; after loki restarts, the chat picks up the same Claude Code session;
+- Stop cancels the turn, or the session Claude Code is still opening. If Claude Code doesn't answer within three
+  seconds, loki ends the turn anyway and says so, and the messages queued behind it go. What Claude Code writes to
+  its error output goes to `~/.loki/logs/daemon.log`. After loki restarts, the chat picks up the same Claude Code
+  session;
 - a message sent while Claude Code works waits for the turn to end, shown as queued, and until then **take back**
   removes it: Claude Code takes one message at a time;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session

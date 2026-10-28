@@ -42,6 +42,7 @@ function setup(
     mcpServers?: AcpChatsDeps["mcpServers"];
     allowedTools?: AcpChatsDeps["allowedTools"];
     openUrl?: AcpChatsDeps["openUrl"];
+    stopWaitMs?: number;
   } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-acp-"));
@@ -57,6 +58,7 @@ function setup(
   );
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   const captured: Array<{ event: string; properties: Record<string, unknown> }> = [];
+  const logged: string[] = [];
   const make = () => {
     const approvals = new Approvals();
     const acp = new AcpChats({
@@ -68,6 +70,8 @@ function setup(
       ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.openUrl ? { openUrl: opts.openUrl } : {}),
+      ...(opts.stopWaitMs !== undefined ? { stopWaitMs: opts.stopWaitMs } : {}),
+      report: (line) => logged.push(line),
       homeDir: dir,
       cacheFile: join(dir, "state", "acp-offered.json"),
       capture: (event, properties) => captured.push({ event, properties }),
@@ -131,6 +135,7 @@ function setup(
     },
     pushed,
     captured,
+    logged,
     events,
     words,
     errors,
@@ -222,6 +227,35 @@ describe("ACP agents (plan 020)", () => {
     expect((await s.chats.open("ada", id)).streaming).toMatchObject({ text: "working" });
     await s.chats.abort("ada", id);
     await until(() => s.events().filter((e) => e.kind === "turn_end").length === 3);
+  });
+
+  test("Stop ends a turn whose agent never answers it, and the chat takes the next message", async () => {
+    const s = setup({ stopWaitMs: 20 });
+    const id = await s.chat();
+    const turns = () => s.captured.filter((c) => c.event === "turn_finished").map((c) => c.properties);
+    await s.chats.send({ agent_id: "ada", conversation_id: id, text: "deaf", images: [], context: null, send_id: null });
+    await until(() => s.events().some((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.text === "working"));
+    await s.chats.abort("ada", id);
+    await until(() => s.events().filter((e) => e.kind === "turn_end").length === 1);
+    expect(s.errors()).toContain("the agent did not answer the stop, so loki ended the turn without it");
+    expect(turns()[0]).toMatchObject({ stop_reason: "cancelled", error_code: "aborted" });
+    // What it said before the stop is kept.
+    expect(s.words()).toContain("working");
+    await s.say(id, "hello");
+    expect(s.words()).toContain("Hi there");
+  });
+
+  test("Stop frees a chat whose session never opens: the message queued behind it goes on a new one", async () => {
+    const s = setup({ stopWaitMs: 20, env: { FAKE_ACP_HANG_FIRST_SESSION: "1" } });
+    const id = await s.chat();
+    // Opened ahead of the first message, the session hangs; a message waits behind it.
+    await until(() => s.logged.includes("fake: fake-acp: holding the first session"));
+    await s.chats.send({ agent_id: "ada", conversation_id: id, text: "hello", images: [], context: null, send_id: null });
+    expect(s.events().some((e) => e.kind === "turn_end")).toBe(false);
+    await s.chats.abort("ada", id);
+    await until(() => s.events().some((e) => e.kind === "turn_end"));
+    expect(s.words()).toContain("Hi there");
+    expect(s.errors()).toEqual([]);
   });
 
   test("each turn is one turn_finished line: the agent's tokens and cost, its calls, and how it ended", async () => {

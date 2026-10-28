@@ -16,10 +16,14 @@ export interface AcpHandlers {
   permission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse>;
   /** The agent asks the person to open a page, such as an MCP server's sign-in (plan 044); a form it asks for is declined. */
   elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse>;
+  /** Each line the agent writes to stderr, as it comes: the daemon's log keeps it, since the tail below is lost on a restart. */
+  log?(line: string): void;
 }
 
 /** How much of the agent's stderr is kept, to say why it failed (R11). */
 const STDERR_TAIL = 2000;
+/** The longest stderr line passed to the log; a longer one (a dumped object, say) is cut there. */
+const LOG_LINE_MAX = 1000;
 
 /** A started agent: its connection, what it said it can do, and how to stop it. */
 interface Running {
@@ -74,8 +78,12 @@ export class AcpProcess {
       windowsHide: true,
     });
     child.stderr.setEncoding("utf8");
+    let partial = "";
     child.stderr.on("data", (text: string) => {
       this.stderrTail = (this.stderrTail + text).slice(-STDERR_TAIL);
+      const lines = (partial + text).split("\n");
+      partial = lines.pop() ?? "";
+      for (const line of lines) if (line.trim()) this.handlers.log?.(line.slice(0, LOG_LINE_MAX));
     });
     const exited = new Promise<Error>((resolve) => {
       child.once("error", (e) => resolve(e));

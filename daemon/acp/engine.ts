@@ -43,7 +43,8 @@ export class AcpEngine implements Engine {
   }
 
   abort(c: EngineChat): Promise<void> {
-    return this.deps.acp.abort(c.agentId, c.conversationId);
+    this.deps.acp.abort(c.agentId, c.conversationId);
+    return Promise.resolve();
   }
 
   /** An agent's session runs in the folder it was opened in; before its session opens, the chat's folder can change. */
