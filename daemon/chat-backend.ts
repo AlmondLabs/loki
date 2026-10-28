@@ -8,7 +8,7 @@ import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
 import { backendName } from "../core/desk-core.ts";
-import type { ChatState, PayloadOf } from "../core/frames.ts";
+import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -276,19 +276,26 @@ export class DaemonChats implements ChatBackend {
     await engine.abort(c);
   }
 
-  async update(p: PayloadOf<"chat_update">): Promise<void> {
+  async update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]> {
     const store = await this.deps.stores.get(p.agent_id);
+    // A draft goes first and alone, so a refused one changes nothing else.
+    if (p.draft) {
+      const saved = await store.saveDraft(p.conversation_id, p.draft, this.deps.context);
+      if (saved === "missing") throw new Error(`no chat ${p.conversation_id}`);
+      if (saved === "held") throw new Error(DRAFT_HELD);
+    }
     const change = {
       ...(p.title !== undefined ? { title: p.title } : {}),
       ...(p.archived !== undefined ? { archived: p.archived } : {}),
       ...(p.hidden !== undefined ? { hidden: p.hidden } : {}),
       ...(p.labels !== undefined ? { labels: p.labels } : {}),
       ...(p.purpose !== undefined ? { purpose: p.purpose } : {}),
-      ...(p.draft !== undefined ? { draft: p.draft } : {}),
+      ...(p.draft === null ? { draft: null } : {}),
     };
     if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
     // A new label takes its colour now, so every client shows it the same from the start.
     for (const label of p.labels ?? []) this.colors.colorOf(label);
+    return p.draft ? { draft_suggestion_id: p.draft.suggestion_id } : {};
   }
 
   /** Every agent's chats with their saved details, for what spans them all (labels). */

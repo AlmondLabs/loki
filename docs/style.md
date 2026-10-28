@@ -231,7 +231,7 @@ commit.
 - What changed starts lowercase (names inside it keep their capitals: `fix(phone): pair over Tailscale`). GitHub's own
   `Revert "…"` titles pass as they are.
 - The subject fits in 72 characters. The body says why, in sentences, wrapped near 72.
-- Examples: `feat(chats): suggest work for another chat`, `fix(mcp): retry sign-in after a refused state`,
+- Examples: `feat(chat): suggest work for another chat`, `fix(mcp): retry sign-in after a refused state`,
   `ci: pin the windows runner`.
 
 **Branches** **review**: `type/what-it-does`, the commit types as prefixes, kebab-case after:

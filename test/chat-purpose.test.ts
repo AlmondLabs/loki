@@ -109,6 +109,17 @@ describe("a chat's purpose line and saved draft (plan 047, U1)", () => {
     expect(s.row(id)?.has_draft).toBe(false);
   });
 
+  test("a saved draft is never replaced by another suggestion's, and the reply names the suggestion it saved", async () => {
+    const s = await setup();
+    const { conversationId: id } = await s.chats.create(s.ada, null, "infra");
+    expect(await s.update(id, { draft })).toEqual({ draft_suggestion_id: "sug-1" });
+    await expect(s.update(id, { draft: { ...draft, suggestion_id: "sug-2", text: "another" } })).rejects.toThrow("that chat already holds a saved draft");
+    expect(s.row(id)?.draft_text).toBe("look at the flaky upload test");
+    // The same suggestion again (a retry) is no conflict.
+    expect(await s.update(id, { draft })).toEqual({ draft_suggestion_id: "sug-1" });
+    expect(await s.update(id, { title: "renamed" })).toEqual({});
+  });
+
   test("the Inbox row carries the saved draft's text, so the chat's empty box can show it on any client", async () => {
     const s = await setup();
     const id = (await s.chats.create(s.ada, null, null)).conversationId;

@@ -154,6 +154,11 @@ export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
   if (str(t.folder) && t.folder) return { agent_id: t.agent_id, folder: t.folder };
   return null;
 }
+/**
+ * Why a chat refuses a saved draft (plan 047, KTD7): it holds another suggestion's, which is never replaced. The chat's
+ * Mac says it, and the Mac that asked recognises it.
+ */
+export const DRAFT_HELD = "that chat already holds a saved draft";
 /** What the person does with a suggestion: send it now, save it as a draft in its chat's box, or reject it. */
 export type SuggestionAction = "send" | "draft" | "reject";
 const SUGGESTION_ACTIONS: readonly string[] = ["send", "draft", "reject"] satisfies SuggestionAction[];
@@ -210,7 +215,11 @@ export interface Replies {
   /** `home_mac` is the Mac each agent lives on (plan 023), null for one whose record names none. */
   chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
-  chat_done: NoPayload;
+  /**
+   * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`, so the asking Mac knows the
+   * draft is kept: a loki from before plan 047 drops a draft it does not know and replies without it.
+   */
+  chat_done: { draft_suggestion_id?: string };
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
@@ -642,7 +651,9 @@ export const FRAMES = {
       if (typeof c === "string") return c;
       if (!str(m.title) || !m.title.trim() || !str(m.text) || !m.text.trim()) return "title and text required";
       const target = parseSuggestionTarget(m.target);
-      return target ? { ...c, title: m.title, text: m.text, target } : "target needs agent_id and a conversation_id or a folder";
+      if (!target) return "target needs agent_id and a conversation_id or a folder";
+      // An id of the sender's choosing makes a repeated add (a move of Tasks run again) add nothing.
+      return { ...c, title: m.title, text: m.text, target, ...(str(m.suggestion_id) && m.suggestion_id ? { suggestion_id: m.suggestion_id } : {}) };
     },
     false,
     BY_CHAT,

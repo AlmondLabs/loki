@@ -446,6 +446,9 @@ describe("frames: suggestions (plan 047)", () => {
       text: "Fix the lock test",
       target,
     });
+    expect(parse("suggestion_add", { ...chat, title: "Fix it", text: "Fix the lock test", target, suggestion_id: "task-7" })).toMatchObject({
+      suggestion_id: "task-7",
+    });
     expect(parse("suggestion_add", { ...chat, title: " ", text: "x", target })).toBe("title and text required");
     expect(parse("suggestion_add", { ...chat, title: "t", text: "x", target: {} })).toBe("target needs agent_id and a conversation_id or a folder");
     expect(FRAMES.suggestion_add.phone).toBe(false);

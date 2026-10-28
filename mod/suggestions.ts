@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ChatEvent } from "../core/attention/model.ts";
 import type { DeskStatus, SavedDraft, Suggestion, SuggestionTarget } from "../core/frame-types.ts";
-import { FRAMES, type ChatState, type SuggestionAction } from "../core/frames.ts";
+import { DRAFT_HELD, FRAMES, type ChatState, type SuggestionAction } from "../core/frames.ts";
 import { suggestedMark } from "../core/harness.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { ChatRouter } from "./chat-router.ts";
@@ -75,6 +75,24 @@ export interface SuggestionInput {
   target: SuggestionTarget;
 }
 
+/** Why a draft is refused where it was to be saved: the chat holds another suggestion's (KTD7). */
+const HELD_WORDS = `${DRAFT_HELD}: send it there first, or pick another chat`;
+
+/** A send or a draft that threw before it was settled: it is pending again, and the send_id keeps a retry single. */
+const UNFINISHED = "that did not finish: try again";
+
+/** A suggestion left sending by a daemon that stopped before it was settled. */
+const INTERRUPTED = "interrupted: try again";
+
+/**
+ * A chat's title as it is quoted inside the context's system reminder: no angle brackets or double quotes, which could
+ * close the reminder or the quote, on one line and not too long.
+ */
+const quotable = (title: string) => {
+  const plain = title.replace(/[<>"]/g, "").replace(/\s+/g, " ").trim();
+  return plain.length > 80 ? `${plain.slice(0, 79)}…` : plain || "another chat";
+};
+
 /** The statuses that still show in the chat screen: waiting on the person, or being carried out. */
 const isOpen = (s: Suggestion) => s.status === "pending" || s.status === "sending";
 
@@ -104,6 +122,8 @@ export class Suggestions {
   private readonly opts: SuggestionsOptions;
   /** One change at a time per chat: the tail of each chat's queue of changes. */
   private readonly locks = new Map<string, Promise<unknown>>();
+  /** The suggestions this process is sending now; one stored as sending that is not here was left by a daemon that stopped. */
+  private readonly inFlight = new Set<string>();
 
   constructor(opts: SuggestionsOptions) {
     this.opts = opts;
@@ -112,12 +132,14 @@ export class Suggestions {
   /**
    * A new suggestion in a chat, pending. Only its shape is checked: whether its target can take it is asked when it
    * is sent (R16). A suggestion in an archived chat brings the chat back, so it has a screen to show in (R15).
+   * `options.id` is the caller's own id for it: when the chat already holds a suggestion with that id, that one is
+   * returned and nothing is added, so a repeated add (a move of Tasks run again) makes no second one.
    */
-  async add(source: ChatKey, input: SuggestionInput): Promise<Suggestion> {
+  async add(source: ChatKey, input: SuggestionInput, options: { id?: string } = {}): Promise<Suggestion> {
     if (!input.title.trim()) throw new Error("a suggestion needs a title");
     if (!input.text.trim()) throw new Error("a suggestion needs a text");
     const suggestion: Suggestion = {
-      id: this.opts.newId?.() ?? `sugg-${randomUUID()}`,
+      id: options.id ?? this.opts.newId?.() ?? `sugg-${randomUUID()}`,
       title: input.title.trim(),
       text: input.text,
       target: input.target,
@@ -126,12 +148,15 @@ export class Suggestions {
       created_at: this.now(),
       made_conversation_id: null,
     };
-    const archived = await this.locked(source, async () => {
+    const added = await this.locked(source, async () => {
       const record = await this.record(source);
+      const existing = options.id ? record.suggestions.find((s) => s.id === options.id) : undefined;
+      if (existing) return { existing, archived: false };
       await this.save(source, [...record.suggestions, suggestion]);
-      return record.archived;
+      return { existing: null, archived: record.archived };
     });
-    if (archived) {
+    if (added.existing) return added.existing;
+    if (added.archived) {
       const out = await this.opts.call({ type: "chat_update", ...source, archived: false });
       if (!out.ok) throw new Error(out.message);
     }
@@ -168,20 +193,36 @@ export class Suggestions {
   /** The person's action on a suggestion: send it now, save it as a draft in its target's box, or reject it (R3). */
   async decide(source: ChatKey, id: string, action: SuggestionAction, by: string): Promise<Decided> {
     if (action === "reject") return this.settle(source, id, "rejected", by);
+    const flight = `${source.agent_id}/${source.conversation_id}/${id}`;
+    // A field rather than a local, as the claim sets it inside the change.
+    const mine = { claimed: false };
+    let claim: Decided;
     // Claimed in one step: from here a second action is told it is under way.
-    const claim = await this.change(source, id, (s) => {
-      if (s.status !== "pending") return { done: false, message: settledWords(s) };
-      const unfit = this.unfit(s.target, action);
-      if (unfit) return { done: false, message: unfit, next: { ...s, reason: unfit } };
-      return { done: true, message: null, next: { ...s, status: "sending", reason: null } };
-    });
+    try {
+      claim = await this.change(source, id, (s) => {
+        if (s.status !== "pending") return { done: false, message: settledWords(s) };
+        const unfit = this.unfit(s.target, action);
+        if (unfit) return { done: false, message: unfit, next: { ...s, reason: unfit } };
+        mine.claimed = true;
+        this.inFlight.add(flight);
+        return { done: true, message: null, next: { ...s, status: "sending", reason: null } };
+      });
+    } catch (err) {
+      if (mine.claimed) this.inFlight.delete(flight);
+      throw err;
+    }
     if (!claim.done) return claim;
-    const carried = await this.carry(source, claim.suggestion, action);
-    return this.change(source, id, (s) =>
-      carried.ok
-        ? { done: true, message: null, next: { ...s, status: action === "send" ? "sent" : "drafted", reason: null, decided_by: by, decided_at: this.now() } }
-        : { done: false, message: carried.message, next: { ...s, status: "pending", reason: carried.message } },
-    );
+    try {
+      // Whatever throws on the way leaves it pending again rather than sending for good.
+      const carried = await this.carry(source, claim.suggestion, action).catch(() => ({ ok: false as const, message: UNFINISHED }));
+      return await this.change(source, id, (s) =>
+        carried.ok
+          ? { done: true, message: null, next: { ...s, status: action === "send" ? "sent" : "drafted", reason: null, decided_by: by, decided_at: this.now() } }
+          : { done: false, message: carried.message, next: { ...s, status: "pending", reason: carried.message } },
+      ).catch(() => this.change(source, id, (s) => ({ done: false, message: UNFINISHED, next: { ...s, status: "pending", reason: UNFINISHED } })));
+    } finally {
+      this.inFlight.delete(flight);
+    }
   }
 
   /** Why a target cannot take the suggestion now, asking the person for another chat (R16); null when it can. */
@@ -192,7 +233,7 @@ export class Suggestions {
     if (!chat || chat.status === "deleted" || chat.status === "none") return "the chat this was for is gone: pick another chat";
     if (chat.status === "archived") return "the chat this was for is archived: pick another chat";
     // A saved draft is never replaced (KTD7): the person decides what happens to the one waiting there.
-    if (action === "draft" && chat.has_draft) return "that chat already holds a saved draft: send it there first, or pick another chat";
+    if (action === "draft" && chat.has_draft) return HELD_WORDS;
     return null;
   }
 
@@ -216,7 +257,11 @@ export class Suggestions {
     const target = { agent_id: s.target.agent_id, conversation_id: conversationId };
     if (action === "draft") {
       const out = await this.opts.call({ type: "chat_update", ...target, draft: { text: s.text, suggestion_id: s.id, source } });
-      return out.ok ? { ok: true } : out;
+      if (!out.ok) return out.message.includes(DRAFT_HELD) ? { ok: false, message: HELD_WORDS } : out;
+      // A loki from before plan 047 drops the draft and still says done; only one that names the draft has kept it.
+      return out.reply.draft_suggestion_id === s.id
+        ? { ok: true }
+        : { ok: false, message: "that chat's Mac runs an older loki: send it instead, or pick another chat" };
     }
     // No steer: a chat mid-turn takes it after the turn, as it would a message typed there (AE1).
     const out = await this.opts.call({ type: "chat_send", ...target, text: s.text, images: [], send_id: s.id, context: this.context(source, s) });
@@ -229,7 +274,7 @@ export class Suggestions {
    * one sentence telling the agent where the message came from.
    */
   private context(source: ChatKey, s: Suggestion): string {
-    const title = this.opts.chat(source)?.title ?? "another chat";
+    const title = quotable(this.opts.chat(source)?.title ?? "");
     return [
       suggestedMark({ from_agent: source.agent_id, from_chat: source.conversation_id, title: s.title }),
       `<system-reminder>The person sent this message from a suggestion an agent made in the chat "${title}".</system-reminder>`,
@@ -265,10 +310,12 @@ export class Suggestions {
     });
   }
 
+  /** A chat's record, with any suggestion a stopped daemon left sending read as pending again, its made chat kept. */
   private async record(source: ChatKey): Promise<{ suggestions: Suggestion[]; archived: boolean }> {
     const record = await this.opts.records.read(source.agent_id, source.conversation_id);
     if (!record) throw new Error(`no chat ${source.conversation_id}`);
-    return record;
+    const left = (s: Suggestion) => s.status === "sending" && !this.inFlight.has(`${source.agent_id}/${source.conversation_id}/${s.id}`);
+    return { ...record, suggestions: record.suggestions.map((s) => (left(s) ? { ...s, status: "pending", reason: INTERRUPTED } : s)) };
   }
 
   private async save(source: ChatKey, suggestions: Suggestion[]): Promise<void> {
@@ -340,8 +387,7 @@ async function here(opts: ChatCallerOptions, frame: ChatCall): Promise<CallOutco
     case "chat_update": {
       const p = FRAMES.chat_update.parse(frame);
       if (typeof p === "string") return { ok: false, message: p };
-      await opts.backend.update(p);
-      return { ok: true, reply: {} };
+      return { ok: true, reply: await opts.backend.update(p) };
     }
   }
 }

@@ -141,6 +141,33 @@ export function afterAction(s: Suggestion, out: SuggestionOutcome): { note: stri
 }
 
 /**
+ * The suggestions with an action in flight, with one added or taken away. Each card's buttons wait on its own answer
+ * only: one card's answer arriving never frees another whose request is still out.
+ */
+export function busyWith(busy: ReadonlySet<string>, id: string, on: boolean): ReadonlySet<string> {
+  const next = new Set(busy);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
+}
+
+/**
+ * A key in one of change chat's fields: Enter chooses, Esc goes back, and neither reaches the Inbox's own keys. While
+ * a change is in flight Enter does nothing, as the disabled rows and buttons do, so a second Enter sends no second
+ * change; Esc still goes back, as cancel and back stay enabled.
+ */
+export function pickerKey(e: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">, disabled: boolean, enter: () => void, escape: () => void) {
+  e.stopPropagation();
+  if (e.key === "Enter") {
+    e.preventDefault();
+    if (!disabled) enter();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    escape();
+  }
+}
+
+/**
  * The chat screen's suggestions, newest first. A refused action leaves its reason on the card; one refused because
  * another device already settled it (AE6) keeps a line saying so after its card has gone, until it is dismissed.
  */
@@ -150,20 +177,20 @@ export function SuggestionStack({ source, rt, blocked = null, touch = false }: S
   const [openId, setOpenId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Partial<Record<string, string>>>({});
   const [told, setTold] = useState<Partial<Record<string, Told>>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
   const shownIds = new Set(list.map((s) => s.id));
   const settled = Object.entries(told).filter((e): e is [string, Told] => !!e[1] && !shownIds.has(e[0]));
   if (!list.length && !settled.length) return null;
 
   const outcome = (s: Suggestion, out: SuggestionOutcome) => {
-    setBusy(null);
+    setBusy((b) => busyWith(b, s.id, false));
     const left = afterAction(s, out);
     if (!left) return;
     if ("told" in left) setTold((t) => ({ ...t, [s.id]: left.told }));
     else setNotes((n) => ({ ...n, [s.id]: left.note }));
   };
   const begin = (s: Suggestion) => {
-    setBusy(s.id);
+    setBusy((b) => busyWith(b, s.id, true));
     setNotes((n) => ({ ...n, [s.id]: undefined }));
   };
   const decide = (s: Suggestion, action: SuggestionAction) => {
@@ -197,7 +224,7 @@ export function SuggestionStack({ source, rt, blocked = null, touch = false }: S
           open={openId === s.id}
           onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
           note={notes[s.id] ?? null}
-          busy={busy === s.id}
+          busy={busy.has(s.id)}
           blocked={blocked}
           touch={touch}
           onDecide={(action) => decide(s, action)}
@@ -207,7 +234,7 @@ export function SuggestionStack({ source, rt, blocked = null, touch = false }: S
               suggestion={s}
               folder={face.cwd ?? source.items.find((c) => c.agent_id === rt.agent_id && c.id === rt.conversation_id)?.cwd ?? null}
               touch={touch}
-              disabled={!!blocked || busy === s.id}
+              disabled={!!blocked || busy.has(s.id)}
               onPick={(target) => void retarget(s, target).then((done) => done && close())}
               onCancel={close}
             />
@@ -341,17 +368,8 @@ function ChatPicker({
     if (c.conversationId) onPick({ agent_id: c.agentId, conversation_id: c.conversationId });
     else setAgent({ id: c.agentId, title: c.title });
   };
-  const keys = (e: KeyboardEvent, enter: () => void, escape: () => void) => {
-    // The Inbox's single keys and its Esc are the deck's; inside this field they are the field's.
-    e.stopPropagation();
-    if (e.key === "Enter") {
-      e.preventDefault();
-      enter();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      escape();
-    }
-  };
+  // The Inbox's single keys and its Esc are the deck's; inside these fields they are the field's.
+  const keys = (e: KeyboardEvent, enter: () => void, escape: () => void) => pickerKey(e, disabled, enter, escape);
 
   if (agent)
     return (

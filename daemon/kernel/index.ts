@@ -221,6 +221,23 @@ export class AgentStore {
   }
 
   /**
+   * Save a suggestion's draft in a chat's box (plan 047, KTD7) unless it holds another suggestion's, which is never
+   * replaced; the same suggestion's again (a retry) is saved. Checked and written in one commit, so two drafts that
+   * arrive together cannot both pass.
+   */
+  async saveDraft(id: string, draft: SavedDraft, context: Context): Promise<"saved" | "held" | "missing"> {
+    const chat = await this.chat(id, context);
+    if (!chat) return "missing";
+    const out = { held: false };
+    await chat.commit(async (tx) => {
+      const info = await tx.doc(ChatDoc, chat.id);
+      if (info.draft && info.draft.suggestion_id !== draft.suggestion_id) out.held = true;
+      else info.draft = draft;
+    }, context);
+    return out.held ? "held" : "saved";
+  }
+
+  /**
    * Set aside the copy of a chat this Mac let go when it moved away (plan 023, addendum A4), so the chat can come back
    * under its own id: the copy stays, hidden, under a new key, and its usage is still counted. False when there is none.
    */

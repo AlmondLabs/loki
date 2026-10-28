@@ -2,7 +2,16 @@ import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Conversation } from "../app/src/chat/conversation.tsx";
-import { SuggestionCardView, afterAction, chatChoices, targetOf, type SuggestionCardProps, type SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
+import {
+  SuggestionCardView,
+  afterAction,
+  busyWith,
+  chatChoices,
+  pickerKey,
+  targetOf,
+  type SuggestionCardProps,
+  type SuggestionSource,
+} from "../app/src/chat/suggestion-card.tsx";
 import { OpenChat, Transcript, type TranscriptRow } from "../app/src/chat/transcript.tsx";
 import { FrameChatClient } from "../core/attention/chat-client.ts";
 import type { ConversationInfo } from "../core/attention/model.ts";
@@ -221,6 +230,40 @@ describe("change chat", () => {
     const choices = chatChoices(lists, "ira", null);
     expect(choices.map((c) => c.key)).toEqual(["agent:ira", "chat:ira/infra"]);
     expect(chatChoices(lists, "pipe", null).map((c) => c.conversationId)).toEqual(["data"]);
+  });
+});
+
+describe("actions in flight", () => {
+  test("each card waits on its own answer: one answering leaves another still busy", () => {
+    const both = busyWith(busyWith(new Set(), "sugg-a", true), "sugg-b", true);
+    const left = busyWith(both, "sugg-a", false);
+    expect([...left]).toEqual(["sugg-b"]);
+    expect([...both]).toEqual(["sugg-a", "sugg-b"]);
+  });
+  test("an answer for a suggestion not in flight changes nothing", () => {
+    expect([...busyWith(new Set(["sugg-b"]), "sugg-a", false)]).toEqual(["sugg-b"]);
+  });
+});
+
+describe("change chat's keys", () => {
+  const press = (key: string, disabled: boolean) => {
+    const seen: string[] = [];
+    const e = { key, preventDefault: () => seen.push("prevented"), stopPropagation: () => seen.push("stopped") };
+    pickerKey(
+      e,
+      disabled,
+      () => seen.push("enter"),
+      () => seen.push("escape"),
+    );
+    return seen;
+  };
+  test("Enter chooses and Esc goes back, both kept from the Inbox's keys", () => {
+    expect(press("Enter", false)).toEqual(["stopped", "prevented", "enter"]);
+    expect(press("Escape", false)).toEqual(["stopped", "prevented", "escape"]);
+  });
+  test("while a change is in flight Enter does nothing, so a second Enter sends no second change; Esc still goes back", () => {
+    expect(press("Enter", true)).toEqual(["stopped", "prevented"]);
+    expect(press("Escape", true)).toEqual(["stopped", "prevented", "escape"]);
   });
 });
 

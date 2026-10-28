@@ -42,7 +42,8 @@ export function suggestionFrames(deps: SuggestionDeps): FrameHandlers {
     suggestion_add: async (p) => {
       if (!deps.suggestions) return fail(NOT_HERE);
       try {
-        return reply({ suggestion: await deps.suggestions.add(chatOf(p), { title: p.title, text: p.text, target: p.target }) });
+        const input = { title: p.title, text: p.text, target: p.target };
+        return reply({ suggestion: await deps.suggestions.add(chatOf(p), input, p.suggestion_id ? { id: p.suggestion_id } : {}) });
       } catch (err) {
         return fail(errorMessage(err));
       }

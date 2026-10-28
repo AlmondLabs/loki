@@ -20,7 +20,8 @@ export interface ChatBackend {
   create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
   abort(agentId: string, conversationId: string): Promise<void>;
-  update(p: PayloadOf<"chat_update">): Promise<void>;
+  /** Its reply names the saved draft's suggestion when it saved one. */
+  update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]>;
   folder(agentId: string, conversationId: string, cwd: string): Promise<ChatState>;
   model(p: PayloadOf<"chat_model">): Promise<void>;
   models(): Promise<Replies["chat_models"]["entries"]>;
@@ -126,7 +127,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
       return blocked ? fail(blocked) : served(b, async (x) => ({ accepted: await x.send(p) }));
     },
     chat_abort: ({ agent_id: agentId, conversation_id: conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
-    chat_update: (p) => served(b, async (x) => (await x.update(p), DONE)),
+    chat_update: (p) => served(b, (x) => x.update(p)),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
     chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
