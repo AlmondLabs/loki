@@ -223,9 +223,11 @@ commit.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`; `!` after the
   scope for a breaking change.
-- Scopes are loki's areas: `chat`, `tasks`, `mcp`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `daemon`,
-  `mod`, `core`, `app`, `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for
-  changes across the tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there and here.
+- Scopes are loki's areas: `chat`, `history` (a chat's history pages and their rows), `acp` (chats on an ACP agent
+  such as Claude Code), `tasks`, `mcp`, `memory` (an agent's memory and its notes), `learn`, `phone`, `desk`, `inbox`,
+  `agents`, `settings`, `peers` (paired Macs), `motion` (animation and gestures), `daemon`, `mod`, `core`, `app`,
+  `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for changes across the
+  tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there, here and in AGENTS.md.
 - What changed starts lowercase (names inside it keep their capitals: `fix(phone): pair over Tailscale`). GitHub's own
   `Revert "…"` titles pass as they are.
 - The subject fits in 72 characters. The body says why, in sentences, wrapped near 72.

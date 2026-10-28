@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_TITLE, titleProblem } from "../scripts/check-pr-title.ts";
+import { MAX_TITLE, SCOPES, titleProblem } from "../scripts/check-pr-title.ts";
 import { previewPr, releasePr } from "../scripts/release.ts";
 
 /** A pull request's title is held to Conventional Commits (docs/style.md §9), since it becomes the merge commit. */
@@ -10,6 +10,7 @@ describe("PR titles", () => {
     for (const title of [
       "feat(tasks): add task from a chat message",
       "fix(phone): pair over Tailscale",
+      "fix(acp): let stop end a chat the agent never answers",
       "ci: pin the windows runner",
       "refactor(core)!: drop the Letta wire names",
       'Revert "feat(tasks): add task from a chat message"',
@@ -30,6 +31,16 @@ describe("PR titles", () => {
   test("the release workflow's own PRs pass", () => {
     expect(titleProblem(releasePr({ notes: "", mainSha: "abc", ifMergedNow: "2026.1016.0" }).title)).toBeNull();
     expect(titleProblem(previewPr("2026.1016.0", "AlmondLabs/loki").title)).toBeNull();
+  });
+
+  test("every scope is listed in the style guide and AGENTS.md, so an agent sees them before CI does", () => {
+    const read = (path: string) => readFileSync(join(import.meta.dirname, "..", path), "utf8").replace(/\s+/g, " ");
+    const style = read("docs/style.md");
+    const agents = read("AGENTS.md");
+    for (const scope of SCOPES) {
+      expect(style, scope).toContain(`\`${scope}\``);
+      expect(agents, scope).toContain(`\`${scope}\``);
+    }
   });
 
   test("the workflow runs the check on every PR, the title passed through the environment", () => {

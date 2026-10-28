@@ -45,6 +45,13 @@ included, before saying it is done.
 - [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): what changed`, lowercase, no period,
   72 characters at most (`feat(tasks): add task from a chat message`). The PR title follows the same shape; CI checks
   it.
+- **The scope is one of these, or left out**; a folder or topic name that is not here fails CI: `chat`, `history`,
+  `acp`, `tasks`, `mcp`, `memory`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `peers`, `motion`,
+  `daemon`, `mod`, `core`, `app`, `shell`, `release`, `deps`, `style`. Check the title before opening the PR:
+
+  ```bash
+  PR_TITLE="fix(chat): what changed" node --experimental-strip-types scripts/check-pr-title.ts
+  ```
 - The PR body: what changed and why, decisions for review, tests, what was checked by hand, the checks run.
   Screenshots for UI changes.
 - Commit or push only when asked; work on a branch named `type/what-it-does` (`fix/phone-banner`), never on `main`.
