@@ -194,35 +194,25 @@ interface FieldMods {
   mono?: boolean;
   /** The first line of a sheet: no box, a hairline below. */
   bare?: boolean;
-  /** 15px type for a title line. */
-  large?: boolean;
   /** Editable text that shows its box on hover and focus. */
   inline?: boolean;
 }
 const FIELD_SIZE: Record<Size, string | null> = { sm: "loki-field--sm", md: null, touch: "loki-field--touch" };
-const fieldClass = ({ size = "md", mono, bare, large, inline }: FieldMods, className?: string) =>
-  cx(
-    "loki-field",
-    FIELD_SIZE[size],
-    mono && "loki-field--mono",
-    bare && "loki-field--bare",
-    large && "loki-field--title",
-    inline && "loki-field--inline",
-    className,
-  );
+const fieldClass = ({ size = "md", mono, bare, inline }: FieldMods, className?: string) =>
+  cx("loki-field", FIELD_SIZE[size], mono && "loki-field--mono", bare && "loki-field--bare", inline && "loki-field--inline", className);
 
 /** `size` is ours (the native character-count attribute is never used here). */
 export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & FieldMods;
 /** A text input on the well. */
-export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, large, inline, className, ...rest }, ref) {
-  return <input ref={ref} className={fieldClass({ size, mono, bare, large, inline }, className)} {...rest} />;
+export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ size, mono, bare, inline, className, ...rest }, ref) {
+  return <input ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} {...rest} />;
 });
 
 /** The props of `TextArea`: the native textarea's with the field's size and look options. */
 export type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & FieldMods;
 /** A textarea on the well; never resizable by hand (the layout owns its height). */
-export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ size, mono, bare, large, inline, className, ...rest }, ref) {
-  return <textarea ref={ref} className={fieldClass({ size, mono, bare, large, inline }, className)} {...rest} />;
+export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ size, mono, bare, inline, className, ...rest }, ref) {
+  return <textarea ref={ref} className={fieldClass({ size, mono, bare, inline }, className)} {...rest} />;
 });
 
 /** The props of `Row`: the native button's, with the selected, dense, touch and flush looks. */
@@ -300,7 +290,7 @@ export function Sheet({
   const bottom = placement === "bottom";
   const shell = bottom && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
   useSheetMotion(veilRef, cardRef, onClose, !!shell);
-  // Opened by a click it fades and rises; opened by a key (search, a new task, the keys sheet) it is simply there.
+  // Opened by a click it fades and rises; opened by a key (search, the keys sheet) it is simply there.
   // A bottom sheet always rises: on the phone the finger is what opened it.
   const [grows] = useState(() => bottom || lastInput() === "pointer");
   useEffect(() => {
@@ -618,7 +608,7 @@ export interface ListRowProps {
   /** The start: an agent's face (AgentFace at 20) or a ListIcon. */
   lead?: ReactNode;
   title: ReactNode;
-  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, tasks, learn) use it. */
+  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, learn) use it. */
   preview?: ReactNode;
   /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;

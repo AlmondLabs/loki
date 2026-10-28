@@ -14,8 +14,6 @@ import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
 import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
-import { messageKey } from "../../../core/task-source.ts";
-import { MessageTaskArea, rememberMessage, useMessageTasks } from "../tasks/message-tasks";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -412,20 +410,12 @@ function Message({
   const hold = useMessageHold(m);
   // Copy waits for a streaming reply to finish; its time is there from the start.
   const copyable = !!m.text && !(last && streaming);
-  // Add task (tasks/message-tasks.tsx), where the host gives the conversation's tasks: a finished message, not a queued one.
-  const tasks = useMessageTasks();
-  const key = tasks && copyable ? messageKey(m.role, m.text) : undefined;
-  if (tasks && key) rememberMessage(tasks.conversationId, key, m.text);
-  const addable = !!key && !m.queued;
   return (
     <div
       data-row={m.role}
       data-queued={m.queued ? "true" : undefined}
       data-first={first ? "true" : undefined}
       data-arrived={arrived}
-      data-msg-key={key}
-      data-msg-at={key ? m.at : undefined}
-      data-conversation={key ? tasks?.conversationId : undefined}
       className="loki-msg"
       {...hold}
     >
@@ -441,11 +431,9 @@ function Message({
             queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
-        {tasks && <MessageTaskArea row={m} ctx={tasks} />}
         {(copyable || time) && (
           <div className="loki-msg-actions">
             {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
-            {addable && tasks && <AddTaskButton onClick={() => tasks.start(m)} />}
             {time && (
               <time className="loki-msg-time" dateTime={m.at}>
                 {time}
@@ -573,28 +561,6 @@ function Bubble({
 }
 
 /** The bubble's text as it was written — markdown, not the rendering — onto the clipboard. Says "copied" for a beat. */
-/** Add task: a check with a plus, beside Copy; the editor opens under the message. */
-function AddTaskButton({ onClick }: { onClick: () => void }) {
-  return (
-    <IconButton size={24} className="loki-msg-action loki-msg-addtask" label="add task" onClick={onClick}>
-      <svg
-        viewBox="0 0 16 16"
-        width="13"
-        height="13"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M2 8.5l2.5 2.5L9 6.5" />
-        <path d="M12 3v6M9 6h6" />
-      </svg>
-    </IconButton>
-  );
-}
-
 function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {

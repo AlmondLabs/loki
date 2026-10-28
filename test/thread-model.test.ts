@@ -22,6 +22,20 @@ describe("history as a thread", () => {
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
   });
 
+  test("an old chat from Tasks' time reads cleanly: no <loki-tasks> markup, and its task_create call is a tool row (plan 047, U6)", () => {
+    const t = foldSteps([
+      user(
+        "rotate the creds\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (1):\n- lk-a1  P1  rotate SSO creds\n</loki-tasks>",
+        at0,
+      ),
+      call("task_create", "t1", { title: "update the runbook" }, at0),
+      result("t1", '{"filed":"lk-b2"}'),
+      said("Filed lk-b2.", at0),
+    ]);
+    expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:rotate the creds", "tool:task_create", "assistant:Filed lk-b2."]);
+    expect(t.some((m) => m.text.includes("loki-tasks"))).toBe(false);
+  });
+
   test("history with times yields rows with times; history without yields rows without", () => {
     expect(foldSteps([user("hi", "2026-09-23T08:00:00Z"), said("hello", "2026-09-23T08:00:05Z")])).toEqual([
       { role: "user", text: "hi", at: "2026-09-23T08:00:00Z" },

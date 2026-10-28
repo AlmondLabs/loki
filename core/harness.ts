@@ -1,7 +1,7 @@
 /**
  * The harness injects machinery into transcripts as ordinary messages:
  * background-task notifications, skill bodies, loki's own desk-activity block,
- * the tasks assigned to a chat, and system reminders.
+ * and system reminders.
  * Both halves of loki need to recognise them: the mod for the chat mirror, the
  * browser for the Catch Up thread.
  */
@@ -13,7 +13,7 @@ export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
-    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the tasks assigned to this conversation in Tasks, from the mod
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 047): old history only
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
     .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 047): a link back
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
@@ -46,7 +46,7 @@ export interface HarnessEvent {
 
 /**
  * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
- * desk-activity and assigned-tasks blocks the mod appends, and skill bodies the harness loads. Each becomes a quiet event
+ * desk-activity block the mod appends, and skill bodies the harness loads. Each becomes a quiet event
  * row instead of words in the user's bubble.
  */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
@@ -61,17 +61,6 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     out.push({
       text: "canvas activity",
       summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
-      detail: lines.length ? lines.join("\n") : null,
-    });
-  }
-  for (const m of text.matchAll(/<loki-tasks>([\s\S]*?)<\/loki-tasks>/g)) {
-    const lines = m[1]
-      .split("\n")
-      .filter((l) => l.startsWith("- "))
-      .map((l) => l.slice(2).trim());
-    out.push({
-      text: "assigned tasks",
-      summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
       detail: lines.length ? lines.join("\n") : null,
     });
   }

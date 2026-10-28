@@ -75,8 +75,6 @@ export const EVENTS: Record<string, string> = {
     "an agent turn ended, measured by the daemon from its store, or by an ACP chat as it went (harness_version acp:<agent>; model_ms, tool_ms and overhead_ms null) { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection | doctor, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
   pass_finished:
     "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
-  task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
-  task_added: "a task filed from a chat message (Add task) { origin: message | selection, desk }",
   suggestion_made: "an agent suggested a message for another chat (plan 047) { agent, target: existing | new }",
   suggestion_decided:
     "a suggestion acted on: by the person, or withdrawn by its agent { action: send | draft | reject | retarget | withdraw, outcome: done | refused, by: desktop | phone | agent | another Mac }",
@@ -105,8 +103,6 @@ export const BREAKDOWN: Record<string, string> = {
   inbox_filtered: "agent",
   chat_archived: "origin",
   chat_restored: "origin",
-  task_confirmed: "action",
-  task_added: "origin",
   suggestion_made: "target",
   suggestion_decided: "action",
   mcp_call: "server",

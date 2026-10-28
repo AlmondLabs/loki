@@ -35,9 +35,7 @@ import type {
   SavedDraft,
   Suggestion,
   SuggestionTarget,
-  Task,
 } from "./frame-types.ts";
-import { parseTaskSource } from "./task-source.ts";
 
 /**
  * The mod's own protocol on `/ws` (glossary.md: Frame, Frame table), declared once. The app sends requests and
@@ -130,8 +128,6 @@ function mcpEdit(
 
 /** Whether a value is an ISO date and time a request can take as an instant. */
 const isInstant = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
-/** The task ids a task list frame names: `ids`, or a single `id`. */
-const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversation_id) ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required");
 const agent = (m: Raw) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id } : "agent_id required");
@@ -188,9 +184,6 @@ export interface Replies {
   recall_ran: { note: string };
   recall_export: { tsv: string };
   recall_lesson: { agent_id: string; conversation_id: string };
-  tasks: { tasks: Task[] };
-  task_created: { task: Task };
-  tasks_updated: { tasks: Task[] };
   skills_global: { skills: GlobalSkill[] };
   skill_installed: { agent_id: string; output: string };
   skill_refreshed: { agent_id: string; name: string } & RefreshOutcome;
@@ -325,7 +318,6 @@ export interface Pushes {
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
   usage_changed: NoPayload;
-  tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;
   /** Another Mac's chats changed, or it came into or out of reach (plan 023): every client asks for its lists again. */
@@ -884,45 +876,6 @@ export const FRAMES = {
     PHONE,
   ),
 
-  // The task list
-  // The phone reads the list (a message's task chip) and files a task from a message's long press: one tap by the person.
-  tasks_list: request("tasks", "the tasks in Tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true }), PHONE),
-  task_create: request(
-    "task_created",
-    "a task filed from the app, stamped with its chat and folder, and the message it came from (Add task)",
-    (m) => ({
-      title: strOr(m.title, ""),
-      description: strOr(m.description, undefined),
-      labels: Array.isArray(m.labels) ? strings(m.labels) : undefined,
-      priority: typeof m.priority === "number" ? m.priority : undefined,
-      desk: strOr(m.desk, null),
-      agent_id: strOr(m.agent_id, null),
-      agent_name: strOr(m.agent_name, null),
-      conversation_id: strOr(m.conversation_id, null),
-      source: parseTaskSource(m.source),
-    }),
-    PHONE,
-  ),
-  task_assign: request("tasks_updated", "assign tasks to a chat, optionally starting them", (m) =>
-    str(m.conversation_id) && str(m.desk)
-      ? {
-          ids: taskIds(m),
-          conversation_id: m.conversation_id,
-          desk: m.desk,
-          agent_id: strOr(m.agent_id, null),
-          agent_name: strOr(m.agent_name, null),
-          start: m.start === true,
-        }
-      : "assign needs a conversation and a chat",
-  ),
-  task_close: request("tasks_updated", "close tasks, with a reason", (m) => ({ ids: taskIds(m), reason: strOr(m.reason, undefined) })),
-  task_reopen: request("tasks_updated", "not done after all: an agent's done? taken back, or done tasks opened again", (m) => ({ ids: taskIds(m) })),
-  task_status: request("tasks_updated", "move tasks to open, in progress, blocked or deferred", (m) =>
-    m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred"
-      ? ({ ids: taskIds(m), status: m.status } satisfies { ids: string[]; status: "open" | "in_progress" | "blocked" | "deferred" })
-      : `unknown status ${String(m.status)}`,
-  ),
-
   // Agents, memory and skills
   agent_get: request("agent", "an agent's local record, memory tree, skills, face and last memory commit", agent, PHONE),
   memory_read: request(
@@ -1063,7 +1016,6 @@ export const FRAMES = {
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),
-  tasks_changed: push("Tasks changed: other tabs refetch"),
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
@@ -1115,7 +1067,6 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
  * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
  * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
  * and a model picked there, for the shared quick picks.
- * The task list to read, and a task filed from a message (Add task in its long press); nothing that assigns, closes or reopens.
  * Never gestures, skills, the writer's settings, or the pairing and device frames.
  */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set(

@@ -17,7 +17,6 @@ import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
 import { useMessageActions } from "./use-message-actions";
-import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/message-tasks";
 import { SheetRow } from "./home";
 import { RenameSheet } from "./rename-sheet";
 import { FolderSheet } from "./folder-sheet";
@@ -96,7 +95,6 @@ export function ConversationScreen({
   onSeen,
   onNotDone,
   onViewed,
-  taskApi = null,
   suggestions = null,
 }: {
   thread: Thread;
@@ -152,8 +150,6 @@ export function ConversationScreen({
   onNotDone?: (item: AttentionItem) => void;
   /** A look, not done (viewed_mark): sent on open and for each new message while the screen is up. */
   onViewed?: (agentId: string, conversationId: string) => void;
-  /** Tasks, for Add task in a message's long press and the chips of the messages that have one. */
-  taskApi?: TaskApi | null;
   /** The suggestions made in this chat for other chats (plan 047), over the box; null or absent, none. */
   suggestions?: Omit<SuggestionsProps, "rt"> | null;
 }) {
@@ -184,11 +180,7 @@ export function ConversationScreen({
   );
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
-  const messageTasks = useMessageTasksScope(
-    { agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) },
-    taskApi,
-  );
-  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" }, messageTasks?.start);
+  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
     banner ??
@@ -216,42 +208,40 @@ export function ConversationScreen({
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
-          <MessageTasks.Provider value={messageTasks}>
-            <ScreenThread
-              chats={chats}
-              thread={thread}
-              item={item}
-              heldLook={heldLook}
-              people={people}
-              view={{
-                status: view.status,
-                error: view.error,
-                model,
-                reasoningEffort,
-                engine: view.engine ?? null,
-                approval: view.pending,
-                question: view.question,
-                older: view.older ?? null,
-                loadFailed: view.loadFailed ?? null,
-                loadStep: view.loadStep,
-              }}
-              models={models}
-              actions={{
-                onLoadModels,
-                onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-                onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-                onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
-                onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
-                onStop: onStop ? () => onStop(rt) : undefined,
-              }}
-              agentName={agentName}
-              prefill={prefill}
-              notice={notice || null}
-              placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
-              draft={{ value: draft, onChange: setDraft }}
-              suggestions={suggestions ? { ...suggestions, rt } : null}
-            />
-          </MessageTasks.Provider>,
+          <ScreenThread
+            chats={chats}
+            thread={thread}
+            item={item}
+            heldLook={heldLook}
+            people={people}
+            view={{
+              status: view.status,
+              error: view.error,
+              model,
+              reasoningEffort,
+              engine: view.engine ?? null,
+              approval: view.pending,
+              question: view.question,
+              older: view.older ?? null,
+              loadFailed: view.loadFailed ?? null,
+              loadStep: view.loadStep,
+            }}
+            models={models}
+            actions={{
+              onLoadModels,
+              onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
+              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
+              onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
+              onStop: onStop ? () => onStop(rt) : undefined,
+            }}
+            agentName={agentName}
+            prefill={prefill}
+            notice={notice || null}
+            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+            draft={{ value: draft, onChange: setDraft }}
+            suggestions={suggestions ? { ...suggestions, rt } : null}
+          />,
         )}
       </div>
       {message.sheet}

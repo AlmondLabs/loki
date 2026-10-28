@@ -4,7 +4,7 @@ import type { AskedBy } from "./attention/priority.ts";
 
 /**
  * The shapes frames carry (core/frames.ts) that the mod produces and the app reads: desks, the Inbox's rows, the
- * tasks, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
+ * suggestions, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
  * mod modules that build them import them from here.
  */
 
@@ -94,22 +94,6 @@ export interface GlobalSkill {
 export interface ReflectionState {
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
   last_commit: MemoryCommit | null;
-}
-
-/** One task as the mod reads it from beads and sends it in the `tasks` frames; times are ISO, and `closedAt` is null while it is open. */
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: number;
-  labels: string[];
-  assignee: string | null;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-  /** Free-form; loki uses by/agent/agent_id/conversation/desk/folder and assigned_to/assigned_desk/assigned_agent. */
-  metadata: Partial<Record<string, string>>;
 }
 
 /** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */

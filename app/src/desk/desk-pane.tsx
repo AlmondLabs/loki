@@ -1,4 +1,3 @@
-import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/message-tasks";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
@@ -57,8 +56,6 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   frameRequest: FrameRequest | null;
   /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
   onFrameWidget?: (widgetId: string) => void;
-  /** Tasks, for Add task on a message and the chips of the messages that have one (tasks/message-tasks.tsx). */
-  taskApi?: TaskApi | null;
   /** A header chip clicked: the sidebar filtered to that label's chats (plan 022, R4). */
   onShowLabel?: (name: string) => void;
 }
@@ -82,7 +79,6 @@ function useRouted(value: number, visible: PaneView | null): TickRoute {
 export function DeskPane(props: DeskPaneProps) {
   const { desk, catchUp, active, tab, onTab, chatOpen, models } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
-  const messageTasks = useMessageTasksScope({ agentId, agentName, conversationId, desk: scope }, props.taskApi ?? null);
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
 
@@ -181,30 +177,28 @@ export function DeskPane(props: DeskPaneProps) {
             aria-hidden={tab !== "messages"}
             onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
           >
-            <MessageTasks.Provider value={messageTasks}>
-              <DeskMessages
-                key={scope}
-                desk={desk}
-                catchUp={catchUp}
-                item={item}
-                heldLook={heldLook}
-                people={people}
-                onFrameWidget={frameWidget}
-                onShowDesk={() => onTab("desk")}
-                view={view}
-                actions={actions}
-                models={models}
-                draft={draft}
-                composer={onMessages}
-                dim={false}
-                focusTick={tickFor(focus, "messages")}
-                findTick={tickFor(find, "messages")}
-                modelPickerTick={tickFor(model, "messages")}
-                modeMenuTick={tickFor(mode, "messages")}
-                prefill={prefillFor("messages")}
-                suggestions={runtime ? { source: catchUp, rt: runtime } : null}
-              />
-            </MessageTasks.Provider>
+            <DeskMessages
+              key={scope}
+              desk={desk}
+              catchUp={catchUp}
+              item={item}
+              heldLook={heldLook}
+              people={people}
+              onFrameWidget={frameWidget}
+              onShowDesk={() => onTab("desk")}
+              view={view}
+              actions={actions}
+              models={models}
+              draft={draft}
+              composer={onMessages}
+              dim={false}
+              focusTick={tickFor(focus, "messages")}
+              findTick={tickFor(find, "messages")}
+              modelPickerTick={tickFor(model, "messages")}
+              modeMenuTick={tickFor(mode, "messages")}
+              prefill={prefillFor("messages")}
+              suggestions={runtime ? { source: catchUp, rt: runtime } : null}
+            />
           </div>
           <div
             id={panelId("desk")}

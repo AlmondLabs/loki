@@ -1,4 +1,3 @@
-import { useTaskList, type TaskApi } from "../tasks/message-tasks";
 import { homesOf } from "../shell/desk-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/use-inline-widgets";
@@ -186,8 +185,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  /** Tasks for Add task and the message chips in a conversation. */
-  const taskApi = useTaskList(desk, capture);
   const catchUp = useAttention({
     enabled: attention.available,
     makeClient: attention.makeClient,
@@ -344,7 +341,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
               conv={conv}
               desk={desk}
               catchUp={catchUp}
-              taskApi={taskApi}
               onRename={onRename}
               onArchive={onArchive}
               models={models.list}
@@ -457,7 +453,6 @@ function ConversationPage({
   conv,
   desk,
   catchUp,
-  taskApi,
   onRename,
   onArchive,
   models,
@@ -470,7 +465,6 @@ function ConversationPage({
   conv: ConversationRoute;
   desk: DeskApi;
   catchUp: CatchUp;
-  taskApi: TaskApi;
   onRename: RenameDeskName | null;
   onArchive: ArchiveDesk | null;
   models: ModelEntry[] | null;
@@ -500,7 +494,6 @@ function ConversationPage({
   };
   return (
     <ConversationScreen
-      taskApi={taskApi}
       thread={thread}
       view={view}
       chats={catchUp}

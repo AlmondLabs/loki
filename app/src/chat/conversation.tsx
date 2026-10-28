@@ -38,7 +38,6 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { readTurnError, retryMessage } from "./turn-error";
-import { useRevealMessage } from "../tasks/message-tasks";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -550,8 +549,6 @@ export const Thread = forwardRef<
     older,
   );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
-  // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/message-tasks.tsx).
-  useRevealMessage(scrollRef, rows, reveal, unpin);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
   const cancelQueuedRef = useRef(onCancelQueued);

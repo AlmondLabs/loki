@@ -8,12 +8,9 @@ import { SheetRow } from "./home";
  * A message's actions on the phone, as iOS and Slack's app offer them: a long press on any message, yours or
  * the agent's, opens a sheet with Copy (the message as written, markdown and all) and Select text, which shows
  * the message on its own where the browser's selection works again (the thread keeps it off so the long press
- * is ours), and Add task where the host files tasks. `wrap` goes round the thread; `sheet` is drawn beside it.
+ * is ours). `wrap` goes round the thread; `sheet` is drawn beside it.
  */
-export function useMessageActions(
-  names: { user: string; assistant: string },
-  onAddTask?: ((row: TranscriptRow) => void) | null,
-): { wrap: (thread: ReactNode) => ReactNode; sheet: ReactNode } {
+export function useMessageActions(names: { user: string; assistant: string }): { wrap: (thread: ReactNode) => ReactNode; sheet: ReactNode } {
   const [held, setHeld] = useState<{ row: TranscriptRow; selecting: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
   const close = () => {
@@ -52,17 +49,6 @@ export function useMessageActions(
         <ul className="loki-phone-list">
           <SheetRow icon={copied ? "check" : "copy"} label={copied ? "Copied" : "Copy"} onClick={() => void copy(row.text)} />
           <SheetRow icon="select" label="Select text" onClick={() => setHeld({ row, selecting: true })} />
-          {/* Add task: the editor opens under the message, as on the desktop (tasks/message-tasks.tsx). */}
-          {onAddTask && (row.role === "user" || row.role === "assistant") && (
-            <SheetRow
-              icon="plus"
-              label="Add task"
-              onClick={() => {
-                close();
-                onAddTask(row);
-              }}
-            />
-          )}
         </ul>
       )}
       <Button size="touch" tone="paper" block onClick={close}>

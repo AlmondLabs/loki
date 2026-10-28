@@ -100,11 +100,10 @@ const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]
   JSON.parse((await must(tools.get("canvas_read"), "canvas_read").run(c)) as string) as DeskState;
 
 describe("the mod's tools", () => {
-  test("canvas_read and canvas_focus always, the task tools once Tasks is ready; every name <subject>_<verb> (plan 044)", () => {
-    expect([...harness().tools.keys()].sort()).toEqual(["canvas_focus", "canvas_read"]);
-    const names = [...harness({ tasks: {} as ToolDeps["tasks"] }).tools.keys()].sort();
-    expect(names).toEqual(["canvas_focus", "canvas_read", "task_close", "task_comment", "task_create", "task_list"]);
-    expect(names.filter((n) => !/^[a-z][a-z0-9]*_[a-z0-9]+$/.test(n))).toEqual([]);
+  test("canvas_read and canvas_focus always, and no task_* tool: Tasks is retired into suggestions (plan 047, U6)", () => {
+    const names = [...harness().tools.keys()].sort();
+    expect(names).toEqual(["canvas_focus", "canvas_read"]);
+    expect(names.filter((n) => n.startsWith("task_"))).toEqual([]);
   });
 });
 
@@ -164,91 +163,6 @@ describe("canvas_focus", () => {
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);
     expect(out).toMatch(/framing 2 widgets, held 120ms/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep", "shared/welcome"] }, undefined]);
-  });
-});
-
-describe("the task tools: a chat's own tasks, and only you close yours", () => {
-  const task = (id: string, metadata: Record<string, string>, status = "open") => ({
-    id,
-    title: id,
-    description: "",
-    status,
-    priority: 2,
-    labels: [],
-    assignee: null,
-    created_at: "",
-    updated_at: "",
-    closed_at: null,
-    metadata,
-  });
-  function withTasks() {
-    const tasks = [
-      task("lk-mine", { by: "you", assigned_to: "c1" }),
-      { ...task("lk-agent", { by: "agent", agent: "friday", conversation: "c1" }), assignee: "friday-old-name" },
-      task("lk-other", { by: "you", assigned_to: "c2" }),
-      task("lk-loose", { by: "you" }),
-      task("lk-done", { by: "agent", assigned_to: "c1" }, "closed"),
-    ];
-    const calls: string[] = [];
-    const store = {
-      find: (id: string) => Promise.resolve(tasks.find((t) => t.id === id) ?? null),
-      list: () => Promise.resolve(tasks.filter((t) => t.status !== "closed")),
-      comment: (id: string) => {
-        calls.push(`comment ${id}`);
-        return Promise.resolve();
-      },
-      close: (ids: string[], reason?: string, as?: { actor?: string | null }) => (
-        calls.push(`close ${ids.join(",")} ${reason ?? ""}${as?.actor ? ` as ${as.actor}` : ""}`),
-        Promise.resolve([])
-      ),
-      askDone: (id: string, ask: { reason?: string | null; by?: string | null }) => (
-        calls.push(`askDone ${id} ${ask.reason} by ${ask.by}`),
-        Promise.resolve([])
-      ),
-    };
-    const h = harness({ tasks: store as unknown as ToolDeps["tasks"] });
-    const run = (tool: string, args: Record<string, unknown>, conversation = "c1") =>
-      must(h.tools.get(tool), tool).run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
-    return { run, calls, broadcasts: h.broadcasts };
-  }
-
-  test("closing a task the user filed marks it done? for the user to confirm; it stays open", async () => {
-    const { run, calls, broadcasts } = withTasks();
-    const out = String(await run("task_close", { id: "lk-mine", reason: "migrated staging and prod" }));
-    expect(out).toContain("waits for the user to confirm");
-    expect(calls).toEqual(["askDone lk-mine migrated staging and prod by friday"]);
-    expect(broadcasts.map(([m]) => m)).toContainEqual({ type: "tasks_changed" });
-  });
-
-  test("a task an agent filed from this chat closes outright, as its assignee (beads refuses anyone else)", async () => {
-    const { run, calls } = withTasks();
-    expect(String(await run("task_close", { id: "lk-agent", reason: "done" }))).toBe("lk-agent closed");
-    expect(calls).toEqual(["close lk-agent done as friday-old-name"]);
-  });
-
-  test("another chat's task, or one this chat never had, is refused for close and comment", async () => {
-    const { run, calls } = withTasks();
-    await expect(run("task_close", { id: "lk-other" })).rejects.toThrow(/assigned to another chat/);
-    await expect(run("task_comment", { id: "lk-other", text: "hi" })).rejects.toThrow(/not this conversation's task/);
-    await expect(run("task_close", { id: "lk-loose" })).rejects.toThrow(/not this conversation's task/);
-    await expect(run("task_close", { id: "lk-nope" })).rejects.toThrow(/no task lk-nope/);
-    expect(calls).toEqual([]);
-  });
-
-  test("a comment on this chat's task goes through (and tells the app, for the message's chip); a closed one is not closed twice", async () => {
-    const { run, calls, broadcasts } = withTasks();
-    expect(String(await run("task_comment", { id: "lk-mine", text: "staging done" }))).toBe("noted on lk-mine");
-    expect(broadcasts.map(([m]) => m)).toContainEqual({ type: "tasks_changed" });
-    expect(String(await run("task_close", { id: "lk-done" }))).toBe("lk-done is already closed");
-    expect(calls).toEqual(["comment lk-mine"]);
-  });
-
-  test("list shows this chat's tasks; the description tells the agent the rule", async () => {
-    const { run } = withTasks();
-    const listed = JSON.parse(String(await run("task_list", {}))) as Array<{ id: string }>;
-    expect(listed.map((t) => t.id)).toEqual(["lk-mine", "lk-agent"]);
-    const h = harness({ tasks: {} as ToolDeps["tasks"] });
-    expect(must(h.tools.get("task_close"), "task_close").description).toMatch(/Only the user closes a task the user filed/);
   });
 });
 

@@ -25,7 +25,6 @@ import { PeerSync } from "./peer-sync.ts";
 import { Awake } from "../daemon/awake.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
-import { TaskStore, TasksNotice } from "./tasks.ts";
 import { applyPinChanges, pinChanges, readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -72,7 +71,7 @@ import { stateFolders } from "../core/frames.ts";
  * The desk is a directory the agent writes into (<widgets>/<desk>/), compiled into the open tab. This mod is loki's
  * own, hosted by loki's daemon (daemon/main.ts) through the mod API (daemon/mods/api.ts): it owns geometry and gesture
  * state, serves the app and the phone over its sockets, tells the agent what the person did on the canvas, and gives
- * the agent its canvas and task tools. The daemon hands it the chats (`chats`, read; `chat`, run).
+ * the agent its canvas and suggestion tools. The daemon hands it the chats (`chats`, read; `chat`, run).
  */
 
 function loadOrCreateToken(): string {
@@ -200,17 +199,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  // The task list (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
-  const tasks = new TaskStore();
+  // The folder a chat works in, from the daemon's folder index; the task move falls back to it (plan 047, U7).
   const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
-  const refreshTasks = () => {
-    if (!tasks.ready()) return;
-    void tasks.list().catch((err: unknown) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
-  };
-  refreshTasks();
-  const tasksTimer = setInterval(refreshTasks, 60_000);
-  log("tasks:store", { dir: tasks.dir, ready: tasks.ready() });
 
   // --- transport -------------------------------------------------------
   // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
@@ -596,8 +587,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
-    tasks: tasks.ready() ? tasks : undefined,
-    folderFor,
     // A chat opens with the suggestions waiting in it (plan 047).
     chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
     suggestions,
@@ -763,8 +752,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer();
-  /** What each conversation was last told about its assigned tasks: the block rides along only when it changes. */
-  const tasksNotice = new TasksNotice();
   /** The background passes' own chats get no desk, and the tab does not follow them. */
   const ignored = (e: ChatRef) => passChat(e.chatId);
 
@@ -780,8 +767,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     }),
   );
 
-  // The person's message, about to be sent: two riders go with it — what they did on the canvas, and the task list's tasks
-  // assigned to this conversation (only when those changed since the agent was last told).
+  // The person's message, about to be sent: what they did on the canvas rides along with it.
   eventDisposers.push(
     api.message.transform((m) => {
       // A background pass's turn is the pass's: no desk, nothing rides along, the tab does not follow it.
@@ -794,17 +780,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       // Your message is engagement; a turn with nothing typed (an image alone) is still yours, but not typed words.
       if (m.typed) seen.engage(m.agentId, m.chatId, "message");
       broadcast(seenFrame({ seen }));
-      const blocks: string[] = [];
-      if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
-      const tasksBlock = tasksNotice.pending(m.chatId, tasks.cached());
-      if (tasksBlock) blocks.push(tasksBlock);
-      if (!blocks.length) return undefined;
-      if (tasksBlock) tasksNotice.sent(m.chatId, tasksBlock);
-      return attachDeskContext(m.content, blocks.join("\n\n"));
+      if (!lines.length) return undefined;
+      return attachDeskContext(m.content, formatDeskContext(scope, lines, paths.widgets));
     }),
   );
-
-  eventDisposers.push(api.events.on("compact_end", (e) => tasksNotice.forget(e.chatId)));
 
   eventDisposers.push(
     api.events.on("tool_start", (e) => {
@@ -846,8 +825,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     activeScope: () => activeScope,
     remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
     broadcast,
-    tasks: tasks.ready() ? tasks : undefined,
-    folderFor,
     // chat_list and the suggestion tools (plan 047, U3): every list's chats, and each agent with the Mac it lives on.
     chats: suggestions
       ? {
@@ -886,7 +863,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     starting = null;
     widgets.close();
     titleRefreshes.clear();
-    clearInterval(tasksTimer);
     seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
   api.signal.addEventListener("abort", shutdown, { once: true });

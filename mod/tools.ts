@@ -6,21 +6,19 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { log, withTimeout } from "./log.ts";
-import type { TaskStore } from "./tasks.ts";
-import type { DeskSummary, Suggestion, Task } from "../core/frame-types.ts";
+import type { DeskSummary, Suggestion } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
 
 /**
- * Two canvas tools, four task tools when Tasks is ready, and chat_list with the suggestion tools when the daemon keeps
- * suggestions. Rendering and authoring are file writes, not tool calls — the
+ * Two canvas tools, and chat_list with the suggestion tools when the daemon keeps suggestions. Rendering and authoring are file writes, not tool calls — the
  * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
  * reading back and for directing attention.
  */
 
 /**
  * What the agent's tools need from the mod: the desk state, widget files and gestures, how to find a call's desk, the
- * broadcast, and Tasks when it is ready.
+ * broadcast, and the chat list with the suggestions.
  */
 export interface ToolDeps {
   store: DeskStore;
@@ -32,9 +30,6 @@ export interface ToolDeps {
   /** Bind a conversation to its desk and return the scope. */
   remember?: (conversationId: string, agentId?: string | null) => Scope;
   broadcast(msg: object, scope?: Scope): void;
-  /** The shared task list (beads) and the folder a conversation works in, for the task stamp. */
-  tasks?: TaskStore;
-  folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
   /** The chat list and the suggestions (plan 047, U3), when this daemon keeps suggestions. */
   chats?: ChatToolDeps;
 }
@@ -57,10 +52,6 @@ export interface ChatToolDeps {
   /** A background pass's own chat (reflection, Learn), which has no chat screen for a suggestion to show in (KTD12). */
   passChat(conversationId: string): boolean;
 }
-
-/** A conversation's own tasks, the ones it may comment on and close: assigned to it, or filed from it and assigned nowhere. */
-export const ownTask = (t: Task, conversation: string | null): boolean =>
-  !!conversation && (t.metadata.assigned_to === conversation || (t.metadata.conversation === conversation && !t.metadata.assigned_to));
 
 /**
  * The desk a tool call is about: the explicit `desk` argument, else the desk of
@@ -115,8 +106,8 @@ interface LokiTool {
 const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 /**
- * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and task_create, task_list, task_comment and
- * task_close when Tasks is ready); returns the functions that unregister them.
+ * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and chat_list with the suggestion tools when
+ * the daemon keeps suggestions); returns the functions that unregister them.
  */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
@@ -225,174 +216,6 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       },
     }),
   );
-
-  if (deps.tasks) {
-    const store = deps.tasks;
-    /** The call's chat and agent, as a task's stamp and the ownership check read them. */
-    const who = (ctx: Call) => ({ conversation: ctx.conversation.id, agentId: ctx.agent.id, agent: ctx.agent.name });
-    /** A task of this conversation's, or the error that says why it is not one. */
-    const ownOrError = async (
-      id: unknown,
-      conversation: string,
-      doing: "task_comment" | "task_close",
-    ): Promise<{ task: Task } | { error: { status: "error"; content: string } }> => {
-      const error = (content: string) => ({ error: { status: "error" as const, content } });
-      if (typeof id !== "string") return error(`${doing} needs id`);
-      const task = await store.find(id);
-      if (!task) return error(`no task ${id} in Tasks`);
-      if (ownTask(task, conversation)) return { task };
-      return error(
-        `${id} is not this conversation's task${task.metadata.assigned_to ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${doing === "task_close" ? "closed" : "commented on"} here`,
-      );
-    };
-    /** A tool body's error as the agent reads it. */
-    const failed = (err: unknown) => ({ status: "error", content: err instanceof Error ? err.message : String(err) });
-    const idArg = { type: "string", description: "The task id (lk-…)." };
-
-    disposers.push(
-      tools.register({
-        name: "task_create",
-        description:
-          "File a task in the user's Tasks: one task list shared by the user and every agent (beads). Use it when the user " +
-          "asks to note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your " +
-          "own initiative mid-task. The source conversation, desk and folder are stamped automatically; it returns the " +
-          "task's id: tell the user the id. When the tasks assigned to this conversation change, the new list is attached " +
-          "to the user's next message inside <loki-tasks>.",
-        parameters: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: 'One line, imperative ("rotate the SSO creds before the audit").' },
-            description: { type: "string", description: "What, why, where to look. Enough for someone starting cold." },
-            labels: { type: "array", items: { type: "string" }, description: "Short tags (aws, security, docs). The project's folder name is added for you." },
-            priority: { type: "number", description: "0 (urgent) to 4 (someday); default 2." },
-          },
-          required: ["title"],
-          additionalProperties: false,
-        },
-        async run(ctx) {
-          const { args } = ctx;
-          const { conversation, agentId, agent } = who(ctx);
-          log("tool:task_create", { agent, conversation });
-          try {
-            const task = await store.create({
-              title: argText(args.title),
-              description: typeof args.description === "string" ? args.description : undefined,
-              labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
-              priority: typeof args.priority === "number" ? args.priority : undefined,
-              stamp: { by: "agent", agent, agentId, conversation, desk: scopeForCall(deps, ctx), folder: deps.folderFor?.(agentId, conversation) ?? null },
-            });
-            deps.broadcast({ type: "tasks_changed" });
-            return JSON.stringify({ filed: task.id, title: task.title, priority: task.priority, labels: task.labels });
-          } catch (err) {
-            return failed(err);
-          }
-        },
-      }),
-    );
-
-    disposers.push(
-      tools.register({
-        name: "task_list",
-        annotations: { readOnly: true },
-        description: "List this conversation's tasks in the user's Tasks: those assigned to it, or filed from it; with all:true, every open task.",
-        parameters: {
-          type: "object",
-          properties: { all: { type: "boolean", description: "Every open task in Tasks, not just this conversation's." } },
-          additionalProperties: false,
-        },
-        async run(ctx) {
-          const { conversation } = who(ctx);
-          log("tool:task_list", { conversation });
-          try {
-            const tasks = await store.list();
-            const mine = ctx.args.all === true ? tasks : tasks.filter((t) => ownTask(t, conversation));
-            return JSON.stringify(
-              mine.map((t) => ({
-                id: t.id,
-                title: t.title,
-                status: t.status,
-                priority: t.priority,
-                labels: t.labels,
-                assigned_to: t.metadata.assigned_to ?? null,
-                description: t.description,
-              })),
-              null,
-              2,
-            );
-          } catch (err) {
-            return failed(err);
-          }
-        },
-      }),
-    );
-
-    disposers.push(
-      tools.register({
-        name: "task_comment",
-        description:
-          "Add a progress note to one of this conversation's tasks (assigned to it, or filed from it and not assigned elsewhere). Comment on small steps.",
-        parameters: {
-          type: "object",
-          properties: { id: idArg, text: { type: "string", description: "The progress note." } },
-          required: ["id", "text"],
-          additionalProperties: false,
-        },
-        async run(ctx) {
-          const { conversation } = who(ctx);
-          log("tool:task_comment", { conversation });
-          try {
-            if (typeof ctx.args.text !== "string") return { status: "error", content: "task_comment needs id and text" };
-            const own = await ownOrError(ctx.args.id, conversation, "task_comment");
-            if ("error" in own) return own.error;
-            await store.comment(own.task.id, ctx.args.text);
-            // The note shows on the message the task came from (its chip), so other tabs refetch.
-            deps.broadcast({ type: "tasks_changed" });
-            return `noted on ${own.task.id}`;
-          } catch (err) {
-            return failed(err);
-          }
-        },
-      }),
-    );
-
-    disposers.push(
-      tools.register({
-        name: "task_close",
-        description:
-          "Finish one of this conversation's tasks with a reason, only when the whole task is done. Only the user closes " +
-          "a task the user filed: on one of those, this marks it done and waiting for the user to confirm, so say what you " +
-          "did in the reason.",
-        parameters: {
-          type: "object",
-          properties: { id: idArg, reason: { type: "string", description: "What was done, one line; the user reads it when confirming a task they filed." } },
-          required: ["id"],
-          additionalProperties: false,
-        },
-        async run(ctx) {
-          const { conversation, agent } = who(ctx);
-          log("tool:task_close", { agent, conversation });
-          try {
-            const own = await ownOrError(ctx.args.id, conversation, "task_close");
-            if ("error" in own) return own.error;
-            const task = own.task;
-            if (task.status === "closed") return `${task.id} is already closed`;
-            const reason = typeof ctx.args.reason === "string" ? ctx.args.reason : undefined;
-            if (task.metadata.by === "you") {
-              // The user's own task: done when the user says so (Tasks › Waiting for you).
-              await store.askDone(task.id, { reason, by: agent });
-              deps.broadcast({ type: "tasks_changed" });
-              return `${task.id} was filed by the user: it is marked done and waits for the user to confirm (or reopen it). It stays open until then.`;
-            }
-            await store.close([task.id], reason, { actor: task.assignee ?? agent });
-            deps.broadcast({ type: "tasks_changed" });
-            return `${task.id} closed`;
-          } catch (err) {
-            return failed(err);
-          }
-        },
-      }),
-    );
-  }
 
   if (deps.chats) disposers.push(...registerChatTools(tools, deps.chats));
 
