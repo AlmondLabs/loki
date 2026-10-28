@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { serial } from "../daemon/repo-queue.ts";
+import type { MemoryRepos } from "../daemon/memory-sync.ts";
 import {
   cpSync,
   existsSync,
@@ -52,6 +52,8 @@ export interface SkillSourcesOptions {
   sourcesFile: string;
   /** state/upstream: where a fetched upstream is staged for the agent to read. */
   stagingDir: string;
+  /** The daemon's memory repo queue (Host.memory.serial), so a refresh never commits beside a memory write (plan 046). */
+  serial: MemoryRepos["serial"];
   /** Run git; tests inject. */
   exec?: (bin: string, args: string[], opts: { cwd?: string; timeoutMs: number }) => Promise<string>;
 }
@@ -210,7 +212,7 @@ export class SkillSources {
    * a merge from a paired Mac or a memory write never meets it halfway (plan 023, U7).
    */
   private replace(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
-    return serial(memory, () => this.replaceNow(agentId, memory, name, upstream, label));
+    return this.opts.serial(memory, () => this.replaceNow(agentId, memory, name, upstream, label));
   }
 
   private async replaceNow(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {

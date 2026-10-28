@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { memoryHead } from "../daemon/memory-sync.ts";
+import { memoryHead, memoryRepos } from "../daemon/memory-sync.ts";
 import { createBridge } from "../mod/bridge.ts";
 import { DeviceStore } from "../mod/devices.ts";
 import { peersFrames } from "../mod/frames/peers.ts";
@@ -61,7 +61,15 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
   const token = mintPeerToken();
   const store = new PeerStore(join(root, "peers.json"));
   store.add({ mac_id: NEAR, name: "near", host: "near:41415", build: null, protocol: PEER_PROTOCOL }, token);
-  const farSide = new PeerMemory({ backendDir: () => join(root, "far"), macId: FAR, link: () => null, homeOf: () => FAR, tell: () => {}, onCloned: () => {} });
+  const farSide = new PeerMemory({
+    backendDir: () => join(root, "far"),
+    repos: memoryRepos,
+    macId: FAR,
+    link: () => null,
+    homeOf: () => FAR,
+    tell: () => {},
+    onCloned: () => {},
+  });
   const peers = new Peers({
     store,
     keys: new PeerKeys(memorySecrets()),
@@ -114,6 +122,7 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
   });
   const near = new PeerMemory({
     backendDir: () => nearBackend,
+    repos: memoryRepos,
     macId: NEAR,
     link: () => link,
     homeOf: () => FAR,

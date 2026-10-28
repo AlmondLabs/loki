@@ -185,7 +185,10 @@ every chat gets, the chats, then the mods.
 ## loki's own mod
 
 `mod/index.ts` is loki's product code: everything that is not a chat. It runs inside the daemon on the same mod API
-any other mod uses, and the daemon hands it the chats as its host (`chats` to read, `chat` to run).
+any other mod uses, and the daemon hands it the chats as its host (`chats` to read, `chat` to run). The host also
+hands it the memory repos and their queue (`memory`, plan 046). The mod is bundled apart from the daemon, so a daemon
+module with state of its own, imported there, would be a second copy; `test/build-mod.test.ts` keeps the queue out of
+the mod's bundle.
 
 1. **The canvas.** Widget files in `~/.loki/widgets/<desk>/` (`.json` kit widgets and `.tsx` React components),
    watched and pushed to the app; each chat's geometry and widget change log. A `.tsx` widget is agent-written code,

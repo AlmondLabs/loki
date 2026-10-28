@@ -35,6 +35,30 @@ describe("the release bundle's build", () => {
 });
 
 /**
+ * The mod is bundled apart from the daemon, so a daemon module it bundles is a second copy with its own module state.
+ * The memory repos' queue (daemon/repo-queue.ts) must be the daemon's one: the mod takes it from its host, and a copy
+ * of its own would race the daemon's commits on a repo's index.lock and never hear them (plan 046).
+ */
+describe("the mod's bundle", () => {
+  test("leaves out the memory repos' queue, which it takes from its host", async () => {
+    const { build } = await import("esbuild");
+    const result = await build({
+      entryPoints: [join(import.meta.dirname, "..", "mod", "index.ts")],
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      packages: "external",
+      write: false,
+      metafile: true,
+      logLevel: "silent",
+    });
+    const inputs = Object.keys(result.metafile.inputs).map((f) => f.split("\\").join("/"));
+    expect(inputs).toContain("mod/peer-memory.ts");
+    expect(inputs.filter((f) => f.endsWith("daemon/repo-queue.ts"))).toEqual([]);
+  });
+});
+
+/**
  * pi-ai loads each sign-in flow through a variable path so a bundler cannot follow it; bundled into daemon.mjs, that
  * path pointed beside the bundle at files that are not there, and every release build's sign-in failed with "Cannot
  * find module …/openai-chatgpt.js" (2026.1011.1). The daemon registers the flows statically (daemon/main.ts); this

@@ -1,19 +1,21 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 import { isAgentId } from "../core/frames.ts";
-import { applyMemoryBundle, memoryBundle, memoryHead, type MemoryApplied } from "../daemon/memory-sync.ts";
-import { onRepoSettled } from "../daemon/repo-queue.ts";
+import type { MemoryApplied, MemoryRepos } from "../daemon/memory-sync.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
 
 /**
  * Every agent's memory the same on every paired Mac (plan 023, U7, R18). When a repo here gets new commits, paired
  * Macs are told (`memory_changed`) and ask for what they lack; when a paired Mac says the same, this Mac asks it. A
- * Mac's link opening, or an agent arriving from it, asks for all of it. Merges go through daemon/memory-sync.ts.
+ * Mac's link opening, or an agent arriving from it, asks for all of it. Merges go through daemon/memory-sync.ts, taken
+ * from the host (`repos`) so they share the daemon's queue (plan 046).
  */
 export class PeerMemory {
   private readonly opts: {
     backendDir: () => string;
+    /** The daemon's memory repos (Host.memory): its queue, so this hears every commit and merges never race one. */
+    repos: MemoryRepos;
     macId: string;
     link: (macId: string) => PeerLink | null;
     /** The Mac an agent lives on (its record's home_mac, else this Mac). */
@@ -39,7 +41,7 @@ export class PeerMemory {
   start(): void {
     this.stopWatching?.();
     const memfs = join(this.opts.backendDir(), "memfs") + sep;
-    this.stopWatching = onRepoSettled((root) => {
+    this.stopWatching = this.opts.repos.onSettled((root) => {
       if (!root.startsWith(memfs)) return;
       const agentId = root.slice(memfs.length).split(sep)[0];
       if (isAgentId(agentId)) void this.check(agentId);
@@ -52,7 +54,7 @@ export class PeerMemory {
   }
 
   private async check(agentId: string): Promise<void> {
-    const head = await memoryHead(this.root(agentId));
+    const head = await this.opts.repos.head(this.root(agentId));
     if (!head || this.told.get(agentId) === head) return;
     this.told.set(agentId, head);
     this.opts.tell(agentId);
@@ -60,7 +62,7 @@ export class PeerMemory {
 
   /** What another Mac lacks of an agent's memory, given the commits it has. */
   bundle(agentId: string, have: string[]): Promise<string | null> {
-    return memoryBundle(this.root(agentId), have);
+    return this.opts.repos.bundle(this.root(agentId), have);
   }
 
   /** Ask a Mac for an agent's memory commits this Mac lacks, and take them. */
@@ -68,7 +70,7 @@ export class PeerMemory {
     const link = this.opts.link(macId);
     if (!link || !isAgentId(agentId)) return "unchanged";
     const root = this.root(agentId);
-    const head = await memoryHead(root);
+    const head = await this.opts.repos.head(root);
     let reply: Record<string, unknown>;
     try {
       reply = await link.request({ type: "peer_memory_get", agent_id: agentId, have: head ? [head] : [] }, 60_000);
@@ -76,7 +78,7 @@ export class PeerMemory {
       return "unchanged";
     }
     if (typeof reply.bundle !== "string") return "unchanged";
-    const applied = await applyMemoryBundle(root, reply.bundle, { from: macId, homeIsHere: this.opts.homeOf(agentId) === this.opts.macId });
+    const applied = await this.opts.repos.apply(root, reply.bundle, { from: macId, homeIsHere: this.opts.homeOf(agentId) === this.opts.macId });
     if (applied !== "unchanged") log("peers:memory", { from: macId, agent: agentId, applied });
     if (applied === "cloned") this.opts.onCloned(agentId);
     return applied;
