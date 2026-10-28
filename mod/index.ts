@@ -55,6 +55,7 @@ import { ChatRouter } from "./chat-router.ts";
 import { ChatDirectory } from "./chat-directory.ts";
 import { PeerGroup } from "./peer-group.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
+import type { MemoryRepos } from "../daemon/memory-sync.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
@@ -96,6 +97,11 @@ export interface Host {
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
+  /**
+   * The memory repos and their queue (daemon/memory-sync.ts). The mod is bundled apart from the daemon, so it takes
+   * them from here: its own copy of the queue would race the daemon's commits and never hear them (plan 046).
+   */
+  memory: MemoryRepos;
   /**
    * Updating a checkout's loki (plans 024 and 041): the file whose change made an update due (null when none, always in
    * the installed app), hearing when one becomes due, and updating now (a page build, a restart): null once done or
@@ -427,6 +433,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // The same memory on every paired Mac (U7): told when a repo here moves, asking when one there does.
   const peerMemory: PeerMemory = new PeerMemory({
     backendDir,
+    repos: host.memory,
     macId,
     link: (id) => links.get(id),
     homeOf: (agentId) => recordHome(readRecord(backendDir(), agentId), macId),
@@ -477,7 +484,11 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
   });
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
-  const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
+  const skillSources = new SkillSources({
+    sourcesFile: join(paths.state, "skill-sources.json"),
+    stagingDir: join(paths.state, "upstream"),
+    serial: host.memory.serial,
+  });
   // --- recall -----------------------------------------------------------
   // Cards written in the background by the daemon's Learn pass (daemon/learn.ts) from chats that have gone quiet;
   // the person meets them only in the Learn section. Its settings and last run are the daemon's (daemon/passes-state.ts).

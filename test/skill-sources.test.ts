@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import { memorySkills } from "../mod/agents.ts";
+import { serial } from "../daemon/repo-queue.ts";
 import { must } from "./fixtures/must.ts";
 import { INSTALL_RE, SkillSources, compareTrees, parseSource, readLock, reconcilePrompt } from "../mod/skill-sources.ts";
 
@@ -21,6 +22,12 @@ let memory: string;
 let global: string;
 let checkout: string;
 let sources: SkillSources;
+/** The memory repos each git sequence was queued on, through the queue the host hands the mod (plan 046). */
+const queuedOn: string[] = [];
+const queued: typeof serial = (repo, work) => {
+  queuedOn.push(repo);
+  return serial(repo, work);
+};
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", ...args], {
@@ -102,6 +109,7 @@ beforeAll(() => {
     lockFile: lock,
     sourcesFile: join(root, "state", "skill-sources.json"),
     stagingDir: join(root, "state", "upstream"),
+    serial: queued,
   });
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -174,6 +182,7 @@ describe("refresh", () => {
       `tester <${AGENT}@loki.local> chore(skills): refresh fmt-linked from team-skills checkout`,
     );
     expect(git(memory, "status", "--short").trim()).toBe("");
+    expect(queuedOn).toContain(memory); // the commit took the daemon's queue, not one of the mod's own
     // And now it is current, still other, still unedited.
     expect((await sources.refresh(AGENT, "fmt-linked")).outcome).toBe("current");
     const info = await sources.annotate(AGENT, memorySkills(AGENT, backend));

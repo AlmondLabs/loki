@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { serial } from "./repo-queue.ts";
+import { onRepoSettled, serial } from "./repo-queue.ts";
 
 /**
  * An agent's memory kept the same on every paired Mac (plan 023, U7, KTD7, R15, R16). Memory is a git repo, so it
@@ -134,6 +134,22 @@ async function settleClash(root: string, opts: { from: string; homeIsHere: boole
   }
   await git(root, "-c", `user.name=${SYNC.name}`, "-c", `user.email=${SYNC.email}`, "commit", "--quiet", "--no-edit");
 }
+
+/**
+ * The memory repos as loki's mod reaches them, through its host (plan 046). The mod is bundled apart from the daemon,
+ * so a copy of repo-queue.ts imported there would be a second queue: its commits would race the daemon's on the repo's
+ * index.lock, and it would never hear the daemon's commits. Handing it these keeps one queue.
+ */
+export const memoryRepos = {
+  serial,
+  onSettled: onRepoSettled,
+  head: memoryHead,
+  bundle: memoryBundle,
+  apply: applyMemoryBundle,
+};
+
+/** The type of `memoryRepos`, which the mod imports in place of the functions themselves. */
+export type MemoryRepos = typeof memoryRepos;
 
 /** The clashes waiting for reflection in an agent's memory, or null when there are none. */
 export function pendingConflicts(root: string): string | null {

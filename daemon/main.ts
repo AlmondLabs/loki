@@ -23,6 +23,7 @@ import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
 import { Schedules, scheduleTools } from "./schedule.ts";
+import { memoryRepos } from "./memory-sync.ts";
 import { memoryTools } from "./memory.ts";
 import { askTool } from "./ask.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
@@ -287,6 +288,8 @@ const loadCore = (): Promise<LoadResult> =>
         // This Mac as other Macs know it (plan 023): its install id, and the keychain for the tokens it presents to them.
         macId: installId(),
         secrets: secrets ?? memorySecrets(),
+        // The memory repos' one queue, shared with the mod, which is bundled apart and would otherwise make its own (plan 046).
+        memory: memoryRepos,
         // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
         daemon: devReload,
         usage: {
