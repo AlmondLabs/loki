@@ -821,6 +821,24 @@ export default function activate(api: ModApi, host: Host): () => void {
     broadcast,
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
+    // chat_list and the suggestion tools (plan 047, U3): every list's chats, and each agent with the Mac it lives on.
+    chats: suggestions
+      ? {
+          suggestions,
+          agents: async () =>
+            (await chatBackend.agents()).map((a) => {
+              const home = a.home_mac && a.home_mac !== macId ? a.home_mac : null;
+              return {
+                id: a.id,
+                name: a.name,
+                mac: home ? (peerStore.get(home)?.name ?? "another Mac") : thisMacName,
+                reachable: home ? links.reachable(home) : true,
+              };
+            }),
+          chats: listDesks,
+          passChat,
+        }
+      : undefined,
   });
 
   // --- lifecycle -------------------------------------------------------

@@ -30,6 +30,8 @@ describe("the permission modes", () => {
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
+    // A suggestion is already the person's decision (plan 047, KTD4): finding chats and suggesting never ask, strict included.
+    for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]) expect(asks("strict", name, {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });
 });

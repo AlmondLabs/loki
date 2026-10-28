@@ -116,6 +116,26 @@ widget's frame and in `error`.
 - Write only inside the widgets directory. The loki repo itself is the easel,
   not the painting.
 
+## Work for another chat: suggestions (`chat_list`, `suggestion_*`)
+
+When a piece of work, a side finding or part of the current task, would be done
+better in another chat (a themed chat it belongs to, another agent, or a new chat
+running in parallel), suggest a message for that chat. Never suggest work you can
+do in this chat. The person sends it, saves it as a draft there, or rejects it;
+you never send it yourself, and no suggestion asks for approval.
+
+```
+chat_list { filter? }                  agents with their Mac, and open chats one line each (purpose, folder, labels, this chat)
+suggestion_create { title, text, target }   → "suggested sugg-…"; target { agent_id, conversation_id } or { agent_id, folder }
+suggestion_list {}                     this chat's suggestions: status and the chat each now points at
+suggestion_withdraw { id }             take back one the person has not acted on
+```
+
+- Call `chat_list` first to pick the target, and `suggestion_list` to avoid a repeat.
+- One piece of work per suggestion. The text stands alone, as if the person typed
+  it there: what to do and why, with absolute paths.
+- Name the suggestion in one line of your reply.
+
 ## Tasks for later: the board (`task_*`)
 
 The user keeps a board of tasks for later (beads, one board shared by every agent
