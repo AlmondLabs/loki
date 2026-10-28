@@ -154,6 +154,7 @@ async function migrateChats(d: AgentMigrationDeps, agentId: string): Promise<voi
   const index = await store.harness.snapshot(ChatIndex, d.context);
   const learn = learnChats(d.learnWorkerFile);
   let moved = 0;
+  // One chat at a time, on purpose: each may commit to the store, and one store's commits go in order.
   for (const [chatId, conversationId] of Object.entries(index?.chats ?? {})) {
     const info = await store.chatInfo(conversationId as ConversationId, d.context);
     if (info?.engine?.kind === "acp") continue;

@@ -190,6 +190,7 @@ export function markStoreVersion(file: string): void {
 export async function acpConversations(store: AgentStore, context: Context): Promise<Set<number>> {
   const index = await store.harness.snapshot(ChatIndex, context);
   const out = new Set<number>();
+  // One at a time: every read is the same SQLite store's, which node:sqlite answers synchronously; together saves nothing.
   for (const conversationId of Object.values(index?.chats ?? {})) {
     const info = await store.chatInfo(conversationId as ConversationId, context);
     if (info?.engine?.kind === "acp") out.add(conversationId);
