@@ -863,6 +863,8 @@ export interface PaneHeaderProps<T extends string = string> {
   lead?: ReactNode;
   /** A quiet line beside the title: the agent and its live state. */
   aside?: ReactNode;
+  /** A quiet line under the title, such as the chat's purpose; omitted, there is none. */
+  subtitle?: ReactNode;
   /** On the right: the pane's actions (IconButtons, a menu). */
   actions?: ReactNode;
   /** The tab row under the line; omitted, the header is one line. */
@@ -877,7 +879,19 @@ export interface PaneHeaderProps<T extends string = string> {
 }
 
 /** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
-export function PaneHeader<T extends string>({ title, lead, aside, actions, tabs, tab, onTab, tabsLabel = "Views", panelId, titleId }: PaneHeaderProps<T>) {
+export function PaneHeader<T extends string>({
+  title,
+  lead,
+  aside,
+  subtitle,
+  actions,
+  tabs,
+  tab,
+  onTab,
+  tabsLabel = "Views",
+  panelId,
+  titleId,
+}: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
       {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
@@ -889,6 +903,7 @@ export function PaneHeader<T extends string>({ title, lead, aside, actions, tabs
         {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
         {actions && <span className="loki-pane-header-actions">{actions}</span>}
       </div>
+      {subtitle && <div className="loki-pane-header-subtitle">{subtitle}</div>}
       {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
     </header>
   );

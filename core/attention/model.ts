@@ -4,6 +4,7 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
+import type { Suggestion } from "../frame-types.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
@@ -49,6 +50,8 @@ export interface ConversationInfo {
   purpose?: string | null;
   /** A suggestion saved as a draft waits in the chat's message box (plan 047, R9). */
   has_draft?: boolean;
+  /** The saved draft's text, which seeds the chat's message box when it is empty (plan 047, KTD7); null or absent, none. */
+  draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
 }
@@ -99,6 +102,8 @@ export interface Live {
   cwd?: string;
   /** The ACP agent the chat runs on, with its modes and commands (plan 020); absent on loki's own engine. */
   engine?: ChatEngineView | null;
+  /** The suggestions made in this chat that wait on the person or are being sent (plan 047), for its chat screen. */
+  suggestions: Suggestion[];
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -173,6 +178,7 @@ export function emptyLive(): Live {
     turns: 0,
     inTurn: false,
     queued: [],
+    suggestions: [],
   };
   return l;
 }
@@ -202,6 +208,7 @@ export function faceOf(l: Live): readonly unknown[] {
     l.mode,
     l.cwd,
     l.engine,
+    l.suggestions,
     l.thread.streaming,
   ];
 }
@@ -261,7 +268,9 @@ export type ChatEvent =
   /** The answer in flight as written so far, for a client that starts listening mid-answer: the stream starts from it. */
   | { kind: "streaming"; text: string; at: string | null }
   /** The turn ended. */
-  | { kind: "turn_end"; turn_id?: string };
+  | { kind: "turn_end"; turn_id?: string }
+  /** The chat's open suggestions (plan 047), whole, on every change to any of them: the screen shows exactly these. */
+  | { kind: "suggestions"; suggestions: Suggestion[] };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
@@ -340,6 +349,9 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed: true, userSpoke: false };
     case "streaming":
       return { changed: l.thread.resume(e.text, e.at), userSpoke: false };
+    case "suggestions":
+      l.suggestions = e.suggestions;
+      return { changed: true, userSpoke: false };
     case "turn_end":
       if (e.turn_id) l.turnId = e.turn_id;
       l.thread.settle(now);

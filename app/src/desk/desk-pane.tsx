@@ -100,7 +100,10 @@ export function DeskPane(props: DeskPaneProps) {
 
   // The chat's labels (plan 022): chips in the header, and the labels… picker from "+ label" or `/label`.
   const [labeling, setLabeling] = useState(false);
-  const chatLabels = desk.desks.list.find((d) => d.scope === scope)?.labels ?? [];
+  const row = desk.desks.list.find((d) => d.scope === scope);
+  const chatLabels = row?.labels ?? [];
+  // The person's one line on what the chat is for (plan 047, R11), under its name.
+  const purpose = row?.purpose ?? null;
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
   // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.
   const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined }, undefined);
@@ -135,6 +138,7 @@ export function DeskPane(props: DeskPaneProps) {
     <div className="loki-desk-pane" ref={paneRef}>
       <PaneHeader
         title={name}
+        subtitle={purpose}
         lead={<Icon name="desk" size={18} />}
         aside={
           <span className="loki-desk-pane-agent">

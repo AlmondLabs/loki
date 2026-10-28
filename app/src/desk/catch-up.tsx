@@ -9,6 +9,7 @@ import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
+import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
@@ -285,6 +286,9 @@ function Card({
   // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
+  // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
+  // draft for this chat (plan 047) shows in the box while nothing is typed.
+  const [draft, setDraft] = useDraft(draftKey(agentId, id));
   return (
     <div
       style={{
@@ -335,6 +339,7 @@ function Card({
           <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
         }
         hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
+        draft={{ value: draft, onChange: setDraft }}
         inputRef={replyRef}
         onTyping={setTyping}
         onEscapeEmpty={deck.onClose} // esc: keep a draft and hand keys back, or close an untouched deck

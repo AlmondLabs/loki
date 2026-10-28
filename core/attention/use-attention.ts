@@ -195,6 +195,63 @@ export function useThreadRows(
   return useSyncExternalStore(chats.watchThreads, read, read);
 }
 
+/** The saved draft's text on an Inbox row (plan 047, KTD7), which the mod sends as `draft_text`; null when it has none. */
+function draftTextOf(c: ConversationInfo): string | null {
+  return (c.has_draft === true && c.draft_text) || null;
+}
+
+/**
+ * The suggestions saved as drafts, by chat (plan 047, KTD7): the text each chat's message box shows while nothing is
+ * typed in it, as the Inbox list last had it. useAttention keeps it; the app's message-box drafts read it beneath
+ * what is typed (app/src/shared/drafts.ts) and say when a box that held one was emptied. Typing never reaches it.
+ */
+export function createSavedDrafts() {
+  let texts = new Map<string, string>();
+  const subs = new Set<() => void>();
+  let emptiedOnDaemon: (agentId: string, conversationId: string) => void = () => {};
+  const emit = () => subs.forEach((fn) => fn());
+  const drop = (agentId: string, conversationId: string): boolean => {
+    const key = keyOf(agentId, conversationId);
+    if (!texts.has(key)) return false;
+    texts = new Map(texts);
+    texts.delete(key);
+    emit();
+    return true;
+  };
+  return {
+    /** The chat's saved draft, or null. */
+    text: (agentId: string, conversationId: string): string | null => texts.get(keyOf(agentId, conversationId)) ?? null,
+    /** The saved drafts as the list now has them, by `keyOf`; readers are told only when something changed. */
+    replace(next: ReadonlyMap<string, string>) {
+      if (next.size === texts.size && [...next].every(([k, t]) => texts.get(k) === t)) return;
+      texts = new Map(next);
+      emit();
+    },
+    /** The chat sent: its draft is spent here at once (the daemon clears its own on the send). */
+    drop,
+    /** A box that held the draft was emptied: it goes here at once, and from the chat on the daemon. */
+    emptied(agentId: string, conversationId: string) {
+      if (drop(agentId, conversationId)) emptiedOnDaemon(agentId, conversationId);
+    },
+    /** What emptying does on the daemon (useAttention's), until the returned call takes it back. */
+    onEmptied(fn: (agentId: string, conversationId: string) => void): () => void {
+      emptiedOnDaemon = fn;
+      return () => {
+        if (emptiedOnDaemon === fn) emptiedOnDaemon = () => {};
+      };
+    },
+    subscribe(fn: () => void): () => void {
+      subs.add(fn);
+      return () => subs.delete(fn);
+    },
+  };
+}
+/** A saved-drafts registry, as `createSavedDrafts` returns it. */
+export type SavedDrafts = ReturnType<typeof createSavedDrafts>;
+
+/** The client's saved drafts: one useAttention runs per page, the shell's or the phone's. */
+export const savedDrafts = createSavedDrafts();
+
 /** A flag map without `key`. */
 const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
   Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
@@ -717,6 +774,31 @@ export function useAttention(opts: UseAttentionOptions) {
     [bump],
   );
 
+  /** The chat holds no saved draft any more: its Inbox mark goes without waiting for the list. */
+  const noDraft = useCallback((agentId: string, conversationId: string) => {
+    setConversations((c) => c.map((x) => (x.agent_id === agentId && x.id === conversationId && x.has_draft ? { ...x, has_draft: false } : x)));
+  }, []);
+  // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
+  const savedTexts = useMemo(
+    () =>
+      new Map(
+        conversations.flatMap((c): Array<[string, string]> => {
+          const text = draftTextOf(c);
+          return text ? [[keyOf(c.agent_id, c.id), text]] : [];
+        }),
+      ),
+    [conversations],
+  );
+  useEffect(() => savedDrafts.replace(savedTexts), [savedTexts]);
+  useEffect(
+    () =>
+      savedDrafts.onEmptied((agentId, conversationId) => {
+        noDraft(agentId, conversationId);
+        void socketRef.current?.updateConversation(conversationId, { draft: null }).catch((err: unknown) => console.warn("loki: clear saved draft", err));
+      }),
+    [noDraft],
+  );
+
   /**
    * Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. During a
    * turn it joins the turn, or on an agent waits for its end (sendMode).
@@ -736,6 +818,8 @@ export function useAttention(opts: UseAttentionOptions) {
         queued: l.inTurn,
       });
       optsRef.current.sent?.(rt);
+      // The chat's next send spends its saved draft (plan 047, KTD7): the box and the Inbox mark lose it now.
+      if (savedDrafts.drop(rt.agent_id, rt.conversation_id)) noDraft(rt.agent_id, rt.conversation_id);
       const mode = sendMode(l);
       // Mid-turn on an agent: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
       if (mode === "queue") {
@@ -753,7 +837,7 @@ export function useAttention(opts: UseAttentionOptions) {
         .catch((err: unknown) => console.warn("loki: send", err));
       optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     },
-    [subscribe, bump, liveOf],
+    [subscribe, bump, liveOf, noDraft],
   );
   /** Take back a message typed mid-turn before it went out. */
   const cancelQueued = useCallback(
@@ -1113,6 +1197,22 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
+  /**
+   * Give a chat its one-line purpose (plan 047, R11), or clear it with an empty one; resolves to an error message or
+   * null. The Inbox list has it at once, so the header shows it before the list is read again.
+   */
+  const setPurpose = useCallback(async (rt: Runtime, purpose: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to loki's daemon";
+    const line = purpose.replace(/\s+/g, " ").trim() || null;
+    try {
+      await sock.updateConversation(rt.conversation_id, { purpose: line });
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+    setConversations((c) => c.map((x) => (x.agent_id === rt.agent_id && x.id === rt.conversation_id ? { ...x, purpose: line } : x)));
+    return null;
+  }, []);
   /** Stop a conversation's turn (the composer's stop button); resolves to an error message or null. */
   const stop = useCallback(async (rt: Runtime): Promise<string | null> => {
     const sock = socketRef.current;
@@ -1216,6 +1316,7 @@ export function useAttention(opts: UseAttentionOptions) {
     changeFolder,
     archiveConversation,
     renameConversation,
+    setPurpose,
     createDesk,
     items,
     loadHistory,

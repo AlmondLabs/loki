@@ -272,6 +272,7 @@ export class ChatProjection implements ChatSource {
       labels: chat.info?.labels ?? [],
       purpose: chat.info?.purpose ?? null,
       hasDraft: !!chat.info?.draft,
+      draftText: chat.info?.draft?.text ?? null,
       cwd: chat.settings.cwd ?? null,
     };
   }

@@ -147,6 +147,8 @@ export interface InboxRow extends LocalDigest, ChatHome {
   purpose?: string | null;
   /** A suggestion saved as a draft waits in the chat's message box (plan 047, R9): the card says so. */
   has_draft?: boolean;
+  /** That draft's text, which fills the chat's message box when it opens empty (plan 047, KTD7); null when none. */
+  draft_text?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;
 }

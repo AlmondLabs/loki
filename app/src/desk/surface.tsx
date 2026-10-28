@@ -259,11 +259,13 @@ function DeskChat({
   draft,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
   const { title, agentName, agentId, conversationId } = desk;
+  const purpose = desk.desks.list.find((d) => d.scope === desk.scope)?.purpose ?? null;
   const rows = useThreadRows(catchUp, agentId, conversationId);
   const { view, actions } = deskConversation(desk, catchUp, chat, { onLoadModels, onPickModel, onPickMode }, rows);
   return (
     <ChatWindow
       title={title}
+      purpose={purpose}
       agentName={agentName}
       agentId={agentId}
       view={view}

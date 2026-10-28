@@ -38,6 +38,8 @@ function openAttention(item: AttentionItem) {
 export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
 /** Rename a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
+/** Give a desk's chat its purpose line (plan 047, R11), an empty one clearing it; resolves to an error, or null when done. */
+export type SetDeskPurpose = (d: DeskSummary, purpose: string) => Promise<string | null>;
 
 /** What the presence dot and its name say about the paired Mac. */
 const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecting: "connecting to the Mac", offline: "Mac unreachable" };
@@ -65,6 +67,7 @@ export function Home({
   onPin,
   onArchive,
   onRename,
+  onPurpose = null,
   recentFolders,
   onCreate,
   homes,
@@ -91,6 +94,8 @@ export function Home({
   /** Null while the daemon cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
+  /** Null while the daemon cannot take it; the Rename sheet then has no purpose field. */
+  onPurpose?: SetDeskPurpose | null;
   /** `folders_get`: the folders each agent worked in, most recent first. */
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   /** A new conversation through the daemon; resolves to its runtime. */
@@ -155,7 +160,7 @@ export function Home({
         <HomeMenu query={query} labelList={labelList} onQuery={setQuery} onRefresh={() => (onRefresh(), setSheet(null))} onClose={() => setSheet(null)} />
       )}
       {sheet === "new" && <NewSheet agents={chips} defaultAgentId={null} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(null)} />}
-      {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onRename={onRename} onClose={() => setActing(null)} />}
+      {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onRename={onRename} onPurpose={onPurpose} onClose={() => setActing(null)} />}
     </div>
   );
 }
@@ -202,12 +207,14 @@ function ActingDesk({
   onPin,
   onArchive,
   onRename,
+  onPurpose,
   onClose,
 }: {
   desk: DeskSummary;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
+  onPurpose: SetDeskPurpose | null;
   onClose: () => void;
 }) {
   const { agent_id: agentId, conversation_id: conversationId } = desk;
@@ -219,6 +226,7 @@ function ActingDesk({
       onPin={pin}
       onArchive={onArchive ? (archived) => onArchive(desk, archived) : null}
       onRename={onRename ? (name) => onRename(desk, name) : null}
+      onPurpose={onPurpose ? (purpose) => onPurpose(desk, purpose) : null}
     />
   );
 }
@@ -519,12 +527,15 @@ export function DeskActions({
   onPin,
   onArchive,
   onRename,
+  onPurpose = null,
 }: {
   desk: DeskSummary;
   onClose: () => void;
   onPin: ((pinned: boolean) => void) | null;
   onArchive: ((archived: boolean) => Promise<string | null>) | null;
   onRename: ((name: string) => Promise<string | null>) | null;
+  /** Save the chat's purpose line; null or left out, the Rename sheet has no purpose field. */
+  onPurpose?: ((purpose: string) => Promise<string | null>) | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -544,7 +555,8 @@ export function DeskActions({
     if (err) setError(err);
     else onClose();
   };
-  if (renaming && onRename) return <RenameSheet name={d.title ?? ""} onRename={onRename} onClose={onClose} />;
+  if (renaming && onRename)
+    return <RenameSheet name={d.title ?? ""} onRename={onRename} onClose={onClose} purpose={d.purpose} onPurpose={onPurpose ?? undefined} />;
   return (
     <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-head">

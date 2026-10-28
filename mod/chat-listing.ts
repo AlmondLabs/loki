@@ -133,6 +133,7 @@ export class ChatListing {
         labels: info?.labels ?? [],
         purpose: info?.purpose ?? null,
         has_draft: info?.hasDraft ?? false,
+        draft_text: info?.draftText ?? null,
         cwd: info?.cwd ?? null,
         ...chats.digest(c.conversationId, c.agentId),
       });

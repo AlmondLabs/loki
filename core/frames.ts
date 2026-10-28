@@ -33,6 +33,8 @@ import type {
   ReflectionState,
   RefreshOutcome,
   SavedDraft,
+  Suggestion,
+  SuggestionTarget,
   Task,
 } from "./frame-types.ts";
 import { parseTaskSource } from "./task-source.ts";
@@ -145,6 +147,26 @@ const savedDraft = (v: unknown): SavedDraft | null => {
   if (!str(d.text) || !d.text || !str(d.suggestion_id) || !isAgentId(source.agent_id) || !str(source.conversation_id) || !source.conversation_id) return null;
   return { text: d.text, suggestion_id: d.suggestion_id, source: { agent_id: source.agent_id, conversation_id: source.conversation_id } };
 };
+/**
+ * Where a suggestion's message goes, as a frame or an agent's tool names it (plan 047): an existing chat, or an agent
+ * and a folder for a new one; null when it is neither. Other fields are left behind.
+ */
+export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
+  const t = typeof v === "object" && v !== null ? (v as Raw) : {};
+  if (!isAgentId(t.agent_id)) return null;
+  if (str(t.conversation_id) && t.conversation_id) return { agent_id: t.agent_id, conversation_id: t.conversation_id };
+  if (str(t.folder) && t.folder) return { agent_id: t.agent_id, folder: t.folder };
+  return null;
+}
+/** What the person does with a suggestion: send it now, save it as a draft in its chat's box, or reject it. */
+export type SuggestionAction = "send" | "draft" | "reject";
+const SUGGESTION_ACTIONS: readonly string[] = ["send", "draft", "reject"] satisfies SuggestionAction[];
+/** One suggestion of the chat a frame names; the suggestion's own id, since `request_id` is the frame's. */
+const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; suggestion_id: string } | string => {
+  const c = chatRef(m);
+  if (typeof c === "string") return c;
+  return str(m.suggestion_id) && m.suggestion_id ? { ...c, suggestion_id: m.suggestion_id } : "suggestion_id required";
+};
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
@@ -241,6 +263,11 @@ export interface Replies {
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
+  /**
+   * A suggestion as it stands after an action (plan 047): `done` when the action took, else `message` says why not,
+   * among them what already happened to it and from where (R17).
+   */
+  suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -258,6 +285,8 @@ export interface ChatState {
   streaming?: { text: string; at: string | null } | null;
   /** The ACP agent the chat runs on (plan 020); null or absent on loki's own engine. */
   engine?: ChatEngineView | null;
+  /** The suggestions made in the chat that wait on the person or are being sent (plan 047); absent from a mod that predates them. */
+  suggestions?: Suggestion[];
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
@@ -585,6 +614,30 @@ export const FRAMES = {
     BY_CHAT,
   ),
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
+  // Suggestions (plan 047), carried out by the Mac the chat they were made in lives on (KTD2).
+  suggestion_decide: request(
+    "suggestion_decided",
+    "send a suggestion made in this chat, save it as a draft in its target's box, or reject it; the first action wins",
+    (m) => {
+      const r = suggestionRef(m);
+      if (typeof r === "string") return r;
+      return str(m.action) && SUGGESTION_ACTIONS.includes(m.action) ? { ...r, action: m.action as SuggestionAction } : "action must be send, draft or reject";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  suggestion_retarget: request(
+    "suggestion_decided",
+    "point a pending suggestion made in this chat at another chat, or at a new chat of an agent in a folder",
+    (m) => {
+      const r = suggestionRef(m);
+      if (typeof r === "string") return r;
+      const target = parseSuggestionTarget(m.target);
+      return target ? { ...r, target } : "target needs agent_id and a conversation_id or a folder";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
   chat_update: request(
     "chat_done",
     "rename, archive or hide a chat, or set its labels, purpose line or saved draft",

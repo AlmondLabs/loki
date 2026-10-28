@@ -1000,6 +1000,14 @@ button.loki-list-section-toggle {
 .loki-pane-header-aside {
   min-width: 0;
 }
+.loki-pane-header-subtitle {
+  padding: 0 12px 8px 20px;
+  font-size: 12px;
+  color: var(--loki-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .loki-pane-header-actions {
   display: flex;
   align-items: center;

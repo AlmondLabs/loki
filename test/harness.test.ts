@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup } from "../core/harness.ts";
+import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup, suggestedMark, suggestedOf } from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>aws sso login</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>`;
@@ -60,6 +60,21 @@ describe("a chat's move mark (plan 023, addendum A5)", () => {
     const mark = movedMark("Deepak's MacBook", 'Mac "mini"');
     expect(extractHarnessEvents(mark)).toEqual([{ text: 'moved to Mac "mini"', summary: "came over from Deepak's MacBook", detail: null }]);
     expect(stripHarnessMarkup(mark).trim()).toBe("");
+  });
+});
+
+describe("a sent suggestion's link back (plan 047, KTD6)", () => {
+  const mark = suggestedMark({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
+
+  test("is stripped from the person's words and read back as the chat it came from, for the transcript's chip", () => {
+    const text = `${mark}\n<system-reminder>The person sent this from a suggestion.</system-reminder>\n\nThe lock test sleeps.`;
+    expect(stripHarnessMarkup(text).trim()).toBe("The lock test sleeps.");
+    expect(suggestedOf(text)).toEqual({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
+    expect(extractHarnessEvents(text)).toEqual([{ text: "suggested in another chat", summary: 'Fix the "lock" test', detail: null }]);
+  });
+
+  test("a message with no mark has none", () => {
+    expect(suggestedOf("hello")).toBeNull();
   });
 });
 

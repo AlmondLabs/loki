@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { fauxProvider } from "@earendil-works/pi-ai/providers/faux";
+import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import { FRAMES, type PayloadOf } from "../core/frames.ts";
+import type { ChatEvent } from "../core/attention/model.ts";
 import type { SavedDraft, Suggestion } from "../core/frame-types.ts";
 import { Approvals } from "../daemon/approvals.ts";
 import { DaemonChats } from "../daemon/chat-backend.ts";
@@ -33,7 +34,8 @@ const draft: SavedDraft = { text: "look at the flaky upload test", suggestion_id
 async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "loki-purpose-"));
   const models = createModels();
-  models.setProvider(fauxProvider().provider);
+  const faux = fauxProvider();
+  models.setProvider(faux.provider);
   const mods = new ModRegistry(() => {});
   const stores = new StoreManager(
     join(dir, "stores"),
@@ -52,11 +54,13 @@ async function setup() {
     backendDir,
     context: ctx,
   });
+  const pushed: ChatEvent[] = [];
+  chats.attach((_agentId, _conversationId, events) => pushed.push(...events));
   cleanups.push(async () => {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });
   });
-  const ada = (await chats.createAgent({ name: "Ada", description: null, persona: null, model: null })).id;
+  const ada = (await chats.createAgent({ name: "Ada", description: null, persona: null, model: `${faux.provider.id}/${faux.getModel().id}` })).id;
   mkdirSync(join(backendDir, "memfs", ada), { recursive: true });
   const projection = new ChatProjection(ctx, () => "Ada");
   await projection.attach(ada, await stores.get(ada));
@@ -75,7 +79,7 @@ async function setup() {
     chats.update({ agent_id: ada, conversation_id: conversationId, title: undefined, archived: undefined, hidden: undefined, labels: undefined, ...change });
   const row = (conversationId: string) => listing.inbox().find((r) => r.id === conversationId);
   const desk = (conversationId: string) => listing.desks().find((d) => d.conversation_id === conversationId);
-  return { chats, stores, ada, projection, update, row, desk };
+  return { chats, stores, ada, projection, update, row, desk, faux, pushed };
 }
 
 describe("a chat's purpose line and saved draft (plan 047, U1)", () => {
@@ -103,6 +107,28 @@ describe("a chat's purpose line and saved draft (plan 047, U1)", () => {
     expect(info?.draft).toEqual(draft);
     await s.update(id, parsed(FRAMES.chat_update.parse({ agent_id: s.ada, conversation_id: id, draft: null })));
     expect(s.row(id)?.has_draft).toBe(false);
+  });
+
+  test("the Inbox row carries the saved draft's text, so the chat's empty box can show it on any client", async () => {
+    const s = await setup();
+    const id = (await s.chats.create(s.ada, null, null)).conversationId;
+    expect(s.row(id)?.draft_text).toBeNull();
+    await s.update(id, { draft });
+    expect(s.row(id)?.draft_text).toBe("look at the flaky upload test");
+  });
+
+  test("the chat's next send clears its saved draft and the Inbox mark", async () => {
+    const s = await setup();
+    const id = (await s.chats.create(s.ada, null, null)).conversationId;
+    await s.update(id, { draft });
+    await s.chats.open(s.ada, id);
+    s.faux.setResponses([() => fauxAssistantMessage("On it.")]);
+    await s.chats.send({ agent_id: s.ada, conversation_id: id, text: draft.text, images: [], send_id: "s1", context: null });
+    const info = (await (await s.stores.get(s.ada)).chats(ctx)).find((c) => c.id === id);
+    expect(info?.draft).toBeNull();
+    expect(s.row(id)).toMatchObject({ has_draft: false, draft_text: null });
+    // The turn ends before the store closes.
+    await until(() => s.pushed.some((e) => e.kind === "turn_end"));
   });
 
   test("the rows carry the chat's folder, for agents choosing where work goes", async () => {
@@ -159,6 +185,15 @@ describe("chat_update's purpose and draft at the frame edge", () => {
     expect(FRAMES.chat_update.parse({ ...ref, draft: { ...draft, text: "" } })).toBe("draft needs text, suggestion_id and source");
   });
 });
+
+/** Wait for a condition, failing after a deadline rather than sleeping a fixed time. */
+async function until(check: () => boolean, ms = 5000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error("timed out waiting");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
 
 /** A parsed frame, or the test fails with the frame's complaint. */
 function parsed<T>(frame: T | string): T {

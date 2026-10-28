@@ -407,15 +407,21 @@ export function composerPlaceholder(view: Pick<ConversationView, "status" | "app
     : `message ${who}… it goes when this turn ends`;
 }
 
-/** The title, then the agent's face and name with whatever else the host says about the conversation; `right` sits at the end of the row. */
+/**
+ * The title, the chat's purpose line under it when it has one, then the agent's face and name with whatever else the
+ * host says about the conversation; `right` sits at the end of the row.
+ */
 export function ConversationHeader({
   title,
+  purpose,
   agentName,
   agentId,
   children,
   right,
 }: {
   title: ReactNode;
+  /** The person's one line on what the chat is for (plan 047, R11). */
+  purpose?: string | null;
   agentName: string | null | undefined;
   agentId: string | null | undefined;
   children?: ReactNode;
@@ -435,6 +441,11 @@ export function ConversationHeader({
     >
       <div style={{ minWidth: 0 }}>
         <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+        {purpose && (
+          <div className="loki-chat-purpose" title={purpose}>
+            {purpose}
+          </div>
+        )}
         <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
           <AgentChip name={agentName} />

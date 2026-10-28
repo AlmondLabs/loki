@@ -27,7 +27,7 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, Add task's (read the list, file one), the usage page's read, and the labels' list", () => {
+  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, Add task's (read the list, file one), the usage page's read, the labels' list, and the decisions on a suggestion", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
         "chat_open",
@@ -74,6 +74,8 @@ describe("the frame table", () => {
         "desk_get",
         "tasks_list",
         "task_create",
+        "suggestion_decide",
+        "suggestion_retarget",
       ].sort(),
     );
   });
@@ -339,6 +341,8 @@ describe("every frame in the table, through the real router", () => {
     lan_via_set: { via: "lan" },
     peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
     peer_forget: { mac_id: "mac-2" },
+    suggestion_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", action: "reject" },
+    suggestion_retarget: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", target: { agent_id: "agent-local-a", folder: "/w" } },
   };
 
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
@@ -415,6 +419,31 @@ describe("a parser that throws", () => {
   });
 });
 
+describe("frames: suggestions (plan 047)", () => {
+  const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) =>
+    (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
+  const chat = { agent_id: "agent-local-a", conversation_id: "c" };
+
+  test("a decision is send, draft or reject on one suggestion of the chat it names", () => {
+    expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "draft" })).toEqual({ ...chat, suggestion_id: "sugg-1", action: "draft" });
+    expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "archive" })).toBe("action must be send, draft or reject");
+    expect(parse("suggestion_decide", { ...chat, action: "send" })).toBe("suggestion_id required");
+  });
+
+  test("a re-point names an existing chat, or an agent and a folder for a new one", () => {
+    const existing = { agent_id: "agent-local-b", conversation_id: "conv-2" };
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: existing })).toEqual({ ...chat, suggestion_id: "s", target: existing });
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: { agent_id: "agent-local-b", folder: "/w", extra: 1 } })).toEqual({
+      ...chat,
+      suggestion_id: "s",
+      target: { agent_id: "agent-local-b", folder: "/w" },
+    });
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: { agent_id: "agent-local-b" } })).toBe(
+      "target needs agent_id and a conversation_id or a folder",
+    );
+  });
+});
+
 describe("frames: approvals and MCP settings", () => {
   const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) =>
     (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
@@ -487,6 +516,8 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_update",
       "history_get",
       "history_step_get",
+      "suggestion_decide",
+      "suggestion_retarget",
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual(["chat_requirements", "folder_check", "folder_complete", "folders_get"]);

@@ -7,6 +7,7 @@ import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
+import { savePurpose } from "../desk/rename-desk";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
 import { ConversationScreen, type Thread } from "./conversation-screen";
@@ -507,7 +508,17 @@ function ConversationPage({
       prefill={prefill}
       pinned={convDesk?.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
-      rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
+      purpose={convDesk?.purpose ?? item?.purpose ?? null}
+      rename={
+        convDesk && canRename(convDesk)
+          ? {
+              name: convDesk.title ?? "",
+              onRename: onRename ? (name) => onRename(convDesk, name) : null,
+              // The purpose line goes through the daemon too, so it waits on what rename waits on.
+              onPurpose: onRename ? (purpose) => savePurpose(desk, catchUp)(convDesk, purpose) : null,
+            }
+          : null
+      }
       labels={
         convDesk?.status !== "deleted"
           ? {
@@ -643,6 +654,7 @@ function Screen({
         onPin={desk.desks.pin}
         onArchive={onArchive}
         onRename={onRename}
+        onPurpose={attention.available && catchUp.status === "open" ? savePurpose(desk, catchUp) : null}
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
         homes={homesOf(desk.macs.view, catchUp.agents)}

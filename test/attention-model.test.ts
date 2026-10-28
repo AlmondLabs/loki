@@ -283,3 +283,25 @@ describe("a reply that only reads like a question", () => {
     expect(buildItems(conv, digest, new Map(), {}, Date.parse(at), { [keyOf("a", "c")]: "2026-10-19T08:00:00Z" })[0].status).toBe("question");
   });
 });
+
+describe("a chat's open suggestions (plan 047)", () => {
+  const suggestion = {
+    id: "sugg-1",
+    title: "t",
+    text: "x",
+    target: { agent_id: "a", folder: "/w" },
+    status: "pending" as const,
+    created_at: "2026-10-29T10:00:00Z",
+  };
+
+  test("are folded into the chat's live state, which the list and chat box compare", () => {
+    const l = emptyLive();
+    expect(l.suggestions).toEqual([]);
+    const before = faceOf(l);
+    expect(applyChatEvent(l, { kind: "suggestions", suggestions: [suggestion] })).toEqual({ changed: true, userSpoke: false });
+    expect(l.suggestions).toEqual([suggestion]);
+    expect(faceOf(l)).not.toEqual(before);
+    expect(applyChatEvent(l, { kind: "suggestions", suggestions: [] }).changed).toBe(true);
+    expect(l.suggestions).toEqual([]);
+  });
+});

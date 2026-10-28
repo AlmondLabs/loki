@@ -1,5 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
-import type { InputOf, ReplyOf, RequestName, RequestResult } from "../frames.ts";
+import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
+import type { SuggestionTarget } from "../frame-types.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, Runtime, ServerEvent } from "./protocol.ts";
@@ -176,6 +177,8 @@ export class FrameChatClient {
       },
       // Opened mid-answer: what was written before this socket listened, so the reply shows from its first word.
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
+      // The suggestions waiting in it (plan 047): a client opening late sees them as one that was listening does.
+      ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -220,6 +223,9 @@ export class FrameChatClient {
       ...(typeof body.summary === "string" || body.summary === null ? { title: body.summary } : {}),
       ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
       ...(typeof body.hidden === "boolean" ? { hidden: body.hidden } : {}),
+      ...(typeof body.purpose === "string" || body.purpose === null ? { purpose: body.purpose } : {}),
+      // The app only ever clears a saved draft (an emptied box); saving one is the suggestion's own action (plan 047, KTD7).
+      ...(body.draft === null ? { draft: null } : {}),
     });
   }
 
@@ -354,6 +360,16 @@ export class FrameChatClient {
     set: (engine: InputOf<"chat_engine_set">) => this.call("chat_engine_set", engine),
     remove: (id: string) => this.call("chat_engine_remove", { id }),
     check: (id: string) => this.call("chat_engine_check", { id }),
+  };
+  /**
+   * The person's actions on a suggestion made in a chat (plan 047), carried out by the Mac that chat lives on: each
+   * answers with the suggestion as it then stands, and whether the action took or why not.
+   */
+  readonly suggestions = {
+    decide: (rt: Runtime, suggestionId: string, action: SuggestionAction) =>
+      this.call("suggestion_decide", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, action }),
+    retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) =>
+      this.call("suggestion_retarget", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, target }),
   };
   /** Settings › MCP and Agents › Profile: each call answers with the servers as they now are. */
   readonly mcp = {

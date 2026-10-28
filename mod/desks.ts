@@ -142,6 +142,8 @@ export interface LocalConversationInfo {
   purpose: string | null;
   /** A suggestion saved as a draft waits in the chat's message box (plan 047). */
   hasDraft: boolean;
+  /** That draft's text, which fills the chat's empty message box when it opens (plan 047, KTD7); null when none. */
+  draftText?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd: string | null;
 }

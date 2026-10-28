@@ -754,7 +754,7 @@ function Stack({
  * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
  * the ones behind are its frame and head under a veil, and the one flying off is inert.
  */
-function Card({
+export function Card({
   item,
   role,
   refused = false,
@@ -805,6 +805,12 @@ function Card({
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
+          {item.has_draft && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="loki-phone-card-draft">Draft</span>
+            </>
+          )}
         </span>
         {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
       </header>

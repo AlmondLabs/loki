@@ -82,6 +82,7 @@ export function ConversationScreen({
   pinned = null,
   onPin,
   rename = null,
+  purpose = null,
   archive = null,
   labels = null,
   folder = null,
@@ -122,7 +123,14 @@ export function ConversationScreen({
   pinned?: boolean | null;
   onPin?: (pinned: boolean) => void;
   /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the daemon cannot take it. */
-  rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
+  rename?: {
+    name: string;
+    onRename: ((name: string) => Promise<string | null>) | null;
+    /** Save the purpose line too (plan 047, R11); null or left out, the Rename sheet has no purpose field. */
+    onPurpose?: ((purpose: string) => Promise<string | null>) | null;
+  } | null;
+  /** The person's one line on what the chat is for (plan 047, R11), shown in the header under its name. */
+  purpose?: string | null;
   /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
   /** The chat's labels (plan 022), their colours and saving them; `onChange` null while the daemon cannot take it. */
@@ -192,7 +200,15 @@ export function ConversationScreen({
 
   return (
     <>
-      <ThreadHeader thread={thread} view={view} waiting={waiting} backLabel={backLabel} onBack={onBack} onActions={() => setActionsOpen(true)} />
+      <ThreadHeader
+        thread={thread}
+        view={view}
+        waiting={waiting}
+        purpose={purpose}
+        backLabel={backLabel}
+        onBack={onBack}
+        onActions={() => setActionsOpen(true)}
+      />
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
@@ -287,7 +303,15 @@ export function ConversationScreen({
         </Sheet>
       )}
       {moving && folder && <FolderSheet load={folder.load} onMove={folder.onMove} onClose={() => setMoving(false)} />}
-      {renaming && rename?.onRename && <RenameSheet name={rename.name} onRename={rename.onRename} onClose={() => setRenaming(false)} />}
+      {renaming && rename?.onRename && (
+        <RenameSheet
+          name={rename.name}
+          onRename={rename.onRename}
+          onClose={() => setRenaming(false)}
+          purpose={purpose}
+          onPurpose={rename.onPurpose ?? undefined}
+        />
+      )}
       {labeling && labels?.onChange && (
         <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
       )}
@@ -339,13 +363,14 @@ function ScreenThread({
 
 /**
  * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its
- * name, and "working · <desk>" under it; a tap opens the agent's profile), and a circle for the actions sheet.
+ * name, "working · <desk>" under it and the chat's purpose under that; a tap opens the agent's profile), and a circle for the actions sheet.
  * The heading wraps the pill so focus lands on the conversation's name when the page opens.
  */
 function ThreadHeader({
   thread,
   view,
   waiting,
+  purpose,
   backLabel,
   onBack,
   onActions,
@@ -353,6 +378,7 @@ function ThreadHeader({
   thread: Thread;
   view: ThreadView;
   waiting: boolean;
+  purpose: string | null;
   backLabel: string;
   onBack: () => void;
   onActions: () => void;
@@ -376,6 +402,7 @@ function ThreadHeader({
           <span className="loki-phone-convo-copy">
             <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
             {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
+            {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
           </span>
         </button>
       </h1>

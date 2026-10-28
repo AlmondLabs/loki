@@ -77,6 +77,9 @@ export const EVENTS: Record<string, string> = {
     "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
   task_added: "a task filed from a chat message (Add task) { origin: message | selection, desk }",
+  suggestion_made: "an agent suggested a message for another chat (plan 047) { agent, target: existing | new }",
+  suggestion_decided:
+    "a suggestion acted on: by the person, or withdrawn by its agent { action: send | draft | reject | retarget | withdraw, outcome: done | refused, by: desktop | phone | agent | another Mac }",
   mcp_search: "an agent searched its MCP tools (daemon/mcp/) { hits, loaded (the tool keys it loaded), select (an exact select:) }",
   mcp_call: "an agent called an MCP tool { server, tool, ms, error, spilled (saved to a file for being too big), chars }",
   turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
@@ -104,6 +107,8 @@ export const BREAKDOWN: Record<string, string> = {
   chat_restored: "origin",
   task_confirmed: "action",
   task_added: "origin",
+  suggestion_made: "target",
+  suggestion_decided: "action",
   mcp_call: "server",
 };
 

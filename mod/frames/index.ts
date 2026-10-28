@@ -13,6 +13,7 @@ import { lanFrames, type LanDeps } from "./lan.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
+import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
 /** What every frame handler needs, together: each module takes only its own part. */
@@ -26,6 +27,7 @@ export type ModuleDeps = DesksDeps &
   LanDeps &
   PeersDeps &
   ChatDeps &
+  SuggestionDeps &
   UsageDeps &
   DaemonDeps;
 
@@ -43,6 +45,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     lanFrames(deps),
     peersFrames(deps),
     chatFrames(deps),
+    suggestionFrames(deps),
     usageFrames(deps),
     daemonFrames(deps),
   ];

@@ -52,6 +52,7 @@ import { PeerMemory } from "./peer-memory.ts";
 import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts";
 import { RemoteChats } from "./remote-chats.ts";
 import { ChatRouter } from "./chat-router.ts";
+import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { ChatDirectory } from "./chat-directory.ts";
 import { PeerGroup } from "./peer-group.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -97,6 +98,11 @@ export interface Host {
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
+  /**
+   * The suggestions kept on this Mac's chat records (plan 047, KTD1): reading and writing a chat's list. Absent from a
+   * daemon that predates them, and the suggestion frames say so.
+   */
+  suggestions?: SuggestionRecords;
   /**
    * The memory repos and their queue (daemon/memory-sync.ts). The mod is bundled apart from the daemon, so it takes
    * them from here: its own copy of the queue would race the daemon's commits and never hear them (plan 046).
@@ -395,6 +401,22 @@ export default function activate(api: ModApi, host: Host): () => void {
       broadcast({ type: "lists_changed" });
     },
   });
+  // Suggestions (plan 047): kept on the records of this Mac's chats and carried out here, sending to the Mac each
+  // target lives on and waiting for its answer (mod/suggestions.ts).
+  const suggestions = host.suggestions
+    ? new Suggestions({
+        records: host.suggestions,
+        chat: (ref) => {
+          const desk = listDesks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
+          return desk ? { title: desk.title, status: desk.status, has_draft: desk.has_draft === true } : null;
+        },
+        agentExists: (id) => readLocalAgent(id) !== null,
+        agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
+        call: chatCaller({ route: router, backend: chatBackend, blocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId) }),
+        push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
+        track: (event, properties) => analytics.capture("mod", event, properties),
+      })
+    : undefined;
   // The person's state on every paired Mac (U8): marks and focus, pins, label colours, Learn.
   const peerState: PeerState = new PeerState({
     snapshot: (folders) => ({
@@ -549,7 +571,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
-    chat: chatBackend,
+    // A chat opens with the suggestions waiting in it (plan 047).
+    chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
+    suggestions,
+    decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? (peerStore.get(c.peerId)?.name ?? "another Mac") : "desktop"),
     usage: host.usage,
     daemon: host.daemon,
     lan: {
