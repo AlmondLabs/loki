@@ -458,8 +458,56 @@ function Message({
   );
 }
 
+/**
+ * How a chip that names another chat opens it: the host's (the desk switches to it, the phone goes to its page).
+ * Absent, the chip only names the chat.
+ */
+export const OpenChat = createContext<((agentId: string, conversationId: string) => void) | null>(null);
+
+/** The row a message sent from a suggestion leaves (core/harness.ts extractHarnessEvents). */
+const SUGGESTED = "suggested in another chat";
+
+/**
+ * The chat a "suggested in another chat" row came from (plan 047, KTD6), when the row carries it as `link`; null when
+ * it does not, or when either id is empty, since an empty id would open no chat.
+ */
+export function suggestedSource(m: TranscriptRow): { agent_id: string; conversation_id: string } | null {
+  const link = m.link;
+  return link?.agent_id && link.conversation_id ? link : null;
+}
+
+/** A message sent from a suggestion: a chip naming the suggestion, which opens the chat it was made in. */
+function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const open = useContext(OpenChat);
+  const from = suggestedSource(m);
+  const words = (
+    <>
+      <span aria-hidden>↩ </span>
+      {SUGGESTED}
+      {m.summary && <span className="loki-event-aside">{m.summary}</span>}
+    </>
+  );
+  return (
+    <div data-row="event" data-arrived={arrived} className="loki-event-row">
+      {open && from ? (
+        <button type="button" className="loki-suggested-chip" onClick={() => open(from.agent_id, from.conversation_id)} title="open the chat it came from">
+          {words}
+        </button>
+      ) : (
+        <span className="loki-suggested-chip">{words}</span>
+      )}
+    </div>
+  );
+}
+
 /** A harness event as one quiet line; its detail, a lean one's (plan 043) fetched, only once it is opened. */
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  if (m.text === SUGGESTED) return <SuggestedRow row={m} arrived={arrived} />;
+  return <DetailEventRow row={m} arrived={arrived} />;
+}
+
+/** An event with its disclosure. */
+function DetailEventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const [open, setOpen] = useState(false);
   const more = !!m.detail || m.row !== undefined;
   return (

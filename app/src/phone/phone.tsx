@@ -130,6 +130,14 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
   return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked)}</Banner> : null;
 }
 
+/**
+ * Why a suggestion's buttons wait (plan 047, U4): while the link to the Mac is down nothing it carries out can be
+ * asked for, so the card says so instead of offering what would only fail. Null while the link holds.
+ */
+function macAway(catchUp: CatchUp): string | null {
+  return catchUp.status === "open" ? null : "Mac unreachable: these wait until it is back";
+}
+
 /** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */
 function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
   const unpaired = useEffectEvent(() => onUnpaired());
@@ -575,6 +583,7 @@ function ConversationPage({
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
       onNotDone={catchUp.unread}
       onViewed={attention.markViewed}
+      suggestions={{ source: catchUp, blocked: macAway(catchUp) }}
     />
   );
 }
@@ -679,6 +688,7 @@ function Screen({
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
           onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
+          suggestions: { source: catchUp, blocked: macAway(catchUp) },
         }}
         onApprove={(item, requestId, behavior) => (
           catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", "tap"),

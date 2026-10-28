@@ -3,6 +3,7 @@ import { LAYER } from "../kit/layers";
 import { IconButton } from "../components";
 import type { ModelEntry } from "./model-picker";
 import { Conversation, ConversationHeader, type ConversationActions, type ConversationView } from "./conversation";
+import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 
@@ -41,6 +42,7 @@ export function ChatWindow({
   modelPickerTick = 0,
   modeMenuTick = 0,
   draft,
+  suggestions = null,
   onClose,
 }: {
   /** The desk's name, over the agent's face in the header. */
@@ -63,6 +65,8 @@ export function ChatWindow({
   modeMenuTick?: number;
   /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
   draft?: ControlledDraft;
+  /** The suggestions made in this chat for other chats (plan 047); null or absent, none. */
+  suggestions?: SuggestionsProps | null;
   onClose: () => void;
 }) {
   const waiting = !!view.approval || !!view.question;
@@ -112,6 +116,7 @@ export function ChatWindow({
           modelPickerTick={modelPickerTick}
           modeMenuTick={modeMenuTick}
           draft={draft}
+          suggestions={suggestions}
         />
       </div>
     </>

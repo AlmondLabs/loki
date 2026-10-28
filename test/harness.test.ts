@@ -70,11 +70,19 @@ describe("a sent suggestion's link back (plan 047, KTD6)", () => {
     const text = `${mark}\n<system-reminder>The person sent this from a suggestion.</system-reminder>\n\nThe lock test sleeps.`;
     expect(stripHarnessMarkup(text).trim()).toBe("The lock test sleeps.");
     expect(suggestedOf(text)).toEqual({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
-    expect(extractHarnessEvents(text)).toEqual([{ text: "suggested in another chat", summary: 'Fix the "lock" test', detail: null }]);
+    expect(extractHarnessEvents(text)).toEqual([
+      {
+        text: "suggested in another chat",
+        summary: 'Fix the "lock" test',
+        detail: null,
+        link: { agent_id: "agent-local-friday", conversation_id: "conv-source" },
+      },
+    ]);
   });
 
-  test("a message with no mark has none", () => {
+  test("a message with no mark has none, and no other event carries a link", () => {
     expect(suggestedOf("hello")).toBeNull();
+    expect(extractHarnessEvents('<skill_content name="unslop">\n# Unslop\n</skill_content>')[0]).not.toHaveProperty("link");
   });
 });
 

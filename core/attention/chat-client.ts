@@ -25,6 +25,7 @@ export type ChatClient = Pick<
   | "mcp"
   | "engines"
   | "labels"
+  | "suggestions"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"

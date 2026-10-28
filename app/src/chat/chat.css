@@ -434,6 +434,143 @@
   border-top: 1px solid var(--loki-accent);
   background: var(--loki-brass-soft);
 }
+/* Suggestions an agent made in this chat for other chats (plan 047, suggestion-card.tsx): over the question and the
+   approval, each one line until opened; the stack scrolls rather than pushing the thread away. */
+.loki-suggestions {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 38%;
+  overflow-y: auto;
+  border-top: 1px solid var(--loki-accent);
+  background: var(--loki-brass-soft);
+}
+.loki-suggestion {
+  padding: 6px 20px;
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  color: var(--loki-fg);
+}
+.loki-suggestion + .loki-suggestion {
+  border-top: 1px solid var(--loki-border);
+}
+.loki-suggestion-told {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.loki-suggestion-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-suggestion-kicker {
+  flex: none;
+  color: var(--loki-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.loki-suggestion-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.loki-suggestion-target {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-suggestion-body {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 6px;
+}
+.loki-suggestion-text {
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--loki-well);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.loki-suggestion-note {
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-suggestion-note[data-refused] {
+  color: var(--loki-negative);
+}
+.loki-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.loki-suggestion-picker {
+  display: grid;
+  gap: 6px;
+}
+.loki-suggestion-hits {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.loki-suggestion-hit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+}
+.loki-suggestion-hit-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-suggestion-hit-line {
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+/* A message sent from a suggestion: a chip back to the chat it came from (transcript.tsx SuggestedRow). */
+.loki-suggested-chip {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  padding: 2px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: none;
+  font: inherit;
+  color: var(--loki-muted);
+}
+button.loki-suggested-chip {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.loki-suggested-chip:hover {
+    color: var(--loki-fg);
+    border-color: var(--loki-control-border);
+  }
+}
 .loki-approval-input {
   margin: 0;
   padding: 10px 12px;

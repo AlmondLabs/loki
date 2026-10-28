@@ -6,7 +6,8 @@ import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
-import type { MessageLayout, TranscriptRow } from "../chat/transcript";
+import { OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction } from "../shell/keymap";
@@ -168,61 +169,65 @@ export function DeskPane(props: DeskPaneProps) {
         panelId={panelId}
       />
       {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
-      <div className="loki-desk-pane-body">
-        <div
-          id={panelId("messages")}
-          role="tabpanel"
-          aria-label="Messages"
-          className="loki-desk-pane-panel loki-desk-pane-messages"
-          style={{ visibility: tab === "messages" ? "inherit" : "hidden" }}
-          aria-hidden={tab !== "messages"}
-          onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
-        >
-          <MessageTasks.Provider value={messageTasks}>
-            <DeskMessages
-              key={scope}
-              desk={desk}
-              catchUp={catchUp}
-              item={item}
-              heldLook={heldLook}
-              people={people}
-              onFrameWidget={frameWidget}
-              onShowDesk={() => onTab("desk")}
-              view={view}
-              actions={actions}
-              models={models}
+      {/* A chip naming another chat (a message sent from a suggestion) switches the pane to that chat. */}
+      <OpenChat.Provider value={(agent, conversation) => desk.desks.switchTo(scopeFor(conversation, agent))}>
+        <div className="loki-desk-pane-body">
+          <div
+            id={panelId("messages")}
+            role="tabpanel"
+            aria-label="Messages"
+            className="loki-desk-pane-panel loki-desk-pane-messages"
+            style={{ visibility: tab === "messages" ? "inherit" : "hidden" }}
+            aria-hidden={tab !== "messages"}
+            onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}
+          >
+            <MessageTasks.Provider value={messageTasks}>
+              <DeskMessages
+                key={scope}
+                desk={desk}
+                catchUp={catchUp}
+                item={item}
+                heldLook={heldLook}
+                people={people}
+                onFrameWidget={frameWidget}
+                onShowDesk={() => onTab("desk")}
+                view={view}
+                actions={actions}
+                models={models}
+                draft={draft}
+                composer={onMessages}
+                dim={false}
+                focusTick={tickFor(focus, "messages")}
+                findTick={tickFor(find, "messages")}
+                modelPickerTick={tickFor(model, "messages")}
+                modeMenuTick={tickFor(mode, "messages")}
+                prefill={prefillFor("messages")}
+                suggestions={runtime ? { source: catchUp, rt: runtime } : null}
+              />
+            </MessageTasks.Provider>
+          </div>
+          <div
+            id={panelId("desk")}
+            role="tabpanel"
+            aria-label="Canvas"
+            className="loki-desk-pane-panel"
+            style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
+            aria-hidden={tab !== "desk"}
+          >
+            <Surface
+              {...props}
+              chat={chat}
+              active={visible === "inset"}
               draft={draft}
-              composer={onMessages}
-              dim={false}
-              focusTick={tickFor(focus, "messages")}
-              findTick={tickFor(find, "messages")}
-              modelPickerTick={tickFor(model, "messages")}
-              modeMenuTick={tickFor(mode, "messages")}
-              prefill={prefillFor("messages")}
+              focusChat={tickFor(focus, "inset")}
+              findChat={tickFor(find, "inset")}
+              modelPickerTick={tickFor(model, "inset")}
+              modeMenuTick={tickFor(mode, "inset")}
+              chatPrefill={prefillFor("inset")}
             />
-          </MessageTasks.Provider>
+          </div>
         </div>
-        <div
-          id={panelId("desk")}
-          role="tabpanel"
-          aria-label="Canvas"
-          className="loki-desk-pane-panel"
-          style={{ visibility: tab === "desk" ? "inherit" : "hidden" }}
-          aria-hidden={tab !== "desk"}
-        >
-          <Surface
-            {...props}
-            chat={chat}
-            active={visible === "inset"}
-            draft={draft}
-            focusChat={tickFor(focus, "inset")}
-            findChat={tickFor(find, "inset")}
-            modelPickerTick={tickFor(model, "inset")}
-            modeMenuTick={tickFor(mode, "inset")}
-            chatPrefill={prefillFor("inset")}
-          />
-        </div>
-      </div>
+      </OpenChat.Provider>
       {labeling && runtime && (
         <LabelsDialog
           title={name}

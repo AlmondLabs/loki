@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
 import { CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
+import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
+import type { Suggestion } from "../core/frame-types.ts";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
@@ -76,6 +78,37 @@ describe("the Inbox card's message box", () => {
     expect(render(item(), actions(model))).not.toContain("loki-phone-notice");
     expect(render(item({ status: "approval" }), actions(model))).toContain("friday needs your approval");
     expect(render(item(), actions(model), "streaming")).toContain("friday is writing");
+  });
+});
+
+describe("the Inbox card's suggestions (plan 047)", () => {
+  const pending = (id: string, createdAt: string): Suggestion => ({
+    id,
+    title: `suggestion ${id}`,
+    text: "look at this elsewhere",
+    target: { agent_id: "a1", folder: "/work" },
+    status: "pending",
+    created_at: createdAt,
+  });
+  const source: SuggestionSource = {
+    conversation: () => ({ suggestions: [pending("s1", "2026-09-25T09:00:00Z"), pending("s2", "2026-09-25T10:00:00Z")], cwd: null }),
+    items: [],
+    agents: [{ id: "a1", name: "friday" }],
+    listed: true,
+    agentsLoaded: true,
+    suggestions: {
+      decide: () => Promise.resolve({ done: true, message: null, suggestion: null }),
+      retarget: () => Promise.resolve({ done: true, message: null, suggestion: null }),
+    },
+  };
+  test("a chat with two pending suggestions draws two cards over the card's box, in the phone's words", () => {
+    const html = render(item(), { ...actions(), suggestions: { source, blocked: null } });
+    expect([...html.matchAll(/data-suggestion="([^"]+)"/g)].map((m) => m[1])).toEqual(["s2", "s1"]);
+    expect(html).toContain("New chat with friday in work");
+    expect(html.indexOf("loki-suggestions")).toBeLessThan(html.indexOf("loki-composer"));
+  });
+  test("without them the card draws none", () => {
+    expect(render(item(), actions())).not.toContain("loki-suggestions");
   });
 });
 

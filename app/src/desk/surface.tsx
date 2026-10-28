@@ -280,6 +280,7 @@ function DeskChat({
       modelPickerTick={modelPickerTick}
       modeMenuTick={modeMenuTick}
       draft={draft}
+      suggestions={agentId && conversationId ? { source: catchUp, rt: { agent_id: agentId, conversation_id: conversationId } } : null}
       onClose={() => onChatOpen(false)}
     />
   );

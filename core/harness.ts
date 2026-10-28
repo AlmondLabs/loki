@@ -40,6 +40,8 @@ export interface HarnessEvent {
   summary: string | null;
   /** the raw result, decoded, for a disclosure */
   detail: string | null;
+  /** The chat a message sent from a suggestion came from (plan 047), for the transcript's link back; absent on every other event. */
+  link?: { agent_id: string; conversation_id: string };
 }
 
 /**
@@ -79,7 +81,13 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     out.push({ text: `moved to ${now || "this Mac"}`, summary: was ? `came over from ${was}` : null, detail: null });
   }
   const suggested = suggestedOf(text);
-  if (suggested) out.push({ text: "suggested in another chat", summary: suggested.title || null, detail: null });
+  if (suggested)
+    out.push({
+      text: "suggested in another chat",
+      summary: suggested.title || null,
+      detail: null,
+      link: { agent_id: suggested.from_agent, conversation_id: suggested.from_chat },
+    });
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });

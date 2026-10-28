@@ -8,9 +8,10 @@ import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion }
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import type { MessageLayout } from "../chat/transcript";
+import { OpenChat, type MessageLayout } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
+import type { SuggestionsProps } from "../chat/suggestion-card";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
@@ -96,6 +97,7 @@ export function ConversationScreen({
   onNotDone,
   onViewed,
   taskApi = null,
+  suggestions = null,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -152,6 +154,8 @@ export function ConversationScreen({
   onViewed?: (agentId: string, conversationId: string) => void;
   /** Tasks, for Add task in a message's long press and the chips of the messages that have one. */
   taskApi?: TaskApi | null;
+  /** The suggestions made in this chat for other chats (plan 047), over the box; null or absent, none. */
+  suggestions?: Omit<SuggestionsProps, "rt"> | null;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
@@ -245,6 +249,7 @@ export function ConversationScreen({
               notice={notice || null}
               placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
               draft={{ value: draft, onChange: setDraft }}
+              suggestions={suggestions ? { ...suggestions, rt } : null}
             />
           </MessageTasks.Provider>,
         )}
@@ -350,16 +355,21 @@ function ScreenThread({
     [people, dividerAt, item?.last_message_at, widgets, inline],
   );
   return (
-    <Conversation
-      {...conversation}
-      touch
-      dim={false}
-      gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-      view={{ ...view, rows }}
-      layout={layout}
-    />
+    <OpenChat.Provider value={openChat}>
+      <Conversation
+        {...conversation}
+        touch
+        dim={false}
+        gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+        view={{ ...view, rows }}
+        layout={layout}
+      />
+    </OpenChat.Provider>
   );
 }
+
+/** A chip naming another chat (a message sent from a suggestion) opens that chat's page. */
+const openChat = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /**
  * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its

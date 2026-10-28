@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
+import { suggestedMark } from "../core/harness.ts";
 import { approval, call, piece, push, result, said, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -430,6 +431,34 @@ describe("a history page arriving", () => {
     t.load([{ ...call7, at: t1002 }]);
     t.apply({ kind: "result", id: "c7", output: "a.ts", failed: false });
     expect(t.rows()).toMatchObject([{ text: "Bash · ls", tool: { output: "a.ts" } }]);
+  });
+});
+
+describe("a message sent from a suggestion (plan 047, KTD6)", () => {
+  const sent = `${suggestedMark({ from_agent: "friday", from_chat: "data", title: "Fix the flaky upload test" })}\n\nThe upload test sleeps.`;
+  const chip = {
+    role: "event",
+    text: "suggested in another chat",
+    summary: "Fix the flaky upload test",
+    link: { agent_id: "friday", conversation_id: "data" },
+  };
+
+  test("live, its event row links back to the chat the suggestion was made in", () => {
+    const l = emptyLive();
+    push(l, user(sent));
+    expect(l.thread.rows()).toMatchObject([chip, { role: "user", text: "The upload test sleeps." }]);
+  });
+
+  test("from a history page, the reloaded row keeps the link", () => {
+    // The daemon folds the store into rows and sends them lean (daemon/chats.ts, mod/frames/history.ts); the app loads the page.
+    const page: HistoryRow[] = leanPage(foldSteps([user(sent, at0), said("On it.", at0)]), 0);
+    const t = new ThreadModel();
+    t.load(page);
+    expect(rowsOf(t)).toMatchObject([chip, { role: "user", text: "The upload test sleeps." }, { role: "assistant", text: "On it." }]);
+  });
+
+  test("no other event row carries a link", () => {
+    expect(foldSteps([user('<skill_content name="unslop">\n# Unslop\n</skill_content>')])[0]).not.toHaveProperty("link");
   });
 });
 

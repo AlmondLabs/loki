@@ -21,6 +21,7 @@ import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
+import { SuggestionStack, type SuggestionsProps } from "./suggestion-card";
 import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
@@ -94,7 +95,7 @@ const NO_GUTTER: Required<Gutter> = { left: "0px", right: "0px", bottom: "0px" }
 /**
  * One conversation, the same in every room: the desk's chat panel, an inbox card, the phone's thread.
  * Top to bottom — the host's header, find, the thread (newest at the bottom, followed only while you are
- * there), the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
+ * there), the suggestions its agent made for other chats, the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
  * the model pill that opens Select model, the permission mode beside it, the mic and send), and a last row with
  * approve / deny when something waits, then whatever actions the host adds on the right. The host owns
  * the frame around it and renders this inside a flex column.
@@ -124,6 +125,7 @@ export function Conversation({
   notice,
   placeholder,
   composer = true,
+  suggestions = null,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -170,6 +172,11 @@ export function Conversation({
    * approval are drawn once, by the view on screen.
    */
   composer?: boolean;
+  /**
+   * The suggestions made in this chat for other chats (plan 047), drawn above the open question or approval and only
+   * by the view that draws the box, as they are; null or absent, none.
+   */
+  suggestions?: SuggestionsProps | null;
 }) {
   // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
   // would be drawn again with each one (plan 032).
@@ -293,6 +300,7 @@ export function Conversation({
 
       {composer && (
         <>
+          {suggestions && <SuggestionStack {...suggestions} touch={touch} />}
           {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
           {approval && <ApprovalCard approval={approval} />}
           {notice}

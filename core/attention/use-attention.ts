@@ -31,8 +31,9 @@ import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
-import type { PayloadOf } from "../frames.ts";
+import type { PayloadOf, SuggestionAction } from "../frames.ts";
 import type { LabelView } from "../labels.ts";
+import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
 export type EngageAction = PayloadOf<"focus_add">["action"];
@@ -156,6 +157,18 @@ export interface ChatFace {
   loadFailed: (() => void) | null;
   /** Fetch what a page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep: (row: number) => Promise<WholeRow | null>;
+  /** The suggestions made in this chat that wait on the person or are being sent (plan 047), for its chat screen. */
+  suggestions: Suggestion[];
+}
+
+/**
+ * What a person's action on a suggestion came to (plan 047): whether it took, the reason when it did not (another
+ * device acted first, the target is gone, the Mac is out of reach), and the suggestion as it then stands, when known.
+ */
+export interface SuggestionOutcome {
+  done: boolean;
+  message: string | null;
+  suggestion: Suggestion | null;
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
@@ -252,6 +265,9 @@ export type SavedDrafts = ReturnType<typeof createSavedDrafts>;
 /** The client's saved drafts: one useAttention runs per page, the shell's or the phone's. */
 export const savedDrafts = createSavedDrafts();
 
+/** No suggestions: one array, so a chat's face stays the same while it has none. */
+const NO_SUGGESTIONS: Suggestion[] = [];
+
 /** A flag map without `key`. */
 const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
   Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));
@@ -265,6 +281,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const [agents, setAgents] = useState<Array<{ id: string; name: string; home_mac?: string | null }>>([]);
   /** False until the first agent_list answered: an empty list before that means nothing. */
   const [agentsLoaded, setAgentsLoaded] = useState(false);
+  /** False until the chat list first came: before that, a chat missing from it is not yet known to be gone. */
+  const [listed, setListed] = useState(false);
   const [digests, setDigests] = useState<Map<string, Digest>>(new Map());
   /**
    * The live map as render sees it: a fresh copy each time a flush finds a chat's face moved (publish). The handlers
@@ -462,6 +480,7 @@ export function useAttention(opts: UseAttentionOptions) {
       lastReload.current = Date.now();
       knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
       setConversations(convs);
+      setListed(true);
       setDigests(
         new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
       );
@@ -713,6 +732,7 @@ export function useAttention(opts: UseAttentionOptions) {
         older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null,
         loadFailed: failed[key] ? () => void loadThread({ agent_id: agentId, conversation_id: conversationId }) : null,
         loadStep: (row) => optsRef.current.loadLocalStep?.(agentId, conversationId, row) ?? Promise.resolve(null),
+        suggestions: l?.suggestions ?? NO_SUGGESTIONS,
       };
     },
     [live, older, failed, loadOlder, loadThread],
@@ -773,6 +793,30 @@ export function useAttention(opts: UseAttentionOptions) {
     },
     [bump],
   );
+
+  /**
+   * The person's actions on a chat's suggestions (plan 047), carried out by the Mac the chat lives on. The card shows
+   * the outcome; the suggestion's new state reaches every client as the chat's `suggestions` event, so nothing here
+   * changes the live state itself. A call that does not get through leaves the suggestion as it was, with the reason.
+   */
+  const suggestions = useMemo(() => {
+    const run = async (call: (sock: ChatClient) => Promise<{ suggestion: Suggestion; done: boolean; message: string | null }>): Promise<SuggestionOutcome> => {
+      const sock = socketRef.current;
+      if (!sock) return { done: false, message: "not connected to loki's daemon", suggestion: null };
+      try {
+        const out = await call(sock);
+        return { done: out.done, message: out.message, suggestion: out.suggestion };
+      } catch (err) {
+        return { done: false, message: err instanceof Error ? err.message : String(err), suggestion: null };
+      }
+    };
+    return {
+      /** Send it now, save it as a draft in its target chat, or reject it. */
+      decide: (rt: Runtime, suggestionId: string, action: SuggestionAction) => run((sock) => sock.suggestions.decide(rt, suggestionId, action)),
+      /** Point it at another chat, or at a new chat with an agent in a folder, before acting on it (R4). */
+      retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) => run((sock) => sock.suggestions.retarget(rt, suggestionId, target)),
+    };
+  }, []);
 
   /** The chat holds no saved draft any more: its Inbox mark goes without waiting for the list. */
   const noDraft = useCallback((agentId: string, conversationId: string) => {
@@ -1296,6 +1340,8 @@ export function useAttention(opts: UseAttentionOptions) {
     execute,
     agents,
     agentsLoaded,
+    /** The chat list has come at least once: a chat missing from `items` after this is archived or gone. */
+    listed,
     providers,
     loadProviders,
     connectProvider,
@@ -1328,6 +1374,7 @@ export function useAttention(opts: UseAttentionOptions) {
     approve,
     decide,
     answer,
+    suggestions,
     reply,
     send,
     cancelQueued,

@@ -51,6 +51,8 @@ export interface TranscriptRow {
   images?: string[];
   /** A user message typed mid-turn that has not gone out yet. */
   queued?: boolean;
+  /** On the event a message sent from a suggestion leaves (plan 047): the chat the suggestion was made in, which the row opens. */
+  link?: { agent_id: string; conversation_id: string };
   /**
    * When the message was written, ISO 8601 (the store's time, an imported log's `timestamp`, or the moment a
    * live row arrived). Absent when nobody knows: such a
