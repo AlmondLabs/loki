@@ -78,10 +78,8 @@ export async function migrateAgents(d: AgentMigrationDeps): Promise<boolean> {
   const done = isRecord(state) ? state : {};
   if (typeof done.agents === "number" && done.agents >= AGENTS_VERSION) return false;
   migrateRecords(d);
-  for (const id of listAgents(d.backendDir)) {
-    await migrateMemory(d, id);
-    await migrateChats(d, id);
-  }
+  // Each agent has its own store and memory repo, so they go together, as the daemon opens their stores at start.
+  await Promise.all(listAgents(d.backendDir).map(async (id) => Promise.all([migrateMemory(d, id), migrateChats(d, id)])));
   mkdirSync(join(d.stateFile, ".."), { recursive: true });
   writeFileSync(d.stateFile, `${JSON.stringify({ ...done, agents: AGENTS_VERSION }, null, 2)}\n`);
   return true;
@@ -153,31 +151,31 @@ async function migrateChats(d: AgentMigrationDeps, agentId: string): Promise<voi
   const store = await d.stores.get(agentId);
   const index = await store.harness.snapshot(ChatIndex, d.context);
   const learn = learnChats(d.learnWorkerFile);
-  let moved = 0;
-  // One chat at a time, on purpose: each may commit to the store, and one store's commits go in order.
-  for (const [chatId, conversationId] of Object.entries(index?.chats ?? {})) {
-    const info = await store.chatInfo(conversationId as ConversationId, d.context);
-    if (info?.engine?.kind === "acp") continue;
-    const conversation = await store.harness.conversation(conversationId as ConversationId, d.context);
-    if (!conversation) continue;
-    const settings = (await store.agentSettings(conversation.id, d.context)) as { model?: { provider?: string; modelId?: string }; cwd?: string } | undefined;
-    const change: { model?: { provider: string; modelId: string }; cwd?: string } = {};
-    const model = settings?.model;
-    if (model?.provider && model.modelId && !d.known(model.provider)) {
-      const handle = piHandle(`${model.provider}/${model.modelId}`, d.known);
-      const slash = handle.indexOf("/");
-      if (slash > 0 && handle.slice(0, slash) !== model.provider) change.model = { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) };
-    }
-    const cwd = settings?.cwd?.replace(OLD_ROOT, ".loki");
-    if (cwd && cwd !== settings?.cwd) change.cwd = cwd;
-    if (change.model || change.cwd) {
-      await conversation.configure(change, d.context);
-      moved++;
-    }
-    if (learn.has(chatId) && !info?.hidden) {
-      await store.updateChat(chatId, { hidden: true }, d.context);
-      moved++;
-    }
-  }
-  if (moved) d.report(`${agentId}: ${moved} chats' model, folder or place in the list now as loki keeps them`);
+  // Every chat is read together, then its changes saved together: each change is a different chat's, and pi-durable
+  // puts one store's commits in order itself.
+  const writes = await Promise.all(
+    Object.entries(index?.chats ?? {}).map(async ([chatId, conversationId]): Promise<Array<() => Promise<unknown>>> => {
+      const info = await store.chatInfo(conversationId as ConversationId, d.context);
+      if (info?.engine?.kind === "acp") return [];
+      const conversation = await store.harness.conversation(conversationId as ConversationId, d.context);
+      if (!conversation) return [];
+      const settings = (await store.agentSettings(conversation.id, d.context)) as { model?: { provider?: string; modelId?: string }; cwd?: string } | undefined;
+      const change: { model?: { provider: string; modelId: string }; cwd?: string } = {};
+      const model = settings?.model;
+      if (model?.provider && model.modelId && !d.known(model.provider)) {
+        const handle = piHandle(`${model.provider}/${model.modelId}`, d.known);
+        const slash = handle.indexOf("/");
+        if (slash > 0 && handle.slice(0, slash) !== model.provider) change.model = { provider: handle.slice(0, slash), modelId: handle.slice(slash + 1) };
+      }
+      const cwd = settings?.cwd?.replace(OLD_ROOT, ".loki");
+      if (cwd && cwd !== settings?.cwd) change.cwd = cwd;
+      return [
+        ...(change.model || change.cwd ? [() => conversation.configure(change, d.context)] : []),
+        ...(learn.has(chatId) && !info?.hidden ? [() => store.updateChat(chatId, { hidden: true }, d.context)] : []),
+      ];
+    }),
+  );
+  const moved = writes.flat();
+  await Promise.all(moved.map((write) => write()));
+  if (moved.length) d.report(`${agentId}: ${moved.length} chats' model, folder or place in the list now as loki keeps them`);
 }
