@@ -124,7 +124,7 @@ describe("open tasks become suggestions in the chats they were filed from (plan 
     ]);
     expect(w.recorded()).toEqual({ tasks_moved: ["lk-1"] });
     // Only read: the beads store is never written.
-    expect(w.state.bdCalls.every((a) => a[0] === "list")).toBe(true);
+    expect(w.state.bdCalls.every((a) => a[0] === "--readonly" && a[1] === "list")).toBe(true);
   });
 
   test("a second start moves nothing new", async () => {

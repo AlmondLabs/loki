@@ -182,7 +182,8 @@ async function addAtHome(d: TaskMoveDeps, source: ChatKey, input: SuggestionInpu
 export async function moveTasks(d: TaskMoveDeps): Promise<string[]> {
   let tasks: OpenTask[];
   try {
-    tasks = parseOpenTasks(await d.run(["list", "--json", "--flat", "-n", "0"]));
+    // --readonly makes bd refuse any write, so reading the list can never change the store (docs/SECURITY.md).
+    tasks = parseOpenTasks(await d.run(["--readonly", "list", "--json", "--flat", "-n", "0"]));
   } catch (err) {
     d.report(`tasks not moved into suggestions yet: ${err instanceof Error ? err.message : String(err)}`);
     return [];
