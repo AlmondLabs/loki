@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { attachWs, sameSecret, startServer, type Client } from "../mod/server.ts";
 import { WS_PROTOCOL, tokenFromProtocols, tokenProtocols } from "../core/ws-auth.ts";
+import { WebSocket as WsClient } from "../mod/ws.ts";
 
 describe("the token in the subprotocol header, not the URL", () => {
   test("a tab sends it as a protocol; the server answers loki and lets it in; a wrong one is refused", async () => {
@@ -38,6 +39,32 @@ describe("the token in the subprotocol header, not the URL", () => {
     expect(sameSecret("abd", "abc")).toBe(false);
     expect(sameSecret("ab", "abc")).toBe(false);
     expect(sameSecret(null, "abc")).toBe(false);
+  });
+});
+
+describe("a frame the server cannot read", () => {
+  test("invalid UTF-8 closes that socket only; the server keeps serving", async () => {
+    const token = "0123456789abcdef0123456789abcdef";
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(s.server, token, { onConnect: (c) => c.send({ type: "hello" }), onMessage: () => {} });
+    const open = (ws: WsClient) =>
+      new Promise<void>((resolve, reject) => {
+        ws.once("message", () => resolve());
+        ws.once("error", reject);
+      });
+    try {
+      const bad = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      await open(bad);
+      const closed = new Promise<number>((resolve) => bad.once("close", (code) => resolve(code)));
+      bad.send(Buffer.from([0xff, 0xfe, 0xfd]), { binary: false });
+      expect(await closed).toBe(1007);
+      const good = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      await open(good);
+      good.close();
+    } finally {
+      bridge.close();
+      await s.close();
+    }
   });
 });
 

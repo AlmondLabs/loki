@@ -36,7 +36,7 @@ async function setup(opts: { cap?: number } = {}) {
     () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx),
   );
   const chats = new ChatProjection(ctx, () => "Ada");
-  chats.follow(stores);
+  chats.follow(stores, () => {});
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: false }, learn: { enabled: true, daily_cap: opts.cap ?? 5 } });
   const recall = new RecallStore(join(dir, "recall"));

@@ -14,7 +14,7 @@ import { DeviceStore } from "../mod/devices.ts";
 import { peersFrames } from "../mod/frames/peers.ts";
 import { LanListener } from "../mod/lan.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { PeerLink, type LinkStatus } from "../mod/peer-link.ts";
+import { PeerLink, PeerLinks, type LinkStatus } from "../mod/peer-link.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, mintPeerToken } from "../mod/peers.ts";
 
 const FAR = "cccccccc-3333-4333-8333-333333333333";
@@ -206,5 +206,47 @@ void test("a token the far Mac does not know is refused, and the near Mac is tol
   } finally {
     link.stop();
     await far.done();
+  }
+});
+
+void test("a link that cannot even be opened is out of reach and tried again, and the daemon lives on", async () => {
+  for (const broken of [
+    { url: () => "ws://bad host:41415/ws", token: () => Promise.resolve(mintPeerToken()) },
+    { url: () => "ws://127.0.0.1:1/ws", token: () => Promise.reject(new Error("the keychain is locked")) },
+  ]) {
+    let tries = 0;
+    const link = new PeerLink({
+      macId: FAR,
+      url: broken.url,
+      token: () => {
+        tries++;
+        return broken.token();
+      },
+      protocol: PEER_PROTOCOL,
+      minBackoffMs: 10,
+      maxBackoffMs: 20,
+    });
+    try {
+      link.start();
+      await until(() => tries >= 2);
+      assert.equal(link.status, "unreachable");
+    } finally {
+      link.stop();
+    }
+  }
+});
+
+void test("a paired Mac saved with an address that cannot be one is never dialled", async () => {
+  const statuses: LinkStatus[] = [];
+  const links = new PeerLinks({
+    token: () => Promise.resolve(mintPeerToken()),
+    defaults: { protocol: PEER_PROTOCOL, minBackoffMs: 10, maxBackoffMs: 20 },
+    onStatus: (_mac, s) => statuses.push(s),
+  });
+  try {
+    links.sync([{ mac_id: FAR, host: "bad host" }]);
+    await until(() => statuses.includes("unreachable"));
+  } finally {
+    links.sync([]);
   }
 });

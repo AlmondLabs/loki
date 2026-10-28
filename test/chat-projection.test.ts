@@ -212,3 +212,24 @@ describe("chat projection", () => {
     expect(chats.digest("nope", AGENT)).toEqual({ last_role: null, last_assistant_text: null, last_ask: null });
   });
 });
+
+describe("a store whose chats fail to load", () => {
+  test("is reported and let go, not left to end the daemon", async () => {
+    const chats = new ChatProjection(ctx, () => null);
+    const opened: { listener?: (agentId: string, store: AgentStore) => void } = {};
+    let unsubscribed = false;
+    const stores = { onOpen: (listener: (agentId: string, store: AgentStore) => void) => ((opened.listener = listener), () => {}) };
+    const reports: string[] = [];
+    chats.follow(stores as never, (m) => reports.push(m));
+    const broken = {
+      harness: {
+        subscribeCommits: () => () => (unsubscribed = true),
+        snapshot: () => Promise.reject(new Error("disk I/O error")),
+      },
+    };
+    opened.listener?.(AGENT, broken as never);
+    await chats.loaded();
+    expect(reports).toEqual([`chats of ${AGENT} not loaded: disk I/O error`]);
+    expect(unsubscribed).toBe(true);
+  });
+});

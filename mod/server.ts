@@ -214,6 +214,9 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
       if (who.peerId) client.peerId = who.peerId;
       clients.set(ws, client);
       ws.on("close", () => clients.delete(ws));
+      // A frame ws cannot read (bad UTF-8, too large) is emitted as an error before the close, and an error nobody
+      // listens for is thrown: one bad client would end the daemon.
+      ws.on("error", () => {});
       ws.on("message", (raw) => {
         let msg: unknown;
         try {
