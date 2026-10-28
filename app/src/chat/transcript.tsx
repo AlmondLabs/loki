@@ -26,6 +26,8 @@ export type { TranscriptRow };
  * its last-ness, or (on the last row alone) the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcript-window.ts); rows keep their thread-wide indexes.
+ * Rows are keyed by index less `above`, the rows an older page put in front since the thread opened, so a row keeps
+ * its key, and its memo and its own state (a tool run left open), when a page arrives above it.
  */
 export const Transcript = memo(function Transcript({
   rows,
@@ -40,6 +42,7 @@ export const Transcript = memo(function Transcript({
   onShowDesk,
   inline,
   from = 0,
+  above = 0,
   arrivedFrom = Infinity,
   busy = false,
 }: {
@@ -48,6 +51,7 @@ export const Transcript = memo(function Transcript({
   dim?: boolean;
   onCancelQueued?: (row: TranscriptRow) => void;
   from?: number;
+  /** Rows loaded above since the thread opened (useTranscriptScroll): row keys count past them. */ above?: number;
   /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number;
   /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean;
 } & MessageLayout) {
@@ -94,14 +98,14 @@ export const Transcript = memo(function Transcript({
       // A lean row from a page (plan 041) finished; its output stayed on the Mac the chat lives on.
       const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output && tail.tool?.row === undefined;
       return (
-        <Fragment key={i}>
+        <Fragment key={i - above}>
           {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
           <ToolSteps rows={run} running={running} arrived={i >= arrivedFrom || undefined} />
         </Fragment>
       );
     }
     return (
-      <Fragment key={i}>
+      <Fragment key={i - above}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
         {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
         <Row
@@ -123,7 +127,7 @@ export const Transcript = memo(function Transcript({
         {shown.map((m, k) => {
           const i = first + k;
           return (
-            <Fragment key={i}>
+            <Fragment key={i - above}>
               {marksAt(i)}
               {message(m, i)}
               {i === rows.length - 1 && marksAt(rows.length)}

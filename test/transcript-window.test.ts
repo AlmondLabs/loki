@@ -132,6 +132,42 @@ describe("streaming touches only the tail", () => {
   });
 });
 
+/** Each Row a Transcript render hands down, as its text under the key of the nearest keyed element above it. */
+function rowKeys(props: Parameters<typeof Transcript>[0]): Map<string, string> {
+  const inner = (Transcript as unknown as { type: (p: typeof props) => ReactNode }).type;
+  const out = new Map<string, string>();
+  const walk = (n: ReactNode, key: string | null) => {
+    if (Array.isArray(n)) return n.forEach((c: ReactNode) => walk(c, key));
+    if (!isValidElement(n)) return;
+    const p = n.props as Record<string, unknown>;
+    const here = n.key ?? key;
+    if ("row" in p && "streaming" in p && here !== null) out.set((p.row as TranscriptRow).text, here);
+    walk(p.children as ReactNode, here);
+  };
+  walk(inner(props), null);
+  return out;
+}
+
+describe("rows keep their keys when an older page loads above", () => {
+  test("in both layouts, every row drawn before the page has the same key after it", () => {
+    const rows = thread(420);
+    for (const layout of [{}, { people }]) {
+      const before = rowKeys({ rows: rows.slice(400), ...layout });
+      const after = rowKeys({ rows, from: 400, above: 400, ...layout });
+      expect(before.size).toBe(20);
+      expect(after).toEqual(before);
+    }
+  });
+
+  test("the rows the page brought take keys below the old first row's, so none collides", () => {
+    const rows = thread(30);
+    const keys = [...rowKeys({ rows, above: 10 }).values()];
+    expect(new Set(keys).size).toBe(30);
+    expect(keys[0]).toBe("-10");
+    expect(keys[10]).toBe("0");
+  });
+});
+
 describe("the clock and day formatters", () => {
   const Real = Intl.DateTimeFormat;
   afterEach(() => {

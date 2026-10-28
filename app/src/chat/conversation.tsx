@@ -522,7 +522,7 @@ export const Thread = forwardRef<
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcript-window.ts).
-  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(
+  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, above, reveal } = useTranscriptScroll(
     scrollRef,
     list,
     status,
@@ -595,6 +595,7 @@ export const Thread = forwardRef<
               onShowDesk={layout?.onShowDesk}
               inline={layout?.inline}
               from={start}
+              above={above}
               arrivedFrom={arrivedFrom}
               busy={status !== "idle"}
             />
