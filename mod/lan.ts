@@ -68,6 +68,8 @@ export interface LanOptions {
   interfaces?: () => ReturnType<typeof networkInterfaces>;
   /** For tests: the Bonjour host (default bonjourHost()). */
   host?: () => string | null;
+  /** For tests: the clock the Bonjour host is kept by (default Date.now). */
+  now?: () => number;
   /** How often to look for a new canvas build while listening (default 5 s). */
   buildPollMs?: number;
   /** The tailnet reader; omit and status().tailscale is null (tests that do not care). */
@@ -79,6 +81,12 @@ export interface LanOptions {
   /** For tests: which way a request came in (default requestVia). Macs are accepted over the tailnet only. */
   via?: (req: IncomingMessage) => DeviceVia;
 }
+
+/**
+ * How long the Bonjour host is kept (plan 047). Reading it runs scutil, which blocked the daemon about 10 ms, and
+ * status() runs on every phone's socket, upload and pairing; a renamed Mac shows within this.
+ */
+export const HOST_TTL_MS = 60_000;
 
 /** The name of the HttpOnly cookie that carries a paired phone's device token. */
 export const DEVICE_COOKIE = "loki_device";
@@ -95,6 +103,8 @@ export class LanListener {
   private dist: string | null;
   private serveStatic: StaticHandler;
   private enabledFlag: boolean;
+  /** The Bonjour host as last read, and when (host()). */
+  private bonjour: { at: number; name: string | null } | null = null;
   /** Paired Macs, or a live Mac pairing code, need the listener up whatever the phone switch says. */
   private peersNeeded = false;
   /** The user's route choice, or undefined for the default (tailscale iff running). */
@@ -140,13 +150,20 @@ export class LanListener {
       enabled: this.enabledFlag,
       address: addresses[0] ?? null,
       addresses,
-      host: (this.opts.host ?? bonjourHost)(),
+      host: this.host(),
       port: this.boundPort ?? this.configuredPort,
       app_served: this.dist !== null,
       error: this.bindError ?? (listening && addresses.length === 0 ? "no network interface with an IPv4 address" : null),
       via: this.viaSetting ?? (tailscale?.running ? "tailscale" : "lan"),
       tailscale,
     };
+  }
+
+  /** The Bonjour host, read again once it is older than HOST_TTL_MS. */
+  private host(): string | null {
+    const now = (this.opts.now ?? Date.now)();
+    if (!this.bonjour || now - this.bonjour.at >= HOST_TTL_MS) this.bonjour = { at: now, name: (this.opts.host ?? bonjourHost)() };
+    return this.bonjour.name;
   }
 
   /** Ask Tailscale again (cached inside its ttl), then status(). Broadcasts when the tailnet's answer changed. */
