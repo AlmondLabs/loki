@@ -6,6 +6,7 @@
 //   "edit"    asks permission to edit a file, then edits it (a diff) or reports the edit refused
 //   "plan"    reports a plan, then a reply
 //   "wait"    streams a word and waits for session/cancel
+//   "deaf"    streams a word and never answers, whatever loki sends
 //   "crash"   exits mid-turn
 //   "auth"    fails the prompt the way an agent that is not signed in does
 //   "prompt?" answers with the system prompt and the first prompt's words it was given
@@ -13,6 +14,8 @@
 //   "effort?" answers with its current model and effort
 //   "signin"  asks the client to open an MCP server's sign-in page (a URL elicitation) and says how it was answered
 //   "mcp?"    answers with the MCP servers its session opened with and the tools it may run without asking
+// With FAKE_ACP_HANG_FIRST_SESSION set, its first session/new is never answered (it says so on stderr), as an agent
+// stuck opening a session.
 // Plain JavaScript, so a test starts it with `node` and nothing else.
 import { createInterface } from "node:readline";
 
@@ -115,6 +118,10 @@ async function prompt(params) {
     say(id, `mode ${s.mode}, model ${s.model}`);
     return { stopReason: "end_turn" };
   }
+  if (text.includes("deaf")) {
+    say(id, "working");
+    return new Promise(() => {});
+  }
   if (text.includes("wait")) {
     say(id, "working");
     return new Promise((resolve) => cancels.set(id, () => resolve({ stopReason: "cancelled" })));
@@ -205,6 +212,11 @@ async function handle(msg) {
         authMethods: [],
       });
     case "session/new": {
+      if (process.env.FAKE_ACP_HANG_FIRST_SESSION && nextSession === 1) {
+        nextSession++;
+        process.stderr.write("fake-acp: holding the first session\n");
+        return;
+      }
       const sessionId = `s-${process.pid}-${nextSession++}`;
       ok({ sessionId, ...open(sessionId, p) });
       // Its commands follow the session, as Claude's adapter sends them.

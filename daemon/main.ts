@@ -208,6 +208,7 @@ const acp = new AcpChats({
   cacheFile: join(args.dir, "state", "acp-offered.json"),
   // An ACP turn is not in pi-durable's runs, which TurnTelemetry follows, so the chats measure it themselves.
   capture: (event, properties) => analytics.capture("mod", event, properties),
+  report,
 });
 const chat: DaemonChats = new DaemonChats({
   stores,

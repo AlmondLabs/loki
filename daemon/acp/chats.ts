@@ -20,6 +20,8 @@ import { acpTurnProperties } from "../telemetry.ts";
 
 /** How long a page the agent asks the person to open waits for them: Claude Code's own wait for a sign-in. */
 const SIGN_IN_WAIT_MS = 10 * 60_000;
+/** How long Stop waits for the agent to say it stopped before loki ends the turn without it. */
+const STOP_WAIT_MS = 3_000;
 /**
  * Chats that run on an ACP agent (plan 020). Each chat has a session on its agent's process; a message is a
  * `session/prompt`, and what the agent reports as it works (`session/update`) becomes loki's chat events for every
@@ -51,6 +53,10 @@ export interface AcpChatsDeps {
   allowedTools?: (agentId: string) => string[];
   /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
   capture?: (event: string, properties: Record<string, unknown>) => void;
+  /** Where each line the agents write to stderr goes, named by agent, so a hang can be traced; absent, nowhere. */
+  report?: (message: string) => void;
+  /** How long Stop waits for the agent to answer it, in milliseconds; absent, three seconds. */
+  stopWaitMs?: number;
   /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
   configFile?: string;
   /**
@@ -138,6 +144,8 @@ interface Live {
   /** Words for the agent's first prompt of a session, when it takes no system prompt (KD5). */
   preamble: string | null;
   turn: Turn | null;
+  /** What Stop ends: the turn running now, or the session being opened ahead of the first message (`warm`). */
+  stop: AbortController | null;
   queue: Promise<void>;
   sent: Set<string>;
   modes: acp.SessionModeState | null;
@@ -177,6 +185,28 @@ function planText(entries: acp.PlanEntry[]): string {
   return entries.map((e) => `${e.status === "completed" ? "[x]" : e.status === "in_progress" ? "[~]" : "[ ]"} ${e.content}`).join("\n");
 }
 
+/** Thrown when Stop ended the wait on the agent: it did not answer in time. */
+class Stopped extends Error {}
+
+/**
+ * The agent's answer, unless Stop comes first and the agent has not answered `waitMs` later: a stuck agent cannot keep
+ * a chat busy, and one that stops when asked still says its last words.
+ */
+function unlessStopped<T>(work: Promise<T>, signal: AbortSignal, waitMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopped = () => {
+      timer = setTimeout(() => reject(new Stopped("the agent did not stop when asked")), waitMs);
+    };
+    if (signal.aborted) stopped();
+    else signal.addEventListener("abort", stopped, { once: true });
+    work.then(resolve, reject).finally(() => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", stopped);
+    });
+  });
+}
+
 /** Why a turn stopped short, for the person; null when it simply ended. */
 function stopNote(reason: acp.StopReason): string | null {
   if (reason === "refusal") return "the agent refused to continue";
@@ -198,10 +228,13 @@ export class AcpChats {
   private readonly offered: Map<string, Offered>;
   /** How each agent last went: a message through, a start, or a failure with its reason (Settings › Engines). */
   private readonly health = new Map<string, { status: "ready" | "started" | "failed"; detail: string | null }>();
+  /** How long Stop waits for the agent to answer it. */
+  private readonly stopWaitMs: number;
   private readonly deps: AcpChatsDeps;
 
   constructor(deps: AcpChatsDeps) {
     this.deps = deps;
+    this.stopWaitMs = deps.stopWaitMs ?? STOP_WAIT_MS;
     this.offered = new Map(Object.entries(this.readCache()));
   }
 
@@ -387,6 +420,7 @@ export class AcpChats {
         update: (n) => this.update(n),
         permission: (r) => this.permission(r),
         elicit: (r) => this.elicit(r),
+        log: (line) => this.deps.report?.(`${agent}: ${line}`),
       });
       this.processes.set(agent, proc);
     }
@@ -412,6 +446,7 @@ export class AcpChats {
         loading: false,
         preamble: null,
         turn: null,
+        stop: null,
         queue: Promise.resolve(),
         sent: new Set(),
         modes: null,
@@ -476,8 +511,16 @@ export class AcpChats {
     const live = this.liveOf(agentId, conversationId, engine);
     live.queue = live.queue
       .then(async () => {
-        const { store, chat, info } = await this.chat(agentId, conversationId);
-        if (info.engine?.kind === "acp" && info.engine.agent === live.agent) await this.session(live, store, chat, info, info.engine);
+        // Stop ends the wait too: an agent that never finishes opening must not hold the messages queued behind it.
+        const stop = new AbortController();
+        live.stop = stop;
+        try {
+          const { store, chat, info } = await this.chat(agentId, conversationId);
+          if (info.engine?.kind === "acp" && info.engine.agent === live.agent)
+            await unlessStopped(this.session(live, store, chat, info, info.engine), stop.signal, this.stopWaitMs);
+        } finally {
+          if (live.stop === stop) live.stop = null;
+        }
       })
       .catch(() => {});
   }
@@ -491,12 +534,20 @@ export class AcpChats {
     live.queue = live.queue.then(() => this.run(live, text, images)).catch(() => {});
   }
 
-  /** Stop the turn running now: what waits on the person is withdrawn, and the agent is asked to cancel. */
-  async abort(agentId: string, conversationId: string): Promise<void> {
+  /**
+   * Stop the turn running now, or the session being opened for the first message: what waits on the person is
+   * withdrawn and the agent is asked to cancel. The chat is free again once the agent answers, or `STOP_WAIT_MS` later
+   * if it does not; the messages queued behind it then go.
+   */
+  abort(agentId: string, conversationId: string): void {
     const live = this.live.get(key(agentId, conversationId));
-    if (!live?.turn) return;
-    live.turn.abort.abort();
-    if (live.sessionId) await this.process(live.agent).cancel(live.sessionId);
+    if (!live?.stop) return;
+    live.stop.abort();
+    // Not awaited: an agent stuck starting would hold Stop itself.
+    if (live.sessionId)
+      void this.process(live.agent)
+        .cancel(live.sessionId)
+        .catch(() => {});
   }
 
   /** The agent's mode for the chat (KD10): remembered on the chat, and set on its session when one is open. */
@@ -655,6 +706,7 @@ export class AcpChats {
       responses: 0,
     };
     live.turn = turn;
+    live.stop = turn.abort;
     const at = this.now();
     turn.startedAt = Date.parse(at);
     const content = [
@@ -669,7 +721,7 @@ export class AcpChats {
     let usage: acp.Usage | null = null;
     let stopReason: acp.StopReason | null = null;
     try {
-      const sessionId = await this.session(live, store, chat, info, info.engine);
+      const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine), turn.abort.signal, this.stopWaitMs);
       const caps = await proc.capabilities();
       const prompt: acp.ContentBlock[] = [
         ...(live.preamble ? [{ type: "text" as const, text: `<loki-agent>\n${live.preamble}\n</loki-agent>` }] : []),
@@ -679,7 +731,7 @@ export class AcpChats {
       live.preamble = null;
       if (images.length && !caps.promptCapabilities?.image)
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "this agent takes no pictures; they were not sent" }]);
-      const response = await proc.prompt({ sessionId, prompt });
+      const response = await unlessStopped(proc.prompt({ sessionId, prompt }), turn.abort.signal, this.stopWaitMs);
       usage = response.usage ?? null;
       stopReason = response.stopReason;
       await this.finish(live, store, chat, turn, usage, info.engine);
@@ -688,11 +740,18 @@ export class AcpChats {
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
     } catch (error) {
       await this.finish(live, store, chat, turn, null, info.engine).catch(() => {});
+      if (error instanceof Stopped) {
+        // The agent may still be working on it; the chat no longer waits.
+        stopReason = "cancelled";
+        this.push(live.agentId, live.conversationId, [{ kind: "error", message: "the agent did not answer the stop, so loki ended the turn without it" }]);
+        return;
+      }
       const message = proc.failure(error).message;
       this.health.set(live.agent, { status: "failed", detail: message.split("\n")[0] });
       this.push(live.agentId, live.conversationId, [{ kind: "error", message }]);
     } finally {
       live.turn = null;
+      if (live.stop === turn.abort) live.stop = null;
       this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turn_id: turn.id }]);
       this.measure(live, turn, info.engine, usage, stopReason);
     }
