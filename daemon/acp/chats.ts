@@ -14,7 +14,7 @@ import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index
 import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView, EngineView } from "../../core/frame-types.ts";
 import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
-import { CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
+import { builtInAgent, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
 import { AcpProcess } from "./process.ts";
 import { acpTurnProperties } from "../telemetry.ts";
 
@@ -286,7 +286,8 @@ export class AcpChats {
   engines(): EnginesView {
     return {
       engines: this.deps.agents().map((a): EngineView => {
-        const builtin = a.id === CLAUDE_CODE.id;
+        const shipped = builtInAgent(a.id);
+        const builtin = shipped !== undefined;
         const health = this.health.get(a.id);
         const failed = health?.status === "failed" ? (health.detail ?? "") : null;
         // An agent that needs signing in says so in its own words; loki only tells the two kinds of failure apart.
@@ -300,11 +301,11 @@ export class AcpChats {
           status === "not_found"
             ? `${a.command} is not on loki's PATH${a.command === "npx" ? "; install Node" : ""}`
             : status === "signed_out"
-              ? builtin
-                ? "run claude /login in a terminal, then send again"
+              ? a.login
+                ? `run ${a.login} in a terminal, then send again`
                 : `sign in to ${a.name}, then send again`
               : (health?.detail ?? null);
-        const changed = builtin && JSON.stringify(a) !== JSON.stringify(CLAUDE_CODE);
+        const changed = builtin && JSON.stringify(a) !== JSON.stringify(shipped);
         return { id: a.id, name: a.name, command: a.command, args: a.args, builtin, changed, status, detail };
       }),
       config_path: this.deps.configFile ?? "",
@@ -321,16 +322,24 @@ export class AcpChats {
     return this.engines();
   }
 
-  /** Add an agent, or change how one starts (Claude Code's change is kept as an override of the built-in one). */
+  /**
+   * Add an agent, or change how one starts (a built-in one's change is kept as an override of it). What Settings does
+   * not show (its environment, its sign-in method and command) is kept from the agent as it was.
+   */
   setEngine(agent: AcpAgentConfig): Promise<EnginesView> {
-    return Promise.resolve(this.editAgents((agents) => [...agents.filter((a) => a.id !== agent.id), agent], agent.id));
+    return Promise.resolve(
+      this.editAgents((agents) => {
+        const { env, auth_method, login } = agents.find((a) => a.id === agent.id) ?? {};
+        const kept = { ...(env ? { env } : {}), ...(auth_method ? { auth_method } : {}), ...(login ? { login } : {}) };
+        return [...agents.filter((a) => a.id !== agent.id), { ...kept, ...agent }];
+      }, agent.id),
+    );
   }
 
-  /** Remove an agent; Claude Code goes back to how loki ships it. */
+  /** Remove an agent; a built-in one goes back to how loki ships it. */
   removeEngine(id: string): Promise<EnginesView> {
-    return Promise.resolve(
-      this.editAgents((agents) => (id === CLAUDE_CODE.id ? [CLAUDE_CODE, ...agents.filter((a) => a.id !== id)] : agents.filter((a) => a.id !== id)), id),
-    );
+    const shipped = builtInAgent(id);
+    return Promise.resolve(this.editAgents((agents) => [...(shipped ? [shipped] : []), ...agents.filter((a) => a.id !== id)], id));
   }
 
   /** Start an agent afresh and initialize it, to see that it starts; sign-in shows only on a first message. */
@@ -374,11 +383,13 @@ export class AcpChats {
   /**
    * Each ACP agent's models for the model picker: what it offered last, or its default before it has run. Its
    * default is featured, so the agent is among the quick picks. A model whose effort levels are known is one entry
-   * per level, as loki's own presets are (plan 021, R4).
+   * per level, as loki's own presets are (plan 021, R4). An agent that has never run and is not installed is left out,
+   * so a built-in one the person does not have is no quick pick (plan 048).
    */
   models(): ModelEntry[] {
     return this.deps.agents().flatMap((agent) => {
       const offered = this.offered.get(agent.id);
+      if (!offered && !commandFound(agent.command, { ...process.env, ...agent.env })) return [];
       const models = offered?.models ?? [];
       const choices = models.some((m) => m.value === "default") ? models : [{ value: "default", name: "Default", description: null }, ...models];
       return choices.flatMap((m) => {

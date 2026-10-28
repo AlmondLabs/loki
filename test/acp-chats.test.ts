@@ -14,7 +14,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { AcpChats, type AcpChatsDeps } from "../daemon/acp/chats.ts";
-import { acpHandle, CLAUDE_CODE, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
+import { acpHandle, CLAUDE_CODE, commandFound, CURSOR, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { must } from "./fixtures/must.ts";
@@ -43,6 +43,7 @@ function setup(
     allowedTools?: AcpChatsDeps["allowedTools"];
     openUrl?: AcpChatsDeps["openUrl"];
     stopWaitMs?: number;
+    authMethod?: string;
   } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-acp-"));
@@ -65,7 +66,7 @@ function setup(
       stores,
       approvals,
       context: ctx,
-      agents: () => [{ ...FAKE, ...(opts.env ? { env: opts.env } : {}) }],
+      agents: () => [{ ...FAKE, ...(opts.env ? { env: opts.env } : {}), ...(opts.authMethod ? { auth_method: opts.authMethod } : {}) }],
       ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
       ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
@@ -147,10 +148,11 @@ function setup(
 }
 
 describe("ACP agents (plan 020)", () => {
-  test("the agents: Claude Code built in, others from the file, a bad one skipped; ACP handles named", () => {
+  test("the agents: Claude Code and Cursor built in, others from the file, a bad one skipped; ACP handles named", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-agents-"));
     try {
-      expect(readAcpAgents(join(dir, "none.json"))).toEqual([CLAUDE_CODE]);
+      expect(readAcpAgents(join(dir, "none.json"))).toEqual([CLAUDE_CODE, CURSOR]);
+      expect(CURSOR).toMatchObject({ command: "cursor-agent", args: ["acp"], auth_method: "cursor_login" });
       expect(acpHandle("acp:claude-code/sonnet")).toEqual({ agent: "claude-code", model: "sonnet" });
       expect(acpHandle("anthropic/claude-sonnet")).toBeNull();
       expect(commandFound(process.execPath)).toBe(true);
@@ -525,14 +527,58 @@ describe("ACP agents (plan 020)", () => {
 
     await acp.setEngine({ id: "gone", name: "Gone", command: join(dir, "no-such-agent"), args: [] });
     expect(one("gone")).toMatchObject({ builtin: false, status: "not_found" });
-    expect(readAcpAgents(file).map((a) => a.id)).toEqual(["claude-code", "gone"]);
+    expect(readAcpAgents(file).map((a) => a.id)).toEqual(["claude-code", "cursor", "gone"]);
     await acp.setEngine({ id: "gone", name: "Gone", command: process.execPath, args: [join(dir, "no-such-script.mjs")] });
     expect((await acp.checkEngine("gone")).engines.find((e) => e.id === "gone")).toMatchObject({ status: "failed" });
 
+    // An edit from Settings, which shows no environment or sign-in method, keeps them.
+    writeAcpAgents(file, [
+      ...readAcpAgents(file).filter((a) => a.id !== "gone"),
+      { id: "gone", name: "Gone", command: "x", args: [], env: { A: "1" }, auth_method: "m" },
+    ]);
+    await acp.setEngine({ id: "gone", name: "Gone again", command: process.execPath, args: [] });
+    expect(readAcpAgents(file).find((a) => a.id === "gone")).toEqual({
+      id: "gone",
+      name: "Gone again",
+      command: process.execPath,
+      args: [],
+      env: { A: "1" },
+      auth_method: "m",
+    });
+
     await acp.removeEngine("gone");
     await acp.removeEngine("claude-code");
-    expect(readAcpAgents(file)).toEqual([CLAUDE_CODE]);
+    expect(readAcpAgents(file)).toEqual([CLAUDE_CODE, CURSOR]);
     expect(one("claude-code")).toMatchObject({ builtin: true, changed: false });
+  });
+
+  test("an agent that opens no session until asked to sign in works once loki asks with its method", async () => {
+    const asked = setup({ env: { FAKE_ACP_AUTH: "fake_login" }, authMethod: "fake_login" });
+    const id = await asked.chat();
+    await asked.say(id, "hello");
+    expect(asked.words()).toBe("Hi there");
+
+    // Not told the method, loki never asks, and the agent says it is signed out.
+    const unasked = setup({ env: { FAKE_ACP_AUTH: "fake_login" } });
+    const other = await unasked.chat();
+    await unasked.say(other, "hello");
+    expect(unasked.errors().join("\n")).toMatch(/Authentication required/);
+    expect(unasked.acp.engines().engines[0]).toMatchObject({ status: "signed_out" });
+  });
+
+  test("the picker leaves out an agent that is not installed and has never run", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-acp-picker-"));
+    cleanups.push(() => Promise.resolve(rmSync(dir, { recursive: true, force: true })));
+    const missing: AcpAgentConfig = { id: "missing", name: "Missing", command: join(dir, "no-such-agent"), args: [] };
+    const acp = new AcpChats({
+      stores: new StoreManager(join(dir, "stores"), { models: createModels(), registry: new ModRegistry(() => {}).registry }, ctx, () => {}),
+      approvals: new Approvals(),
+      context: ctx,
+      agents: () => [FAKE, missing],
+      homeDir: dir,
+    });
+    const agents = new Set(acp.models().map((m) => acpHandle(m.handle)?.agent));
+    expect([...agents]).toEqual(["fake"]);
   });
 
   test("a turn that fails for want of signing in marks the agent as needing it; one that works marks it ready", async () => {
