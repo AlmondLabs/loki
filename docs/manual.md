@@ -208,11 +208,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         opens a search over every provider loki knows, the usual ones first. A key is checked with the provider, then
         kept in the keychain; a sign-in opens the browser, and if the browser does not come back you can paste the
         address it ended on.
-     2. **Engines**: what a chat can run on besides loki's own models (see "Chat through Claude Code"): Claude Code,
-        built in, and any agent you add by the command that starts it, kept in `~/.loki/state/acp.json`. Each shows
+     2. **Engines**: what a chat can run on besides loki's own models (see "Chat through Claude Code"): Claude Code and
+        Cursor, built in, and any agent you add by the command that starts it, kept in `~/.loki/state/acp.json`. Each shows
         whether it is ready, not found (its command is not on loki's PATH), needs signing in (from its last failure),
         or has not been tried; **details** shows the command, **try** starts it now, **edit** changes how it starts,
-        and **reset** puts Claude Code back as loki ships it.
+        and **reset** puts a built-in agent back as loki ships it.
      3. **MCP servers**: the servers in `~/.loki/mcp.json`, see "MCP servers".
      4. **Skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field to
         enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
@@ -571,6 +571,20 @@ terminal). In such a chat:
   anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
+
+**Chat through Cursor.** A chat can also run through Cursor's CLI, signed in with your own Cursor plan, and use the
+models Cursor offers. Install Cursor's CLI and run `cursor-agent login` once in a terminal. The **Cursor** tab then
+shows in the model picker; it stays hidden until the CLI is installed. It works as Claude Code does above (cards, Stop,
+queued messages, loki's tools), with these differences:
+
+- the mode chip shows Cursor's modes: agent, plan and ask;
+- loki asks Cursor to use your CLI login each time it starts Cursor, which takes a few seconds. If you're signed out,
+  Settings › Engines says to run `cursor-agent login`;
+- Cursor loads the MCP servers set up in Cursor itself (a project's `.cursor/mcp.json`). It may not load the ones
+  loki hands it.
+
+Any other agent that speaks ACP and needs the same sign-in step can be added in `~/.loki/state/acp.json` with an
+`auth_method`: the method id it lists when it starts (`grok.com` for Grok Build, for example).
 
 ## Questions from the agent
 

@@ -120,6 +120,12 @@ export class AcpProcess {
         }),
         exited.then((e) => Promise.reject(e)),
       ]);
+      // An agent that opens no session until asked to sign in (plan 048); it uses a login the person made with it.
+      if (this.config.auth_method)
+        await Promise.race([
+          connection.agent.request(methods.agent.authenticate, { methodId: this.config.auth_method }),
+          exited.then((e) => Promise.reject(e)),
+        ]);
       return { connection, init, kill };
     } catch (error) {
       kill();

@@ -694,7 +694,7 @@ export const FRAMES = {
       ? { id: m.id, name: m.name.trim(), command: m.command.trim(), args: strings(m.args) }
       : "id (lowercase letters, digits and dashes), name and command required",
   ),
-  chat_engine_remove: request("chat_engines", "remove an ACP agent, or put Claude Code back as loki ships it", (m) =>
+  chat_engine_remove: request("chat_engines", "remove an ACP agent, or put a built-in one back as loki ships it", (m) =>
     str(m.id) && m.id ? { id: m.id } : "id required",
   ),
   chat_engine_check: request("chat_engines", "start an ACP agent now, to see that it starts", (m) => (str(m.id) && m.id ? { id: m.id } : "id required")),

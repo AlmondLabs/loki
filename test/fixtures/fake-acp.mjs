@@ -16,6 +16,8 @@
 //   "mcp?"    answers with the MCP servers its session opened with and the tools it may run without asking
 // With FAKE_ACP_HANG_FIRST_SESSION set, its first session/new is never answered (it says so on stderr), as an agent
 // stuck opening a session.
+// With FAKE_ACP_AUTH set to a method id, it lists that sign-in method and opens no session until the client calls
+// authenticate with it, as Cursor's CLI does.
 // Plain JavaScript, so a test starts it with `node` and nothing else.
 import { createInterface } from "node:readline";
 
@@ -25,6 +27,8 @@ let nextRequest = 1;
 const waiting = new Map();
 const cancels = new Map();
 let costSoFar = 0;
+let signedIn = !process.env.FAKE_ACP_AUTH;
+const signedOut = (msg) => send({ id: msg.id, error: { code: -32000, message: "Authentication required" } });
 
 const send = (msg) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
 const update = (sessionId, u) => send({ method: "session/update", params: { sessionId, update: u } });
@@ -209,9 +213,14 @@ async function handle(msg) {
           sessionCapabilities: process.env.FAKE_ACP_NO_SYSTEM_PROMPT ? {} : { systemPrompt: { mode: { append: {} } } },
         },
         agentInfo: { name: "fake-acp", version: "1" },
-        authMethods: [],
+        authMethods: process.env.FAKE_ACP_AUTH ? [{ id: process.env.FAKE_ACP_AUTH, name: "Fake login" }] : [],
       });
+    case "authenticate":
+      if (p.methodId !== process.env.FAKE_ACP_AUTH) return send({ id: msg.id, error: { code: -32602, message: `no sign-in method ${p.methodId}` } });
+      signedIn = true;
+      return ok({});
     case "session/new": {
+      if (!signedIn) return signedOut(msg);
       if (process.env.FAKE_ACP_HANG_FIRST_SESSION && nextSession === 1) {
         nextSession++;
         process.stderr.write("fake-acp: holding the first session\n");
@@ -227,6 +236,7 @@ async function handle(msg) {
       return;
     }
     case "session/load": {
+      if (!signedIn) return signedOut(msg);
       if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });
       // The agent replays the session's history, which a client that keeps its own copy drops.
       update(p.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text: "replayed question" } });
