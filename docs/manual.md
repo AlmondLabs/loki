@@ -18,8 +18,6 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
   nvm-windows, fnm, scoop and bun. loki never downloads Node: with none new enough, Welcome says so, names the
   usual command (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or `sudo apt install nodejs npm` /
   `sudo dnf install nodejs`), links nodejs.org, and has **check again**, which looks afresh.
-- **beads** (`brew install beads`, or `npm install -g @beads/bd` on Windows and Linux) for Tasks. Optional;
-  everything else works without it.
 
 ## Install
 
@@ -91,7 +89,8 @@ one. The first start after such an update renames each store's tool calls once, 
 `~/.loki/stores/backup-tool-names-<date>/`; `~/.loki/stores/tool-names.json` lists the stores already done. Chats on
 Claude Code keep its names. In October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became
 `canvas_read` and `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and
-`view_image` became `image_view`.
+`view_image` became `image_view`. Tasks and its four tools went later that month, replaced by
+[suggestions](#suggestions); old chats that called them still read as they did.
 
 The update that left Letta behind migrates each store once more, on its first start. Chats imported from Letta still
 carried its shapes (its tool arguments, notices and paths); they are rewritten as loki writes them now, after a whole
@@ -106,8 +105,8 @@ loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, 
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
 window (double-click zooms). The window title still names what shows — the chat's name, "Inbox · n waiting",
-"Tasks · n open", "Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of six
-sections with a red count on what needs you; beside it, for Chats, Tasks, Agents and Learn, a **sidebar** listing
+"Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of five sections with a red
+count on what needs you; beside it, for Chats, Agents and Learn, a **sidebar** listing
 that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
 sidebar (in the Inbox, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
 width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
@@ -125,7 +124,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   and read are kept by the mod, so the phone and the Mac agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
-  most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
+  most 80 characters. Its second line is the chat's **purpose**, one line on what the chat is for, which agents read
+  (see [Suggestions](#suggestions)). An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
@@ -165,11 +165,10 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   each on the tab you left it on.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
-- **Tasks** (⌘3): the shared task list, see below.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
   a tab per page (a first visit lands on memory); the "+" at the top of the sidebar makes a new agent. **profile**: face, name, description and model
-  (editable), effort and context, where it is working (its live chats, each a link, and its open tasks), and delete at
+  (editable), effort and context, where it is working (its live chats, each a link), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
   reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
@@ -232,7 +231,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      1. **About**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
         hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
         the preview note), the system it runs on, how the app reaches the mod, requirements
-        (the daemon's Node, beads), and, folded, what the last install put in place and where loki keeps things.
+        (the daemon's Node), and, folded, what the last install put in place and where loki keeps things.
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
         cache saved, and what each origin (your chats, helpers, reflection, Learn, the memory review), agent and
@@ -249,19 +248,18 @@ in a message box opens it too. ⌘K used to open the chats tree; the sidebar hol
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Preferences › Keyboard shortcuts says so); `?` or
-Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox, columns
-in Tasks, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
-back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
+Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox,
+views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
-Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (Tasks, the
+Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
 
 A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Preferences › About links. Chats, Inbox, Tasks, Agents, Learn, Preferences, search and the mod are the Mac's. What
+Preferences › About links. Chats, Inbox, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
@@ -326,8 +324,8 @@ knobs stay on the Mac. A tap on a chat or a card opens the conversation: the tra
 question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
-read, **Mark as unread**, and pin. No Tasks segment on the phone, but a long press on a message offers **Add task**
-(below), and a message that has a task shows its chip.
+read, **Mark as unread**, and pin. A chat's suggestions show above its reply box as on the Mac, with the same
+four actions (see [Suggestions](#suggestions)), and **Rename** in the actions sheet takes the purpose line too.
 
 The phone's text follows the size you set in iOS (Settings › Display & Brightness › Text Size, or Larger Text in
 Accessibility), up to about half again the default; the tab bar stays its own size, as iOS's does. Reduce
@@ -416,7 +414,7 @@ reachable; a closed lid still sleeps.
    on the Mac it lives on, so a Friday chat on the mini still teaches Friday, and a moved chat is not read twice.
 6. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
    adds up), pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
-   "always allow" list, Tasks, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
+   "always allow" list, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
    on.
 
 **The phone** reaches every chat on every paired Mac through the Mac it is paired with; if that Mac is off, the
@@ -442,6 +440,8 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
 - tools: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
+- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list`,
+  `suggestion_create`, `suggestion_list` and `suggestion_withdraw` (see [Suggestions](#suggestions))
 
 ## Install (development)
 
@@ -559,16 +559,16 @@ terminal). In such a chat:
   chats as from any other, on the agent's own model in loki. With no provider set up in loki, they wait until there
   is one;
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
-  committed as in loki's chats), schedules, questions in loki's card, the canvas and Tasks, and any your mods add.
-  Claude Code's own tools cover files, commands, web search and subagents;
+  committed as in loki's chats), schedules, questions in loki's card, the canvas, `chat_list` and the suggestion
+  tools, and any your mods add. Claude Code's own tools cover files, commands, web search and subagents;
 - every MCP server the agent has on in loki (Agents › Profile) is there too, under its own name: loki hands Claude
   Code each one's settings and Claude Code connects to it. A server that signs in (Notion, say) asks once, the first
   time a Claude Code chat uses it: a card in the chat asks to open its sign-in page, and **allow** opens it in this
   Mac's browser. Claude Code keeps that sign-in for every later chat; loki's own sign-in stays for loki's chats. A
   local server you gave its own folder can't be handed over and stays out (the daemon's log says so). Servers you set
   up in Claude Code itself load as well;
-- tools that only read, and loki's memory and question tools, run without a card, as they do in loki's own chats;
-  anything else asks as Claude Code's mode says.
+- tools that only read, and loki's memory, question and suggestion tools, run without a card, as they do in loki's
+  own chats; anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
 
@@ -760,52 +760,70 @@ minutes, its prompt saying it is another try. A turn that got through, or ended 
 the next slot due replaces a try still waiting. Any chat whose model could not be reached says so in its thread, with
 the provider's message ("the model could not be reached · 4 tries"), after a reload too.
 
-## Tasks
+## Suggestions
 
-One task list shared by you and every agent, backed by
-[beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at `~/.loki/tasks`. (Tasks was called the Board
-until October 2026; its list in `~/.loki/board` moves to `~/.loki/tasks` the first time the new version starts, and
-stays where it is if it cannot move.) A task is work to be done: you do it yourself, or hand it to an agent. Agents
-file tasks only when asked, through `task_create`, which stamps the source chat and its folder; you file them
-from the "+" in Tasks or ⌘T anywhere.
+A suggestion is a message an agent writes for another chat, for you to send. Agents make them on their own whenever a
+piece of work would be done better somewhere else: a side finding that belongs in a themed chat (a weak password
+noticed in passing, for your infra chat), a hand-off to another agent, or a part of the current work to run in a new
+chat in parallel. They never suggest work they can do in the chat they are in, and they never send a suggestion
+themselves: every one waits for you. Any agent may suggest for any chat, its own or another agent's, open or new.
 
-**Views.** The Tasks segment (⌘3) lists its built-in views in the sidebar, each with its count:
+**Where they show.** A suggestion shows in the chat screen of the chat it was made in, above the message box, never as
+a row in the thread; on the phone the same, above the reply box. Several stack newest first, one line each until you
+open one, which shows its message and four actions. A suggestion stays until you act on it or its agent takes it back
+(`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
+Inbox, so it has a screen to show in.
 
-- **All**: every open task, and the ones done in the last week.
-- **Mine**: tasks you filed that no chat has been assigned: yours to do.
-- **Waiting for you**: tasks you filed that an agent says are done (below).
-- **One per agent**: the tasks assigned to that agent's chats. A remembered agent view whose agent has no tasks left
-  says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again.
+**The four actions.**
 
-**Layouts.** Each view shows as a **Board** (columns) or a **Table** (L switches; each view remembers its own). The
-Board groups by **status** (Open, In progress, Blocked, Done · 7d), **assignee** or **folder** (G cycles). The Table has
-a column each for the title, status, assignee, who filed it, the chat it came from, its folder and when it last moved;
-click a column's name to sort by it, again to reverse.
+1. **send now** sends the message to its chat as yours. When that chat's agent is mid-turn, it waits in the queue
+   like a message you typed there and goes when the turn ends. In the chat it lands in, it carries a "suggested in
+   another chat" chip that opens the chat it came from, and the agent there is told it came from a suggestion. A
+   suggestion for a new chat makes that chat on the Mac its agent lives on, as any new chat is; when that Mac is out
+   of reach, no chat is made and the suggestion stays with the reason. Sending again after a failure never makes a
+   second chat or sends twice.
+2. **save as draft** puts the message in its chat's message box, ready to edit and send, on the Mac and the phone, and
+   it survives reloads and restarts. It never replaces what you typed: while the box holds your own text, the draft
+   waits under it and shows once the box is empty. The chat's Inbox card says **draft** (on the phone, **Draft**). The
+   next message sent from that chat, or emptying its box, clears the draft. A chat holds one saved draft at a time: a
+   second is refused until the first is sent, or goes to another chat. A new chat holding only a draft is listed in
+   the Inbox and rests under Next like any other card.
+3. **change chat** points the suggestion somewhere else before you send or save it: type to find a chat or an agent,
+   and pick an agent for a new chat with it, then give the new chat's folder.
+4. **reject** drops it.
 
-**Moving tasks.** Select tasks (X or space, ⇧X or ⇧-click for a range) and press ⏎ to **assign** them to a chat: the
-agent becomes the assignee and the tasks ride along inside `<loki-tasks>` on your next message in that conversation,
-and again only when that chat's list changes (hidden in the chat, shown as a quiet "assigned tasks" row); nothing is
-sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent starts now. New chat is a target too.
-⌫ marks done, ⇧⌫ toggles blocked, R reopens, ⌘R refreshes, / filters.
+**When an action is refused.** When the chat a suggestion is for has been archived or deleted, or its agent is gone,
+the card says so and offers only **change chat**: nothing is dropped without you. The first action on a suggestion
+wins: open on the Mac and the phone, a send from the phone and then a reject on the Mac tells the Mac "already sent
+from the phone" and changes nothing. An action that cannot reach the Macs involved leaves the suggestion as it was,
+with the reason on the card; the phone's buttons are off while its Mac is out of reach. A suggestion lives with the
+chat it was made in, on the Mac that chat lives on, which carries out every action, so it moves when the chat moves.
 
-**Add task from a message.** Every message in a chat, yours or the agent's, has an **Add task** button (a tick with a
-plus) beside Copy; on the phone it is in the message's long press. To file part of a message, select the words and
-press ⌘⇧T. An editor opens under the message with a title taken from the message's first line (or the selection):
-edit it, ⏎ files the task, esc cancels. The task is yours (it lands in **Mine** until you assign it), its description
-quotes the message or the selection, and it remembers the message: in Tasks, the quote under its title opens that
-chat scrolled to the message. The message shows the task as a chip: **task · open** with the agent's newest progress
-note, **done? · waiting for you** with Confirm and Reopen, or ticked and faded once done. Clicking the chip opens the
-task in Tasks.
+**The purpose line.** A chat can carry one line saying what it is for ("infra: servers, certificates, backups"). Write
+it in the chat's **Rename…** dialog, under the name (on the phone, **Rename** in the chat's actions); an empty line
+clears it. It shows under the chat's name in its header. Agents read it through `chat_list`, and only you write it.
 
-<img src="images/add-task.png" width="800" alt="A chat with Add task's editor open under the first message, and chips under the others: a task done and ticked, a task open with the agent's newest note, and a task the agent says is done, waiting with confirm and reopen">
+**The agent's tools.** None of them asks for approval, in any permission mode, on loki's engine or Claude Code: a
+suggestion is already yours to decide.
 
-**Only you close your tasks.** An agent comments on a task as it makes progress and closes it when the whole task is
-done, but only on its own chat's tasks: those assigned to it, or filed from it and not assigned elsewhere. When the
-task is one *you* filed, the agent's close does not close it: the task shows **done? · waiting for you** with the
-agent's one-line reason, in Waiting for you and on its card. **Confirm** (or ⌫) closes it; **Reopen** (or R) takes the
-agent's word back and the task stays open. Tasks an agent filed for itself close when it closes them.
+- `chat_list` lists your agents (with the Mac each lives on and whether it is in reach) and the open chats on this Mac
+  and your paired Macs, one line each: name, agent, folder, labels, pinned, last active and purpose line. Archived
+  chats are left out. An agent calls it when it needs to pick a chat; the list never rides along in its context.
+- `suggestion_create` makes a suggestion for an open chat or for a new chat with an agent in a folder; a target that
+  is not in `chat_list` is refused with the valid choices.
+- `suggestion_list` lists the suggestions made in this chat, with each one's status and the chat it now points at.
+- `suggestion_withdraw` takes back one you have not acted on.
 
-Setup: `brew install beads`. The mod creates the list (`bd init --prefix lk`) the first time it is used.
+Reflection and Learn cannot suggest: a background pass has no chat screen to show a suggestion in.
+
+**What happened to Tasks.** The shared task list (Tasks, ⌘3, backed by beads) was removed in October 2026, with its
+views, assigning, task chips, Add task and the `task_*` tools. On the first start of the version without it, each
+open task became a suggestion in the chat it was filed from, for a new chat with the same agent in the same folder,
+and an archived source chat came back into the Inbox. Each task moves once (noted in `~/.loki/state/migrations.json`);
+one that cannot move yet, because `bd` is missing or its chat's Mac is out of reach, is tried again at the next start
+and when a paired Mac comes into reach, and one that names no chat it was filed from stays where it is; the daemon's
+log names each. loki only reads the beads store (`~/.loki/tasks`) for this and leaves it on disk as it was; `bd` is
+needed for nothing else. Old chats that used Tasks still read cleanly.
 
 ## MCP servers
 
@@ -894,8 +912,8 @@ period.
 
 `LOKI_PORT` (the mod's socket, default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
 `LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
-`LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its
-bundle instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build from installing, and a dev build
+`LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_BD` (the `bd` that the one-time move of open tasks reads
+with), `LOKI_INSTALL=1` (make a dev build install its bundle instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build from installing, and a dev build
 from linking), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). On Linux the shell sets `GDK_BACKEND=x11` unless it is
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.

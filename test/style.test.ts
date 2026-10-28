@@ -37,13 +37,13 @@ describe("file names (docs/style.md §2)", () => {
   test("the rule itself: what passes and what does not", () => {
     // These paths need not exist: only their names are judged.
     expect(nameProblem("app/src/shared/session-value.ts")).toBeNull();
-    expect(nameProblem("app/src/tasks/tasks-pane.tsx")).toBeNull();
-    expect(nameProblem("app/src/shell/use-tasks.ts")).toBeNull();
+    expect(nameProblem("app/src/chat/suggestion-card.tsx")).toBeNull();
+    expect(nameProblem("app/src/chat/use-draft.ts")).toBeNull();
     expect(nameProblem("app/vite.config.ts")).toBeNull();
     expect(nameProblem("test/fixtures/fake-mcp.d.mts")).toBeNull();
     expect(nameProblem("test-node/crash-child.ts")).toBeNull();
     expect(nameProblem("app/src/shared/sessionValue.ts")).toMatch(/kebab-case/);
-    expect(nameProblem("app/src/tasks/TasksPane.tsx")).toMatch(/kebab-case/);
+    expect(nameProblem("app/src/chat/SuggestionCard.tsx")).toMatch(/kebab-case/);
     expect(nameProblem("app/src/shell/useTasks.ts")).toMatch(/kebab-case/);
     expect(nameProblem("app/src/shell/Desk_Sidebar.css")).toMatch(/kebab-case/);
     expect(nameProblem("test/helpers.ts")).toMatch(/\.test\.ts/);
