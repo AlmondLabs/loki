@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { migrateKeys, OLD_TASK_METADATA_KEYS } from "../core/snake-keys.ts";
@@ -11,7 +11,9 @@ import type { ChatKey, SuggestionInput, Suggestions } from "./suggestions.ts";
  * Tasks retired into suggestions (plan 047, U7, KTD10): each open task in the beads store becomes a suggestion in the
  * chat it was filed from, written on the Mac that chat lives on, and its id is noted in `state/migrations.json`
  * (`tasks_moved`) so it moves once. A task that cannot move now (bd missing, its chat's Mac off, its chat gone) is
- * left for the next run. The beads store is only read: this file keeps its own reader, apart from mod/tasks.ts.
+ * left for the next run. Each suggestion is kept under an id made from its task's (`task-<id>`), so a run that added it
+ * but stopped before noting the task (a crash, or a paired Mac that stored it and answered too late) finds it there
+ * next time and adds no second one. The beads store is only read, never created or changed.
  */
 
 /** Runs bd with the given arguments, without the binary, and resolves to its stdout; tests pass canned output. */
@@ -110,38 +112,60 @@ export interface TaskMoveDeps {
   /** `state/migrations.json`. */
   stateFile: string;
   route: Pick<ChatRouter, "target" | "forward">;
+  /** This Mac's suggestions; `add` with an id it already holds returns that one and adds nothing. */
   suggestions: Pick<Suggestions, "add">;
   /** The folder a chat works in, for a task that names none; null when it is not known. */
   folderOf(chat: ChatKey): string | null;
   report(message: string): void;
 }
 
-const readState = (file: string): Record<string, unknown> => {
+/**
+ * The state file's keys; a missing file holds none. A file that is there but does not parse throws, since writing
+ * over it would lose every other key it holds (the agents moved from Letta among them).
+ */
+function readState(file: string): Record<string, unknown> {
+  let raw: string;
   try {
-    const v: unknown = JSON.parse(readFileSync(file, "utf8"));
-    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-  } catch {
-    return {};
+    raw = readFileSync(file, "utf8");
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") return {};
+    throw err;
   }
-};
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`${file} does not parse (${err instanceof Error ? err.message : String(err)}): left as it is`);
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error(`${file} is not a JSON object: left as it is`);
+  return v as Record<string, unknown>;
+}
 
 const movedIds = (state: Record<string, unknown>): string[] =>
   Array.isArray(state.tasks_moved) ? state.tasks_moved.filter((id): id is string => typeof id === "string") : [];
 
-/** Note one more moved task, keeping every other key the file holds; written at once, so a crash never moves it twice. */
+/**
+ * Note one more moved task, keeping every other key the file holds. Written to a file beside it and renamed over it,
+ * so a crash leaves the old file or the new one, never half of one.
+ */
 function record(file: string, id: string): void {
   const state = readState(file);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify({ ...state, tasks_moved: [...movedIds(state), id] }, null, 2)}\n`);
+  const temp = `${file}.${String(process.pid)}.tmp`;
+  writeFileSync(temp, `${JSON.stringify({ ...state, tasks_moved: [...movedIds(state), id] }, null, 2)}\n`);
+  renameSync(temp, file);
 }
 
-/** Add the suggestion on the Mac its source chat lives on: here, or the paired Mac the router names. */
-async function addAtHome(d: TaskMoveDeps, source: ChatKey, input: SuggestionInput): Promise<string | null> {
+/**
+ * Add the suggestion under `id` on the Mac its source chat lives on: here, or the paired Mac the router names. Either
+ * returns the one already kept under that id rather than adding another.
+ */
+async function addAtHome(d: TaskMoveDeps, source: ChatKey, input: SuggestionInput, id: string): Promise<string | null> {
   try {
-    const frame = { type: "suggestion_add", ...source, ...input };
+    const frame = { type: "suggestion_add", ...source, ...input, suggestion_id: id };
     const home = await d.route.target(frame);
     if (!home) {
-      await d.suggestions.add(source, input);
+      await d.suggestions.add(source, input, { id });
       return null;
     }
     const out = await d.route.forward(home, frame, "request");
@@ -163,7 +187,13 @@ export async function moveTasks(d: TaskMoveDeps): Promise<string[]> {
     d.report(`tasks not moved into suggestions yet: ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
-  const done = new Set(movedIds(readState(d.stateFile)));
+  let done: Set<string>;
+  try {
+    done = new Set(movedIds(readState(d.stateFile)));
+  } catch (err) {
+    d.report(`tasks not moved into suggestions: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
   const moved: string[] = [];
   for (const t of tasks) {
     if (t.status === "closed" || done.has(t.id)) continue;
@@ -177,12 +207,18 @@ export async function moveTasks(d: TaskMoveDeps): Promise<string[]> {
       text: t.description.trim() ? `${t.title}\n\n${t.description.trim()}` : t.title,
       target: { agent_id: t.source.agent_id, folder },
     };
-    const failed = await addAtHome(d, t.source, input);
+    const failed = await addAtHome(d, t.source, input, `task-${t.id}`);
     if (failed) {
       d.report(`task ${t.id} stays in beads for now: ${failed}`);
       continue;
     }
-    record(d.stateFile, t.id);
+    try {
+      record(d.stateFile, t.id);
+    } catch (err) {
+      // Its suggestion is kept under the task's id, so the next run finds it and only notes the task.
+      d.report(`tasks not moved into suggestions: ${err instanceof Error ? err.message : String(err)}`);
+      break;
+    }
     moved.push(t.id);
   }
   if (moved.length) d.report(`${moved.length} tasks moved into suggestions: ${moved.join(", ")}`);

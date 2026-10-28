@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Suggestion } from "../core/frame-types.ts";
@@ -75,7 +75,7 @@ function world(listed: () => unknown[] | null) {
   const here: Record<string, Chat> = { [key(ARCHIVED)]: { suggestions: [], archived: true }, [key(LIVE)]: { suggestions: [], archived: false } };
   const mini: Record<string, Chat> = { [key(ON_MINI)]: { suggestions: [], archived: false } };
   const miniSuggestions = mac(mini);
-  const state = { miniOn: false, bdCalls: [] as string[][] };
+  const state = { miniOn: false, miniTimesOut: false, bdCalls: [] as string[][] };
   const reports: string[] = [];
   const run: BdRunner = (args) => {
     state.bdCalls.push(args);
@@ -89,7 +89,10 @@ function world(listed: () => unknown[] | null) {
       // The mini answers the frame as its table parses it.
       const p = FRAMES.suggestion_add.parse(msg);
       if (typeof p === "string") return { ok: false, message: p };
-      const suggestion = await miniSuggestions.add(p, { title: p.title, text: p.text, target: p.target });
+      // As mod/frames/suggestions.ts does: the frame's suggestion_id is the id the suggestion is kept under.
+      const suggestion = await miniSuggestions.add(p, { title: p.title, text: p.text, target: p.target }, p.suggestion_id ? { id: p.suggestion_id } : {});
+      // The mini stored it, but its answer never came back in time.
+      if (state.miniTimesOut) return { ok: false, message: "mac-mini did not answer in time" };
       return { ok: true, reply: { type: "suggestion_added", suggestion } };
     },
   };
@@ -185,5 +188,40 @@ describe("open tasks become suggestions in the chats they were filed from (plan 
     writeFileSync(w.stateFile, JSON.stringify({ agents: 1, tasks_moved: ["lk-0"] }));
     await moveTasks(w.deps);
     expect(w.recorded()).toEqual({ agents: 1, tasks_moved: ["lk-0", "lk-2"] });
+    // Written through a file beside it and renamed over it, so no half-written file or temp file is left.
+    expect(readdirSync(join(w.root, "state"))).toEqual(["migrations.json"]);
+  });
+
+  test("a task added but not recorded (a crash between the two) is not added twice on the next run", async () => {
+    const w = world(() => [task("lk-1", LIVE)]);
+    await moveTasks(w.deps);
+    // The crash: the suggestion is kept in the chat, but its task was never noted as moved.
+    rmSync(w.stateFile);
+    await moveTasks(w.deps);
+    expect(must(w.here[key(LIVE)], "live").suggestions).toEqual([expect.objectContaining({ id: "task-lk-1", title: "task lk-1" })]);
+    expect(w.recorded()).toEqual({ tasks_moved: ["lk-1"] });
+  });
+
+  test("a forwarded add the paired Mac stored but did not answer in time is not added twice on the next run", async () => {
+    const w = world(() => [task("lk-3", ON_MINI)]);
+    w.state.miniOn = true;
+    w.state.miniTimesOut = true;
+    await moveTasks(w.deps);
+    expect(() => readFileSync(w.stateFile)).toThrow();
+    w.state.miniTimesOut = false;
+    await moveTasks(w.deps);
+    expect(must(w.mini[key(ON_MINI)], "mini's chat").suggestions).toEqual([expect.objectContaining({ id: "task-lk-3", title: "task lk-3" })]);
+    expect(w.recorded()).toEqual({ tasks_moved: ["lk-3"] });
+  });
+
+  test("a migrations.json that does not parse stops the move with a report, and is left as it was", async () => {
+    const w = world(() => [task("lk-1", LIVE)]);
+    mkdirSync(join(w.root, "state"), { recursive: true });
+    const torn = '{"agents": 1, "tasks_moved": ["lk-0"';
+    writeFileSync(w.stateFile, torn);
+    expect(await moveTasks(w.deps)).toEqual([]);
+    expect(must(w.here[key(LIVE)], "live").suggestions).toEqual([]);
+    expect(readFileSync(w.stateFile, "utf8")).toBe(torn);
+    expect(w.reports.join("\n")).toContain("migrations.json");
   });
 });
