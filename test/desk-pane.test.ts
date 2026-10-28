@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   EMPTY_PANE,
   EMPTY_ROUTE,
@@ -198,5 +198,16 @@ describe("desk pane: hidden behind other sections", () => {
     const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
     expect(panels).toHaveLength(2);
     for (const p of panels) expect(p.endsWith('"inherit"')).toBe(true);
+  });
+});
+
+describe("desk pane: the hidden tab hides all of it", () => {
+  test("nothing on the Canvas marks itself visible, which would show through Messages", () => {
+    const dir = new URL("../app/src/desk/", import.meta.url);
+    const marked = readdirSync(dir)
+      .filter((f) => /\.(tsx?|css)$/.test(f))
+      // A visibility whose value can be visible: a style's "visible" (a ternary's too), or CSS's visibility: visible.
+      .filter((f) => /visibility:[^,;}\n]*(["'])visible\1|visibility:\s*visible\s*[;}]/.test(readFileSync(new URL(f, dir), "utf8")));
+    expect(marked).toEqual([]);
   });
 });
