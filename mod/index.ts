@@ -34,7 +34,7 @@ import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer }
 import { Sockets } from "./sockets.ts";
 import { chatImageRoute } from "./chat-images.ts";
 import { createBridge } from "./bridge.ts";
-import { seenFrame } from "./frames/seen.ts";
+import { seenChatFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -467,7 +467,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       seen.mark(m.agentId, m.chatId); // you just spoke in this conversation
       // Your message is engagement; a turn with nothing typed (an image alone) is still yours, but not typed words.
       if (m.typed) seen.engage(m.agentId, m.chatId, "message");
-      broadcast(seenFrame({ seen }));
+      broadcast(seenChatFrame(seen, m.agentId, m.chatId));
       if (!lines.length) return undefined;
       return attachDeskContext(m.content, formatDeskContext(scope, lines, paths.widgets));
     }),

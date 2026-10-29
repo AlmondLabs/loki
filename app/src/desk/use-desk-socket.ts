@@ -263,7 +263,7 @@ export function useDeskSocket() {
           }
           case "seen": {
             const { seen, viewed, focus, rests } = msg;
-            // Every mark anywhere broadcasts the whole frame: a map it repeats keeps its object, so nothing re-renders on it.
+            // Every chat's marks, on connect and after marks from a paired Mac: a map it repeats keeps its object, so nothing re-renders on it.
             setSeenMap((m) => keepSame(m, seen));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
             if (viewed && typeof viewed === "object") setViewedMap((m) => keepSame(m, viewed));
@@ -271,6 +271,15 @@ export function useDeskSocket() {
             if (focus && typeof focus === "object") setFocusMap((m) => keepSame(m, focus));
             // And one from before rests.
             if (rests && typeof rests === "object") setRestMap((m) => keepSame(m, rests));
+            break;
+          }
+          case "seen_chat": {
+            // One chat's marks after a change to it alone (plan 055): that key set or cleared, every other map kept.
+            const { key, seen, viewed, focus, rest } = msg;
+            setSeenMap((m) => withMark(m, key, seen));
+            setViewedMap((m) => withMark(m, key, viewed));
+            setFocusMap((m) => withMark(m, key, focus));
+            setRestMap((m) => withMark(m, key, rest));
             break;
           }
           case "desk_title": {
@@ -411,6 +420,16 @@ export function useDeskSocket() {
 /** The map with one scope set; the same object when it already holds that value. */
 export function withScope<T>(current: Partial<Record<Scope, T>>, scope: Scope, value: T): Partial<Record<Scope, T>> {
   return current[scope] === value ? current : { ...current, [scope]: value };
+}
+
+/**
+ * A marks map with one chat's value set, or removed when it has none; the same map when that changes nothing, so a
+ * repeat redraws nothing.
+ */
+export function withMark<T>(current: Record<string, T>, key: string, value: T | null): Record<string, T> {
+  if (value === null) return key in current ? Object.fromEntries(Object.entries(current).filter(([k]) => k !== key)) : current;
+  const kept = keepSame(current[key], value);
+  return kept === current[key] && key in current ? current : { ...current, [key]: kept };
 }
 
 /** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
