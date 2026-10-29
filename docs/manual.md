@@ -774,6 +774,11 @@ minutes, its prompt saying it is another try. A turn that got through, or ended 
 the next slot due replaces a try still waiting. Any chat whose model could not be reached says so in its thread, with
 the provider's message ("the model could not be reached · 4 tries"), after a reload too.
 
+The agent has no clock: the app tells it the time in a hidden note on what you send. Everything loki sends a chat
+itself carries the Mac's local time too, after its text and hidden in the thread like yours: a scheduled task's
+prompt, a background task's notice, and the prompt of a reflection, learn or doctor pass. A chat a schedule wakes after
+days of quiet knows the day.
+
 ## Suggestions
 
 A suggestion is a message an agent writes for another chat, for you to send. Agents make them on their own whenever a
