@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/client";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * An MCP result as the model reads it. Text, images and resources map across. A result too big for the conversation
@@ -82,7 +83,7 @@ export function mapResult(result: CallToolResult, opts: { spillDir: string; name
     const note = `The result was too large for the conversation (${chars.toLocaleString("en")} characters, about ${tokensOf(chars).toLocaleString("en")} tokens), so it was saved whole to\n${file}\nRead more of it with your file tools if you need to. Its start:\n\n${start}`;
     return { content: [{ type: "text", text: note }, ...images], isError, spilled: file, chars };
   } catch (error) {
-    const note = `The result was too large for the conversation (${chars.toLocaleString("en")} characters) and could not be saved to a file (${error instanceof Error ? error.message : String(error)}); here is its first ${START_CHARS.toLocaleString("en")}:\n\n${start}`;
+    const note = `The result was too large for the conversation (${chars.toLocaleString("en")} characters) and could not be saved to a file (${messageOf(error)}); here is its first ${START_CHARS.toLocaleString("en")}:\n\n${start}`;
     return { content: [{ type: "text", text: note }, ...images], isError, spilled: null, chars };
   }
 }

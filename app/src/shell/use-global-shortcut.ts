@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { inTauri, platform, type Platform } from "../desk/env";
+import { messageOf } from "../../../core/errors.ts";
 
 const KEY = "loki.globalShortcut";
 
@@ -38,7 +39,7 @@ export function useGlobalShortcut(): GlobalShortcut {
           if (!cancelled) setError(null);
         },
         (e: unknown) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+          if (!cancelled) setError(messageOf(e));
         },
       );
     return () => {

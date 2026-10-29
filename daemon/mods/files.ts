@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import type * as esbuild from "esbuild";
 import type { LokiMod } from "./api.ts";
 import type { ModRegistry } from "./registry.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * Mods from a folder, reloaded when they change (plan 017, U4). A mod is one file whose default export is a LokiMod,
@@ -85,7 +86,7 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
       }
       if ("loaded" in (await mods.load(mod))) names.set(file, mod.name);
     } catch (error) {
-      report(`mod ${file} failed to load: ${error instanceof Error ? error.message : String(error)}`);
+      report(`mod ${file} failed to load: ${messageOf(error)}`);
     }
   };
   const isMod = (file: string) => MOD_FILES.has(extname(file)) && !file.startsWith(".");
@@ -99,7 +100,7 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
   const stop = watchFiles(dir, isMod, load, 150, false);
   await sweep();
   const again = setTimeout(() => {
-    sweep().catch((error: unknown) => report(`mods folder not read: ${error instanceof Error ? error.message : String(error)}`));
+    sweep().catch((error: unknown) => report(`mods folder not read: ${messageOf(error)}`));
   }, WATCH_SETTLE_MS);
   again.unref();
   return () => {

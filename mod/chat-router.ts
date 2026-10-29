@@ -5,6 +5,7 @@ import type { PeerLink } from "./peer-link.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import type { ChatDirectory, ChatRef, Location } from "./chat-directory.ts";
 import { PeerRefusal } from "./peer-link.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Each chat answered by the Mac it lives on (plan 023, U5, KTD3). A frame from this Mac's tabs or phones about a chat
@@ -144,7 +145,7 @@ export class ChatRouter {
         if (now.at === "mac" && now.mac !== home.mac) return this.forward({ mac: now.mac, reachable: now.reachable }, msg, kind, true);
         return { ok: false, message: now.at === "here" ? "this chat is on this Mac now: open it again" : "this chat is not on any of your Macs" };
       }
-      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      return { ok: false, message: messageOf(err) };
     }
   }
 

@@ -13,6 +13,7 @@ import type { LocalConversationInfo, LocalConversationRow } from "../mod/desks.t
 import { ChatIndex, type AgentStore, type ChatInfo } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { Listeners } from "../core/listeners.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The daemon's chats as the mod reads them (plan 017, U6). The mod asks about chats at once and often (the chat list,
@@ -119,7 +120,7 @@ export class ChatProjection implements ChatSource {
         .catch((err: unknown) => {
           this.unsubscribe.get(agentId)?.();
           this.unsubscribe.delete(agentId);
-          report(`chats of ${agentId} not loaded: ${err instanceof Error ? err.message : String(err)}`);
+          report(`chats of ${agentId} not loaded: ${messageOf(err)}`);
         })
         .finally(() => this.attaching.delete(attached));
       this.attaching.add(attached);

@@ -6,6 +6,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import * as recharts from "recharts";
 import * as kit from "../kit/index";
 import { mergeData } from "../../../core/desk-core.ts";
+import { messageOf } from "../../../core/errors.ts";
 
 /**
  * The widget frame: the document inside the sandboxed iframe that runs one agent-written widget
@@ -75,7 +76,7 @@ class Boundary extends Component<{ hash: string; children: ReactNode }, { failed
     return { failed: true };
   }
   componentDidCatch(err: unknown) {
-    post({ type: "error", hash: this.props.hash, message: err instanceof Error ? err.message : String(err) });
+    post({ type: "error", hash: this.props.hash, message: messageOf(err) });
   }
   render() {
     return this.state.failed ? null : this.props.children;
@@ -98,7 +99,6 @@ function render() {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 async function load(hash: string, source: { url: string } | { code: string }) {
   state.hash = hash;

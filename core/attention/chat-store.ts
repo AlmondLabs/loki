@@ -25,6 +25,7 @@ import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
 import { coalesce } from "../timers.ts";
 import { Listeners } from "../listeners.ts";
+import { messageOf } from "../errors.ts";
 
 /**
  * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
@@ -127,7 +128,6 @@ const NOT_CONNECTED = "not connected to loki's daemon";
 
 /** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
 const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
-const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 /** A flag map without `key`. */
 const withoutKey = <T>(o: Partial<Record<string, T>>, key: string): Partial<Record<string, T>> =>
   Object.fromEntries(Object.entries(o).filter(([k]) => k !== key));

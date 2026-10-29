@@ -1,6 +1,7 @@
 import type { MacIdentity, PeerSummary } from "../../core/frame-types.ts";
 import type { Pushes, Replies, StateFolder } from "../../core/frames.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /** The frames' side of moving chats between Macs: what another Mac asks of this one, and the person's own move. */
 export interface PeerMoves {
@@ -108,7 +109,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       try {
         return reply(await group.introduce(ctx.client.peerId, macId));
       } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
+        return fail(messageOf(err));
       }
     },
     // Asked by a Mac paired with this one, for a Mac it is introducing: never by a tab or a phone (PEER frames only).
@@ -136,7 +137,7 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
         ctx.broadcast({ type: "peers", ...p.view() });
         return reply({ peer });
       } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
+        return fail(messageOf(err));
       }
     },
     peer_forget: async ({ mac_id: macId }, ctx) => {

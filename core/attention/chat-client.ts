@@ -5,6 +5,7 @@ import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, Runtime, ServerEvent } from "./protocol.ts";
 import { Listeners } from "../listeners.ts";
+import { messageOf } from "../errors.ts";
 
 /**
  * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): loki's daemon, through the
@@ -349,7 +350,7 @@ export class FrameChatClient {
       "chat_command",
       { agent_id: rt.agent_id, conversation_id: rt.conversation_id, command: commandId, args: args ?? null },
       commandId === "doctor" ? 11 * 60_000 : 180_000,
-    ).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
+    ).catch((err: unknown) => ({ success: false, output: messageOf(err) }));
     this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
     return r;
   }

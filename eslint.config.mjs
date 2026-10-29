@@ -85,6 +85,26 @@ export default tseslint.config(
     },
   },
   {
+    // One way per job (docs/architecture.md, plans 054 and 059): the copies a selector can recognise point to the
+    // helper. A serial queue or a burst timer written by hand has no shape that is not also ordinary code, so those
+    // two stay a convention.
+    files: ["core/**/*.ts", "daemon/**/*.ts", "mod/**/*.ts", "app/src/**/*.{ts,tsx}"],
+    ignores: ["core/listeners.ts", "core/errors.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Set'][typeArguments.params.0.type='TSFunctionType']",
+          message: "A set of listeners is a Listeners (core/listeners.ts): add returns the way to stop, emit tells them.",
+        },
+        {
+          selector: "ConditionalExpression[test.operator='instanceof'][test.right.name='Error'][consequent.property.name='message']",
+          message: "An error in words is messageOf(err) (core/errors.ts).",
+        },
+      ],
+    },
+  },
+  {
     // Plain JavaScript has no types to check against.
     files: ["**/*.{js,mjs,cjs}"],
     ...tseslint.configs.disableTypeChecked,
