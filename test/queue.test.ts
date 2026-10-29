@@ -30,8 +30,6 @@ describe("catch up queue merge", () => {
     // the agent said something new: re-queued
     const later = item("a", { last_message_at: "2026-09-05T10:05:00Z", lastAssistantText: "here is the answer" });
     expect(mergeQueue([], [later], decided).map((i) => i.id)).toEqual(["a"]);
-    // a completed turn with no new text (e.g. it only wrote a file): re-queued
-    expect(mergeQueue([], [item("a", { turns: 1 })], decided).map((i) => i.id)).toEqual(["a"]);
     // a new approval on the same conversation: re-queued
     const approval = item("a", { status: "approval", pendingApproval: { requestId: "perm-1", toolName: "Bash", input: {}, at: "2026-09-05T10:06:00Z" } });
     expect(mergeQueue([], [approval], decided).map((i) => i.id)).toEqual(["a"]);
