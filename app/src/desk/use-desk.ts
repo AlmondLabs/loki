@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TaskSource } from "../../../core/task-source.ts";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
 import { inTauri } from "./env";
@@ -27,7 +26,6 @@ import type {
   MemoryCommit,
   ReflectionState,
   RefreshOutcome,
-  Task,
 } from "../../../core/frame-types.ts";
 
 /** The state of the socket to the mod. */
@@ -102,7 +100,6 @@ export function useDesk() {
     viewedMap,
     focusMap,
     restMap,
-    tasksVersion,
     recallVersion,
     usageVersion,
     lanStatus,
@@ -218,36 +215,6 @@ export function useDesk() {
     if (!inv) return false;
     apply(inv);
     return true;
-  };
-
-  /** The task list, through the mod. Every call resolves to tasks or an error message; never throws. */
-  const taskCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_reopen" | "task_status">(
-    type: N,
-    payload: InputOf<N>,
-  ): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
-    request(type, payload, 25_000).then((r) => {
-      if (!r.ok) return { ok: false, message: r.error };
-      const reply = r.reply as Replies["tasks"] | Replies["task_created"];
-      return { ok: true, tasks: "tasks" in reply ? reply.tasks : [reply.task] };
-    });
-  const tasks = {
-    list: (all = true) => taskCall("tasks_list", { all }),
-    create: (t: {
-      title: string;
-      description?: string;
-      labels?: string[];
-      priority?: number;
-      desk?: string | null;
-      agent_id?: string | null;
-      agent_name?: string | null;
-      conversation_id?: string | null;
-      source?: TaskSource;
-    }) => taskCall("task_create", t),
-    assign: (ids: string[], target: { agent_id: string | null; agent_name: string | null; conversation_id: string; desk: string }, start: boolean) =>
-      taskCall("task_assign", { ids, ...target, start }),
-    close: (ids: string[], reason?: string) => taskCall("task_close", { ids, reason }),
-    reopen: (ids: string[]) => taskCall("task_reopen", { ids }),
-    setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => taskCall("task_status", { ids, status }),
   };
 
   /** Recall, through the mod (mod/recall.ts): the cards, a review, a delete and its undo, the worker's knobs. */
@@ -569,8 +536,6 @@ export function useDesk() {
         if (model && recentModels[0] !== model) send({ type: "models_recent_add", handle: model });
       },
     },
-    tasks,
-    tasksVersion,
     recall,
     recallVersion,
     /** What the agents spent (Settings › usage): the ledger's rows for a period, and a count bumped as it grows. */

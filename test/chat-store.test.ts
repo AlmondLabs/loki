@@ -63,7 +63,7 @@ const flush = () => vi.advanceTimersByTimeAsync(200);
 beforeEach(() => void vi.useFakeTimers());
 afterEach(() => void vi.useRealTimers());
 
-describe("the chat store (plan 049)", () => {
+describe("the chat store (plan 052)", () => {
   test("connecting reads the shown agents and the list newest first, and follows the newest chats", async () => {
     const d = daemon([row("old", "2026-10-01T00:00:00Z"), row("new", "2026-10-28T00:00:00Z")]);
     await flush();

@@ -21,6 +21,7 @@ import { focusShares, type FocusEntry } from "./focus.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
+import type { Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { scopeFor } from "../desk-core.ts";
 
@@ -94,6 +95,8 @@ export interface ChatFace {
   loadFailed: (() => void) | null;
   /** Fetch what a page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep: (row: number) => Promise<WholeRow | null>;
+  /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
+  suggestions: Suggestion[];
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
@@ -132,6 +135,66 @@ export function useThreadRows(
   const read = () => (agentId && conversationId ? chats.threadRows(agentId, conversationId) : undefined);
   return useSyncExternalStore(chats.watchThreads, read, read);
 }
+
+/** The saved draft's text on an Inbox row (plan 049, KTD7), which the mod sends as `draft_text`; null when it has none. */
+function draftTextOf(c: ConversationInfo): string | null {
+  return (c.has_draft === true && c.draft_text) || null;
+}
+
+/**
+ * The suggestions saved as drafts, by chat (plan 049, KTD7): the text each chat's message box shows while nothing is
+ * typed in it, as the Inbox list last had it. useAttention keeps it; the app's message-box drafts read it beneath
+ * what is typed (app/src/shared/drafts.ts) and say when a box that held one was emptied. Typing never reaches it.
+ */
+export function createSavedDrafts() {
+  let texts = new Map<string, string>();
+  const subs = new Set<() => void>();
+  let emptiedOnDaemon: (agentId: string, conversationId: string) => void = () => {};
+  const emit = () => subs.forEach((fn) => fn());
+  const drop = (agentId: string, conversationId: string): boolean => {
+    const key = keyOf(agentId, conversationId);
+    if (!texts.has(key)) return false;
+    texts = new Map(texts);
+    texts.delete(key);
+    emit();
+    return true;
+  };
+  return {
+    /** The chat's saved draft, or null. */
+    text: (agentId: string, conversationId: string): string | null => texts.get(keyOf(agentId, conversationId)) ?? null,
+    /** The saved drafts as the list now has them, by `keyOf`; readers are told only when something changed. */
+    replace(next: ReadonlyMap<string, string>) {
+      if (next.size === texts.size && [...next].every(([k, t]) => texts.get(k) === t)) return;
+      texts = new Map(next);
+      emit();
+    },
+    /** The chat sent: its draft is spent here at once (the daemon clears its own on the send). */
+    drop,
+    /** A box that held the draft was emptied: it goes here at once, and from the chat on the daemon. */
+    emptied(agentId: string, conversationId: string) {
+      if (drop(agentId, conversationId)) emptiedOnDaemon(agentId, conversationId);
+    },
+    /** What emptying does on the daemon (useAttention's), until the returned call takes it back. */
+    onEmptied(fn: (agentId: string, conversationId: string) => void): () => void {
+      emptiedOnDaemon = fn;
+      return () => {
+        if (emptiedOnDaemon === fn) emptiedOnDaemon = () => {};
+      };
+    },
+    subscribe(fn: () => void): () => void {
+      subs.add(fn);
+      return () => subs.delete(fn);
+    },
+  };
+}
+/** A saved-drafts registry, as `createSavedDrafts` returns it. */
+export type SavedDrafts = ReturnType<typeof createSavedDrafts>;
+
+/** The client's saved drafts: one useAttention runs per page, the shell's or the phone's. */
+export const savedDrafts = createSavedDrafts();
+
+/** No suggestions: one array, so a chat's face stays the same while it has none. */
+const NO_SUGGESTIONS: Suggestion[] = [];
 
 /**
  * The Inbox's state and actions for a client, the Mac app or the phone. The chats themselves are a ChatStore's
@@ -283,6 +346,7 @@ export function useAttention(opts: UseAttentionOptions) {
         older: older[key] ? () => store.loadOlder(rt) : null,
         loadFailed: failed[key] ? () => void store.loadThread(rt) : null,
         loadStep: (row) => optsRef.current.loadLocalStep?.(agentId, conversationId, row) ?? Promise.resolve(null),
+        suggestions: l?.suggestions ?? NO_SUGGESTIONS,
       };
     },
     [live, older, failed, store],
@@ -293,14 +357,41 @@ export function useAttention(opts: UseAttentionOptions) {
   const labels = useMemo(() => ({ list: labelList, load: store.loadLabels, set: store.setLabels, edit: store.editLabel }), [labelList, store]);
   /** The background passes (daemon/passes.ts): whether reflection and Learn run, and a reflection pass by hand. */
   const reflection = useMemo(() => ({ get: store.getPasses, set: store.setPasses, run: store.reflect }), [store]);
+  /** The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. */
+  const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
+  // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
+  const conversations = snap.conversations;
+  const savedTexts = useMemo(
+    () =>
+      new Map(
+        conversations.flatMap((c): Array<[string, string]> => {
+          const text = draftTextOf(c);
+          return text ? [[keyOf(c.agent_id, c.id), text]] : [];
+        }),
+      ),
+    [conversations],
+  );
+  useEffect(() => savedDrafts.replace(savedTexts), [savedTexts]);
+  useEffect(() => savedDrafts.onEmptied(store.clearDraft), [store]);
+  /**
+   * Send a message into a conversation (ChatStore.send). The chat's next send spends its saved draft (plan 049, KTD7):
+   * the box and the Inbox mark lose it now.
+   */
+  const send = useCallback(
+    (rt: Runtime, text: string, images?: Attachment[], env?: Parameters<ChatStore["send"]>[3]) => {
+      if (savedDrafts.drop(rt.agent_id, rt.conversation_id)) store.noDraft(rt.agent_id, rt.conversation_id);
+      store.send(rt, text, images, env);
+    },
+    [store],
+  );
   const approve = useCallback(
     (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => store.decide(item.runtime, requestId, behavior),
     [store],
   );
   const reply = useCallback(
     (item: AttentionItem, text: string, images: Attachment[] = []) =>
-      store.send(item.runtime, text, images, { desk: item.title, labels: item.labels ?? null, origin: "inbox" }),
-    [store],
+      send(item.runtime, text, images, { desk: item.title, labels: item.labels ?? null, origin: "inbox" }),
+    [send],
   );
   const loadHistory = useCallback((item: AttentionItem) => store.loadThread(item.runtime), [store]);
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
@@ -320,6 +411,8 @@ export function useAttention(opts: UseAttentionOptions) {
     execute: store.execute,
     agents: snap.agents,
     agentsLoaded: snap.agentsLoaded,
+    /** The chat list has come at least once: a chat missing from `items` after this is archived or gone. */
+    listed: snap.listed,
     providers: snap.providers,
     loadProviders: store.loadProviders,
     connectProvider: store.connectProvider,
@@ -336,6 +429,7 @@ export function useAttention(opts: UseAttentionOptions) {
     changeFolder: store.changeFolder,
     archiveConversation: store.archiveConversation,
     renameConversation: store.renameConversation,
+    setPurpose: store.setPurpose,
     createDesk: store.createDesk,
     items,
     loadHistory,
@@ -347,8 +441,9 @@ export function useAttention(opts: UseAttentionOptions) {
     approve,
     decide: store.decide,
     answer: store.answer,
+    suggestions,
     reply,
-    send: store.send,
+    send,
     cancelQueued: store.cancelQueued,
     reload: store.reload,
     seen: markDone,

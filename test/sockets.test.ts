@@ -22,7 +22,7 @@ const fakeServer = (closed: string[]): LokiServer => ({
   close: () => Promise.resolve(void closed.push("server")),
 });
 
-describe("the mod's sockets (plan 049)", () => {
+describe("the mod's sockets (plan 052)", () => {
   test("each push reaches only its audience: a Mac's frame never goes to a tab, or past the LAN listener's Macs", async () => {
     const sent: string[] = [];
     const sockets = new Sockets();

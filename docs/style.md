@@ -32,8 +32,8 @@ npm run build:app && npm run build:mod && npm run smoke
 
 **File names** **checked** (`test/style.test.ts`):
 
-- Every file is kebab-case, components and hooks included: `tasks-pane.tsx` (exports `TasksPane`), `use-tasks.ts`
-  (exports `useTasks`), `task-source.ts`, `fake-mcp.mjs`. One rule, as the Google TypeScript guide, Angular and most of
+- Every file is kebab-case, components and hooks included: `suggestion-card.tsx` (exports `SuggestionCard`), `use-draft.ts`
+  (exports `useDraft`), `task-migration.ts`, `fake-mcp.mjs`. One rule, as the Google TypeScript guide, Angular and most of
   the Node world have it.
 - Tools' own config files keep the names their tools look for (`vite.config.ts`, `eslint.config.mjs`).
 - Tests are `test/<subject>.test.ts`, their helpers in `test/fixtures/`; Node runner tests are
@@ -49,18 +49,18 @@ npm run build:app && npm run build:mod && npm run smoke
 - Acronyms are words: `agentUrl`, `McpTools`, `OauthStore`, `loadHttpUrl`, never `agentURL` or `OAuthStore`.
 - Object and type properties are left free, since they carry data in its own names (wire and file fields, headers); a
   name taken apart from data keeps it (`const { agent_id } = runtime`).
-- Name things by the UI's words (glossary.md): a chat, a task, an agent. Where the code keeps an older name (a chat
+- Name things by the UI's words (glossary.md): a chat, a suggestion, an agent. Where the code keeps an older name (a chat
   is a _desk_ on the wire), say so where it matters, once.
 - A boolean reads as a fact: `ready`, `waiting`, `canAdd`, `isWaiting(t)`. A function that returns something is named
-  for what it returns (`taskSource(t)`), one that acts is named for the act (`requestReveal`).
-- No abbreviations a newcomer would have to guess. Short names are fine for short scopes (`t` for the task in a
+  for what it returns (`targetOf(s)`), one that acts is named for the act (`requestReveal`).
+- No abbreviations a newcomer would have to guess. Short names are fine for short scopes (`s` for the suggestion in a
   three-line arrow, `e` for an event).
 
 **Data** **review** (the types make most of it checked):
 
 - Data loki owns is snake_case: bridge frame fields and the request envelope (`request_id`), chat events, the files
-  loki writes under `~/.loki`, task metadata in beads, tool arguments, analytics properties. Frame and event names were
-  already snake_case (`task_create`, `task_added`).
+  loki writes under `~/.loki`, suggestions on a chat, tool arguments, analytics properties. Frame and event names were
+  already snake_case (`chat_create`, `suggestion_made`).
 - Its TypeScript types use those names directly (`desk.agent_id`, `row.last_message_at`); there is no conversion layer.
   Identifiers stay camelCase: `const { agent_id: agentId } = desk`, `{ agent_id: agentId }`.
 - State that never leaves the app (React state, view models, `AttentionItem`'s own fields) is camelCase like any
@@ -83,8 +83,8 @@ npm run build:app && npm run build:mod && npm run smoke
 **Agent tools** **checked** (`test/extensions.test.ts`, `test/tools.test.ts`):
 
 - A tool's name and its arguments are snake_case: `background_watch`, `canvas_focus { widget_id }`. A name of two
-  words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `task_close`, `user_ask`), so tools of
-  one family share its prefix (`memory_`, `schedule_`, `background_`, `canvas_`, `task_`). One tool per action, not
+  words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `suggestion_withdraw`, `user_ask`), so tools of
+  one family share its prefix (`memory_`, `schedule_`, `background_`, `canvas_`, `suggestion_`). One tool per action, not
   one tool with an `action` argument.
 - Every built-in tool declares its kind (read, edit or command) on its definition with `withKind`
   (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
@@ -109,7 +109,7 @@ npm run build:app && npm run build:mod && npm run smoke
   without an `await`, no conversions of a value already that type.
 - **Promises are awaited, returned, or marked with `void`** when the result truly does not matter (`void refresh()`).
   A rejected promise nobody handles is a bug (`no-floating-promises`, `no-misused-promises`).
-- **Errors are `Error`s**, thrown with a message a person can read: `throw new Error("a task needs a title")`.
+- **Errors are `Error`s**, thrown with a message a person can read: `throw new Error("a suggestion needs a title")`.
   `catch (err)` treats `err` as `unknown`.
 - **`interface` for object shapes**, `type` for unions, functions and mapped types (`consistent-type-definitions`).
   `T[]` for simple arrays, `Array<T>` when the element type is complex (`array-type: array-simple`).
@@ -121,7 +121,7 @@ npm run build:app && npm run build:mod && npm run smoke
 Tuned on purpose (allowed, and why):
 
 - `() => void send()` arrow shorthand: it says "fire and forget" in one place (`no-confusing-void-expression` off).
-- Numbers and booleans in template strings (`restrict-template-expressions` allows them): `${count} tasks` is clear.
+- Numbers and booleans in template strings (`restrict-template-expressions` allows them): `${count} suggestions` is clear.
 - Empty arrow functions as deliberate no-ops (`no-empty-function` allows arrows): `const noop = () => {};`.
 - `||` with a string or boolean (`prefer-nullish-coalescing` ignores them): `name || "untitled"` treats an empty string
   as missing on purpose, which `??` would not.
@@ -170,8 +170,8 @@ Doctor in CI (nothing new against `main`):
 - **Comments say why**, or what something means for the person using loki; the code already says what it does.
   Write the reason a reader would otherwise have to rediscover: the bug it avoids, the constraint behind it, the
   decision it records. **review**.
-- **Full sentences, plain words**, present tense, about the thing itself ("A task the person filed waits for them to
-  confirm it"), not about us ("we", "I") or the history of the edit ("changed to", "now"). **review**.
+- **Full sentences, plain words**, present tense, about the thing itself ("A suggestion the agent made waits for them to
+  act on it"), not about us ("we", "I") or the history of the edit ("changed to", "now"). **review**.
 - No commented-out code; git keeps it. No `TODO` without an issue link or a name and date. **review**.
 - Keep comments true: changing behaviour means changing the comment beside it in the same commit. **review**.
 
@@ -179,12 +179,12 @@ Doctor in CI (nothing new against `main`):
 
 **review**, with design.md's rules for colour and badges:
 
-- **Desktop controls and labels are lowercase** (`add task`, `confirm`, `sign in to cloud tracker`); the phone uses
-  **sentence case**, as iOS does (`Add task`, `Mark as read`). Titles of sections are the names in the sidebar
-  (`Tasks`, `Chats`).
+- **Desktop controls and labels are lowercase** (`save as draft`, `confirm`, `sign in to cloud tracker`); the phone uses
+  **sentence case**, as iOS does (`Save as draft`, `Mark as read`). Titles of sections are the names in the sidebar
+  (`Chats`, `Learn`).
 - Plain words, no jargon: "the agent is waiting for you", not "pending HITL approval". Name what the person sees,
   never an internal id or a stack trace (those go behind a "details" disclosure).
-- Errors say what happened and what to do: "Tasks is not available in this mod", "needs a sign-in: Settings › MCP".
+- Errors say what happened and what to do: "the chat this was for is gone: pick another chat", "needs a sign-in: Settings › MCP".
 - No exclamation marks, no "please", no "simply" or "just". Numbers as digits.
 - Keys are written the Mac's way in docs (⌘, ⌥, ⇧); the app formats them for the viewer's system (`formatKeys`).
 
@@ -231,11 +231,11 @@ commit.
 - What changed starts lowercase (names inside it keep their capitals: `fix(phone): pair over Tailscale`). GitHub's own
   `Revert "…"` titles pass as they are.
 - The subject fits in 72 characters. The body says why, in sentences, wrapped near 72.
-- Examples: `feat(tasks): add task from a chat message`, `fix(mcp): retry sign-in after a refused state`,
+- Examples: `feat(chat): suggest work for another chat`, `fix(mcp): retry sign-in after a refused state`,
   `ci: pin the windows runner`.
 
 **Branches** **review**: `type/what-it-does`, the commit types as prefixes, kebab-case after:
-`feat/add-task-from-message`, `fix/phone-banner`, `chore/tool-cleanup`.
+`feat/chat-suggestions`, `fix/phone-banner`, `chore/tool-cleanup`.
 
 **A pull request** **review**:
 

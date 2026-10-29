@@ -18,12 +18,14 @@ import {
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, Runtime } from "./protocol.ts";
+import type { SuggestionAction } from "../frames.ts";
+import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
 
 /**
- * Every chat this client follows, outside React (plan 049): the list and its digests, the agents, the live half of
+ * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
  * each chat (its thread, approvals, questions, queue and folder moves) and the calls that change them. useAttention
  * reads it through `subscribe` and `getSnapshot`; a test drives it with a fake ChatClient and no React at all.
  *
@@ -72,6 +74,16 @@ export interface ChatStoreHost {
   sent?: (rt: Runtime) => void;
 }
 
+/**
+ * What a person's action on a suggestion came to (plan 049): whether it took, the reason when it did not (another
+ * device acted first, the target is gone, the Mac is out of reach), and the suggestion as it then stands, when known.
+ */
+export interface SuggestionOutcome {
+  done: boolean;
+  message: string | null;
+  suggestion: Suggestion | null;
+}
+
 /** An agent as the lists show it. */
 export interface AgentEntry {
   id: string;
@@ -87,6 +99,8 @@ export interface ChatSnapshot {
   agents: AgentEntry[];
   /** False until the first agent list answered: an empty list before that means nothing. */
   agentsLoaded: boolean;
+  /** False until the chat list first came: before that, a chat missing from it is not yet known to be gone. */
+  listed: boolean;
   /** The open conversations, newest first. */
   conversations: ConversationInfo[];
   digests: Map<string, Digest>;
@@ -150,6 +164,7 @@ export class ChatStore {
     server: null,
     agents: [],
     agentsLoaded: false,
+    listed: false,
     conversations: [],
     digests: new Map(),
     live: new Map(),
@@ -298,6 +313,7 @@ export class ChatStore {
           ),
         });
       }
+      this.set({ listed: true });
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
@@ -550,6 +566,42 @@ export class ChatStore {
     host.markSeen(rt.agent_id, rt.conversation_id);
   };
 
+  /**
+   * The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. The new state
+   * reaches every client as the chat's `suggestions` event, so nothing here changes the live state itself.
+   */
+  decideSuggestion = (rt: Runtime, suggestionId: string, action: SuggestionAction): Promise<SuggestionOutcome> =>
+    this.outcome((c) => c.suggestions.decide(rt, suggestionId, action));
+
+  /** Point a suggestion at another chat, or at a new chat with an agent in a folder, before acting on it (R4). */
+  retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> =>
+    this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
+
+  /** The chat holds no saved draft any more (plan 049, KTD7): its Inbox mark goes without waiting for the list. */
+  noDraft = (agentId: string, conversationId: string): void => {
+    const was = this.snap.conversations;
+    const next = was.map((x) => (x.agent_id === agentId && x.id === conversationId && x.has_draft ? { ...x, has_draft: false } : x));
+    if (next.some((x, i) => x !== was[i])) this.set({ conversations: next });
+  };
+
+  /** A message box emptied of its saved draft: the draft goes here at once, and from the chat on the daemon. */
+  clearDraft = (agentId: string, conversationId: string): void => {
+    this.noDraft(agentId, conversationId);
+    void this.client?.updateConversation(conversationId, { draft: null }).catch((err: unknown) => console.warn("loki: clear saved draft", err));
+  };
+
+  /**
+   * Give a chat its one-line purpose (plan 049, R11), or clear it with an empty one; resolves to an error message or
+   * null. The list has it at once, so the header shows it before the list is read again.
+   */
+  setPurpose = async (rt: Runtime, purpose: string): Promise<string | null> => {
+    const line = purpose.replace(/\s+/g, " ").trim() || null;
+    const err = await this.tried((c) => c.updateConversation(rt.conversation_id, { purpose: line }));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.map((x) => (x.agent_id === rt.agent_id && x.id === rt.conversation_id ? { ...x, purpose: line } : x)) });
+    return null;
+  };
+
   /** Take back a message typed mid-turn before it went out. */
   cancelQueued = (rt: Runtime, text: string): void => {
     const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
@@ -780,6 +832,12 @@ export class ChatStore {
     const client = this.client;
     if (!client) return NOT_CONNECTED;
     return work(client).catch((err: unknown) => messageOf(err));
+  }
+
+  /** A suggestion action's outcome; one that did not get through leaves the suggestion as it was, with the reason. */
+  private async outcome(work: (client: ChatClient) => Promise<{ suggestion: Suggestion; done: boolean; message: string | null }>): Promise<SuggestionOutcome> {
+    const out = await this.attempt(work);
+    return typeof out === "string" ? { done: false, message: out, suggestion: null } : { done: out.done, message: out.message, suggestion: out.suggestion };
   }
 
   /** One call to the daemon whose answer is only whether it took: null, or why not in words. */

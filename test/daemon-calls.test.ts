@@ -15,7 +15,7 @@ function fakeRequest(replies: Record<string, unknown>) {
   return { request, sent };
 }
 
-describe("the daemon's settings calls (plan 049)", () => {
+describe("the daemon's settings calls (plan 052)", () => {
   test("a call that only takes answers null, or the mod's reason in words", async () => {
     const { request, sent } = fakeRequest({ chat_memory_write: { type: "chat_done" } });
     const calls = daemonCalls(request);

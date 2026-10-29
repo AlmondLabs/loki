@@ -1,4 +1,4 @@
-import { lazy, Suspense, type RefObject } from "react";
+import { lazy, Suspense } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
@@ -7,7 +7,6 @@ import { runAction } from "./keymap";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
 import { NewDesk } from "../desk/new-desk";
-import { TasksPane } from "../tasks/tasks-pane";
 import { Agents } from "../agents/agents";
 import { Recall } from "../recall/recall";
 import type { Recall as RecallModel } from "./use-recall";
@@ -15,15 +14,12 @@ import { avatarUrl } from "../desk/env";
 import type { ModelEntry } from "../chat/model-picker";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
-import { DeskTree } from "./desk-tree";
 import { Welcome } from "./welcome";
 import type { DaemonStatus } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
 import type { GlobalShortcut } from "./use-global-shortcut";
-import type { AssignTarget, useTasks } from "./use-tasks";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
-import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 /**
  * The views the rail switches between, each a thin wrapper that wires the window's models to one
@@ -128,64 +124,19 @@ export function InboxView({
   );
 }
 
-/**
- * Tasks: the list from useTasks, with its moves; ⏎ / ⌘⏎ ask the picker for a target. A message chip's ask for a task
- * (focus) mounts the pane afresh on it: no filter, no selection, the cursor there.
- */
-export function TasksView({
-  tasks,
-  desks,
-  onAssign,
-  onNew,
-  focus,
-  onOpenSource,
-  active,
-}: {
-  tasks: ReturnType<typeof useTasks>;
-  desks: DeskSummary[];
-  onAssign: (ids: string[], start: boolean) => void;
-  onNew: () => void;
-  focus: { id: string; tick: number } | null;
-  onOpenSource: (task: Task) => void;
-  active: boolean;
-}) {
-  return (
-    <TasksPane
-      tasks={tasks.list}
-      loading={tasks.loading}
-      error={tasks.error}
-      desks={desks}
-      onRefresh={() => void tasks.refresh()}
-      onAssign={onAssign}
-      onClose={(ids) => void tasks.closeTasks(ids)}
-      onReopen={(ids) => void tasks.reopenTasks(ids)}
-      onStatus={(ids, status) => void tasks.setTaskStatus(ids, status)}
-      onNew={onNew}
-      key={focus?.tick ?? 0}
-      focusId={focus?.id ?? null}
-      onOpenSource={onOpenSource}
-      active={active}
-    />
-  );
-}
-
 /** The agents: profile, memory, changes and skills per agent; "ask to update" opens the main chat with a request typed in. */
 export function AgentsView({
   desk,
   catchUp,
-  tasks,
   onOpenDesk,
   onAskToUpdate,
   onShowDesks,
-  onShowTasks,
 }: {
   desk: Desk;
   catchUp: CatchUp;
-  tasks: ReturnType<typeof useTasks>["list"];
   onOpenDesk: OpenDesk;
   onAskToUpdate: (agentId: string, text: string) => void;
   onShowDesks: () => void;
-  onShowTasks: () => void;
 }) {
   return (
     <Agents
@@ -194,7 +145,6 @@ export function AgentsView({
       api={desk.agents}
       avatar={avatarUrl}
       desks={desk.desks.list}
-      tasks={tasks}
       initialAgentId={desk.agentId}
       onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
       onAskToUpdate={onAskToUpdate}
@@ -209,7 +159,6 @@ export function AgentsView({
       reflect={catchUp.reflection}
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
-      onShowTasks={onShowTasks}
       mcp={desk.calls.mcp}
       macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
     />
@@ -322,62 +271,6 @@ export function WelcomeView({
       daemon={daemon}
       onRetryDaemon={onRetryDaemon}
       onDone={onDone}
-    />
-  );
-}
-
-/** ⏎ / ⌘⏎ in Tasks: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
-export interface Picker {
-  ids: string[];
-  start: boolean;
-}
-
-/** The task list's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
-export function PickerTree({
-  picker,
-  onClose,
-  desk,
-  catchUp,
-  onAssign,
-  pendingAssignRef,
-  onNewDesk,
-}: {
-  picker: Picker | null;
-  onClose: () => void;
-  desk: Desk;
-  catchUp: CatchUp;
-  onAssign: (target: AssignTarget, ids: string[], start: boolean) => Promise<void>;
-  pendingAssignRef: RefObject<Picker | null>;
-  onNewDesk: (agentId: string | null, name: string) => void;
-}) {
-  return (
-    <DeskTree
-      open={!!picker}
-      onClose={onClose}
-      heading={
-        picker
-          ? `${picker.start ? "Dispatch" : "Assign"} ${picker.ids.length === 1 ? "1 task" : `${picker.ids.length} tasks`} to…${picker.start ? " (the agent starts now)" : ""}`
-          : null
-      }
-      desks={desk.desks.list}
-      agents={catchUp.agents}
-      items={catchUp.items}
-      current={desk.scope}
-      onPickDesk={(d) => {
-        const p = picker;
-        onClose();
-        if (p)
-          void onAssign({ scope: d.scope, agent_id: d.agent_id, agent_name: d.agent_name, conversation_id: d.conversation_id, title: d.title }, p.ids, p.start);
-      }}
-      onNew={
-        desk.attention.available
-          ? (agentId, name) => {
-              pendingAssignRef.current = picker;
-              onClose();
-              onNewDesk(agentId, name);
-            }
-          : undefined
-      }
     />
   );
 }

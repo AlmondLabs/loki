@@ -32,9 +32,10 @@ import type {
   RecentFolders,
   ReflectionState,
   RefreshOutcome,
-  Task,
+  SavedDraft,
+  Suggestion,
+  SuggestionTarget,
 } from "./frame-types.ts";
-import { parseTaskSource } from "./task-source.ts";
 
 /**
  * The mod's own protocol on `/ws` (glossary.md: Frame, Frame table), declared once. The app sends requests and
@@ -127,8 +128,6 @@ function mcpEdit(
 
 /** Whether a value is an ISO date and time a request can take as an instant. */
 const isInstant = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
-/** The task ids a task list frame names: `ids`, or a single `id`. */
-const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversation_id) ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required");
 const agent = (m: Raw) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id } : "agent_id required");
@@ -137,6 +136,38 @@ const chatRef = (m: Raw) =>
   isAgentId(m.agent_id) && str(m.conversation_id) && m.conversation_id
     ? { agent_id: m.agent_id, conversation_id: m.conversation_id }
     : "agent_id and conversation_id required";
+/** A saved draft as `chat_update` takes it: its text, its suggestion and the chat that suggestion was made in; null when it is not one. */
+const savedDraft = (v: unknown): SavedDraft | null => {
+  const d = typeof v === "object" && v !== null ? (v as Raw) : {};
+  const source = typeof d.source === "object" && d.source !== null ? (d.source as Raw) : {};
+  if (!str(d.text) || !d.text || !str(d.suggestion_id) || !isAgentId(source.agent_id) || !str(source.conversation_id) || !source.conversation_id) return null;
+  return { text: d.text, suggestion_id: d.suggestion_id, source: { agent_id: source.agent_id, conversation_id: source.conversation_id } };
+};
+/**
+ * Where a suggestion's message goes, as a frame or an agent's tool names it (plan 049): an existing chat, or an agent
+ * and a folder for a new one; null when it is neither. Other fields are left behind.
+ */
+export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
+  const t = typeof v === "object" && v !== null ? (v as Raw) : {};
+  if (!isAgentId(t.agent_id)) return null;
+  if (str(t.conversation_id) && t.conversation_id) return { agent_id: t.agent_id, conversation_id: t.conversation_id };
+  if (str(t.folder) && t.folder) return { agent_id: t.agent_id, folder: t.folder };
+  return null;
+}
+/**
+ * Why a chat refuses a saved draft (plan 049, KTD7): it holds another suggestion's, which is never replaced. The chat's
+ * Mac says it, and the Mac that asked recognises it.
+ */
+export const DRAFT_HELD = "that chat already holds a saved draft";
+/** What the person does with a suggestion: send it now, save it as a draft in its chat's box, or reject it. */
+export type SuggestionAction = "send" | "draft" | "reject";
+const SUGGESTION_ACTIONS: readonly string[] = ["send", "draft", "reject"] satisfies SuggestionAction[];
+/** One suggestion of the chat a frame names; the suggestion's own id, since `request_id` is the frame's. */
+const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; suggestion_id: string } | string => {
+  const c = chatRef(m);
+  if (typeof c === "string") return c;
+  return str(m.suggestion_id) && m.suggestion_id ? { ...c, suggestion_id: m.suggestion_id } : "suggestion_id required";
+};
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
@@ -158,9 +189,6 @@ export interface Replies {
   recall_ran: { note: string };
   recall_export: { tsv: string };
   recall_lesson: { agent_id: string; conversation_id: string };
-  tasks: { tasks: Task[] };
-  task_created: { task: Task };
-  tasks_updated: { tasks: Task[] };
   skills_global: { skills: GlobalSkill[] };
   skill_installed: { agent_id: string; output: string };
   skill_refreshed: { agent_id: string; name: string } & RefreshOutcome;
@@ -187,7 +215,11 @@ export interface Replies {
   /** `home_mac` is the Mac each agent lives on (plan 023), null for one whose record names none. */
   chat_agents: { agents: Array<{ id: string; name: string; home_mac?: string | null }> };
   chat_agent_created: { id: string; name: string };
-  chat_done: NoPayload;
+  /**
+   * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`, so the asking Mac knows the
+   * draft is kept: a loki from before plan 049 drops a draft it does not know and replies without it.
+   */
+  chat_done: { draft_suggestion_id?: string };
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
@@ -233,6 +265,13 @@ export interface Replies {
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
+  /**
+   * A suggestion as it stands after an action (plan 049): `done` when the action took, else `message` says why not,
+   * among them what already happened to it and from where (R17).
+   */
+  suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
+  /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
+  suggestion_added: { suggestion: Suggestion };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -250,6 +289,8 @@ export interface ChatState {
   streaming?: { text: string; at: string | null } | null;
   /** The ACP agent the chat runs on (plan 020); null or absent on loki's own engine. */
   engine?: ChatEngineView | null;
+  /** The suggestions made in the chat that wait on the person or are being sent (plan 049); absent from a mod that predates them. */
+  suggestions?: Suggestion[];
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
@@ -286,11 +327,15 @@ export interface Pushes {
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
   usage_changed: NoPayload;
-  tasks_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;
   /** Another Mac's chats changed, or it came into or out of reach (plan 023): every client asks for its lists again. */
   lists_changed: NoPayload;
+  /**
+   * A chat on this Mac was renamed, archived, hidden, relabelled or given a purpose or draft (plan 050): every client asks for its lists again,
+   * and a paired Mac fetches this Mac's chats.
+   */
+  chat_changed: NoPayload;
   /** An agent's memory has new commits on this Mac: a paired Mac asks for them (plan 023, U7). */
   memory_changed: { agent_id: string };
   /**
@@ -577,18 +622,66 @@ export const FRAMES = {
     BY_CHAT,
   ),
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
-  chat_update: request(
-    "chat_done",
-    "rename, archive or hide a chat, or set its labels",
+  // Suggestions (plan 049), carried out by the Mac the chat they were made in lives on (KTD2).
+  suggestion_decide: request(
+    "suggestion_decided",
+    "send a suggestion made in this chat, save it as a draft in its target's box, or reject it; the first action wins",
+    (m) => {
+      const r = suggestionRef(m);
+      if (typeof r === "string") return r;
+      return str(m.action) && SUGGESTION_ACTIONS.includes(m.action) ? { ...r, action: m.action as SuggestionAction } : "action must be send, draft or reject";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  suggestion_retarget: request(
+    "suggestion_decided",
+    "point a pending suggestion made in this chat at another chat, or at a new chat of an agent in a folder",
+    (m) => {
+      const r = suggestionRef(m);
+      if (typeof r === "string") return r;
+      const target = parseSuggestionTarget(m.target);
+      return target ? { ...r, target } : "target needs agent_id and a conversation_id or a folder";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  // Only the move of Tasks into suggestions sends it (mod/task-migration.ts), to the Mac a task's source chat lives
+  // on; an agent's own suggestions are made where its chat runs, and the phone never makes one.
+  suggestion_add: request(
+    "suggestion_added",
+    "a new suggestion in this chat: its title, its message and the chat it is for",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
+      if (!str(m.title) || !m.title.trim() || !str(m.text) || !m.text.trim()) return "title and text required";
+      const target = parseSuggestionTarget(m.target);
+      if (!target) return "target needs agent_id and a conversation_id or a folder";
+      // An id of the sender's choosing makes a repeated add (a move of Tasks run again) add nothing.
+      return { ...c, title: m.title, text: m.text, target, ...(str(m.suggestion_id) && m.suggestion_id ? { suggestion_id: m.suggestion_id } : {}) };
+    },
+    false,
+    BY_CHAT,
+  ),
+  chat_update: request(
+    "chat_done",
+    "rename, archive or hide a chat, or set its labels, purpose line or saved draft",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      if (m.purpose !== undefined && m.purpose !== null && !str(m.purpose)) return "purpose must be text";
+      const draft = m.draft === undefined || m.draft === null ? m.draft : savedDraft(m.draft);
+      if (draft === null && m.draft !== null) return "draft needs text, suggestion_id and source";
       return {
         ...c,
         title: m.title === null || str(m.title) ? m.title : undefined,
         archived: typeof m.archived === "boolean" ? m.archived : undefined,
         hidden: typeof m.hidden === "boolean" ? m.hidden : undefined,
         labels: Array.isArray(m.labels) ? chatLabels(strings(m.labels)) : undefined,
+        // Absent when not given, so the callers that build this payload need not name them. A purpose is one line,
+        // and an empty one clears it.
+        ...(m.purpose !== undefined ? { purpose: (str(m.purpose) && m.purpose.replace(/\s+/g, " ").trim()) || null } : {}),
+        ...(draft !== undefined ? { draft } : {}),
       };
     },
     PHONE,
@@ -799,45 +892,6 @@ export const FRAMES = {
     PHONE,
   ),
 
-  // The task list
-  // The phone reads the list (a message's task chip) and files a task from a message's long press: one tap by the person.
-  tasks_list: request("tasks", "the tasks in Tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true }), PHONE),
-  task_create: request(
-    "task_created",
-    "a task filed from the app, stamped with its chat and folder, and the message it came from (Add task)",
-    (m) => ({
-      title: strOr(m.title, ""),
-      description: strOr(m.description, undefined),
-      labels: Array.isArray(m.labels) ? strings(m.labels) : undefined,
-      priority: typeof m.priority === "number" ? m.priority : undefined,
-      desk: strOr(m.desk, null),
-      agent_id: strOr(m.agent_id, null),
-      agent_name: strOr(m.agent_name, null),
-      conversation_id: strOr(m.conversation_id, null),
-      source: parseTaskSource(m.source),
-    }),
-    PHONE,
-  ),
-  task_assign: request("tasks_updated", "assign tasks to a chat, optionally starting them", (m) =>
-    str(m.conversation_id) && str(m.desk)
-      ? {
-          ids: taskIds(m),
-          conversation_id: m.conversation_id,
-          desk: m.desk,
-          agent_id: strOr(m.agent_id, null),
-          agent_name: strOr(m.agent_name, null),
-          start: m.start === true,
-        }
-      : "assign needs a conversation and a chat",
-  ),
-  task_close: request("tasks_updated", "close tasks, with a reason", (m) => ({ ids: taskIds(m), reason: strOr(m.reason, undefined) })),
-  task_reopen: request("tasks_updated", "not done after all: an agent's done? taken back, or done tasks opened again", (m) => ({ ids: taskIds(m) })),
-  task_status: request("tasks_updated", "move tasks to open, in progress, blocked or deferred", (m) =>
-    m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred"
-      ? ({ ids: taskIds(m), status: m.status } satisfies { ids: string[]; status: "open" | "in_progress" | "blocked" | "deferred" })
-      : `unknown status ${String(m.status)}`,
-  ),
-
   // Agents, memory and skills
   agent_get: request("agent", "an agent's local record, memory tree, skills, face and last memory commit", agent, PHONE),
   memory_read: request(
@@ -972,13 +1026,14 @@ export const FRAMES = {
   desks: push("every desk, after list_desks or a pin", { lists: true }),
   agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again", { lists: true }),
   lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
+  // Only this push, never lists_changed, makes a paired Mac fetch: it answers with lists_changed, so the two cannot loop.
+  chat_changed: push("a chat on this Mac was renamed, archived, hidden, relabelled or given a purpose or draft: ask for the lists again", { lists: true }),
   memory_changed: push("an agent's memory has new commits on this Mac"),
   state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
   seen: push("the done and viewed marks, the focus weights and the rests, after any change", { lists: true }),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),
-  tasks_changed: push("Tasks changed: other tabs refetch"),
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
@@ -1030,7 +1085,6 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
  * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
  * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
  * and a model picked there, for the shared quick picks.
- * The task list to read, and a task filed from a message (Add task in its long press); nothing that assigns, closes or reopens.
  * Never gestures, skills, the writer's settings, or the pairing and device frames.
  */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set(

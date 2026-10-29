@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button, Field, IconButton, ListRow, ListSection, Row } from "../components";
 import { ago } from "../shared/ago";
 import { Icon } from "../shared/icons";
@@ -25,7 +25,7 @@ import {
   type SidebarRow,
 } from "./sidebar-model";
 import type { CatchUp, Desk } from "./types";
-import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/rename-desk";
+import { NO_RENAME_REASON, RenameDesk, renameDesk, savePurpose } from "../desk/rename-desk";
 import { ChangeFolder, type FolderApi } from "../desk/new-desk";
 import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
@@ -72,6 +72,8 @@ export interface DeskSidebarProps {
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
+  /** Save the chat's purpose line (plan 049, R11), an empty one clearing it; left out, the Rename dialog has no purpose field. */
+  onPurpose?: (desk: DeskSummary, purpose: string) => Promise<string | null>;
   /** Move a chat to another folder; resolves to the daemon's refusal or null. Left out with folders, the menu has no Change folder…. */
   onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;
   /** The Mac's folders, for the Change folder dialog's field. */
@@ -114,6 +116,7 @@ export function DeskSidebar({
   onPin,
   onArchive,
   onRename,
+  onPurpose,
   onMove,
   folders,
   onDone,
@@ -208,33 +211,6 @@ export function DeskSidebar({
     row?.focus({ preventScroll: true });
   };
 
-  const actionsFor = (d: DeskSummary) => {
-    const pin = canPin(d);
-    const archive = canArchive(d);
-    if (!pin && !archive) return undefined;
-    const archived = d.status === "archived";
-    return (
-      <>
-        {pin && (
-          <IconButton size={24} label={d.pinned ? "Unpin" : "Pin"} title={d.pinned ? "Unpin" : "Pin to the top"} onClick={() => onPin(d, !d.pinned)}>
-            <Icon name="pin" size={14} />
-          </IconButton>
-        )}
-        {archive && (
-          <IconButton
-            size={24}
-            label={archived ? "Restore" : "Archive"}
-            title={connected ? (archived ? "Restore from the archive" : "Archive") : NO_ARCHIVE_REASON}
-            disabled={!connected}
-            onClick={() => onArchive(d, !archived)}
-          >
-            <Icon name={archived ? "history" : "archive"} size={14} />
-          </IconButton>
-        )}
-      </>
-    );
-  };
-
   /** The Mac an agent lives on, in its section's header, once Macs are paired. */
   const homeAside = (agentId: string) => {
     const home = homes?.of(agentId);
@@ -246,33 +222,56 @@ export function DeskSidebar({
     ) : undefined;
   };
 
+  // The rows' handlers stay the same functions from render to render and look the chat up when called, so a row
+  // redraws only when what it shows changed (plan 051): one chat moving no longer redraws the whole list.
+  const latest = useRef({ desks, onOpen, onPin, onArchive });
+  useEffect(() => {
+    latest.current = { desks, onOpen, onPin, onArchive };
+  });
+  const deskOf = (scope: string) => latest.current.desks.find((d) => d.scope === scope);
+  const openRow = useCallback((scope: string) => latest.current.onOpen(scope), []);
+  const menuRow = useCallback((scope: string, x: number, y: number) => {
+    const d = deskOf(scope);
+    if (d) setMenu({ desk: d, x, y });
+  }, []);
+  const pinRow = useCallback((scope: string, pinned: boolean) => {
+    const d = deskOf(scope);
+    if (d) latest.current.onPin(d, pinned);
+  }, []);
+  const archiveRow = useCallback((scope: string, archived: boolean) => {
+    const d = deskOf(scope);
+    if (d) latest.current.onArchive(d, archived);
+  }, []);
+
   const rowOf = (r: SidebarRow) => {
     const d = r.desk;
-    const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
     return (
-      <ListRow
+      <ChatRow
         key={d.scope}
-        title={name}
-        // When it last spoke; the badge or the live dot takes its place while something waits or runs.
+        scope={d.scope}
+        title={d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope)}
         time={ago(d.last_active)}
-        // One mark at most beside the name, and only where it differs from its section (the status is on the right).
-        flags={<HomeMark row={d} agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null} here={homes?.here} />}
         badge={r.badge}
         badgeNoun={r.badgeNoun}
         unread={r.unread}
         note={r.note}
         live={r.live}
-        liveAtEnd
         current={r.current}
         dim={d.status !== "live" || d.reachable === false}
-        launch={launchOf(d.scope)}
-        onOpen={() => onOpen(d.scope)}
-        onMenu={(e: MouseEvent<HTMLButtonElement>) => {
-          const box = e.currentTarget.getBoundingClientRect();
-          // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
-          setMenu({ desk: d, x: e.clientX || box.left + 24, y: e.clientY || box.bottom });
-        }}
-        actions={actionsFor(d)}
+        pinnable={canPin(d)}
+        pinned={!!d.pinned}
+        archivable={canArchive(d)}
+        archived={d.status === "archived"}
+        connected={connected}
+        home={d.home}
+        homeName={d.home_name}
+        reachable={d.reachable}
+        agentHome={d.agent_id ? homes?.of(d.agent_id)?.mac : null}
+        here={homes?.here}
+        onOpen={openRow}
+        onMenu={menuRow}
+        onPin={pinRow}
+        onArchive={archiveRow}
       />
     );
   };
@@ -446,7 +445,15 @@ export function DeskSidebar({
           onClose={() => setLabeling(null)}
         />
       )}
-      {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
+      {renaming && (
+        <RenameDesk
+          name={renaming.title ?? ""}
+          onClose={() => setRenaming(null)}
+          onRename={(name) => onRename(renaming, name)}
+          purpose={desks.find((x) => x.scope === renaming.scope)?.purpose ?? renaming.purpose}
+          onPurpose={onPurpose ? (purpose) => onPurpose(renaming, purpose) : undefined}
+        />
+      )}
       {moving && onMove && folders && moving.agent_id && moving.conversation_id && (
         <ChangeFolder
           onClose={() => setMoving(null)}
@@ -638,6 +645,7 @@ export function DeskSidebarView({
         if (d.agent_id && d.conversation_id) desk.desks.pin(d.agent_id, d.conversation_id, pinned);
       }}
       onRename={renameDesk(desk, catchUp, notice)}
+      onPurpose={savePurpose(desk, catchUp)}
       folders={desk.attention.folders}
       onMove={async (d, folder) => {
         if (!d.agent_id || !d.conversation_id) return "no conversation";
@@ -686,3 +694,85 @@ export function homesOf(macs: Pushes["peers"] | null, agents: ReadonlyArray<{ id
     },
   };
 }
+
+/** One chat's row in the list, as plain values and handlers that take its scope (see DeskSidebar's rowOf). */
+interface ChatRowProps {
+  scope: string;
+  title: string;
+  time: string;
+  badge: number | null;
+  badgeNoun?: string;
+  unread: boolean;
+  note?: string;
+  live: boolean;
+  current: boolean;
+  dim: boolean;
+  pinnable: boolean;
+  pinned: boolean;
+  archivable: boolean;
+  archived: boolean;
+  connected: boolean;
+  home?: string;
+  homeName?: string;
+  reachable?: boolean;
+  agentHome?: string | null;
+  here?: string;
+  onOpen: (scope: string) => void;
+  onMenu: (scope: string, x: number, y: number) => void;
+  onPin: (scope: string, pinned: boolean) => void;
+  onArchive: (scope: string, archived: boolean) => void;
+}
+
+/** A row's pin and archive buttons, shown on hover; the row leaves them out when the chat can be neither. */
+function ChatRowActions(p: Pick<ChatRowProps, "scope" | "pinnable" | "pinned" | "archivable" | "archived" | "connected" | "onPin" | "onArchive">) {
+  const archiveTitle = p.archived ? "Restore from the archive" : "Archive";
+  return (
+    <>
+      {p.pinnable && (
+        <IconButton size={24} label={p.pinned ? "Unpin" : "Pin"} title={p.pinned ? "Unpin" : "Pin to the top"} onClick={() => p.onPin(p.scope, !p.pinned)}>
+          <Icon name="pin" size={14} />
+        </IconButton>
+      )}
+      {p.archivable && (
+        <IconButton
+          size={24}
+          label={p.archived ? "Restore" : "Archive"}
+          title={p.connected ? archiveTitle : NO_ARCHIVE_REASON}
+          disabled={!p.connected}
+          onClick={() => p.onArchive(p.scope, !p.archived)}
+        >
+          <Icon name={p.archived ? "history" : "archive"} size={14} />
+        </IconButton>
+      )}
+    </>
+  );
+}
+
+/** A chat's row, drawn again only when one of its own values changes (plan 051). */
+const ChatRow = memo(function ChatRow(p: ChatRowProps) {
+  return (
+    <ListRow
+      title={p.title}
+      // When it last spoke; the badge or the live dot takes its place while something waits or runs.
+      time={p.time}
+      // One mark at most beside the name, and only where it differs from its section (the status is on the right).
+      flags={<HomeMark row={{ home: p.home, home_name: p.homeName, reachable: p.reachable }} agentHome={p.agentHome} here={p.here} />}
+      badge={p.badge}
+      badgeNoun={p.badgeNoun}
+      unread={p.unread}
+      note={p.note}
+      live={p.live}
+      liveAtEnd
+      current={p.current}
+      dim={p.dim}
+      launch={launchOf(p.scope)}
+      onOpen={() => p.onOpen(p.scope)}
+      onMenu={(e: MouseEvent<HTMLButtonElement>) => {
+        const box = e.currentTarget.getBoundingClientRect();
+        // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
+        p.onMenu(p.scope, e.clientX || box.left + 24, e.clientY || box.bottom);
+      }}
+      actions={p.pinnable || p.archivable ? <ChatRowActions {...p} /> : undefined}
+    />
+  );
+});

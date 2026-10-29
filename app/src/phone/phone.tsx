@@ -1,4 +1,3 @@
-import { useTaskList, type TaskApi } from "../tasks/message-tasks";
 import { homesOf } from "../shell/desk-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/use-inline-widgets";
@@ -7,6 +6,7 @@ import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
+import { savePurpose } from "../desk/rename-desk";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
 import { ConversationScreen, type Thread } from "./conversation-screen";
@@ -129,6 +129,14 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
   return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked)}</Banner> : null;
 }
 
+/**
+ * Why a suggestion's buttons wait (plan 049, U4): while the link to the Mac is down nothing it carries out can be
+ * asked for, so the card says so instead of offering what would only fail. Null while the link holds.
+ */
+function macAway(catchUp: CatchUp): string | null {
+  return catchUp.status === "open" ? null : "Mac unreachable: these wait until it is back";
+}
+
 /** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */
 function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
   const unpaired = useEffectEvent(() => onUnpaired());
@@ -177,8 +185,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  /** Tasks for Add task and the message chips in a conversation. */
-  const taskApi = useTaskList(desk, capture);
   const catchUp = useAttention({
     enabled: attention.available,
     makeClient: attention.makeClient,
@@ -336,7 +342,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
               conv={conv}
               desk={desk}
               catchUp={catchUp}
-              taskApi={taskApi}
               onRename={onRename}
               onArchive={onArchive}
               models={models.list}
@@ -449,7 +454,6 @@ function ConversationPage({
   conv,
   desk,
   catchUp,
-  taskApi,
   onRename,
   onArchive,
   models,
@@ -462,7 +466,6 @@ function ConversationPage({
   conv: ConversationRoute;
   desk: DeskApi;
   catchUp: CatchUp;
-  taskApi: TaskApi;
   onRename: RenameDeskName | null;
   onArchive: ArchiveDesk | null;
   models: ModelEntry[] | null;
@@ -492,7 +495,6 @@ function ConversationPage({
   };
   return (
     <ConversationScreen
-      taskApi={taskApi}
       thread={thread}
       view={view}
       chats={catchUp}
@@ -508,7 +510,17 @@ function ConversationPage({
       prefill={prefill}
       pinned={convDesk?.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
-      rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
+      purpose={convDesk?.purpose ?? item?.purpose ?? null}
+      rename={
+        convDesk && canRename(convDesk)
+          ? {
+              name: convDesk.title ?? "",
+              onRename: onRename ? (name) => onRename(convDesk, name) : null,
+              // The purpose line goes through the daemon too, so it waits on what rename waits on.
+              onPurpose: onRename ? (purpose) => savePurpose(desk, catchUp)(convDesk, purpose) : null,
+            }
+          : null
+      }
       labels={
         convDesk?.status !== "deleted"
           ? {
@@ -565,6 +577,7 @@ function ConversationPage({
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
       onNotDone={catchUp.unread}
       onViewed={attention.markViewed}
+      suggestions={{ source: catchUp, blocked: macAway(catchUp) }}
     />
   );
 }
@@ -644,6 +657,7 @@ function Screen({
         onPin={desk.desks.pin}
         onArchive={onArchive}
         onRename={onRename}
+        onPurpose={attention.available && catchUp.status === "open" ? savePurpose(desk, catchUp) : null}
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
         homes={homesOf(desk.macs.view, catchUp.agents)}
@@ -668,6 +682,7 @@ function Screen({
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
           onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
+          suggestions: { source: catchUp, blocked: macAway(catchUp) },
         }}
         onApprove={(item, requestId, behavior) => (
           catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", "tap"),

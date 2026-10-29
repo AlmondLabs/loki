@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup } from "../core/harness.ts";
+import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup, suggestedMark, suggestedOf } from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>aws sso login</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>`;
@@ -32,21 +32,11 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
     expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
   });
-  test("assigned tasks become one quiet event, hidden from the user's words", () => {
+  test("an old chat's assigned-tasks block, from before Tasks was retired, is left out without a trace (plan 049, U6)", () => {
     const text =
-      "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n    the audit starts on the 6th\n- lk-b2  P2  update the runbook — filed by friday\nPick one up when the user's message is about it.\n</loki-tasks>";
-    expect(extractHarnessEvents(text)).toEqual([
-      {
-        text: "assigned tasks",
-        summary: "2 assigned to this chat",
-        detail: "lk-a1  P1  rotate SSO creds — filed by the user\nlk-b2  P2  update the runbook — filed by friday",
-      },
-    ]);
+      "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n- lk-b2  P2  update the runbook — filed by friday\n</loki-tasks>";
+    expect(extractHarnessEvents(text)).toEqual([]);
     expect(stripHarnessMarkup(text).trim()).toBe("morning");
-    expect(extractHarnessEvents("<loki-tasks>\nNo tasks are assigned to this conversation on the user's task list any more.\n</loki-tasks>")[0]).toMatchObject({
-      summary: "none assigned any more",
-      detail: null,
-    });
   });
   test("a skill body becomes a 'skill loaded' event named after the skill", () => {
     const text = 'summarise this\n<skill_content name="unslop">\n# Unslop\n\nEdit text to remove AI patterns.\n</skill_content>';
@@ -60,6 +50,29 @@ describe("a chat's move mark (plan 023, addendum A5)", () => {
     const mark = movedMark("Deepak's MacBook", 'Mac "mini"');
     expect(extractHarnessEvents(mark)).toEqual([{ text: 'moved to Mac "mini"', summary: "came over from Deepak's MacBook", detail: null }]);
     expect(stripHarnessMarkup(mark).trim()).toBe("");
+  });
+});
+
+describe("a sent suggestion's link back (plan 049, KTD6)", () => {
+  const mark = suggestedMark({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
+
+  test("is stripped from the person's words and read back as the chat it came from, for the transcript's chip", () => {
+    const text = `${mark}\n<system-reminder>The person sent this from a suggestion.</system-reminder>\n\nThe lock test sleeps.`;
+    expect(stripHarnessMarkup(text).trim()).toBe("The lock test sleeps.");
+    expect(suggestedOf(text)).toEqual({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
+    expect(extractHarnessEvents(text)).toEqual([
+      {
+        text: "suggested in another chat",
+        summary: 'Fix the "lock" test',
+        detail: null,
+        link: { agent_id: "agent-local-friday", conversation_id: "conv-source" },
+      },
+    ]);
+  });
+
+  test("a message with no mark has none, and no other event carries a link", () => {
+    expect(suggestedOf("hello")).toBeNull();
+    expect(extractHarnessEvents('<skill_content name="unslop">\n# Unslop\n</skill_content>')[0]).not.toHaveProperty("link");
   });
 });
 

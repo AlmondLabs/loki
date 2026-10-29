@@ -19,7 +19,6 @@ import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay } from "./recall.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
-import { TaskStore, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -44,6 +43,8 @@ import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
+import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
+import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
@@ -54,7 +55,7 @@ import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
  * The desk is a directory the agent writes into (<widgets>/<desk>/), compiled into the open tab. This mod is loki's
  * own, hosted by loki's daemon (daemon/main.ts) through the mod API (daemon/mods/api.ts): it owns geometry and gesture
  * state, serves the app and the phone over its sockets, tells the agent what the person did on the canvas, and gives
- * the agent its canvas and task tools. The daemon hands it the chats (`chats`, read; `chat`, run).
+ * the agent its canvas and suggestion tools. The daemon hands it the chats (`chats`, read; `chat`, run).
  */
 
 function loadOrCreateToken(): string {
@@ -81,6 +82,11 @@ export interface Host {
   macId: string;
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
+  /**
+   * The suggestions kept on this Mac's chat records (plan 049, KTD1): reading and writing a chat's list. Absent from a
+   * daemon that predates them, and the suggestion frames say so.
+   */
+  suggestions?: SuggestionRecords;
   /**
    * The memory repos and their queue (daemon/memory-sync.ts). The mod is bundled apart from the daemon, so it takes
    * them from here: its own copy of the queue would race the daemon's commits and never hear them (plan 046).
@@ -164,17 +170,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  // The task list (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
-  const tasks = new TaskStore();
+  // The folder a chat works in, from the daemon's folder index; the task move falls back to it (plan 049, U7).
   const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
-  const refreshTasks = () => {
-    if (!tasks.ready()) return;
-    void tasks.list().catch((err: unknown) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
-  };
-  refreshTasks();
-  const tasksTimer = setInterval(refreshTasks, 60_000);
-  log("tasks:store", { dir: tasks.dir, ready: tasks.ready() });
 
   // --- transport -------------------------------------------------------
   // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
@@ -225,8 +223,49 @@ export default function activate(api: ModApi, host: Host): () => void {
     broadcast,
     local: { desks: listLocalDesks, inbox: listLocalInbox },
     dirs: paths,
+    moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
+  // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
+  // target lives on and waiting for its answer (mod/suggestions.ts).
+  const suggestions = host.suggestions
+    ? new Suggestions({
+        records: host.suggestions,
+        chat: (ref) => {
+          const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
+          return desk ? { title: desk.title, status: desk.status, has_draft: desk.has_draft === true } : null;
+        },
+        agentExists: (id) => readLocalAgent(id) !== null,
+        agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
+        call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
+        push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
+        track: (event, properties) => analytics.capture("mod", event, properties),
+      })
+    : undefined;
+  // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
+  // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
+  // at a time, so two runs never add the same task twice; start does not wait for it.
+  let taskMove: Promise<unknown> = Promise.resolve();
+  const moveOpenTasks = (): Promise<unknown> => {
+    if (!suggestions) return taskMove;
+    const s = suggestions;
+    taskMove = taskMove
+      .then(() =>
+        moveTasks({
+          run: bdReader(tasksDir()),
+          stateFile: join(paths.state, "migrations.json"),
+          route: macs.router,
+          suggestions: s,
+          folderOf: (c) =>
+            macs.desks().find((d) => d.conversation_id === c.conversation_id && (d.agent_id ?? c.agent_id) === c.agent_id)?.cwd ??
+            folderFor(c.agent_id, c.conversation_id),
+          report: (message) => log("tasks:move", message),
+        }),
+      )
+      .catch((err: unknown) => log("tasks:move-failed", err instanceof Error ? err.message : String(err)));
+    return taskMove;
+  };
+  void moveOpenTasks();
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({
     sourcesFile: join(paths.state, "skill-sources.json"),
@@ -292,9 +331,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
-    tasks: tasks.ready() ? tasks : undefined,
-    folderFor,
-    chat: chatBackend,
+    // A chat opens with the suggestions waiting in it (plan 049).
+    chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
+    suggestions,
+    decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? macs.mac(c.peerId).name : "desktop"),
     usage: host.usage,
     daemon: host.daemon,
     lan: {
@@ -313,6 +353,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
     peers: macs.frames,
     chatBlocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId),
+    titleFrame: (agentId, conversationId) => listing.titleFrame(scopeFor(conversationId, agentId)),
     // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
     agentDeleteBlocked: (agentId) => macs.agentDeleteBlocked(agentId),
     agents: {
@@ -405,8 +446,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer();
-  /** What each conversation was last told about its assigned tasks: the block rides along only when it changes. */
-  const tasksNotice = new TasksNotice();
   /** The background passes' own chats get no desk, and the tab does not follow them. */
   const ignored = (e: ChatRef) => passChat(e.chatId);
 
@@ -422,8 +461,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     }),
   );
 
-  // The person's message, about to be sent: two riders go with it — what they did on the canvas, and the task list's tasks
-  // assigned to this conversation (only when those changed since the agent was last told).
+  // The person's message, about to be sent: what they did on the canvas rides along with it.
   eventDisposers.push(
     api.message.transform((m) => {
       // A background pass's turn is the pass's: no desk, nothing rides along, the tab does not follow it.
@@ -436,17 +474,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       // Your message is engagement; a turn with nothing typed (an image alone) is still yours, but not typed words.
       if (m.typed) seen.engage(m.agentId, m.chatId, "message");
       broadcast(seenFrame({ seen }));
-      const blocks: string[] = [];
-      if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
-      const tasksBlock = tasksNotice.pending(m.chatId, tasks.cached());
-      if (tasksBlock) blocks.push(tasksBlock);
-      if (!blocks.length) return undefined;
-      if (tasksBlock) tasksNotice.sent(m.chatId, tasksBlock);
-      return attachDeskContext(m.content, blocks.join("\n\n"));
+      if (!lines.length) return undefined;
+      return attachDeskContext(m.content, formatDeskContext(scope, lines, paths.widgets));
     }),
   );
-
-  eventDisposers.push(api.events.on("compact_end", (e) => tasksNotice.forget(e.chatId)));
 
   eventDisposers.push(
     api.events.on("tool_start", (e) => {
@@ -488,8 +519,19 @@ export default function activate(api: ModApi, host: Host): () => void {
     activeScope: () => activeScope,
     remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
     broadcast,
-    tasks: tasks.ready() ? tasks : undefined,
-    folderFor,
+    // chat_list and the suggestion tools (plan 049, U3): every list's chats, and each agent with the Mac it lives on.
+    chats: suggestions
+      ? {
+          suggestions,
+          agents: async () =>
+            (await chatBackend.agents()).map((a) => {
+              const mac = macs.mac(a.home_mac || null);
+              return { id: a.id, name: a.name, mac: mac.name, reachable: mac.reachable };
+            }),
+          chats: () => macs.desks(),
+          passChat,
+        }
+      : undefined,
   });
 
   // --- lifecycle -------------------------------------------------------
@@ -499,7 +541,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     macs.stop(); // the links to other Macs reopen with the mod
     widgets.close();
     titleRefreshes.clear();
-    clearInterval(tasksTimer);
     seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
   api.signal.addEventListener("abort", shutdown, { once: true });

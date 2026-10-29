@@ -2,7 +2,7 @@ import type { FrameRequest } from "./attention/chat-client.ts";
 import type { InputOf, ReplyOf, RequestName } from "./frames.ts";
 
 /**
- * The daemon's settings and agent calls, grouped by what they are about rather than by their frame names (plan 049):
+ * The daemon's settings and agent calls, grouped by what they are about rather than by their frame names (plan 052):
  * an agent's memory and skills, Settings › Engines, and Settings › MCP with its always-allowed tools. Each is one
  * request through the mod's socket (core/frames.ts), so none needs the chat client: the chat client keeps the chats.
  * A call answers in Settings' words, never by throwing: what it was asked for, or why not as a sentence.

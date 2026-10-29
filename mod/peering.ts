@@ -77,6 +77,8 @@ export interface PeeringDeps {
   /** This Mac's own chats, as the chat list and the inbox show them. */
   local: { desks: () => DeskSummary[]; inbox: () => InboxRow[] };
   dirs: Pick<typeof paths, "peers" | "state" | "data" | "widgets" | "uploads">;
+  /** Move the open tasks into suggestions (plan 049, U7): again when a Mac comes into reach, as its chats move only then. */
+  moveTasks: () => Promise<unknown>;
 }
 
 /** The paired Macs, as the rest of the mod uses them. */
@@ -95,6 +97,8 @@ export interface Peering {
   pushed(type: string): void;
   /** Why a chat may not be written to now (it is moving), or null. */
   chatBlocked(agentId: string, conversationId: string): string | null;
+  /** A Mac by its id, this one for null or its own id: its name, and whether it can be reached now. */
+  mac(macId: string | null): { name: string; reachable: boolean };
   /** Why an agent may not be deleted now (a Mac out of reach holds its chats, KTD6), or null. */
   agentDeleteBlocked(agentId: string): string | null;
   /** A picture not here, from whichever paired Mac in reach holds it (plan 029). */
@@ -190,6 +194,8 @@ export function startPeering(deps: PeeringDeps): Peering {
       },
       // Once after pairing, the chats there of agents that live here (U9).
       { name: "moves", after: "memory", reached: (id) => chatMoves.takeOver(id) },
+      // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 049, U7).
+      { name: "tasks", after: "moves", reached: () => deps.moveTasks() },
       {
         name: "state",
         reached: (id) => peerState.pull(id),
@@ -406,6 +412,8 @@ export function startPeering(deps: PeeringDeps): Peering {
       if (STATE_PUSHES.has(type)) peerState.changed(type === "recall_changed" ? "learn" : undefined);
     },
     chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
+    mac: (id) =>
+      id === null || id === macId ? { name: thisMacName, reachable: true } : { name: peerStore.get(id)?.name ?? "another Mac", reachable: links.reachable(id) },
     agentDeleteBlocked: (agentId) => {
       const away = remoteChats.awayWith(agentId);
       return away ? `${peerStore.get(away)?.name ?? "another Mac"} is out of reach and has this agent's chats: delete it once that Mac is back` : null;

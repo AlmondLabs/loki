@@ -39,13 +39,14 @@ function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: I
     broadcast: (msg) => pushed.push({ ...msg, to: "everyone" }),
     local: { desks: () => opts.desks ?? [], inbox: () => opts.inbox ?? [] },
     dirs: { peers: join(dir, "peers.json"), state: dir, data: dir, widgets: join(dir, "widgets"), uploads: join(dir, "uploads") },
+    moveTasks: () => Promise.resolve(),
   });
   return { peering, pushed, needed, done: () => (peering.stop(), rmSync(dir, { recursive: true, force: true })) };
 }
 
 afterEach(() => void vi.useRealTimers());
 
-describe("the paired Macs, as the mod uses them (plan 049)", () => {
+describe("the paired Macs, as the mod uses them (plan 052)", () => {
   test("a pairing code keeps the listener up for the Macs until it lapses, and shows this Mac's tailnet address", async () => {
     vi.useFakeTimers();
     const m = mac();

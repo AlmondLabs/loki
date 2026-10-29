@@ -279,18 +279,11 @@ function LokiPage({
         <Fact label="Chats" value={String(deskCount)} />
         <Fact label="Endpoint" value={modBase()} mono />
       </Block>
-      <Block title="Requirements" help="what loki needs on this machine, and where it found it.">
-        {inTauri && <NodeFact daemon={daemon} />}
-        <Fact
-          label="bd (beads)"
-          value={
-            harness.tools
-              ? (harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (Tasks needs it; everything else works without)`}</Note>)
-              : "—"
-          }
-          mono
-        />
-      </Block>
+      {inTauri && (
+        <Block title="Requirements" help="what loki needs on this machine, and where it found it.">
+          <NodeFact daemon={daemon} />
+        </Block>
+      )}
       {inTauri && <InstallFold install={harness.install} />}
       <FilesFold />
     </>
@@ -562,7 +555,6 @@ function FilesFold() {
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
       <Fact label="Pictures" value={`${HOME}/chat-images/`} mono />
       <Fact label="Learn" value={`${HOME}/recall/  (cards, schedule and the deleted pile)`} mono />
-      <Fact label="Tasks" value={`${HOME}/tasks  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
       <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/daemon.log`} mono />
       <Fact label="Mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />

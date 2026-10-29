@@ -99,6 +99,9 @@ export class ChatListing {
             reasoning_effort: info.reasoning_effort,
             mode: info.mode ?? null,
             labels: info.labels ?? [],
+            purpose: info.purpose ?? null,
+            has_draft: info.has_draft ?? false,
+            cwd: info.cwd ?? null,
             widgets: widgets.entries(scope).length,
             active: scope === active,
             last_active: info.last_active,
@@ -128,6 +131,10 @@ export class ChatListing {
         last_message_at: c.lastMessageAt,
         archived: false,
         labels: info?.labels ?? [],
+        purpose: info?.purpose ?? null,
+        has_draft: info?.hasDraft ?? false,
+        draft_text: info?.draftText ?? null,
+        cwd: info?.cwd ?? null,
         ...chats.digest(c.conversationId, c.agentId),
       });
     }
@@ -153,6 +160,9 @@ export class ChatListing {
       model: info.model ?? agentModel,
       reasoning_effort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
       labels: info.labels,
+      purpose: info.purpose,
+      has_draft: info.hasDraft,
+      cwd: info.cwd,
       last_active: info.lastMessageAt,
     };
   }

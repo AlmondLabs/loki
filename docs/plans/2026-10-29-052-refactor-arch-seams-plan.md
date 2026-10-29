@@ -53,6 +53,10 @@ several files. Two were small to fix and had a cost today:
    Inbox's card analytics, and the same result shape, so no caller changed. The server info read on each list load
    now keeps its object when nothing in it changed, so a repeat poll redraws nothing.
 
+Plan 049 (chat suggestions) landed on main while this branch was open. Its additions follow the same seams: the
+suggestion actions, a chat's purpose and the saved-draft mark live in `ChatStore`, the saved drafts' registry stays in
+`useAttention`, and the task move a paired Mac's reach wakes is handed to `startPeering` as `moveTasks`.
+
 ## Left as it is
 
 1. **The ACP process stays built inside `AcpChats`** (survey item 1). The ACP tests' 10 ms wait is the `until` helper

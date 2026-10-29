@@ -4,7 +4,7 @@ import type { AskedBy } from "./attention/priority.ts";
 
 /**
  * The shapes frames carry (core/frames.ts) that the mod produces and the app reads: desks, the Inbox's rows, the
- * tasks, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
+ * suggestions, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
  * mod modules that build them import them from here.
  */
 
@@ -96,22 +96,6 @@ export interface ReflectionState {
   last_commit: MemoryCommit | null;
 }
 
-/** One task as the mod reads it from beads and sends it in the `tasks` frames; times are ISO, and `closedAt` is null while it is open. */
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: number;
-  labels: string[];
-  assignee: string | null;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-  /** Free-form; loki uses by/agent/agent_id/conversation/desk/folder and assigned_to/assigned_desk/assigned_agent. */
-  metadata: Partial<Record<string, string>>;
-}
-
 /** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
 export type DeviceVia = "tailscale" | "lan";
 
@@ -143,7 +127,53 @@ export interface InboxRow extends LocalDigest, ChatHome {
   archived: false;
   /** The person's labels on the chat (plan 022). */
   labels?: string[];
+  /** The person's one line on what the chat is for (plan 049); null when none, absent from a mod that predates it. */
+  purpose?: string | null;
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049, R9): the card says so. */
+  has_draft?: boolean;
+  /** That draft's text, which fills the chat's message box when it opens empty (plan 049, KTD7); null when none. */
+  draft_text?: string | null;
+  /** The folder the chat works in; null when it has none of its own. */
+  cwd?: string | null;
 }
+
+/**
+ * Where a suggestion's message goes (plan 049, R1): an existing chat of any agent, or a new chat of an agent in a
+ * folder.
+ */
+export type SuggestionTarget = { agent_id: string; conversation_id: string } | { agent_id: string; folder: string };
+
+/**
+ * Where a suggestion stands: waiting on the person, being sent, or settled by sending it, saving it as a draft,
+ * rejecting it, or its agent taking it back.
+ */
+export type SuggestionStatus = "pending" | "sending" | "sent" | "drafted" | "rejected" | "withdrawn";
+
+/** A message an agent suggests for another chat (plan 049), kept on the chat it was made in until the person acts. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
+export type Suggestion = {
+  id: string;
+  title: string;
+  /** The message as it would be sent. */
+  text: string;
+  target: SuggestionTarget;
+  status: SuggestionStatus;
+  /** Why an action was refused or failed, shown on the card; absent or null when nothing went wrong. */
+  reason?: string | null;
+  /** Who settled it and when. */
+  decided_by?: string | null;
+  decided_at?: string | null;
+  created_at: string;
+  /** The chat made for a new-chat target, kept once made so a retry never makes a second one. */
+  made_conversation_id?: string | null;
+};
+
+/**
+ * A suggestion saved as a draft (plan 049, KTD7), kept on the chat it is for until that chat sends or the person
+ * empties its box: its text, the suggestion it came from, and the chat that suggestion was made in.
+ */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
+export type SavedDraft = { text: string; suggestion_id: string; source: { agent_id: string; conversation_id: string } };
 
 /** The folders chats have worked in lately (`folders`), for the folder picker. */
 export interface RecentFolders {
@@ -218,6 +248,12 @@ export interface DeskInfo {
   mode?: string | null;
   /** The person's labels on the chat (plan 022); absent from a mod that predates them. */
   labels?: string[];
+  /** The person's one line on what the chat is for (plan 049); null when none, absent from a mod that predates it. */
+  purpose?: string | null;
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049). */
+  has_draft?: boolean;
+  /** The folder the chat works in; null when it has none of its own. */
+  cwd?: string | null;
 }
 
 /** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */

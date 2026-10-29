@@ -23,7 +23,7 @@ import { ReflectionPage } from "./reflection-page";
 import { SkillsPage, type Adding } from "./skills-page";
 import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./types";
 import type { MacIdentity } from "../../../core/frame-types.ts";
-import type { DeskSummary, Task } from "../../../core/frame-types.ts";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 export { Diff } from "./changes-page";
@@ -33,7 +33,7 @@ export { AgentsColumn } from "./agents-column";
  * The Agents page, Slack's DMs (plan 013 U10): the agents down the column (AgentsColumn), the chosen one
  * in the pane under a header whose tabs are its pages — its face, name, description and model (editable
  * through loki's daemon), its memory as a browsable tree with the git history of what it learned, its skills,
- * and where it is working (desks, tasks). Memory is read-only here: to change a fact you hand the
+ * and where it is working (its chats). Memory is read-only here: to change a fact you hand the
  * request to the agent in its own chat.
  */
 export function Agents({
@@ -42,7 +42,6 @@ export function Agents({
   avatar,
   desks,
   items = NO_ITEMS,
-  tasks,
   initialAgentId,
   onOpenDesk,
   onAskToUpdate,
@@ -51,7 +50,6 @@ export function Agents({
   reflect,
   listModels,
   onShowDesks,
-  onShowTasks,
   mcp,
   macs,
   columnOutside = false,
@@ -63,7 +61,6 @@ export function Agents({
   desks: DeskSummary[];
   /** The Inbox's items: the column's live state and waiting badges (only read when the column is inside). */
   items?: AttentionItem[];
-  tasks: Task[] | null;
   initialAgentId: string | null;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   /** Open the agent's main chat with a prefilled request to change a memory file. */
@@ -75,7 +72,6 @@ export function Agents({
   reflect: ReflectionControls;
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;
-  onShowTasks: () => void;
   /** The MCP servers, to switch on and off for the agent (Profile). */
   mcp?: Pick<McpApi, "get" | "agent">;
   /** This Mac first, then the Macs paired with it (plan 023): where an agent may live. */
@@ -210,10 +206,8 @@ export function Agents({
         onLoadModels={loadModels}
         onSave={store.save}
         desks={desks}
-        tasks={tasks}
         onOpenDesk={onOpenDesk}
         onShowDesks={onShowDesks}
-        onShowTasks={onShowTasks}
         confirmDelete={store.confirmDelete}
         setConfirmDelete={store.setConfirmDelete}
         onRemove={store.remove}

@@ -5,7 +5,7 @@ import type { ChatEngine } from "../daemon/kernel/index.ts";
 
 const onFake: ChatEngine = { kind: "acp", agent: "fake", model: "default", session_id: null };
 
-describe("a chat's engine rules (plan 049)", () => {
+describe("a chat's engine rules (plan 052)", () => {
   test("a chat's mode is the one stored for it, or the default when that is not a mode", () => {
     expect(modeOf("strict")).toBe("strict");
     expect(modeOf("acceptEdits")).toBe("acceptEdits");

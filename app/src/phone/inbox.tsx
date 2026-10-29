@@ -8,9 +8,11 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
-import type { TranscriptRow } from "../chat/transcript";
+import { OpenChat, type TranscriptRow } from "../chat/transcript";
+import { navigate } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
+import type { SuggestionsProps } from "../chat/suggestion-card";
 import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/model-picker";
 import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
@@ -359,6 +361,8 @@ export interface CardActions {
   onStop?: (item: AttentionItem) => Promise<string | null>;
   /** The model pill in the card's box, as on the conversation page; absent, the box has none. */
   model?: CardModel;
+  /** The suggestions made in the card's chat for other chats (plan 049), over its box; absent, none. */
+  suggestions?: Omit<SuggestionsProps, "rt">;
 }
 
 /** What the card's model pill needs: the list, the card's model and effort, and switching it. */
@@ -754,7 +758,7 @@ function Stack({
  * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
  * the ones behind are its frame and head under a veil, and the one flying off is inert.
  */
-function Card({
+export function Card({
   item,
   role,
   refused = false,
@@ -805,6 +809,12 @@ function Card({
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
+          {item.has_draft && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="loki-phone-card-draft">Draft</span>
+            </>
+          )}
         </span>
         {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
       </header>
@@ -814,6 +824,9 @@ function Card({
     </article>
   );
 }
+
+/** A chip naming another chat (a message sent from a suggestion) opens that chat's page. */
+const openChat = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /** The top card's conversation, redrawn as its thread moves (useConversation). */
 function LiveCardConversation({ chats, ...card }: { chats: ChatViews } & Omit<Parameters<typeof CardConversation>[0], "view">) {
@@ -868,7 +881,7 @@ export function CardConversation({
   const onStop = card.onStop;
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
   return message.wrap(
-    <>
+    <OpenChat.Provider value={openChat}>
       {message.sheet}
       <Conversation
         touch
@@ -905,8 +918,9 @@ export function CardConversation({
         placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
         draft={{ value: draft, onChange: setDraft }}
         onSent={onHold}
+        suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
       />
-    </>,
+    </OpenChat.Provider>,
   );
 }
 

@@ -100,7 +100,7 @@ describe("loki server", () => {
     }
   });
 
-  test("a push for the paired Macs reaches a Mac's socket, and no tab or phone (plan 049)", async () => {
+  test("a push for the paired Macs reaches a Mac's socket, and no tab or phone (plan 052)", async () => {
     const s = await startServer({ port: 0 });
     // Who each socket is, from its URL: what the LAN listener reads from a cookie or a Mac's key.
     const bridge = attachWs(

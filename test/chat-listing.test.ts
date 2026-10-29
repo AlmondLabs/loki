@@ -50,6 +50,9 @@ const source: ChatSource = {
           reasoningEffort: null,
           mode: "unrestricted",
           labels: [],
+          purpose: null,
+          hasDraft: false,
+          cwd: null,
         }
       : null;
   },
