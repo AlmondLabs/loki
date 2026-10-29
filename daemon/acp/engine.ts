@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
-import { isPermissionMode } from "../approvals.ts";
+import { modeOf } from "../approvals.ts";
 import type { Engine, EngineChat } from "../engine.ts";
 import type { ChatEngine } from "../kernel/index.ts";
 import { acpHandle } from "./agents.ts";
@@ -83,7 +83,7 @@ export class AcpEngine implements Engine {
   async leave(c: EngineChat): Promise<void> {
     await c.store.updateChat(c.conversationId, { engine: null }, this.deps.context);
     const mode = (await c.store.chatInfo(c.chat.id, this.deps.context))?.mode;
-    this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: null, mode: isPermissionMode(mode) ? mode : "unrestricted" }]);
+    this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: null, mode: modeOf(mode) }]);
   }
 
   /** Every command but loki's passes is the agent's: it goes to the agent as it was typed. */

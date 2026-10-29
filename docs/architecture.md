@@ -215,7 +215,8 @@ the mod's bundle.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
 6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
-   listener on `0.0.0.0:41415` for paired phones (off by default).
+   listener on `0.0.0.0:41415` for paired phones (off by default). `mod/sockets.ts` holds both, and every push
+   names who it is for: everyone, this Mac's tabs, or the paired Macs only (plan 052).
 7. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
    One rule decides which chats are the person's own: not hidden, not a background pass's, of an agent the person
    has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
@@ -292,7 +293,9 @@ step. A tool that was mid-run and is not safe to repeat is reported to the model
 
 Plan 023 (`docs/plans/2026-10-18-023-feat-loki-multi-mac-plan.md`) lets one person's Macs share their agents. Each
 Mac still runs its own daemon over its own `~/.loki`, and every chat still has exactly one writer: the Mac it lives
-on, its **home**. The Macs talk to each other directly over the tailnet; there is no server.
+on, its **home**. The Macs talk to each other directly over the tailnet; there is no server. `mod/peering.ts` wires
+every piece below once and hands the rest of the mod what it needs: the routes for the listener, the router for the
+bridge, Settings › Macs' frames, and the lists with the paired Macs' chats in them.
 
 1. **Pairing** (`mod/peers.ts`). A Mac is named by its install id (`state/device-id`) and its own name. Two Macs pair
    with a code over the phone listener's port, tailnet only: each mints a token for the other, keeps its hash in
@@ -364,7 +367,7 @@ and provider credentials in the OS keychain.
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
    `mods/` the mod API and registry; the rest one file per capability
    (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
-2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
+2. `mod/`: loki's own mod. `index.ts` wires it, and `peering.ts` the paired Macs; `server.ts` and `lan.ts` hold the ports, and `sockets.ts` pushes to them; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
    suggestions, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas
    and watch widget files; `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the
@@ -374,9 +377,9 @@ and provider credentials in the OS keychain.
    Agents pages and Learn; `pairing.ts`, `devices.ts`,
    `tailscale.ts` and `static.ts` are the phone listener; `boot.ts` re-bundles the mod on each reload in a checkout.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
-   `frames.ts` (the frame table) with `frame-types.ts`, `harness.ts` (recognising harness markup in transcripts),
+   `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it), `harness.ts` (recognising harness markup in transcripts),
    `attention/` (the Inbox: the chat client, the attention model, queue and focus
-   ranking, `useAttention`; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
+   ranking, `chat-store.ts` with every chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
    `recall/` (Learn's cards and scheduling).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K
    search, keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames);

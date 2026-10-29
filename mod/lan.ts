@@ -7,7 +7,7 @@ import type { Scope } from "../core/desk-core.ts";
 import type { DeviceStore } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
-import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
+import { attachWs, closeServer, listenWithRetry, profileRoute, type Audience, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
 import { uploadRoute } from "./uploads.ts";
 import { chatImageRoute } from "./chat-images.ts";
 import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
@@ -312,8 +312,8 @@ export class LanListener {
     return status;
   }
 
-  broadcast(msg: object, scope?: Scope): void {
-    this.ws?.broadcast(msg, scope);
+  broadcast(msg: object, scope?: Scope, to?: Audience): void {
+    this.ws?.broadcast(msg, scope, to);
   }
 
   clientCount(): number {

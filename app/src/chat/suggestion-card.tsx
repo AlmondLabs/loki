@@ -1,7 +1,8 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ConversationInfo } from "../../../core/attention/model.ts";
-import type { ChatFace, SuggestionOutcome } from "../../../core/attention/use-attention.ts";
+import type { ChatFace } from "../../../core/attention/use-attention.ts";
+import type { SuggestionOutcome } from "../../../core/attention/chat-store.ts";
 import type { SuggestionAction } from "../../../core/frames.ts";
 import type { Suggestion, SuggestionTarget } from "../../../core/frame-types.ts";
 import { Button, Field, Row, sentence } from "../components";

@@ -7,7 +7,7 @@ import type { ImageNamer } from "../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
-import { isPermissionMode, type Approvals } from "./approvals.ts";
+import { isPermissionMode, modeOf, type Approvals } from "./approvals.ts";
 import { ChatEventConverter } from "./chat-events.ts";
 import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import type { AgentStore } from "./kernel/index.ts";
@@ -200,7 +200,7 @@ export class LokiEngine implements Engine {
       conversation_id: conversationId,
       loop: waiting ? "approval" : view?.run ? "running" : "idle",
       turn_id: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
-      mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted",
+      mode: modeOf(info?.mode),
       cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,
       ...(streaming ? { streaming } : {}),
     };

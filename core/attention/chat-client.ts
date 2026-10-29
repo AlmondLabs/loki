@@ -18,12 +18,6 @@ export type ChatClient = Pick<
   | "createAgent"
   | "createConversation"
   | "deleteAgent"
-  | "deleteMemoryFile"
-  | "revertMemoryCommit"
-  | "approvalsAlways"
-  | "setApprovalAlways"
-  | "mcp"
-  | "engines"
   | "labels"
   | "suggestions"
   | "disconnectProvider"
@@ -38,12 +32,9 @@ export type ChatClient = Pick<
   | "runtimeStart"
   | "sendUserMessage"
   | "setPassSettings"
-  | "skillDisable"
-  | "skillEnable"
   | "updateAgent"
   | "updateConversation"
   | "updateModel"
-  | "writeMemoryFile"
   | "close"
   | "onChat"
   | "onListsStale"
@@ -328,22 +319,6 @@ export class FrameChatClient {
     return this.call("chat_passes_set", s);
   }
 
-  async writeMemoryFile(agentId: string, path: string, content: string, commitMessage?: string): Promise<void> {
-    await this.call("chat_memory_write", { agent_id: agentId, path, content, message: commitMessage });
-  }
-  async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
-    await this.call("chat_memory_write", { agent_id: agentId, path, content: null, message: commitMessage });
-  }
-  async revertMemoryCommit(agentId: string, sha: string): Promise<void> {
-    await this.call("chat_memory_revert", { agent_id: agentId, sha });
-  }
-  /** The tools that run without asking (but in strict mode), and taking one back or adding one. */
-  async approvalsAlways(): Promise<string[]> {
-    return (await this.call("chat_approvals_get", {})).always;
-  }
-  async setApprovalAlways(tool: string, on: boolean): Promise<string[]> {
-    return (await this.call("chat_approvals_set", { tool, on })).always;
-  }
   /**
    * Labels on chats (plan 022): every label with its colour and count, a chat's labels set (the whole list), and a
    * label renamed, recoloured or deleted on every chat. `get` and `edit` answer with the labels as they now stand.
@@ -355,13 +330,6 @@ export class FrameChatClient {
     },
     edit: (change: InputOf<"chat_label_set">) => this.call("chat_label_set", change),
   };
-  /** Settings › Engines: each call answers with the ACP agents as they now stand. */
-  readonly engines = {
-    get: () => this.call("chat_engines_get", {}),
-    set: (engine: InputOf<"chat_engine_set">) => this.call("chat_engine_set", engine),
-    remove: (id: string) => this.call("chat_engine_remove", { id }),
-    check: (id: string) => this.call("chat_engine_check", { id }),
-  };
   /**
    * The person's actions on a suggestion made in a chat (plan 049), carried out by the Mac that chat lives on: each
    * answers with the suggestion as it then stands, and whether the action took or why not.
@@ -372,22 +340,6 @@ export class FrameChatClient {
     retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) =>
       this.call("suggestion_retarget", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, target }),
   };
-  /** Settings › MCP and Agents › Profile: each call answers with the servers as they now are. */
-  readonly mcp = {
-    get: () => this.call("chat_mcp_get", {}),
-    server: (entry: string, edit: InputOf<"chat_mcp_server">["edit"], rename?: string) => this.call("chat_mcp_server", { entry, edit, rename: rename ?? null }),
-    alwaysLoad: (entry: string, tools: string[]) => this.call("chat_mcp_always_load", { entry, tools }),
-    restart: (name: string) => this.call("chat_mcp_restart", { name }),
-    signOut: (name: string) => this.call("chat_mcp_signout", { name }),
-    agent: (agentId: string, server: string, on: boolean) => this.call("chat_mcp_agent", { agent_id: agentId, server, on }),
-    secret: async (name: string, value: string) => (await this.call("chat_mcp_secret", { name, value })).ref,
-  };
-  async skillEnable(skillPath: string): Promise<{ name: string; link_path: string }> {
-    return this.call("chat_skill_enable", { path: skillPath });
-  }
-  async skillDisable(name: string): Promise<void> {
-    await this.call("chat_skill_disable", { name });
-  }
 
   /** A slash command, shown in the thread as it runs and when it answers. */
   async executeCommand(rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> {

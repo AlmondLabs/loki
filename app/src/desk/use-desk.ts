@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
 import { inTauri } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./use-desk-socket";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
+import { daemonCalls } from "../../../core/daemon-calls.ts";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widget-rows";
 
@@ -276,6 +277,12 @@ export function useDesk() {
       ),
   };
 
+  /**
+   * The daemon's settings and agent calls (core/daemon-calls.ts): an agent's memory and skills, Engines, MCP. Made once:
+   * `request` reads only this hook's refs, so the first serves for good, as the chat client's does.
+   */
+  const [calls] = useState(() => daemonCalls(request));
+
   // Analytics (core/analytics.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
   const sendRef = useRef(send);
   useEffect(() => {
@@ -538,6 +545,7 @@ export function useDesk() {
     },
     undo,
     agents,
+    calls,
     gesture,
     measure,
     arrange,

@@ -14,7 +14,7 @@ import { isReasoningEffort, type ModelEntry } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import type { Approvals } from "./approvals.ts";
-import type { Delivery, Engine, EngineChat } from "./engine.ts";
+import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { Providers } from "./providers.ts";
@@ -351,14 +351,8 @@ export class DaemonChats implements ChatBackend {
     const to = wanted ? this.acpEngine : this.loki;
     if (!to) throw new Error("ACP agents are not running in this daemon");
     const started = await this.started(c.chat);
-    if (wanted ? c.engine?.agent !== wanted.agent : c.engine !== null) {
-      if (started)
-        throw new Error(
-          wanted
-            ? "this chat has started on another engine; start a new chat to use this one"
-            : "this chat has started on an ACP agent; start a new chat to use loki's models",
-        );
-    }
+    const refused = engineMoveRefused(c.engine, wanted?.agent ?? null, started);
+    if (refused) throw new Error(refused);
     if (from !== to) await from.leave(c);
     await to.setModel(c, p, started);
   }

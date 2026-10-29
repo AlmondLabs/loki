@@ -166,10 +166,16 @@ export interface WsHandlers {
   onMessage(client: Client, msg: Record<string, unknown>): void;
 }
 
+/**
+ * Who a push on one listener is for: every socket, or only the paired Macs' (plan 023), whose frames about the
+ * person's state, memory and group a phone or a tab never reads.
+ */
+export type Audience = "all" | "macs";
+
 /** The open /ws sockets of one listener, to broadcast to, count, and close. */
 export interface WsBridge {
-  /** Send to every tab, or only tabs showing `scope`. */
-  broadcast(msg: object, scope?: Scope): void;
+  /** Send to every socket, or only those showing `scope`; `macs` sends only to paired Macs. */
+  broadcast(msg: object, scope?: Scope, to?: Audience): void;
   clientCount(): number;
   /** Terminate every socket a device holds. Returns how many. */
   closeDevice(deviceId: string): number;
@@ -246,11 +252,13 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
   };
 
   return {
-    broadcast(msg, scope) {
+    broadcast(msg, scope, to = "all") {
       // A paired Mac follows every desk: it passes on the ones it shows of this Mac's (plan 023, U5).
       // Encoded once for every socket (plan 047): a reply streaming in reaches each window, phone and paired Mac.
       let text: string | undefined;
-      for (const [ws, c] of clients) if ((!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN) ws.send((text ??= JSON.stringify(msg)));
+      for (const [ws, c] of clients)
+        if ((to === "all" || c.peerId) && (!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN)
+          ws.send((text ??= JSON.stringify(msg)));
     },
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
