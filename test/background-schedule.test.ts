@@ -181,6 +181,24 @@ describe("scheduled tasks", () => {
     }
   });
 
+  test("a monthly task ticked every minute fires on its day: what a tick looked at is not looked at again", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
+    try {
+      const fired: string[] = [];
+      const schedules = new Schedules(join(dir, "crons.json"), (_a, _c, text) => (fired.push(text), Promise.resolve(null)));
+      const base = { agent_id: "agent-a", conversation_id: "c", description: null, recurring: true, prompt: "p" };
+      schedules.create({ ...base, name: "rent", cron: "0 9 1 * *", timezone: "Asia/Kolkata" }, new Date("2026-10-02T00:00:00Z"));
+      for (const at of ["2026-10-15T00:00:00Z", "2026-10-31T00:00:00Z", "2026-11-01T03:29:00Z"]) expect(await schedules.tick(new Date(at))).toBe(0);
+      // 09:00 in Kolkata on the 1st.
+      expect(await schedules.tick(new Date("2026-11-01T03:30:00Z"))).toBe(1);
+      expect(await schedules.tick(new Date("2026-11-20T00:00:00Z"))).toBe(0);
+      expect(await schedules.tick(new Date("2026-12-01T03:30:00Z"))).toBe(1);
+      expect(fired).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("a bad cron expression or timezone is refused when the task is made", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
     try {

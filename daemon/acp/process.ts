@@ -32,6 +32,12 @@ interface Running {
   kill: () => void;
 }
 
+/**
+ * Starts of every agent's process, counted across them all: an agent edited in Settings gets a new AcpProcess, and a
+ * count of its own would hand the new process the epoch a session on the old one was opened at.
+ */
+let starts = 0;
+
 /** The agent's process, as AcpChats uses it. */
 export class AcpProcess {
   readonly config: AcpAgentConfig;
@@ -68,7 +74,7 @@ export class AcpProcess {
   }
 
   private async start(): Promise<Running> {
-    const generation = ++this.generation;
+    const generation = (this.generation = ++starts);
     this.stderrTail = "";
     // npx and other .cmd shims run only through a shell on Windows; a program named by its .exe runs as it is.
     const child = spawn(this.config.command, this.config.args, {

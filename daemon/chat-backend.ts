@@ -536,6 +536,7 @@ export class DaemonChats implements ChatBackend {
   async importChat(moved: MovedChat, names?: MoveNames): Promise<boolean> {
     const store = await this.deps.stores.get(moved.agent_id);
     const made = await importChat(store, moved, this.deps.context, names);
+    if (made) await this.loki.forgetChat(moved.agent_id, moved.conversation_id);
     for (const task of moved.schedules) this.deps.schedules?.adopt(task);
     for (const [job, at] of Object.entries(moved.cursors))
       if (job === "reflection" || job === "learn") this.deps.passes?.state.setCursor(job, moved.agent_id, moved.conversation_id, at);

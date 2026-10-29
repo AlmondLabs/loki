@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -496,6 +496,26 @@ describe("the daemon's chats", () => {
       await expect(s.chats.open(agent.id, "nope")).rejects.toThrow("no chat nope");
       expect(modelRef("gpt")).toBeUndefined();
       expect(modelRef("openrouter/~anthropic/claude-haiku-latest")).toEqual({ provider: "openrouter", modelId: "~anthropic/claude-haiku-latest" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a chat that comes back from another Mac is followed anew: its answers reach the windows", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      s.faux.setResponses([fauxAssistantMessage("first"), fauxAssistantMessage("back again")]);
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hi", images: [], send_id: "s1", context: null });
+      await vi.waitFor(() => expect(kinds(s.pushed)).toContain("turn_end"));
+      // It moves away and comes back: this Mac's copy is hidden, then set aside for the one that returns.
+      const moved = must((await s.chats.exportChat(agent.id, conversationId)).chat, "the export");
+      await s.chats.finishMove(agent.id, conversationId);
+      expect(await s.chats.importChat(moved)).toBe(true);
+      s.pushed.length = 0;
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "still there?", images: [], send_id: "s2", context: null });
+      await vi.waitFor(() => expect(kinds(s.pushed)).toContain("turn_end"));
     } finally {
       await s.cleanup();
     }

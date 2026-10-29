@@ -75,18 +75,28 @@ export function parseCron(expr: string): Fields {
   };
 }
 
+/**
+ * One formatter per timezone: dueBetween looks at every minute since a task last fired, up to 31 days of them each
+ * tick, and building a formatter costs far more than using one.
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
 /** The wall-clock parts of `at` in a timezone. */
 function partsIn(at: Date, timezone: string) {
-  const f = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    weekday: "short",
-  });
+  let f = formatters.get(timezone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "short",
+    });
+    formatters.set(timezone, f);
+  }
   const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), weekday };
@@ -138,6 +148,11 @@ export class Schedules {
   private readonly report: (message: string) => void;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  /**
+   * The span each task was last looked at and found with no slot due, by task, cron and timezone: the next tick looks
+   * only at the minutes after it. A monthly task otherwise walked up to a month of minutes every minute.
+   */
+  private readonly quiet = new Map<string, { from: number; to: number }>();
 
   private readonly now: () => Date;
 
@@ -180,12 +195,14 @@ export class Schedules {
 
   /**
    * A task as it was on another Mac, its id and when it last fired kept, so a slot it already fired there does not
-   * fire again here (plan 023, U9). One already here is left as it is.
+   * fire again here (plan 023, U9). One already here is left as it is, unless it is the copy cancelled when its chat
+   * moved away: a chat that comes back brings its task back with it.
    */
   adopt(task: ScheduledTask): void {
     const tasks = this.list();
-    if (tasks.some((t) => t.id === task.id)) return;
-    this.save([...tasks, task]);
+    const here = tasks.find((t) => t.id === task.id);
+    if (here && here.status !== "cancelled") return;
+    this.save([...tasks.filter((t) => t !== here), task]);
   }
 
   /** Cancel a task of this agent by its id or name; false when there is none. */
@@ -215,7 +232,12 @@ export class Schedules {
         let due = false;
         if (task.status === "active")
           try {
-            due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
+            const from = Date.parse(task.last_fired_at ?? task.created_at);
+            const key = `${task.id}\u0000${task.cron}\u0000${task.timezone}`;
+            const seen = this.quiet.get(key);
+            const known = seen !== undefined && seen.from <= from && from <= seen.to;
+            due = dueBetween(parseCron(task.cron), task.timezone, new Date(known ? seen.to : from), now);
+            if (!due) this.quiet.set(key, { from: known ? seen.from : from, to: now.getTime() });
           } catch (error) {
             this.report(`schedule ${task.name}: ${String(error)}`);
             continue;
