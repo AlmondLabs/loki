@@ -201,7 +201,7 @@ export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: n
 
 /**
  * A chat's suggestions behind a chip in the message box (plan 052): the chip shows only while some wait, and opens
- * the cards in a modal over the window on the desktop and a bottom sheet on the phone (plan 054). The
+ * the cards in a modal over the window on the desktop and a bottom sheet on the phone (plan 055). The
  * chip stays mounted with the chat, so a refused action's reason and a line told after its card has gone (AE6) keep
  * while the panel is closed; the chip stays for that line until it is dismissed. The last card decided closes it.
  */
@@ -311,7 +311,7 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
 const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
 /**
- * Where the chip's cards open (plan 054): a modal sheet centred over the window on the desktop, a bottom sheet on the
+ * Where the chip's cards open (plan 055): a modal sheet centred over the window on the desktop, a bottom sheet on the
  * phone. The Sheet owns the veil, Escape, the Tab loop and handing focus back to what opened it. A header names it.
  */
 function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; count: number; onClose: () => void; children: ReactNode }) {
@@ -400,7 +400,7 @@ export function SuggestionCardView({
       </button>
       {open && (
         <div className="loki-suggestion-body">
-          {/* The message as the transcript draws a reply (plan 054): lists, code and links read as they were written. */}
+          {/* The message as the transcript draws a reply (plan 055): lists, code and links read as they were written. */}
           <div className="loki-suggestion-text loki-md">
             <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
               {s.text}

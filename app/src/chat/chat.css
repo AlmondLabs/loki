@@ -435,7 +435,11 @@
   background: var(--loki-brass-soft);
 }
 /* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): behind the box's chip
-   (plan 052), in a modal (plan 054) whose header stays while the list scrolls under it. */
+   (plan 052), in a modal (plan 055) whose header stays while the list scrolls under it. */
+/* Tall enough to read a message and its actions at once, even with one suggestion; it grows to the sheet's limit. */
+.loki-sheet-card.loki-suggestion-modal {
+  min-height: min(420px, 70vh);
+}
 .loki-suggestion-modal-head {
   display: flex;
   align-items: center;

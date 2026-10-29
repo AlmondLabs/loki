@@ -133,11 +133,12 @@ describe("where suggestions show", () => {
       expect(chip).toBeLessThan(html.indexOf("loki-composer-end"));
       expect(html).toContain(`aria-label="2 suggestions"`);
     });
-    test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in the box's ${touch ? "sheet" : "popover"}`, () => {
+    test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in a ${touch ? "bottom sheet" : "modal"} with a header (plan 055)`, () => {
       const html = conversation(source(two).src, touch, true, 1);
       expect(cards(html)).toEqual(["newer", "older"]);
-      expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-popover");
-      expect(html.indexOf("loki-suggestions")).toBeGreaterThan(html.indexOf("loki-composer"));
+      expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-modal");
+      expect(html).toContain('aria-modal="true"');
+      expect(html).toContain(touch ? "2 waiting" : "esc closes");
     });
   }
   test("a hidden view (composer false) draws no chip: the view on screen draws it once", () => {
@@ -146,9 +147,18 @@ describe("where suggestions show", () => {
   test("a chat with none draws no chip", () => {
     expect(conversation(source([]).src, false, true, 1)).not.toContain("loki-suggestion-chip");
   });
-  test("one waiting suggestion opens straight to its message", () => {
-    const html = conversation(source([suggestion()]).src, false, true, 1);
+  test("the newest starts open, so the modal shows a message at once; the others stay one line", () => {
+    const html = conversation(source(two).src, false, true, 1);
     expect(actionsOf(html)).toEqual(["send", "draft", "change", "reject"]);
+    expect(html.indexOf('data-action="send"')).toBeLessThan(html.indexOf('data-suggestion="older"'));
+  });
+  test("the message renders as markdown; the title stays the words it is", () => {
+    const md = suggestion({ title: "Fix **the** test", text: "Two steps:\n\n- pin the `clock`\n- rerun it\n\nSee [the log](https://example.com/log)." });
+    const html = card({ suggestion: md });
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<code>clock</code>");
+    expect(html).toContain('href="https://example.com/log"');
+    expect(html).toContain("Fix **the** test");
   });
 });
 

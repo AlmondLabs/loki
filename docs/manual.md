@@ -792,7 +792,7 @@ that card's chat. A suggestion stays until you act on it or its agent takes it b
 (`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
 Inbox, so it has a screen to show in.
 
-<img src="images/suggestion-chip.jpg" width="560" alt="A chat's message box with a 3 suggestions chip after the model and mode pills, its popover open above the box: three suggestions, one opened to its message with send now, save as draft, change chat and reject">
+<img src="images/suggestion-chip.jpg" width="560" alt="The suggestions modal over a chat: a header saying 3 waiting, the newest open with its markdown message (a numbered list, bullets, code and a link) and send now, save as draft, change chat and reject, two more below as a title and the chat each is for">
 
 **The four actions.**
 
