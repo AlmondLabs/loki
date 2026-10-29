@@ -3,6 +3,7 @@ import { LAYER } from "../kit/layers";
 import { IconButton } from "../components";
 import type { ModelEntry } from "./model-picker";
 import { Conversation, ConversationHeader, type ConversationActions, type ConversationView } from "./conversation";
+import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 
@@ -26,6 +27,7 @@ export const CHAT_CENTER_WIDTH = 1100;
 /** The desk's chat: the one Conversation, framed as a panel that fades to see-through when nothing is going on in it. */
 export function ChatWindow({
   title,
+  purpose = null,
   agentName,
   agentId,
   view,
@@ -40,10 +42,13 @@ export function ChatWindow({
   modelPickerTick = 0,
   modeMenuTick = 0,
   draft,
+  suggestions = null,
   onClose,
 }: {
   /** The desk's name, over the agent's face in the header. */
   title: string | null;
+  /** The person's one line on what the chat is for (plan 049, R11), under its name. */
+  purpose?: string | null;
   agentName?: string | null;
   agentId?: string | null;
   view: ConversationView;
@@ -60,6 +65,8 @@ export function ChatWindow({
   modeMenuTick?: number;
   /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
   draft?: ControlledDraft;
+  /** The suggestions made in this chat for other chats (plan 049); null or absent, none. */
+  suggestions?: SuggestionsProps | null;
   onClose: () => void;
 }) {
   const waiting = !!view.approval || !!view.question;
@@ -86,6 +93,7 @@ export function ChatWindow({
           header={
             <ConversationHeader
               title={title ?? (agentName ? `${agentName}'s chat` : "chat")}
+              purpose={purpose}
               agentName={agentName}
               agentId={agentId}
               right={
@@ -108,6 +116,7 @@ export function ChatWindow({
           modelPickerTick={modelPickerTick}
           modeMenuTick={modeMenuTick}
           draft={draft}
+          suggestions={suggestions}
         />
       </div>
     </>

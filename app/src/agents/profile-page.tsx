@@ -10,9 +10,9 @@ import { ago } from "../shared/ago";
 import { Head } from "./bits";
 import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
-import type { DeskSummary, Task } from "../../../core/frame-types.ts";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
-/** The profile page: who the agent is (editable), where it is working (desks, tasks), and the way out. */
+/** The profile page: who the agent is (editable), where it is working (its chats), and the way out. */
 export function ProfilePage({
   d,
   selected,
@@ -21,10 +21,8 @@ export function ProfilePage({
   onLoadModels,
   onSave,
   desks,
-  tasks,
   onOpenDesk,
   onShowDesks,
-  onShowTasks,
   mcp,
   macs,
   confirmDelete,
@@ -38,10 +36,8 @@ export function ProfilePage({
   onLoadModels: () => void;
   onSave: (body: AgentEdit) => Promise<void>;
   desks: DeskSummary[];
-  tasks: Task[] | null;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onShowDesks: () => void;
-  onShowTasks: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
   /** This Mac first, then the Macs paired with it (plan 023); with more than one, the agent's home can be changed. */
   macs?: MacIdentity[];
@@ -50,20 +46,15 @@ export function ProfilePage({
   onRemove: () => Promise<void>;
 }) {
   const myDesks = useMemo(() => desks.filter((x) => x.agent_id === selected && x.status === "live"), [desks, selected]);
-  const myTasks = useMemo(
-    () => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assigned_agent_id === selected || t.assignee === d.agent.name)),
-    [tasks, selected, d],
-  );
   return (
     <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
       <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} macs={macs} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
-        <TasksSection count={myTasks.length} onShowTasks={onShowTasks} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
         <div style={{ paddingTop: 8 }}>
           {confirmDelete ? (
-            <ConfirmDelete d={d} myDesks={myDesks} taskCount={myTasks.length} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
+            <ConfirmDelete d={d} myDesks={myDesks} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
           ) : (
             <Button tone="negative" onClick={() => setConfirmDelete(true)}>
               delete this agent…
@@ -108,36 +99,8 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   );
 }
 
-function TasksSection({ count, onShowTasks }: { count: number; onShowTasks: () => void }) {
-  return (
-    <section>
-      <Head>
-        Tasks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{count ? `${count} open` : ""}</span>
-      </Head>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
-        <span>{count === 0 ? "nothing assigned" : `${count} assigned in Tasks`}</span>
-        <Button onClick={onShowTasks} kbd={keyFor("segment.tasks")}>
-          tasks
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-/** The last step before deleting: what closes (live desks) and what stays (open tasks, unassigned). */
-function ConfirmDelete({
-  d,
-  myDesks,
-  taskCount,
-  onRemove,
-  onKeep,
-}: {
-  d: AgentDetails;
-  myDesks: DeskSummary[];
-  taskCount: number;
-  onRemove: () => Promise<void>;
-  onKeep: () => void;
-}) {
+/** The last step before deleting: what closes (live desks). */
+function ConfirmDelete({ d, myDesks, onRemove, onKeep }: { d: AgentDetails; myDesks: DeskSummary[]; onRemove: () => Promise<void>; onKeep: () => void }) {
   return (
     <div
       role="alertdialog"
@@ -161,7 +124,6 @@ function ConfirmDelete({
               .map((x) => x.title ?? "main chat")
               .join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.`
           : ""}
-        {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay in Tasks, unassigned.` : ""}
       </span>
       <div style={{ display: "flex", gap: 8 }}>
         <Button tone="negative" onClick={() => void onRemove()}>

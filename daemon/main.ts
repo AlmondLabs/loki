@@ -1,6 +1,6 @@
 /**
  * The loki daemon (plan 017): the one long-running process the shell starts and supervises. It holds the lock, opens
- * every agent's store and runs every chat, and loads the mods: loki's own (canvas, Tasks, Learn, the phone listener)
+ * every agent's store and runs every chat, and loads the mods: loki's own (canvas, suggestions, Learn, the phone listener)
  * and any in the `mods` folder beside its state, on loki's mod API (daemon/mods).
  *
  *   node daemon.mjs --loki-daemon --dir <loki folder> --mod <mod entry> [--token-file <file>]
@@ -291,6 +291,18 @@ const loadCore = (): Promise<LoadResult> =>
         secrets: secrets ?? memorySecrets(),
         // The memory repos' one queue, shared with the mod, which is bundled apart and would otherwise make its own (plan 046).
         memory: memoryRepos,
+        // The suggestions kept on this Mac's chat records (plan 049, KTD1); the mod reads and writes a chat's whole list.
+        suggestions: {
+          read: async (agentId, id) => {
+            const store = await stores.get(agentId);
+            const conversation = await store.chat(id, context);
+            const info = conversation ? await store.chatInfo(conversation.id, context) : undefined;
+            return info ? { suggestions: info.suggestions ?? [], archived: info.archived } : null;
+          },
+          write: async (agentId, id, suggestions) => {
+            if (!(await (await stores.get(agentId)).updateChat(id, { suggestions }, context))) throw new Error(`no chat ${id}`);
+          },
+        },
         // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
         daemon: devReload,
         usage: {

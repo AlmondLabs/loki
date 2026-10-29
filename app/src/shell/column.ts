@@ -27,7 +27,7 @@ export interface ColumnPref {
 
 /** Inbox is its own full-width pass and Settings a page of its own; the rest list their items. */
 export function hasColumn(segment: Segment): boolean {
-  return segment === "desk" || segment === "tasks" || segment === "agents" || segment === "learn";
+  return segment === "desk" || segment === "agents" || segment === "learn";
 }
 
 /** A width the column may take, in px: rounded and kept within COLUMN_MIN and COLUMN_MAX; anything not a number is the default. */

@@ -151,22 +151,22 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
     const tree = TitleMenuPanel({ groups: titleMenus("linux"), os: "linux", open: null, onOpen: (t) => opened.push(t), onPick: () => {} });
     (
       must(
-        elements(tree).find((el) => el.props["data-menu"] === "Tasks"),
-        "the Tasks menu title",
+        elements(tree).find((el) => el.props["data-menu"] === "Learn"),
+        "the Learn menu title",
       ).props.onClick as () => void
     )();
-    expect(opened).toEqual(["Tasks"]);
+    expect(opened).toEqual(["Learn"]);
   });
 });
 
 describe("the webview's own browser keys off the Mac (plan 014 U4)", () => {
-  test("Ctrl+R never reaches the webview as a reload in the app: the task list's refresh is loki's, everywhere else it is ignored", () => {
+  test("Ctrl+R never reaches the webview as a reload in the app: Learn's refresh is loki's, everywhere else it is ignored", () => {
     for (const os of ["windows", "linux"] as const) {
       const e = key("r", { ctrl: true });
       guardBrowserKey(e, os, true);
       expect(e.prevented).toBe(true);
-      expect(resolve(key("r", { ctrl: true }), "tasks", os)?.id).toBe("tasks.refresh");
-      expect(resolve(key("r", { ctrl: true }), "inbox", os)).toBeNull();
+      expect(resolve(key("r", { ctrl: true }), "learn", os)?.id).toBe("recall.refresh");
+      for (const s of ["desk", "inbox", "agents"] as const) expect(resolve(key("r", { ctrl: true }), s, os)).toBeNull();
     }
   });
 

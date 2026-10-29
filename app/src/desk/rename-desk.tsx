@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button, Field, Sheet } from "../components";
 import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
@@ -12,16 +12,40 @@ export interface RenameDeskProps {
   onClose: () => void;
   /** Save the cleaned name; resolves to the daemon's error, or null when it took. */
   onRename: (name: string) => Promise<string | null>;
+  /** The chat's purpose line now (plan 049, R11); the second field starts on it. */
+  purpose?: string | null;
+  /** Save the purpose line, an empty one clearing it; left out, the dialog has no purpose field. */
+  onPurpose?: (purpose: string) => Promise<string | null>;
 }
 
+/** What Save does in the rename dialog and sheet: the name when it changed, then the purpose when it changed; the first refusal, or null. */
+export async function saveRename(
+  { name, purpose }: { name: string | null; purpose: string | null },
+  onRename: (name: string) => Promise<string | null>,
+  onPurpose?: (purpose: string) => Promise<string | null>,
+): Promise<string | null> {
+  try {
+    const renamed = name === null ? null : await onRename(name);
+    if (renamed) return renamed;
+    return purpose === null || !onPurpose ? null : await onPurpose(purpose);
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+/** The purpose line as it would be saved: one line, trimmed (the daemon cleans it the same way). */
+export const cleanPurpose = (value: string): string => value.replace(/\s+/g, " ").trim();
+
 /**
- * Slack's "Rename channel", for a desk: one field holding the current name, selected, so typing replaces it.
- * Enter saves, Esc cancels; Save waits for a name that differs. A refusal shows under the field and the dialog
+ * Slack's "Rename channel", for a desk: one field holding the current name, selected, so typing replaces it, and
+ * under it the chat's one-line purpose, which agents read to know what the chat is for (plan 049, R11).
+ * Enter saves, Esc cancels; Save waits for a name or a purpose that differs. A refusal shows under the field and the dialog
  * stays open to try again. Mounted only while open, so each opening starts from the desk's name; the Sheet puts
  * focus back where it was when it opened (the row or the header's menu button).
  */
-export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
+export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose }: RenameDeskProps) {
   const [value, setValue] = useState(name);
+  const [purposeValue, setPurposeValue] = useState(purpose ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -33,21 +57,28 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
   }, []);
 
   const next = cleanDeskName(value);
-  const canSave = !!next && next !== name.trim() && !busy;
+  const nextPurpose = cleanPurpose(purposeValue);
+  const renamed = !!next && next !== name.trim();
+  const repurposed = !!onPurpose && nextPurpose !== (purpose ?? "");
+  const canSave = !!next && (renamed || repurposed) && !busy;
   const save = async () => {
-    if (!canSave || !next) return;
+    if (!canSave) return;
     setBusy(true);
     setError(null);
     let err: string | null;
     try {
-      err = await onRename(next);
-    } catch (e) {
-      err = e instanceof Error ? e.message : String(e);
+      err = await saveRename({ name: renamed ? next : null, purpose: repurposed ? nextPurpose : null }, onRename, onPurpose);
     } finally {
       setBusy(false);
     }
     if (!err) return onClose();
     setError(err);
+  };
+  const onEnter = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void save();
+    }
   };
 
   const sheet = (
@@ -73,13 +104,26 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
             setValue(e.target.value);
             setError(null);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              void save();
-            }
-          }}
+          onKeyDown={onEnter}
         />
+        {onPurpose && (
+          <Field
+            name="desk-purpose"
+            aria-label="Chat purpose"
+            placeholder="what this chat is for (agents read it)"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
+            value={purposeValue}
+            readOnly={busy}
+            onChange={(e) => {
+              setPurposeValue(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={onEnter}
+          />
+        )}
         {error && (
           <div id="loki-rename-error" role="alert" style={{ color: "var(--loki-negative)", fontSize: 12 }}>
             {error}
@@ -99,6 +143,20 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
   // Opened from the sidebar or the pane header, it would be laid out (and clipped) inside that column, and sit in
   // the header's window-drag strip; on the body the veil covers the whole window, as the shell's own sheets do.
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
+}
+
+/**
+ * The purpose save both menus share (plan 049, R11): loki's daemon keeps the line, then the desks list is asked for
+ * again so every header shows it.
+ */
+export function savePurpose(desk: Desk, catchUp: CatchUp) {
+  return async (d: Pick<DeskSummary, "agent_id" | "conversation_id">, purpose: string): Promise<string | null> => {
+    if (!d.conversation_id || !d.agent_id) return "this chat has no conversation to describe";
+    const err = await catchUp.setPurpose({ agent_id: d.agent_id, conversation_id: d.conversation_id }, purpose);
+    if (err) return err;
+    desk.desks.request();
+    return null;
+  };
 }
 
 /** Without the link to loki's daemon there is nothing to write the name to; the menus say so on the disabled item. */

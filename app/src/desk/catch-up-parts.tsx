@@ -170,6 +170,7 @@ export function CardHeader({ current, cameBack, flash, labelList = null }: CardH
   return (
     <ConversationHeader
       title={current.title ?? current.id}
+      purpose={current.purpose}
       agentName={current.agent_name}
       agentId={current.agent_id}
       right={
@@ -186,6 +187,7 @@ export function CardHeader({ current, cameBack, flash, labelList = null }: CardH
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
+      {current.has_draft && <Meta>draft</Meta>}
       <LabelChips labels={current.labels} list={labelList} />
     </ConversationHeader>
   );

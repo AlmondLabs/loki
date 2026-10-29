@@ -94,12 +94,6 @@ fn install_status(report: State<'_, install::Report>) -> install::Report {
     report.inner().clone()
 }
 
-/// Where the programs loki depends on were found, if at all.
-#[tauri::command]
-fn tool_status() -> install::Tools {
-    install::tools(&home_dir())
-}
-
 /// The daemon as Welcome and Settings see it: the Node it runs on, why it could not start, and — when no new-enough
 /// Node was found — what Welcome's Node step needs to say.
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -347,7 +341,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             client_log,
             install_status,
-            tool_status,
             daemon_status,
             retry_daemon,
             native::set_waiting,

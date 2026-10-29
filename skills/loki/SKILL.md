@@ -116,28 +116,22 @@ widget's frame and in `error`.
 - Write only inside the widgets directory. The loki repo itself is the easel,
   not the painting.
 
-## Tasks for later: the board (`task_*`)
+## Work for another chat: suggestions (`chat_list`, `suggestion_*`)
 
-The user keeps a board of tasks for later (beads, one board shared by every agent
-and folder; the loki app shows it). You touch it only through the `task_*` tools, never
-with `bd` directly, and only when asked — "park this", "make a task for…", "file
-the follow-ups" — or when you are wrapping up with explicit follow-ups. Never
-file tasks silently in the middle of unrelated work.
+When a piece of work, a side finding or part of the current task, would be done
+better in another chat (a themed chat it belongs to, another agent, or a new chat
+running in parallel), suggest a message for that chat. Never suggest work you can
+do in this chat. The person sends it, saves it as a draft there, or rejects it;
+you never send it yourself, and no suggestion asks for approval.
 
 ```
-task_create { title, description?, labels?, priority? }   → { filed: "lk-…" }
-task_list { all? }                     tasks assigned to this conversation, or filed here unassigned (all: every open task)
-task_comment { id, text }              progress note
-task_close { id, reason }              done
+chat_list { filter? }                  agents with their Mac, and open chats one line each (purpose, folder, labels, this chat)
+suggestion_create { title, text, target }   → "suggested sugg-…"; target { agent_id, conversation_id } or { agent_id, folder }
+suggestion_list {}                     this chat's suggestions: status and the chat each now points at
+suggestion_withdraw { id }             take back one the person has not acted on
 ```
 
-- Title: one imperative line. Description: what, why, where to look — enough for
-  someone starting cold. Priority 0 (urgent) to 4 (someday), default 2. The
-  source conversation, chat and folder are stamped for you; the folder's name
-  becomes a label.
-- Always tell the user the id you filed.
-- When the user assigns tasks to your conversation from the board, they arrive
-  inside `<loki-tasks>` on their next message, and again only when that list
-  changes (the latest block is the current list; `task_list` reads it any time). Pick one up when the message is
-  about it or when asked to work the board; otherwise acknowledge in a line and
-  carry on. Close it with `task_close` when done.
+- Call `chat_list` first to pick the target, and `suggestion_list` to avoid a repeat.
+- One piece of work per suggestion. The text stands alone, as if the person typed
+  it there: what to do and why, with absolute paths.
+- Name the suggestion in one line of your reply.

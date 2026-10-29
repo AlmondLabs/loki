@@ -14,8 +14,6 @@
 //! mod/boot.ts, which re-bundles the mod's files on every reload. A fresh clone has no skill in place, though, so a
 //! dev build links the checkout's skills/loki where nothing is yet (`link_checkout`) — the manual's by-hand recipe.
 //! Whatever is already there stays.
-//!
-//! Also here: which external programs the app needs (`bd`) and where they were found.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -338,34 +336,6 @@ pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
         }
     }
     report
-}
-
-// --- requirements -------------------------------------------------------------------------------
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Tools {
-    /// beads, which keeps the board.
-    pub bd: Option<String>,
-}
-
-/// Look on PATH first, then where installers usually put things (GUI apps get a short PATH).
-pub fn find_program(name: &str, home: &Path) -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os(format!("LOKI_{}_BIN", name.to_uppercase())) {
-        return Some(PathBuf::from(p));
-    }
-    let mut dirs: Vec<PathBuf> =
-        std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
-    for d in [".volta/bin", ".bun/bin", ".local/bin", "go/bin", ".npm-global/bin"] {
-        dirs.push(home.join(d));
-    }
-    for d in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
-        dirs.push(PathBuf::from(d));
-    }
-    dirs.into_iter().map(|d| d.join(name)).find(|p| p.is_file())
-}
-
-pub fn tools(home: &Path) -> Tools {
-    Tools { bd: find_program("bd", home).map(|p| p.display().to_string()) }
 }
 
 #[cfg(test)]

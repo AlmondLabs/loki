@@ -8,15 +8,15 @@ import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion }
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import type { MessageLayout } from "../chat/transcript";
+import { OpenChat, type MessageLayout } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
+import type { SuggestionsProps } from "../chat/suggestion-card";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
 import { useMessageActions } from "./use-message-actions";
-import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/message-tasks";
 import { SheetRow } from "./home";
 import { RenameSheet } from "./rename-sheet";
 import { FolderSheet } from "./folder-sheet";
@@ -82,6 +82,7 @@ export function ConversationScreen({
   pinned = null,
   onPin,
   rename = null,
+  purpose = null,
   archive = null,
   labels = null,
   folder = null,
@@ -94,7 +95,7 @@ export function ConversationScreen({
   onSeen,
   onNotDone,
   onViewed,
-  taskApi = null,
+  suggestions = null,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -122,7 +123,14 @@ export function ConversationScreen({
   pinned?: boolean | null;
   onPin?: (pinned: boolean) => void;
   /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the daemon cannot take it. */
-  rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
+  rename?: {
+    name: string;
+    onRename: ((name: string) => Promise<string | null>) | null;
+    /** Save the purpose line too (plan 049, R11); null or left out, the Rename sheet has no purpose field. */
+    onPurpose?: ((purpose: string) => Promise<string | null>) | null;
+  } | null;
+  /** The person's one line on what the chat is for (plan 049, R11), shown in the header under its name. */
+  purpose?: string | null;
   /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
   /** The chat's labels (plan 022), their colours and saving them; `onChange` null while the daemon cannot take it. */
@@ -142,8 +150,8 @@ export function ConversationScreen({
   onNotDone?: (item: AttentionItem) => void;
   /** A look, not done (viewed_mark): sent on open and for each new message while the screen is up. */
   onViewed?: (agentId: string, conversationId: string) => void;
-  /** Tasks, for Add task in a message's long press and the chips of the messages that have one. */
-  taskApi?: TaskApi | null;
+  /** The suggestions made in this chat for other chats (plan 049), over the box; null or absent, none. */
+  suggestions?: Omit<SuggestionsProps, "rt"> | null;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
@@ -172,11 +180,7 @@ export function ConversationScreen({
   );
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
-  const messageTasks = useMessageTasksScope(
-    { agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) },
-    taskApi,
-  );
-  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" }, messageTasks?.start);
+  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
     banner ??
@@ -192,45 +196,52 @@ export function ConversationScreen({
 
   return (
     <>
-      <ThreadHeader thread={thread} view={view} waiting={waiting} backLabel={backLabel} onBack={onBack} onActions={() => setActionsOpen(true)} />
+      <ThreadHeader
+        thread={thread}
+        view={view}
+        waiting={waiting}
+        purpose={purpose}
+        backLabel={backLabel}
+        onBack={onBack}
+        onActions={() => setActionsOpen(true)}
+      />
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(
-          <MessageTasks.Provider value={messageTasks}>
-            <ScreenThread
-              chats={chats}
-              thread={thread}
-              item={item}
-              heldLook={heldLook}
-              people={people}
-              view={{
-                status: view.status,
-                error: view.error,
-                model,
-                reasoningEffort,
-                engine: view.engine ?? null,
-                approval: view.pending,
-                question: view.question,
-                older: view.older ?? null,
-                loadFailed: view.loadFailed ?? null,
-                loadStep: view.loadStep,
-              }}
-              models={models}
-              actions={{
-                onLoadModels,
-                onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-                onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-                onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
-                onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
-                onStop: onStop ? () => onStop(rt) : undefined,
-              }}
-              agentName={agentName}
-              prefill={prefill}
-              notice={notice || null}
-              placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
-              draft={{ value: draft, onChange: setDraft }}
-            />
-          </MessageTasks.Provider>,
+          <ScreenThread
+            chats={chats}
+            thread={thread}
+            item={item}
+            heldLook={heldLook}
+            people={people}
+            view={{
+              status: view.status,
+              error: view.error,
+              model,
+              reasoningEffort,
+              engine: view.engine ?? null,
+              approval: view.pending,
+              question: view.question,
+              older: view.older ?? null,
+              loadFailed: view.loadFailed ?? null,
+              loadStep: view.loadStep,
+            }}
+            models={models}
+            actions={{
+              onLoadModels,
+              onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
+              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onAnswer: asked ? (answers) => onAnswer(rt, asked.requestId, answers) : undefined,
+              onApprove: approval ? (behavior) => onDecide(rt, approval.requestId, behavior) : undefined,
+              onStop: onStop ? () => onStop(rt) : undefined,
+            }}
+            agentName={agentName}
+            prefill={prefill}
+            notice={notice || null}
+            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+            draft={{ value: draft, onChange: setDraft }}
+            suggestions={suggestions ? { ...suggestions, rt } : null}
+          />,
         )}
       </div>
       {message.sheet}
@@ -287,7 +298,15 @@ export function ConversationScreen({
         </Sheet>
       )}
       {moving && folder && <FolderSheet load={folder.load} onMove={folder.onMove} onClose={() => setMoving(false)} />}
-      {renaming && rename?.onRename && <RenameSheet name={rename.name} onRename={rename.onRename} onClose={() => setRenaming(false)} />}
+      {renaming && rename?.onRename && (
+        <RenameSheet
+          name={rename.name}
+          onRename={rename.onRename}
+          onClose={() => setRenaming(false)}
+          purpose={purpose}
+          onPurpose={rename.onPurpose ?? undefined}
+        />
+      )}
       {labeling && labels?.onChange && (
         <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
       )}
@@ -326,26 +345,32 @@ function ScreenThread({
     [people, dividerAt, item?.last_message_at, widgets, inline],
   );
   return (
-    <Conversation
-      {...conversation}
-      touch
-      dim={false}
-      gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-      view={{ ...view, rows }}
-      layout={layout}
-    />
+    <OpenChat.Provider value={openChat}>
+      <Conversation
+        {...conversation}
+        touch
+        dim={false}
+        gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+        view={{ ...view, rows }}
+        layout={layout}
+      />
+    </OpenChat.Provider>
   );
 }
 
+/** A chip naming another chat (a message sent from a suggestion) opens that chat's page. */
+const openChat = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
+
 /**
  * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its
- * name, and "working · <desk>" under it; a tap opens the agent's profile), and a circle for the actions sheet.
+ * name, "working · <desk>" under it and the chat's purpose under that; a tap opens the agent's profile), and a circle for the actions sheet.
  * The heading wraps the pill so focus lands on the conversation's name when the page opens.
  */
 function ThreadHeader({
   thread,
   view,
   waiting,
+  purpose,
   backLabel,
   onBack,
   onActions,
@@ -353,6 +378,7 @@ function ThreadHeader({
   thread: Thread;
   view: ThreadView;
   waiting: boolean;
+  purpose: string | null;
   backLabel: string;
   onBack: () => void;
   onActions: () => void;
@@ -376,6 +402,7 @@ function ThreadHeader({
           <span className="loki-phone-convo-copy">
             <span className="loki-phone-convo-name loki-phone-ellipsis">{name}</span>
             {line && <span className="loki-phone-convo-line loki-phone-ellipsis">{line}</span>}
+            {purpose && <span className="loki-phone-convo-line loki-phone-ellipsis">{purpose}</span>}
           </span>
         </button>
       </h1>

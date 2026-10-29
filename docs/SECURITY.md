@@ -23,8 +23,9 @@ Macs.
   strip that moves the window), minimise, maximise, close and is-maximised (the window buttons loki draws on Windows
   and Linux), the system's folder dialog (`dialog:allow-open`, which hands back only the folder you pick), and opening
   URLs in the system browser (see `src-tauri/capabilities/default.json`). It cannot read files or run programs.
-- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits, `bd` for
-  Tasks, `rg` for search, the local MCP servers you list, and the ACP agents you choose for a chat (Claude Code, or
+- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits, `rg` for
+  search, `bd` only to read the open tasks once when Tasks gave way to suggestions (the beads store is read, never
+  written), the local MCP servers you list, and the ACP agents you choose for a chat (Claude Code, or
   your own in `~/.loki/state/acp.json`). An ACP chat reaches loki's own tools through an MCP endpoint on a random
   loopback port, one per session, with a key that names the chat.
 
@@ -127,6 +128,15 @@ server or account is involved.
   can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode,
   which asks for everything, always-allowed tools included.
 
+## Suggestions
+
+An agent can suggest a message for any chat, of any agent, on any of your Macs, but it never sends one: you send it,
+save it as a draft, or reject it, and that decision is the approval. So `chat_list`, `suggestion_create`,
+`suggestion_list` and `suggestion_withdraw` never ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
+on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names, folders, labels and purpose lines of
+your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
+chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
+
 ## Agent-written code
 
 The point of loki is that your agent writes widgets: files under `~/.loki/widgets/<chat>/`. A `.tsx` widget is
@@ -171,7 +181,8 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 
 - Everything loki keeps is under `~/.loki` (`LOKI_DIR` overrides it): each agent's chats in a SQLite store
   (`stores/`), agent records and memory repos (`backend/`), widgets, small state files (`state/`), your mods
-  (`mods/`), Learn's cards, Tasks (`tasks/`, through the `bd` binary), and logs (`logs/daemon.log`, `mod.log`).
+  (`mods/`), Learn's cards, and logs (`logs/daemon.log`, `mod.log`). The beads store of the retired Tasks (`tasks/`)
+  stays where it was; loki reads it only to move each open task into a suggestion once, and never writes it.
   [architecture.md](architecture.md) lists every path. Store backups made before a migration (`stores/backup-…/`) hold whole copies of your chats; delete them once
   you are happy.
 - Outside it: the global skills in `~/.agents/skills`, and provider and MCP secrets in the keychain.
