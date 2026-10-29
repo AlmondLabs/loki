@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { Listeners } from "../../../core/listeners.ts";
 
 /**
  * One value for the window, kept in sessionStorage and shared by every component that reads it — a list
@@ -14,7 +15,7 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
     }
   };
   let value = read();
-  const listeners = new Set<() => void>();
+  const listeners = new Listeners();
   const set = (next: T) => {
     if (next === value) return;
     value = next;
@@ -23,11 +24,10 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
     } catch {
       // Storage off: the value still holds for this window.
     }
-    for (const l of listeners) l();
+    listeners.emit();
   };
   const subscribe = (l: () => void) => {
-    listeners.add(l);
-    return () => void listeners.delete(l);
+    return listeners.add(l);
   };
   const get = () => value;
   /** The value and its setter, re-rendering on every change. */

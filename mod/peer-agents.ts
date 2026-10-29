@@ -2,6 +2,7 @@ import { applyShared, readTombstones, sharedAgents, type AppliedAgents, type Sha
 import { isAgentId } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
+import { serialQueue } from "../core/serial.ts";
 
 /**
  * The person's agents kept the same on every paired Mac (plan 023, U3). This Mac answers another's `peer_agents_get`
@@ -18,7 +19,8 @@ export class PeerAgents {
     /** Records or deletes arrived: tell every window, and every paired Mac. */
     onChanged: (applied: AppliedAgents) => void;
   };
-  private queue: Promise<unknown> = Promise.resolve();
+  /** Pulls run one at a time, one Mac after another. */
+  private readonly serial = serialQueue();
 
   constructor(opts: PeerAgents["opts"]) {
     this.opts = opts;
@@ -32,7 +34,7 @@ export class PeerAgents {
   /** Ask a Mac for its agents and take them; resolves with what changed here (nothing when it is out of reach). */
   pull(macId: string): Promise<AppliedAgents> {
     const none: AppliedAgents = { created: [], updated: [], deleted: [] };
-    const run = this.queue.then(async () => {
+    return this.serial(async () => {
       const link = this.opts.link(macId);
       if (!link) return none;
       let reply: Record<string, unknown>;
@@ -48,8 +50,6 @@ export class PeerAgents {
       }
       return applied;
     });
-    this.queue = run.catch(() => undefined);
-    return run;
   }
 }
 

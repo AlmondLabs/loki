@@ -12,6 +12,7 @@ import {
   reveal,
 } from "../core/desk-core.ts";
 import type { Size } from "../core/desk-core.ts";
+import { Listeners } from "../core/listeners.ts";
 
 /** Told the new state of a desk each time a change to it is committed. */
 export type StoreListener = (scope: Scope, state: DeskState) => void;
@@ -22,7 +23,7 @@ export type StoreListener = (scope: Scope, state: DeskState) => void;
  */
 export class DeskStore {
   private desks = new Map<Scope, DeskState>();
-  private listeners = new Set<StoreListener>();
+  private listeners = new Listeners<Parameters<StoreListener>>();
 
   get(scope: Scope): DeskState {
     return this.desks.get(scope) ?? emptyDesk(scope);
@@ -78,15 +79,14 @@ export class DeskStore {
   }
 
   subscribe(fn: StoreListener): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    return this.listeners.add(fn);
   }
 
   private commit(scope: Scope, next: DeskState): DeskState {
     const prev = this.desks.get(scope);
     if (prev === next) return next;
     this.desks.set(scope, next);
-    for (const fn of this.listeners) fn(scope, next);
+    this.listeners.emit(scope, next);
     return next;
   }
 }

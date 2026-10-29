@@ -16,6 +16,7 @@ import type { Peers } from "./peers.ts";
 import { log } from "./log.ts";
 import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 import { isLanVia } from "../core/frames.ts";
+import { serialQueue } from "../core/serial.ts";
 
 /**
  * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
@@ -122,7 +123,8 @@ export class LanListener {
   private ws: WsBridge | null = null;
   private boundPort: number | null = null;
   private bindError: string | null = null;
-  private busy: Promise<void> = Promise.resolve();
+  /** Starts and stops, one at a time. */
+  private readonly busy = serialQueue();
 
   constructor(opts: LanOptions) {
     this.opts = opts;
@@ -311,9 +313,7 @@ export class LanListener {
 
   /** Runs `fn` after any start/stop in flight, then reports the status change. */
   private async serialized(fn: () => Promise<void>): Promise<LanStatus> {
-    const run = this.busy.then(fn, fn);
-    this.busy = run.catch(() => {});
-    await run;
+    await this.busy(fn);
     const status = this.status();
     this.opts.onChange?.("status", status);
     return status;

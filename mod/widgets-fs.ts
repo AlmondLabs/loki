@@ -4,6 +4,8 @@ import type * as esbuild from "esbuild";
 import { join } from "node:path";
 import type { Scope, WidgetKind, WidgetManifestEntry } from "../core/desk-core.ts";
 import { KIT } from "../core/desk-core.ts";
+import { serialQueue } from "../core/serial.ts";
+import { debounce } from "../core/timers.ts";
 
 /**
  * The widgets directory is the agent's half of the desk. This module turns
@@ -197,8 +199,7 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
   let index = new Map<string, WidgetManifestEntry>();
   const cache: ScanCache = new Map();
   const runtimeErrors = new Map<string, string>();
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let chain: Promise<void> = Promise.resolve();
+  const scans = serialQueue();
   let closed = false;
 
   const merged = (e: WidgetManifestEntry): WidgetManifestEntry => {
@@ -230,20 +231,18 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
     if (diff.added.length || diff.changed.length || diff.removed.length) onDiff(diff);
   };
 
+  /** A burst of file events rescans once the folder has been quiet for `debounceMs`. */
+  const settling = debounce(() => void rescan(), debounceMs);
+
   /** Scans run one at a time; each caller's promise resolves after a scan that started after the call. */
   const rescan = (): Promise<void> => {
-    chain = chain.then(doScan, doScan);
-    return chain;
+    return scans(doScan);
   };
 
   let watcher: FSWatcher | null = null;
   try {
     watcher = watch(root, { recursive: true }, () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        void rescan();
-      }, debounceMs);
+      settling.schedule();
     });
     // The folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody listens; tools still
     // call rescan() themselves.
@@ -272,7 +271,7 @@ export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, 
     rescan,
     close() {
       closed = true;
-      if (timer) clearTimeout(timer);
+      settling.cancel();
       watcher?.close();
     },
   };

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from "./pages";
 import { firstAgentId } from "./reading";
+import { Listeners } from "../../../core/listeners.ts";
 
 /** The agent last chosen, kept for the window beside the page (sessionStorage). */
 export const AGENT_ID_KEY = "loki.agentsAgent";
@@ -42,16 +43,15 @@ export function createAgentsSelection(store: Store | null): AgentsSelection {
   const savedPage = store ? tryStore(() => store.getItem(AGENT_PAGE_KEY), null) : null;
   const savedAgent = store ? tryStore(() => store.getItem(AGENT_ID_KEY), null) : null;
   let state: AgentsSelectionState = { agent: savedAgent ?? undefined, page: isAgentPage(savedPage) ? savedPage : DEFAULT_AGENT_PAGE, creating: false };
-  const subs = new Set<() => void>();
+  const subs = new Listeners();
   const set = (next: Partial<AgentsSelectionState>) => {
     state = { ...state, ...next };
-    for (const fn of subs) fn();
+    subs.emit();
   };
   return {
     get: () => state,
     subscribe: (fn) => {
-      subs.add(fn);
-      return () => void subs.delete(fn);
+      return subs.add(fn);
     },
     pickAgent: (id) => {
       if (store) tryStore(() => (id ? store.setItem(AGENT_ID_KEY, id) : store.removeItem(AGENT_ID_KEY)), undefined);

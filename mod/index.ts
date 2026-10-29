@@ -43,6 +43,8 @@ import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
+import { serialQueue } from "../core/serial.ts";
+import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
@@ -245,25 +247,22 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
   // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
   // at a time, so two runs never add the same task twice; start does not wait for it.
-  let taskMove: Promise<unknown> = Promise.resolve();
+  const taskMoves = serialQueue();
   const moveOpenTasks = (): Promise<unknown> => {
-    if (!suggestions) return taskMove;
+    if (!suggestions) return Promise.resolve();
     const s = suggestions;
-    taskMove = taskMove
-      .then(() =>
-        moveTasks({
-          run: bdReader(tasksDir()),
-          stateFile: join(paths.state, "migrations.json"),
-          route: macs.router,
-          suggestions: s,
-          folderOf: (c) =>
-            macs.desks().find((d) => d.conversation_id === c.conversation_id && (d.agent_id ?? c.agent_id) === c.agent_id)?.cwd ??
-            folderFor(c.agent_id, c.conversation_id),
-          report: (message) => log("tasks:move", message),
-        }),
-      )
-      .catch((err: unknown) => log("tasks:move-failed", err instanceof Error ? err.message : String(err)));
-    return taskMove;
+    return taskMoves(() =>
+      moveTasks({
+        run: bdReader(tasksDir()),
+        stateFile: join(paths.state, "migrations.json"),
+        route: macs.router,
+        suggestions: s,
+        folderOf: (c) =>
+          macs.desks().find((d) => d.conversation_id === c.conversation_id && (d.agent_id ?? c.agent_id) === c.agent_id)?.cwd ??
+          folderFor(c.agent_id, c.conversation_id),
+        report: (message) => log("tasks:move", message),
+      }),
+    ).catch((err: unknown) => log("tasks:move-failed", err instanceof Error ? err.message : String(err)));
   };
   void moveOpenTasks();
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
@@ -292,15 +291,10 @@ export default function activate(api: ModApi, host: Host): () => void {
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
   // Open usage pages refetch when the ledger counts more; a busy turn's commits come in bursts, so one push in two seconds.
-  let usagePush: ReturnType<typeof setTimeout> | null = null;
+  const usagePush = coalesce(() => broadcast({ type: "usage_changed" }), 2000);
   // An update due after a checkout's code changed (plans 024 and 041): every window offers it.
   const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
-  const stopUsage = host.usage?.onChange(() => {
-    usagePush ??= setTimeout(() => {
-      usagePush = null;
-      broadcast({ type: "usage_changed" });
-    }, 2000);
-  });
+  const stopUsage = host.usage?.onChange(() => usagePush.schedule());
 
   const moduleDeps: ModuleDeps = {
     store,
@@ -548,7 +542,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   return () => {
     stopUsage?.();
     stopRestartDue?.();
-    if (usagePush) clearTimeout(usagePush);
+    usagePush.cancel();
     for (const d of eventDisposers) d();
     for (const d of toolDisposers) d();
     stopPersist();
