@@ -723,29 +723,33 @@ interface ChatRowProps {
   onArchive: (scope: string, archived: boolean) => void;
 }
 
+/** A row's pin and archive buttons, shown on hover; the row leaves them out when the chat can be neither. */
+function ChatRowActions(p: Pick<ChatRowProps, "scope" | "pinnable" | "pinned" | "archivable" | "archived" | "connected" | "onPin" | "onArchive">) {
+  const archiveTitle = p.archived ? "Restore from the archive" : "Archive";
+  return (
+    <>
+      {p.pinnable && (
+        <IconButton size={24} label={p.pinned ? "Unpin" : "Pin"} title={p.pinned ? "Unpin" : "Pin to the top"} onClick={() => p.onPin(p.scope, !p.pinned)}>
+          <Icon name="pin" size={14} />
+        </IconButton>
+      )}
+      {p.archivable && (
+        <IconButton
+          size={24}
+          label={p.archived ? "Restore" : "Archive"}
+          title={p.connected ? archiveTitle : NO_ARCHIVE_REASON}
+          disabled={!p.connected}
+          onClick={() => p.onArchive(p.scope, !p.archived)}
+        >
+          <Icon name={p.archived ? "history" : "archive"} size={14} />
+        </IconButton>
+      )}
+    </>
+  );
+}
+
 /** A chat's row, drawn again only when one of its own values changes (plan 051). */
 const ChatRow = memo(function ChatRow(p: ChatRowProps) {
-  const actions =
-    p.pinnable || p.archivable ? (
-      <>
-        {p.pinnable && (
-          <IconButton size={24} label={p.pinned ? "Unpin" : "Pin"} title={p.pinned ? "Unpin" : "Pin to the top"} onClick={() => p.onPin(p.scope, !p.pinned)}>
-            <Icon name="pin" size={14} />
-          </IconButton>
-        )}
-        {p.archivable && (
-          <IconButton
-            size={24}
-            label={p.archived ? "Restore" : "Archive"}
-            title={p.connected ? (p.archived ? "Restore from the archive" : "Archive") : NO_ARCHIVE_REASON}
-            disabled={!p.connected}
-            onClick={() => p.onArchive(p.scope, !p.archived)}
-          >
-            <Icon name={p.archived ? "history" : "archive"} size={14} />
-          </IconButton>
-        )}
-      </>
-    ) : undefined;
   return (
     <ListRow
       title={p.title}
@@ -768,7 +772,7 @@ const ChatRow = memo(function ChatRow(p: ChatRowProps) {
         // A mouse gives the pointer; the context-menu key gives 0,0, so the menu hangs from the row.
         p.onMenu(p.scope, e.clientX || box.left + 24, e.clientY || box.bottom);
       }}
-      actions={actions}
+      actions={p.pinnable || p.archivable ? <ChatRowActions {...p} /> : undefined}
     />
   );
 });
