@@ -3,6 +3,7 @@ import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
+import type { DeskTitleFrame } from "../chat-listing.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
 
 /**
@@ -81,6 +82,8 @@ export interface ChatDeps {
   agentDeleteBlocked?: (agentId: string) => string | null;
   /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
   chatBlocked?: (agentId: string, conversationId: string) => string | null;
+  /** The `desk_title` push for a chat as it now stands, or null before it has a title (mod/chat-listing.ts). */
+  titleFrame?: (agentId: string, conversationId: string) => DeskTitleFrame | null;
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
@@ -108,8 +111,24 @@ async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Pr
 }
 
 /**
+ * A chat renamed, archived, hidden, relabelled, or given a purpose or draft, told to every client and paired Mac once it
+ * is done (plan 050). Only
+ * the client that changed it knew before, so the others kept the old row until their next poll. The tabs showing it
+ * also get its title: their header keeps the one the last `desk_title` gave over the list's.
+ */
+async function chatChange(p: PayloadOf<"chat_update">, work: Promise<Outcome<Replies["chat_done"]>>, deps: ChatDeps, ctx: FrameContext) {
+  const out = await work;
+  if (!out.ok) return out;
+  const title = deps.titleFrame?.(p.agent_id, p.conversation_id);
+  if (title) ctx.broadcast(title, title.scope);
+  ctx.broadcast({ type: "chat_changed" });
+  return out;
+}
+
+/**
  * The chat frames: each one passed to the daemon's ChatBackend and its result returned as the reply, or `error` with why.
- * A change to the agents (create, update, delete, import) is also told to every client as `agents_changed`.
+ * A change to the agents (create, update, delete, import) is also told to every client as `agents_changed`, and a change
+ * to a chat's listing as `chat_changed`.
  */
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
@@ -127,7 +146,13 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
       return blocked ? fail(blocked) : served(b, async (x) => ({ accepted: await x.send(p) }));
     },
     chat_abort: ({ agent_id: agentId, conversation_id: conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
-    chat_update: (p) => served(b, (x) => x.update(p)),
+    chat_update: (p, ctx) =>
+      chatChange(
+        p,
+        served(b, (x) => x.update(p)),
+        deps,
+        ctx,
+      ),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
     chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
