@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { macsFromFrame, withScope } from "../app/src/desk/use-desk-socket.ts";
+import { macsFromFrame, withMark, withScope } from "../app/src/desk/use-desk-socket.ts";
 import { keepSame } from "../core/same-data.ts";
 
 /**
- * The mod repeats itself: every mark broadcasts the whole seen frame, and the desk list and titles come again
+ * The mod repeats itself: the whole seen frame comes on every connect, and the desk list and titles come again
  * unchanged. A frame that says what the state already holds keeps the objects it has, so nothing re-renders on it.
  */
 describe("desk socket: an identical frame keeps its references", () => {
@@ -55,5 +55,22 @@ describe("desk socket: the Macs push", () => {
     const tailnet = [{ name: "Mac mini", address: "mac-mini.tail1234.ts.net", os: "macOS", online: true, paired: false }];
     expect(macsFromFrame({ me, peers: [], tailnet })).toEqual({ me, peers: [], tailnet });
     expect(macsFromFrame({ me, peers: [] })).toEqual({ me, peers: [], tailnet: [] });
+  });
+});
+
+describe("desk socket: one chat's marks (plan 055)", () => {
+  const focus = { "a/c1": { w: 1, t: "2026-10-30T10:00:00Z" } };
+
+  test("a value it already holds keeps the map; a new one sets that key alone", () => {
+    expect(withMark(focus, "a/c1", { w: 1, t: "2026-10-30T10:00:00Z" })).toBe(focus);
+    const moved = withMark(focus, "a/c2", { w: 0.5, t: "2026-10-30T10:05:00Z" });
+    expect(moved).toEqual({ ...focus, "a/c2": { w: 0.5, t: "2026-10-30T10:05:00Z" } });
+    expect(moved["a/c1"]).toBe(focus["a/c1"]);
+  });
+
+  test("none clears that key, and clearing one it lacks keeps the map", () => {
+    const seen = { "a/c1": "2026-10-30T10:00:00Z", "a/c2": "2026-10-30T09:00:00Z" };
+    expect(withMark(seen, "a/c1", null)).toEqual({ "a/c2": "2026-10-30T09:00:00Z" });
+    expect(withMark(seen, "a/c3", null)).toBe(seen);
   });
 });

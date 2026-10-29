@@ -553,7 +553,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
   });
 
   test("the pushes that change how chats are listed, and the chat events that do", () => {
-    expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "desks", "seen"]);
+    expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "desks"]);
     expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device"]);
     expect(peerMeaning("chat_move")).toMatchObject({ relists: true, timeout_ms: 180_000 });
     expect(peerMeaning("peers_get")).toBeNull();

@@ -13,7 +13,13 @@ export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   return { type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll() ?? {}, rests: seen?.restsAll() ?? {} };
 }
 
-/** The marks the Inbox and the sidebar read: done, not done, a look, and engagements the mod cannot see. A mark that moves nothing is not broadcast. */
+/** One chat's marks, after a change to that chat alone (plan 055): a few hundred bytes, not every chat's. */
+export function seenChatFrame(seen: SeenStore, agentId: string | null, conversationId: string): { type: "seen_chat" } & Pushes["seen_chat"] {
+  return { type: "seen_chat", ...seen.chat(agentId, conversationId) };
+}
+
+/** The marks the Inbox and the sidebar read: done, not done, a look, and engagements the mod cannot see. A mark that moves nothing is not broadcast, and one
+ * that does sends only its chat's marks. */
 export function seenFrames(deps: SeenDeps): FrameHandlers {
   const { seen } = deps;
   return {
@@ -21,26 +27,26 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
     seen_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.mark(agentId, conversationId);
       ctx.track("conversation_marked_seen");
-      if (moved) ctx.broadcast(seenFrame(deps));
+      if (moved && seen) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     seen_unmark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.unmark(agentId, conversationId);
       ctx.track("conversation_kept_unread");
-      if (moved) ctx.broadcast(seenFrame(deps));
+      if (moved && seen) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     // Not tracked: a look happens on every open, it is not a decision.
     viewed_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const looked = seen?.view(agentId, conversationId);
       const engaged = seen?.engage(agentId, conversationId, "open"); // opening and reading is engagement too
-      if (looked || engaged) ctx.broadcast(seenFrame(deps));
+      if (seen && (looked || engaged)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
     focus_add: ({ agent_id: agentId, conversation_id: conversationId, action }, ctx) => {
-      if (seen?.engage(agentId, conversationId, action)) ctx.broadcast(seenFrame(deps));
+      if (seen?.engage(agentId, conversationId, action)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
     // Tracked as part of the decision (inbox_card_decided), which says the rung.
     card_rest: ({ agent_id: agentId, conversation_id: conversationId, rest }, ctx) => {
-      if (seen?.rest(agentId, conversationId, rest)) ctx.broadcast(seenFrame(deps));
+      if (seen?.rest(agentId, conversationId, rest)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
     },
   };
 }

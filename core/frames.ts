@@ -324,6 +324,8 @@ export interface Pushes {
   desks: { desks: DeskSummary[] };
   /** `viewed`, `focus` and `rests` are missing from older mods. */
   seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry>; rests?: Record<string, Rest> };
+  /** One chat's marks as they now stand, after a change to that chat alone (plan 055); null where it has none. */
+  seen_chat: { key: string; seen: string | null; viewed: string | null; focus: FocusEntry | null; rest: Rest | null };
   models_recent: { recent: string[] };
   recall_changed: NoPayload;
   usage_changed: NoPayload;
@@ -497,9 +499,9 @@ export const FRAMES = {
 
   // Seen marks and focus
   seen_list: send("the done and viewed marks, the focus weights and the rests", nothing, { phone: PHONE, causes: ["seen"] }),
-  seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen"] }),
-  seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen"] }),
-  viewed_mark: send("a look, not done (the sidebar's bold, the New line)", mark, { phone: PHONE, causes: ["seen"] }),
+  seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen_chat"] }),
+  seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen_chat"] }),
+  viewed_mark: send("a look, not done (the sidebar's bold, the New line)", mark, { phone: PHONE, causes: ["seen_chat"] }),
   focus_add: send(
     "an engagement the mod cannot see (a decision, an answer)",
     (m) => {
@@ -508,7 +510,7 @@ export const FRAMES = {
       const action = m.action;
       return action === "answer" || action === "decide" ? ({ ...c, action } satisfies { action: "answer" | "decide" }) : "action must be answer or decide";
     },
-    { phone: PHONE, causes: ["seen"] },
+    { phone: PHONE, causes: ["seen_chat"] },
   ),
   card_rest: send(
     "an Inbox card rested by Next, or its rest undone (core/attention/rest.ts)",
@@ -517,7 +519,7 @@ export const FRAMES = {
       if (typeof c === "string") return c;
       return isRest(m.rest) ? { ...c, rest: m.rest } : "rest must be { n, until, stamp, at }";
     },
-    { phone: PHONE, causes: ["seen"] },
+    { phone: PHONE, causes: ["seen_chat"] },
   ),
 
   // Analytics
@@ -1030,7 +1032,9 @@ export const FRAMES = {
   chat_changed: push("a chat on this Mac was renamed, archived, hidden, relabelled or given a purpose or draft: ask for the lists again", { lists: true }),
   memory_changed: push("an agent's memory has new commits on this Mac"),
   state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
-  seen: push("the done and viewed marks, the focus weights and the rests, after any change", { lists: true }),
+  // Neither changes how a Mac's chats are listed: marks reach a paired Mac through the state sync (plan 055).
+  seen: push("every chat's done and viewed marks, focus weights and rests (on connect, and after marks from a paired Mac)"),
+  seen_chat: push("one chat's done and viewed marks, focus weight and rest, after a change to that chat"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),

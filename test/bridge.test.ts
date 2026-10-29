@@ -312,7 +312,7 @@ describe("bridge", () => {
 });
 
 describe("bridge: viewed", () => {
-  test("viewed_mark stamps a look and broadcasts the seen frame with it; seen_list carries it; the phone may send it", async () => {
+  test("viewed_mark stamps a look and broadcasts that chat's marks; seen_list carries it; the phone may send it", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { SeenStore } = await import("../mod/seen.ts");
@@ -329,10 +329,9 @@ describe("bridge: viewed", () => {
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
-      const frame = must(broadcasts.at(-1), "the seen frame");
-      expect(frame.type).toBe("seen");
-      expect(Object.keys(frame.viewed as object)).toEqual(["a/x"]);
-      expect(frame.seen).toEqual({}); // a look is not done
+      // Only this chat's marks go out (plan 055); the whole frame is for seen_list.
+      const frame = must(broadcasts.at(-1), "the chat's marks");
+      expect(frame).toMatchObject({ type: "seen_chat", key: "a/x", viewed: expect.any(String) as unknown, seen: null, rest: null });
       bridge.onMessage(c, { type: "seen_list" });
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) as unknown } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
@@ -347,7 +346,7 @@ describe("bridge: viewed", () => {
 });
 
 describe("bridge: focus", () => {
-  test("a look adds a read's weight; focus_add adds answers and decisions, from the phone too; the seen frame carries it", async () => {
+  test("a look adds a read's weight; focus_add adds answers and decisions, from the phone too; that chat's marks carry it", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { SeenStore } = await import("../mod/seen.ts");
@@ -364,12 +363,13 @@ describe("bridge: focus", () => {
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
-      expect((must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
+      const weight = (at: number) => (must(broadcasts.at(at), "the chat's marks").focus as { w: number }).w;
+      expect(weight(-1)).toBe(0.25);
       bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "x", action: "answer" });
       bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "y", action: "decide" });
-      const focus = must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>;
-      expect(focus["a/x"].w).toBeCloseTo(1.25, 3);
-      expect(focus["a/y"].w).toBe(0.5);
+      expect(broadcasts.slice(-2).map((f) => f.key)).toEqual(["a/x", "a/y"]);
+      expect(weight(-2)).toBeCloseTo(1.25, 3);
+      expect(weight(-1)).toBe(0.5);
       // messages are counted where turns start, never from a client: a client cannot claim one
       const before = broadcasts.length;
       bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "x", action: "message" });
