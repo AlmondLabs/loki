@@ -735,6 +735,8 @@ function useNewDesk(
       navigate({ kind: "conversation", agentId: rt.agent_id, conversationId: rt.conversation_id, prefill: null });
     } catch (err) {
       setError(messageOf(err));
+      // A failure frees the button here; on success the sheet closes and the chat opens, so busy stays set: a finally would let a second tap start a second chat.
+      // react-doctor-disable-next-line react-doctor/no-loading-flag-reset-outside-finally
       setBusy(false);
     }
   };

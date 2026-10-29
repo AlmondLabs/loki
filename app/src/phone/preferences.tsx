@@ -110,6 +110,8 @@ export function ConnectionPage({
       onUnpaired();
     } catch (err) {
       setError(messageOf(err));
+      // A failure frees the button here; on success this screen is left for pairing, so busy stays set rather than offering a second unpair.
+      // react-doctor-disable-next-line react-doctor/no-loading-flag-reset-outside-finally
       setBusy(false);
     }
   };
