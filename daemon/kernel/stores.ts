@@ -5,6 +5,7 @@ import { CURRENT_SQLITE_SCHEMA_VERSION } from "@earendil-works/pi-durable/storag
 import { AgentStore, type StoreOptions } from "./index.ts";
 import { backupBeforeMigration } from "../store-backup.ts";
 import { STORE_VERSION, acpConversations, markStoreVersion, migrateStoredEntries, storeVersion } from "../store-migration.ts";
+import { Listeners } from "../../core/listeners.ts";
 
 /**
  * Every agent's store (plan 017, KTD2, KTD18): one pi-durable Harness over one SQLite file per agent, opened on first
@@ -14,7 +15,7 @@ import { STORE_VERSION, acpConversations, markStoreVersion, migrateStoredEntries
 export class StoreManager {
   private readonly open = new Map<string, Promise<AgentStore>>();
   private readonly closing = new Set<string>();
-  private readonly listeners = new Set<(agentId: string, store: AgentStore) => void>();
+  private readonly listeners = new Listeners<[agentId: string, store: AgentStore]>();
 
   private readonly dir: string;
   private readonly context: Context;
@@ -68,7 +69,7 @@ export class StoreManager {
     const opening = this.openStore(this.file(agentId)).then((store) => {
       store.harness.subscribeClose(() => this.closed(agentId, store));
       store.harness.resume();
-      for (const listener of this.listeners) listener(agentId, store);
+      this.listeners.emit(agentId, store);
       return store;
     });
     // A store that fails to open is forgotten, so the next call tries again.
@@ -87,8 +88,7 @@ export class StoreManager {
 
   /** Called with each store as it opens, and again when it reopens after a failure. */
   onOpen(listener: (agentId: string, store: AgentStore) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.listeners.add(listener);
   }
 
   /** Close one agent's store, as when the agent is deleted. */

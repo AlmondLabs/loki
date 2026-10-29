@@ -22,6 +22,7 @@ import { toolResultsDir } from "../tool-results.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
+import { coalesce } from "../../core/timers.ts";
 
 /**
  * MCP on loki's daemon (the `loki.mcp` extension). Every connected server's tools are registered once, named
@@ -68,7 +69,8 @@ export class McpTools {
   private readonly report: (message: string) => void;
   private capture: Capture = () => {};
   private problems: string[] = [];
-  private installTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Re-register the extension once per burst of server changes. */
+  private readonly installing = coalesce(() => this.install(), 0, { unref: true });
   private watching = false;
   private readonly secrets: Secrets | null;
   /** Each agent's switched-off servers (Agents › Profile), kept in `<loki>/state/mcp-agents.json`. */
@@ -113,12 +115,7 @@ export class McpTools {
       });
     // A server connecting, failing or changing its tools re-registers the extension (once per burst of changes).
     this.servers.onChange(() => {
-      if (this.installTimer) return;
-      this.installTimer = setTimeout(() => {
-        this.installTimer = null;
-        this.install();
-      }, 0);
-      this.installTimer.unref();
+      this.installing.schedule();
     });
     this.install();
   }
@@ -146,7 +143,7 @@ export class McpTools {
   async close(): Promise<void> {
     if (this.watching) unwatchFile(this.configPath);
     this.watching = false;
-    if (this.installTimer) clearTimeout(this.installTimer);
+    this.installing.cancel();
     await this.servers.close();
   }
 

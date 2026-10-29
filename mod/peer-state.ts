@@ -6,6 +6,8 @@ import type { MarksSnapshot } from "./seen.ts";
 import type { McpSnapshot } from "../daemon/config-sync.ts";
 import { STATE_FOLDERS, type StateFolder } from "../core/frames.ts";
 import { log } from "./log.ts";
+import { serialQueue } from "../core/serial.ts";
+import { coalesce, type Burst } from "../core/timers.ts";
 
 /**
  * The person's own state the same on every paired Mac (plan 023, U8, KTD9, R19): the Inbox's marks and focus, pins,
@@ -50,13 +52,24 @@ export class PeerState {
     tell: (folders: StateFolder[]) => void;
     debounceMs?: number;
   };
-  private timer: ReturnType<typeof setTimeout> | null = null;
   /** The folders changed in the burst being told. */
   private folders = new Set<StateFolder>();
-  private queue: Promise<unknown> = Promise.resolve();
+  /** Paired Macs told once per burst of changes. */
+  private readonly telling: Burst;
+  /** Pulls run one at a time, one Mac after another. */
+  private readonly serial = serialQueue();
 
   constructor(opts: PeerState["opts"]) {
     this.opts = opts;
+    this.telling = coalesce(
+      () => {
+        const folders = [...this.folders];
+        this.folders.clear();
+        this.opts.tell(folders);
+      },
+      opts.debounceMs ?? 800,
+      { unref: true },
+    );
   }
 
   /** This Mac's state, for a paired Mac's `peer_state_get`: every folder unless it named some. */
@@ -67,19 +80,12 @@ export class PeerState {
   /** Something of the person's changed here, a folder's files too when named: tell paired Macs once the burst settles. */
   changed(folder?: StateFolder): void {
     if (folder) this.folders.add(folder);
-    if (this.timer) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      const folders = [...this.folders];
-      this.folders.clear();
-      this.opts.tell(folders);
-    }, this.opts.debounceMs ?? 800);
-    this.timer.unref();
+    this.telling.schedule();
   }
 
   /** Ask a Mac for its state with the folders named (every one when `folders` is left out), and take it, one Mac at a time. */
   pull(macId: string, folders?: readonly StateFolder[]): Promise<StateMoved | null> {
-    const run = this.queue.then(async () => {
+    return this.serial(async () => {
       const link = this.opts.link(macId);
       if (!link) return null;
       let reply: Record<string, unknown>;
@@ -101,12 +107,9 @@ export class PeerState {
       if (Object.values(moved).some(Boolean)) log("peers:state", { from: macId, ...moved });
       return moved;
     });
-    this.queue = run.catch(() => undefined);
-    return run;
   }
 
   stop(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
+    this.telling.cancel();
   }
 }

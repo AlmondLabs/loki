@@ -362,6 +362,22 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain.
 
+## One way per job
+
+A few jobs come up everywhere. Each has one helper in `core/`, so code that does the job looks the same wherever it is
+(plan 054):
+
+1. **Telling others something changed**: `Listeners` (`core/listeners.ts`). `add` returns the way to stop, and `emit`
+   tells everyone.
+2. **Async work one piece at a time**: `serialQueue()`, or `keyedQueue()` for one queue per repo, chat or provider
+   (`core/serial.ts`). A failure never blocks the next piece.
+3. **A burst of calls as one run**: `coalesce` when a steady stream should still run every so often (a redraw, a
+   write), `debounce` when it should wait for quiet (a folder still being written) (`core/timers.ts`). Per desk,
+   `ScopeDebouncer`.
+4. **Talking to the daemon from the app**: a chat's calls through `ChatStore`, settings through `daemonCalls`.
+5. **Something with a real and a test version**: an interface it is given (a `Pick` of the real class, or a small
+   interface), rather than a class it builds. `DaemonChats` still builds its two engines itself.
+
 ## Where the code lives
 
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;

@@ -12,6 +12,7 @@ import type { ChatSource } from "../mod/chat-source.ts";
 import type { LocalConversationInfo, LocalConversationRow } from "../mod/desks.ts";
 import { ChatIndex, type AgentStore, type ChatInfo } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
+import { Listeners } from "../core/listeners.ts";
 
 /**
  * The daemon's chats as the mod reads them (plan 017, U6). The mod asks about chats at once and often (the chat list,
@@ -93,7 +94,7 @@ const LOAD_AT_ONCE = 4;
  */
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
-  private readonly listeners = new Set<(agentId: string, chatId: string, kind: "answer" | "compaction") => void>();
+  private readonly listeners = new Listeners<[agentId: string, chatId: string, kind: "answer" | "compaction"]>();
   private readonly unsubscribe = new Map<string, () => void>();
   private readonly attaching = new Set<Promise<void>>();
   private readonly context: Context;
@@ -171,8 +172,7 @@ export class ChatProjection implements ChatSource {
 
   /** Told each time a chat's agent answers, or its context is compacted, as it is committed (daemon/reflection.ts). */
   onEntry(listener: (agentId: string, chatId: string, kind: "answer" | "compaction") => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.listeners.add(listener);
   }
 
   /** How many entries a chat has, and how many of the agent's answers came at or after position `from`. */
@@ -234,7 +234,7 @@ export class ChatProjection implements ChatSource {
       chat.entries.push(kept);
       chat.lastId = entry.id;
       const kind = entry.kind === "pi.compaction" ? "compaction" : kept.role === "assistant" ? "answer" : null;
-      if (kind) for (const listener of this.listeners) listener(agentId, chat.chatId, kind);
+      if (kind) this.listeners.emit(agentId, chat.chatId, kind);
     }
   }
 

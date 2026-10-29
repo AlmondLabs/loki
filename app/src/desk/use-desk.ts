@@ -310,16 +310,13 @@ export function useDesk() {
       new FrameChatClient({
         request,
         onChatEvent: (fn) => {
-          chatListeners.current.add(fn);
-          return () => chatListeners.current.delete(fn);
+          return chatListeners.add(fn);
         },
         onReconnect: (fn) => {
-          reconnectListeners.current.add(fn);
-          return () => reconnectListeners.current.delete(fn);
+          return reconnectListeners.add(fn);
         },
         onListsStale: (fn) => {
-          staleListeners.current.add(fn);
-          return () => staleListeners.current.delete(fn);
+          return staleListeners.add(fn);
         },
         agentOf: (conversationId) => deskList.find((d) => d.conversation_id === conversationId)?.agent_id ?? null,
         // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
