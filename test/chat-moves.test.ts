@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
 import { MOVE_TIMEOUT_MS } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
-import { ChatMoves } from "../mod/chat-moves.ts";
+import { ChatMoves, writeWidgets } from "../mod/chat-moves.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -95,6 +95,21 @@ function macs(busy = new Set<string>(), miniUp = true) {
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
+
+describe("a moved canvas's files", () => {
+  test("one that would land outside its folder is skipped, a Windows path with backslashes too", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-widgets-"));
+    try {
+      const canvas = join(dir, "canvas");
+      const data = Buffer.from("x").toString("base64");
+      writeWidgets(canvas, { "../out.tsx": data, "..\\out.tsx": data, "/abs.tsx": data, "ok/chart.tsx": data });
+      expect(readdirSync(canvas)).toEqual(["ok"]);
+      expect(readdirSync(dir)).toEqual(["canvas"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("taking an agent's chats over on first pairing", () => {
   test("every idle chat moves once, with its canvas, and the old Mac lets each go only after it arrived", async () => {

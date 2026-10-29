@@ -311,9 +311,16 @@ export function reveal(state: DeskState, id: string): DeskState {
   return { ...state, layout: { ...state.layout, [id]: { ...l, hidden: false } }, rev: state.rev + 1 };
 }
 
-/** Set a dot-path on a plain object, creating intermediate objects. Mutates `obj`. */
+/**
+ * Keys a path may not name: through them a gesture's path would reach Object.prototype and change every object in the
+ * process (`__proto__.x`, `constructor.prototype.x`).
+ */
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Set a dot-path on a plain object, creating intermediate objects. Mutates `obj`; a path through UNSAFE_KEYS sets nothing. */
 export function setPath(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split(".");
+  if (keys.some((k) => UNSAFE_KEYS.has(k))) return;
   let node = obj;
   for (const key of keys.slice(0, -1)) {
     const next = node[key];
