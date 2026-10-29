@@ -289,7 +289,6 @@ export function SuggestionCardView({
   // A target found gone before anything was pressed says so too, in the words the Mac uses when it refuses (R16).
   const reason = note ?? s.reason ?? (target.gone ? say(touch, "the chat this was for is gone or archived: pick another chat") : null);
   const off = busy || sending || !!blocked;
-  const size = touch ? "touch" : "sm";
   return (
     <div className="loki-suggestion" data-suggestion={s.id} data-open={open || undefined}>
       <button type="button" className="loki-suggestion-head" aria-expanded={open} onClick={onToggle}>
@@ -300,40 +299,67 @@ export function SuggestionCardView({
       {open && (
         <div className="loki-suggestion-body">
           <div className="loki-suggestion-text">{s.text}</div>
-          {sending && (
-            <div className="loki-suggestion-note" role="status">
-              {say(touch, "sending…")}
-            </div>
-          )}
-          {!sending && reason && (
-            <div className="loki-suggestion-note" data-refused role="alert">
-              {reason}
-            </div>
-          )}
-          {blocked && <div className="loki-suggestion-note">{blocked}</div>}
-          {!sending && !picking && (
-            <div className="loki-suggestion-actions">
-              {!target.gone && (
-                <>
-                  <Button size={size} tone="positive" disabled={off} onClick={() => onDecide("send")} data-action="send">
-                    {say(touch, "send now")}
-                  </Button>
-                  <Button size={size} tone="paper" disabled={off} onClick={() => onDecide("draft")} data-action="draft">
-                    {say(touch, "save as draft")}
-                  </Button>
-                </>
-              )}
-              <Button size={size} tone={target.gone ? "brass" : "paper"} disabled={off} onClick={() => onPicking(true)} data-action="change">
-                {say(touch, "change chat")}
-              </Button>
-              <Button size={size} tone="negative" disabled={off} onClick={() => onDecide("reject")} data-action="reject">
-                {say(touch, "reject")}
-              </Button>
-            </div>
-          )}
+          <SuggestionNotes sending={sending} reason={reason} blocked={blocked} touch={touch} />
+          {!sending && !picking && <SuggestionActions gone={target.gone} off={off} touch={touch} onDecide={onDecide} onPicking={onPicking} />}
           {!sending && picking && picker(() => onPicking(false))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** What an opened card says above its buttons: that it is being sent, why the last action was refused, what blocks it. */
+function SuggestionNotes({ sending, reason, blocked, touch }: { sending: boolean; reason: string | null; blocked: string | null; touch: boolean }) {
+  return (
+    <>
+      {sending && (
+        <div className="loki-suggestion-note" role="status">
+          {say(touch, "sending…")}
+        </div>
+      )}
+      {!sending && reason && (
+        <div className="loki-suggestion-note" data-refused role="alert">
+          {reason}
+        </div>
+      )}
+      {blocked && <div className="loki-suggestion-note">{blocked}</div>}
+    </>
+  );
+}
+
+/** An opened card's buttons; a suggestion whose chat is gone can only change chat or be rejected (AE7). */
+function SuggestionActions({
+  gone,
+  off,
+  touch,
+  onDecide,
+  onPicking,
+}: {
+  gone: boolean;
+  off: boolean;
+  touch: boolean;
+  onDecide: (action: SuggestionAction) => void;
+  onPicking: (picking: boolean) => void;
+}) {
+  const size = touch ? "touch" : "sm";
+  return (
+    <div className="loki-suggestion-actions">
+      {!gone && (
+        <>
+          <Button size={size} tone="positive" disabled={off} onClick={() => onDecide("send")} data-action="send">
+            {say(touch, "send now")}
+          </Button>
+          <Button size={size} tone="paper" disabled={off} onClick={() => onDecide("draft")} data-action="draft">
+            {say(touch, "save as draft")}
+          </Button>
+        </>
+      )}
+      <Button size={size} tone={gone ? "brass" : "paper"} disabled={off} onClick={() => onPicking(true)} data-action="change">
+        {say(touch, "change chat")}
+      </Button>
+      <Button size={size} tone="negative" disabled={off} onClick={() => onDecide("reject")} data-action="reject">
+        {say(touch, "reject")}
+      </Button>
     </div>
   );
 }

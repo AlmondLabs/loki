@@ -88,6 +88,9 @@ function elements(node: ReactNode): Array<ReactElement<Record<string, unknown>>>
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!isValidElement(node)) return [];
   const el = node as ReactElement<Record<string, unknown>>;
+  // The card's own parts hold no state, so calling them shows what they draw; other components stay as they are.
+  if (typeof el.type === "function" && el.type.name.startsWith("Suggestion"))
+    return [el, ...elements((el.type as (props: Record<string, unknown>) => ReactNode)(el.props))];
   return [el, ...elements(el.props.children as ReactNode)];
 }
 

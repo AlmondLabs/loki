@@ -39,6 +39,7 @@ describe("a chat moving to another Mac", () => {
     await s.book.updateChat("conv-1", { labels: ["health"], mode: "plan" }, ctx);
     const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: { reflection: 3 } }, ctx), "the export");
     // Through the wire as JSON, as the peer link carries it.
+    // Through JSON, not structuredClone, as the move travels between Macs: what the wire drops is dropped here too.
     expect(await importChat(s.mini, JSON.parse(JSON.stringify(moved)) as typeof moved, ctx)).toBe(true);
     expect(await said(s.mini, "conv-1")).toEqual(await said(s.book, "conv-1"));
     const info = must(await s.mini.chatInfo(must(await s.mini.chat("conv-1", ctx), "chat").id, ctx), "info");
@@ -66,6 +67,7 @@ describe("a chat moving to another Mac", () => {
     ];
     await s.book.updateChat("conv-1", { purpose: "the website", draft, suggestions }, ctx);
     const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
+    // Through JSON, not structuredClone, as the move travels between Macs: what the wire drops is dropped here too.
     expect(await importChat(s.mini, JSON.parse(JSON.stringify(moved)) as typeof moved, ctx)).toBe(true);
     const info = must(await s.mini.chatInfo(must(await s.mini.chat("conv-1", ctx), "chat").id, ctx), "info");
     expect(info).toMatchObject({ purpose: "the website", draft, suggestions });

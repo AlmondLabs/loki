@@ -398,9 +398,12 @@ async function here(opts: ChatCallerOptions, frame: ChatCall): Promise<CallOutco
  */
 export function withSuggestionsOnOpen(backend: ChatBackend, suggestions: Pick<Suggestions, "open">): ChatBackend {
   const open = async (agentId: string, conversationId: string, mode: string | null): Promise<ChatState> => {
-    const state = await backend.open(agentId, conversationId, mode);
-    // A chat with no record here (one moving away) opens without them rather than not at all.
-    const open = await suggestions.open({ agent_id: agentId, conversation_id: conversationId }).catch(() => null);
+    // The two reads do not depend on each other, so the chat opens in the time of the slower one. A chat with no record
+    // here (one moving away) opens without its suggestions rather than not at all.
+    const [state, open] = await Promise.all([
+      backend.open(agentId, conversationId, mode),
+      suggestions.open({ agent_id: agentId, conversation_id: conversationId }).catch(() => null),
+    ]);
     return open ? { ...state, suggestions: open } : state;
   };
   return new Proxy(backend, {

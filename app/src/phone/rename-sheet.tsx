@@ -43,8 +43,12 @@ export function RenameSheet({
     if (!canSave) return;
     setBusy(true);
     setError(null);
-    const err = await saveRename({ name: renamed ? next : null, purpose: repurposed ? nextPurpose : null }, onRename, onPurpose);
-    setBusy(false);
+    let err: string | null;
+    try {
+      err = await saveRename({ name: renamed ? next : null, purpose: repurposed ? nextPurpose : null }, onRename, onPurpose);
+    } finally {
+      setBusy(false);
+    }
     if (err) setError(err);
     else onClose();
   };
