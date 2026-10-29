@@ -62,20 +62,20 @@ export function useDeskSocket() {
   const [reasoningEfforts, setReasoningEfforts] = useState<Partial<Record<Scope, ReasoningEffort>>>({});
   const [modes, setModes] = useState<Partial<Record<Scope, string>>>({});
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
-  const chatListeners = useRef(new Listeners<[p: Pushes["chat_event"]]>());
+  const [chatListeners] = useState(() => new Listeners<[p: Pushes["chat_event"]]>());
   /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
-  const reconnectListeners = useRef(new Listeners());
+  const [reconnectListeners] = useState(() => new Listeners());
   /**
    * Who hears that the lists a client holds (agents, chats) may be out of date: an agent changed (agents_changed),
    * the socket came back after a drop, or the page came back after being hidden (a phone's home-screen app sleeps in
    * the background, and polls nothing meanwhile). The desk list is asked for again at the same time.
    */
-  const staleListeners = useRef(new Listeners());
+  const [staleListeners] = useState(() => new Listeners());
   const listsStale = useCallback(() => {
-    staleListeners.current.emit();
+    staleListeners.emit();
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
-  }, []);
+  }, [staleListeners]);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
@@ -148,7 +148,7 @@ export function useDeskSocket() {
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         if (dropped) {
-          reconnectListeners.current.emit();
+          reconnectListeners.emit();
           listsStale();
         }
         dropped = false;
@@ -209,7 +209,7 @@ export function useDeskSocket() {
             setDesksLoaded(true);
             break;
           case "chat_event":
-            chatListeners.current.emit(msg);
+            chatListeners.emit(msg);
             break;
           case "agents_changed":
           case "lists_changed":
@@ -308,7 +308,7 @@ export function useDeskSocket() {
       if (retry) clearTimeout(retry); // a reconnect scheduled for the old desk must not open a socket after the switch
       wsRef.current?.close();
     };
-  }, [scope, switchDesk, listsStale]);
+  }, [scope, switchDesk, listsStale, chatListeners, reconnectListeners]);
 
   // Back from the background (a phone's home-screen app, a hidden tab): what changed meanwhile was never polled.
   useEffect(() => {
