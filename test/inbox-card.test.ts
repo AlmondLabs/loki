@@ -1,11 +1,13 @@
 // The phone's Inbox card: its message box carries the model pill as the conversation page's does, and a plain wait
 // adds no line above it (the box's "Message friday" already says it is your turn).
 import { describe, expect, test } from "vitest";
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
+import { Card, CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
+import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
+import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
 
@@ -41,17 +43,22 @@ const MODELS: ModelEntry[] = [
 
 const actions = (model?: CardActions["model"]): CardActions => ({ onSend: () => {}, onAnswer: () => {}, onCancelQueued: () => {}, model });
 /** The card draws the agent's face, whose URL reads the page's token and origin: a bare page for the render, then put back. */
-function render(it: AttentionItem, card: CardActions, status: "idle" | "thinking" | "streaming" = "idle"): string {
+/** Draw an element as the phone's page would, with the browser globals it reads faked and put back after. */
+function inPage(el: ReactElement): string {
   const g = globalThis as Record<string, unknown>;
   const saved = { window: g.window, localStorage: g.localStorage, location: g.location };
   g.window = {};
   g.localStorage = { getItem: () => null };
   g.location = { origin: "http://127.0.0.1:5191", href: "http://127.0.0.1:5191/" };
   try {
-    return renderToStaticMarkup(createElement(CardConversation, { item: it, view: { rows: [], status }, card, onHold: () => {} }));
+    return renderToStaticMarkup(el);
   } finally {
     Object.assign(g, saved);
   }
+}
+
+function render(it: AttentionItem, card: CardActions, status: "idle" | "thinking" | "streaming" = "idle", suggestionsTick = 0): string {
+  return inPage(createElement(CardConversation, { item: it, view: { rows: [], status }, card, onHold: () => {}, suggestionsTick }));
 }
 
 describe("the Inbox card's message box", () => {
@@ -101,11 +108,25 @@ describe("the Inbox card's suggestions (plan 049)", () => {
       retarget: () => Promise.resolve({ done: true, message: null, suggestion: null }),
     },
   };
-  test("a chat with two pending suggestions draws two cards over the card's box, in the phone's words", () => {
-    const html = render(item(), { ...actions(), suggestions: { source, blocked: null } });
+  test("two pending suggestions wait behind the box's chip, and the card's mark opens them in the phone's words (plan 052)", () => {
+    const closed = render(item(), { ...actions(), suggestions: { source, blocked: null } });
+    expect(closed).toContain("loki-suggestion-chip");
+    expect(closed).not.toContain("data-suggestion=");
+    const html = render(item(), { ...actions(), suggestions: { source, blocked: null } }, "idle", 1);
     expect([...html.matchAll(/data-suggestion="([^"]+)"/g)].map((m) => m[1])).toEqual(["s2", "s1"]);
     expect(html).toContain("New chat with friday in work");
-    expect(html.indexOf("loki-suggestions")).toBeLessThan(html.indexOf("loki-composer"));
+  });
+  test("the desktop card's head says how many wait, beside draft, as a button", () => {
+    const html = inPage(createElement(CardHeader, { current: item(), cameBack: false, flash: null, suggestions: 2, onSuggestions: () => {} }));
+    expect(html).toMatch(/<button[^>]*loki-chip--tag[^>]*>2 suggestions<\/button>/);
+    expect(inPage(createElement(CardHeader, { current: item(), cameBack: false, flash: null }))).not.toContain("suggestion");
+  });
+  test("/suggestions opens them, as ⌘⇧S does", () => {
+    expect(LOKI_COMMANDS.find((c) => c.id === "suggestions")?.action).toBe("chat.suggestions");
+  });
+  test("the card's head says how many wait, as a button", () => {
+    const html = inPage(createElement(Card, { item: item(), role: "top", style: {}, suggestions: 2, onSuggestions: () => {} }));
+    expect(html).toMatch(/<button[^>]*loki-phone-card-suggestions[^>]*>2 suggestions<\/button>/);
   });
   test("without them the card draws none", () => {
     expect(render(item(), actions())).not.toContain("loki-suggestions");

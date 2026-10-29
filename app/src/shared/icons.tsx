@@ -171,6 +171,13 @@ const PATHS = {
     </>
   ),
   // rename: a pencil
+  /** A suggestion for another chat: a spark, for a thought an agent hands on. */
+  suggest: (
+    <>
+      <path d="M11 4c.6 4 1.9 5.4 6 6-4.1.6-5.4 2-6 6-.6-4-1.9-5.4-6-6 4.1-.6 5.4-2 6-6z" />
+      <path d="M18.5 15.5c.2 1.4.6 1.8 2 2-1.4.2-1.8.6-2 2-.2-1.4-.6-1.8-2-2 1.4-.2 1.8-.6 2-2z" />
+    </>
+  ),
   pencil: (
     <>
       <path d="M4 20h4L19 9l-4-4L4 16z" />

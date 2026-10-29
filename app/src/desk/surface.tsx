@@ -68,6 +68,7 @@ interface SurfaceProps extends DeskConversationHandlers {
   models?: ModelEntry[] | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  suggestionsTick?: number;
 }
 
 /**
@@ -256,6 +257,7 @@ function DeskChat({
   modelPickerTick = 0,
   onPickMode,
   modeMenuTick = 0,
+  suggestionsTick = 0,
   draft,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
   const { title, agentName, agentId, conversationId } = desk;
@@ -279,6 +281,7 @@ function DeskChat({
       prefill={chatPrefill}
       modelPickerTick={modelPickerTick}
       modeMenuTick={modeMenuTick}
+      suggestionsTick={suggestionsTick}
       draft={draft}
       suggestions={agentId && conversationId ? { source: catchUp, rt: { agent_id: agentId, conversation_id: conversationId } } : null}
       onClose={() => onChatOpen(false)}

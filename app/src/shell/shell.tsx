@@ -169,6 +169,7 @@ export function Shell() {
   };
   const [modelPickerTick, setModelPickerTick] = useState(0);
   const [modeMenuTick, setModeMenuTick] = useState(0);
+  const [suggestionsTick, setSuggestionsTick] = useState(0);
   const pickMode = async (scope: string, rt: Runtime, mode: string) => {
     const err = await catchUp.setMode(rt, mode);
     if (err) return notice(`permissions: ${err}`);
@@ -314,6 +315,7 @@ export function Shell() {
       "chat.find": () => chatKey("chat.find", (inset) => (inset && setChatOpen(true), setFindChat((n) => n + 1))),
       "chat.model": () => chatKey("chat.model", (inset) => (inset && setChatOpen(true), setModelPickerTick((n) => n + 1))),
       "chat.mode": () => chatKey("chat.mode", (inset) => (inset && setChatOpen(true), setModeMenuTick((n) => n + 1))),
+      "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
       "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
       "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
     },
@@ -414,6 +416,7 @@ export function Shell() {
               modelPickerTick={modelPickerTick}
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
+              suggestionsTick={suggestionsTick}
               onShowLabel={showLabel}
             />
           </div>

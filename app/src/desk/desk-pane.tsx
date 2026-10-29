@@ -46,11 +46,12 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
-  /** The shell's counters (⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode) and a prefill; each reaches the view that shows. */
+  /** The shell's counters (⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode, ⌘⇧S suggestions) and a prefill; each reaches the view that shows. */
   focusChat: number;
   findChat: number;
   modelPickerTick: number;
   modeMenuTick: number;
+  suggestionsTick: number;
   chatPrefill: { text: string; tick: number } | null;
   models: ModelEntry[] | null;
   frameRequest: FrameRequest | null;
@@ -92,6 +93,7 @@ export function DeskPane(props: DeskPaneProps) {
   const find = useRouted(props.findChat, visible);
   const model = useRouted(props.modelPickerTick, visible);
   const mode = useRouted(props.modeMenuTick, visible);
+  const suggest = useRouted(props.suggestionsTick, visible);
   const prefill = useRouted(props.chatPrefill?.tick ?? 0, visible);
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
@@ -196,6 +198,7 @@ export function DeskPane(props: DeskPaneProps) {
               findTick={tickFor(find, "messages")}
               modelPickerTick={tickFor(model, "messages")}
               modeMenuTick={tickFor(mode, "messages")}
+              suggestionsTick={tickFor(suggest, "messages")}
               prefill={prefillFor("messages")}
               suggestions={runtime ? { source: catchUp, rt: runtime } : null}
             />
@@ -217,6 +220,7 @@ export function DeskPane(props: DeskPaneProps) {
               findChat={tickFor(find, "inset")}
               modelPickerTick={tickFor(model, "inset")}
               modeMenuTick={tickFor(mode, "inset")}
+              suggestionsTick={tickFor(suggest, "inset")}
               chatPrefill={prefillFor("inset")}
             />
           </div>

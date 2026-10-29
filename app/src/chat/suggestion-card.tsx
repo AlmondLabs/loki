@@ -1,18 +1,20 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ConversationInfo } from "../../../core/attention/model.ts";
 import type { ChatFace } from "../../../core/attention/use-attention.ts";
 import type { SuggestionOutcome } from "../../../core/attention/chat-store.ts";
 import type { SuggestionAction } from "../../../core/frames.ts";
 import type { Suggestion, SuggestionTarget } from "../../../core/frame-types.ts";
-import { Button, Field, Row, sentence } from "../components";
+import { Button, Chip, Field, Popover, Row, Sheet, sentence } from "../components";
+import { Icon } from "../shared/icons";
+import { returnsFocus } from "./model-picker";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
 
 /**
- * Suggestions in the chat screen (plan 049, U4): messages an agent in this chat suggests for another chat, each a
- * card in the slot beside the approval and question cards, never a row in the thread. They stack newest first, one
- * line each until opened; opened, a card shows the message and send now, save as draft, change chat and reject. The
- * Mac the chat lives on carries out every action; the card shows what it answered.
+ * Suggestions in the chat screen (plan 049, U4): messages an agent in this chat suggests for another chat, never a
+ * row in the thread. Since plan 052 they wait behind a chip in the message box, which opens them as cards, newest
+ * first, one line each until opened; opened, a card shows the message and send now, save as draft, change chat and
+ * reject. The Mac the chat lives on carries out every action; the card shows what it answered.
  */
 
 /** What the cards read and call, all of it useAttention's (the shell's and the phone's `catchUp` fit as they are). */
@@ -40,6 +42,20 @@ export interface SuggestionsProps {
 
 /** Waiting on the person, or being carried out: the ones the screen shows. */
 const isOpen = (s: Suggestion) => s.status === "pending" || s.status === "sending";
+
+/** How many suggestions made in a chat wait on the person: the count the chip and the Inbox card's mark show. */
+export function waitingCount(source: Pick<SuggestionSource, "conversation">, rt: Runtime): number {
+  return source.conversation(rt.agent_id, rt.conversation_id).suggestions.filter(isOpen).length;
+}
+
+/** A host's bump of one chat's suggestions (the Inbox's mark, /suggestions): which chat, and how many times. */
+export type ChatTick = { id: string; n: number } | null;
+
+/** The bump after one more for chat `id`; a bump for another chat starts again, so it never opens a later card. */
+export const bumpTick = (t: ChatTick, id: string): ChatTick => ({ id, n: (t?.id === id ? t.n : 0) + 1 });
+
+/** The tick a chat's Conversation gets: the bumps made for it, 0 for any other chat. */
+export const tickOf = (t: ChatTick, id: string): number => (t?.id === id ? t.n : 0);
 
 /** The words of a control: lowercase on the desktop, sentence case on the phone. */
 const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
@@ -168,17 +184,36 @@ export function pickerKey(e: Pick<KeyboardEvent, "key" | "preventDefault" | "sto
   }
 }
 
+/** The chip's words: "3 suggestions" on the desktop; the phone's narrower row shows the icon and the count alone. */
+export function chipText(count: number, touch: boolean): string {
+  if (touch) return count ? String(count) : "";
+  return count === 1 ? "1 suggestion" : count ? `${count} suggestions` : "suggestions";
+}
+
+/** The chip's props: a chat screen's suggestions, how it is drawn, and the host's tick that opens it (⌘⇧S, the Inbox's mark). */
+export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: number };
+
 /**
- * The chat screen's suggestions, newest first. A refused action leaves its reason on the card; one refused because
- * another device already settled it (AE6) keeps a line saying so after its card has gone, until it is dismissed.
+ * A chat's suggestions behind a chip in the message box (plan 052): the chip shows only while some wait, and opens
+ * the cards in a popover above the box on the desktop, in a bottom sheet on the phone, as the model pill does. The
+ * chip stays mounted with the chat, so a refused action's reason and a line told after its card has gone (AE6) keep
+ * while the panel is closed; the chip stays for that line until it is dismissed. The last card decided closes it.
  */
-export function SuggestionStack({ source, rt, blocked = null, touch = false }: SuggestionsProps & { touch?: boolean }) {
+export function SuggestionChip({ source, rt, blocked = null, touch = false, tick = 0 }: SuggestionChipProps) {
   const face = source.conversation(rt.agent_id, rt.conversation_id);
   const list = face.suggestions.filter(isOpen).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const [open, setOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Partial<Record<string, string>>>({});
   const [told, setTold] = useState<Partial<Record<string, Told>>>({});
   const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const chipRef = useRef<HTMLButtonElement>(null);
+  // A bumped tick opens the panel from the render that sees it, as ⌘⇧M opens the model picker.
+  const [seenTick, setSeenTick] = useState(0);
+  if (tick !== seenTick) {
+    setSeenTick(tick);
+    if (tick > 0) setOpen(true);
+  }
   const shownIds = new Set(list.map((s) => s.id));
   const settled = Object.entries(told).filter((e): e is [string, Told] => !!e[1] && !shownIds.has(e[0]));
   if (!list.length && !settled.length) return null;
@@ -205,44 +240,135 @@ export function SuggestionStack({ source, rt, blocked = null, touch = false }: S
       return out.done;
     });
   };
+  const folder = face.cwd ?? source.items.find((c) => c.agent_id === rt.agent_id && c.id === rt.conversation_id)?.cwd ?? null;
+  const label = say(touch, list.length ? chipText(list.length, false) : "suggestions");
+  const shown = chipText(list.length, touch);
 
   return (
-    <div className="loki-suggestions" role="region" aria-label={say(touch, "suggestions for other chats")}>
-      {settled.map(([id, t]) => (
-        <div key={id} className="loki-suggestion loki-suggestion-told" role="status">
-          <span className="loki-suggestion-title">{t.title}</span>
-          <span className="loki-suggestion-note">{t.message}</span>
-          <Button size={touch ? "touch" : "sm"} bare onClick={() => setTold((all) => ({ ...all, [id]: undefined }))}>
-            {say(touch, "dismiss")}
-          </Button>
-        </div>
-      ))}
-      {list.map((s) => (
-        <SuggestionCard
-          key={s.id}
-          suggestion={s}
-          target={targetOf(source, s, touch)}
-          open={openId === s.id}
-          onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
-          note={notes[s.id] ?? null}
-          busy={busy.has(s.id)}
-          blocked={blocked}
-          touch={touch}
-          onDecide={(action) => decide(s, action)}
-          picker={(close) => (
-            <ChatPicker
-              source={source}
-              suggestion={s}
-              folder={face.cwd ?? source.items.find((c) => c.agent_id === rt.agent_id && c.id === rt.conversation_id)?.cwd ?? null}
-              touch={touch}
-              disabled={!!blocked || busy.has(s.id)}
-              onPick={(target) => void retarget(s, target).then((done) => done && close())}
-              onCancel={close}
-            />
-          )}
-        />
-      ))}
-    </div>
+    <>
+      <Chip
+        ref={chipRef}
+        className="loki-suggestion-chip"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        title={say(touch, "suggestions for other chats")}
+      >
+        <Icon name="suggest" size={touch ? 18 : 14} />
+        {shown && <span>{shown}</span>}
+      </Chip>
+      {open && (
+        <SuggestionPanel touch={touch} chipRef={chipRef} onClose={() => setOpen(false)}>
+          <div className="loki-suggestions" role="region" aria-label={say(touch, "suggestions for other chats")}>
+            {settled.map(([id, t]) => (
+              <div key={id} className="loki-suggestion loki-suggestion-told" role="status">
+                <span className="loki-suggestion-title">{t.title}</span>
+                <span className="loki-suggestion-note">{t.message}</span>
+                <Button size={touch ? "touch" : "sm"} bare onClick={() => setTold((all) => ({ ...all, [id]: undefined }))}>
+                  {say(touch, "dismiss")}
+                </Button>
+              </div>
+            ))}
+            {list.map((s) => (
+              <SuggestionCard
+                key={s.id}
+                suggestion={s}
+                target={targetOf(source, s, touch)}
+                open={openId === s.id || list.length === 1}
+                onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
+                note={notes[s.id] ?? null}
+                busy={busy.has(s.id)}
+                blocked={blocked}
+                touch={touch}
+                onDecide={(action) => decide(s, action)}
+                picker={(close) => (
+                  <ChatPicker
+                    source={source}
+                    suggestion={s}
+                    folder={folder}
+                    touch={touch}
+                    disabled={!!blocked || busy.has(s.id)}
+                    onPick={(target) => void retarget(s, target).then((done) => done && close())}
+                    onCancel={close}
+                  />
+                )}
+              />
+            ))}
+          </div>
+        </SuggestionPanel>
+      )}
+    </>
+  );
+}
+
+const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
+/**
+ * Where the chip's cards open: a bottom sheet on the phone (the Sheet's veil, Escape and focus return), a popover
+ * above the message box on the desktop that closes on Esc or a press outside it and the chip, and hands focus back
+ * to the chip.
+ */
+function SuggestionPanel({
+  touch,
+  chipRef,
+  onClose,
+  children,
+}: {
+  touch: boolean;
+  chipRef: RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  useEffect(() => {
+    const node = ref.current;
+    const chip = chipRef.current;
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!node?.contains(target) && !chip?.contains(target)) closeRef.current();
+    };
+    // capture: the rail, the list column and other popovers stop pointerdown from bubbling
+    if (!touch) window.addEventListener("pointerdown", away, true);
+    // Opened from a key, focus goes in, to the first card's line, so the cards are reached without the mouse.
+    if (!touch && !node?.contains(document.activeElement)) node?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      if (returnsFocus(document.activeElement, node, document.body)) chip?.focus({ preventScroll: true });
+    };
+  }, [touch, chipRef]);
+
+  if (touch)
+    // The Sheet draws itself at the phone shell's root; React still bubbles its events through the Inbox card, which
+    // would take a drag in the sheet for a swipe of the card underneath.
+    return (
+      <div style={{ display: "contents" }} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
+        <Sheet label="Suggestions" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-suggestion-sheet">
+          <div ref={ref}>{children}</div>
+        </Sheet>
+      </div>
+    );
+  return (
+    <Popover
+      ref={ref}
+      role="dialog"
+      aria-label="suggestions"
+      side="above"
+      width={460}
+      className="loki-suggestion-popover"
+      onKeyDown={(e) => {
+        if (e.key !== "Escape" || e.defaultPrevented) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      {children}
+    </Popover>
   );
 }
 
