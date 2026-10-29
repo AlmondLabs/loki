@@ -446,7 +446,8 @@ export class LanListener {
         if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
         if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "send application/json" });
         void readJson(req)
-          .then((body) => peers.accept(body))
+          // Again once the body is in, as for a phone: requests sent together all passed the first check before any failed.
+          .then((body) => (this.attempts.blocked(ip) ? { status: 429, body: { error: "too many wrong codes; wait a while" } } : peers.accept(body)))
           .then(
             (answer) => {
               if (answer.status === 404) this.attempts.failed(ip);
