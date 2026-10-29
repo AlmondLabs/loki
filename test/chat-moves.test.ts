@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
+import { MOVE_TIMEOUT_MS } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
 import { ChatMoves } from "../mod/chat-moves.ts";
 
@@ -212,5 +213,35 @@ describe("moving a chat to another Mac", () => {
     } finally {
       m.cleanup();
     }
+  });
+});
+
+describe("a move that never finishes", () => {
+  test("the chat it left takes messages again once a move's time is up, not at the next restart", async () => {
+    let now = 0;
+    const moves = new ChatMoves({
+      here: BOOK,
+      chat: {
+        moveCandidates: () => Promise.resolve([]),
+        exportChat: () => Promise.resolve({ chat: moved("conv-1"), busy: false }),
+        importChat: () => Promise.resolve(true),
+        finishMove: () => Promise.resolve(),
+      },
+      link: () => null,
+      widgetsDir: join(tmpdir(), "loki-no-widgets"),
+      name: () => "MacBook",
+      done: () => false,
+      markDone: () => {},
+      onMoved: () => {},
+      onLeft: () => {},
+      now: () => now,
+    });
+    // The mini copied it out, then its import failed: it never says the chat arrived.
+    await moves.export(MINI, "agent-ira", "conv-1");
+    expect(moves.blocked("agent-ira", "conv-1")).not.toBeNull();
+    now = MOVE_TIMEOUT_MS - 1;
+    expect(moves.blocked("agent-ira", "conv-1")).not.toBeNull();
+    now = MOVE_TIMEOUT_MS;
+    expect(moves.blocked("agent-ira", "conv-1")).toBeNull();
   });
 });
