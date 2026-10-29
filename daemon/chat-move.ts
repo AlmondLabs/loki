@@ -105,27 +105,34 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
     { title: moved.info.title, createdAt: moved.info.created_at, ...(Object.keys(moved.agent).length ? { agent: moved.agent } : {}) },
     context,
   );
-  await store.importEntries(conversation, moved.entries, context);
-  await store.updateChat(
-    moved.conversation_id,
-    {
-      archived: moved.info.archived,
-      labels: moved.info.labels,
-      ...(moved.info.mode ? { mode: moved.info.mode } : {}),
-      ...(moved.info.placed ? { placed: true } : {}),
-      ...(moved.info.purpose ? { purpose: moved.info.purpose } : {}),
-      ...(moved.info.draft ? { draft: moved.info.draft } : {}),
-      ...(moved.info.suggestions?.length ? { suggestions: moved.info.suggestions } : {}),
-      ...(names ? { moved: { ...names, files_left: filesLeft(moved) } } : {}),
-    },
-    context,
-  );
-  if (names)
-    await store.importEntries(
-      conversation,
-      [{ sourceId: "moved", line: 0, kind: BRANCH_KIND, data: { message: { role: "user", content: movedMark(names.from, names.to), timestamp: now } } }],
+  // A chat written in part is set aside, hidden, as a chat that moved away is: left under its id, a retry of the move
+  // would find it "already here" and the other Mac would let go of the only whole copy.
+  try {
+    await store.importEntries(conversation, moved.entries, context);
+    await store.updateChat(
+      moved.conversation_id,
+      {
+        archived: moved.info.archived,
+        labels: moved.info.labels,
+        ...(moved.info.mode ? { mode: moved.info.mode } : {}),
+        ...(moved.info.placed ? { placed: true } : {}),
+        ...(moved.info.purpose ? { purpose: moved.info.purpose } : {}),
+        ...(moved.info.draft ? { draft: moved.info.draft } : {}),
+        ...(moved.info.suggestions?.length ? { suggestions: moved.info.suggestions } : {}),
+        ...(names ? { moved: { ...names, files_left: filesLeft(moved) } } : {}),
+      },
       context,
     );
+    if (names)
+      await store.importEntries(
+        conversation,
+        [{ sourceId: "moved", line: 0, kind: BRANCH_KIND, data: { message: { role: "user", content: movedMark(names.from, names.to), timestamp: now } } }],
+        context,
+      );
+  } catch (error) {
+    await store.retireChat(moved.conversation_id, context).catch(() => false);
+    throw error;
+  }
   return true;
 }
 

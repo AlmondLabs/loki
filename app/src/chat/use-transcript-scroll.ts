@@ -71,6 +71,9 @@ export function useTranscriptScroll(
       askedOlder.current = messages.length;
       older();
     }
+    // Away from the top, the next arrival there asks again: a page that failed (offline, a Mac out of reach) adds no
+    // rows, and waiting for a new length would never ask for it again.
+    else if (!nearTop(el)) askedOlder.current = null;
   };
   const jumpToLatest = () => {
     const el = scrollRef.current;

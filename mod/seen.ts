@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
 import { isRest, type Rest } from "../core/attention/rest.ts";
+import type { Pushes } from "../core/frames.ts";
 import { coalesce, type Burst } from "../core/timers.ts";
 
 /**
@@ -85,6 +86,19 @@ export class SeenStore {
   /** The done marks that stand: those no later "not done" undid. */
   all(): Record<string, string> {
     return Object.fromEntries(Object.entries(this.seen).filter(([key, at]) => !(this.unseen[key] && this.unseen[key] >= at)));
+  }
+
+  /** One chat's marks as they now stand, null where it has none: what a change to that chat alone sends (plan 055). */
+  chat(agentId: string | null | undefined, conversationId: string): Pushes["seen_chat"] {
+    const key = SeenStore.key(agentId, conversationId);
+    const done = this.seen[key];
+    return {
+      key,
+      seen: done && !(this.unseen[key] && this.unseen[key] >= done) ? done : null,
+      viewed: this.viewed[key] ?? null,
+      focus: this.focusAll()[key] ?? null,
+      rest: this.rests[key] ?? null,
+    };
   }
 
   viewedAll(): Record<string, string> {

@@ -91,7 +91,14 @@ export function applyMemoryBundle(root: string, bundle: string, opts: { from: st
       try {
         await git(root, "-c", `user.name=${SYNC.name}`, "-c", `user.email=${SYNC.email}`, "merge", "--quiet", "--no-edit", theirs);
         return (await memoryHead(root)) === before ? "unchanged" : "merged";
-      } catch {
+      } catch (error) {
+        // Only a merge git stopped part way (MERGE_HEAD set) is a clash to settle; one that never began (a file in the
+        // way, a lock) is said as it is, not as a clash whose commit then fails.
+        const merging = await git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").then(
+          () => true,
+          () => false,
+        );
+        if (!merging) throw error;
         await settleClash(root, opts);
         return "conflicted";
       }

@@ -209,9 +209,13 @@ export function useDesk() {
     }
     apply(g);
   };
-  /** Undo the last widget move, resize, close, open, or data edit. Returns false when there is nothing to undo. */
+  /**
+   * Undo the last widget move, resize, close, open, or data edit on the canvas in view (its own widgets and the shared
+   * ones it shows): one window goes through many chats, and ⌘Z on one must not move a widget on another, unseen.
+   * Returns false when there is nothing to undo here.
+   */
   const undo = (): boolean => {
-    const inv = undoStack.current.pop();
+    const inv = takeUndo(undoStack.current, scope);
     if (!inv) return false;
     apply(inv);
     return true;
@@ -557,4 +561,16 @@ export function useDesk() {
     widgetsOf: (s: Scope) => (widgets[s] ? { entries: widgets[s], overlay: desks[s]?.overlay ?? {} } : undefined),
     watchDesk,
   };
+}
+
+/**
+ * Take the newest undo step for the canvas of `scope` off `stack`: one of its own widgets, or a shared one it shows.
+ * Steps for other chats' canvases stay for when you are back there. Null when this canvas has none.
+ */
+export function takeUndo(stack: Gesture[], scope: Scope): Gesture | null {
+  for (let at = stack.length - 1; at >= 0; at--) {
+    const s = scopeOfId(stack[at].id);
+    if (s === scope || s === SHARED_SCOPE) return stack.splice(at, 1)[0];
+  }
+  return null;
 }

@@ -155,7 +155,8 @@ export function useFolderField({
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [matches, setMatches] = useState<string[]>([]);
-  const [status, setStatus] = useState<FolderStatus>(null);
+  /** The last folder checked, on which Mac, and what the check said: it speaks only for that folder there (`status`, below). */
+  const [checked, setChecked] = useState<{ folder: string; home: string | undefined; status: FolderStatus } | null>(null);
   const [picking, setPicking] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -191,12 +192,12 @@ export function useFolderField({
 
   // Validate (and complete) as you type, debounced; an empty field has nothing to check or offer.
   const trimmed = folder.trim();
-  if (!trimmed && (status !== null || matches.length > 0)) {
-    setStatus(null);
-    setMatches([]);
-  }
+  // A check of what was typed a moment ago says nothing of the folder now: Enter inside the debounce, or a slow answer
+  // for an older value, would otherwise start the chat in a folder no one checked.
+  const status = checked?.folder === trimmed && checked.home === home ? checked.status : null;
+  if (!trimmed && matches.length > 0) setMatches([]);
   const validate = useEffectEvent((f: string) => {
-    void folders.check(f, home).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
+    void folders.check(f, home).then((r) => setChecked({ folder: f, home, status: { ok: r.ok, branch: r.branch, reason: r.reason } }));
     if (touched) void folders.complete(f, home).then(setMatches);
   });
   useEffect(() => {

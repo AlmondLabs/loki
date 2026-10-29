@@ -99,7 +99,7 @@ function partsIn(at: Date, timezone: string) {
   }
   const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
-  return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), weekday };
+  return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), year: Number(p.year), weekday };
 }
 
 /** Whether a minute matches; day-of-month and day-of-week match either, as cron has it when both are given. */
@@ -114,10 +114,21 @@ export function matches(fields: Fields, at: Date, timezone: string): boolean {
   return day || weekday;
 }
 
-/** Whether a slot came due after `from` and up to `to` (minutes; at most the last 31 days are looked at). */
-export function dueBetween(fields: Fields, timezone: string, from: Date, to: Date): boolean {
+/**
+ * Whether a slot came due after `from` and up to `to` (minutes; at most the last 31 days are looked at). `fired`, the
+ * last firing, is not due again: when the clocks go back an hour, its wall-clock minute comes round a second time.
+ */
+export function dueBetween(fields: Fields, timezone: string, from: Date, to: Date, fired?: Date): boolean {
   const start = Math.max(Math.floor(from.getTime() / 60_000) + 1, Math.floor(to.getTime() / 60_000) - 31 * 24 * 60);
-  for (let m = start; m <= Math.floor(to.getTime() / 60_000); m++) if (matches(fields, new Date(m * 60_000), timezone)) return true;
+  const last = fired ? partsIn(fired, timezone) : null;
+  for (let m = start; m <= Math.floor(to.getTime() / 60_000); m++) {
+    const at = new Date(m * 60_000);
+    if (!matches(fields, at, timezone)) continue;
+    if (!last) return true;
+    const p = partsIn(at, timezone);
+    if (p.minute === last.minute && p.hour === last.hour && p.day === last.day && p.month === last.month && p.year === last.year) continue;
+    return true;
+  }
   return false;
 }
 
@@ -236,7 +247,8 @@ export class Schedules {
             const key = `${task.id}\u0000${task.cron}\u0000${task.timezone}`;
             const seen = this.quiet.get(key);
             const known = seen !== undefined && seen.from <= from && from <= seen.to;
-            due = dueBetween(parseCron(task.cron), task.timezone, new Date(known ? seen.to : from), now);
+            const fired = task.last_fired_at ? new Date(task.last_fired_at) : undefined;
+            due = dueBetween(parseCron(task.cron), task.timezone, new Date(known ? seen.to : from), now, fired);
             if (!due) this.quiet.set(key, { from: known ? seen.from : from, to: now.getTime() });
           } catch (error) {
             this.report(`schedule ${task.name}: ${String(error)}`);

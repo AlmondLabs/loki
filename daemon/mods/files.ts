@@ -77,6 +77,12 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
     loadedAt.set(file, modified);
     try {
       const mod = await importMod(path, buildDir);
+      // The file renamed its mod: the old name goes, or it would keep running beside the new one.
+      const was = names.get(file);
+      if (was !== undefined && was !== mod.name) {
+        mods.unload(was);
+        names.delete(file);
+      }
       if ("loaded" in (await mods.load(mod))) names.set(file, mod.name);
     } catch (error) {
       report(`mod ${file} failed to load: ${error instanceof Error ? error.message : String(error)}`);

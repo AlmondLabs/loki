@@ -109,7 +109,7 @@ export interface Peering {
 }
 
 /** Pushes that change the person's state on a paired Mac; Learn's files travel only when they changed (plan 040). */
-const STATE_PUSHES = new Set(["seen", "desks", "recall_changed"]);
+const STATE_PUSHES = new Set(["seen", "seen_chat", "desks", "recall_changed"]);
 /** An edit to mcp.json or a mod by hand says nothing: every paired Mac's state is asked for again this often. */
 const STATE_POLL_MS = 5 * 60_000;
 
