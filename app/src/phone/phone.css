@@ -2361,14 +2361,14 @@ span.loki-phone-section-btn {
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
 }
-/* The suggestions sheet (plan 052) is the model sheet's ground, and its list fills what the sheet allows. */
+/* The suggestions sheet (plans 052, 056) is the model sheet's ground: its header stays, its list scrolls under it. */
 .loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
   gap: 0;
   padding-top: var(--phone-space-2);
   background: var(--loki-bg);
 }
-.loki-phone-sheet.loki-suggestion-sheet .loki-suggestions {
-  max-height: none;
+.loki-phone .loki-suggestion-modal-head {
+  padding: var(--phone-space-1) var(--phone-space-2) var(--phone-space-2) var(--phone-space-3);
 }
 .loki-phone .loki-chip.loki-suggestion-chip {
   min-height: 36px;
@@ -2376,7 +2376,7 @@ span.loki-phone-section-btn {
 }
 /* The phone's suggestions sit on its gutters, and their text reads at the phone's body size. */
 .loki-phone .loki-suggestion {
-  padding: var(--phone-space-1) var(--phone-space-3);
+  padding: var(--phone-space-2) var(--phone-space-3);
   font-size: var(--phone-text-body);
 }
 .loki-phone .loki-question,

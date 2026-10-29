@@ -774,6 +774,11 @@ minutes, its prompt saying it is another try. A turn that got through, or ended 
 the next slot due replaces a try still waiting. Any chat whose model could not be reached says so in its thread, with
 the provider's message ("the model could not be reached · 4 tries"), after a reload too.
 
+The agent has no clock: the app tells it the time in a hidden note on what you send. Everything loki sends a chat
+itself carries the Mac's local time too, after its text and hidden in the thread like yours: a scheduled task's
+prompt, a background task's notice, and the prompt of a reflection, learn or doctor pass. A chat a schedule wakes after
+days of quiet knows the day.
+
 ## Suggestions
 
 A suggestion is a message an agent writes for another chat, for you to send. Agents make them on their own whenever a
@@ -784,15 +789,15 @@ themselves: every one waits for you. Any agent may suggest for any chat, its own
 
 **Where they show.** A suggestion waits in the chat screen of the chat it was made in, never as a row in the thread:
 while any wait, the message box's bottom row shows a **3 suggestions** chip after the model and mode pills (on the
-phone, the spark icon and the count). The chip opens them, in a popover above the box on the Mac and a sheet on the
-phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, one line each until you open one,
-which shows its message and four actions; a lone one opens straight to its message. Esc, a click outside or the chip
-again closes it. On an Inbox card, the header says **3 suggestions** beside *draft*, and pressing it opens them in
-that card's box. A suggestion stays until you act on it or its agent takes it back
+phone, the spark icon and the count). The chip opens them, in a modal over the window on the Mac and a sheet on the
+phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, each its title and, under it, the chat it is for; the newest
+starts open, showing its message, written in markdown as an agent's reply is, and four actions. Esc, a click outside
+or close shuts it. On an Inbox card, the header says **3 suggestions** beside *draft*, and pressing it opens them for
+that card's chat. A suggestion stays until you act on it or its agent takes it back
 (`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
 Inbox, so it has a screen to show in.
 
-<img src="images/suggestion-chip.jpg" width="560" alt="A chat's message box with a 3 suggestions chip after the model and mode pills, its popover open above the box: three suggestions, one opened to its message with send now, save as draft, change chat and reject">
+<img src="images/suggestion-chip.jpg" width="560" alt="The suggestions modal over a chat: a header saying 3 waiting, the newest open with its markdown message (a numbered list, bullets, code and a link) and send now, save as draft, change chat and reject, two more below as a title and the chat each is for">
 
 **The four actions.**
 

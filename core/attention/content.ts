@@ -84,6 +84,15 @@ function labelsLine(labels: readonly string[]): string {
   return `The user has labelled this chat: ${labels.join(", ")}.`;
 }
 
+/**
+ * The time, for a message loki starts itself (a schedule's prompt, a background task's notice, a pass): those carry no
+ * environment note, which the app adds to what the person sends, so a chat woken after days would not know the day.
+ * The daemon runs on the person's Mac, so its clock is theirs. Sent with every such message and placed after its text.
+ */
+export function daemonTimeReminder(now: Date = new Date(), locale?: string): string {
+  return ["<system-reminder>", `Local time on the user's Mac, as loki sends this: ${localTime(now, locale)}`, "</system-reminder>"].join("\n");
+}
+
 /** A chat's note is sent again once this long has passed since its last one. */
 export const ENV_NOTE_EVERY_MS = 30 * 60_000;
 

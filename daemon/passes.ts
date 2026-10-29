@@ -4,6 +4,7 @@ import type { EntryRecord, Registry } from "@earendil-works/pi-durable";
 import { readLocalAgent } from "../mod/agents.ts";
 import { formatTranscript } from "../mod/recall-worker.ts";
 import { isWriterChat } from "../core/recall/model.ts";
+import { daemonTimeReminder } from "../core/attention/content.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
 import { unansweredWhy } from "./chat-events.ts";
@@ -438,7 +439,9 @@ export class PassRunner {
     // submission, never alongside it: the run's own entries must all come after it, or some would be skipped.
     const before = await store.newestEntryId(chat, context);
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-    const submission = await chat.submit({ type: "input", content: spec.prompt, requestId: spec.requestId }, context);
+    // The time after the prompt (plan 057): what the pass writes is dated by it, and nothing else in its chat says it.
+    const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
+    const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
     // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
     const limited = withCancel(context);
     const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);

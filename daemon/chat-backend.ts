@@ -6,6 +6,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, un
 import { basename, join } from "node:path";
 import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
+import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
 import { backendName } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
@@ -66,7 +67,7 @@ interface Deps {
   macId?: string;
   /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
   schedules?: Schedules;
-  /** The clock for those stamps; Date.now unless a test sets it. */
+  /** The clock for those stamps and for the time a message from loki carries; Date.now unless a test sets it. */
   now?: () => number;
 }
 
@@ -264,11 +265,12 @@ export class DaemonChats implements ChatBackend {
 
   /**
    * A message from loki itself (a background task's notice, a schedule's prompt). `steer` puts it into a running turn
-   * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own.
+   * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own. It
+   * carries the time after its text (plan 057): nothing the person sent may have told the agent the day for a while.
    */
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<Delivery | null> {
     const { c, engine } = await this.resolve(agentId, conversationId);
-    return engine.deliver(c, text, whenBusy);
+    return engine.deliver(c, `${text}\n\n${daemonTimeReminder(new Date((this.deps.now ?? Date.now)()))}`, whenBusy);
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {
