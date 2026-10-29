@@ -43,3 +43,20 @@ void test("a mod file is loaded, loaded again when it changes, and unloaded when
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+void test("a mod renamed in its file runs under the new name only", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "loki-mods-"));
+  const mods = new ModRegistry(() => {});
+  const stop = await loadModFolder(mods, dir, () => {});
+  const named = (name: string) => `export default { name: ${JSON.stringify(name)}, apiVersion: 1, activate() {} };\n`;
+  try {
+    writeFileSync(join(dir, "hello.mjs"), named("old-name"));
+    await until(() => mods.names().includes("old-name"));
+    writeFileSync(join(dir, "hello.mjs"), named("new-name"));
+    await until(() => mods.names().includes("new-name"));
+    assert.deepEqual(mods.names(), ["new-name"]);
+  } finally {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

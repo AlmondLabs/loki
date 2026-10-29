@@ -125,6 +125,17 @@ describe("cron", () => {
     expect(dueBetween(daily, "UTC", new Date("2026-10-12T08:00:00Z"), new Date("2026-10-12T09:00:00Z"))).toBe(true);
     expect(dueBetween(daily, "UTC", new Date("2026-10-12T09:00:00Z"), new Date("2026-10-12T09:30:00Z"))).toBe(false);
   });
+
+  test("when the clocks go back, a slot in the repeated hour fires once; a yearly slot still fires a year on", () => {
+    // London, 25 October 2026: 01:30 BST is 00:30Z, and 01:30 GMT an hour later is 01:30Z.
+    const early = parseCron("30 1 * * *");
+    const fired = new Date("2026-10-25T00:30:20Z");
+    expect(dueBetween(early, "Europe/London", fired, new Date("2026-10-25T01:31:00Z"), fired)).toBe(false);
+    expect(dueBetween(early, "Europe/London", fired, new Date("2026-10-26T01:31:00Z"), fired)).toBe(true);
+    const yearly = parseCron("30 9 1 1 *");
+    const lastYear = new Date("2026-01-01T09:30:00Z");
+    expect(dueBetween(yearly, "UTC", lastYear, new Date("2027-01-01T09:31:00Z"), lastYear)).toBe(true);
+  });
 });
 
 describe("scheduled tasks", () => {

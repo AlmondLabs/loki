@@ -166,6 +166,12 @@ function commit(root: string, path: string, message: string, author: { name: str
 export function commitMemoryFiles(root: string, paths: readonly string[], message: string, author: { name: string; email: string }): Promise<void> {
   return serial(root, async () => {
     await git(root, "add", "--", ...paths);
+    // A note written again with the same text has nothing to commit, and git calls that an error: it is not one.
+    const changed = await git(root, "diff", "--cached", "--quiet", "--", ...paths).then(
+      () => false,
+      () => true,
+    );
+    if (!changed) return;
     await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", ...paths);
   });
 }
