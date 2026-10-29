@@ -37,6 +37,13 @@ several files. Two were small to fix and had a cost today:
    makes the calls once and Settings and Agents use them; the chat client keeps the chats. A call made while the
    socket is down now waits for it, as every other request does, instead of failing at once.
 
+4. **`mod/peering.ts`** (survey item 5): the paired Macs, wired once. `activate()` built them inline: about 250 lines
+   of pairing, links, syncers, the chat directory and router, moves, state, memory and agents, threaded through the
+   desk's own wiring and reaching back into it by closure. `startPeering(deps)` takes what it needs from the mod (its
+   sockets, its local lists, the chats, the marks) and hands back what the mod needs: pairing for the listener, the
+   router for the bridge, Settings › Macs' frames, the merged lists, and whether a push changed the person's state. A
+   second pairing code now replaces the first one's lapse timer instead of running beside it.
+
 ## Left as it is
 
 1. **The ACP process stays built inside `AcpChats`** (survey item 1). The ACP tests' 10 ms wait is the `until` helper
@@ -53,3 +60,5 @@ several files. Two were small to fix and had a cost today:
 2. `test/sockets.test.ts`: each audience reaches only its listeners; a server that comes up after the mod stopped is
    closed. `test/server.test.ts`: a `macs` push reaches a paired Mac's socket and no other.
 3. `test/daemon-calls.test.ts`: each call's frame, its reply, and its refusal in words.
+4. `test/peering.test.ts`: a pairing code holds the listener up until it lapses; Settings › Macs lists the tailnet's
+   computers only; a state push tells the paired Macs once; with no Mac paired the lists are this Mac's.
