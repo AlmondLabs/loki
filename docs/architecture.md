@@ -365,7 +365,7 @@ and provider credentials in the OS keychain.
 ## One way per job
 
 A few jobs come up everywhere. Each has one helper in `core/`, so code that does the job looks the same wherever it is
-(plan 053):
+(plan 054):
 
 1. **Telling others something changed**: `Listeners` (`core/listeners.ts`). `add` returns the way to stop, and `emit`
    tells everyone.

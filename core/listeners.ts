@@ -1,5 +1,5 @@
 /**
- * The one way loki tells others that something changed (plan 053): a set of listeners, each added with the call that
+ * The one way loki tells others that something changed (plan 054): a set of listeners, each added with the call that
  * takes it back. Every store, client and watcher that is listened to keeps one of these rather than its own Set.
  */
 

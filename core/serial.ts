@@ -1,5 +1,5 @@
 /**
- * The one way loki runs async work one piece at a time (plan 053). Node runs a single thread, but awaits interleave:
+ * The one way loki runs async work one piece at a time (plan 054). Node runs a single thread, but awaits interleave:
  * two git commits in one repo fail on its lock, and a read split from its write by another loses the first. A queue
  * runs each piece once every earlier one has settled, failed or not, and each call settles as its own work does, so
  * one failure never blocks the next.

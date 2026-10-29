@@ -1,5 +1,5 @@
 /**
- * The one way loki turns a burst of calls into one run (plan 053). Two kinds, by what the burst should wait for:
+ * The one way loki turns a burst of calls into one run (plan 054). Two kinds, by what the burst should wait for:
  *  - coalesce: the first call starts the clock and later ones join it, so a steady stream still runs every `ms`
  *    (a streamed reply redrawn, marks written, paired Macs told);
  *  - debounce: each call starts the clock again, so it runs once the stream has gone quiet (a folder still being

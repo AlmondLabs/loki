@@ -14,7 +14,7 @@ function gate() {
   return { p, open, fail };
 }
 
-describe("one way per job (plan 053)", () => {
+describe("one way per job (plan 054)", () => {
   test("listeners hear each emit until they take themselves back", () => {
     const heard: string[] = [];
     const ls = new Listeners<[word: string]>();
