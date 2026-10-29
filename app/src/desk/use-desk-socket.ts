@@ -217,6 +217,7 @@ export function useDeskSocket() {
             break;
           case "agents_changed":
           case "lists_changed":
+          case "chat_changed":
             listsStale();
             break;
           case "recall_changed":

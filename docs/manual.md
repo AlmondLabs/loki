@@ -125,7 +125,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   and read are kept by the mod, so the phone and the Mac agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
-  most 80 characters. An agent's main chat is named after the agent and cannot be renamed. When a chat that waits on
+  most 80 characters. An agent's main chat is named after the agent and cannot be renamed. A rename, an archive or a label shows at once in
+  every other window, on the phone and on a paired Mac. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase

@@ -291,6 +291,11 @@ export interface Pushes {
   agents_changed: NoPayload;
   /** Another Mac's chats changed, or it came into or out of reach (plan 023): every client asks for its lists again. */
   lists_changed: NoPayload;
+  /**
+   * A chat on this Mac was renamed, archived, hidden or relabelled (plan 050): every client asks for its lists again,
+   * and a paired Mac fetches this Mac's chats.
+   */
+  chat_changed: NoPayload;
   /** An agent's memory has new commits on this Mac: a paired Mac asks for them (plan 023, U7). */
   memory_changed: { agent_id: string };
   /**
@@ -972,6 +977,8 @@ export const FRAMES = {
   desks: push("every desk, after list_desks or a pin", { lists: true }),
   agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again", { lists: true }),
   lists_changed: push("another Mac's chats changed, or it came into or out of reach: ask for the lists again"),
+  // Only this push, never lists_changed, makes a paired Mac fetch: it answers with lists_changed, so the two cannot loop.
+  chat_changed: push("a chat on this Mac was renamed, archived, hidden or relabelled: ask for the lists again", { lists: true }),
   memory_changed: push("an agent's memory has new commits on this Mac"),
   state_changed: push("the person's marks, pins, label colours or Learn changed on this Mac"),
   seen: push("the done and viewed marks, the focus weights and the rests, after any change", { lists: true }),

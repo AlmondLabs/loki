@@ -601,6 +601,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       memory: (agentId, have) => peerMemory.bundle(agentId, have).then((bundle) => ({ agent_id: agentId, bundle })),
     },
     chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
+    titleFrame: (agentId, conversationId) => listing.titleFrame(scopeFor(conversationId, agentId)),
     // Deleting an agent while a paired Mac is out of reach would leave that Mac's chats with it behind (plan 023, KTD6).
     // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
     agentDeleteBlocked: (agentId) => {
