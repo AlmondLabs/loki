@@ -376,6 +376,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    write), `debounce` when it should wait for quiet (a folder still being written) (`core/timers.ts`). Per desk,
    `ScopeDebouncer`.
 4. **Talking to the daemon from the app**: a chat's calls through `ChatStore`, settings through `daemonCalls`.
+   What the mod's pushes leave in a tab is `applyPush` in `app/src/desk/desk-pushes.ts`, a pure fold (plan 058); the
+   socket hook keeps only the socket and the effects a push asks for.
 5. **An error in words**: `messageOf(err)` (`core/errors.ts`).
 6. **Something with a real and a test version**: an interface it is given (a `Pick` of the real class, or a small
    interface), rather than a class it builds. `DaemonChats` still builds its two engines itself.

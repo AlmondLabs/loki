@@ -1,41 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeskState, Gesture, Scope, Size, WidgetManifestEntry } from "../../../core/desk-core.ts";
+import type { Gesture, Scope, Size } from "../../../core/desk-core.ts";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import { tokenProtocols } from "../../../core/ws-auth.ts";
-import type { FocusEntry } from "../../../core/attention/focus.ts";
-import type { Rest } from "../../../core/attention/rest.ts";
-import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
-import type { CameraTarget, Connection } from "./use-desk";
-import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
-import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
-import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
+import type { Connection } from "./use-desk";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
-import { keepSame } from "../../../core/same-data.ts";
 import { Listeners } from "../../../core/listeners.ts";
+import { parseWidgetEntry } from "./widget-rows";
+import { EMPTY_DESK_SOCKET, PHONE_DEMO, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "./desk-pushes";
 
 /** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
 const STALE_AFTER_HIDDEN_MS = 5_000;
 
-const NO_YANK_MS = 2000;
-
-/**
- * Dev only: `?phoneDemo=tailscale` on the Vite tab makes Settings › phone read as if Tailscale were
- * running on this Mac, so the route chooser and the https switch can be seen without a tailnet. The
- * flag is compiled out of production builds; `setVia` / `setServe` then change local state instead of
- * asking the mod. Remove once the mod's `tailscale.ts` is in and a real tailnet is at hand.
- */
-export const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("phoneDemo") === "tailscale";
-/**
- * The LAN status as it would read with Tailscale running on this Mac (fixed made-up names and address), for the
- * dev-only `PHONE_DEMO`; `serve` overrides whether Tailscale serve is on.
- */
-export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
-  const name = "my-macbook-pro.tail1234.ts.net";
-  const on = serve ?? !!s.tailscale?.serve_url;
-  return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serve_url: on ? `https://${name}` : null, error: null } };
-}
+/** A change to one part of the pushes' state, made here (an optimistic update): the part as it is now, to what it becomes. */
+type Update<K extends keyof DeskSocketState> = (fn: (current: DeskSocketState[K]) => DeskSocketState[K]) => void;
 
 /**
  * The WebSocket to the mod and everything its frames feed: which desk this tab shows, the manifests
@@ -47,20 +26,29 @@ export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
  */
 export function useDeskSocket() {
   const [scope, setScope] = useState<Scope>(() => scopeFor(readSession().desk));
-  const [desks, setDesks] = useState<Partial<Record<Scope, DeskState>>>({});
-  const [widgets, setWidgets] = useState<Partial<Record<Scope, WidgetManifestEntry[]>>>({});
   const [connection, setConnection] = useState<Connection>("connecting");
-  const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
-  const [deskList, setDeskList] = useState<DeskSummary[]>([]);
-  /** A desks frame has arrived: an empty list is then "no desks", not "not asked yet" (the phone's Home says which). */
-  const [desksLoaded, setDesksLoaded] = useState(false);
-  const [titles, setTitles] = useState<Partial<Record<Scope, string>>>({});
-  const [statuses, setStatuses] = useState<Partial<Record<Scope, DeskStatus>>>({});
-  const [agentNames, setAgentNames] = useState<Partial<Record<Scope, string>>>({});
-  const [agentIds, setAgentIds] = useState<Partial<Record<Scope, string>>>({});
-  const [models, setModels] = useState<Partial<Record<Scope, string>>>({});
-  const [reasoningEfforts, setReasoningEfforts] = useState<Partial<Record<Scope, ReasoningEffort>>>({});
-  const [modes, setModes] = useState<Partial<Record<Scope, string>>>({});
+  /** Everything the pushes leave in this tab (desk-pushes.ts), one object whose parts keep their identity until changed. */
+  const [state, setState] = useState<DeskSocketState>(EMPTY_DESK_SOCKET);
+  /** The parts this hook's callers change themselves, ahead of the mod's push (stable: made once). */
+  const [updates] = useState(() => {
+    const part =
+      <K extends keyof DeskSocketState>(key: K): Update<K> =>
+      (fn) =>
+        setState((s) => {
+          const next = fn(s[key]);
+          return next === s[key] ? s : { ...s, [key]: next };
+        });
+    return {
+      setDesks: part("desks"),
+      setDeskList: part("deskList"),
+      setTitles: part("titles"),
+      setModels: part("models"),
+      setReasoningEfforts: part("reasoningEfforts"),
+      setModes: part("modes"),
+      setLanStatus: part("lanStatus"),
+      setWidgetLogs: part("widgetLogs"),
+    };
+  });
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
   const [chatListeners] = useState(() => new Listeners<[p: Pushes["chat_event"]]>());
   /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
@@ -76,33 +64,6 @@ export function useDeskSocket() {
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
   }, [staleListeners]);
-  const [seenMap, setSeenMap] = useState<Record<string, string>>({});
-  /** When each conversation was last looked at: apart from seen, which is "done". */
-  const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
-  const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
-  const [restMap, setRestMap] = useState<Record<string, Rest>>({});
-  /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
-  const [recallVersion, setRecallVersion] = useState(0);
-  /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
-  const [usageVersion, setUsageVersion] = useState(0);
-  /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
-  const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
-  const [devices, setDevices] = useState<PairedDevice[] | null>(null);
-  const [pairCode, setPairCode] = useState<PairCode | null>(null);
-  /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
-  const [macs, setMacs] = useState<Pushes["peers"] | null>(null);
-  /**
-   * A daemon restart due after a checkout's code changed (plan 024): the file, and which push said so, so that each
-   * change shows the notice again even when it names the same file. A restarted daemon owes none.
-   */
-  const [restartDue, setRestartDue] = useState<{ file: string; n: number } | null>(null);
-  const [macCode, setMacCode] = useState<Pushes["peer_pair_code"] | null>(null);
-  /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
-  const [servedBuild, setServedBuild] = useState<string | null>(null);
-  /** The models used lately, latest first (mod/models.ts): sent when the link opens and again after every pick anywhere. */
-  const [recentModels, setRecentModels] = useState<string[]>([]);
-  /** Each desk's widget change log (desk/widget-rows.ts): from history replies and live `widget_change` frames, for any desk. */
-  const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
   /** Pending request/reply exchanges with the mod, by request_id. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
@@ -144,7 +105,7 @@ export function useDeskSocket() {
       ws.onopen = () => {
         retryMs = 500;
         setConnection("open");
-        setRestartDue(null); // a daemon just started owes no restart; one still owing says so in its welcome
+        setState(opened);
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         if (dropped) {
@@ -162,22 +123,17 @@ export function useDeskSocket() {
           w?.(raw); // none: its request already timed out, and the answer has no one left to tell
           return;
         }
-        // Everything else is a push (core/frames.ts Pushes).
+        // Everything else is a push (core/frames.ts Pushes). What it leaves in the tab is desk-pushes.ts's to fold in; what
+        // it asks to be done is here.
         const msg = raw as PushFrame;
+        if (STATE_PUSHES.has(msg.type)) {
+          const ctx = { now: Date.now(), lastInteraction: lastInteractionRef.current, phoneDemo: PHONE_DEMO };
+          setState((s) => applyPush(s, msg, ctx));
+        }
         switch (msg.type) {
           case "desk": {
-            const s = msg.scope;
-            console.info(`desk frame: ${s} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
-            const { title, status, agent_name: agentName, agent_id: agentId, model, mode } = msg;
-            if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
-            if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
-            if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
-            if (typeof agentId === "string" && agentId) setAgentIds((t) => withScope(t, s, agentId));
-            if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
-            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoning_effort));
-            if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
-            setDesks((d) => ({ ...d, [s]: msg.state }));
-            setWidgets((w) => ({ ...w, [s]: msg.widgets }));
+            console.info(`desk frame: ${msg.scope} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
+            // Gestures and measures made before this desk came go out now.
             const pending = pendingRef.current;
             pendingRef.current = [];
             for (const g of pending) ws.send(JSON.stringify({ type: "gesture", gesture: g }));
@@ -186,28 +142,11 @@ export function useDeskSocket() {
             for (const [id, size] of measures) ws.send(JSON.stringify({ type: "measure", id, size }));
             break;
           }
-          case "state":
-            setDesks((d) => ({ ...d, [msg.scope]: msg.state }));
-            break;
-          case "widgets":
-            setWidgets((w) => ({ ...w, [msg.scope]: msg.widgets }));
-            break;
-          case "camera":
-            if (typeof msg.widget_id === "string" && Date.now() - lastInteractionRef.current > NO_YANK_MS) {
-              const widgetId = msg.widget_id;
-              const widgetIds = Array.isArray(msg.widget_ids) && msg.widget_ids.length ? msg.widget_ids : [widgetId];
-              setCameraTarget((t) => ({ widgetId, widgetIds, nonce: (t?.nonce ?? 0) + 1 }));
-            }
-            break;
           case "switch_desk": {
             const next = msg.scope;
             if (next && next !== scope) switchDesk(next);
             break;
           }
-          case "desks":
-            setDeskList((list) => keepSame(list, msg.desks));
-            setDesksLoaded(true);
-            break;
           case "chat_event":
             chatListeners.emit(msg);
             break;
@@ -216,89 +155,17 @@ export function useDeskSocket() {
           case "chat_changed":
             listsStale();
             break;
-          case "recall_changed":
-            setRecallVersion((v) => v + 1);
-            break;
-          case "usage_changed":
-            setUsageVersion((v) => v + 1);
-            break;
-          case "lan_status": {
-            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame({ ...msg }), via: "tailscale" }) : lanStatusFromFrame({ ...msg });
-            setLanStatus(st);
-            if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
-            break;
-          }
-          case "pair_code":
-            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expires_at === "string")
-              setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expires_at });
-            break;
-          case "devices":
-            setDevices(Array.isArray(msg.devices) ? msg.devices : []);
-            break;
-          case "peers":
-            setMacs(macsFromFrame(msg));
-            break;
-          case "restart_due":
-            setRestartDue((was) => (typeof msg.file === "string" ? { file: msg.file, n: (was?.n ?? 0) + 1 } : null));
-            break;
-          case "peer_pair_code":
-            setMacCode({ code: msg.code, host: msg.host, expires_at: msg.expires_at });
-            break;
-          case "app_build":
-            if (typeof msg.build === "string") setServedBuild(msg.build);
-            break;
-          case "models_recent":
-            if (Array.isArray(msg.recent)) {
-              const next = msg.recent.filter((h): h is string => typeof h === "string");
-              setRecentModels((cur) => (cur.length === next.length && cur.every((h, i) => h === next[i]) ? cur : next));
-            }
-            break;
           case "widget_change": {
-            // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
-            const entry = parseWidgetEntry(msg.entry);
-            if (entry) setWidgetLogs((s) => withEntry(s, entry));
             // A desk shown inline elsewhere has a new or changed widget: its manifest comes again.
+            const entry = parseWidgetEntry(msg.entry);
             if (entry && watchedRef.current.has(entry.scope)) ws.send(JSON.stringify({ type: "desk_get", scope: entry.scope }));
-            break;
-          }
-          case "seen": {
-            const { seen, viewed, focus, rests } = msg;
-            // Every chat's marks, on connect and after marks from a paired Mac: a map it repeats keeps its object, so nothing re-renders on it.
-            setSeenMap((m) => keepSame(m, seen));
-            // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
-            if (viewed && typeof viewed === "object") setViewedMap((m) => keepSame(m, viewed));
-            // A mod from before focus sends none: keep what we have.
-            if (focus && typeof focus === "object") setFocusMap((m) => keepSame(m, focus));
-            // And one from before rests.
-            if (rests && typeof rests === "object") setRestMap((m) => keepSame(m, rests));
-            break;
-          }
-          case "seen_chat": {
-            // One chat's marks after a change to it alone (plan 055): that key set or cleared, every other map kept.
-            const { key, seen, viewed, focus, rest } = msg;
-            setSeenMap((m) => withMark(m, key, seen));
-            setViewedMap((m) => withMark(m, key, viewed));
-            setFocusMap((m) => withMark(m, key, focus));
-            setRestMap((m) => withMark(m, key, rest));
-            break;
-          }
-          case "desk_title": {
-            // Sent again on every title refresh: a repeat keeps each map as it is.
-            const s = msg.scope;
-            const { title, status, agent_name: agentName, model, mode } = msg;
-            if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
-            if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
-            if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
-            if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
-            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoning_effort));
-            if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
             break;
           }
           case "error":
             console.warn("loki:", msg.message);
             break;
           default:
-            console.warn("loki ws: unknown frame", msg);
+            if (!STATE_PUSHES.has(msg.type)) console.warn("loki ws: unknown frame", msg);
         }
       };
       ws.onclose = () => {
@@ -365,82 +232,21 @@ export function useDeskSocket() {
   };
 
   return {
+    ...state,
+    ...updates,
     scope,
     switchDesk,
     watchDesk,
     send,
     sendRaw,
-    desks,
-    setDesks,
-    widgets,
     connection,
-    cameraTarget,
-    deskList,
-    desksLoaded,
-    setDeskList,
-    titles,
-    setTitles,
-    statuses,
-    agentNames,
-    agentIds,
-    models,
-    setModels,
-    reasoningEfforts,
-    setReasoningEfforts,
-    modes,
-    setModes,
     chatListeners,
     reconnectListeners,
     staleListeners,
-    seenMap,
-    viewedMap,
-    focusMap,
-    restMap,
-    recallVersion,
-    usageVersion,
-    lanStatus,
-    setLanStatus,
-    devices,
-    pairCode,
-    macs,
-    restartDue,
-    macCode,
-    servedBuild,
-    recentModels,
-    widgetLogs,
-    setWidgetLogs,
     waiters,
     lastInteractionRef,
     pendingRef,
     measure,
     reportWidgetError,
   };
-}
-
-/** The map with one scope set; the same object when it already holds that value. */
-export function withScope<T>(current: Partial<Record<Scope, T>>, scope: Scope, value: T): Partial<Record<Scope, T>> {
-  return current[scope] === value ? current : { ...current, [scope]: value };
-}
-
-/**
- * A marks map with one chat's value set, or removed when it has none; the same map when that changes nothing, so a
- * repeat redraws nothing.
- */
-export function withMark<T>(current: Record<string, T>, key: string, value: T | null): Record<string, T> {
-  if (value === null) return key in current ? Object.fromEntries(Object.entries(current).filter(([k]) => k !== key)) : current;
-  const kept = keepSame(current[key], value);
-  return kept === current[key] && key in current ? current : { ...current, [key]: kept };
-}
-
-/** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
-export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
-  return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
-}
-
-/** The efforts map with one scope set, or cleared when the value is not a level. */
-export function withReasoningEffort(current: Partial<Record<Scope, ReasoningEffort>>, scope: Scope, value: unknown): Partial<Record<Scope, ReasoningEffort>> {
-  if (isReasoningEffort(value)) return current[scope] === value ? current : { ...current, [scope]: value };
-  if (!(scope in current)) return current;
-  const { [scope]: _cleared, ...next } = current;
-  return next;
 }

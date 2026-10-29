@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { macsFromFrame, withMark, withScope } from "../app/src/desk/use-desk-socket.ts";
+import { macsFromFrame, withMark, withScope } from "../app/src/desk/desk-pushes.ts";
 import { keepSame } from "../core/same-data.ts";
 
 /**
