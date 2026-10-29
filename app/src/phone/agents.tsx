@@ -16,9 +16,10 @@ export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
 
 /**
  * Agent records, read once per session: the list and every page share them, so a page opened from
- * the list does not ask the Mac again. `null` is a firm "no local record"; absent means not asked yet.
+ * the list does not ask the Mac again. Only records are kept: a `null` answer is also what a Mac out of reach or
+ * slow to answer gives, so the next page that wants the agent asks again.
  */
-const cache = new Map<string, AgentDetails | null>();
+const cache = new Map<string, AgentDetails>();
 const inflight = new Map<string, Promise<AgentDetails | null>>();
 /** An agent's description when its record is already here; Search reads it and never asks the Mac. */
 export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
@@ -35,7 +36,7 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
     let p = inflight.get(agentId);
     if (!p) {
       p = fetchDetails(agentId).then((r) => {
-        cache.set(agentId, r);
+        if (r) cache.set(agentId, r);
         inflight.delete(agentId);
         return r;
       });
@@ -48,7 +49,7 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
   }, [agentId]);
   // A record already here wins over what this hook last heard: it is what the hook would have been told.
   const hit = agentId ? cache.get(agentId) : undefined;
-  return hit !== undefined ? hit : d;
+  return hit ?? d;
 }
 
 /**

@@ -79,8 +79,8 @@ describe("desk pane: the visible view", () => {
 });
 
 describe("desk pane: chat keys act on the visible view", () => {
-  test("⌘L, ⌘F, ⌘⇧M and ⌘⇧P reach Messages on Messages, the inset on the Desk tab", () => {
-    for (const id of ["chat.focus", "chat.find", "chat.model", "chat.mode"]) {
+  test("⌘L, ⌘F, ⌘⇧M, ⌘⇧P and ⌘⇧S reach Messages on Messages, the inset on the Desk tab", () => {
+    for (const id of ["chat.focus", "chat.find", "chat.model", "chat.mode", "chat.suggestions"]) {
       expect(chatKeyTarget(id, "messages")).toBe("messages");
       expect(chatKeyTarget(id, "desk")).toBe("inset");
     }

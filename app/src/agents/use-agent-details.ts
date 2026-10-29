@@ -40,8 +40,9 @@ export function useAgentDetails({
         return api.log(id, undefined, 40);
       })
       .then((log) => setCommits((x) => ({ ...x, [id]: log })));
+  // Null is what a failed or slow answer gives as well as a missing record, so it is asked again when picked again.
   const loadIfUnseen = useEffectEvent((id: string) => {
-    if (details[id] === undefined) void load(id);
+    if (!details[id]) void load(id);
   });
   useEffect(() => {
     if (selected) loadIfUnseen(selected);

@@ -24,6 +24,26 @@ describe("keeping a paired Mac awake", () => {
     expect(awake.held()).toBe(false);
   });
 
+  test("a caffeinate that cannot be started lets go, and the next pairing tries again", () => {
+    const listeners = new Map<string, () => void>();
+    let started = 0;
+    const spawn = () => {
+      started++;
+      return {
+        kill: () => true,
+        on: (event: string, fn: () => void) => listeners.set(event, fn),
+      } as never;
+    };
+    const awake = new Awake({ spawn, platform: "darwin", pid: 1 });
+    awake.set(true);
+    const failed = listeners.get("error");
+    expect(failed).toBeDefined();
+    failed?.();
+    expect(awake.held()).toBe(false);
+    awake.set(true);
+    expect(started).toBe(2);
+  });
+
   test("on Linux and Windows nothing is started", () => {
     for (const platform of ["linux", "win32"] as const) {
       const r = recorder();

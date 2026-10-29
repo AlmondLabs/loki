@@ -8,7 +8,7 @@ import { useConversation, type ChatViews } from "../../../core/attention/use-att
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
 import { OpenChat } from "../chat/transcript";
-import type { SuggestionSource } from "../chat/suggestion-card";
+import { bumpTick, tickOf, waitingCount, type ChatTick, type SuggestionSource } from "../chat/suggestion-card";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
@@ -108,6 +108,8 @@ function CatchUpDeck(props: DeckProps) {
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
+  // The card's suggestions open from its mark or /suggestions, for that card only (a later card never opens on it).
+  const [suggestTick, setSuggestTick] = useState<ChatTick>(null);
   // The reply box is always there and takes focus with each card. While you are in it,
   // letters type; the deck's single-key shortcuts return when you press Esc (or click out).
   const [typingRaw, setTyping] = useState(false);
@@ -122,6 +124,7 @@ function CatchUpDeck(props: DeckProps) {
   const runCommand = (item: AttentionItem, id: string, args: string) => {
     if (id === "model" && props.onPickModel) setModelTick((t) => t + 1);
     else if (id === "mode" && props.onPickMode) setModeTick((t) => t + 1);
+    else if (id === "suggestions") setSuggestTick((t) => bumpTick(t, idOf(item)));
     else props.onCommand?.(item, id, args);
   };
   // Analytics: each card that comes to the top, once per stay there (a card gets there many ways: an effect, not a handler).
@@ -243,6 +246,8 @@ function CatchUpDeck(props: DeckProps) {
             onCommand={(id, args) => runCommand(current, id, args)}
             modelTick={modelTick}
             modeTick={modeTick}
+            suggestionsTick={tickOf(suggestTick, idOf(current))}
+            onSuggestions={() => setSuggestTick((t) => bumpTick(t, idOf(current)))}
           />
         )}
         <KeysHint typing={typing} />
@@ -266,6 +271,8 @@ function Card({
   onCommand,
   modelTick,
   modeTick,
+  suggestionsTick,
+  onSuggestions,
 }: {
   current: AttentionItem;
   decided: Decision[];
@@ -277,6 +284,8 @@ function Card({
   onCommand: (id: string, args: string) => void;
   modelTick: number;
   modeTick: number;
+  suggestionsTick: number;
+  onSuggestions: () => void;
 }) {
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
@@ -338,7 +347,16 @@ function Card({
           models={deck.models ?? null}
           layout={layout}
           agentName={current.agent_name}
-          header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} labelList={deck.labelList} />}
+          header={
+            <CardHeader
+              current={current}
+              cameBack={cameBackIn(decided, current)}
+              flash={actions.flash}
+              labelList={deck.labelList}
+              suggestions={waitingCount(deck.chats, current.runtime)}
+              onSuggestions={onSuggestions}
+            />
+          }
           footer={
             <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
           }
@@ -350,6 +368,7 @@ function Card({
           onSent={actions.sent}
           modelPickerTick={modelTick}
           modeMenuTick={modeTick}
+          suggestionsTick={suggestionsTick}
           suggestions={{ source: deck.chats, rt: current.runtime }}
         />
       </OpenChat.Provider>

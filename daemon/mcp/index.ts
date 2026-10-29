@@ -420,11 +420,14 @@ export class McpTools {
    * its authorization page, and which servers hold a token, so Settings can say "sign in" or "sign out".
    */
   oauthFor(config: ServerConfig): ServerOauth | undefined {
-    if (!usesOauth(config)) return undefined;
-    let p = this.providers.get(config.name);
+    if (!usesOauth(config) || config.kind !== "remote") return undefined;
+    // By name and address: a server pointed somewhere else gets a provider, and a sign-in, of its own.
+    const key = `${config.name}\u0000${config.url}`;
+    let p = this.providers.get(key);
     if (!p) {
       const tracked = new ServerOauth(
         config.name,
+        config.url,
         this.oauthStore,
         (server, url, state) => {
           this.signInUrls.set(server, url.href);
@@ -446,7 +449,7 @@ export class McpTools {
         this.signedIn.add(config.name);
       };
       p = tracked;
-      this.providers.set(config.name, p);
+      this.providers.set(key, p);
     }
     return p;
   }
@@ -483,7 +486,8 @@ export class McpTools {
 
   /** Forget a server's tokens (its registration stays) and connect again, which asks for a sign-in. */
   async signOut(name: string): Promise<McpView> {
-    await this.oauthStore.delete(name, ["tokens", "verifier"]);
+    const config = this.servers.configs().find((c) => c.name === name);
+    await (config && this.oauthFor(config))?.signOut();
     this.signedIn.delete(name);
     this.servers.restart(name);
     return this.view();

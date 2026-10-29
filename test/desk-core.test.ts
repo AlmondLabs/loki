@@ -103,6 +103,14 @@ describe("desk-core reducer", () => {
     expect(file.items[1]).toEqual({ text: "b" });
   });
 
+  test("a path through __proto__, constructor or prototype sets nothing: no gesture reaches every object", () => {
+    for (const path of ["__proto__.polluted", "constructor.prototype.polluted", "a.__proto__.polluted"]) {
+      const s = applyGesture(emptyDesk("d"), { kind: "set", id: "d/w", path, value: true });
+      expect(mergeData({ a: {} }, s.overlay["d/w"])).toEqual({ a: {} });
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
   test("clearOverlay and reveal", () => {
     let s = applyGesture(emptyDesk("d"), { kind: "set", id: "d/w", path: "v", value: 1 });
     s = applyGesture(s, { kind: "close", id: "d/w" });

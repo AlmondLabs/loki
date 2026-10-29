@@ -2,7 +2,7 @@ import type { Context } from "@earendil-works/chord";
 import { defineExtension, section, type ConversationId, type DocumentReader, type Extension } from "@earendil-works/pi-durable";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
@@ -144,7 +144,8 @@ function inside(root: string, path: unknown): string {
   if (typeof path !== "string" || !path.trim()) throw new Error("path required");
   const full = resolve(root, path);
   const rel = relative(root, full);
-  if (!rel || rel.startsWith("..") || rel.split(sep).some(gitOwned)) throw new Error(`${path} is not a memory file`);
+  // On Windows a path on another drive is relative to nothing: `relative` gives it back absolute, with no "..".
+  if (!rel || rel.startsWith("..") || isAbsolute(rel) || rel.split(sep).some(gitOwned)) throw new Error(`${path} is not a memory file`);
   return full;
 }
 

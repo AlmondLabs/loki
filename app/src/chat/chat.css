@@ -434,18 +434,17 @@
   border-top: 1px solid var(--loki-accent);
   background: var(--loki-brass-soft);
 }
-/* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): over the question and the
-   approval, each one line until opened; the stack scrolls rather than pushing the thread away. */
+/* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): behind the box's chip
+   (plan 052), each one line until opened; the list scrolls inside its popover or sheet, never past the screen. */
 .loki-suggestions {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 38%;
+  max-height: min(420px, 60vh);
   overflow-y: auto;
-  border-top: 1px solid var(--loki-accent);
-  background: var(--loki-brass-soft);
+}
+.loki-popover.loki-suggestion-popover {
+  padding: 4px 0;
 }
 .loki-suggestion {
-  padding: 6px 20px;
+  padding: 6px 14px;
   font-family: var(--loki-font);
   font-size: 13.5px;
   color: var(--loki-fg);
@@ -749,6 +748,15 @@ button.loki-file-chip {
 }
 .loki-btn.loki-composer-stop:disabled {
   opacity: 0.5;
+}
+/* The suggestions chip (plan 052): after the chat's own pills, brass as anything waiting on you is, one height with the row. */
+.loki-chip.loki-suggestion-chip {
+  min-height: 28px;
+  flex: none;
+  gap: 4px;
+  padding: 0 10px 0 8px;
+  color: var(--loki-accent);
+  font-weight: 600;
 }
 /* The model pill: the model in the foreground, the effort after it in the muted colour, one height with the row. */
 .loki-chip.loki-model-pill {

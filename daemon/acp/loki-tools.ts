@@ -33,7 +33,14 @@ export class LokiTools {
 
   /** Listen on a free loopback port. */
   async start(): Promise<void> {
-    const http = createServer((req, res) => void this.serve(req, res));
+    // A request that fails (the agent drops it mid-body, the handler throws) fails alone: unhandled, it would end the
+    // daemon.
+    const http = createServer((req, res) => {
+      this.serve(req, res).catch(() => {
+        if (res.headersSent) res.destroy();
+        else res.writeHead(500).end();
+      });
+    });
     await new Promise<void>((resolve, reject) => {
       http.once("error", reject);
       http.listen(0, "127.0.0.1", () => resolve());

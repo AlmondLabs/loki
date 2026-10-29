@@ -181,9 +181,12 @@ export class McpServers {
   }
 
   private async start(entry: Entry): Promise<void> {
-    await this.stop(entry);
-    if (this.closed) return;
+    // The generation is taken as stop bumps it, before waiting on the old connection: read after, two starts close
+    // together (a restart while a change still closes) both read the later one, both connect, and one is never closed.
+    const stopping = this.stop(entry);
     const generation = entry.generation;
+    await stopping;
+    if (this.closed || generation !== entry.generation) return;
     // A retry keeps the last error until it connects, so the log can tell a new failure from the same one again.
     if (entry.state !== "down") entry.error = null;
     entry.state = "starting";

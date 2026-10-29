@@ -1487,6 +1487,18 @@ span.loki-phone-section-btn {
 .loki-phone-card-draft {
   flex: none;
 }
+/* The card's suggestions mark (plan 052): a word in the accent that opens them; its target reaches past the line. */
+.loki-phone-card-suggestions {
+  flex: none;
+  margin: -12px 0;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  color: var(--loki-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 /* The card's conversation: the thread takes what is left and scrolls on its own; notice and box stay put. */
 .loki-phone-card-body {
   flex: 1;
@@ -2047,7 +2059,6 @@ span.loki-phone-section-btn {
 }
 
 /* The open question and the approval: a quiet panel on the ground, sentence case, not the desktop's brass slab. */
-.loki-phone .loki-suggestions,
 .loki-phone .loki-question,
 .loki-phone .loki-approval {
   margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
@@ -2349,6 +2360,19 @@ span.loki-phone-section-btn {
    inside itself) before the box or the decide buttons would be pushed off the visible part. */
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
+}
+/* The suggestions sheet (plan 052) is the model sheet's ground, and its list fills what the sheet allows. */
+.loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
+  gap: 0;
+  padding-top: var(--phone-space-2);
+  background: var(--loki-bg);
+}
+.loki-phone-sheet.loki-suggestion-sheet .loki-suggestions {
+  max-height: none;
+}
+.loki-phone .loki-chip.loki-suggestion-chip {
+  min-height: 36px;
+  padding: 0 var(--phone-space-3) 0 var(--phone-space-2);
 }
 /* The phone's suggestions sit on its gutters, and their text reads at the phone's body size. */
 .loki-phone .loki-suggestion {

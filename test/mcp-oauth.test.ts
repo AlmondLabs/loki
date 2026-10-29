@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRegistry } from "@earendil-works/pi-durable";
 import { McpTools } from "../daemon/mcp/index.ts";
+import { oauthKey } from "../daemon/mcp/oauth.ts";
 import { oauthCallbackRoute, oauthPage, startServer } from "../mod/server.ts";
 import { answer, TOOLS } from "./fixtures/fake-mcp.mjs";
 import { must } from "./fixtures/must.ts";
@@ -23,7 +24,7 @@ const until = async (check: () => boolean, ms = 8000) => {
 async function oauthServer() {
   const codes = new Map<string, { challenge: string; redirect: string }>();
   const issued = new Set<string>();
-  const seen = { registrations: 0, tokenRequests: 0, mcpWithToken: 0 };
+  const seen = { registrations: 0, tokenRequests: 0, mcpWithToken: 0, bearers: [] as string[] };
   let base = "";
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", base);
@@ -75,6 +76,7 @@ async function oauthServer() {
     }
     if (url.pathname === "/mcp") {
       const bearer = req.headers.authorization?.replace(/^Bearer /, "");
+      if (bearer) seen.bearers.push(bearer);
       if (!bearer || !issued.has(bearer))
         return res.writeHead(401, { "www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` }).end();
       if (req.method !== "POST") return res.writeHead(405).end();
@@ -136,17 +138,54 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect((await mcp.servers.call("mcp__issues__list_issues", { repo: "loki" })).content).toEqual([{ type: "text", text: 'list_issues {"repo":"loki"}' }]);
       expect(fake.seen.mcpWithToken).toBeGreaterThan(0);
       // The tokens are in the keychain, never in mcp.json; a used state does not work twice.
-      expect(JSON.parse(must(keychain.get("mcp-oauth.issues.tokens"), "the stored tokens"))).toMatchObject({ access_token: "token-1" });
+      const tokens = `mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.tokens`;
+      expect(JSON.parse(must(keychain.get(tokens), "the stored tokens"))).toMatchObject({ access_token: "token-1" });
       expect(await mcp.finishAuth(params)).toMatchObject({ ok: false, server: null });
 
       // Signing out forgets the tokens and asks for a sign-in again; the registration stays.
       await mcp.signOut("issues");
-      expect(keychain.has("mcp-oauth.issues.tokens")).toBe(false);
+      expect(keychain.has(tokens)).toBe(false);
       await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.sign_in?.url != null);
       expect(fake.seen.registrations).toBe(1);
     } finally {
       await mcp.close();
       await fake.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a server given a new address under its name is not sent the tokens the old address issued", async () => {
+    const first = await oauthServer();
+    const second = await oauthServer();
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-oauth-"));
+    const keychain = new Map<string, string>();
+    const mcp = new McpTools({
+      registry: createRegistry(),
+      configPath: join(dir, "mcp.json"),
+      lokiDir: dir,
+      redirect: "http://127.0.0.1:41414/mcp/oauth/callback",
+      secrets: {
+        get: (a) => Promise.resolve(keychain.get(a) || null),
+        set: (a, v) => (keychain.set(a, v), Promise.resolve()),
+        delete: (a) => (keychain.delete(a), Promise.resolve()),
+      },
+    });
+    try {
+      mcp.setServer("issues", { url: `${first.base}/mcp`, headers: {} });
+      await until(() => mcp.view().servers[0]?.sign_in?.url != null);
+      const page = new URL(must(mcp.view().servers[0].sign_in?.url, "the sign-in page"));
+      const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
+      expect(await mcp.finishAuth(Object.fromEntries(back.searchParams))).toMatchObject({ ok: true });
+      await until(() => mcp.view().servers[0]?.state === "connected");
+      // The same name, now somewhere else: it asks for a sign-in there, and never carries the first server's token.
+      mcp.setServer("issues", { url: `${second.base}/mcp`, headers: {} });
+      await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.sign_in?.url != null);
+      expect(second.seen.bearers).not.toContain("token-1");
+      expect(mcp.view().servers[0].sign_in?.signed_in).toBe(false);
+    } finally {
+      await mcp.close();
+      await first.close();
+      await second.close();
       rmSync(dir, { recursive: true, force: true });
     }
   });

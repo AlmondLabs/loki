@@ -119,6 +119,15 @@ describe("a Mac's hello", () => {
     expect(parsePeerHello({ ...mini, name: "" })).toBeNull();
     expect(parsePeerHello(null)).toBeNull();
   });
+
+  test("a host that is not an address is refused: it would be dialled, and fail, on every start", () => {
+    expect(parsePeerHello({ ...mini, host: "mini.tail1234.ts.net" })).toEqual({ ...mini, host: "mini.tail1234.ts.net" });
+    expect(parsePeerHello({ ...mini, host: "100.64.0.7" })?.host).toBe("100.64.0.7");
+    expect(parsePeerHello({ ...mini, host: "bad host" })).toBeNull();
+    expect(parsePeerHello({ ...mini, host: "mini:99999" })).toBeNull();
+    expect(parsePeerHello({ ...mini, host: "mini:0" })).toBeNull();
+    expect(parsePeerHello({ ...mini, host: "" })).toBeNull();
+  });
 });
 
 describe("the tokens this Mac presents", () => {

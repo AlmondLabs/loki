@@ -49,7 +49,7 @@ export const paneView = (active: boolean, tab: DeskTab): PaneView | null => (!ac
  */
 export function chatKeyTarget(id: string, tab: DeskTab): PaneView | null {
   if (tab === "desk") return "inset";
-  return id === "chat.focus" || id === "chat.find" || id === "chat.model" || id === "chat.mode" ? "messages" : null;
+  return id === "chat.focus" || id === "chat.find" || id === "chat.model" || id === "chat.mode" || id === "chat.suggestions" ? "messages" : null;
 }
 
 /**

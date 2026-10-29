@@ -68,6 +68,7 @@ interface SurfaceProps extends DeskConversationHandlers {
   models?: ModelEntry[] | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  suggestionsTick?: number;
 }
 
 /**
@@ -162,7 +163,8 @@ export function Surface(props: SurfaceProps) {
       <ConnectionLabel connection={connection} left={trayLeft} />
       <MinimisedTray closed={closed} connection={connection} left={trayLeft} gesture={gesture} />
 
-      {chatOpen && active && <DeskChat {...props} chat={chat} onToggleWidth={toggleChatWidth} />}
+      {/* Keyed by chat, as the Messages tab's thread is: another chat opens with its own scroll and find, not this one's. */}
+      {chatOpen && active && <DeskChat key={props.desk.scope} {...props} chat={chat} onToggleWidth={toggleChatWidth} />}
       {!chatOpen && <ChatBubble side={bubbleSide} open={chatOpen} alert={!!pendingApproval || !!pendingQuestion} onToggle={() => onChatOpen(!chatOpen)} />}
 
       <EmptyDesk show={ownCount === 0 && connection === "open" && !chatOpen} agentName={agentName} scope={scope} />
@@ -256,6 +258,7 @@ function DeskChat({
   modelPickerTick = 0,
   onPickMode,
   modeMenuTick = 0,
+  suggestionsTick = 0,
   draft,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
   const { title, agentName, agentId, conversationId } = desk;
@@ -279,6 +282,7 @@ function DeskChat({
       prefill={chatPrefill}
       modelPickerTick={modelPickerTick}
       modeMenuTick={modeMenuTick}
+      suggestionsTick={suggestionsTick}
       draft={draft}
       suggestions={agentId && conversationId ? { source: catchUp, rt: { agent_id: agentId, conversation_id: conversationId } } : null}
       onClose={() => onChatOpen(false)}

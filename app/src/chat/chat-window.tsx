@@ -41,6 +41,7 @@ export function ChatWindow({
   prefill = null,
   modelPickerTick = 0,
   modeMenuTick = 0,
+  suggestionsTick = 0,
   draft,
   suggestions = null,
   onClose,
@@ -63,6 +64,7 @@ export function ChatWindow({
   prefill?: { text: string; tick: number } | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  suggestionsTick?: number;
   /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
   draft?: ControlledDraft;
   /** The suggestions made in this chat for other chats (plan 049); null or absent, none. */
@@ -115,6 +117,7 @@ export function ChatWindow({
           findTick={findTick}
           modelPickerTick={modelPickerTick}
           modeMenuTick={modeMenuTick}
+          suggestionsTick={suggestionsTick}
           draft={draft}
           suggestions={suggestions}
         />

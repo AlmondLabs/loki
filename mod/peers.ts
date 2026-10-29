@@ -57,10 +57,12 @@ export function parsePeerHello(v: unknown): PeerHello | null {
   const m = v as Record<string, unknown>;
   if (typeof m.mac_id !== "string" || !MAC_ID.test(m.mac_id)) return null;
   if (typeof m.name !== "string" || !m.name.trim()) return null;
-  if (typeof m.host !== "string" || !m.host.trim()) return null;
+  // The host is kept and dialled on every start, so one that is not an address is refused here, not found later.
+  const host = typeof m.host === "string" ? m.host.trim().slice(0, 255) : "";
+  if (!host || !peerBase(host)) return null;
   if (typeof m.protocol !== "number" || !Number.isInteger(m.protocol)) return null;
   const build = typeof m.build === "string" ? m.build : null;
-  return { mac_id: m.mac_id, name: m.name.trim().slice(0, 64), host: m.host.trim().slice(0, 255), build, protocol: m.protocol };
+  return { mac_id: m.mac_id, name: m.name.trim().slice(0, 64), host, build, protocol: m.protocol };
 }
 
 /**
@@ -516,5 +518,8 @@ export function hostWithPort(host: string): string {
 /** The base URL for a peer's host, or null when the text cannot be one (a path, spaces, nothing). */
 export function peerBase(host: string): string | null {
   const h = hostWithPort(host);
-  return /^[A-Za-z0-9.-]+:\d+$/.test(h) || /^\[[0-9a-f:]+\]:\d+$/i.test(h) ? `http://${h}` : null;
+  const shaped = /^[A-Za-z0-9.-]+:\d+$/.test(h) || /^\[[0-9a-f:]+\]:\d+$/i.test(h);
+  // A port past 65535 has the shape but makes the socket throw when it is built.
+  const port = Number(/:(\d+)$/.exec(h)?.[1]);
+  return shaped && port > 0 && port <= 65535 ? `http://${h}` : null;
 }

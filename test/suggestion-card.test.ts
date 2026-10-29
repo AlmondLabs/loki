@@ -5,8 +5,12 @@ import { Conversation } from "../app/src/chat/conversation.tsx";
 import {
   SuggestionCardView,
   afterAction,
+  bumpTick,
   busyWith,
   chatChoices,
+  chipText,
+  tickOf,
+  waitingCount,
   pickerKey,
   targetOf,
   type SuggestionCardProps,
@@ -20,8 +24,8 @@ import { must } from "./fixtures/must.ts";
 
 /**
  * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
- * made, beside the question and approval cards, on the desktop and the phone; each one line until opened, then the
- * message with send now, save as draft, change chat and reject.
+ * made, behind a chip in the message box (plan 052), on the desktop and the phone; each one line until opened, then
+ * the message with send now, save as draft, change chat and reject.
  */
 
 const suggestion = (over: Partial<Suggestion> = {}): Suggestion => ({
@@ -70,7 +74,7 @@ function source(suggestions: Suggestion[], over: Partial<SuggestionSource> = {})
 
 const RT = { agent_id: "friday", conversation_id: "data" };
 
-const conversation = (src: SuggestionSource, touch: boolean, composer = true) =>
+const conversation = (src: SuggestionSource, touch: boolean, composer = true, suggestionsTick = 0) =>
   renderToStaticMarkup(
     createElement(Conversation, {
       touch,
@@ -78,6 +82,7 @@ const conversation = (src: SuggestionSource, touch: boolean, composer = true) =>
       view: { rows: [], status: "idle" },
       actions: { onSend: () => {} },
       suggestions: { source: src, rt: RT },
+      suggestionsTick,
     }),
   );
 
@@ -119,17 +124,51 @@ describe("where suggestions show", () => {
     suggestion({ id: "newer", created_at: "2026-10-29T10:00:00Z" }),
     suggestion({ id: "done", status: "sent" }),
   ];
-  for (const touch of [false, true])
-    test(`${touch ? "phone" : "desktop"}: a chat with two pending suggestions draws two cards, newest first, above the box`, () => {
+  for (const touch of [false, true]) {
+    test(`${touch ? "phone" : "desktop"}: two pending suggestions wait behind a chip in the box, before mic and send (plan 052)`, () => {
       const html = conversation(source(two).src, touch);
-      expect(cards(html)).toEqual(["newer", "older"]);
-      expect(html.indexOf("loki-suggestions")).toBeLessThan(html.indexOf("loki-composer"));
+      expect(cards(html)).toEqual([]);
+      const chip = html.indexOf("loki-suggestion-chip");
+      expect(chip).toBeGreaterThan(html.indexOf("loki-composer"));
+      expect(chip).toBeLessThan(html.indexOf("loki-composer-end"));
+      expect(html).toContain(`aria-label="2 suggestions"`);
     });
-  test("a hidden view (composer false) draws none: the view on screen draws them once", () => {
-    expect(cards(conversation(source(two).src, false, false))).toEqual([]);
+    test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in the box's ${touch ? "sheet" : "popover"}`, () => {
+      const html = conversation(source(two).src, touch, true, 1);
+      expect(cards(html)).toEqual(["newer", "older"]);
+      expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-popover");
+      expect(html.indexOf("loki-suggestions")).toBeGreaterThan(html.indexOf("loki-composer"));
+    });
+  }
+  test("a hidden view (composer false) draws no chip: the view on screen draws it once", () => {
+    expect(conversation(source(two).src, false, false)).not.toContain("loki-suggestion-chip");
   });
-  test("a chat with none draws no stack", () => {
-    expect(conversation(source([]).src, false)).not.toContain("loki-suggestions");
+  test("a chat with none draws no chip", () => {
+    expect(conversation(source([]).src, false, true, 1)).not.toContain("loki-suggestion-chip");
+  });
+  test("one waiting suggestion opens straight to its message", () => {
+    const html = conversation(source([suggestion()]).src, false, true, 1);
+    expect(actionsOf(html)).toEqual(["send", "draft", "change", "reject"]);
+  });
+});
+
+describe("the chip's words and the host's bumps (plan 052)", () => {
+  test("desktop says how many, lowercase; the phone's narrow row shows the count by the icon", () => {
+    expect(chipText(1, false)).toBe("1 suggestion");
+    expect(chipText(3, false)).toBe("3 suggestions");
+    expect(chipText(3, true)).toBe("3");
+    expect(chipText(0, false)).toBe("suggestions");
+    expect(chipText(0, true)).toBe("");
+  });
+  test("the count is the pending and sending ones of that chat", () => {
+    const src = source([suggestion({ id: "a" }), suggestion({ id: "b", status: "sending" }), suggestion({ id: "c", status: "sent" })]).src;
+    expect(waitingCount(src, RT)).toBe(2);
+  });
+  test("a bump belongs to its chat: another chat's card gets 0, and bumping it starts again", () => {
+    const one = bumpTick(bumpTick(null, "x"), "x");
+    expect(tickOf(one, "x")).toBe(2);
+    expect(tickOf(one, "y")).toBe(0);
+    expect(bumpTick(one, "y")).toEqual({ id: "y", n: 1 });
   });
 });
 

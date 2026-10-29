@@ -96,10 +96,11 @@ export class RemoteChats {
     }
     // A desk whose chat is gone there (a layout or canvas left behind) is no chat of that Mac's: listing it would also
     // send that chat's frames there, away from the Mac that holds it.
-    const desks = Array.isArray(reply.desks)
-      ? (reply.desks as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted")
-      : [];
-    const inbox = Array.isArray(reply.inbox) ? (reply.inbox as InboxRow[]) : [];
+    // Rows that are not objects (a Mac on another loki version) are dropped: one would throw here, in a refresh nobody
+    // awaits, and end the daemon.
+    const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === "object" && x !== null) : []);
+    const desks = (rows(reply.desks) as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
+    const inbox = rows(reply.inbox) as InboxRow[];
     this.macs.set(macId, { desks, inbox, reachable: true });
     this.opts.onListed?.(
       macId,

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { sortDesks } from "../mod/frames/desks.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { createBridge } from "../mod/bridge.ts";
@@ -108,6 +108,19 @@ describe("bridge", () => {
       ["desk", "shared"],
     ]);
     expect(forwarded).toHaveLength(1);
+  });
+
+  test("a forward to another Mac that throws is told to the tab as an error, not left unhandled", async () => {
+    const deps: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog() };
+    const route = {
+      target: () => ({ mac: "mini", reachable: true }),
+      redirect: () => null,
+      forward: () => Promise.reject(new Error("the keychain is locked")),
+    };
+    const bridge = createBridge({ modules: [], welcome: welcomeFrames(deps), broadcast: () => {}, route });
+    const remote = client("c9");
+    bridge.onConnect(remote);
+    await vi.waitFor(() => expect(remote.sent.at(-1)).toEqual({ type: "error", message: "the keychain is locked" }));
   });
 
   test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {

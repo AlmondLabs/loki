@@ -108,10 +108,19 @@ export class ChatProjection implements ChatSource {
     this.nameImage = nameImage;
   }
 
-  /** Follow every store `stores` opens, now and after a reopen. */
-  follow(stores: StoreManager): () => void {
+  /**
+   * Follow every store `stores` opens, now and after a reopen. A store whose chats fail to load is reported and let
+   * go: its commits would otherwise wait for a load that never ends, and the failure, unhandled, would end the daemon.
+   */
+  follow(stores: StoreManager, report: (message: string) => void): () => void {
     return stores.onOpen((agentId, store) => {
-      const attached = this.attach(agentId, store).finally(() => this.attaching.delete(attached));
+      const attached = this.attach(agentId, store)
+        .catch((err: unknown) => {
+          this.unsubscribe.get(agentId)?.();
+          this.unsubscribe.delete(agentId);
+          report(`chats of ${agentId} not loaded: ${err instanceof Error ? err.message : String(err)}`);
+        })
+        .finally(() => this.attaching.delete(attached));
       this.attaching.add(attached);
     });
   }

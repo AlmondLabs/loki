@@ -181,6 +181,8 @@ export interface WsBridge {
   closeDevice(deviceId: string): number;
   /** Terminate every socket a paired Mac holds. Returns how many. */
   closePeer(peerId: string): number;
+  /** Terminate every socket a phone holds. Returns how many. */
+  closeDevices(): number;
   close(): void;
 }
 
@@ -220,6 +222,9 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
       if (who.peerId) client.peerId = who.peerId;
       clients.set(ws, client);
       ws.on("close", () => clients.delete(ws));
+      // A frame ws cannot read (bad UTF-8, too large) is emitted as an error before the close, and an error nobody
+      // listens for is thrown: one bad client would end the daemon.
+      ws.on("error", () => {});
       ws.on("message", (raw) => {
         let msg: unknown;
         try {
@@ -263,6 +268,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
     closePeer: (peerId) => closeWhere((c) => c.peerId === peerId),
+    closeDevices: () => closeWhere((c) => c.deviceId !== undefined),
     close: () => {
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
       clients.clear();

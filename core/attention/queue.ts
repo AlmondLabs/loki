@@ -9,10 +9,13 @@ export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
  * What about this item you would be deciding on. Keyed on content — the last
  * thing the agent said and the pending approval — not on timestamps: turn
  * boundaries, streaming and list refreshes all move `lastMessageAt` without
- * anything new to read, and would bounce a decided card straight back.
+ * anything new to read, and would bounce a decided card straight back. Nor on
+ * turns counted live: rests keep the stamp on the Mac for every device, and a
+ * count each client starts at 0 ended a rest made on another, or before a reload.
+ * A turn that leaves the last words as they were is not something new.
  */
 export const stampOf = (i: AttentionItem) =>
-  `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
+  `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
 
 /**
  * What needs you now: the count on the Inbox's badge, Home's "Needs your attention", Search's waiting group.

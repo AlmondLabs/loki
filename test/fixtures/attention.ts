@@ -13,7 +13,6 @@ export const attentionItem = (id: string, over: Partial<AttentionItem> = {}): At
   lastRole: "assistant",
   pendingApproval: null,
   pendingQuestion: null,
-  turns: 0,
   error: null,
   seenAt: null,
   unread: true,

@@ -52,7 +52,6 @@ const item = (id: string, title: string, over: Partial<AttentionItem> = {}): Att
     lastRole: "assistant",
     pendingApproval: null,
     pendingQuestion: null,
-    turns: 1,
     error: null,
     seenAt: null,
     unread: true,

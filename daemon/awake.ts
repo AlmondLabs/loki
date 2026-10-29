@@ -32,9 +32,12 @@ export class Awake {
     if (this.opts.platform !== "darwin") return;
     if (on && !this.child) {
       const child = this.opts.spawn("/usr/bin/caffeinate", ["-s", "-w", String(this.opts.pid)]);
-      child.on("exit", () => {
+      const gone = () => {
         if (this.child === child) this.child = null;
-      });
+      };
+      child.on("exit", gone);
+      // A spawn that fails (too many processes or open files) is emitted as an error, thrown when nobody listens.
+      child.on("error", gone);
       this.child = child;
     } else if (!on && this.child) {
       const child = this.child;

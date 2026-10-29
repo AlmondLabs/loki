@@ -156,4 +156,27 @@ describe("a moved chat's schedules", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test("come back with their chat: the copy cancelled when it moved away is replaced", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-adopt-"));
+    try {
+      const book = new Schedules(join(dir, "book.json"), () => Promise.resolve(null));
+      const task = book.create({
+        agent_id: "agent-ira",
+        conversation_id: "conv-1",
+        name: "check-in",
+        description: null,
+        cron: "0 9 * * *",
+        timezone: "UTC",
+        recurring: true,
+        prompt: "how was the gym?",
+      });
+      book.cancel("agent-ira", task.id);
+      const back = { ...task, last_fired_at: "2026-10-18T09:00:00.000Z", fire_count: 3 };
+      book.adopt(back);
+      expect(book.list()).toEqual([back]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

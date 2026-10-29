@@ -287,7 +287,6 @@ describe("drafts through the shared composer", () => {
       lastRole: "assistant",
       pendingApproval: null,
       pendingQuestion: null,
-      turns: 0,
       error: null,
       seenAt: null,
       unread: true,

@@ -127,6 +127,8 @@ describe("an agent's memory", () => {
         "notes/.GitAttributes",
         ".gitmodules",
         "../outside.md",
+        // On Windows, another drive: `relative` gives it back absolute, with no "..".
+        ...(process.platform === "win32" ? ["D:\\outside.md"] : []),
       ])
         await expect(editMemoryFile(dir, agentId, path, "x")).rejects.toThrow("is not a memory file");
       expect(readFileSync(join(root, ".git", "config"), "utf8")).toBe(config);

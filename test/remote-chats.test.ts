@@ -80,6 +80,14 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(remote.inbox()[0]).toMatchObject(more);
   });
 
+  test("rows that are not objects, from a Mac on another version, are left out rather than thrown on", async () => {
+    const { remote, state } = fixture();
+    state.lists = { desks: [null, desk("conv-1", "plan the week"), 7] as never, inbox: [null, row("conv-1")] as never };
+    await remote.refresh(MINI);
+    expect(remote.desks().map((d) => d.scope)).toEqual(["conv-1"]);
+    expect(remote.inbox().map((r) => r.id)).toEqual(["conv-1"]);
+  });
+
   test("a Mac going out of reach keeps its chats, marked waiting, and its return brings them back", async () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);

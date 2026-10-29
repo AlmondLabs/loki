@@ -1,6 +1,6 @@
 import { WebSocket } from "./ws.ts";
 import { log } from "./log.ts";
-import { hostWithPort } from "./peers.ts";
+import { peerBase } from "./peers.ts";
 
 /**
  * The peer link (plan 023, U2, KTD1): one socket from this Mac to each paired Mac's /ws, opened with the token that
@@ -106,7 +106,20 @@ export class PeerLink {
     });
   }
 
+  /**
+   * Open the socket. Anything that throws on the way (the keychain, an address the socket refuses) counts as out of
+   * reach and is retried with the backoff: it runs unawaited, so a throw left here would end the daemon.
+   */
   private async open(): Promise<void> {
+    try {
+      await this.connect();
+    } catch (err) {
+      log("peers:link_failed", { mac: this.opts.macId, error: err instanceof Error ? err.message : String(err) });
+      if (!this.stopped) this.closed();
+    }
+  }
+
+  private async connect(): Promise<void> {
     const url = this.opts.url();
     const token = await this.opts.token();
     if (this.stopped) return;
@@ -236,7 +249,11 @@ export class PeerLinks {
       const link = new PeerLink({
         ...this.opts.defaults,
         macId,
-        url: () => `ws://${hostWithPort(host)}/ws`,
+        // Null for an address that cannot be one (peers.json written before hosts were checked): never connected.
+        url: () => {
+          const base = peerBase(host);
+          return base ? `${base.replace(/^http:/, "ws:")}/ws` : null;
+        },
         token: () => this.opts.token(macId),
         onStatus: (status) => this.opts.onStatus?.(macId, status),
         onPush: (frame) => this.opts.onPush?.(macId, frame),

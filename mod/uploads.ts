@@ -1,5 +1,5 @@
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
@@ -51,10 +51,13 @@ export function freePath(dir: string, name: string, exists: (p: string) => boole
   }
 }
 
-/** Whether `p` is a file somewhere under `root` (never root itself, never outside it). */
+/**
+ * Whether `p` is a file somewhere under `root` (never root itself, never outside it). On Windows a path on another
+ * drive comes back from `relative` absolute, with no "..": that is outside too.
+ */
 export function insideDir(root: string, p: string): boolean {
   const rel = relative(resolve(root), resolve(p));
-  return !!rel && !rel.startsWith("..") && !rel.startsWith(sep) && rel !== ".";
+  return !!rel && !rel.startsWith("..") && !isAbsolute(rel) && rel !== ".";
 }
 
 /**
@@ -123,7 +126,12 @@ export function uploadRoute(
     if (!req.complete) return fail(400, "the upload broke off");
     // Taken while this one streamed? Pick the next free name rather than overwrite.
     const final = existsSync(target) ? freePath(folder, name) : target;
-    renameSync(partial, final);
+    // Inside a stream's event, a throw nobody catches ends the daemon: a name Windows keeps (CON, nul.txt) fails here.
+    try {
+      renameSync(partial, final);
+    } catch (err) {
+      return fail(500, err instanceof Error ? err.message : String(err));
+    }
     const file: Uploaded = { path: final, name: basename(final), size, mime };
     log("uploads:saved", { path: final, size, mime });
     reply(200, file);

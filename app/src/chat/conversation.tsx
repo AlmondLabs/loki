@@ -21,7 +21,7 @@ import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
-import { SuggestionStack, type SuggestionsProps } from "./suggestion-card";
+import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
 import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
@@ -94,8 +94,9 @@ const NO_GUTTER: Required<Gutter> = { left: "0px", right: "0px", bottom: "0px" }
 /**
  * One conversation, the same in every room: the desk's chat panel, an inbox card, the phone's thread.
  * Top to bottom — the host's header, find, the thread (newest at the bottom, followed only while you are
- * there), the suggestions its agent made for other chats, the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
- * the model pill that opens Select model, the permission mode beside it, the mic and send), and a last row with
+ * there), the agent's open question or the tool it is paused on, the message box (its bottom row holds "+", the
+ * model pill that opens Select model, the permission mode beside it, the chip for the suggestions its agent made for
+ * other chats when some wait, the mic and send), and a last row with
  * approve / deny when something waits, then whatever actions the host adds on the right. The host owns
  * the frame around it and renders this inside a flex column.
  */
@@ -113,6 +114,7 @@ export function Conversation({
   findTick = 0,
   modelPickerTick = 0,
   modeMenuTick = 0,
+  suggestionsTick = 0,
   touch = false,
   gutter,
   dim = true,
@@ -146,6 +148,8 @@ export function Conversation({
   findTick?: number;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  /** Bumped by the host to open the suggestions (⌘⇧S, the Inbox card's mark, /suggestions). */
+  suggestionsTick?: number;
   /** Touch-sized controls (the phone); Select model opens as a bottom sheet instead of a popover. */
   touch?: boolean;
   gutter?: Gutter;
@@ -172,8 +176,8 @@ export function Conversation({
    */
   composer?: boolean;
   /**
-   * The suggestions made in this chat for other chats (plan 049), drawn above the open question or approval and only
-   * by the view that draws the box, as they are; null or absent, none.
+   * The suggestions made in this chat for other chats (plan 049), behind a chip in the message box (plan 052), drawn
+   * only by the view that draws the box; null or absent, none.
    */
   suggestions?: SuggestionsProps | null;
 }) {
@@ -299,7 +303,6 @@ export function Conversation({
 
       {composer && (
         <>
-          {suggestions && <SuggestionStack {...suggestions} touch={touch} />}
           {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
           {approval && <ApprovalCard approval={approval} />}
           {notice}
@@ -329,7 +332,7 @@ export function Conversation({
               placeholder={placeholder ?? composerPlaceholder({ status, approval, question }, agentName)}
               touch={touch}
               tools={
-                (hasModelPicker || hasModeMenu) && (
+                (hasModelPicker || hasModeMenu || suggestions) && (
                   <>
                     {hasModelPicker && (
                       <ModelPill
@@ -345,6 +348,8 @@ export function Conversation({
                     {!touch && picker}
                     {/* The permission mode beside the model: both say how this conversation's agent works. */}
                     {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
+                    {/* After the chat's own pills, never beside send: it shows only while suggestions wait, and must not move send. */}
+                    {suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} />}
                   </>
                 )
               }
