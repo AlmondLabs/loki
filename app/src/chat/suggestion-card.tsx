@@ -11,7 +11,7 @@ import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
 
 /**
  * Suggestions in the chat screen (plan 049, U4): messages an agent in this chat suggests for another chat, never a
- * row in the thread. Since plan 051 they wait behind a chip in the message box, which opens them as cards, newest
+ * row in the thread. Since plan 052 they wait behind a chip in the message box, which opens them as cards, newest
  * first, one line each until opened; opened, a card shows the message and send now, save as draft, change chat and
  * reject. The Mac the chat lives on carries out every action; the card shows what it answered.
  */
@@ -193,7 +193,7 @@ export function chipText(count: number, touch: boolean): string {
 export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: number };
 
 /**
- * A chat's suggestions behind a chip in the message box (plan 051): the chip shows only while some wait, and opens
+ * A chat's suggestions behind a chip in the message box (plan 052): the chip shows only while some wait, and opens
  * the cards in a popover above the box on the desktop, in a bottom sheet on the phone, as the model pill does. The
  * chip stays mounted with the chat, so a refused action's reason and a line told after its card has gone (AE6) keep
  * while the panel is closed; the chip stays for that line until it is dismissed. The last card decided closes it.

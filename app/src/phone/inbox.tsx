@@ -784,7 +784,7 @@ export function Card({
 }: {
   item: AttentionItem;
   role: Role;
-  /** How many suggestions made in this chat wait (plan 051), and the press on its mark that opens them. */
+  /** How many suggestions made in this chat wait (plan 052), and the press on its mark that opens them. */
   suggestions?: number;
   onSuggestions?: () => void;
   /** Given to the top card only: its chat's labels show under its title. */

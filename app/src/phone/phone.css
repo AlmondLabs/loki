@@ -1487,7 +1487,7 @@ span.loki-phone-section-btn {
 .loki-phone-card-draft {
   flex: none;
 }
-/* The card's suggestions mark (plan 051): a word in the accent that opens them; its target reaches past the line. */
+/* The card's suggestions mark (plan 052): a word in the accent that opens them; its target reaches past the line. */
 .loki-phone-card-suggestions {
   flex: none;
   margin: -12px 0;
@@ -2361,7 +2361,7 @@ span.loki-phone-section-btn {
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
 }
-/* The suggestions sheet (plan 051) is the model sheet's ground, and its list fills what the sheet allows. */
+/* The suggestions sheet (plan 052) is the model sheet's ground, and its list fills what the sheet allows. */
 .loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
   gap: 0;
   padding-top: var(--phone-space-2);

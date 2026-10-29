@@ -24,7 +24,7 @@ import { must } from "./fixtures/must.ts";
 
 /**
  * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
- * made, behind a chip in the message box (plan 051), on the desktop and the phone; each one line until opened, then
+ * made, behind a chip in the message box (plan 052), on the desktop and the phone; each one line until opened, then
  * the message with send now, save as draft, change chat and reject.
  */
 
@@ -125,7 +125,7 @@ describe("where suggestions show", () => {
     suggestion({ id: "done", status: "sent" }),
   ];
   for (const touch of [false, true]) {
-    test(`${touch ? "phone" : "desktop"}: two pending suggestions wait behind a chip in the box, before mic and send (plan 051)`, () => {
+    test(`${touch ? "phone" : "desktop"}: two pending suggestions wait behind a chip in the box, before mic and send (plan 052)`, () => {
       const html = conversation(source(two).src, touch);
       expect(cards(html)).toEqual([]);
       const chip = html.indexOf("loki-suggestion-chip");
@@ -152,7 +152,7 @@ describe("where suggestions show", () => {
   });
 });
 
-describe("the chip's words and the host's bumps (plan 051)", () => {
+describe("the chip's words and the host's bumps (plan 052)", () => {
   test("desktop says how many, lowercase; the phone's narrow row shows the count by the icon", () => {
     expect(chipText(1, false)).toBe("1 suggestion");
     expect(chipText(3, false)).toBe("3 suggestions");

@@ -108,7 +108,7 @@ describe("the Inbox card's suggestions (plan 049)", () => {
       retarget: () => Promise.resolve({ done: true, message: null, suggestion: null }),
     },
   };
-  test("two pending suggestions wait behind the box's chip, and the card's mark opens them in the phone's words (plan 051)", () => {
+  test("two pending suggestions wait behind the box's chip, and the card's mark opens them in the phone's words (plan 052)", () => {
     const closed = render(item(), { ...actions(), suggestions: { source, blocked: null } });
     expect(closed).toContain("loki-suggestion-chip");
     expect(closed).not.toContain("data-suggestion=");

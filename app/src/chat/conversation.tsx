@@ -176,7 +176,7 @@ export function Conversation({
    */
   composer?: boolean;
   /**
-   * The suggestions made in this chat for other chats (plan 049), behind a chip in the message box (plan 051), drawn
+   * The suggestions made in this chat for other chats (plan 049), behind a chip in the message box (plan 052), drawn
    * only by the view that draws the box; null or absent, none.
    */
   suggestions?: SuggestionsProps | null;

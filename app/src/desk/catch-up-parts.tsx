@@ -161,7 +161,7 @@ export interface CardHeaderProps {
   flash: string | null;
   /** The labels' colours (plan 022), for the chat's chips beside when and why. */
   labelList?: readonly LabelView[] | null;
-  /** How many suggestions made in this chat wait (plan 051), and the press on its mark that opens them in the card's box. */
+  /** How many suggestions made in this chat wait (plan 052), and the press on its mark that opens them in the card's box. */
   suggestions?: number;
   onSuggestions?: () => void;
 }
