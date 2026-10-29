@@ -75,6 +75,21 @@ describe("a chat moving to another Mac", () => {
     expect(info).toMatchObject({ purpose: "the website", draft, suggestions });
   });
 
+  test("an import that fails part way leaves nothing under the chat's id: the move tried again writes it whole", async () => {
+    const s = await stores();
+    s.faux.setResponses([fauxAssistantMessage("hello"), fauxAssistantMessage("noted")]);
+    const chat = await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
+    await (await chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
+    await (await chat.submit({ type: "input", content: "remember the gym" }, ctx)).wait(ctx);
+    const moved = must(await exportChat(s.book, "agent-ira", "conv-1", { schedules: [], cursors: {} }, ctx), "the export");
+    // The disk fills while the log is written.
+    const failing = Object.create(s.mini) as AgentStore;
+    failing.importEntries = () => Promise.reject(new Error("disk full"));
+    await expect(importChat(failing, moved, ctx)).rejects.toThrow("disk full");
+    expect(await importChat(s.mini, moved, ctx)).toBe(true);
+    expect(await said(s.mini, "conv-1")).toEqual(await said(s.book, "conv-1"));
+  });
+
   test("moved again (a move tried twice) changes nothing, and a chat that is not there exports nothing", async () => {
     const s = await stores();
     s.faux.setResponses([fauxAssistantMessage("hello")]);

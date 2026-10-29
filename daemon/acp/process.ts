@@ -39,6 +39,12 @@ interface Running {
  */
 let starts = 0;
 
+/**
+ * How long an agent has to start and answer `initialize` (and sign in, where it does): a first `npx` fetches the agent,
+ * which takes a while, but one that never answers would hold every message sent to it for ever.
+ */
+export const START_TIMEOUT_MS = 180_000;
+
 /** The agent's process, as AcpChats uses it. */
 export class AcpProcess {
   readonly config: AcpAgentConfig;
@@ -47,10 +53,14 @@ export class AcpProcess {
   private stderrTail = "";
   /** Bumped on each start, so an old process's exit does not clear the new one. */
   private generation = 0;
+  /** Stops the process now, even while it is still starting: one that never answers `initialize` is stopped too. */
+  private kill: (() => void) | null = null;
+  private readonly startTimeoutMs: number;
 
-  constructor(config: AcpAgentConfig, handlers: AcpHandlers) {
+  constructor(config: AcpAgentConfig, handlers: AcpHandlers, startTimeoutMs = START_TIMEOUT_MS) {
     this.config = config;
     this.handlers = handlers;
+    this.startTimeoutMs = startTimeoutMs;
   }
 
   /** The last of what the agent wrote to stderr, for the chat to show when it fails. */
@@ -112,6 +122,12 @@ export class AcpProcess {
       connection.close();
       child.kill();
     };
+    this.kill = kill;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${this.config.name} did not start within ${Math.round(this.startTimeoutMs / 1000)} s`)), this.startTimeoutMs);
+      timer.unref();
+    });
     void exited.then((error) => connection.close(error));
     // The connection can close before the process says it exited (its stdout ends first): either way, the next use starts it again.
     void connection.closed.then(() => {
@@ -126,18 +142,22 @@ export class AcpProcess {
           clientInfo: { name: "loki", version: "1" },
         }),
         exited.then((e) => Promise.reject(e)),
+        timedOut,
       ]);
       // An agent that opens no session until asked to sign in (plan 048); it uses a login the person made with it.
       if (this.config.auth_method)
         await Promise.race([
           connection.agent.request(methods.agent.authenticate, { methodId: this.config.auth_method }),
           exited.then((e) => Promise.reject(e)),
+          timedOut,
         ]);
       return { connection, init, kill };
     } catch (error) {
       kill();
       if (this.generation === generation) this.running = null;
       throw this.failure(error);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -177,8 +197,12 @@ export class AcpProcess {
   /** Stop the agent; the next call starts it again. */
   async close(): Promise<void> {
     const running = this.running;
+    const kill = this.kill;
     this.running = null;
+    this.kill = null;
     this.generation++;
-    if (running) (await running.catch(() => null))?.kill();
+    // Killed now rather than once it has started: waiting on a start that never answers would never stop it.
+    kill?.();
+    await running?.catch(() => null);
   }
 }

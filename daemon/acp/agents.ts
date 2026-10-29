@@ -119,7 +119,8 @@ export function commandPath(command: string, env: NodeJS.ProcessEnv = process.en
   const exts = process.platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [];
   const dirs = (env.PATH ?? env.Path ?? "").split(delimiter).filter(Boolean);
   for (const dir of dirs)
-    for (const name of [command, ...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`)])
+    // On Windows the runnable forms first: npm puts an extensionless `npx` (a shell script Windows cannot run) beside npx.cmd.
+    for (const name of [...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`), command])
       if (existsSync(join(dir, name))) return join(dir, name);
   return null;
 }

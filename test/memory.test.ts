@@ -99,6 +99,18 @@ describe("an agent's memory", () => {
     }
   });
 
+  test("a note saved again with the same text is no error and no commit", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      await editMemoryFile(dir, agentId, "reference/a.md", "hello", "Add a");
+      await editMemoryFile(dir, agentId, "reference/a.md", "hello", "Add a again");
+      expect(log(memoryRoot(dir, agentId))).toEqual(["You|Add a", "Ada|Begin memory"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("edits landing at once are each committed: one git at a time per repo, not a lost index.lock race", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
     try {

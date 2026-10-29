@@ -10,6 +10,13 @@ import { reviewQueue, type CardWithSchedule } from "../../../core/recall/model.t
 export function useDeckPass(cards: CardWithSchedule[]) {
   /** Cards answered or deleted this sitting: they leave the queue at once, whatever their new due time says. */
   const [passed, setPassed] = useState<Set<string>>(() => new Set());
+  /** Passed cards no longer in the deck (deleted): one that comes back (undo, restore) is due again this sitting. */
+  const [away, setAway] = useState<Set<string>>(() => new Set());
+  const next = returned(passed, away, cards);
+  if (next) {
+    setPassed(next.passed);
+    setAway(next.away);
+  }
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const queue = useMemo(() => reviewQueue(cards).filter((c) => !passed.has(c.card.id)), [cards, passed]);
@@ -30,4 +37,20 @@ export function useDeckPass(cards: CardWithSchedule[]) {
     .map((c) => new Date(c.schedule.due).getTime())
     .sort()[0];
   return { queue, current, revealed, reveal, advance, passed, total, nextDue };
+}
+
+/**
+ * The passed cards that went from the deck (deleted) and came back (undo, restore): they leave `passed`, so the card is
+ * in the queue again. Null when nothing changed, which is what keeps the render from setting state again.
+ */
+export function returned(
+  passed: ReadonlySet<string>,
+  away: ReadonlySet<string>,
+  cards: readonly CardWithSchedule[],
+): { passed: Set<string>; away: Set<string> } | null {
+  const present = new Set(cards.map((c) => c.card.id));
+  const gone = [...passed].filter((id) => !present.has(id));
+  const back = [...away].filter((id) => present.has(id));
+  if (!back.length && gone.length === away.size && gone.every((id) => away.has(id))) return null;
+  return { passed: new Set([...passed].filter((id) => !back.includes(id))), away: new Set(gone) };
 }

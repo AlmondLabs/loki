@@ -71,7 +71,9 @@ export function Phone() {
       fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
         .then(async (r) => {
           if (r.ok) setGate({ kind: "paired", me: (await r.json()) as Me });
-          else setGate({ kind: "unpaired" }); // 401: no cookie, or a forgotten one
+          // 401 only: no cookie, or a forgotten one. Anything else (the Mac restarting behind the https front, phones
+          // switched off) is the Mac not answering, and Pair would ask a paired phone for a code it does not need.
+          else setGate({ kind: r.status === 401 ? "unpaired" : "unreachable" });
         })
         .catch(() => setGate({ kind: "unreachable" })),
     [],
@@ -696,7 +698,7 @@ function Screen({
         }}
         onUndo={(item, via) => (
           catchUp.undone(item, via === "seen" ? "next" : "archive"),
-          via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item)
+          via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item).then((err) => err && setCardNote(`Undo: ${err}`))
         )}
       />
       {tab === "agents" && (
