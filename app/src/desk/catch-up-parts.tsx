@@ -4,6 +4,7 @@ import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
+import { chipText } from "../chat/suggestion-card";
 import { ConversationHeader } from "../chat/conversation";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
@@ -160,10 +161,13 @@ export interface CardHeaderProps {
   flash: string | null;
   /** The labels' colours (plan 022), for the chat's chips beside when and why. */
   labelList?: readonly LabelView[] | null;
+  /** How many suggestions made in this chat wait (plan 051), and the press on its mark that opens them in the card's box. */
+  suggestions?: number;
+  onSuggestions?: () => void;
 }
 
 /** Title, who and when, why it ranks here, and the status badge. The mode and model chips sit in the card's last row. */
-export function CardHeader({ current, cameBack, flash, labelList = null }: CardHeaderProps) {
+export function CardHeader({ current, cameBack, flash, labelList = null, suggestions = 0, onSuggestions }: CardHeaderProps) {
   const badge = BADGE[current.status];
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
@@ -188,6 +192,11 @@ export function CardHeader({ current, cameBack, flash, labelList = null }: CardH
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
       {current.has_draft && <Meta>draft</Meta>}
+      {suggestions > 0 && (
+        <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
+          {chipText(suggestions, false)}
+        </Chip>
+      )}
       <LabelChips labels={current.labels} list={labelList} />
     </ConversationHeader>
   );

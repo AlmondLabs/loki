@@ -12,10 +12,10 @@ import { OpenChat, type TranscriptRow } from "../chat/transcript";
 import { navigate } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
-import type { SuggestionsProps } from "../chat/suggestion-card";
+import { bumpTick, chipText, tickOf, waitingCount, type ChatTick, type SuggestionsProps } from "../chat/suggestion-card";
 import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/model-picker";
 import { avatarUrl } from "../desk/env";
-import { Button } from "../components";
+import { Button, sentence } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, SkeletonCard } from "./rows";
@@ -690,6 +690,8 @@ function Stack({
   onOpen: (item: AttentionItem) => void;
 }) {
   const dx = drag?.dx ?? 0;
+  // The top card's suggestions open from its mark, for that card only (a later card never opens on the bump).
+  const [suggestTick, setSuggestTick] = useState<ChatTick>(null);
   // Every move is a spring (kit/spring.ts): the cards behind rise on the smooth one; a card let go springs
   // home on the snappy one, or flies off on the smooth one, either way carrying the finger's speed.
   const rise = spring("smooth");
@@ -726,6 +728,8 @@ function Stack({
           role={role}
           refused={refused}
           labelList={labelList}
+          suggestions={card.suggestions ? waitingCount(card.suggestions.source, item.runtime) : 0}
+          onSuggestions={() => setSuggestTick((t) => bumpTick(t, idOf(item)))}
           style={{
             zIndex: 2,
             transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none",
@@ -737,7 +741,14 @@ function Stack({
             onOpen(item);
           }}
         >
-          <LiveCardConversation item={item} chats={chats} banner={banner} card={card} onHold={() => deck.hold(item)} />
+          <LiveCardConversation
+            item={item}
+            chats={chats}
+            banner={banner}
+            card={card}
+            onHold={() => deck.hold(item)}
+            suggestionsTick={tickOf(suggestTick, idOf(item))}
+          />
         </Card>
       );
     }
@@ -767,10 +778,15 @@ export function Card({
   handlers,
   onOpen,
   labelList,
+  suggestions = 0,
+  onSuggestions,
   children,
 }: {
   item: AttentionItem;
   role: Role;
+  /** How many suggestions made in this chat wait (plan 051), and the press on its mark that opens them. */
+  suggestions?: number;
+  onSuggestions?: () => void;
   /** Given to the top card only: its chat's labels show under its title. */
   labelList?: readonly LabelView[] | null;
   refused?: boolean;
@@ -815,6 +831,14 @@ export function Card({
               <span className="loki-phone-card-draft">Draft</span>
             </>
           )}
+          {suggestions > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <button type="button" className="loki-phone-card-suggestions" onClick={onSuggestions} aria-haspopup="dialog" tabIndex={top ? undefined : -1}>
+                {sentence(chipText(suggestions, false))}
+              </button>
+            </>
+          )}
         </span>
         {labelList !== undefined && <LabelChips labels={item.labels} list={labelList} max={3} />}
       </header>
@@ -846,9 +870,12 @@ export function CardConversation({
   banner,
   card,
   onHold,
+  suggestionsTick = 0,
 }: {
   item: AttentionItem;
   view: CardView;
+  /** Bumped by the card's mark: opens its suggestions' sheet. */
+  suggestionsTick?: number;
   banner?: ReactNode;
   card: CardActions;
   onHold: () => void;
@@ -919,6 +946,7 @@ export function CardConversation({
         draft={{ value: draft, onChange: setDraft }}
         onSent={onHold}
         suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}
+        suggestionsTick={suggestionsTick}
       />
     </OpenChat.Provider>,
   );

@@ -324,8 +324,8 @@ knobs stay on the Mac. A tap on a chat or a card opens the conversation: the tra
 question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
-read, **Mark as unread**, and pin. A chat's suggestions show above its reply box as on the Mac, with the same
-four actions (see [Suggestions](#suggestions)), and **Rename** in the actions sheet takes the purpose line too.
+read, **Mark as unread**, and pin. A chat's suggestions wait behind a chip in its reply box as on the Mac, with the
+same four actions (see [Suggestions](#suggestions)), and **Rename** in the actions sheet takes the purpose line too.
 
 The phone's text follows the size you set in iOS (Settings › Display & Brightness › Text Size, or Larger Text in
 Accessibility), up to about half again the default; the tab bar stays its own size, as iOS's does. Reduce
@@ -782,9 +782,13 @@ noticed in passing, for your infra chat), a hand-off to another agent, or a part
 chat in parallel. They never suggest work they can do in the chat they are in, and they never send a suggestion
 themselves: every one waits for you. Any agent may suggest for any chat, its own or another agent's, open or new.
 
-**Where they show.** A suggestion shows in the chat screen of the chat it was made in, above the message box, never as
-a row in the thread; on the phone the same, above the reply box. Several stack newest first, one line each until you
-open one, which shows its message and four actions. A suggestion stays until you act on it or its agent takes it back
+**Where they show.** A suggestion waits in the chat screen of the chat it was made in, never as a row in the thread:
+while any wait, the message box's bottom row shows a **3 suggestions** chip after the model and mode pills (on the
+phone, the spark icon and the count). The chip opens them, in a popover above the box on the Mac and a sheet on the
+phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, one line each until you open one,
+which shows its message and four actions; a lone one opens straight to its message. Esc, a click outside or the chip
+again closes it. On an Inbox card, the header says **3 suggestions** beside *draft*, and pressing it opens them in
+that card's box. A suggestion stays until you act on it or its agent takes it back
 (`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
 Inbox, so it has a screen to show in.
 
