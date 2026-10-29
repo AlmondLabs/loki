@@ -313,9 +313,12 @@ export function needsReload(served: string | null | undefined, current: string |
 /** Hidden for longer than this and back to a changed build: reload without asking — nothing is mid-flight. */
 export const AUTO_RELOAD_HIDDEN_MS = 30_000;
 
-/** Whether to reload without asking: the build changed and the page was hidden for longer than AUTO_RELOAD_HIDDEN_MS. */
-export function shouldAutoReload(hiddenMs: number, changed: boolean): boolean {
-  return changed && Number.isFinite(hiddenMs) && hiddenMs > AUTO_RELOAD_HIDDEN_MS;
+/**
+ * Whether to reload without asking: the build changed and the page was hidden for longer than AUTO_RELOAD_HIDDEN_MS,
+ * and no reply is half typed. Drafts live in memory, so a reload would lose one; the bar waits for a tap instead.
+ */
+export function shouldAutoReload(hiddenMs: number, changed: boolean, drafting = false): boolean {
+  return changed && !drafting && Number.isFinite(hiddenMs) && hiddenMs > AUTO_RELOAD_HIDDEN_MS;
 }
 
 /** "9:58" until `iso`, or "expired". */
