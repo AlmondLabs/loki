@@ -223,7 +223,7 @@ export function DeskSidebar({
   };
 
   // The rows' handlers stay the same functions from render to render and look the chat up when called, so a row
-  // redraws only when what it shows changed (plan 049): one chat moving no longer redraws the whole list.
+  // redraws only when what it shows changed (plan 051): one chat moving no longer redraws the whole list.
   const latest = useRef({ desks, onOpen, onPin, onArchive });
   useEffect(() => {
     latest.current = { desks, onOpen, onPin, onArchive };
@@ -723,7 +723,7 @@ interface ChatRowProps {
   onArchive: (scope: string, archived: boolean) => void;
 }
 
-/** A chat's row, drawn again only when one of its own values changes (plan 049). */
+/** A chat's row, drawn again only when one of its own values changes (plan 051). */
 const ChatRow = memo(function ChatRow(p: ChatRowProps) {
   const actions =
     p.pinnable || p.archivable ? (
