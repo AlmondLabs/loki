@@ -435,16 +435,27 @@
   background: var(--loki-brass-soft);
 }
 /* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): behind the box's chip
-   (plan 052), each one line until opened; the list scrolls inside its popover or sheet, never past the screen. */
-.loki-suggestions {
-  max-height: min(420px, 60vh);
-  overflow-y: auto;
+   (plan 052), in a modal (plan 054) whose header stays while the list scrolls under it. */
+.loki-suggestion-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px 18px;
+  border-bottom: 1px solid var(--loki-border);
 }
-.loki-popover.loki-suggestion-popover {
+.loki-suggestion-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--loki-fg);
+}
+.loki-suggestions {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 4px 0;
 }
 .loki-suggestion {
-  padding: 6px 14px;
+  padding: 10px 18px;
   font-family: var(--loki-font);
   font-size: 13.5px;
   color: var(--loki-fg);
@@ -457,10 +468,13 @@
   align-items: center;
   gap: 10px;
 }
+/* Two lines that read whole: the kicker and the title, wrapping, then where it goes under the title. */
 .loki-suggestion-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: baseline;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 2px;
   width: 100%;
   min-width: 0;
   padding: 2px 0;
@@ -478,19 +492,14 @@
   font-weight: 700;
 }
 .loki-suggestion-title {
-  flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 .loki-suggestion-target {
-  flex: 0 1 auto;
+  grid-column: 2;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: var(--loki-muted);
   font-size: 12px;
 }
@@ -499,15 +508,19 @@
   gap: 8px;
   padding: 4px 0 6px;
 }
+/* The message, as markdown (loki-md): in a well, its first and last block flush with the well's padding. */
 .loki-suggestion-text {
-  max-height: 140px;
-  overflow: auto;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: var(--loki-well);
   border: 1px solid var(--loki-border);
   border-radius: var(--loki-radius-md);
-  white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.loki-suggestion-text > :first-child {
+  margin-top: 0;
+}
+.loki-suggestion-text > :last-child {
+  margin-bottom: 0;
 }
 .loki-suggestion-note {
   color: var(--loki-muted);

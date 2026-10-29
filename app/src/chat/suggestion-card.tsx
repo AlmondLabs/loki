@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ConversationInfo } from "../../../core/attention/model.ts";
 import type { ChatFace } from "../../../core/attention/use-attention.ts";
 import type { SuggestionOutcome } from "../../../core/attention/chat-store.ts";
 import type { SuggestionAction } from "../../../core/frames.ts";
 import type { Suggestion, SuggestionTarget } from "../../../core/frame-types.ts";
-import { Button, Chip, Field, Popover, Row, Sheet, sentence } from "../components";
+import { Button, Chip, Field, IconButton, Meta, Row, Sheet, sentence } from "../components";
 import { Icon } from "../shared/icons";
-import { returnsFocus } from "./model-picker";
+import { MARKDOWN_COMPONENTS } from "./markdown-image";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
 
 /**
@@ -39,6 +42,9 @@ export interface SuggestionsProps {
   /** Why nothing can be done now (the phone while its Mac is out of reach): the buttons are disabled and this says why. */
   blocked?: string | null;
 }
+
+/** GitHub's markdown, as the transcript reads a reply: tables, task lists and strikethrough besides the basics. */
+const REMARK_PLUGINS = [remarkGfm];
 
 /** Waiting on the person, or being carried out: the ones the screen shows. */
 const isOpen = (s: Suggestion) => s.status === "pending" || s.status === "sending";
@@ -195,7 +201,7 @@ export type SuggestionChipProps = SuggestionsProps & { touch?: boolean; tick?: n
 
 /**
  * A chat's suggestions behind a chip in the message box (plan 052): the chip shows only while some wait, and opens
- * the cards in a popover above the box on the desktop, in a bottom sheet on the phone, as the model pill does. The
+ * the cards in a modal over the window on the desktop and a bottom sheet on the phone (plan 054). The
  * chip stays mounted with the chat, so a refused action's reason and a line told after its card has gone (AE6) keep
  * while the panel is closed; the chip stays for that line until it is dismissed. The last card decided closes it.
  */
@@ -203,11 +209,12 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
   const face = source.conversation(rt.agent_id, rt.conversation_id);
   const list = face.suggestions.filter(isOpen).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const [open, setOpen] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Which card is open: undefined until the person picks, and then the newest is, so the modal shows a message at once.
+  const [openId, setOpenId] = useState<string | null | undefined>(undefined);
+  const shownId = openId === undefined ? (list[0]?.id ?? null) : openId;
   const [notes, setNotes] = useState<Partial<Record<string, string>>>({});
   const [told, setTold] = useState<Partial<Record<string, Told>>>({});
   const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
-  const chipRef = useRef<HTMLButtonElement>(null);
   // A bumped tick opens the panel from the render that sees it, as ⌘⇧M opens the model picker.
   const [seenTick, setSeenTick] = useState(0);
   if (tick !== seenTick) {
@@ -247,7 +254,6 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
   return (
     <>
       <Chip
-        ref={chipRef}
         className="loki-suggestion-chip"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
@@ -259,7 +265,7 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
         {shown && <span>{shown}</span>}
       </Chip>
       {open && (
-        <SuggestionPanel touch={touch} chipRef={chipRef} onClose={() => setOpen(false)}>
+        <SuggestionPanel touch={touch} count={list.length} onClose={() => setOpen(false)}>
           <div className="loki-suggestions" role="region" aria-label={say(touch, "suggestions for other chats")}>
             {settled.map(([id, t]) => (
               <div key={id} className="loki-suggestion loki-suggestion-told" role="status">
@@ -275,8 +281,8 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
                 key={s.id}
                 suggestion={s}
                 target={targetOf(source, s, touch)}
-                open={openId === s.id || list.length === 1}
-                onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
+                open={shownId === s.id}
+                onToggle={() => setOpenId(shownId === s.id ? null : s.id)}
                 note={notes[s.id] ?? null}
                 busy={busy.has(s.id)}
                 blocked={blocked}
@@ -305,71 +311,40 @@ export function SuggestionChip({ source, rt, blocked = null, touch = false, tick
 const stopEvent = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
 /**
- * Where the chip's cards open: a bottom sheet on the phone (the Sheet's veil, Escape and focus return), a popover
- * above the message box on the desktop that closes on Esc or a press outside it and the chip, and hands focus back
- * to the chip.
+ * Where the chip's cards open (plan 054): a modal sheet centred over the window on the desktop, a bottom sheet on the
+ * phone. The Sheet owns the veil, Escape, the Tab loop and handing focus back to what opened it. A header names it.
  */
-function SuggestionPanel({
-  touch,
-  chipRef,
-  onClose,
-  children,
-}: {
-  touch: boolean;
-  chipRef: RefObject<HTMLButtonElement | null>;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const chip = chipRef.current;
-    const away = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (!node?.contains(target) && !chip?.contains(target)) closeRef.current();
-    };
-    // capture: the rail, the list column and other popovers stop pointerdown from bubbling
-    if (!touch) window.addEventListener("pointerdown", away, true);
-    // Opened from a key, focus goes in, to the first card's line, so the cards are reached without the mouse.
-    if (!touch && !node?.contains(document.activeElement)) node?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      if (returnsFocus(document.activeElement, node, document.body)) chip?.focus({ preventScroll: true });
-    };
-  }, [touch, chipRef]);
-
+function SuggestionPanel({ touch, count, onClose, children }: { touch: boolean; count: number; onClose: () => void; children: ReactNode }) {
+  const head = (
+    <div className="loki-suggestion-modal-head">
+      <span className="loki-suggestion-modal-title">{say(touch, "suggestions")}</span>
+      {count > 0 && <Meta>{say(touch, `${count} waiting`)}</Meta>}
+      <span style={{ flex: 1 }} />
+      {!touch && <Meta>esc closes</Meta>}
+      <IconButton size={touch ? 36 : 28} label={say(touch, "close")} onClick={onClose}>
+        <Icon name="close" size={touch ? 20 : 16} />
+      </IconButton>
+    </div>
+  );
   if (touch)
     // The Sheet draws itself at the phone shell's root; React still bubbles its events through the Inbox card, which
     // would take a drag in the sheet for a swipe of the card underneath.
     return (
       <div style={{ display: "contents" }} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent} onPointerCancel={stopEvent}>
         <Sheet label="Suggestions" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-suggestion-sheet">
-          <div ref={ref}>{children}</div>
+          {head}
+          {children}
         </Sheet>
       </div>
     );
-  return (
-    <Popover
-      ref={ref}
-      role="dialog"
-      aria-label="suggestions"
-      side="above"
-      width={460}
-      className="loki-suggestion-popover"
-      onKeyDown={(e) => {
-        if (e.key !== "Escape" || e.defaultPrevented) return;
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }}
-    >
+  // Drawn at the body, as the rename dialog is: inside the box it would be clipped to the box.
+  const sheet = (
+    <Sheet label="suggestions" onClose={onClose} width={720} top="8vh" className="loki-suggestion-modal">
+      {head}
       {children}
-    </Popover>
+    </Sheet>
   );
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
 /** What a suggestion's card is given: the suggestion, where it goes, its state on screen and what its buttons do. */
@@ -425,7 +400,12 @@ export function SuggestionCardView({
       </button>
       {open && (
         <div className="loki-suggestion-body">
-          <div className="loki-suggestion-text">{s.text}</div>
+          {/* The message as the transcript draws a reply (plan 054): lists, code and links read as they were written. */}
+          <div className="loki-suggestion-text loki-md">
+            <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+              {s.text}
+            </Markdown>
+          </div>
           <SuggestionNotes sending={sending} reason={reason} blocked={blocked} touch={touch} />
           {!sending && !picking && <SuggestionActions gone={target.gone} off={off} touch={touch} onDecide={onDecide} onPicking={onPicking} />}
           {!sending && picking && picker(() => onPicking(false))}
