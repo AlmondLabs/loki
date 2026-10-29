@@ -27,6 +27,10 @@ describe("uploads: names and places", () => {
     expect(insideDir("/u", "/u/../etc/passwd")).toBe(false);
     expect(insideDir("/u", "/elsewhere/a.pdf")).toBe(false);
   });
+  test.runIf(process.platform === "win32")("on Windows a path on another drive is not an upload", () => {
+    expect(insideDir("C:\\u", "D:\\u\\a.pdf")).toBe(false);
+    expect(insideDir("C:\\u", "C:\\u\\a.pdf")).toBe(true);
+  });
   test("the day's folder is the local date", () => {
     expect(dayFolder(new Date(2026, 8, 3, 23, 59))).toBe("2026-09-03");
   });

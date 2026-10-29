@@ -1,5 +1,5 @@
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
@@ -51,10 +51,13 @@ export function freePath(dir: string, name: string, exists: (p: string) => boole
   }
 }
 
-/** Whether `p` is a file somewhere under `root` (never root itself, never outside it). */
+/**
+ * Whether `p` is a file somewhere under `root` (never root itself, never outside it). On Windows a path on another
+ * drive comes back from `relative` absolute, with no "..": that is outside too.
+ */
 export function insideDir(root: string, p: string): boolean {
   const rel = relative(resolve(root), resolve(p));
-  return !!rel && !rel.startsWith("..") && !rel.startsWith(sep) && rel !== ".";
+  return !!rel && !rel.startsWith("..") && !isAbsolute(rel) && rel !== ".";
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DeskStore } from "../mod/desk-store.ts";
@@ -71,6 +71,21 @@ describe("persistence", () => {
       const fresh = new DeskStore();
       expect(loadDesks(fresh, dir)).toEqual(["conv1"]);
       expect(fresh.get("conv1").layout["conv1/w"].position).toEqual({ x: 9, y: 9 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a scope that is not scopeFor's own letters is never written: on Windows `..\\x` would leave the folder", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-persist-"));
+    try {
+      const store = new DeskStore();
+      const stop = persistDesks(store, dir, 10);
+      store.gesture("..\\out", { kind: "move", id: "..\\out/w", position: { x: 1, y: 1 } });
+      store.gesture("conv1", { kind: "move", id: "conv1/w", position: { x: 1, y: 1 } });
+      await expect.poll(() => existsSync(join(dir, "conv1.json"))).toBe(true);
+      stop();
+      expect(readdirSync(dir)).toEqual(["conv1.json"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

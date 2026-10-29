@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
 import { MOVE_TIMEOUT_MS, type Replies } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
@@ -179,11 +179,16 @@ function readWidgets(dir: string): Record<string, string> {
   return out;
 }
 
-/** A canvas's files written into its folder here; a path that would leave the folder is skipped. */
-function writeWidgets(dir: string, files: Record<string, string>): void {
+/**
+ * A canvas's files written into its folder here; a path that would leave the folder is skipped. Checked where it
+ * lands, not only by its parts: on Windows `..\x` or `C:\x` is one part with no ".." in it.
+ */
+export function writeWidgets(dir: string, files: Record<string, string>): void {
   for (const [path, data] of Object.entries(files)) {
     if (path.split("/").some((p) => p === ".." || p === "") || path.startsWith("/")) continue;
     const full = join(dir, ...path.split("/"));
+    const rel = relative(resolve(dir), resolve(full));
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue;
     mkdirSync(dirname(full), { recursive: true });
     if (!existsSync(full)) writeFileSync(full, Buffer.from(data, "base64"));
   }
