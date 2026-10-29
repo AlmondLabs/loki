@@ -9,6 +9,7 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
 import type { RecallStore } from "./recall.ts";
 import { paths } from "./paths.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Learn's pieces the daemon's Learn pass (daemon/learn.ts) and lessons share: which hidden chats are Learn's own,
@@ -145,7 +146,7 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
       opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
       writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
     } catch (err) {
-      log("recall:lesson-card-failed", { message: err instanceof Error ? err.message : String(err) }); // the desk starts bare; the lesson still starts
+      log("recall:lesson-card-failed", { message: messageOf(err) }); // the desk starts bare; the lesson still starts
     }
     const lesson = opts.store.startLesson(leadId, rt);
     log("recall:lesson-started", { lead: leadId, conversation: rt.conversationId });

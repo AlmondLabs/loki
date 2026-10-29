@@ -1,6 +1,7 @@
 import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 import type { TailscaleStatus, TailnetDevice } from "../core/frame-types.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Tailscale, detected and read, never installed (plan Addendum 3). The phone listener asks this for
@@ -252,6 +253,6 @@ export class Tailscale {
 }
 
 function clip(err: unknown): string {
-  const text = (err instanceof Error ? err.message : String(err)).trim();
+  const text = messageOf(err).trim();
   return text.length > MAX_ERROR ? text.slice(0, MAX_ERROR) : text || "tailscale failed";
 }

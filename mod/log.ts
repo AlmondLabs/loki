@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { dirname } from "node:path";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Append-only trace log at ~/.loki/mod.log. The mod runs inside loki's daemon,
@@ -68,7 +69,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string, fallbac
       },
       (err: unknown) => {
         clearTimeout(t);
-        log("error", { label, error: err instanceof Error ? err.message : String(err) });
+        log("error", { label, error: messageOf(err) });
         resolve(fallback);
       },
     );

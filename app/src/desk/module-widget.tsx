@@ -3,6 +3,7 @@ import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { WIDGET_MAX_WIDTH, getPath, mergeData } from "../../../core/desk-core.ts";
 import { inTauri, openExternal, platform } from "./env";
 import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widget-bridge";
+import { messageOf } from "../../../core/errors.ts";
 
 /**
  * Mounts an agent-authored module from ~/.loki/widgets/<desk>/<name>.tsx in a sandboxed iframe
@@ -163,7 +164,7 @@ export function ModuleWidget({
           return r.text();
         })
         .then((code) => alive && send({ type: "load", hash: entry.hash, code }))
-        .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) => fail(messageOf(err)));
     }
     return () => {
       alive = false;
@@ -225,11 +226,11 @@ export class WidgetErrorBoundary extends Component<
   state = { error: null as string | null };
 
   static getDerivedStateFromError(err: unknown) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    return { error: messageOf(err) };
   }
 
   componentDidCatch(err: unknown) {
-    this.props.onError(this.props.id, err instanceof Error ? err.message : String(err));
+    this.props.onError(this.props.id, messageOf(err));
   }
 
   render() {

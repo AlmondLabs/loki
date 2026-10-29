@@ -20,6 +20,7 @@ import { memoryLog, memoryRoot, readLocalAgent } from "./agents.ts";
 import { globalSkillsDir } from "./skills.ts";
 import { log } from "./log.ts";
 import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillOrigin, SkillSource } from "../core/frame-types.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Where an agent's skills came from, and how to refresh the ones that came from elsewhere.
@@ -143,7 +144,7 @@ export class SkillSources {
       writeFileSync(tmp, JSON.stringify(all, null, 2) + "\n");
       renameSync(tmp, this.opts.sourcesFile);
     } catch (err) {
-      log("skills:sources-write-failed", err instanceof Error ? err.message : String(err));
+      log("skills:sources-write-failed", messageOf(err));
     }
     return parsed;
   }
@@ -191,7 +192,7 @@ export class SkillSources {
         await this.exec("git", ["pull", "--ff-only", "--quiet"], { cwd: source.repo, timeoutMs: 30_000 });
       } catch (err) {
         // A dirty or offline checkout still has a working tree worth comparing against.
-        log("skills:pull-failed", { repo: source.repo, error: err instanceof Error ? err.message : String(err) });
+        log("skills:pull-failed", { repo: source.repo, error: messageOf(err) });
       }
       dir = join(source.repo, source.rel);
     } else if (source.kind === "folder") {
@@ -246,7 +247,7 @@ export class SkillSources {
       await this.exec("git", ["reset", "--quiet", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
       await this.exec("git", ["checkout", "--quiet", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
       await this.exec("git", ["clean", "-fdq", "--", spec], { cwd: memory, timeoutMs: 10_000 }).catch(() => "");
-      throw new Error(`could not commit the refreshed skill: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`could not commit the refreshed skill: ${messageOf(err)}`);
     }
   }
 

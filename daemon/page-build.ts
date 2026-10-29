@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The built page in a checkout (plan 041): `npm start` serves `app/dist`, and **update** rebuilds it. A build lands whole:
@@ -81,6 +82,6 @@ export async function buildPage(checkout: string, run: Runner = runFile, node: s
     rmSync(old, { recursive: true, force: true });
     return null;
   } catch (err) {
-    return `the build could not replace app/dist: ${err instanceof Error ? err.message : String(err)}`;
+    return `the build could not replace app/dist: ${messageOf(err)}`;
   }
 }

@@ -23,6 +23,7 @@ import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
 import { McpServers, type McpTool } from "./servers.ts";
 import { coalesce } from "../../core/timers.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * MCP on loki's daemon (the `loki.mcp` extension). Every connected server's tools are registered once, named
@@ -183,7 +184,7 @@ export class McpTools {
         if (!command) throw new Error(`${c.command} is not on the PATH`);
         out.push({ name: c.name, command, args: c.args, env: pairs(c.env) });
       } catch (e) {
-        this.report(`MCP server ${config.name} left out of ACP chats: ${e instanceof Error ? e.message : String(e)}`);
+        this.report(`MCP server ${config.name} left out of ACP chats: ${messageOf(e)}`);
       }
     }
     return out;
@@ -477,7 +478,7 @@ export class McpTools {
       this.servers.restart(server);
       return { ok: true, server, message: `Signed in to ${named}. You can close this tab and go back to loki.` };
     } catch (error) {
-      return { ok: false, server, message: `${named} did not sign in: ${error instanceof Error ? error.message : String(error)}` };
+      return { ok: false, server, message: `${named} did not sign in: ${messageOf(error)}` };
     }
   }
 

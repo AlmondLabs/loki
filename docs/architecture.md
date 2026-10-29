@@ -365,7 +365,8 @@ and provider credentials in the OS keychain.
 ## One way per job
 
 A few jobs come up everywhere. Each has one helper in `core/`, so code that does the job looks the same wherever it is
-(plan 054):
+(plans 054 and 059). Lint flags a hand-written listener set and a hand-written error message; a queue or a burst
+timer written by hand stays a convention, as its shape is also ordinary code:
 
 1. **Telling others something changed**: `Listeners` (`core/listeners.ts`). `add` returns the way to stop, and `emit`
    tells everyone.
@@ -375,9 +376,10 @@ A few jobs come up everywhere. Each has one helper in `core/`, so code that does
    write), `debounce` when it should wait for quiet (a folder still being written) (`core/timers.ts`). Per desk,
    `ScopeDebouncer`.
 4. **Talking to the daemon from the app**: a chat's calls through `ChatStore`, settings through `daemonCalls`.
-   What the mod's pushes leave in a tab is `applyPush` in `app/src/desk/desk-pushes.ts`, a pure fold (plan 058); the socket hook
-   keeps only the socket and the effects a push asks for.
-5. **Something with a real and a test version**: an interface it is given (a `Pick` of the real class, or a small
+   What the mod's pushes leave in a tab is `applyPush` in `app/src/desk/desk-pushes.ts`, a pure fold (plan 058); the
+   socket hook keeps only the socket and the effects a push asks for.
+5. **An error in words**: `messageOf(err)` (`core/errors.ts`).
+6. **Something with a real and a test version**: an interface it is given (a `Pick` of the real class, or a small
    interface), rather than a class it builds. `DaemonChats` still builds its two engines itself.
 
 ## Where the code lives

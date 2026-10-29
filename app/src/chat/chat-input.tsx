@@ -5,6 +5,7 @@ import { isFileAttachment, type Attachment, type ImageAttachment } from "../../.
 import { Dot, IconButton, TextArea } from "../components";
 import { Icon } from "../shared/icons";
 import { cmdHeld } from "../shell/keymap";
+import { messageOf } from "../../../core/errors.ts";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 /** No pictures attached: one list for every render, so what watches `images` sees no change. */
@@ -94,7 +95,7 @@ export const ChatInput = forwardRef<
         setUploads((u) => u.filter((x) => x.id !== id));
         onImages?.([...imagesRef.current, done]);
       })
-      .catch((err: unknown) => setUploads((u) => u.map((x) => (x.id === id ? { ...x, error: err instanceof Error ? err.message : String(err) } : x))));
+      .catch((err: unknown) => setUploads((u) => u.map((x) => (x.id === id ? { ...x, error: messageOf(err) } : x))));
   };
   const addFiles = async (picked: { images: Blob[]; files: File[] }) => {
     if (!onImages) return;

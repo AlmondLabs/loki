@@ -27,6 +27,7 @@ import {
   type SectionInput,
   type ToolCall,
 } from "./api.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * Mods in the daemon (plan 017, U4). Each mod is activated once against a ModApi and becomes one pi-durable extension
@@ -164,7 +165,7 @@ export class ModRegistry {
     } catch (error) {
       abort.abort();
       if (replacing) this.unload(mod.name);
-      const refused = `mod ${mod.name} failed to load: ${error instanceof Error ? error.message : String(error)}`;
+      const refused = `mod ${mod.name} failed to load: ${messageOf(error)}`;
       this.report(refused);
       return { refused };
     }

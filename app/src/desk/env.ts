@@ -1,3 +1,5 @@
+import { messageOf } from "../../../core/errors.ts";
+
 /**
  * Where the app runs and how it reaches the mod. In a browser tab the page is
  * served by Vite (or the mod) and everything is same-origin under /loki. In the
@@ -114,7 +116,7 @@ export function installShellLogging(): void {
         orig(...args);
         void invoke("client_log", {
           level,
-          message: args.map((a) => (a instanceof Error ? a.message : typeof a === "string" ? a : JSON.stringify(a))).join(" "),
+          message: args.map((a) => (a instanceof Error ? messageOf(a) : typeof a === "string" ? a : JSON.stringify(a))).join(" "),
         }).catch(() => {});
       };
     console.warn = mirror("warn", console.warn.bind(console));

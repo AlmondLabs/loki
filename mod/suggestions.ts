@@ -6,6 +6,7 @@ import { suggestedMark } from "../core/harness.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { ChatRouter } from "./chat-router.ts";
 import { keyedQueue } from "../core/serial.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Suggestions (plan 049, U2): messages agents suggest for other chats, kept on the record of the chat they were made
@@ -356,7 +357,7 @@ export function chatCaller(opts: ChatCallerOptions): (frame: ChatCall) => Promis
       }
       return await here(opts, frame);
     } catch (err) {
-      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      return { ok: false, message: messageOf(err) };
     }
   };
 }

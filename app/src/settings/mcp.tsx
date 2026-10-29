@@ -3,6 +3,7 @@ import { Button, Chip, Dot, Field, Row, TextArea } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
 import { openExternal } from "../desk/env";
 import { Block, Segmented, Setting } from "./layout";
+import { messageOf } from "../../../core/errors.ts";
 
 /** What Settings › MCP asks of the daemon; each call resolves to the servers as they now are, or an error message. */
 export interface McpApi {
@@ -364,7 +365,7 @@ function ServerForm({
       if (typeof r === "string") setError(r);
       else onDone(r);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messageOf(e));
     } finally {
       setBusy(false);
     }

@@ -34,6 +34,7 @@ import { recallDir } from "./recall.ts";
 import { RemoteChats } from "./remote-chats.ts";
 import type { SeenStore } from "./seen.ts";
 import type { PushTo } from "./sockets.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * This Mac and the Macs paired with it (plan 023): pairing, one link to each, the syncers that keep agents, memory and
@@ -220,7 +221,7 @@ export function startPeering(deps: PeeringDeps): Peering {
         },
       },
     ],
-    (syncer, id, err) => log("peers:sync-failed", { syncer, mac: id, error: err instanceof Error ? err.message : String(err) }),
+    (syncer, id, err) => log("peers:sync-failed", { syncer, mac: id, error: messageOf(err) }),
   );
   // The paired Macs' own chats, for every list here (U4).
   const remoteChats: RemoteChats = new RemoteChats({

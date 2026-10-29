@@ -3,6 +3,7 @@ import type * as acp from "@agentclientprotocol/sdk";
 import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import type { AcpAgentConfig } from "./agents.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * One ACP agent's process (plan 020): started on first use, spoken to over stdio with the ACP SDK, and started again
@@ -162,7 +163,7 @@ export class AcpProcess {
 
   /** An error with what the agent last wrote to stderr, which usually says why (not signed in, Node missing). */
   failure(error: unknown): Error {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     const tail = this.stderr();
     return new Error(tail ? `${message}\n${tail.split("\n").slice(-5).join("\n")}` : message);
   }
