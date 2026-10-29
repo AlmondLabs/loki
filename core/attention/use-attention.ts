@@ -23,6 +23,7 @@ import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
 import type { Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
+import { Listeners } from "../listeners.ts";
 import { scopeFor } from "../desk-core.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
@@ -148,9 +149,9 @@ function draftTextOf(c: ConversationInfo): string | null {
  */
 export function createSavedDrafts() {
   let texts = new Map<string, string>();
-  const subs = new Set<() => void>();
+  const subs = new Listeners();
   let emptiedOnDaemon: (agentId: string, conversationId: string) => void = () => {};
-  const emit = () => subs.forEach((fn) => fn());
+  const emit = () => subs.emit();
   const drop = (agentId: string, conversationId: string): boolean => {
     const key = keyOf(agentId, conversationId);
     if (!texts.has(key)) return false;
@@ -182,8 +183,7 @@ export function createSavedDrafts() {
       };
     },
     subscribe(fn: () => void): () => void {
-      subs.add(fn);
-      return () => subs.delete(fn);
+      return subs.add(fn);
     },
   };
 }

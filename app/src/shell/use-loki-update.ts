@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { channelOf, isNewerVersion, nightlyVersionIn, parseVersion, type Channel } from "../../../core/version.ts";
 import { platform, type Platform } from "../desk/env";
+import { messageOf } from "../../../core/errors.ts";
 
 /** What the app knows about newer releases of itself. */
 export interface LokiUpdate {
@@ -107,7 +108,7 @@ export function useLokiUpdate(): LokiUpdate {
             error: null,
           }));
       } catch (err) {
-        if (!cancelled) setState((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
+        if (!cancelled) setState((s) => ({ ...s, error: messageOf(err) }));
       }
     };
     void check();

@@ -50,6 +50,7 @@ import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * loki — a memory palace your agent builds.
@@ -201,7 +202,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       void widgets.rescan();
       return abs;
     } catch (err) {
-      log("widget:trash-failed", { id, error: err instanceof Error ? err.message : String(err) });
+      log("widget:trash-failed", { id, error: messageOf(err) });
       return null;
     }
   };
@@ -262,7 +263,7 @@ export default function activate(api: ModApi, host: Host): () => void {
           folderFor(c.agent_id, c.conversation_id),
         report: (message) => log("tasks:move", message),
       }),
-    ).catch((err: unknown) => log("tasks:move-failed", err instanceof Error ? err.message : String(err)));
+    ).catch((err: unknown) => log("tasks:move-failed", messageOf(err)));
   };
   void moveOpenTasks();
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
@@ -393,16 +394,16 @@ export default function activate(api: ModApi, host: Host): () => void {
       log("server:listening", { port: s.port });
       return s;
     } catch (err) {
-      log("server:failed", err instanceof Error ? err.message : String(err));
+      log("server:failed", messageOf(err));
       api.diagnostics.report({
-        message: `loki: server failed to start on ${modPort} (${err instanceof Error ? err.message : String(err)})`,
+        message: `loki: server failed to start on ${modPort} (${messageOf(err)})`,
         severity: "error",
       });
       throw err;
     }
   };
   // The desk server is always up while the mod is: the loki app (or a browser tab) connects whenever it likes.
-  void serve().catch((err: unknown) => log("server:error", err instanceof Error ? err.message : String(err)));
+  void serve().catch((err: unknown) => log("server:error", messageOf(err)));
 
   // --- phones ----------------------------------------------------------
   // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.

@@ -9,6 +9,7 @@ import { log, withTimeout } from "./log.ts";
 import type { DeskSummary, Suggestion } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Two canvas tools, and chat_list with the suggestion tools when the daemon keeps suggestions. Rendering and authoring are file writes, not tool calls — the
@@ -262,7 +263,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
   const failed = (content: string) => ({ status: "error", content });
   const passError = failed("a background pass has no chat screen to show suggestions in, so it cannot list chats or suggest");
   const source = (ctx: Call) => ({ agent_id: ctx.agent.id, conversation_id: ctx.conversation.id });
-  const reason = (err: unknown) => (err instanceof Error ? err.message : String(err));
+  const reason = (err: unknown) => messageOf(err);
 
   const chatList: LokiTool = {
     name: "chat_list",

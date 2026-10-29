@@ -1,6 +1,7 @@
 import type { Scope } from "../../core/desk-core.ts";
 import type { PayloadOf, PushFrame, ReplyOf, RequestName, SendName } from "../../core/frames.ts";
 import type { Client } from "../server.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * What a frame handler (glossary.md) works with: the client the frame came from, the pushes it may send, and the
@@ -24,7 +25,7 @@ export const reply = <R>(r: R): Outcome<R> => ({ ok: true, reply: r });
 /** A request's failed outcome: the router answers `error` with this message. */
 export const fail = (message: string): { ok: false; message: string } => ({ ok: false, message });
 /** The message of anything thrown: an Error's message, or the value as a string. */
-export const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+export const errorMessage = (err: unknown): string => messageOf(err);
 
 type Maybe<T> = T | Promise<T>;
 /** Answers one request frame with its outcome, sync or async; the router sends the reply. */

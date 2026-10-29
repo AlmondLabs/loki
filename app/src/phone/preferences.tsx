@@ -6,6 +6,7 @@ import { currentBuild } from "./update-bar";
 import { useTheme } from "../theme";
 import { FactRow, MenuRow, RowGroup, StateWord } from "./rows";
 import { BackButton, ConfirmSheet, Scroll, TopBar } from "./ui";
+import { messageOf } from "../../../core/errors.ts";
 
 /**
  * The pages behind More's utility rows, in Slack's Preferences grammar — groups of rows on hairlines:
@@ -108,7 +109,7 @@ export function ConnectionPage({
       if (!r.ok) throw new Error(`The Mac answered ${r.status}.`);
       onUnpaired();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(messageOf(err));
       setBusy(false);
     }
   };

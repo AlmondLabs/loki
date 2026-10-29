@@ -3,6 +3,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Files you attach to a message (anything but an image, which rides inside the message): the app uploads each
@@ -130,7 +131,7 @@ export function uploadRoute(
     try {
       renameSync(partial, final);
     } catch (err) {
-      return fail(500, err instanceof Error ? err.message : String(err));
+      return fail(500, messageOf(err));
     }
     const file: Uploaded = { path: final, name: basename(final), size, mime };
     log("uploads:saved", { path: final, size, mime });

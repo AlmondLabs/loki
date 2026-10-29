@@ -24,6 +24,7 @@ import { RenameSheet } from "./rename-sheet";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-folders";
 import { canRename } from "../shell/sidebar-model";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import { messageOf } from "../../../core/errors.ts";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
@@ -549,7 +550,7 @@ export function DeskActions({
     try {
       err = await onArchive(!archived);
     } catch (e) {
-      err = e instanceof Error ? e.message : String(e);
+      err = messageOf(e);
     }
     setBusy(false); // after either branch: the catch cannot throw, so no finally (the React Compiler cannot take one)
     if (err) setError(err);
@@ -733,7 +734,7 @@ function useNewDesk(
       onClose();
       navigate({ kind: "conversation", agentId: rt.agent_id, conversationId: rt.conversation_id, prefill: null });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(messageOf(err));
       setBusy(false);
     }
   };

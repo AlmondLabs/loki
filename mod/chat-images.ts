@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { IMAGE_NAME } from "../daemon/chat-images.ts";
 import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The pictures in the person's messages, for the windows (plan 029): `GET <prefix><name>` serves the file the daemon
@@ -58,7 +59,7 @@ export function chatImageRoute(opts: {
           writeFileSync(`${file}.tmp`, data);
           renameSync(`${file}.tmp`, file);
         } catch (err) {
-          log("chat-images:keep-failed", { name, error: err instanceof Error ? err.message : String(err) });
+          log("chat-images:keep-failed", { name, error: messageOf(err) });
           return void res.writeHead(200, { "content-type": TYPES[name.split(".")[1]] ?? "application/octet-stream" }).end(data);
         }
         send();

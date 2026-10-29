@@ -1,6 +1,7 @@
 import { WebSocket } from "./ws.ts";
 import { log } from "./log.ts";
 import { peerBase } from "./peers.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The peer link (plan 023, U2, KTD1): one socket from this Mac to each paired Mac's /ws, opened with the token that
@@ -114,7 +115,7 @@ export class PeerLink {
     try {
       await this.connect();
     } catch (err) {
-      log("peers:link_failed", { mac: this.opts.macId, error: err instanceof Error ? err.message : String(err) });
+      log("peers:link_failed", { mac: this.opts.macId, error: messageOf(err) });
       if (!this.stopped) this.closed();
     }
   }

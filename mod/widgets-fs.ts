@@ -6,6 +6,7 @@ import type { Scope, WidgetKind, WidgetManifestEntry } from "../core/desk-core.t
 import { KIT } from "../core/desk-core.ts";
 import { serialQueue } from "../core/serial.ts";
 import { debounce } from "../core/timers.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The widgets directory is the agent's half of the desk. This module turns
@@ -41,7 +42,7 @@ export function parseJsonWidget(text: string): {
   try {
     parsed = JSON.parse(text);
   } catch (err) {
-    return { data: {}, error: `invalid JSON: ${err instanceof Error ? err.message : String(err)}` };
+    return { data: {}, error: `invalid JSON: ${messageOf(err)}` };
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     return { data: {}, error: "widget file must be a JSON object" };
@@ -83,7 +84,7 @@ export async function checkModule(source: string, file: string): Promise<string 
     if (e.errors?.length) {
       return e.errors.map((x) => (x.location ? `${file}:${x.location.line}:${x.location.column}: ${x.text}` : x.text)).join("\n");
     }
-    return err instanceof Error ? err.message : String(err);
+    return messageOf(err);
   }
 }
 

@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * MCP servers as the person configures them: `<loki>/mcp.json`, in the `mcpServers` shape Claude Code, Claude Desktop
@@ -52,7 +53,7 @@ export function parseConfig(text: string): McpConfig {
   try {
     raw = JSON.parse(text);
   } catch (error) {
-    return { servers: [], problems: [`mcp.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`] };
+    return { servers: [], problems: [`mcp.json is not valid JSON: ${messageOf(error)}`] };
   }
   const entries = raw && typeof raw === "object" ? (raw as { mcpServers?: unknown }).mcpServers : undefined;
   if (!entries || typeof entries !== "object" || Array.isArray(entries)) return { servers: [], problems: raw ? ['mcp.json has no "mcpServers" object'] : [] };
@@ -104,7 +105,7 @@ export function readConfig(path: string): McpConfig {
     text = readFileSync(path, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { servers: [], problems: [] };
-    return { servers: [], problems: [`could not read ${path}: ${error instanceof Error ? error.message : String(error)}`] };
+    return { servers: [], problems: [`could not read ${path}: ${messageOf(error)}`] };
   }
   return parseConfig(text);
 }

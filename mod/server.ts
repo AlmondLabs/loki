@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from "./ws.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { uploadRoute } from "./uploads.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Transport only. HTTP serves /health, /uploads (files attached to messages), the agents' faces, the WebSocket upgrade,
@@ -237,7 +238,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
         try {
           handlers.onMessage(client, msg as Record<string, unknown>);
         } catch (err) {
-          send(ws, { type: "error", message: err instanceof Error ? err.message : String(err) });
+          send(ws, { type: "error", message: messageOf(err) });
         }
       });
       handlers.onConnect(client);
@@ -294,7 +295,7 @@ export function oauthCallbackRoute(path: string, finish: (params: Record<string,
       return true;
     }
     void finish(Object.fromEntries(url.searchParams))
-      .catch((error: unknown) => ({ ok: false, message: error instanceof Error ? error.message : String(error) }))
+      .catch((error: unknown) => ({ ok: false, message: messageOf(error) }))
       .then((r) => {
         res.writeHead(r.ok ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" });
         res.end(oauthPage(r.ok, r.message));

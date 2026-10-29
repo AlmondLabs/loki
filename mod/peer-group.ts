@@ -1,5 +1,6 @@
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Every paired Mac paired with every other (plan 023, addendum D), since a chat's frames go one hop to its home. When a
@@ -53,11 +54,11 @@ export class PeerGroup {
           log("peers:joined-group", { via, mac: m.mac_id });
         } catch (err) {
           // That Mac out of reach, or it forgot this one: it is tried again at the next contact.
-          log("peers:join-failed", { via, mac: m.mac_id, error: err instanceof Error ? err.message : String(err) });
+          log("peers:join-failed", { via, mac: m.mac_id, error: messageOf(err) });
         }
       }
     } catch (err) {
-      log("peers:group-failed", { via, error: err instanceof Error ? err.message : String(err) });
+      log("peers:group-failed", { via, error: messageOf(err) });
     } finally {
       this.running.delete(via);
     }

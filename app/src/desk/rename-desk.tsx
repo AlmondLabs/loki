@@ -4,6 +4,7 @@ import { Button, Field, Sheet } from "../components";
 import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
 import type { CatchUp, Desk } from "../shell/types";
 import type { DeskSummary } from "../../../core/frame-types.ts";
+import { messageOf } from "../../../core/errors.ts";
 
 /** The props of the rename-chat dialog (`RenameDesk`). */
 export interface RenameDeskProps {
@@ -29,7 +30,7 @@ export async function saveRename(
     if (renamed) return renamed;
     return purpose === null || !onPurpose ? null : await onPurpose(purpose);
   } catch (e) {
-    return e instanceof Error ? e.message : String(e);
+    return messageOf(e);
   }
 }
 

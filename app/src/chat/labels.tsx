@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Button, Field, Sheet } from "../components";
 import { Icon } from "../shared/icons";
 import { LABELS_PER_CHAT, LABEL_COLORS, LABEL_MAX, chatLabels, labelName, type LabelView } from "../../../core/labels.ts";
+import { messageOf } from "../../../core/errors.ts";
 
 /** The palette, in core/labels.ts's order: a label's colour index picks one (tokens.css, `--loki-label-*`). */
 const LABEL_COLOR_VARS = [
@@ -135,7 +136,7 @@ export function LabelEditor({
     const before = labels;
     setLabels(next);
     setError(null);
-    const err = await onChange(next).catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+    const err = await onChange(next).catch((e: unknown) => messageOf(e));
     if (err) {
       setLabels(before);
       setError(err);

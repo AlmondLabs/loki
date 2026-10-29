@@ -13,6 +13,7 @@ import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from ".
 import { modelRef } from "./loki-engine.ts";
 import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Background passes (plan 018): reflection and Learn are two jobs on one runner, the same process with different
@@ -520,7 +521,7 @@ export class PassRunner {
       return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars });
     } catch (error) {
       this.deps.report?.(`memory review of ${agentId} failed: ${String(error)}`);
-      return finish({ outcome: "failed", changes: 0, report: `the memory review did not finish: ${error instanceof Error ? error.message : String(error)}` });
+      return finish({ outcome: "failed", changes: 0, report: `the memory review did not finish: ${messageOf(error)}` });
     }
   }
 

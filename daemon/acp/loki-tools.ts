@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import type { ChatTool } from "../chat-tools.ts";
 import type { StoreManager } from "../kernel/stores.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /** The name loki's tools go by in an ACP agent: Claude Code calls them `mcp__loki__<tool>`. */
 export const LOKI_TOOLS_SERVER = "loki";
@@ -133,4 +134,4 @@ export class LokiTools {
 const schema = (parameters: object) => fromJsonSchema<Record<string, unknown>>(parameters);
 
 /** A call that went wrong, as the agent reads it. */
-const failed = (e: unknown): ServedResult => ({ content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }], isError: true });
+const failed = (e: unknown): ServedResult => ({ content: [{ type: "text", text: messageOf(e) }], isError: true });

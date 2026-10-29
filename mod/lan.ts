@@ -17,6 +17,7 @@ import { log } from "./log.ts";
 import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 import { isLanVia } from "../core/frames.ts";
 import { serialQueue } from "../core/serial.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
@@ -422,7 +423,7 @@ export class LanListener {
       }
       this.serveStatic(req, res, url);
     } catch (err) {
-      log("lan:request-error", err instanceof Error ? err.message : String(err));
+      log("lan:request-error", messageOf(err));
       if (!res.headersSent) res.writeHead(500).end();
     }
   }
@@ -712,6 +713,6 @@ function writeState(file: string, state: LanState): void {
     writeFileSync(tmp, JSON.stringify(state.via ? state : { enabled: state.enabled }, null, 2) + "\n");
     renameSync(tmp, file);
   } catch (err) {
-    log("lan:state-write-failed", err instanceof Error ? err.message : String(err));
+    log("lan:state-write-failed", messageOf(err));
   }
 }

@@ -5,6 +5,7 @@ import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
 import type { Pushes } from "../../../core/frames.ts";
+import { messageOf } from "../../../core/errors.ts";
 
 /**
  * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
@@ -268,7 +269,7 @@ function NewDeskSheet({
     try {
       await onCreate(agentId, folder.trim(), name.trim(), where.home);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(messageOf(err));
       setCreating(false);
     }
   };

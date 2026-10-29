@@ -7,6 +7,7 @@ import type { ChatBackend } from "./frames/chat.ts";
 import type { PeerMoves } from "./frames/peers.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Moving chats between paired Macs (plan 023, U9, R9, KTD11, addendum A1), both sides of it in one place. A chat has
@@ -92,7 +93,7 @@ export class ChatMoves implements PeerMoves {
       if (!waiting) this.opts.markDone(macId);
     } catch (err) {
       // Out of reach halfway: what moved stays moved, the rest goes at the next contact.
-      log("peers:chat-move-failed", { from: macId, error: err instanceof Error ? err.message : String(err) });
+      log("peers:chat-move-failed", { from: macId, error: messageOf(err) });
     } finally {
       this.running.delete(macId);
     }
@@ -116,7 +117,7 @@ export class ChatMoves implements PeerMoves {
       this.opts.onMoved(to);
       return null;
     } catch (err) {
-      return `the move to ${name} did not finish: ${err instanceof Error ? err.message : String(err)}`;
+      return `the move to ${name} did not finish: ${messageOf(err)}`;
     }
   }
 

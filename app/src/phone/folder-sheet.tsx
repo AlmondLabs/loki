@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button, Chip, Sheet } from "../components";
 import { folderName, shownFolders } from "./new-chat-folders";
+import { messageOf } from "../../../core/errors.ts";
 
 /** Home shortened to ~, for reading. */
 const shortPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
@@ -49,7 +50,7 @@ export function FolderSheet({
     try {
       err = await onMove(picked);
     } catch (e) {
-      err = e instanceof Error ? e.message : String(e);
+      err = messageOf(e);
     }
     setBusy(false); // after either branch: the catch cannot throw, so no finally (the React Compiler cannot take one)
     if (err) setError(err);

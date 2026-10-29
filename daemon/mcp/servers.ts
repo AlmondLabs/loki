@@ -11,6 +11,7 @@ import {
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { sameServer, type ServerConfig } from "./config.ts";
 import { Listeners } from "../../core/listeners.ts";
+import { messageOf } from "../../core/errors.ts";
 
 /**
  * The MCP servers loki is connected to (one client each), and the tools they offer. A local server is started with the
@@ -233,7 +234,7 @@ export class McpServers {
       entry.client = null;
       // A server that wants a sign-in waits for it: retrying would only open the same page again.
       if (error instanceof UnauthorizedError) return this.needsSignIn(entry);
-      this.down(entry, generation, `${error instanceof Error ? error.message : String(error)}${tailOf(entry.stderr)}`);
+      this.down(entry, generation, `${messageOf(error)}${tailOf(entry.stderr)}`);
     }
   }
 

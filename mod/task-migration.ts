@@ -6,6 +6,7 @@ import type { ChatRouter } from "./chat-router.ts";
 import { lokiDir } from "./paths.ts";
 import { envVar, execProgram, firstExisting, onPath } from "./programs.ts";
 import type { ChatKey, SuggestionInput, Suggestions } from "./suggestions.ts";
+import { messageOf } from "../core/errors.ts";
 
 /**
  * Tasks retired into suggestions (plan 049, U7, KTD10): each open task in the beads store becomes a suggestion in the
@@ -135,7 +136,7 @@ function readState(file: string): Record<string, unknown> {
   try {
     v = JSON.parse(raw);
   } catch (err) {
-    throw new Error(`${file} does not parse (${err instanceof Error ? err.message : String(err)}): left as it is`);
+    throw new Error(`${file} does not parse (${messageOf(err)}): left as it is`);
   }
   if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error(`${file} is not a JSON object: left as it is`);
   return v as Record<string, unknown>;
@@ -171,7 +172,7 @@ async function addAtHome(d: TaskMoveDeps, source: ChatKey, input: SuggestionInpu
     const out = await d.route.forward(home, frame, "request");
     return out.ok ? null : out.message;
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return messageOf(err);
   }
 }
 
@@ -185,14 +186,14 @@ export async function moveTasks(d: TaskMoveDeps): Promise<string[]> {
     // --readonly makes bd refuse any write, so reading the list can never change the store (docs/SECURITY.md).
     tasks = parseOpenTasks(await d.run(["--readonly", "list", "--json", "--flat", "-n", "0"]));
   } catch (err) {
-    d.report(`tasks not moved into suggestions yet: ${err instanceof Error ? err.message : String(err)}`);
+    d.report(`tasks not moved into suggestions yet: ${messageOf(err)}`);
     return [];
   }
   let done: Set<string>;
   try {
     done = new Set(movedIds(readState(d.stateFile)));
   } catch (err) {
-    d.report(`tasks not moved into suggestions: ${err instanceof Error ? err.message : String(err)}`);
+    d.report(`tasks not moved into suggestions: ${messageOf(err)}`);
     return [];
   }
   const moved: string[] = [];
@@ -217,7 +218,7 @@ export async function moveTasks(d: TaskMoveDeps): Promise<string[]> {
       record(d.stateFile, t.id);
     } catch (err) {
       // Its suggestion is kept under the task's id, so the next run finds it and only notes the task.
-      d.report(`tasks not moved into suggestions: ${err instanceof Error ? err.message : String(err)}`);
+      d.report(`tasks not moved into suggestions: ${messageOf(err)}`);
       break;
     }
     moved.push(t.id);
