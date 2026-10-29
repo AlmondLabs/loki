@@ -128,7 +128,15 @@ export class LokiEngine implements Engine {
 
   /** The chat moved to an ACP agent: stop following it, or the messages that side writes would show a second time. */
   async leave(c: EngineChat): Promise<void> {
-    const key = keyOf(c.agentId, c.conversationId);
+    await this.forgetChat(c.agentId, c.conversationId);
+  }
+
+  /**
+   * Stop following a chat. A chat that comes back from another Mac is a new conversation under the same id, and the
+   * stream kept for the old one would leave the new one's answers unseen.
+   */
+  async forgetChat(agentId: string, conversationId: string): Promise<void> {
+    const key = keyOf(agentId, conversationId);
     const stream = this.following.get(key);
     this.following.delete(key);
     this.converters.delete(key);
