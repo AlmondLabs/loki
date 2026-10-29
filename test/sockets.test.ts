@@ -7,7 +7,14 @@ import { Sockets, type PhoneListener } from "../mod/sockets.ts";
 /** A listener that records what it was asked to send, and whether it was closed. */
 function fakeListener(name: string, sent: string[]) {
   const record = (msg: object, scope?: Scope, to: Audience = "all") => sent.push(`${name}:${(msg as { type: string }).type}:${scope ?? "-"}:${to}`);
-  const bridge: WsBridge = { broadcast: record, clientCount: () => 2, closeDevice: () => 0, closePeer: () => 0, close: () => sent.push(`${name}:closed`) };
+  const bridge: WsBridge = {
+    broadcast: record,
+    clientCount: () => 2,
+    closeDevice: () => 0,
+    closeDevices: () => 0,
+    closePeer: () => 0,
+    close: () => sent.push(`${name}:closed`),
+  };
   const phones: PhoneListener = {
     broadcast: record,
     clientCount: () => 1,
