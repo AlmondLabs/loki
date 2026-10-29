@@ -111,7 +111,9 @@ export class PeerLink {
     const token = await this.opts.token();
     if (this.stopped) return;
     if (!url || !token) return this.closed();
-    this.setStatus("connecting");
+    // A retry of a Mac out of reach stays "unreachable" until it answers (plan 048): flipping to "connecting" and back
+    // every backoff step broadcast the paired Macs to every client and logged two lines, forever, for a Mac turned off.
+    if (this.current !== "unreachable") this.setStatus("connecting");
     const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` }, handshakeTimeout: 8000 });
     this.ws = ws;
     ws.on("unexpected-response", (_req, res) => {

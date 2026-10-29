@@ -71,7 +71,7 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(state.changes).toBe(1);
   });
 
-  test("a paired Mac's rows keep each chat's purpose, draft mark and folder (plan 047, U1)", async () => {
+  test("a paired Mac's rows keep each chat's purpose, draft mark and folder (plan 049, U1)", async () => {
     const { remote, state } = fixture();
     const more = { purpose: "the website", has_draft: true, cwd: "/work/site" };
     state.lists = { desks: [{ ...desk("conv-1", "plan the week"), ...more }], inbox: [{ ...row("conv-1"), ...more }] };

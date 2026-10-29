@@ -30,7 +30,7 @@ export interface ToolDeps {
   /** Bind a conversation to its desk and return the scope. */
   remember?: (conversationId: string, agentId?: string | null) => Scope;
   broadcast(msg: object, scope?: Scope): void;
-  /** The chat list and the suggestions (plan 047, U3), when this daemon keeps suggestions. */
+  /** The chat list and the suggestions (plan 049, U3), when this daemon keeps suggestions. */
   chats?: ChatToolDeps;
 }
 
@@ -255,7 +255,7 @@ function suggestionLine(s: Suggestion, chats: OpenChat[]): string {
 }
 
 /**
- * chat_list, suggestion_create, suggestion_list and suggestion_withdraw (plan 047, U3). All four are marked read-only
+ * chat_list, suggestion_create, suggestion_list and suggestion_withdraw (plan 049, U3). All four are marked read-only
  * (KTD4): a suggestion is the person's decision when they act on it, so making one never stops a turn for approval.
  */
 function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, deps: ChatToolDeps): Array<() => void> {

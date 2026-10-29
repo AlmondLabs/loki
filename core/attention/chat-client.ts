@@ -178,7 +178,7 @@ export class FrameChatClient {
       },
       // Opened mid-answer: what was written before this socket listened, so the reply shows from its first word.
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
-      // The suggestions waiting in it (plan 047): a client opening late sees them as one that was listening does.
+      // The suggestions waiting in it (plan 049): a client opening late sees them as one that was listening does.
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
     ]);
     return { type: "chat_state" };
@@ -225,7 +225,7 @@ export class FrameChatClient {
       ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
       ...(typeof body.hidden === "boolean" ? { hidden: body.hidden } : {}),
       ...(typeof body.purpose === "string" || body.purpose === null ? { purpose: body.purpose } : {}),
-      // The app only ever clears a saved draft (an emptied box); saving one is the suggestion's own action (plan 047, KTD7).
+      // The app only ever clears a saved draft (an emptied box); saving one is the suggestion's own action (plan 049, KTD7).
       ...(body.draft === null ? { draft: null } : {}),
     });
   }
@@ -363,7 +363,7 @@ export class FrameChatClient {
     check: (id: string) => this.call("chat_engine_check", { id }),
   };
   /**
-   * The person's actions on a suggestion made in a chat (plan 047), carried out by the Mac that chat lives on: each
+   * The person's actions on a suggestion made in a chat (plan 049), carried out by the Mac that chat lives on: each
    * answers with the suggestion as it then stands, and whether the action took or why not.
    */
   readonly suggestions = {

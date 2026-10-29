@@ -82,7 +82,7 @@ async function setup() {
   return { chats, stores, ada, projection, update, row, desk, faux, pushed };
 }
 
-describe("a chat's purpose line and saved draft (plan 047, U1)", () => {
+describe("a chat's purpose line and saved draft (plan 049, U1)", () => {
   test("a purpose set through chat_update shows in the chat list and the Inbox row; an empty one clears it", async () => {
     const s = await setup();
     const id = (await s.chats.create(s.ada, "/work/site", "site")).conversationId;

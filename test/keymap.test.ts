@@ -115,7 +115,7 @@ describe("keymap: resolution", () => {
     expect(resolve(ev("5", { meta: true }), "desk")?.id).toBe("segment.learn");
     expect(resolve(ev("6", { meta: true }), "desk")?.id).toBe("segment.settings");
   });
-  test("⌘3 is free since Tasks was retired (plan 047, U6): it maps to nothing, and the other sections keep their keys", () => {
+  test("⌘3 is free since Tasks was retired (plan 049, U6): it maps to nothing, and the other sections keep their keys", () => {
     for (const s of ["desk", "inbox", "agents", "learn", "settings"] as const) {
       expect(resolve(ev("3", { meta: true }), s)).toBeNull();
       expect(resolve(ev("3", { meta: true }, true), s)).toBeNull();

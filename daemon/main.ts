@@ -291,7 +291,7 @@ const loadCore = (): Promise<LoadResult> =>
         secrets: secrets ?? memorySecrets(),
         // The memory repos' one queue, shared with the mod, which is bundled apart and would otherwise make its own (plan 046).
         memory: memoryRepos,
-        // The suggestions kept on this Mac's chat records (plan 047, KTD1); the mod reads and writes a chat's whole list.
+        // The suggestions kept on this Mac's chat records (plan 049, KTD1); the mod reads and writes a chat's whole list.
         suggestions: {
           read: async (agentId, id) => {
             const store = await stores.get(agentId);

@@ -34,7 +34,7 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       expect(withTools).toContain("never by editing the files");
       expect(withTools).toContain("read one with memory_read");
       expect(withTools).not.toContain("do not edit them");
-      // Suggestions (plan 047, KTD5): an ACP agent never sees the mod's prompt sections, so the prompt names the tool.
+      // Suggestions (plan 049, KTD5): an ACP agent never sees the mod's prompt sections, so the prompt names the tool.
       expect(withTools).toContain("suggestion_create");
       expect(prompt).not.toContain("suggestion_create");
       // An agent with no memory and no skills still learns of the tool when loki's tools reach it.

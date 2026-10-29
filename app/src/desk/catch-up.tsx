@@ -45,7 +45,7 @@ interface CatchUpProps {
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  /** The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions (plan 047). */
+  /** The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions (plan 049). */
   chats: ChatViews & SuggestionSource;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
@@ -289,7 +289,7 @@ function Card({
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
-  // draft for this chat (plan 047) shows in the box while nothing is typed.
+  // draft for this chat (plan 049) shows in the box while nothing is typed.
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
   return (
     <div

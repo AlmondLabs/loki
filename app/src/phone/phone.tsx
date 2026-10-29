@@ -35,7 +35,7 @@ import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Banner, Button } from "../components";
-import { pageActivity } from "../shared/page-activity";
+import { pageActivity, pageVisibility } from "../shared/page-activity";
 import "./phone.css";
 
 /**
@@ -130,7 +130,7 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
 }
 
 /**
- * Why a suggestion's buttons wait (plan 047, U4): while the link to the Mac is down nothing it carries out can be
+ * Why a suggestion's buttons wait (plan 049, U4): while the link to the Mac is down nothing it carries out can be
  * asked for, so the card says so instead of offering what would only fail. Null while the link holds.
  */
 function macAway(catchUp: CatchUp): string | null {
@@ -203,6 +203,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
+    visibility: pageVisibility,
   });
   const { route, from, arrival } = useRouteState();
   // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).

@@ -29,6 +29,7 @@ import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
+import { keepSame } from "../same-data.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf, SuggestionAction } from "../frames.ts";
@@ -109,6 +110,11 @@ export interface UseAttentionOptions {
   sent?: (rt: Runtime) => void;
   /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
   activity?: Activity;
+  /**
+   * Reports the page shown or hidden (app/src/shared/page-activity.ts), as `activity` does for in front: while hidden the
+   * clock tick and the list poll stop (plan 047), since nothing on screen needs them and coming back reloads the lists.
+   */
+  visibility?: Activity;
   /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
   makeClient: () => ChatClient;
 }
@@ -157,12 +163,12 @@ export interface ChatFace {
   loadFailed: (() => void) | null;
   /** Fetch what a page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep: (row: number) => Promise<WholeRow | null>;
-  /** The suggestions made in this chat that wait on the person or are being sent (plan 047), for its chat screen. */
+  /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
 }
 
 /**
- * What a person's action on a suggestion came to (plan 047): whether it took, the reason when it did not (another
+ * What a person's action on a suggestion came to (plan 049): whether it took, the reason when it did not (another
  * device acted first, the target is gone, the Mac is out of reach), and the suggestion as it then stands, when known.
  */
 export interface SuggestionOutcome {
@@ -208,13 +214,13 @@ export function useThreadRows(
   return useSyncExternalStore(chats.watchThreads, read, read);
 }
 
-/** The saved draft's text on an Inbox row (plan 047, KTD7), which the mod sends as `draft_text`; null when it has none. */
+/** The saved draft's text on an Inbox row (plan 049, KTD7), which the mod sends as `draft_text`; null when it has none. */
 function draftTextOf(c: ConversationInfo): string | null {
   return (c.has_draft === true && c.draft_text) || null;
 }
 
 /**
- * The suggestions saved as drafts, by chat (plan 047, KTD7): the text each chat's message box shows while nothing is
+ * The suggestions saved as drafts, by chat (plan 049, KTD7): the text each chat's message box shows while nothing is
  * typed in it, as the Inbox list last had it. useAttention keeps it; the app's message-box drafts read it beneath
  * what is typed (app/src/shared/drafts.ts) and say when a box that held one was emptied. Typing never reaches it.
  */
@@ -301,6 +307,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<ChatClient | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** Whether the page is shown (opts.visibility): the list poll skips while it is not. */
+  const visibleRef = useRef(true);
   /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
   const liveOf = useCallback((key: string): Live => {
     let l = liveRef.current.get(key);
@@ -453,6 +461,8 @@ export function useAttention(opts: UseAttentionOptions) {
     });
 
     let cancelled = false;
+    /** The list's last answer on this connection, to tell a repeat from a change. */
+    let lastRows: unknown = null;
     /** Whether the cleanup has run: read through a call, since it changes while the load awaits. */
     const stopped = () => cancelled;
     const subscribeLimit = optsRef.current.subscribeLimit ?? 30;
@@ -468,22 +478,28 @@ export function useAttention(opts: UseAttentionOptions) {
       const agents = await sock.listAgents();
       const shown = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a]));
       if (!cancelled) {
-        setAgents([...shown.values()].map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null })));
+        const next = [...shown.values()].map((a) => ({ id: a.id, name: a.name ?? "agent", home_mac: a.home_mac ?? null }));
+        setAgents((was) => keepSame(was, next));
         setAgentsLoaded(true);
       }
       // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await optsRef.current.listConversations();
       if (cancelled) return;
+      lastReload.current = Date.now();
+      // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
+      const same = keepSame(lastRows, rows) === lastRows;
+      lastRows = rows;
       const convs: ConversationInfo[] = rows
         .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
         .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
-      lastReload.current = Date.now();
-      knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
-      setConversations(convs);
+      if (!same) {
+        knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
+        setConversations(convs);
+        setDigests(
+          new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
+        );
+      }
       setListed(true);
-      setDigests(
-        new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
-      );
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, subscribeLimit)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
@@ -496,7 +512,9 @@ export function useAttention(opts: UseAttentionOptions) {
     reloadRef.current = () => void load();
     void load();
     // The poll is the fallback; an agent changed elsewhere, a reconnect or a return from the background asks at once.
-    const refresh = setInterval(() => void load(), 60_000);
+    const refresh = setInterval(() => {
+      if (visibleRef.current) void load();
+    }, 60_000);
     const offStale = sock.onListsStale(() => void load());
     return () => {
       cancelled = true;
@@ -520,9 +538,21 @@ export function useAttention(opts: UseAttentionOptions) {
   );
 
   // The clock tick: focus fades and cards age without any other event, so the items are rebuilt twice a minute.
+  // Nothing on screen ages while the page is hidden, so the tick redraws nothing then; back in view, it catches up at once (plan 047).
   const [now, setNow] = useState(() => Date.now());
+  const visibility = opts.visibility;
+  useEffect(
+    () =>
+      visibility?.((shown) => {
+        if (shown && !visibleRef.current) setNow(Date.now());
+        visibleRef.current = shown;
+      }),
+    [visibility],
+  );
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
+    const t = setInterval(() => {
+      if (visibleRef.current) setNow(Date.now());
+    }, 30_000);
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
@@ -795,7 +825,7 @@ export function useAttention(opts: UseAttentionOptions) {
   );
 
   /**
-   * The person's actions on a chat's suggestions (plan 047), carried out by the Mac the chat lives on. The card shows
+   * The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. The card shows
    * the outcome; the suggestion's new state reaches every client as the chat's `suggestions` event, so nothing here
    * changes the live state itself. A call that does not get through leaves the suggestion as it was, with the reason.
    */
@@ -862,7 +892,7 @@ export function useAttention(opts: UseAttentionOptions) {
         queued: l.inTurn,
       });
       optsRef.current.sent?.(rt);
-      // The chat's next send spends its saved draft (plan 047, KTD7): the box and the Inbox mark lose it now.
+      // The chat's next send spends its saved draft (plan 049, KTD7): the box and the Inbox mark lose it now.
       if (savedDrafts.drop(rt.agent_id, rt.conversation_id)) noDraft(rt.agent_id, rt.conversation_id);
       const mode = sendMode(l);
       // Mid-turn on an agent: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
@@ -1242,7 +1272,7 @@ export function useAttention(opts: UseAttentionOptions) {
     }
   }, []);
   /**
-   * Give a chat its one-line purpose (plan 047, R11), or clear it with an empty one; resolves to an error message or
+   * Give a chat its one-line purpose (plan 049, R11), or clear it with an empty one; resolves to an error message or
    * null. The Inbox list has it at once, so the header shows it before the list is read again.
    */
   const setPurpose = useCallback(async (rt: Runtime, purpose: string): Promise<string | null> => {

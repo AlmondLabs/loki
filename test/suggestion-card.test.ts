@@ -19,7 +19,7 @@ import type { Suggestion } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
- * The suggestion card (plan 047, U4): an agent's suggestions for other chats show in the chat screen where they were
+ * The suggestion card (plan 049, U4): an agent's suggestions for other chats show in the chat screen where they were
  * made, beside the question and approval cards, on the desktop and the phone; each one line until opened, then the
  * message with send now, save as draft, change chat and reject.
  */

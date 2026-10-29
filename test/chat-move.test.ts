@@ -48,7 +48,7 @@ describe("a chat moving to another Mac", () => {
     expect(moved.cursors).toEqual({ reflection: 3 });
   });
 
-  test("keeps its purpose line, its saved draft and its suggestions (plan 047, U1)", async () => {
+  test("keeps its purpose line, its saved draft and its suggestions (plan 049, U1)", async () => {
     const s = await stores();
     await s.book.createChat("conv-1", { agent: { model: s.model } }, ctx);
     const draft = { text: "check the deploy", suggestion_id: "sug-2", source: { agent_id: "agent-ira", conversation_id: "conv-9" } };

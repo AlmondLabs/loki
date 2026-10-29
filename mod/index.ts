@@ -99,7 +99,7 @@ export interface Host {
   /** The keychain (or the daemon's stand-in for it), for the tokens this Mac presents to paired Macs. */
   secrets: SecretBackend;
   /**
-   * The suggestions kept on this Mac's chat records (plan 047, KTD1): reading and writing a chat's list. Absent from a
+   * The suggestions kept on this Mac's chat records (plan 049, KTD1): reading and writing a chat's list. Absent from a
    * daemon that predates them, and the suggestion frames say so.
    */
   suggestions?: SuggestionRecords;
@@ -199,7 +199,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  // The folder a chat works in, from the daemon's folder index; the task move falls back to it (plan 047, U7).
+  // The folder a chat works in, from the daemon's folder index; the task move falls back to it (plan 049, U7).
   const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
 
@@ -311,7 +311,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
       // Once after pairing, the chats there of agents that live here (U9).
       { name: "moves", after: "memory", reached: (id) => chatMoves.takeOver(id) },
-      // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 047, U7).
+      // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 049, U7).
       { name: "tasks", after: "moves", reached: () => moveOpenTasks() },
       {
         name: "state",
@@ -395,7 +395,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       broadcast({ type: "lists_changed" });
     },
   });
-  // Suggestions (plan 047): kept on the records of this Mac's chats and carried out here, sending to the Mac each
+  // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
   // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
     ? new Suggestions({
@@ -411,7 +411,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  // Tasks retired into suggestions (plan 047, U7): each open task moves to the chat it was filed from once, at start and
+  // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
   // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
   // at a time, so two runs never add the same task twice; start does not wait for it.
   let taskMove: Promise<unknown> = Promise.resolve();
@@ -587,7 +587,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
-    // A chat opens with the suggestions waiting in it (plan 047).
+    // A chat opens with the suggestions waiting in it (plan 049).
     chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
     suggestions,
     decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? (peerStore.get(c.peerId)?.name ?? "another Mac") : "desktop"),
@@ -825,7 +825,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     activeScope: () => activeScope,
     remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
     broadcast,
-    // chat_list and the suggestion tools (plan 047, U3): every list's chats, and each agent with the Mac it lives on.
+    // chat_list and the suggestion tools (plan 049, U3): every list's chats, and each agent with the Mac it lives on.
     chats: suggestions
       ? {
           suggestions,

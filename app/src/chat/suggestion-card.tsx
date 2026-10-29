@@ -8,7 +8,7 @@ import { Button, Field, Row, sentence } from "../components";
 import { buildSearchIndex, rankHits, type Indexed } from "../shared/search";
 
 /**
- * Suggestions in the chat screen (plan 047, U4): messages an agent in this chat suggests for another chat, each a
+ * Suggestions in the chat screen (plan 049, U4): messages an agent in this chat suggests for another chat, each a
  * card in the slot beside the approval and question cards, never a row in the thread. They stack newest first, one
  * line each until opened; opened, a card shows the message and send now, save as draft, change chat and reject. The
  * Mac the chat lives on carries out every action; the card shows what it answered.

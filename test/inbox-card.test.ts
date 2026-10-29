@@ -81,7 +81,7 @@ describe("the Inbox card's message box", () => {
   });
 });
 
-describe("the Inbox card's suggestions (plan 047)", () => {
+describe("the Inbox card's suggestions (plan 049)", () => {
   const pending = (id: string, createdAt: string): Suggestion => ({
     id,
     title: `suggestion ${id}`,

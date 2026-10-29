@@ -88,12 +88,12 @@ related chats across agents: lowercase letters, digits and dashes, up to eight a
 eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
 agents' own `tags`), category, folder (a chat's working directory).
 
-**Purpose line** (`ChatInfo.purpose`, plan 047): one line the person writes on a chat, in its Rename dialog or
+**Purpose line** (`ChatInfo.purpose`, plan 049): one line the person writes on a chat, in its Rename dialog or
 sheet, saying what the chat is for. It shows under the chat's name in its header, and agents read it through
 `chat_list` to pick the chat a piece of work fits; only the person writes it. _Avoid_: description (an agent's own),
 topic.
 
-**Suggestion** (`mod/suggestions.ts`, plan 047): a message an agent writes for another chat, an open one of any agent
+**Suggestion** (`mod/suggestions.ts`, plan 049): a message an agent writes for another chat, an open one of any agent
 or a new one for an agent in a folder, made with `suggestion_create` whenever another chat fits the work better. It
 is kept on the record of the chat it was made in, on that chat's home, and shows in that chat's screen, outside the
 thread, until the person acts: **send now** (it goes as the person's message, with a link back), **save as draft**

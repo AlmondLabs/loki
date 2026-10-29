@@ -456,7 +456,7 @@ export const OpenChat = createContext<((agentId: string, conversationId: string)
 const SUGGESTED = "suggested in another chat";
 
 /**
- * The chat a "suggested in another chat" row came from (plan 047, KTD6), when the row carries it as `link`; null when
+ * The chat a "suggested in another chat" row came from (plan 049, KTD6), when the row carries it as `link`; null when
  * it does not, or when either id is empty, since an empty id would open no chat.
  */
 export function suggestedSource(m: TranscriptRow): { agent_id: string; conversation_id: string } | null {

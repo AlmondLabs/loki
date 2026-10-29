@@ -8,7 +8,7 @@ import { envVar, execProgram, firstExisting, onPath } from "./programs.ts";
 import type { ChatKey, SuggestionInput, Suggestions } from "./suggestions.ts";
 
 /**
- * Tasks retired into suggestions (plan 047, U7, KTD10): each open task in the beads store becomes a suggestion in the
+ * Tasks retired into suggestions (plan 049, U7, KTD10): each open task in the beads store becomes a suggestion in the
  * chat it was filed from, written on the Mac that chat lives on, and its id is noted in `state/migrations.json`
  * (`tasks_moved`) so it moves once. A task that cannot move now (bd missing, its chat's Mac off, its chat gone) is
  * left for the next run. Each suggestion is kept under an id made from its task's (`task-<id>`), so a run that added it

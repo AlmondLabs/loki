@@ -12,6 +12,7 @@ import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
+import { keepSame } from "../../../core/same-data.ts";
 
 /** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
 const STALE_AFTER_HIDDEN_MS = 5_000;
@@ -410,24 +411,9 @@ export function withScope<T>(current: Partial<Record<Scope, T>>, scope: Scope, v
   return current[scope] === value ? current : { ...current, [scope]: value };
 }
 
-/** Plain frame data (maps, lists, strings, numbers) compared by content. */
-function sameData(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) return true;
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
-  const ka = Object.keys(a),
-    kb = Object.keys(b);
-  if (ka.length !== kb.length) return false;
-  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
-}
-
 /** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
 export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
   return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
-}
-
-/** `next`, unless it holds what `prev` holds: then `prev`, so a repeated frame changes no reference. */
-export function keepSame<T>(prev: T, next: T): T {
-  return sameData(prev, next) ? prev : next;
 }
 
 /** The efforts map with one scope set, or cleared when the value is not a level. */

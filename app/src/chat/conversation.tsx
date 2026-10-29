@@ -172,7 +172,7 @@ export function Conversation({
    */
   composer?: boolean;
   /**
-   * The suggestions made in this chat for other chats (plan 047), drawn above the open question or approval and only
+   * The suggestions made in this chat for other chats (plan 049), drawn above the open question or approval and only
    * by the view that draws the box, as they are; null or absent, none.
    */
   suggestions?: SuggestionsProps | null;
@@ -427,7 +427,7 @@ export function ConversationHeader({
   right,
 }: {
   title: ReactNode;
-  /** The person's one line on what the chat is for (plan 047, R11). */
+  /** The person's one line on what the chat is for (plan 049, R11). */
   purpose?: string | null;
   agentName: string | null | undefined;
   agentId: string | null | undefined;

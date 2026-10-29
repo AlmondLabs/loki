@@ -72,7 +72,7 @@ export interface DeskSidebarProps {
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
-  /** Save the chat's purpose line (plan 047, R11), an empty one clearing it; left out, the Rename dialog has no purpose field. */
+  /** Save the chat's purpose line (plan 049, R11), an empty one clearing it; left out, the Rename dialog has no purpose field. */
   onPurpose?: (desk: DeskSummary, purpose: string) => Promise<string | null>;
   /** Move a chat to another folder; resolves to the daemon's refusal or null. Left out with folders, the menu has no Change folder…. */
   onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;

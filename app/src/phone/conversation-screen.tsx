@@ -126,10 +126,10 @@ export function ConversationScreen({
   rename?: {
     name: string;
     onRename: ((name: string) => Promise<string | null>) | null;
-    /** Save the purpose line too (plan 047, R11); null or left out, the Rename sheet has no purpose field. */
+    /** Save the purpose line too (plan 049, R11); null or left out, the Rename sheet has no purpose field. */
     onPurpose?: ((purpose: string) => Promise<string | null>) | null;
   } | null;
-  /** The person's one line on what the chat is for (plan 047, R11), shown in the header under its name. */
+  /** The person's one line on what the chat is for (plan 049, R11), shown in the header under its name. */
   purpose?: string | null;
   /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
@@ -150,7 +150,7 @@ export function ConversationScreen({
   onNotDone?: (item: AttentionItem) => void;
   /** A look, not done (viewed_mark): sent on open and for each new message while the screen is up. */
   onViewed?: (agentId: string, conversationId: string) => void;
-  /** The suggestions made in this chat for other chats (plan 047), over the box; null or absent, none. */
+  /** The suggestions made in this chat for other chats (plan 049), over the box; null or absent, none. */
   suggestions?: Omit<SuggestionsProps, "rt"> | null;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };

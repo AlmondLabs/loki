@@ -62,11 +62,11 @@ export type ChatInfo = {
   engine?: ChatEngine | null;
   /** The person's labels on the chat (plan 022), as core/labels.ts names them; absent, none. */
   labels?: string[];
-  /** The person's one line on what the chat is for, which agents read and never write (plan 047, R11); absent or null, none. */
+  /** The person's one line on what the chat is for, which agents read and never write (plan 049, R11); absent or null, none. */
   purpose?: string | null;
-  /** A suggestion saved as a draft for this chat's message box (plan 047, KTD7); absent or null, none. */
+  /** A suggestion saved as a draft for this chat's message box (plan 049, KTD7); absent or null, none. */
   draft?: SavedDraft | null;
-  /** The suggestions agents made in this chat (plan 047, KTD1), settled ones included; absent, none. */
+  /** The suggestions agents made in this chat (plan 049, KTD1), settled ones included; absent, none. */
   suggestions?: Suggestion[];
   /**
    * Put on this Mac on purpose (plan 023, addendum A2): moved here by hand, or started here away from its agent's home.
@@ -221,7 +221,7 @@ export class AgentStore {
   }
 
   /**
-   * Save a suggestion's draft in a chat's box (plan 047, KTD7) unless it holds another suggestion's, which is never
+   * Save a suggestion's draft in a chat's box (plan 049, KTD7) unless it holds another suggestion's, which is never
    * replaced; the same suggestion's again (a retry) is saved. Checked and written in one commit, so two drafts that
    * arrive together cannot both pass.
    */
@@ -371,15 +371,22 @@ export class AgentStore {
 
   /**
    * Every entry of a chat, oldest first, handed over a page at a time (plan 042): a reader that keeps less than the
-   * whole record, as the chat projection does, then never holds a long chat's every record at once.
+   * whole record, as the chat projection does, then never holds a long chat's every record at once. With `after`, only
+   * the entries newer than that one (plan 047).
    */
-  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void): Promise<void> {
+  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void, after?: EntryId): Promise<void> {
     let cursor: Parameters<Conversation["entries"]>[2];
     do {
-      const page = await conversation.entries({ order: "ascending" }, 500, cursor, context);
-      for (const entry of page.items) fn(entry);
+      const page = await conversation.entries({ order: "ascending", ...(after === undefined ? {} : { minEntryId: after }) }, 500, cursor, context);
+      for (const entry of page.items) if (entry.id !== after) fn(entry);
       cursor = page.next;
     } while (cursor !== undefined);
+  }
+
+  /** The id of a chat's newest entry, undefined when it has none: where a later `eachEntry(…, after)` starts. */
+  async newestEntryId(conversation: Conversation, context: Context): Promise<EntryId | undefined> {
+    const page = await conversation.entries({ order: "descending" }, 1, undefined, context);
+    return page.items[0]?.id;
   }
 
   close(context: Context): Promise<void> {

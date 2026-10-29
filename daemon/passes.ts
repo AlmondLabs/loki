@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { withCancel } from "@earendil-works/chord/context";
-import type { Registry } from "@earendil-works/pi-durable";
+import type { EntryRecord, Registry } from "@earendil-works/pi-durable";
 import { readLocalAgent } from "../mod/agents.ts";
 import { formatTranscript } from "../mod/recall-worker.ts";
 import { isWriterChat } from "../core/recall/model.ts";
@@ -432,7 +432,11 @@ export class PassRunner {
       await chat.configure(agent, context);
       await chat.reset(undefined, context);
     }
-    const before = (await store.entries(chat, context)).length;
+    // Only what this run adds is read back (plan 047): a reset keeps the pass chat's old entries, which grew to
+    // thousands, and reading them whole twice a run parsed tens of megabytes. The newest entry is read before the
+    // submission, never alongside it: the run's own entries must all come after it, or some would be skipped.
+    const before = await store.newestEntryId(chat, context);
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const submission = await chat.submit({ type: "input", content: spec.prompt, requestId: spec.requestId }, context);
     // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
     const limited = withCancel(context);
@@ -449,7 +453,9 @@ export class PassRunner {
     }
     if (settled.status !== "done") throw new Error(`the pass did not finish: ${unansweredWhy(settled)}`);
     const answer: PassAnswer = { text: "", toolCalls: [] };
-    for (const entry of (await store.entries(chat, context)).slice(before)) {
+    const added: EntryRecord[] = [];
+    await store.eachEntry(chat, context, (entry) => added.push(entry), before);
+    for (const entry of added) {
       const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
       if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;
       for (const part of m.content ?? []) if (part.type === "toolCall" && part.name) answer.toolCalls.push(part.name);

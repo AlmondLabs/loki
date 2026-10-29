@@ -1,4 +1,4 @@
-// A suggestion saved as a draft (plan 047, U5): it waits in its chat's message box on every surface while nothing is
+// A suggestion saved as a draft (plan 049, U5): it waits in its chat's message box on every surface while nothing is
 // typed there, marks the chat's Inbox card, and goes when the chat sends or the box is emptied.
 import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";

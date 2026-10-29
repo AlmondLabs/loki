@@ -434,7 +434,7 @@
   border-top: 1px solid var(--loki-accent);
   background: var(--loki-brass-soft);
 }
-/* Suggestions an agent made in this chat for other chats (plan 047, suggestion-card.tsx): over the question and the
+/* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): over the question and the
    approval, each one line until opened; the stack scrolls rather than pushing the thread away. */
 .loki-suggestions {
   flex: 0 1 auto;
@@ -1504,7 +1504,7 @@ button.loki-label-chip:focus-visible {
   outline: 2px solid var(--loki-accent);
   outline-offset: 2px;
 }
-/* A chat's purpose line (plan 047) under its name in the header: one quiet line, cut short when it runs long. */
+/* A chat's purpose line (plan 049) under its name in the header: one quiet line, cut short when it runs long. */
 .loki-chat-purpose {
   margin-top: 2px;
   font-size: 12px;

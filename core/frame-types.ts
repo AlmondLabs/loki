@@ -127,18 +127,18 @@ export interface InboxRow extends LocalDigest, ChatHome {
   archived: false;
   /** The person's labels on the chat (plan 022). */
   labels?: string[];
-  /** The person's one line on what the chat is for (plan 047); null when none, absent from a mod that predates it. */
+  /** The person's one line on what the chat is for (plan 049); null when none, absent from a mod that predates it. */
   purpose?: string | null;
-  /** A suggestion saved as a draft waits in the chat's message box (plan 047, R9): the card says so. */
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049, R9): the card says so. */
   has_draft?: boolean;
-  /** That draft's text, which fills the chat's message box when it opens empty (plan 047, KTD7); null when none. */
+  /** That draft's text, which fills the chat's message box when it opens empty (plan 049, KTD7); null when none. */
   draft_text?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;
 }
 
 /**
- * Where a suggestion's message goes (plan 047, R1): an existing chat of any agent, or a new chat of an agent in a
+ * Where a suggestion's message goes (plan 049, R1): an existing chat of any agent, or a new chat of an agent in a
  * folder.
  */
 export type SuggestionTarget = { agent_id: string; conversation_id: string } | { agent_id: string; folder: string };
@@ -149,7 +149,7 @@ export type SuggestionTarget = { agent_id: string; conversation_id: string } | {
  */
 export type SuggestionStatus = "pending" | "sending" | "sent" | "drafted" | "rejected" | "withdrawn";
 
-/** A message an agent suggests for another chat (plan 047), kept on the chat it was made in until the person acts. */
+/** A message an agent suggests for another chat (plan 049), kept on the chat it was made in until the person acts. */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
 export type Suggestion = {
   id: string;
@@ -169,7 +169,7 @@ export type Suggestion = {
 };
 
 /**
- * A suggestion saved as a draft (plan 047, KTD7), kept on the chat it is for until that chat sends or the person
+ * A suggestion saved as a draft (plan 049, KTD7), kept on the chat it is for until that chat sends or the person
  * empties its box: its text, the suggestion it came from, and the chat that suggestion was made in.
  */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- kept in ChatInfo, a pi-durable document
@@ -248,9 +248,9 @@ export interface DeskInfo {
   mode?: string | null;
   /** The person's labels on the chat (plan 022); absent from a mod that predates them. */
   labels?: string[];
-  /** The person's one line on what the chat is for (plan 047); null when none, absent from a mod that predates it. */
+  /** The person's one line on what the chat is for (plan 049); null when none, absent from a mod that predates it. */
   purpose?: string | null;
-  /** A suggestion saved as a draft waits in the chat's message box (plan 047). */
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049). */
   has_draft?: boolean;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;

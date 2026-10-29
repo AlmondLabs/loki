@@ -78,7 +78,7 @@ describe("the frame table", () => {
     );
   });
 
-  test("no frame of Tasks is left, for the phone or anyone (plan 047, U6)", () => {
+  test("no frame of Tasks is left, for the phone or anyone (plan 049, U6)", () => {
     expect(names.filter((n) => /^tasks?_/.test(n))).toEqual([]);
     expect([...PHONE_FRAMES].filter((n) => /^tasks?_/.test(n))).toEqual([]);
   });
@@ -414,7 +414,7 @@ describe("a parser that throws", () => {
   });
 });
 
-describe("frames: suggestions (plan 047)", () => {
+describe("frames: suggestions (plan 049)", () => {
   const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) =>
     (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
   const chat = { agent_id: "agent-local-a", conversation_id: "c" };

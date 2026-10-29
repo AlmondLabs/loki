@@ -25,7 +25,7 @@ export interface MovedChat {
     labels: string[];
     created_at: string;
     placed?: boolean;
-    /** Absent from a Mac that predates them (plan 047). */
+    /** Absent from a Mac that predates them (plan 049). */
     purpose?: string | null;
     draft?: SavedDraft | null;
     suggestions?: Suggestion[];

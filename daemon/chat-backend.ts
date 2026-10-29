@@ -257,7 +257,7 @@ export class DaemonChats implements ChatBackend {
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
     await engine.send(c, p);
-    // A suggestion saved as a draft waits only until the chat next sends (plan 047, KTD7), from whichever box.
+    // A suggestion saved as a draft waits only until the chat next sends (plan 049, KTD7), from whichever box.
     if ((await c.store.chatInfo(c.chat.id, this.deps.context))?.draft) await c.store.updateChat(p.conversation_id, { draft: null }, this.deps.context);
     return true;
   }

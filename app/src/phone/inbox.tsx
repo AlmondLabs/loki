@@ -361,7 +361,7 @@ export interface CardActions {
   onStop?: (item: AttentionItem) => Promise<string | null>;
   /** The model pill in the card's box, as on the conversation page; absent, the box has none. */
   model?: CardModel;
-  /** The suggestions made in the card's chat for other chats (plan 047), over its box; absent, none. */
+  /** The suggestions made in the card's chat for other chats (plan 049), over its box; absent, none. */
   suggestions?: Omit<SuggestionsProps, "rt">;
 }
 

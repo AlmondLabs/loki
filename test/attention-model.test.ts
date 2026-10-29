@@ -284,7 +284,7 @@ describe("a reply that only reads like a question", () => {
   });
 });
 
-describe("a chat's open suggestions (plan 047)", () => {
+describe("a chat's open suggestions (plan 049)", () => {
   const suggestion = {
     id: "sugg-1",
     title: "t",

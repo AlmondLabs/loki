@@ -93,10 +93,15 @@ async function farMac(port: number, token: string, protocol = PEER_PROTOCOL) {
 function nearLink(port: number, token: string) {
   const statuses: LinkStatus[] = [];
   const pushes: Array<Record<string, unknown>> = [];
+  /** How many times the link has tried to open: one more for each retry. */
+  const tries = { count: 0 };
   const link = new PeerLink({
     macId: FAR,
     url: () => `ws://127.0.0.1:${port}/ws`,
-    token: () => Promise.resolve(token),
+    token: () => {
+      tries.count++;
+      return Promise.resolve(token);
+    },
     protocol: PEER_PROTOCOL,
     onStatus: (s) => statuses.push(s),
     onPush: (f) => pushes.push(f),
@@ -104,7 +109,7 @@ function nearLink(port: number, token: string) {
     maxBackoffMs: 100,
     requestTimeoutMs: 2000,
   });
-  return { link, statuses, pushes };
+  return { link, statuses, pushes, tries };
 }
 
 void test("a request over the link gets its own reply, two at once, and a push reaches the near Mac", async () => {
@@ -131,19 +136,20 @@ void test("the far Mac going away makes it unreachable within a backoff step, an
   const port = await freePort();
   const token = mintPeerToken();
   let far = await farMac(port, token);
-  const { link, statuses } = nearLink(port, token);
+  const { link, statuses, tries } = nearLink(port, token);
   try {
     link.start();
     await until(() => link.status === "reachable");
     await far.done();
     await until(() => link.status === "unreachable");
     await assert.rejects(() => link.request({ type: "peer_ping" }), /out of reach/);
+    // Retries while it is away say nothing new (plan 048): no "connecting" between each one.
+    const down = tries.count;
+    await until(() => tries.count >= down + 3);
+    assert.deepEqual(statuses, ["reachable", "unreachable"]);
     far = await farMac(port, token);
     await until(() => link.status === "reachable");
-    assert.deepEqual(
-      statuses.filter((s) => s !== "connecting"),
-      ["reachable", "unreachable", "reachable"],
-    );
+    assert.deepEqual(statuses, ["reachable", "unreachable", "reachable"]);
   } finally {
     link.stop();
     await far.done();

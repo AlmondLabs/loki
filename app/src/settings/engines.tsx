@@ -38,7 +38,7 @@ export const engineId = (name: string): string =>
     .replace(/^-+|-+$/g, "");
 
 /**
- * Settings › Engines (plan 020, R10): the ACP agents a chat can run on, Claude Code first, each with how it stands
+ * Settings › Engines (plan 020, R10): the ACP agents a chat can run on, the built-in ones first, each with how it stands
  * (its command found, signed in, its last failure). Try starts one now; add and edit write ~/.loki/state/acp.json.
  */
 export function Engines({ api }: { api: EnginesApi }) {

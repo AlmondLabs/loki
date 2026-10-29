@@ -12,7 +12,7 @@ export interface RenameDeskProps {
   onClose: () => void;
   /** Save the cleaned name; resolves to the daemon's error, or null when it took. */
   onRename: (name: string) => Promise<string | null>;
-  /** The chat's purpose line now (plan 047, R11); the second field starts on it. */
+  /** The chat's purpose line now (plan 049, R11); the second field starts on it. */
   purpose?: string | null;
   /** Save the purpose line, an empty one clearing it; left out, the dialog has no purpose field. */
   onPurpose?: (purpose: string) => Promise<string | null>;
@@ -38,7 +38,7 @@ export const cleanPurpose = (value: string): string => value.replace(/\s+/g, " "
 
 /**
  * Slack's "Rename channel", for a desk: one field holding the current name, selected, so typing replaces it, and
- * under it the chat's one-line purpose, which agents read to know what the chat is for (plan 047, R11).
+ * under it the chat's one-line purpose, which agents read to know what the chat is for (plan 049, R11).
  * Enter saves, Esc cancels; Save waits for a name or a purpose that differs. A refusal shows under the field and the dialog
  * stays open to try again. Mounted only while open, so each opening starts from the desk's name; the Sheet puts
  * focus back where it was when it opened (the row or the header's menu button).
@@ -142,7 +142,7 @@ export function RenameDesk({ name, onClose, onRename, purpose = null, onPurpose 
 }
 
 /**
- * The purpose save both menus share (plan 047, R11): loki's daemon keeps the line, then the desks list is asked for
+ * The purpose save both menus share (plan 049, R11): loki's daemon keeps the line, then the desks list is asked for
  * again so every header shows it.
  */
 export function savePurpose(desk: Desk, catchUp: CatchUp) {

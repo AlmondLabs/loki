@@ -241,7 +241,7 @@ Internals keep the name desk.
   through the mod. Hover shows pin and archive; a right click opens the row menu (open, Mark as read or unread,
   Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
   pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
-  replaced the desks tree drawer (2026-09-23, approved by the user); the tree went with Tasks (plan 047).
+  replaced the desks tree drawer (2026-09-23, approved by the user); the tree went with Tasks (plan 049).
 - **Chat pane.** A chat opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
   the Inbox's Enter or O, Agents, Learn). **Canvas** is the tab beside it: today's sheet edge to edge with the
   chat as a viewport **inset** (framing centres in the uncovered part, toggling the chat slides the sheet by its
@@ -352,7 +352,7 @@ box is one for both, its sizes set by `touch`.
 - The desks tree as a drawer over the sheet (2026-09-06 to 2026-09-23): ⌘K or the rail's desk icon opened a
   centred list of every desk (waiting, pinned, recent, the rest), filtered by agent chips, with ⌘P pin, ⌘E
   archive and ⇧↵ open-with-chat. Replaced by the always-there sidebar, now Chats (grouped by agent, pinned on top) and
-  ⌘K search; the tree survived as Tasks' picker until Tasks was retired (plan 047).
+  ⌘K search; the tree survived as Tasks' picker until Tasks was retired (plan 049).
 - A desk that opened on its canvas (to 2026-09-23): the conversation floated on the widgets and switching
   desks meant summoning the drawer. A chat now opens on Messages; the canvas is its Canvas tab (called the Desk tab until 2026-09-27).
 
@@ -365,5 +365,5 @@ sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; the jargon and error-string pass; the archive fold inside
-the Tasks picker's listbox was unreachable while its search box owned Tab, until Tasks was retired (plan 047). The
+the Tasks picker's listbox was unreachable while its search box owned Tab, until Tasks was retired (plan 049). The
 desktop's 1100-wide floor (R31 of plan 013) holds: the inbox card fits beside the rail and the list column.

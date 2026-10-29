@@ -16,3 +16,11 @@ export const pageActivity: Activity = (set) => {
     document.removeEventListener("visibilitychange", sync);
   };
 };
+
+/** Whether the page is shown at all (a hidden tab, a minimised window, a phone app in the background), for useAttention's idle timers. */
+export const pageVisibility: Activity = (set) => {
+  const sync = () => set(document.visibilityState !== "hidden");
+  sync();
+  document.addEventListener("visibilitychange", sync);
+  return () => document.removeEventListener("visibilitychange", sync);
+};

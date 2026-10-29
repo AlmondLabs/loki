@@ -13,9 +13,9 @@ export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
-    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 047): old history only
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 049): old history only
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
-    .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 047): a link back
+    .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 049): a link back
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
@@ -40,7 +40,7 @@ export interface HarnessEvent {
   summary: string | null;
   /** the raw result, decoded, for a disclosure */
   detail: string | null;
-  /** The chat a message sent from a suggestion came from (plan 047), for the transcript's link back; absent on every other event. */
+  /** The chat a message sent from a suggestion came from (plan 049), for the transcript's link back; absent on every other event. */
   link?: { agent_id: string; conversation_id: string };
 }
 
@@ -325,7 +325,7 @@ export function movedMark(from: string, to: string): string {
   return `<loki-moved from="${attr(from)}" to="${attr(to)}"/>`;
 }
 
-/** Where a sent suggestion came from (plan 047, KTD6): the agent and the chat it was made in, and its title. */
+/** Where a sent suggestion came from (plan 049, KTD6): the agent and the chat it was made in, and its title. */
 export interface SuggestedFrom {
   from_agent: string;
   from_chat: string;

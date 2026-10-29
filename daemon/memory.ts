@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
 import { serial } from "./repo-queue.ts";
+import { sections } from "./section-cache.ts";
 import { briefDescription, skillDescription } from "../mod/skills.ts";
 
 /**
@@ -342,7 +343,9 @@ export function memoryExtension(backendDir: string): Extension {
     sections: [
       section("memory", async (input, context) => {
         const agent = await input.read.snapshot(AgentInfoDoc, context);
-        return agent?.id ? memorySection(memoryRoot(backendDir, agent.id)) : undefined;
+        if (!agent?.id) return undefined;
+        const root = memoryRoot(backendDir, agent.id);
+        return sections.get(`memory\u0000${root}`, () => memorySection(root));
       }),
     ],
     tools: memoryTools(backendDir).map(piTool),

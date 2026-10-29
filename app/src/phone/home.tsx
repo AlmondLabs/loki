@@ -38,7 +38,7 @@ function openAttention(item: AttentionItem) {
 export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
 /** Rename a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
-/** Give a desk's chat its purpose line (plan 047, R11), an empty one clearing it; resolves to an error, or null when done. */
+/** Give a desk's chat its purpose line (plan 049, R11), an empty one clearing it; resolves to an error, or null when done. */
 export type SetDeskPurpose = (d: DeskSummary, purpose: string) => Promise<string | null>;
 
 /** What the presence dot and its name say about the paired Mac. */

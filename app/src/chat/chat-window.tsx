@@ -47,7 +47,7 @@ export function ChatWindow({
 }: {
   /** The desk's name, over the agent's face in the header. */
   title: string | null;
-  /** The person's one line on what the chat is for (plan 047, R11), under its name. */
+  /** The person's one line on what the chat is for (plan 049, R11), under its name. */
   purpose?: string | null;
   agentName?: string | null;
   agentId?: string | null;
@@ -65,7 +65,7 @@ export function ChatWindow({
   modeMenuTick?: number;
   /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
   draft?: ControlledDraft;
-  /** The suggestions made in this chat for other chats (plan 047); null or absent, none. */
+  /** The suggestions made in this chat for other chats (plan 049); null or absent, none. */
   suggestions?: SuggestionsProps | null;
   onClose: () => void;
 }) {

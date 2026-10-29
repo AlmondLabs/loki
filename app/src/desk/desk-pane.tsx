@@ -99,7 +99,7 @@ export function DeskPane(props: DeskPaneProps) {
   const [labeling, setLabeling] = useState(false);
   const row = desk.desks.list.find((d) => d.scope === scope);
   const chatLabels = row?.labels ?? [];
-  // The person's one line on what the chat is for (plan 047, R11), under its name.
+  // The person's one line on what the chat is for (plan 049, R11), under its name.
   const purpose = row?.purpose ?? null;
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
   // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.

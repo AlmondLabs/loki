@@ -105,6 +105,25 @@ describe("agent store", () => {
     }
   });
 
+  test("entries after the newest one read only what came since, also after a reset (plan 047)", async () => {
+    const { store, faux, reply, model } = await fauxStore();
+    try {
+      const chat = await store.createChat("p", { agent: { model } }, ctx);
+      expect(await store.newestEntryId(chat, ctx)).toBeUndefined();
+      faux.setResponses([reply("first answer"), reply("second answer")]);
+      await (await chat.submit({ type: "input", content: "one", requestId: "1" }, ctx)).wait(ctx);
+      await chat.reset(undefined, ctx);
+      const before = await store.newestEntryId(chat, ctx);
+      await (await chat.submit({ type: "input", content: "two", requestId: "2" }, ctx)).wait(ctx);
+      const added: string[] = [];
+      await store.eachEntry(chat, ctx, (e) => added.push(...entrySteps(e).flatMap((s) => ("text" in s && s.text ? [s.text] : []))), before);
+      expect(added).toEqual(["second answer"]);
+      expect((await store.entries(chat, ctx)).length).toBeGreaterThan(added.length);
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
   test("a message sent while a run fails is answered next, without another message (plan 039)", async () => {
     const { store, faux, reply, model } = await fauxStore();
     try {

@@ -86,7 +86,7 @@ describe("desktop search: what it finds (AE5)", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
     expect(topHit(search(buildIndex(src), "learn"))?.target).toEqual({ kind: "section", segment: "learn" });
-    // Tasks was retired (plan 047, U6): it is no page to open any more.
+    // Tasks was retired (plan 049, U6): it is no page to open any more.
     expect(flatHits(search(buildIndex(src), "tasks")).some((h) => h.title === "Tasks")).toBe(false);
     expect(topHit(search(buildIndex(src), "providers"))?.target).toEqual({ kind: "preferences", page: "providers" });
     expect(topHit(search(buildIndex(src), "preferences"))?.target).toEqual({ kind: "preferences", page: null });

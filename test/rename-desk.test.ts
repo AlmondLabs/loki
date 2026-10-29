@@ -1,4 +1,4 @@
-// The rename dialog and sheet (plan 047, U5): beside the name, a one-line purpose agents read to know what a chat is for.
+// The rename dialog and sheet (plan 049, U5): beside the name, a one-line purpose agents read to know what a chat is for.
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

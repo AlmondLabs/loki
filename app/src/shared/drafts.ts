@@ -6,7 +6,7 @@ import { savedDrafts } from "../../../core/attention/use-attention.ts";
  * A reply's draft — its text and images — keyed by agent and conversation, kept in memory for the page's
  * lifetime so leaving a conversation never costs what was typed. One store for every view of the same
  * conversation: the phone's Inbox card and desk page, the desktop's Messages and Desk tabs.
- * Beneath what is typed lies the chat's saved draft (plan 047, KTD7): a suggestion saved for this chat shows in its box
+ * Beneath what is typed lies the chat's saved draft (plan 049, KTD7): a suggestion saved for this chat shows in its box
  * while nothing is typed there, so text already typed always wins, and the draft waits until the box is empty.
  * The factory is pure enough for a test without a DOM (test/phone-session.test.ts); the hook wires it to React.
  */

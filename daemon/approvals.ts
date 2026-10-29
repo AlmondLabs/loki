@@ -24,7 +24,7 @@ export type { ToolKind } from "./tool-kinds.ts";
 
 /**
  * A tool that is never a permission, strict included: a question card asks for answers, not leave, and a suggestion
- * waits for the person's own decision (plan 047, KTD4).
+ * waits for the person's own decision (plan 049, KTD4).
  */
 const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]);
 

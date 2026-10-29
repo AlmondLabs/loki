@@ -100,7 +100,7 @@ const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]
   JSON.parse((await must(tools.get("canvas_read"), "canvas_read").run(c)) as string) as DeskState;
 
 describe("the mod's tools", () => {
-  test("canvas_read and canvas_focus always, and no task_* tool: Tasks is retired into suggestions (plan 047, U6)", () => {
+  test("canvas_read and canvas_focus always, and no task_* tool: Tasks is retired into suggestions (plan 049, U6)", () => {
     const names = [...harness().tools.keys()].sort();
     expect(names).toEqual(["canvas_focus", "canvas_read"]);
     expect(names.filter((n) => n.startsWith("task_"))).toEqual([]);
@@ -166,7 +166,7 @@ describe("canvas_focus", () => {
   });
 });
 
-/** Plan 047, U3: chat_list and the suggestion tools, on a Mac with one paired Mac. */
+/** Plan 049, U3: chat_list and the suggestion tools, on a Mac with one paired Mac. */
 describe("chat_list and the suggestion tools", () => {
   const FRIDAY = "agent-local-friday";
   const IRA = "agent-local-ira";

@@ -32,7 +32,7 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
     expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
   });
-  test("an old chat's assigned-tasks block, from before Tasks was retired, is left out without a trace (plan 047, U6)", () => {
+  test("an old chat's assigned-tasks block, from before Tasks was retired, is left out without a trace (plan 049, U6)", () => {
     const text =
       "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n- lk-b2  P2  update the runbook — filed by friday\n</loki-tasks>";
     expect(extractHarnessEvents(text)).toEqual([]);
@@ -53,7 +53,7 @@ describe("a chat's move mark (plan 023, addendum A5)", () => {
   });
 });
 
-describe("a sent suggestion's link back (plan 047, KTD6)", () => {
+describe("a sent suggestion's link back (plan 049, KTD6)", () => {
   const mark = suggestedMark({ from_agent: "agent-local-friday", from_chat: "conv-source", title: 'Fix the "lock" test' });
 
   test("is stripped from the person's words and read back as the chat it came from, for the transcript's chip", () => {

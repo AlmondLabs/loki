@@ -108,7 +108,7 @@ function world(listed: () => unknown[] | null) {
   return { root, stateFile, here, mini, state, reports, deps, recorded };
 }
 
-describe("open tasks become suggestions in the chats they were filed from (plan 047, U7)", () => {
+describe("open tasks become suggestions in the chats they were filed from (plan 049, U7)", () => {
   test("AE3: a task from an archived chat becomes a suggestion there, for a new chat of the same agent and folder, and the chat comes back", async () => {
     const w = world(() => [task("lk-1", ARCHIVED)]);
     await moveTasks(w.deps);

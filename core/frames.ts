@@ -144,7 +144,7 @@ const savedDraft = (v: unknown): SavedDraft | null => {
   return { text: d.text, suggestion_id: d.suggestion_id, source: { agent_id: source.agent_id, conversation_id: source.conversation_id } };
 };
 /**
- * Where a suggestion's message goes, as a frame or an agent's tool names it (plan 047): an existing chat, or an agent
+ * Where a suggestion's message goes, as a frame or an agent's tool names it (plan 049): an existing chat, or an agent
  * and a folder for a new one; null when it is neither. Other fields are left behind.
  */
 export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
@@ -155,7 +155,7 @@ export function parseSuggestionTarget(v: unknown): SuggestionTarget | null {
   return null;
 }
 /**
- * Why a chat refuses a saved draft (plan 047, KTD7): it holds another suggestion's, which is never replaced. The chat's
+ * Why a chat refuses a saved draft (plan 049, KTD7): it holds another suggestion's, which is never replaced. The chat's
  * Mac says it, and the Mac that asked recognises it.
  */
 export const DRAFT_HELD = "that chat already holds a saved draft";
@@ -217,7 +217,7 @@ export interface Replies {
   chat_agent_created: { id: string; name: string };
   /**
    * Done. `chat_update` that saved a draft names its suggestion in `draft_suggestion_id`, so the asking Mac knows the
-   * draft is kept: a loki from before plan 047 drops a draft it does not know and replies without it.
+   * draft is kept: a loki from before plan 049 drops a draft it does not know and replies without it.
    */
   chat_done: { draft_suggestion_id?: string };
   chat_providers: { providers: ConnectProvider[] };
@@ -266,11 +266,11 @@ export interface Replies {
   chat_mcp_secret: { ref: string };
   chat_passes: PassSettings;
   /**
-   * A suggestion as it stands after an action (plan 047): `done` when the action took, else `message` says why not,
+   * A suggestion as it stands after an action (plan 049): `done` when the action took, else `message` says why not,
    * among them what already happened to it and from where (R17).
    */
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
-  /** A suggestion just made in the chat a frame named, pending (plan 047, U7). */
+  /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
   suggestion_added: { suggestion: Suggestion };
 }
 /** The name of a frame that answers a request. */
@@ -289,7 +289,7 @@ export interface ChatState {
   streaming?: { text: string; at: string | null } | null;
   /** The ACP agent the chat runs on (plan 020); null or absent on loki's own engine. */
   engine?: ChatEngineView | null;
-  /** The suggestions made in the chat that wait on the person or are being sent (plan 047); absent from a mod that predates them. */
+  /** The suggestions made in the chat that wait on the person or are being sent (plan 049); absent from a mod that predates them. */
   suggestions?: Suggestion[];
 }
 
@@ -617,7 +617,7 @@ export const FRAMES = {
     BY_CHAT,
   ),
   chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE, BY_CHAT),
-  // Suggestions (plan 047), carried out by the Mac the chat they were made in lives on (KTD2).
+  // Suggestions (plan 049), carried out by the Mac the chat they were made in lives on (KTD2).
   suggestion_decide: request(
     "suggestion_decided",
     "send a suggestion made in this chat, save it as a draft in its target's box, or reject it; the first action wins",
@@ -782,7 +782,7 @@ export const FRAMES = {
       ? { id: m.id, name: m.name.trim(), command: m.command.trim(), args: strings(m.args) }
       : "id (lowercase letters, digits and dashes), name and command required",
   ),
-  chat_engine_remove: request("chat_engines", "remove an ACP agent, or put Claude Code back as loki ships it", (m) =>
+  chat_engine_remove: request("chat_engines", "remove an ACP agent, or put a built-in one back as loki ships it", (m) =>
     str(m.id) && m.id ? { id: m.id } : "id required",
   ),
   chat_engine_check: request("chat_engines", "start an ACP agent now, to see that it starts", (m) => (str(m.id) && m.id ? { id: m.id } : "id required")),

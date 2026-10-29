@@ -3,7 +3,7 @@ import type { Suggestions } from "../suggestions.ts";
 import { errorMessage, fail, reply, type FrameHandlers } from "./context.ts";
 
 /**
- * The person's actions on suggestions (plan 047, U2), as frames. They reach the Mac the suggestion's chat lives on
+ * The person's actions on suggestions (plan 049, U2), as frames. They reach the Mac the suggestion's chat lives on
  * (the frame table routes them by chat), which carries each one out and answers with the suggestion as it stands.
  */
 export interface SuggestionDeps {

@@ -1483,7 +1483,7 @@ span.loki-phone-section-btn {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
-/* A suggestion saved as a draft waits in this chat's box (plan 047): a quiet word beside when, never a badge. */
+/* A suggestion saved as a draft waits in this chat's box (plan 049): a quiet word beside when, never a badge. */
 .loki-phone-card-draft {
   flex: none;
 }

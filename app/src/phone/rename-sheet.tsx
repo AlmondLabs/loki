@@ -5,7 +5,7 @@ import { cleanPurpose, saveRename } from "../desk/rename-desk";
 
 /**
  * The phone's Rename, as the desktop's RenameDesk: one field holding the name now, selected, so typing replaces
- * it, and under it the chat's one-line purpose when `onPurpose` is given (plan 047, R11). Return saves; Save waits
+ * it, and under it the chat's one-line purpose when `onPurpose` is given (plan 049, R11). Return saves; Save waits
  * for a name or a purpose that differs. A refusal shows under the fields and the sheet stays to try again. Mounted
  * only while open, so each opening starts from the desk's name and purpose.
  */

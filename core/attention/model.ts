@@ -46,11 +46,11 @@ export interface ConversationInfo {
   archived: boolean;
   /** The person's labels on the chat (plan 022), as the Inbox list carries them. */
   labels?: string[];
-  /** The person's one line on what the chat is for (plan 047). */
+  /** The person's one line on what the chat is for (plan 049). */
   purpose?: string | null;
-  /** A suggestion saved as a draft waits in the chat's message box (plan 047, R9). */
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049, R9). */
   has_draft?: boolean;
-  /** The saved draft's text, which seeds the chat's message box when it is empty (plan 047, KTD7); null or absent, none. */
+  /** The saved draft's text, which seeds the chat's message box when it is empty (plan 049, KTD7); null or absent, none. */
   draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
@@ -102,7 +102,7 @@ export interface Live {
   cwd?: string;
   /** The ACP agent the chat runs on, with its modes and commands (plan 020); absent on loki's own engine. */
   engine?: ChatEngineView | null;
-  /** The suggestions made in this chat that wait on the person or are being sent (plan 047), for its chat screen. */
+  /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
 }
 
@@ -269,7 +269,7 @@ export type ChatEvent =
   | { kind: "streaming"; text: string; at: string | null }
   /** The turn ended. */
   | { kind: "turn_end"; turn_id?: string }
-  /** The chat's open suggestions (plan 047), whole, on every change to any of them: the screen shows exactly these. */
+  /** The chat's open suggestions (plan 049), whole, on every change to any of them: the screen shows exactly these. */
   | { kind: "suggestions"; suggestions: Suggestion[] };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */

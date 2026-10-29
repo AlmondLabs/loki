@@ -22,7 +22,7 @@ describe("history as a thread", () => {
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
   });
 
-  test("an old chat from Tasks' time reads cleanly: no <loki-tasks> markup, and its task_create call is a tool row (plan 047, U6)", () => {
+  test("an old chat from Tasks' time reads cleanly: no <loki-tasks> markup, and its task_create call is a tool row (plan 049, U6)", () => {
     const t = foldSteps([
       user(
         "rotate the creds\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (1):\n- lk-a1  P1  rotate SSO creds\n</loki-tasks>",
@@ -448,7 +448,7 @@ describe("a history page arriving", () => {
   });
 });
 
-describe("a message sent from a suggestion (plan 047, KTD6)", () => {
+describe("a message sent from a suggestion (plan 049, KTD6)", () => {
   const sent = `${suggestedMark({ from_agent: "friday", from_chat: "data", title: "Fix the flaky upload test" })}\n\nThe upload test sleeps.`;
   const chip = {
     role: "event",
