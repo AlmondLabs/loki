@@ -66,7 +66,7 @@ describe("what ends a rest", () => {
     expect(isResting(card, rest, T0 + 11 * MIN)).toBe(false);
     expect(restState(card, rest, T0 + 11 * MIN)).toEqual({ resting: false, rung: 1, rested: true });
     // The agent says something new (or the person sent something, which starts a turn): the rest is over, the rung 0.
-    const moved = { ...card, lastAssistantText: "done", turns: 1 };
+    const moved = { ...card, lastAssistantText: "done" };
     expect(isResting(moved, rest, T0 + 5 * MIN)).toBe(false);
     expect(restState(moved, rest, T0 + 5 * MIN)).toEqual({ resting: false, rung: 0, rested: false });
     expect(must(restAfterNext({ ...moved, unread: false }, rest, false, T0), "a rest").n).toBe(1);

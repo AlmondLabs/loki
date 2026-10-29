@@ -312,8 +312,9 @@ export const TEXT_CHORDS = new Set([
 export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {
   const typing = typingIn(e);
   // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
-  // a plain letter or arrow always belongs to the text, whatever the binding says.
-  const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k)));
+  // a plain letter or arrow always belongs to the text, whatever the binding says. On the Mac, Ctrl with a letter
+  // edits the text too (Ctrl+K cuts to the line's end, Ctrl+E goes to it), so there only ⌘ counts while typing.
+  const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k) && cmdHeld(e, os)));
   const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && keysOf(b, os).some((k) => live(b, k))) ?? null;
   return hit(segment) ?? hit("anywhere");
 }

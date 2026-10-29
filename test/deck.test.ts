@@ -51,7 +51,6 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
   lastRole: "assistant",
   pendingApproval: null,
   pendingQuestion: null,
-  turns: 0,
   error: null,
   seenAt: null,
   unread: true,
@@ -184,7 +183,7 @@ describe("dismissed unless the stamp changed", () => {
     expect(stampOf(bumped)).toBe(stampOf(a));
     expect(visibleQueue([bumped, b], d).map((i) => i.id)).toEqual(["b"]);
   });
-  test("a new reply, a new approval or a finished turn brings it back", () => {
+  test("a new reply or a new approval brings it back", () => {
     const a = item("a");
     const d = dismiss(new Map(), a);
     expect(visibleQueue([item("a", { lastAssistantText: "something new" })], d).map((i) => i.id)).toEqual(["a"]);
@@ -193,7 +192,6 @@ describe("dismissed unless the stamp changed", () => {
         (i) => i.id,
       ),
     ).toEqual(["a"]);
-    expect(visibleQueue([item("a", { turns: 1 })], d).map((i) => i.id)).toEqual(["a"]);
   });
   test("undo restores; pruning drops entries the live list has outgrown", () => {
     const a = item("a"),
@@ -203,7 +201,7 @@ describe("dismissed unless the stamp changed", () => {
     d = restore(d, a);
     expect(visibleQueue([a, b], d).map((i) => i.id)).toEqual(["a"]);
     // b moved on, a is gone from the list: nothing left to remember
-    expect(pruneDismissed(d, [item("b", { turns: 2 })]).size).toBe(0);
+    expect(pruneDismissed(d, [item("b", { lastAssistantText: "more" })]).size).toBe(0);
     // b unchanged and still actionable (the round trip has not landed): kept
     expect(pruneDismissed(d, [b]).size).toBe(1);
   });

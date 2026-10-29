@@ -23,7 +23,6 @@ const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   lastRole: "assistant",
   pendingApproval: null,
   pendingQuestion: null,
-  turns: 0,
   error: null,
   seenAt: null,
   unread: true,

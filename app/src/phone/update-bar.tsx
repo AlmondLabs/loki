@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { needsReload, shouldAutoReload } from "./model";
+import { drafts } from "./session";
 import { Button } from "../components";
 
 /** The build id index.html was served with; undefined on an index.html from before builds were stamped. */
@@ -46,7 +47,7 @@ export function useHealthBuild(): string | null {
         hiddenAt.current = null;
         void servedBuildNow().then((b) => {
           if (!b) return;
-          if (shouldAutoReload(hiddenMs, needsReload(b, current))) location.reload();
+          if (shouldAutoReload(hiddenMs, needsReload(b, current), drafts.keys().length > 0)) location.reload();
           else setHealth(b);
         });
         start();

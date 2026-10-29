@@ -115,8 +115,6 @@ export interface AttentionItem extends ConversationInfo {
   lastRole: "user" | "assistant" | null;
   pendingApproval: PendingApproval | null;
   pendingQuestion: PendingQuestion | null;
-  /** Completed turns seen live; part of what makes a card "new" again. */
-  turns: number;
   error: string | null;
   seenAt: string | null;
   unread: boolean;
@@ -431,7 +429,6 @@ export function buildItems(
       lastRole,
       pendingApproval: l?.pending ?? null,
       pendingQuestion: l?.pendingAsk ?? null,
-      turns: l?.turns ?? 0,
       error: l?.error ?? null,
       seenAt,
       unread,

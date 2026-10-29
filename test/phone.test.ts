@@ -332,6 +332,10 @@ describe("reloading a newer canvas", () => {
     expect(shouldAutoReload(120_000, false)).toBe(false);
     expect(shouldAutoReload(NaN, true)).toBe(false);
   });
+  test("a reply half typed holds the reload for a tap: drafts live in memory and a reload would lose it", () => {
+    expect(shouldAutoReload(AUTO_RELOAD_HIDDEN_MS + 1, true, true)).toBe(false);
+    expect(shouldAutoReload(AUTO_RELOAD_HIDDEN_MS + 1, true, false)).toBe(true);
+  });
 });
 
 describe("Home: shortcuts, attention and desks (U3)", () => {

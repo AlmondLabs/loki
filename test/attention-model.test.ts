@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { stampOf } from "../core/attention/queue.ts";
 import {
   applyChatEvent,
   buildItems,
@@ -116,13 +117,6 @@ describe("a turn that ends in a tool call still counts as new", () => {
     applyChatEvent(l, { kind: "loop", state: "running" });
     applyChatEvent(l, { kind: "turn_end" });
     expect(l.turns).toBe(2);
-    const items = buildItems(
-      [{ id: "c", agent_id: "a", agent_name: "ira", title: "t", last_message_at: "2026-09-06T00:00:00Z", archived: false }],
-      new Map(),
-      new Map([[keyOf("a", "c"), l]]),
-      {},
-    );
-    expect(items[0].turns).toBe(2);
   });
 });
 
@@ -176,6 +170,14 @@ describe("viewed, apart from done", () => {
     expect(i.unread).toBe(true);
     expect(i.status).toBe("done");
     expect(buildItems([conv], digests, new Map(), {}, now)[0].viewedAt).toBeNull();
+  });
+
+  test("a card's stamp is the same on every device: a rest made on the phone holds on the Mac, and after a reload", () => {
+    // The phone has followed the chat live through three turns; the Mac, or the phone after a reload, has not.
+    const watched = { ...emptyLive(), turns: 3, lastAssistantText: "Finished.", lastRole: "assistant" as const };
+    const [onPhone] = buildItems([conv], digests, new Map([[keyOf("a", "c"), watched]]), {}, now);
+    const [onMac] = buildItems([conv], digests, new Map(), {}, now);
+    expect(stampOf(onMac)).toBe(stampOf(onPhone));
   });
 
   test("unviewed: unread with something newer than the last look", () => {
