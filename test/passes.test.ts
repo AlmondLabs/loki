@@ -160,6 +160,24 @@ describe("background passes", () => {
     }
   });
 
+  test("a pass's prompt carries the Mac's time after it: nothing else in its chat says what day it is (plan 057)", async () => {
+    const s = await setup();
+    try {
+      let saw = "";
+      s.faux.setResponses([
+        fauxAssistantMessage("one"),
+        (context: { messages: unknown[] }) => ((saw = JSON.stringify(context.messages)), fauxAssistantMessage("kept")),
+      ]);
+      await s.say("c", LONG);
+      await s.runner.sweep();
+      expect(saw).toContain("read this:");
+      expect(saw).toContain("Local time on the user's Mac, as loki sends this:");
+      expect(saw.indexOf("read this:")).toBeLessThan(saw.indexOf("Local time on the user's Mac"));
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a stretch too small to hold anything starts no run, and the cursor moves past it", async () => {
     const s = await setup();
     try {
