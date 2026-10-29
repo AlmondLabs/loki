@@ -199,10 +199,17 @@ export class LanListener {
     return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}`;
   }
 
-  /** Persist first, then bind or close. Resolves with the status either way. */
+  /**
+   * Persist first, then bind or close. Resolves with the status either way. Turned off while paired Macs keep the
+   * listener up, the phones already connected are let go here: the check at connect would leave them on.
+   */
   setEnabled(enabled: boolean): Promise<LanStatus> {
     this.enabledFlag = enabled;
     writeState(this.opts.stateFile, { enabled, via: this.viaSetting });
+    if (!enabled) {
+      const closed = this.ws?.closeDevices() ?? 0;
+      if (closed) log("lan:phones-closed", { sockets: closed });
+    }
     return enabled || this.peersNeeded ? this.start() : this.stop();
   }
 

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { OAuthClientMetadata, OAuthClientProvider, StoredOAuthClientInformation, StoredOAuthTokens } from "@modelcontextprotocol/client";
 import { DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK } from "../../mod/paths.ts";
 
@@ -8,13 +8,13 @@ import { DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK } from "../../mod/paths.ts";
  * redeems codes and refreshes tokens. This is what it keeps and where the browser goes. A sign-in opens the server's
  * authorization page; the browser comes back to loki's loopback server at MCP_OAUTH_CALLBACK, the one address a
  * registration names, matched by a one-time `state`; the tokens, the registration and the PKCE verifier are kept
- * per server in the keychain (in memory when there is none, which lasts until the daemon stops).
+ * per server and address in the keychain (in memory when there is none, which lasts until the daemon stops).
  */
 
 /** Where the browser comes back to, on the loopback server the mod serves (mod/server.ts). */
 export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT)): string => `http://127.0.0.1:${port}${MCP_OAUTH_CALLBACK}`;
 
-/** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<kind>`. */
+/** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<address hash>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
 /** Where a sign-in's secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend); a keychain without `delete` gets an empty value instead. */
 export interface OauthSecrets {
@@ -61,17 +61,32 @@ export class OauthStore {
   }
 }
 
+/**
+ * Where a server's sign-in is kept: its name and its address. A server given a new address under the same name, or
+ * another server added under a removed one's name, is not handed the tokens the old address issued.
+ */
+export const oauthKey = (server: string, url: string): string => `${server}.${createHash("sha256").update(url).digest("hex").slice(0, 12)}`;
+
 /** One remote server's side of the flow, as the SDK's transport and `auth()` ask for it. */
 export class ServerOauth implements OAuthClientProvider {
   private lastState: string | null = null;
   readonly server: string;
+  /** Where this server's sign-in is kept (oauthKey). */
+  private readonly key: string;
   private readonly store: OauthStore;
   /** The authorization page to send the person to, and the state it carries: Settings shows "sign in". */
   private readonly onRedirect: (server: string, url: URL, state: string) => void;
   private readonly redirect: string;
 
-  constructor(server: string, store: OauthStore, onRedirect: (server: string, url: URL, state: string) => void, redirect: string = callbackUrl()) {
+  constructor(
+    server: string,
+    serverUrl: string,
+    store: OauthStore,
+    onRedirect: (server: string, url: URL, state: string) => void,
+    redirect: string = callbackUrl(),
+  ) {
     this.server = server;
+    this.key = oauthKey(server, serverUrl);
     this.store = store;
     this.onRedirect = onRedirect;
     this.redirect = redirect;
@@ -98,21 +113,21 @@ export class ServerOauth implements OAuthClientProvider {
 
   /** A registration made for another callback address (loki on another port) is not this client: register again. */
   async clientInformation(): Promise<StoredOAuthClientInformation | undefined> {
-    const client = await this.store.get<StoredOAuthClientInformation & { redirect_uris?: string[] }>(this.server, "client");
+    const client = await this.store.get<StoredOAuthClientInformation & { redirect_uris?: string[] }>(this.key, "client");
     if (client?.redirect_uris && !client.redirect_uris.includes(this.redirect)) return undefined;
     return client;
   }
 
   async saveClientInformation(info: StoredOAuthClientInformation): Promise<void> {
-    await this.store.set(this.server, "client", { redirect_uris: [this.redirect], ...info });
+    await this.store.set(this.key, "client", { redirect_uris: [this.redirect], ...info });
   }
 
   tokens(): Promise<StoredOAuthTokens | undefined> {
-    return this.store.get<StoredOAuthTokens>(this.server, "tokens");
+    return this.store.get<StoredOAuthTokens>(this.key, "tokens");
   }
 
   async saveTokens(tokens: StoredOAuthTokens): Promise<void> {
-    await this.store.set(this.server, "tokens", tokens);
+    await this.store.set(this.key, "tokens", tokens);
   }
 
   redirectToAuthorization(url: URL): void {
@@ -120,18 +135,23 @@ export class ServerOauth implements OAuthClientProvider {
   }
 
   async saveCodeVerifier(verifier: string): Promise<void> {
-    await this.store.set(this.server, "verifier", verifier);
+    await this.store.set(this.key, "verifier", verifier);
   }
 
   async codeVerifier(): Promise<string> {
-    const v = await this.store.get<string>(this.server, "verifier");
+    const v = await this.store.get<string>(this.key, "verifier");
     if (!v) throw new Error("no sign-in is under way for this server; start it again from Preferences › MCP servers");
     return v;
+  }
+
+  /** Signing out: forget the tokens and any sign-in under way; the registration stays. */
+  async signOut(): Promise<void> {
+    await this.store.delete(this.key, ["tokens", "verifier"]);
   }
 
   /** The server said what it holds is no longer good (a revoked token, a forgotten registration): forget it. */
   async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier" | "discovery"): Promise<void> {
     if (scope === "discovery") return;
-    await this.store.delete(this.server, scope === "all" ? ["tokens", "client", "verifier"] : [scope]);
+    await this.store.delete(this.key, scope === "all" ? ["tokens", "client", "verifier"] : [scope]);
   }
 }

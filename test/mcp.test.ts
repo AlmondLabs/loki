@@ -188,6 +188,24 @@ describe("MCP servers", () => {
     }
   });
 
+  test("two restarts close together connect once: the start that lost is not left running beside the other", async () => {
+    const mem = inMemory();
+    const connects: Array<Promise<void>> = [];
+    const servers = new McpServers({ connect: (c, client, err) => (connects.push(mem.connect(c, client, err)), connects[connects.length - 1]) });
+    try {
+      servers.configure([{ kind: "local", name: "fake", entry: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: [] }]);
+      await until(() => servers.status()[0]?.state === "connected");
+      servers.restart("fake");
+      servers.restart("fake");
+      // Each start goes through "starting" before it connects; the one that won ends "connected".
+      await until(() => connects.length >= 2 && servers.status()[0]?.state === "connected");
+      await Promise.all(connects);
+      expect(connects).toHaveLength(2);
+    } finally {
+      await servers.close();
+    }
+  });
+
   test("the pause before a retry grows to a minute", () => {
     expect([1, 2, 3, 4, 10].map(backoffMs)).toEqual([1000, 2000, 4000, 8000, 60_000]);
   });

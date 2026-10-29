@@ -388,6 +388,25 @@ describe("LAN listener", () => {
     }
   });
 
+  test("phones turned off while a paired Mac keeps the listener up: the phones already connected are let go", async () => {
+    const f = fixture();
+    try {
+      await f.lan.setEnabled(true);
+      await f.lan.setPeersNeeded(true);
+      const p = await pair(f.lan, f.codes.mint().code);
+      const phone = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?desk=shared`, { cookie: p.cookie });
+      await new Promise<void>((r) => phone.once("message", () => r()));
+      const port = f.lan.status().port;
+      await f.lan.setEnabled(false);
+      // Still listening, for the paired Mac.
+      expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true);
+      await expect.poll(() => phone.readyState).toBe(WsClient.CLOSED);
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+    }
+  });
+
   test("the Bonjour host is read once a minute, not on every status (plan 047)", () => {
     let now = 0;
     let reads = 0;

@@ -37,9 +37,14 @@ export class ChatMoves implements PeerMoves {
     onMoved: (macId: string) => void;
     /** This Mac let a chat go to `to`: frames for it go there now. */
     onLeft: (chat: { agent_id: string; conversation_id: string }, to: string) => void;
+    now?: () => number;
   };
-  /** Chats this Mac is handing over, which take no message meanwhile. */
-  private readonly moving = new Map<string, string>();
+  /**
+   * Chats this Mac is handing over, which take no message meanwhile, each until when. A move takes at most
+   * MOVE_TIMEOUT_MS; one that never finished (the import failed there, or the link dropped before it said so) lets
+   * the chat take messages again here, where it still lives, instead of holding it until the next restart.
+   */
+  private readonly moving = new Map<string, number>();
   private readonly running = new Set<string>();
 
   constructor(opts: ChatMoves["opts"]) {
@@ -48,7 +53,17 @@ export class ChatMoves implements PeerMoves {
 
   /** Why a chat takes no message now: it is moving to another Mac. */
   blocked(agentId: string, conversationId: string): string | null {
-    return this.moving.has(`${agentId}/${conversationId}`) ? "this chat is moving to the Mac its agent lives on; it opens there in a moment" : null;
+    const key = `${agentId}/${conversationId}`;
+    const until = this.moving.get(key);
+    if (until === undefined) return null;
+    if (until > this.now()) return "this chat is moving to the Mac its agent lives on; it opens there in a moment";
+    this.moving.delete(key);
+    log("peers:chat-move-lapsed", { agent: agentId, chat: conversationId });
+    return null;
+  }
+
+  private now(): number {
+    return (this.opts.now ?? Date.now)();
   }
 
   /**
@@ -114,7 +129,7 @@ export class ChatMoves implements PeerMoves {
   async export(macId: string, agentId: string, conversationId: string): Promise<Replies["peer_chat"]> {
     const out = await this.opts.chat.exportChat(agentId, conversationId);
     if (!out.chat) return { ...out, widgets: {} };
-    this.moving.set(`${agentId}/${conversationId}`, macId);
+    this.moving.set(`${agentId}/${conversationId}`, this.now() + MOVE_TIMEOUT_MS);
     return { ...out, widgets: readWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId))) };
   }
 
