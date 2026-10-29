@@ -175,6 +175,8 @@ export interface WsBridge {
   closeDevice(deviceId: string): number;
   /** Terminate every socket a paired Mac holds. Returns how many. */
   closePeer(peerId: string): number;
+  /** Terminate every socket a phone holds. Returns how many. */
+  closeDevices(): number;
   close(): void;
 }
 
@@ -255,6 +257,7 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
     closePeer: (peerId) => closeWhere((c) => c.peerId === peerId),
+    closeDevices: () => closeWhere((c) => c.deviceId !== undefined),
     close: () => {
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
       clients.clear();
