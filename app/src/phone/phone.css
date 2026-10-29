@@ -2361,7 +2361,7 @@ span.loki-phone-section-btn {
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
 }
-/* The suggestions sheet (plans 052, 055) is the model sheet's ground: its header stays, its list scrolls under it. */
+/* The suggestions sheet (plans 052, 056) is the model sheet's ground: its header stays, its list scrolls under it. */
 .loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
   gap: 0;
   padding-top: var(--phone-space-2);

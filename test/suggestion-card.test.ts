@@ -133,7 +133,7 @@ describe("where suggestions show", () => {
       expect(chip).toBeLessThan(html.indexOf("loki-composer-end"));
       expect(html).toContain(`aria-label="2 suggestions"`);
     });
-    test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in a ${touch ? "bottom sheet" : "modal"} with a header (plan 055)`, () => {
+    test(`${touch ? "phone" : "desktop"}: the host's tick opens them, newest first, in a ${touch ? "bottom sheet" : "modal"} with a header (plan 056)`, () => {
       const html = conversation(source(two).src, touch, true, 1);
       expect(cards(html)).toEqual(["newer", "older"]);
       expect(html).toContain(touch ? "loki-suggestion-sheet" : "loki-suggestion-modal");
