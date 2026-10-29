@@ -317,7 +317,9 @@ export class ChatStore {
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
-        // A conversation that cannot be reached still lists; it just has no live half.
+        // A conversation that cannot be reached still lists; it just has no live half. One at a time, newest first, on
+        // purpose: the daemon opens each chat in turn rather than up to 30 at once, and a disconnect stops the rest.
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         if (!client.isSubscribed(rt)) await client.runtimeStart(rt).catch(() => {});
         if (stopped()) return;
       }
