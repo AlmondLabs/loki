@@ -365,7 +365,7 @@ and provider credentials in the OS keychain.
 ## One way per job
 
 A few jobs come up everywhere. Each has one helper in `core/`, so code that does the job looks the same wherever it is
-(plans 054 and 057). Lint flags a hand-written listener set and a hand-written error message; a queue or a burst
+(plans 054 and 059). Lint flags a hand-written listener set and a hand-written error message; a queue or a burst
 timer written by hand stays a convention, as its shape is also ordinary code:
 
 1. **Telling others something changed**: `Listeners` (`core/listeners.ts`). `add` returns the way to stop, and `emit`

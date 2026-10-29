@@ -85,7 +85,7 @@ export default tseslint.config(
     },
   },
   {
-    // One way per job (docs/architecture.md, plans 054 and 057): the copies a selector can recognise point to the
+    // One way per job (docs/architecture.md, plans 054 and 059): the copies a selector can recognise point to the
     // helper. A serial queue or a burst timer written by hand has no shape that is not also ordinary code, so those
     // two stay a convention.
     files: ["core/**/*.ts", "daemon/**/*.ts", "mod/**/*.ts", "app/src/**/*.{ts,tsx}"],
