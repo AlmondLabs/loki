@@ -12,6 +12,11 @@ import type { ChatTool } from "../daemon/chat-tools.ts";
 import { AgentStore, ChatDoc } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
+import type { Suggestion } from "../core/frame-types.ts";
+import { DeskStore } from "../mod/desk-store.ts";
+import { GestureLog } from "../mod/gestures.ts";
+import { Suggestions } from "../mod/suggestions.ts";
+import { registerTools } from "../mod/tools.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const cleanups: Array<() => Promise<void>> = [];
@@ -93,5 +98,83 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
   test("the tools that only read run without asking, named as the agent names them", async () => {
     const { tools } = await setup();
     expect(tools.readOnly()).toEqual(["mcp__loki__whoami"]);
+  });
+
+  test("suggestion_create through the loopback server stores the suggestion on the calling chat, and runs without asking", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-acp-suggest-"));
+    const models = createModels();
+    const mods = new ModRegistry(() => {});
+    const stored = new Map<string, Suggestion[]>();
+    const suggestions = new Suggestions({
+      records: {
+        read: (a, c) => Promise.resolve({ suggestions: stored.get(`${a}/${c}`) ?? [], archived: false }),
+        write: (a, c, s) => (stored.set(`${a}/${c}`, s), Promise.resolve()),
+      },
+      chat: () => null,
+      agentExists: () => true,
+      call: () => Promise.resolve({ ok: true, reply: {} }),
+      push: () => {},
+      newId: () => "sugg-1",
+    });
+    await mods.load({
+      name: "loki",
+      apiVersion: 1,
+      activate: (api) =>
+        registerTools(api, {
+          store: new DeskStore(),
+          gestures: new GestureLog(),
+          widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
+          widgetsDir: join(dir, "widgets"),
+          activeScope: () => "shared",
+          broadcast: () => {},
+          chats: {
+            suggestions,
+            agents: () => [{ id: "agent-local-ira", name: "Ira", mac: "studio", reachable: true }],
+            chats: () => [
+              {
+                scope: "conv-site",
+                conversation_id: "conv-site",
+                agent_id: "agent-local-ira",
+                agent_name: "Ira",
+                title: "site",
+                status: "live",
+                model: null,
+                reasoning_effort: null,
+                cwd: "/work/site",
+                widgets: 0,
+                active: false,
+                last_active: null,
+              },
+            ],
+            passChat: () => false,
+          },
+        }),
+    });
+    const stores = new StoreManager(
+      join(dir, "stores"),
+      { models, registry: mods.registry },
+      ctx,
+      () => {},
+      () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx),
+    );
+    const store = await stores.get("agent-local-ada");
+    await store.createChat("local-conv-garden", { title: null }, ctx);
+    const tools = new LokiTools({ tools: () => mods.chatTools(), stores, context: ctx, version: "test" });
+    await tools.start();
+    cleanups.push(async () => {
+      await tools.stop();
+      await stores.closeAll();
+      rmSync(dir, { recursive: true, force: true });
+    });
+    const loki = await connect(http(tools.serverFor("agent-local-ada", "local-conv-garden") ?? undefined));
+    const out = await loki.callTool({
+      name: "suggestion_create",
+      arguments: { title: "Write the site's intro", text: "Write /work/site/intro.md.", target: { agent_id: "agent-local-ira", folder: "/work/site" } },
+    });
+    expect(JSON.stringify(out.content)).toContain("sugg-1");
+    expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
+    expect(tools.readOnly()).toEqual(
+      expect.arrayContaining(["mcp__loki__chat_list", "mcp__loki__suggestion_create", "mcp__loki__suggestion_list", "mcp__loki__suggestion_withdraw"]),
+    );
   });
 });

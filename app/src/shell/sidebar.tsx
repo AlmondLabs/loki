@@ -114,7 +114,6 @@ export function Sidebar({
   onSelect,
   waiting,
   tick,
-  openTasks = 0,
   dueCards = 0,
   lanOn = false,
   updateReady = false,
@@ -124,9 +123,7 @@ export function Sidebar({
   onSelect: (s: Segment) => void;
   waiting: number;
   tick: boolean;
-  /** Open tasks in Tasks, shown quietly under its icon. */
-  openTasks?: number;
-  /** Cards due in Learn, the same quiet way. */
+  /** Cards due in Learn, shown quietly under its icon. */
   dueCards?: number;
   /** The mod is reachable on the Wi‑Fi (Settings › phone): a green dot on the settings icon while it is. */
   lanOn?: boolean;
@@ -168,15 +165,13 @@ export function Sidebar({
                 aria-label={
                   isInbox && waiting > 0
                     ? `${s.label}, ${waiting} waiting`
-                    : s.id === "tasks" && openTasks > 0
-                      ? `${s.label}, ${openTasks} open`
-                      : s.id === "learn" && dueCards > 0
-                        ? `${s.label}, ${dueCards} due`
-                        : s.id === "settings" && updateReady
-                          ? `${s.label}, a newer loki is out`
-                          : s.id === "settings" && lanOn
-                            ? `${s.label}, phones can reach this Mac`
-                            : s.label
+                    : s.id === "learn" && dueCards > 0
+                      ? `${s.label}, ${dueCards} due`
+                      : s.id === "settings" && updateReady
+                        ? `${s.label}, a newer loki is out`
+                        : s.id === "settings" && lanOn
+                          ? `${s.label}, phones can reach this Mac`
+                          : s.label
                 }
                 aria-pressed={active}
                 title={`${s.label} (${s.key})`}
@@ -196,9 +191,8 @@ export function Sidebar({
                 }}
               >
                 <Icon id={s.id} />
-                {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (tasks). */}
+                {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (Learn's due cards). */}
                 {isInbox && waiting > 0 && <Badge n={waiting} tone="attention" />}
-                {s.id === "tasks" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
                 {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
                 {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
                 {s.id === "settings" && (lanOn || updateReady) && (
@@ -311,16 +305,6 @@ function Icon({ id }: { id: Segment }) {
         <path d="M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" />
         <path d="M3 11.5h4l1.2 2h3.6l1.2-2h4" />
         <path d="M5.5 11.5 7 4.5h6l1.5 7" />
-      </svg>
-    );
-  }
-  if (id === "tasks") {
-    // three columns of cards
-    return (
-      <svg {...common} aria-hidden>
-        <rect x="2.5" y="3.5" width="4" height="13" rx="0.8" />
-        <rect x="8" y="3.5" width="4" height="8" rx="0.8" />
-        <rect x="13.5" y="3.5" width="4" height="10.5" rx="0.8" />
       </svg>
     );
   }

@@ -1483,6 +1483,10 @@ span.loki-phone-section-btn {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
+/* A suggestion saved as a draft waits in this chat's box (plan 049): a quiet word beside when, never a badge. */
+.loki-phone-card-draft {
+  flex: none;
+}
 /* The card's conversation: the thread takes what is left and scrolls on its own; notice and box stay put. */
 .loki-phone-card-body {
   flex: 1;
@@ -2043,6 +2047,7 @@ span.loki-phone-section-btn {
 }
 
 /* The open question and the approval: a quiet panel on the ground, sentence case, not the desktop's brass slab. */
+.loki-phone .loki-suggestions,
 .loki-phone .loki-question,
 .loki-phone .loki-approval {
   margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
@@ -2344,6 +2349,11 @@ span.loki-phone-section-btn {
    inside itself) before the box or the decide buttons would be pushed off the visible part. */
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
+}
+/* The phone's suggestions sit on its gutters, and their text reads at the phone's body size. */
+.loki-phone .loki-suggestion {
+  padding: var(--phone-space-1) var(--phone-space-3);
+  font-size: var(--phone-text-body);
 }
 .loki-phone .loki-question,
 .loki-phone .loki-approval {

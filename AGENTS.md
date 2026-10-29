@@ -16,8 +16,8 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
 - **No `any`, no `x!`, no floating promises.** Parse `unknown` at the edge; narrow instead of asserting; `await`,
   return, or `void` every promise.
 - **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/` and `daemon/`.
-- **Names**: every file kebab-case, components and hooks too (`tasks-pane.tsx`, `use-tasks.ts`); identifiers camelCase,
-  types and components PascalCase, acronyms as words (`agentUrl`); data loki owns (frames, saved files, task metadata,
+- **Names**: every file kebab-case, components and hooks too (`suggestion-card.tsx`, `use-desk.ts`); identifiers camelCase,
+  types and components PascalCase, acronyms as words (`agentUrl`); data loki owns (frames, saved files, suggestions,
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
@@ -43,7 +43,7 @@ included, before saying it is done.
 ## Commits and pull requests
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): what changed`, lowercase, no period,
-  72 characters at most (`feat(tasks): add task from a chat message`). The PR title follows the same shape; CI checks
+  72 characters at most (`feat(chat): suggest work for another chat`). The PR title follows the same shape; CI checks
   it.
 - **The scope is one of these, or left out**; a folder or topic name that is not here fails CI: `chat`, `history`,
   `acp`, `tasks`, `mcp`, `memory`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `peers`, `motion`,

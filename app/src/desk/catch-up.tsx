@@ -7,8 +7,11 @@ import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
+import { OpenChat } from "../chat/transcript";
+import type { SuggestionSource } from "../chat/suggestion-card";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/desk-core.ts";
+import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
@@ -42,8 +45,8 @@ interface CatchUpProps {
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  /** The live conversations behind the cards (useAttention's), read through useConversation. */
-  chats: ChatViews;
+  /** The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions (plan 049). */
+  chats: ChatViews & SuggestionSource;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -285,6 +288,9 @@ function Card({
   // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
+  // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
+  // draft for this chat (plan 049) shows in the box while nothing is typed.
+  const [draft, setDraft] = useDraft(draftKey(agentId, id));
   return (
     <div
       style={{
@@ -300,48 +306,53 @@ function Card({
         animation: `${actions.dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,
       }}
     >
-      <Conversation
-        view={{
-          rows: thread.rows,
-          status: thread.status,
-          error: current.status === "failed" ? current.error : null,
-          model: modelFor?.(agentId, id) ?? null,
-          reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
-          // The live thread's mode wins over the record's.
-          mode: thread.mode ?? modeFor?.(agentId, id) ?? null,
-          engine: thread.engine,
-          approval: current.pendingApproval ?? null,
-          question: current.pendingQuestion ?? null,
-          older: thread.older,
-          loadFailed: thread.loadFailed,
-          loadStep: thread.loadStep,
-        }}
-        actions={{
-          onSend: (text, images) => deck.onReply(current, text, images),
-          onStop: onStop ? () => onStop(current) : undefined,
-          onAnswer: question ? (answers) => deck.onAnswer(current, question.requestId, answers) : undefined,
-          onApprove: current.pendingApproval ? actions.approve : undefined,
-          commands: deck.commands,
-          onCommand,
-          onLoadModels: deck.onLoadModels,
-          onPickModel: onPickModel && modelFor ? (selection) => onPickModel(current, selection) : undefined,
-          onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
-        }}
-        models={deck.models ?? null}
-        layout={layout}
-        agentName={current.agent_name}
-        header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} labelList={deck.labelList} />}
-        footer={
-          <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
-        }
-        hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
-        inputRef={replyRef}
-        onTyping={setTyping}
-        onEscapeEmpty={deck.onClose} // esc: keep a draft and hand keys back, or close an untouched deck
-        onSent={actions.sent}
-        modelPickerTick={modelTick}
-        modeMenuTick={modeTick}
-      />
+      {/* A chip naming another chat opens it, as O opens the card's own. */}
+      <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
+        <Conversation
+          view={{
+            rows: thread.rows,
+            status: thread.status,
+            error: current.status === "failed" ? current.error : null,
+            model: modelFor?.(agentId, id) ?? null,
+            reasoningEffort: reasoningEffortFor?.(agentId, id) ?? null,
+            // The live thread's mode wins over the record's.
+            mode: thread.mode ?? modeFor?.(agentId, id) ?? null,
+            engine: thread.engine,
+            approval: current.pendingApproval ?? null,
+            question: current.pendingQuestion ?? null,
+            older: thread.older,
+            loadFailed: thread.loadFailed,
+            loadStep: thread.loadStep,
+          }}
+          actions={{
+            onSend: (text, images) => deck.onReply(current, text, images),
+            onStop: onStop ? () => onStop(current) : undefined,
+            onAnswer: question ? (answers) => deck.onAnswer(current, question.requestId, answers) : undefined,
+            onApprove: current.pendingApproval ? actions.approve : undefined,
+            commands: deck.commands,
+            onCommand,
+            onLoadModels: deck.onLoadModels,
+            onPickModel: onPickModel && modelFor ? (selection) => onPickModel(current, selection) : undefined,
+            onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
+          }}
+          models={deck.models ?? null}
+          layout={layout}
+          agentName={current.agent_name}
+          header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} labelList={deck.labelList} />}
+          footer={
+            <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
+          }
+          hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
+          draft={{ value: draft, onChange: setDraft }}
+          inputRef={replyRef}
+          onTyping={setTyping}
+          onEscapeEmpty={deck.onClose} // esc: keep a draft and hand keys back, or close an untouched deck
+          onSent={actions.sent}
+          modelPickerTick={modelTick}
+          modeMenuTick={modeTick}
+          suggestions={{ source: deck.chats, rt: current.runtime }}
+        />
+      </OpenChat.Provider>
     </div>
   );
 }

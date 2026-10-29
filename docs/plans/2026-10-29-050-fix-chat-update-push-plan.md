@@ -30,6 +30,9 @@ An agent change had the same gap and was closed by `agents_changed` (`mod/frames
    `desk_title` to the tabs showing it, the way `agentsChange` does for agents. A failed update tells no one.
 3. **The app** treats `chat_changed` like `lists_changed`: it asks for its lists again.
 
+Since plan 049 (suggestions) `chat_update` also sets a chat's purpose and saves or clears its draft. Both show in the
+list (the purpose line, `has_draft`), and neither is saved as the person types, so they are told the same way.
+
 A rename made on a paired Mac's client is sent to the Mac the chat lives on, so it is handled there and told from there
 too. That Mac's chats are then fetched twice by the asking Mac: once by the router before it answers (`relists`), and
 once, 400 ms later, on hearing `chat_changed`. A rename is rare; the second fetch was left rather than adding a rule to

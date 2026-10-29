@@ -18,8 +18,6 @@ export interface OsWords {
   fileManager: string;
   /** The folder field's example path. */
   folderExample: string;
-  /** The line that installs beads (bd), the task list's task tracker. */
-  beadsInstall: string;
   /** Settings › loki's System fact, under runsOn: what loki needs of the system. */
   system: string;
 }
@@ -31,7 +29,6 @@ const WORDS: Record<Platform, OsWords> = {
     aMachine: "a Mac",
     fileManager: "Finder",
     folderExample: "~/Documents/…",
-    beadsInstall: "brew install beads",
     system: "macOS 13 or later; the shell picks folders with osascript",
   },
   windows: {
@@ -40,7 +37,6 @@ const WORDS: Record<Platform, OsWords> = {
     aMachine: "a PC",
     fileManager: "File Explorer",
     folderExample: "~\\Documents\\…",
-    beadsInstall: "npm install -g @beads/bd",
     system: "64-bit Windows 10 or 11, a preview build; the shell picks folders with the system's own dialog",
   },
   linux: {
@@ -49,7 +45,6 @@ const WORDS: Record<Platform, OsWords> = {
     aMachine: "a computer",
     fileManager: "the file manager",
     folderExample: "~/Documents/…",
-    beadsInstall: "npm install -g @beads/bd",
     system: "64-bit desktop Linux (Ubuntu and Debian first), a preview build; the shell picks folders with the system's own dialog",
   },
 };

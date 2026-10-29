@@ -27,7 +27,7 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, Add task's (read the list, file one), the usage page's read, and the labels' list", () => {
+  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, and the decisions on a suggestion", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
         "chat_open",
@@ -72,10 +72,15 @@ describe("the frame table", () => {
         "focus_add",
         "card_rest",
         "desk_get",
-        "tasks_list",
-        "task_create",
+        "suggestion_decide",
+        "suggestion_retarget",
       ].sort(),
     );
+  });
+
+  test("no frame of Tasks is left, for the phone or anyone (plan 049, U6)", () => {
+    expect(names.filter((n) => /^tasks?_/.test(n))).toEqual([]);
+    expect([...PHONE_FRAMES].filter((n) => /^tasks?_/.test(n))).toEqual([]);
   });
 
   test("every reply the app waited for is some request's reply", () => {
@@ -86,9 +91,6 @@ describe("the frame table", () => {
       "memory_commits",
       "memory_diff",
       "reflection_state",
-      "tasks",
-      "task_created",
-      "tasks_updated",
       "history",
       "folders",
       "folder_matches",
@@ -185,9 +187,6 @@ describe("the frame table", () => {
     });
     expect(FRAMES.history_get.parse({ conversation_id: "c", limit: 99999 })).toEqual({ agent_id: null, conversation_id: "c", limit: 99999, before: null });
     expect(FRAMES.history_get.parse({ conversation_id: "c", before: 400 })).toEqual({ agent_id: null, conversation_id: "c", limit: null, before: 400 });
-    expect(FRAMES.task_assign.parse({ ids: ["t1"], conversation_id: "c" })).toBe("assign needs a conversation and a chat");
-    expect(FRAMES.task_status.parse({ id: "t1", status: "open" })).toEqual({ ids: ["t1"], status: "open" });
-    expect(FRAMES.task_status.parse({ id: "t1", status: "done" })).toBe("unknown status done");
     expect(FRAMES.memory_read.parse({ agent_id: "../etc" })).toBe("agent_id required");
     expect(FRAMES.lan_via_set.parse({ via: "bluetooth" })).toBe('via must be "tailscale" or "lan"');
     expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer or decide");
@@ -261,13 +260,6 @@ describe("every frame in the table, through the real router", () => {
       run: () => Promise.resolve({ note: "ran" }),
       startLesson: () => Promise.resolve({ agent_id: "agent-1", conversation_id: "conv-1" }),
     },
-    tasks: {
-      list: () => Promise.resolve([]),
-      create: () => Promise.resolve({}),
-      assign: () => Promise.resolve([]),
-      close: () => Promise.resolve([]),
-      setStatus: () => Promise.resolve([]),
-    } as never,
     agents: {
       get: () => ({ id: "agent-1" }) as never,
       tree: () => [],
@@ -327,8 +319,6 @@ describe("every frame in the table, through the real router", () => {
     recall_lead_dismiss: { id: "l" },
     recall_lead_restore: { id: "l" },
     recall_lead_start: { id: "l" },
-    task_assign: { ids: ["t"], conversation_id: "conv-1", desk: "conv-1" },
-    task_status: { ids: ["t"], status: "open" },
     agent_get: { agent_id: "agent-1" },
     memory_read: { agent_id: "agent-1", path: "a.md" },
     memory_log: { agent_id: "agent-1" },
@@ -339,6 +329,9 @@ describe("every frame in the table, through the real router", () => {
     lan_via_set: { via: "lan" },
     peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
     peer_forget: { mac_id: "mac-2" },
+    suggestion_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", action: "reject" },
+    suggestion_retarget: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", target: { agent_id: "agent-local-a", folder: "/w" } },
+    suggestion_add: { agent_id: "agent-local-a", conversation_id: "conv-1", title: "t", text: "x", target: { agent_id: "agent-local-a", folder: "/w" } },
   };
 
   test("every request and send is answered by exactly one module, and a missing one is caught", () => {
@@ -396,9 +389,9 @@ describe("how the app reads a request's answer", () => {
       ok: true,
       reply: { type: "folder_matches", request_id: "r1", matches: ["/a"] } as never,
     });
-    expect(requestResult({ type: "error", request_id: "r1", message: "task_create is not available on the phone" })).toEqual({
+    expect(requestResult({ type: "error", request_id: "r1", message: "skill_install is not available on the phone" })).toEqual({
       ok: false,
-      error: "task_create is not available on the phone",
+      error: "skill_install is not available on the phone",
       timed_out: false,
     });
     expect(requestResult({ type: "error", request_id: "r1" })).toEqual({ ok: false, error: "the mod refused", timed_out: false });
@@ -408,10 +401,57 @@ describe("how the app reads a request's answer", () => {
 
 describe("a parser that throws", () => {
   test("is answered like any failure: the request still gets error with its request_id", () => {
-    const bridge = bridgeOf({ tasks: { list: () => Promise.resolve([]) } as never });
+    const bridge = bridgeOf();
     const c = client("d1");
-    bridge.onMessage(c, { type: "task_status", request_id: "r1", ids: ["t"], status: { toString: 1 } });
+    // A field that throws when the parser reads it.
+    const frame = Object.defineProperty({ type: "history_get", request_id: "r1" }, "conversation_id", {
+      get: () => {
+        throw new Error("a field that cannot be read");
+      },
+    });
+    bridge.onMessage(c, frame);
     expect(c.sent.at(-1)).toMatchObject({ type: "error", request_id: "r1" });
+  });
+});
+
+describe("frames: suggestions (plan 049)", () => {
+  const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) =>
+    (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
+  const chat = { agent_id: "agent-local-a", conversation_id: "c" };
+
+  test("a decision is send, draft or reject on one suggestion of the chat it names", () => {
+    expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "draft" })).toEqual({ ...chat, suggestion_id: "sugg-1", action: "draft" });
+    expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "archive" })).toBe("action must be send, draft or reject");
+    expect(parse("suggestion_decide", { ...chat, action: "send" })).toBe("suggestion_id required");
+  });
+
+  test("a re-point names an existing chat, or an agent and a folder for a new one", () => {
+    const existing = { agent_id: "agent-local-b", conversation_id: "conv-2" };
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: existing })).toEqual({ ...chat, suggestion_id: "s", target: existing });
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: { agent_id: "agent-local-b", folder: "/w", extra: 1 } })).toEqual({
+      ...chat,
+      suggestion_id: "s",
+      target: { agent_id: "agent-local-b", folder: "/w" },
+    });
+    expect(parse("suggestion_retarget", { ...chat, suggestion_id: "s", target: { agent_id: "agent-local-b" } })).toBe(
+      "target needs agent_id and a conversation_id or a folder",
+    );
+  });
+
+  test("an add names the chat, a title, a text and a target; the phone may not send one", () => {
+    const target = { agent_id: "agent-local-b", folder: "/w" };
+    expect(parse("suggestion_add", { ...chat, title: "Fix it", text: "Fix the lock test", target })).toEqual({
+      ...chat,
+      title: "Fix it",
+      text: "Fix the lock test",
+      target,
+    });
+    expect(parse("suggestion_add", { ...chat, title: "Fix it", text: "Fix the lock test", target, suggestion_id: "task-7" })).toMatchObject({
+      suggestion_id: "task-7",
+    });
+    expect(parse("suggestion_add", { ...chat, title: " ", text: "x", target })).toBe("title and text required");
+    expect(parse("suggestion_add", { ...chat, title: "t", text: "x", target: {} })).toBe("target needs agent_id and a conversation_id or a folder");
+    expect(FRAMES.suggestion_add.phone).toBe(false);
   });
 });
 
@@ -487,6 +527,9 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_update",
       "history_get",
       "history_step_get",
+      "suggestion_add",
+      "suggestion_decide",
+      "suggestion_retarget",
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual(["chat_requirements", "folder_check", "folder_complete", "folders_get"]);

@@ -14,8 +14,6 @@ import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
 import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
-import { messageKey } from "../../../core/task-source.ts";
-import { MessageTaskArea, rememberMessage, useMessageTasks } from "../tasks/message-tasks";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -412,20 +410,12 @@ function Message({
   const hold = useMessageHold(m);
   // Copy waits for a streaming reply to finish; its time is there from the start.
   const copyable = !!m.text && !(last && streaming);
-  // Add task (tasks/message-tasks.tsx), where the host gives the conversation's tasks: a finished message, not a queued one.
-  const tasks = useMessageTasks();
-  const key = tasks && copyable ? messageKey(m.role, m.text) : undefined;
-  if (tasks && key) rememberMessage(tasks.conversationId, key, m.text);
-  const addable = !!key && !m.queued;
   return (
     <div
       data-row={m.role}
       data-queued={m.queued ? "true" : undefined}
       data-first={first ? "true" : undefined}
       data-arrived={arrived}
-      data-msg-key={key}
-      data-msg-at={key ? m.at : undefined}
-      data-conversation={key ? tasks?.conversationId : undefined}
       className="loki-msg"
       {...hold}
     >
@@ -441,11 +431,9 @@ function Message({
             queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
-        {tasks && <MessageTaskArea row={m} ctx={tasks} />}
         {(copyable || time) && (
           <div className="loki-msg-actions">
             {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
-            {addable && tasks && <AddTaskButton onClick={() => tasks.start(m)} />}
             {time && (
               <time className="loki-msg-time" dateTime={m.at}>
                 {time}
@@ -458,8 +446,56 @@ function Message({
   );
 }
 
+/**
+ * How a chip that names another chat opens it: the host's (the desk switches to it, the phone goes to its page).
+ * Absent, the chip only names the chat.
+ */
+export const OpenChat = createContext<((agentId: string, conversationId: string) => void) | null>(null);
+
+/** The row a message sent from a suggestion leaves (core/harness.ts extractHarnessEvents). */
+const SUGGESTED = "suggested in another chat";
+
+/**
+ * The chat a "suggested in another chat" row came from (plan 049, KTD6), when the row carries it as `link`; null when
+ * it does not, or when either id is empty, since an empty id would open no chat.
+ */
+export function suggestedSource(m: TranscriptRow): { agent_id: string; conversation_id: string } | null {
+  const link = m.link;
+  return link?.agent_id && link.conversation_id ? link : null;
+}
+
+/** A message sent from a suggestion: a chip naming the suggestion, which opens the chat it was made in. */
+function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const open = useContext(OpenChat);
+  const from = suggestedSource(m);
+  const words = (
+    <>
+      <span aria-hidden>↩ </span>
+      {SUGGESTED}
+      {m.summary && <span className="loki-event-aside">{m.summary}</span>}
+    </>
+  );
+  return (
+    <div data-row="event" data-arrived={arrived} className="loki-event-row">
+      {open && from ? (
+        <button type="button" className="loki-suggested-chip" onClick={() => open(from.agent_id, from.conversation_id)} title="open the chat it came from">
+          {words}
+        </button>
+      ) : (
+        <span className="loki-suggested-chip">{words}</span>
+      )}
+    </div>
+  );
+}
+
 /** A harness event as one quiet line; its detail, a lean one's (plan 043) fetched, only once it is opened. */
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  if (m.text === SUGGESTED) return <SuggestedRow row={m} arrived={arrived} />;
+  return <DetailEventRow row={m} arrived={arrived} />;
+}
+
+/** An event with its disclosure. */
+function DetailEventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const [open, setOpen] = useState(false);
   const more = !!m.detail || m.row !== undefined;
   return (
@@ -525,28 +561,6 @@ function Bubble({
 }
 
 /** The bubble's text as it was written — markdown, not the rendering — onto the clipboard. Says "copied" for a beat. */
-/** Add task: a check with a plus, beside Copy; the editor opens under the message. */
-function AddTaskButton({ onClick }: { onClick: () => void }) {
-  return (
-    <IconButton size={24} className="loki-msg-action loki-msg-addtask" label="add task" onClick={onClick}>
-      <svg
-        viewBox="0 0 16 16"
-        width="13"
-        height="13"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M2 8.5l2.5 2.5L9 6.5" />
-        <path d="M12 3v6M9 6h6" />
-      </svg>
-    </IconButton>
-  );
-}
-
 function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {

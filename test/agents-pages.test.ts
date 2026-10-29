@@ -199,7 +199,6 @@ describe("agents pane", () => {
     avatar: () => "",
     desks: [],
     items: [],
-    tasks: null,
     initialAgentId: null,
     onOpenDesk: () => {},
     onAskToUpdate: () => {},
@@ -208,7 +207,6 @@ describe("agents pane", () => {
     reflect: {},
     listModels: () => Promise.resolve([]),
     onShowDesks: () => {},
-    onShowTasks: () => {},
   });
   test("no agents: the invitation, as an empty pane, with its new agent button", async () => {
     const { createElement } = await import("react");

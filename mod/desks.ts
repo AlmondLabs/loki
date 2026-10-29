@@ -138,6 +138,14 @@ export interface LocalConversationInfo {
   mode: string;
   /** The person's labels on the chat (plan 022). */
   labels: string[];
+  /** The person's one line on what the chat is for (plan 049); null when none. */
+  purpose: string | null;
+  /** A suggestion saved as a draft waits in the chat's message box (plan 049). */
+  hasDraft: boolean;
+  /** That draft's text, which fills the chat's empty message box when it opens (plan 049, KTD7); null when none. */
+  draftText?: string | null;
+  /** The folder the chat works in; null when it has none of its own. */
+  cwd: string | null;
 }
 
 /** One conversation in the daemon's chat list, with whether it is archived or hidden. */

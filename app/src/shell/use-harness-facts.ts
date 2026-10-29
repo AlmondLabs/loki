@@ -13,29 +13,22 @@ export interface InstallReport {
   app_path: string;
   error: string | null;
 }
-/** The tools the shell found on this machine: the path of beads (`bd`), the task tracker, or null. */
-export interface Tools {
-  bd: string | null;
-}
-
-/** What the shell knows about this machine: the install report and which tools were found. Outside the shell both stay null. */
-export function useHarnessFacts(): { install: InstallReport | null; tools: Tools | null } {
+/** What the shell knows about this machine: the install report. Outside the shell it stays null. */
+export function useHarnessFacts(): { install: InstallReport | null } {
   const [install, setInstall] = useState<InstallReport | null>(null);
-  const [tools, setTools] = useState<Tools | null>(null);
   useEffect(() => {
     if (!inTauri) return;
     let cancelled = false;
     void import("@tauri-apps/api/core")
       .then(async ({ invoke }) => {
-        const [report, found] = await Promise.all([invoke<InstallReport>("install_status").catch(() => null), invoke<Tools>("tool_status").catch(() => null)]);
+        const report = await invoke<InstallReport>("install_status").catch(() => null);
         if (cancelled) return;
         setInstall(report);
-        setTools(found);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
-  return { install, tools };
+  return { install };
 }

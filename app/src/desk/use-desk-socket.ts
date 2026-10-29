@@ -80,8 +80,6 @@ export function useDeskSocket() {
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
   const [restMap, setRestMap] = useState<Record<string, Rest>>({});
-  /** Bumped when the mod says the task list changed (another tab, an agent's task tool call). */
-  const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
   const [recallVersion, setRecallVersion] = useState(0);
   /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
@@ -211,9 +209,6 @@ export function useDeskSocket() {
             break;
           case "chat_event":
             for (const listener of chatListeners.current) listener(msg);
-            break;
-          case "tasks_changed":
-            setTasksVersion((v) => v + 1);
             break;
           case "agents_changed":
           case "lists_changed":
@@ -391,7 +386,6 @@ export function useDeskSocket() {
     viewedMap,
     focusMap,
     restMap,
-    tasksVersion,
     recallVersion,
     usageVersion,
     lanStatus,

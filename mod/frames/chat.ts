@@ -21,7 +21,8 @@ export interface ChatBackend {
   create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
   abort(agentId: string, conversationId: string): Promise<void>;
-  update(p: PayloadOf<"chat_update">): Promise<void>;
+  /** Its reply names the saved draft's suggestion when it saved one. */
+  update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]>;
   folder(agentId: string, conversationId: string, cwd: string): Promise<ChatState>;
   model(p: PayloadOf<"chat_model">): Promise<void>;
   models(): Promise<Replies["chat_models"]["entries"]>;
@@ -110,7 +111,8 @@ async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Pr
 }
 
 /**
- * A chat renamed, archived, hidden or relabelled, told to every client and paired Mac once it is done (plan 050). Only
+ * A chat renamed, archived, hidden, relabelled, or given a purpose or draft, told to every client and paired Mac once it
+ * is done (plan 050). Only
  * the client that changed it knew before, so the others kept the old row until their next poll. The tabs showing it
  * also get its title: their header keeps the one the last `desk_title` gave over the list's.
  */
@@ -147,7 +149,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_update: (p, ctx) =>
       chatChange(
         p,
-        served(b, async (x) => (await x.update(p), DONE)),
+        served(b, (x) => x.update(p)),
         deps,
         ctx,
       ),

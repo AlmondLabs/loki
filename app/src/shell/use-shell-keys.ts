@@ -6,8 +6,8 @@ import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, 
  * The webview's own keys on Windows (WebView2's browser accelerators) and Linux: reload, print, find, the caret,
  * devtools, view source, back and forward. None of them belongs in an app window, and a reload drops the desk
  * mid-turn. In the packaged app they are held back (preventDefault); loki's own bindings on the same chords still run,
- * since nothing in the key handler reads defaultPrevented for them: Ctrl+F is the chat's find, Ctrl+R the task list's
- * refresh. A development build keeps them (a reload and devtools are the point there), as does a browser tab, and
+ * since nothing in the key handler reads defaultPrevented for them: Ctrl+F is the chat's find, Ctrl+R Learn's refresh.
+ * A development build keeps them (a reload and devtools are the point there), as does a browser tab, and
  * the Mac's webview has none.
  */
 const BROWSER_KEYS = new Set([
@@ -49,7 +49,7 @@ export function guardBrowserKey(
 
 /**
  * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
- * their own: the sheet's zoom, the deck's decisions, the task list's moves), the one keydown listener that
+ * their own: the sheet's zoom, the deck's decisions), the one keydown listener that
  * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
  * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
  * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
@@ -91,7 +91,7 @@ export function useShellKeys(
         if (typingIn(e) || dialog !== "none") return;
         if (segment === "desk") {
           if (ref.current.escape.toMessages?.(false)) e.preventDefault();
-        } else if (segment === "tasks" || segment === "agents" || segment === "learn") {
+        } else if (segment === "agents" || segment === "learn") {
           e.preventDefault();
           ref.current.escape.toDesk();
         }

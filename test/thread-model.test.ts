@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
+import { suggestedMark } from "../core/harness.ts";
 import { approval, call, piece, push, result, said, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -19,6 +20,20 @@ describe("history as a thread", () => {
     ]);
     expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:go", "tool:Bash", "event:background task b1 completed", "assistant:Done."]);
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
+  });
+
+  test("an old chat from Tasks' time reads cleanly: no <loki-tasks> markup, and its task_create call is a tool row (plan 049, U6)", () => {
+    const t = foldSteps([
+      user(
+        "rotate the creds\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (1):\n- lk-a1  P1  rotate SSO creds\n</loki-tasks>",
+        at0,
+      ),
+      call("task_create", "t1", { title: "update the runbook" }, at0),
+      result("t1", '{"filed":"lk-b2"}'),
+      said("Filed lk-b2.", at0),
+    ]);
+    expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:rotate the creds", "tool:task_create", "assistant:Filed lk-b2."]);
+    expect(t.some((m) => m.text.includes("loki-tasks"))).toBe(false);
   });
 
   test("history with times yields rows with times; history without yields rows without", () => {
@@ -430,6 +445,34 @@ describe("a history page arriving", () => {
     t.load([{ ...call7, at: t1002 }]);
     t.apply({ kind: "result", id: "c7", output: "a.ts", failed: false });
     expect(t.rows()).toMatchObject([{ text: "Bash · ls", tool: { output: "a.ts" } }]);
+  });
+});
+
+describe("a message sent from a suggestion (plan 049, KTD6)", () => {
+  const sent = `${suggestedMark({ from_agent: "friday", from_chat: "data", title: "Fix the flaky upload test" })}\n\nThe upload test sleeps.`;
+  const chip = {
+    role: "event",
+    text: "suggested in another chat",
+    summary: "Fix the flaky upload test",
+    link: { agent_id: "friday", conversation_id: "data" },
+  };
+
+  test("live, its event row links back to the chat the suggestion was made in", () => {
+    const l = emptyLive();
+    push(l, user(sent));
+    expect(l.thread.rows()).toMatchObject([chip, { role: "user", text: "The upload test sleeps." }]);
+  });
+
+  test("from a history page, the reloaded row keeps the link", () => {
+    // The daemon folds the store into rows and sends them lean (daemon/chats.ts, mod/frames/history.ts); the app loads the page.
+    const page: HistoryRow[] = leanPage(foldSteps([user(sent, at0), said("On it.", at0)]), 0);
+    const t = new ThreadModel();
+    t.load(page);
+    expect(rowsOf(t)).toMatchObject([chip, { role: "user", text: "The upload test sleeps." }, { role: "assistant", text: "On it." }]);
+  });
+
+  test("no other event row carries a link", () => {
+    expect(foldSteps([user('<skill_content name="unslop">\n# Unslop\n</skill_content>')])[0]).not.toHaveProperty("link");
   });
 });
 
