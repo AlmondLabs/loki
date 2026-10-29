@@ -76,7 +76,8 @@ export const OLD_KEYS: Readonly<Partial<Record<string, string>>> = {
 
 /**
  * A task's metadata keys in beads as loki wrote them before October 2026, and their names now (`by`, `agent`, `desk`,
- * `folder`, `origin` and `quote` were already one word). mod/tasks.ts reads tasks through it and rewrites each one once.
+ * `folder`, `origin` and `quote` were already one word). mod/task-migration.ts reads tasks through it when
+ * it moves them into suggestions.
  */
 export const OLD_TASK_METADATA_KEYS: Readonly<Partial<Record<string, string>>> = {
   agentId: "agent_id",

@@ -21,6 +21,7 @@ import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
+import { SuggestionStack, type SuggestionsProps } from "./suggestion-card";
 import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
@@ -37,7 +38,6 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { readTurnError, retryMessage } from "./turn-error";
-import { useRevealMessage } from "../tasks/message-tasks";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -94,7 +94,7 @@ const NO_GUTTER: Required<Gutter> = { left: "0px", right: "0px", bottom: "0px" }
 /**
  * One conversation, the same in every room: the desk's chat panel, an inbox card, the phone's thread.
  * Top to bottom — the host's header, find, the thread (newest at the bottom, followed only while you are
- * there), the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
+ * there), the suggestions its agent made for other chats, the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
  * the model pill that opens Select model, the permission mode beside it, the mic and send), and a last row with
  * approve / deny when something waits, then whatever actions the host adds on the right. The host owns
  * the frame around it and renders this inside a flex column.
@@ -124,6 +124,7 @@ export function Conversation({
   notice,
   placeholder,
   composer = true,
+  suggestions = null,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -170,6 +171,11 @@ export function Conversation({
    * approval are drawn once, by the view on screen.
    */
   composer?: boolean;
+  /**
+   * The suggestions made in this chat for other chats (plan 049), drawn above the open question or approval and only
+   * by the view that draws the box, as they are; null or absent, none.
+   */
+  suggestions?: SuggestionsProps | null;
 }) {
   // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
   // would be drawn again with each one (plan 032).
@@ -293,6 +299,7 @@ export function Conversation({
 
       {composer && (
         <>
+          {suggestions && <SuggestionStack {...suggestions} touch={touch} />}
           {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
           {approval && <ApprovalCard approval={approval} />}
           {notice}
@@ -407,15 +414,21 @@ export function composerPlaceholder(view: Pick<ConversationView, "status" | "app
     : `message ${who}… it goes when this turn ends`;
 }
 
-/** The title, then the agent's face and name with whatever else the host says about the conversation; `right` sits at the end of the row. */
+/**
+ * The title, the chat's purpose line under it when it has one, then the agent's face and name with whatever else the
+ * host says about the conversation; `right` sits at the end of the row.
+ */
 export function ConversationHeader({
   title,
+  purpose,
   agentName,
   agentId,
   children,
   right,
 }: {
   title: ReactNode;
+  /** The person's one line on what the chat is for (plan 049, R11). */
+  purpose?: string | null;
   agentName: string | null | undefined;
   agentId: string | null | undefined;
   children?: ReactNode;
@@ -435,6 +448,11 @@ export function ConversationHeader({
     >
       <div style={{ minWidth: 0 }}>
         <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+        {purpose && (
+          <div className="loki-chat-purpose" title={purpose}>
+            {purpose}
+          </div>
+        )}
         <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
           <AgentChip name={agentName} />
@@ -531,8 +549,6 @@ export const Thread = forwardRef<
     older,
   );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
-  // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/message-tasks.tsx).
-  useRevealMessage(scrollRef, rows, reveal, unpin);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
   const cancelQueuedRef = useRef(onCancelQueued);

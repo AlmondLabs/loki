@@ -53,7 +53,7 @@ router, the remote chats, the app's `request()`, the phone and peer allow-lists 
 read it. _Avoid_: REPLY_FRAMES, PHONE_FRAMES, PEER_FRAMES as hand-kept lists (all derived from it), a string set of
 frame names kept beside it.
 
-**Frame handler**: the mod module for one feature (Learn, Tasks, agents, folders, the phone listener, …) that
+**Frame handler**: the mod module for one feature (Learn, suggestions, agents, folders, the phone listener, …) that
 answers that feature's frames; a request handler returns its reply or an error, and the router sends it.
 
 **Chat event** (`core/attention/model.ts`, `ChatEvent`): what happens in a chat while it runs, in loki's own words:
@@ -68,7 +68,7 @@ app-server, server.
 **Engine** (`ChatInfo.engine`, plan 020): what a chat runs on. loki's own engine is pi-durable with a provider's
 model; an **ACP agent** (`daemon/acp/`) is a program loki starts and talks to over the Agent Client Protocol, such
 as Claude Code. Chosen in the model picker before a chat's first message, fixed after it. The agent the chat
-belongs to (its name, memory, Tasks) stays the same either way. In the daemon each is an adapter behind one
+belongs to (its name, memory, skills) stays the same either way. In the daemon each is an adapter behind one
 interface (`Engine`, `daemon/engine.ts`): `LokiEngine` and `AcpEngine`. _Avoid_: backend, harness (both taken).
 
 **Background pass** (`daemon/passes.ts`): a job the daemon runs on a chat once it has been quiet for half an hour
@@ -87,6 +87,19 @@ needs answers at once and pi-durable answers asynchronously.
 related chats across agents: lowercase letters, digits and dashes, up to eight a chat, each with a colour from an
 eight-colour palette (`state/labels.json`). Only the person sets them; the agent is told them. _Avoid_: tag (the
 agents' own `tags`), category, folder (a chat's working directory).
+
+**Purpose line** (`ChatInfo.purpose`, plan 049): one line the person writes on a chat, in its Rename dialog or
+sheet, saying what the chat is for. It shows under the chat's name in its header, and agents read it through
+`chat_list` to pick the chat a piece of work fits; only the person writes it. _Avoid_: description (an agent's own),
+topic.
+
+**Suggestion** (`mod/suggestions.ts`, plan 049): a message an agent writes for another chat, an open one of any agent
+or a new one for an agent in a folder, made with `suggestion_create` whenever another chat fits the work better. It
+is kept on the record of the chat it was made in, on that chat's home, and shows in that chat's screen, outside the
+thread, until the person acts: **send now** (it goes as the person's message, with a link back), **save as draft**
+(a **saved draft** in the target chat's message box, under anything typed there), **change chat**, or **reject**.
+The home carries out every action, and the first one wins. Agents never send one. Suggestions replaced Tasks, the
+beads-backed task list, in October 2026. _Avoid_: task, proposal, recommendation.
 
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
 list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
@@ -141,7 +154,8 @@ others are files in `~/.loki/mods`.
 | unrestricted | nothing (the default) |
 
 Each of loki's tools declares its kind (`daemon/tool-kinds.ts`). Reads are `read`, `grep`, `find`, `ls`, `image_view`,
-`canvas_read`, `canvas_focus`, `task_list`, `web_search`, `skill`, `background_output`, `background_watch`, `schedule_list`, and a
+`canvas_read`, `canvas_focus`, `web_search`, `skill`, `background_output`, `background_watch`, `schedule_list`, and a
 mod's or an MCP server's tools marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked
 about) count as reads too. Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget
-folder never asks, and a question card (`user_ask`) is never a permission.
+folder never asks, and `user_ask`, `chat_list` and the suggestion tools never ask in any mode (`NEVER_ASK`): a
+question card is not a permission, and what you do with a suggestion is already your decision.

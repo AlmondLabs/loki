@@ -434,6 +434,143 @@
   border-top: 1px solid var(--loki-accent);
   background: var(--loki-brass-soft);
 }
+/* Suggestions an agent made in this chat for other chats (plan 049, suggestion-card.tsx): over the question and the
+   approval, each one line until opened; the stack scrolls rather than pushing the thread away. */
+.loki-suggestions {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 38%;
+  overflow-y: auto;
+  border-top: 1px solid var(--loki-accent);
+  background: var(--loki-brass-soft);
+}
+.loki-suggestion {
+  padding: 6px 20px;
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  color: var(--loki-fg);
+}
+.loki-suggestion + .loki-suggestion {
+  border-top: 1px solid var(--loki-border);
+}
+.loki-suggestion-told {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.loki-suggestion-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-suggestion-kicker {
+  flex: none;
+  color: var(--loki-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.loki-suggestion-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.loki-suggestion-target {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-suggestion-body {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 6px;
+}
+.loki-suggestion-text {
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--loki-well);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.loki-suggestion-note {
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-suggestion-note[data-refused] {
+  color: var(--loki-negative);
+}
+.loki-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.loki-suggestion-picker {
+  display: grid;
+  gap: 6px;
+}
+.loki-suggestion-hits {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.loki-suggestion-hit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+}
+.loki-suggestion-hit-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-suggestion-hit-line {
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+/* A message sent from a suggestion: a chip back to the chat it came from (transcript.tsx SuggestedRow). */
+.loki-suggested-chip {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  padding: 2px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: none;
+  font: inherit;
+  color: var(--loki-muted);
+}
+button.loki-suggested-chip {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.loki-suggested-chip:hover {
+    color: var(--loki-fg);
+    border-color: var(--loki-control-border);
+  }
+}
 .loki-approval-input {
   margin: 0;
   padding: 10px 12px;
@@ -1178,160 +1315,6 @@ button.loki-file-chip {
   }
 }
 
-/* Add task (tasks/message-tasks.tsx): under a message, its tasks' chips and the editor; both phone and desktop. */
-/* One column that can shrink below its content, so a long title ellipsises inside the message instead of pushing out. */
-.loki-msg-tasks {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  margin: 6px 0 2px;
-  justify-items: start;
-}
-.loki-msg-task {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-width: 100%;
-  min-width: 0;
-}
-.loki-msg-task-open {
-  all: unset;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  max-width: 100%;
-  min-width: 0;
-  padding: 3px 10px;
-  border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-pill);
-  background: var(--loki-panel);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--loki-fg);
-}
-button.loki-msg-task-open {
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  button.loki-msg-task-open:hover {
-    border-color: var(--loki-control-border);
-  }
-}
-button.loki-msg-task-open:focus-visible {
-  outline: 2px solid var(--loki-accent);
-  outline-offset: 1px;
-}
-.loki-msg-task-mark {
-  flex: 0 0 auto;
-  font-weight: 700;
-  color: var(--loki-muted);
-}
-.loki-msg-task-state {
-  flex: 0 0 auto;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.loki-msg-task-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.loki-msg-task-note {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--loki-muted);
-}
-.loki-msg-task-note::before {
-  content: "· ";
-}
-.loki-msg-task[data-state="waiting"] .loki-msg-task-open {
-  border-color: var(--loki-accent);
-  background: var(--loki-selection);
-}
-.loki-msg-task[data-state="waiting"] .loki-msg-task-mark,
-.loki-msg-task[data-state="waiting"] .loki-msg-task-state {
-  color: var(--loki-accent);
-}
-/* Done: ticked and faded, the title struck through. */
-.loki-msg-task[data-state="done"] .loki-msg-task-open {
-  opacity: 0.6;
-}
-.loki-msg-task[data-state="done"] .loki-msg-task-mark {
-  color: var(--loki-positive);
-}
-.loki-msg-task[data-state="done"] .loki-msg-task-title {
-  text-decoration: line-through;
-}
-.loki-msg-task-answer {
-  display: inline-flex;
-  gap: 6px;
-}
-.loki-msg-task-editor {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: min(560px, 100%);
-  padding: 6px;
-  border: 1px solid var(--loki-accent);
-  border-radius: var(--loki-radius-lg);
-  background: var(--loki-panel);
-}
-.loki-msg-task-from {
-  flex-basis: 100%;
-  padding: 0 2px;
-}
-/* The phone's message row keeps Copy only: Add task is in the long press there. */
-.loki-phone .loki-msg-addtask {
-  display: none;
-}
-/* The message a task's "open the message" landed on: marked for a moment. */
-.loki-msg[data-flash="true"] {
-  background: var(--loki-selection);
-  border-radius: var(--loki-radius);
-  transition: background 600ms ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .loki-msg[data-flash="true"] {
-    transition: none;
-  }
-}
-/* In Tasks, where a task from a message came from: its quote, a way back to the message. */
-.loki-task-source {
-  all: unset;
-  box-sizing: border-box;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  max-width: 100%;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--loki-muted);
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .loki-task-source:hover {
-    color: var(--loki-fg);
-  }
-}
-.loki-task-source:focus-visible {
-  outline: 2px solid var(--loki-accent);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-.loki-task-source-quote {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-style: italic;
-}
-
 /* Labels on chats (labels.tsx, plan 022): chips are the label's colour as a dot on a faint tint of it, the name in
    full ink, so every colour reads the same in both themes. A row shows three dots and "+N"; the header shows all. */
 .loki-labels {
@@ -1520,4 +1503,13 @@ button.loki-label-chip:focus-visible {
 .loki-label-swatch:focus-visible {
   outline: 2px solid var(--loki-accent);
   outline-offset: 2px;
+}
+/* A chat's purpose line (plan 049) under its name in the header: one quiet line, cut short when it runs long. */
+.loki-chat-purpose {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--loki-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

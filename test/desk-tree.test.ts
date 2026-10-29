@@ -1,14 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { sectionDesks, statusLine, treeKey } from "../app/src/shell/desk-tree.tsx";
+import { archivedDesks, liveDesks } from "../app/src/shell/desk-tree.tsx";
 
-import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
-/**
- * The desk tree's order (app/src/shell/desk-tree.tsx), now only Tasks' assign-to-desk picker (the
- * sidebar lists desks, ⌘K searches them): waiting on you, pinned, the rest by last message — each desk
- * once — and the picker's keys.
- */
+/** The chat lists the phone shares (app/src/shell/desk-tree.tsx): live chats pinned first then by last message, and the archive. */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
   ({
@@ -25,7 +20,6 @@ const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
     last_active: "2026-09-08T10:00:00Z",
     ...over,
   }) as DeskSummary;
-const item = (id: string, status: AttentionItem["status"]): AttentionItem => ({ id, agent_id: "a1", status }) as unknown as AttentionItem;
 
 const desks = [
   desk("jira", { last_active: "2026-09-08T12:00:00Z" }),
@@ -37,60 +31,16 @@ const desks = [
   desk("shared", { title: "shared sheet" }),
 ];
 
-describe("sections", () => {
-  test("waiting, pinned, then the rest by last message; each desk once; shared and archived out", () => {
-    const secs = sectionDesks(desks, null, [item("cost", "approval"), item("jira", "done")]);
-    expect(secs.map((s) => [s.id, s.desks.map((d) => d.scope)])).toEqual([
-      ["waiting", ["cost"]],
-      ["pinned", ["email"]],
-      ["rest", ["jira", "aws", "old"]],
-    ]);
-    expect(secs.find((s) => s.id === "waiting")?.label).toBe("Waiting on you");
-    expect(secs.find((s) => s.id === "rest")?.label).toBe("Everything else");
+describe("the chat lists", () => {
+  test("live: pinned first, then by last message; shared and archived out", () => {
+    expect(liveDesks(desks, null, "").map((d) => d.scope)).toEqual(["email", "jira", "aws", "cost", "old"]);
   });
-  test("nothing waiting, nothing pinned: one section, by last message, labelled plainly", () => {
-    const secs = sectionDesks(
-      desks.map((d) => ({ ...d, pinned: false })),
-      null,
-      [],
-    );
-    expect(secs).toHaveLength(1);
-    expect(secs[0].label).toBe("Chats");
-    expect(secs[0].desks.map((d) => d.scope)).toEqual(["jira", "aws", "cost", "email", "old"]);
-  });
-  test("the agent filter applies inside every section", () => {
+  test("the agent filter and the query narrow it", () => {
     const mixed = [...desks, desk("ira-main", { agent_id: "a2", agent_name: "ira", pinned: true })];
-    const secs = sectionDesks(mixed, "a2", []);
-    expect(secs.flatMap((s) => s.desks.map((d) => d.scope))).toEqual(["ira-main"]);
+    expect(liveDesks(mixed, "a2", "").map((d) => d.scope)).toEqual(["ira-main"]);
+    expect(liveDesks(desks, null, "aw").map((d) => d.scope)).toEqual(["aws"]);
   });
-});
-
-describe("the filter box's keys", () => {
-  const key = (k: string, shift = false) => ({ key: k, shiftKey: shift });
-  test("arrows move, tab cycles agents, enter chooses, escape closes", () => {
-    expect(treeKey(key("ArrowDown"))).toBe("down");
-    expect(treeKey(key("ArrowUp"))).toBe("up");
-    expect(treeKey(key("Tab"))).toBe("agent-next");
-    expect(treeKey(key("Tab", true))).toBe("agent-prev");
-    expect(treeKey(key("Enter"))).toBe("choose");
-    expect(treeKey(key("Escape"))).toBe("close");
-  });
-  test("anything else stays with the input: letters, and ⇧↵ (the drawer's open-with-chat went with it)", () => {
-    expect(treeKey(key("p"))).toBeNull();
-    expect(treeKey(key("Enter", true))).toBeNull();
-  });
-});
-
-describe("the live region's words", () => {
-  const chips = [
-    { id: "a1", name: "friday", count: 3 },
-    { id: "a2", name: null, count: 0 },
-  ];
-  test("all agents, or the agent and its desk count; while typing, how many match", () => {
-    expect(statusLine(null, chips, "", 5)).toBe("all agents");
-    expect(statusLine("a1", chips, "", 5)).toBe("friday · 3 chats");
-    expect(statusLine("a2", chips, "", 5)).toBe("agent · 0 chats");
-    expect(statusLine(null, chips, "ji", 1)).toBe("all agents · 1 chat match");
-    expect(statusLine("a1", chips, "ji", 2)).toBe("friday · 3 chats · 2 chats match");
+  test("archived: what is not live", () => {
+    expect(archivedDesks(desks, null, "").map((d) => d.scope)).toEqual(["gone"]);
   });
 });

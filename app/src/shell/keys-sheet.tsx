@@ -101,7 +101,6 @@ const TITLE: Partial<Record<Where, string>> = {
   chat: "The message box",
   desk: "In a chat",
   inbox: "In the inbox",
-  tasks: "In Tasks",
   learn: "In Learn",
   agents: "In Agents",
   settings: "In Settings",

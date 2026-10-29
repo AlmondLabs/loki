@@ -1,7 +1,7 @@
 /**
  * The harness injects machinery into transcripts as ordinary messages:
  * background-task notifications, skill bodies, loki's own desk-activity block,
- * the tasks assigned to a chat, and system reminders.
+ * and system reminders.
  * Both halves of loki need to recognise them: the mod for the chat mirror, the
  * browser for the Catch Up thread.
  */
@@ -13,8 +13,9 @@ export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
-    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the tasks assigned to this conversation in Tasks, from the mod
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 049): old history only
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
+    .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 049): a link back
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
@@ -39,11 +40,13 @@ export interface HarnessEvent {
   summary: string | null;
   /** the raw result, decoded, for a disclosure */
   detail: string | null;
+  /** The chat a message sent from a suggestion came from (plan 049), for the transcript's link back; absent on every other event. */
+  link?: { agent_id: string; conversation_id: string };
 }
 
 /**
  * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
- * desk-activity and assigned-tasks blocks the mod appends, and skill bodies the harness loads. Each becomes a quiet event
+ * desk-activity block the mod appends, and skill bodies the harness loads. Each becomes a quiet event
  * row instead of words in the user's bubble.
  */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
@@ -61,22 +64,19 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       detail: lines.length ? lines.join("\n") : null,
     });
   }
-  for (const m of text.matchAll(/<loki-tasks>([\s\S]*?)<\/loki-tasks>/g)) {
-    const lines = m[1]
-      .split("\n")
-      .filter((l) => l.startsWith("- "))
-      .map((l) => l.slice(2).trim());
-    out.push({
-      text: "assigned tasks",
-      summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
-      detail: lines.length ? lines.join("\n") : null,
-    });
-  }
   for (const m of text.matchAll(/<loki-moved\b([^>]*)\/>/g)) {
     const was = decodeEntities(/\bfrom="([^"]*)"/.exec(m[1])?.[1] ?? "");
     const now = decodeEntities(/\bto="([^"]*)"/.exec(m[1])?.[1] ?? "");
     out.push({ text: `moved to ${now || "this Mac"}`, summary: was ? `came over from ${was}` : null, detail: null });
   }
+  const suggested = suggestedOf(text);
+  if (suggested)
+    out.push({
+      text: "suggested in another chat",
+      summary: suggested.title || null,
+      detail: null,
+      link: { agent_id: suggested.from_agent, conversation_id: suggested.from_chat },
+    });
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });
@@ -323,4 +323,29 @@ export function toolLabel(name: string, input: unknown): string {
 export function movedMark(from: string, to: string): string {
   const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<loki-moved from="${attr(from)}" to="${attr(to)}"/>`;
+}
+
+/** Where a sent suggestion came from (plan 049, KTD6): the agent and the chat it was made in, and its title. */
+export interface SuggestedFrom {
+  from_agent: string;
+  from_chat: string;
+  title: string;
+}
+
+/**
+ * The mark a suggestion carries into the chat it is sent to, in `chat_send`'s context: the transcript strips it and
+ * links back to the chat it came from.
+ */
+export function suggestedMark(from: SuggestedFrom): string {
+  const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<loki-suggested from_agent="${attr(from.from_agent)}" from_chat="${attr(from.from_chat)}" title="${attr(from.title)}"/>`;
+}
+
+/** The suggestion a message was sent from, read from its mark, for the transcript's link back; null when it has none. */
+export function suggestedOf(text: string): SuggestedFrom | null {
+  const m = /<loki-suggested\b([^>]*)\/>/.exec(text);
+  if (!m) return null;
+  const field = (name: string) => decodeEntities(new RegExp(`\\b${name}="([^"]*)"`).exec(m[1])?.[1] ?? "");
+  const fromChat = field("from_chat");
+  return fromChat ? { from_agent: field("from_agent"), from_chat: fromChat, title: field("title") } : null;
 }

@@ -102,14 +102,6 @@ export const DESTINATIONS: readonly Page[] = [
     keywords: ["catch up", "waiting", "approvals"],
   },
   {
-    key: "page:tasks",
-    target: { kind: "section", segment: "tasks" },
-    icon: "check",
-    label: "Tasks",
-    line: "Tasks for your agents",
-    keywords: ["tasks", "todo", "kanban"],
-  },
-  {
     key: "page:agents",
     target: { kind: "section", segment: "agents" },
     icon: "agents",

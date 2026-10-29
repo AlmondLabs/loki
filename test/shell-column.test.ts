@@ -25,8 +25,8 @@ const memory = (seed: Record<string, string> = {}) => {
 };
 
 describe("list column: which sections have one", () => {
-  test("desk, tasks, agents and learn; not inbox or settings", () => {
-    expect((["desk", "inbox", "tasks", "agents", "learn", "settings"] as const).filter(hasColumn)).toEqual(["desk", "tasks", "agents", "learn"]);
+  test("desk, agents and learn; not inbox or settings", () => {
+    expect((["desk", "inbox", "agents", "learn", "settings"] as const).filter(hasColumn)).toEqual(["desk", "agents", "learn"]);
   });
 });
 

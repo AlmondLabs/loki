@@ -61,6 +61,7 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.files === b.files &&
   a.tool === b.tool &&
   a.queued === b.queued &&
+  a.link === b.link &&
   a.at === b.at;
 
 /** Two values the same, or the same once written out: a page's tool steps and file lists are new objects each time. */
@@ -77,7 +78,8 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.queued === b.queued &&
   sameValue(a.images, b.images) &&
   sameValue(a.files, b.files) &&
-  sameValue(a.tool, b.tool);
+  sameValue(a.tool, b.tool) &&
+  sameValue(a.link, b.link);
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
@@ -468,7 +470,8 @@ export class ThreadModel {
   private user(raw: string, at: string | null, images: readonly string[] = []): { changed: boolean; spoke: string | null } {
     // Harness machinery in the message (desk activity, a loaded skill, a task result) is its own quiet row.
     const events = extractHarnessEvents(raw);
-    for (const ev of events) this.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...rowAt(at) });
+    for (const ev of events)
+      this.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...(ev.link ? { link: ev.link } : {}), ...rowAt(at) });
     const typed = stripHarnessMarkup(raw).trim();
     // With the pictures in hand, the "[image]" lines that stood for them go: the bubble shows them instead.
     const text = images.length ? withoutImageMarks(typed) : typed;

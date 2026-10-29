@@ -57,7 +57,7 @@ describe("analytics: the shape", () => {
   });
 
   test("parsing skips what is not an event and keeps the rest", () => {
-    const good = ev(0, "view_opened", { view: "tasks" });
+    const good = ev(0, "view_opened", { view: "learn" });
     const text = [
       JSON.stringify(good),
       "not json",

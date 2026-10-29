@@ -25,7 +25,7 @@ import {
   type SidebarRow,
 } from "./sidebar-model";
 import type { CatchUp, Desk } from "./types";
-import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/rename-desk";
+import { NO_RENAME_REASON, RenameDesk, renameDesk, savePurpose } from "../desk/rename-desk";
 import { ChangeFolder, type FolderApi } from "../desk/new-desk";
 import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
@@ -72,6 +72,8 @@ export interface DeskSidebarProps {
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
+  /** Save the chat's purpose line (plan 049, R11), an empty one clearing it; left out, the Rename dialog has no purpose field. */
+  onPurpose?: (desk: DeskSummary, purpose: string) => Promise<string | null>;
   /** Move a chat to another folder; resolves to the daemon's refusal or null. Left out with folders, the menu has no Change folder…. */
   onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;
   /** The Mac's folders, for the Change folder dialog's field. */
@@ -114,6 +116,7 @@ export function DeskSidebar({
   onPin,
   onArchive,
   onRename,
+  onPurpose,
   onMove,
   folders,
   onDone,
@@ -442,7 +445,15 @@ export function DeskSidebar({
           onClose={() => setLabeling(null)}
         />
       )}
-      {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
+      {renaming && (
+        <RenameDesk
+          name={renaming.title ?? ""}
+          onClose={() => setRenaming(null)}
+          onRename={(name) => onRename(renaming, name)}
+          purpose={desks.find((x) => x.scope === renaming.scope)?.purpose ?? renaming.purpose}
+          onPurpose={onPurpose ? (purpose) => onPurpose(renaming, purpose) : undefined}
+        />
+      )}
       {moving && onMove && folders && moving.agent_id && moving.conversation_id && (
         <ChangeFolder
           onClose={() => setMoving(null)}
@@ -634,6 +645,7 @@ export function DeskSidebarView({
         if (d.agent_id && d.conversation_id) desk.desks.pin(d.agent_id, d.conversation_id, pinned);
       }}
       onRename={renameDesk(desk, catchUp, notice)}
+      onPurpose={savePurpose(desk, catchUp)}
       folders={desk.attention.folders}
       onMove={async (d, folder) => {
         if (!d.agent_id || !d.conversation_id) return "no conversation";

@@ -34,14 +34,12 @@ describe("the words table", () => {
     expect(lokiUpgrade("loki", "windows")).toContain("-setup.exe");
   });
 
-  test("the Mac keeps its old words for beads, the folder example and the system line", () => {
+  test("the Mac keeps its old words for the folder example and the system line", () => {
     const mac = osWords("macos");
-    expect(mac.beadsInstall).toBe("brew install beads");
     expect(mac.folderExample).toBe("~/Documents/…");
     expect(mac.system).toBe("macOS 13 or later; the shell picks folders with osascript");
     expect(osWords("windows").folderExample).toBe("~\\Documents\\…");
     for (const os of ["windows", "linux"] as const) {
-      expect(osWords(os).beadsInstall).not.toContain("brew");
       expect(osWords(os).system).not.toMatch(/macOS|lsof|osascript/);
     }
   });

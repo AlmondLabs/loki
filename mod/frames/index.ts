@@ -1,7 +1,6 @@
 import { SHARED_SCOPE, type Scope } from "../../core/desk-core.ts";
 import type { PushFrame } from "../../core/frames.ts";
 import { agentsFrames, type AgentsDeps } from "./agents.ts";
-import { taskFrames, type TaskDeps } from "./tasks.ts";
 import { captureFrames } from "./capture.ts";
 import { chatFrames, type ChatDeps } from "./chat.ts";
 import { daemonFrames, type DaemonDeps } from "./daemon.ts";
@@ -13,6 +12,7 @@ import { lanFrames, type LanDeps } from "./lan.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
+import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
 /** What every frame handler needs, together: each module takes only its own part. */
@@ -21,11 +21,11 @@ export type ModuleDeps = DesksDeps &
   HistoryDeps &
   FoldersDeps &
   RecallDeps &
-  TaskDeps &
   AgentsDeps &
   LanDeps &
   PeersDeps &
   ChatDeps &
+  SuggestionDeps &
   UsageDeps &
   DaemonDeps;
 
@@ -38,11 +38,11 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     historyFrames(deps),
     foldersFrames(deps),
     recallFrames(deps),
-    taskFrames(deps),
     agentsFrames(deps),
     lanFrames(deps),
     peersFrames(deps),
     chatFrames(deps),
+    suggestionFrames(deps),
     usageFrames(deps),
     daemonFrames(deps),
   ];
