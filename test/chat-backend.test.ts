@@ -15,7 +15,8 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
-import { TOOL_TEXT_MAX } from "../core/harness.ts";
+import { isScheduledPrompt, TOOL_TEXT_MAX } from "../core/harness.ts";
+import { daemonTimeReminder } from "../core/attention/content.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -516,6 +517,24 @@ describe("the daemon's chats", () => {
       s.pushed.length = 0;
       await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "still there?", images: [], send_id: "s2", context: null });
       await vi.waitFor(() => expect(kinds(s.pushed)).toContain("turn_end"));
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a message from loki itself carries the Mac's time after its text, and a schedule's still reads as one (plan 057)", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      s.faux.setResponses([s.reply("checked")]);
+      const prompt = 'Scheduled task "standup": post the standup';
+      await s.chats.deliver(agent.id, conversationId, prompt);
+      await vi.waitFor(() => expect(kinds(s.pushed)).toContain("turn_end"));
+      const saw = must(s.sent[0], "what the model was sent");
+      expect(saw).toContain("Local time on the user's Mac, as loki sends this:");
+      expect(saw.indexOf("post the standup")).toBeLessThan(saw.indexOf("Local time on the user's Mac"));
+      expect(isScheduledPrompt(`${prompt}\n\n${daemonTimeReminder()}`)).toBe(true);
     } finally {
       await s.cleanup();
     }
