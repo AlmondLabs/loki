@@ -13,6 +13,7 @@ import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 import { keepSame } from "../../../core/same-data.ts";
+import { Listeners } from "../../../core/listeners.ts";
 
 /** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
 const STALE_AFTER_HIDDEN_MS = 5_000;
@@ -61,17 +62,17 @@ export function useDeskSocket() {
   const [reasoningEfforts, setReasoningEfforts] = useState<Partial<Record<Scope, ReasoningEffort>>>({});
   const [modes, setModes] = useState<Partial<Record<Scope, string>>>({});
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
-  const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
+  const chatListeners = useRef(new Listeners<[p: Pushes["chat_event"]]>());
   /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
-  const reconnectListeners = useRef(new Set<() => void>());
+  const reconnectListeners = useRef(new Listeners());
   /**
    * Who hears that the lists a client holds (agents, chats) may be out of date: an agent changed (agents_changed),
    * the socket came back after a drop, or the page came back after being hidden (a phone's home-screen app sleeps in
    * the background, and polls nothing meanwhile). The desk list is asked for again at the same time.
    */
-  const staleListeners = useRef(new Set<() => void>());
+  const staleListeners = useRef(new Listeners());
   const listsStale = useCallback(() => {
-    for (const fn of staleListeners.current) fn();
+    staleListeners.current.emit();
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
   }, []);
@@ -147,7 +148,7 @@ export function useDeskSocket() {
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
         if (dropped) {
-          for (const fn of reconnectListeners.current) fn();
+          reconnectListeners.current.emit();
           listsStale();
         }
         dropped = false;
@@ -208,7 +209,7 @@ export function useDeskSocket() {
             setDesksLoaded(true);
             break;
           case "chat_event":
-            for (const listener of chatListeners.current) listener(msg);
+            chatListeners.current.emit(msg);
             break;
           case "agents_changed":
           case "lists_changed":

@@ -1,4 +1,5 @@
 import type { Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
+import { keyedQueue } from "../core/serial.ts";
 
 /**
  * Model provider credentials in the system keychain (plan 017, U8, KTD10): one entry per provider under the service
@@ -36,8 +37,8 @@ export async function keychain(): Promise<SecretBackend> {
  */
 export class KeychainCredentials implements CredentialStore {
   private readonly backend: SecretBackend;
-  /** Each provider's last change, so the next waits for it; the index has a queue of its own, which every provider's change joins. */
-  private readonly queue = new Map<string, Promise<unknown>>();
+  /** One change at a time per provider; the index has a queue of its own, which every provider's change joins. */
+  private readonly serial = keyedQueue();
 
   constructor(backend: SecretBackend) {
     this.backend = backend;
@@ -55,15 +56,6 @@ export class KeychainCredentials implements CredentialStore {
     } catch {
       return [];
     }
-  }
-
-  private serial<T>(providerId: string, work: () => Promise<T>): Promise<T> {
-    const run = (this.queue.get(providerId) ?? Promise.resolve()).then(work, work);
-    this.queue.set(
-      providerId,
-      run.catch(() => undefined),
-    );
-    return run;
   }
 
   async read(providerId: string): Promise<Credential | undefined> {

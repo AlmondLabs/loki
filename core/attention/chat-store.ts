@@ -23,6 +23,8 @@ import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
+import { coalesce } from "../timers.ts";
+import { Listeners } from "../listeners.ts";
 
 /**
  * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
@@ -173,14 +175,15 @@ export class ChatStore {
     providers: null,
     labels: null,
   };
-  private readonly listeners = new Set<() => void>();
-  private readonly threadWatchers = new Set<() => void>();
+  private readonly listeners = new Listeners();
+  private readonly threadWatchers = new Listeners();
   /** The live map the handlers change in place; `snap.live` is its copy as last published. */
   private readonly liveMap = new Map<string, Live>();
   /** Each chat's face as last published (faceOf): what a flush compares to tell a list change from a thread change. */
   private readonly faces = new Map<string, readonly unknown[]>();
   private client: ChatClient | null = null;
-  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Publish within 150 ms of the first change: a burst of streamed pieces draws once. */
+  private readonly flushing = coalesce(() => this.publish(), 150);
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page), on an older Mac. */
   private readonly historyLimits = new Map<string, number>();
   private readonly loading = new Set<string>();
@@ -217,8 +220,7 @@ export class ChatStore {
 
   /** Hear each change to the snapshot; returns the way to stop. */
   subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => void this.listeners.delete(listener);
+    return this.listeners.add(listener);
   };
 
   /** What the app draws, the same object until some of it changes. */
@@ -226,8 +228,7 @@ export class ChatStore {
 
   /** Hear every flush, for the threads on screen (useThreadRows); returns the way to stop. */
   watchThreads = (onChange: () => void): (() => void) => {
-    this.threadWatchers.add(onChange);
-    return () => void this.threadWatchers.delete(onChange);
+    return this.threadWatchers.add(onChange);
   };
 
   /** A chat's rows as they stand now, the same array until they change (ThreadModel.rows). */
@@ -349,8 +350,7 @@ export class ChatStore {
 
   /** Stop the pending flush: nothing is left to draw into. */
   dispose(): void {
-    if (this.notifyTimer) clearTimeout(this.notifyTimer);
-    this.notifyTimer = null;
+    this.flushing.cancel();
   }
 
   /** A batch of a chat's events: applied, then what they decide (a new request, a folder answer, a queued send). Whether the chat changed. */
@@ -855,7 +855,7 @@ export class ChatStore {
     const keys = Object.keys(part) as Array<keyof ChatSnapshot>;
     if (keys.every((k) => this.snap[k] === part[k])) return;
     this.snap = { ...this.snap, ...part };
-    for (const l of this.listeners) l();
+    this.listeners.emit();
   }
 
   /**
@@ -872,15 +872,11 @@ export class ChatStore {
       moved = true;
     }
     if (moved) this.set({ live: new Map(this.liveMap) });
-    for (const watch of this.threadWatchers) watch();
+    this.threadWatchers.emit();
   }
 
-  /** Publish within 150 ms: a burst of streamed pieces draws once. */
+  /** Publish soon (`flushing`): a burst of streamed pieces draws once. */
   private bump(): void {
-    if (this.notifyTimer) return;
-    this.notifyTimer = setTimeout(() => {
-      this.notifyTimer = null;
-      this.publish();
-    }, 150);
+    this.flushing.schedule();
   }
 }

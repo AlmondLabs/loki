@@ -4,6 +4,7 @@ import type { SuggestionTarget } from "../frame-types.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, Runtime, ServerEvent } from "./protocol.ts";
+import { Listeners } from "../listeners.ts";
 
 /**
  * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): loki's daemon, through the
@@ -62,8 +63,8 @@ export class FrameChatClient {
   private readonly request: FrameRequest;
   private readonly agentOf: (conversationId: string) => string | null;
   private readonly unsubscribe: () => void;
-  private readonly listeners = new Set<(rt: Runtime, events: ChatEvent[]) => void>();
-  private readonly staleListeners = new Set<() => void>();
+  private readonly listeners = new Listeners<[rt: Runtime, events: ChatEvent[]]>();
+  private readonly staleListeners = new Listeners();
   private readonly opened = new Set<string>();
   private readonly agents = new Map<string, string>();
   private readonly openUrl: (url: string) => void;
@@ -91,7 +92,7 @@ export class FrameChatClient {
     const offReconnect = opts.onReconnect?.(() => void this.reopen()) ?? (() => {});
     const offStale =
       opts.onListsStale?.(() => {
-        for (const fn of this.staleListeners) fn();
+        this.staleListeners.emit();
       }) ?? (() => {});
     this.unsubscribe = () => {
       offEvents();
@@ -102,7 +103,7 @@ export class FrameChatClient {
   }
 
   private emit(rt: Runtime, events: ChatEvent[]): void {
-    for (const fn of this.listeners) fn(rt, events);
+    this.listeners.emit(rt, events);
   }
 
   private async call<N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs = 15_000): Promise<ReplyOf<N>> {
@@ -124,13 +125,11 @@ export class FrameChatClient {
 
   /** Told when the agent and chat lists may be out of date, so they are asked for again (useAttention). */
   onListsStale(fn: () => void): () => void {
-    this.staleListeners.add(fn);
-    return () => this.staleListeners.delete(fn);
+    return this.staleListeners.add(fn);
   }
 
   onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    return this.listeners.add(fn);
   }
 
   /** The daemon's commands: the palette offers these and loki's own (core/attention/commands.ts). */

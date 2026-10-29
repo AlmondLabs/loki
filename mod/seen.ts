@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
 import { isRest, type Rest } from "../core/attention/rest.ts";
+import { coalesce, type Burst } from "../core/timers.ts";
 
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
@@ -49,14 +50,14 @@ export class SeenStore {
   /** Each conversation's Inbox rest, set by Next on any Mac. */
   private rests: Record<string, Rest> = {};
   private readonly path: string;
-  private readonly debounceMs: number;
   private readonly now: () => string;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** One write per burst of marks. */
+  private readonly writing: Burst;
 
   /** `now` stamps the marks (tests pin it); `debounceMs` coalesces the writes. */
   constructor(path: string, opts: { debounceMs?: number; now?: () => string } = {}) {
     this.path = path;
-    this.debounceMs = opts.debounceMs ?? PERSIST_DEBOUNCE_MS;
+    this.writing = coalesce(() => this.write(), opts.debounceMs ?? PERSIST_DEBOUNCE_MS);
     this.now = opts.now ?? (() => new Date().toISOString());
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown> | null;
@@ -184,10 +185,7 @@ export class SeenStore {
 
   /** Write now what is waiting on the debounce (the mod's shutdown; a test before it reads the file). */
   flush(): void {
-    if (!this.timer) return;
-    clearTimeout(this.timer);
-    this.timer = null;
-    this.write();
+    this.writing.flush();
   }
 
   private put(map: Record<string, string>, key: string, value: string): boolean {
@@ -199,11 +197,7 @@ export class SeenStore {
 
   /** Coalesced: a stream of looks is one write. Everything reads the store, not the file, so only a crash inside the window loses the last mark. */
   private persist(): void {
-    if (this.timer) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      this.write();
-    }, this.debounceMs);
+    this.writing.schedule();
   }
 
   private write(): void {

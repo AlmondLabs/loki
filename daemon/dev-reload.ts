@@ -1,3 +1,5 @@
+import { Listeners } from "../core/listeners.ts";
+
 /**
  * A checkout's daemon keeping up with its sources (plans 024 and 041): a change to `mod/` or `core/` reloads the mod in
  * place, and a change to `daemon/` or `core/` makes a restart due. Under `npm start` the window runs the built page, so
@@ -33,7 +35,7 @@ export class DevReload {
   private restartNeeded = false;
   private buildNeeded = false;
   private updating: Promise<string | null> | null = null;
-  private readonly listeners = new Set<(file: string) => void>();
+  private readonly listeners = new Listeners<[file: string]>();
 
   constructor(opts: DevReloadOptions) {
     this.opts = opts;
@@ -79,7 +81,7 @@ export class DevReload {
     const first = this.due === null;
     this.due = file;
     if (first) this.opts.report(`${file} changed: update loki to use it`);
-    for (const fn of this.listeners) fn(file);
+    this.listeners.emit(file);
   }
 
   /** The file whose change made an update due, or null when none is. */
@@ -89,8 +91,7 @@ export class DevReload {
 
   /** Hear when an update becomes due (the file); returns the unsubscribe. */
   onRestartDue(fn: (file: string) => void): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    return this.listeners.add(fn);
   }
 
   /**

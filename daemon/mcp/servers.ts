@@ -10,6 +10,7 @@ import {
 } from "@modelcontextprotocol/client";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { sameServer, type ServerConfig } from "./config.ts";
+import { Listeners } from "../../core/listeners.ts";
 
 /**
  * The MCP servers loki is connected to (one client each), and the tools they offer. A local server is started with the
@@ -102,7 +103,7 @@ interface Entry {
 /** The servers and their connections, by name: `configure` makes them match mcp.json, a server that fails is retried after backoffMs, and `close` stops them all. */
 export class McpServers {
   private readonly entries = new Map<string, Entry>();
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Listeners();
   private readonly connect: Connector;
   /** Fills a config's `${keychain:…}` values just before it connects (daemon/mcp/config.ts withSecrets). */
   private readonly resolve: (config: ServerConfig) => Promise<ServerConfig>;
@@ -130,12 +131,11 @@ export class McpServers {
 
   /** Told after any change to a server's state or tools. */
   onChange(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => void this.listeners.delete(listener);
+    return this.listeners.add(listener);
   }
 
   private changed(): void {
-    for (const l of this.listeners) l();
+    this.listeners.emit();
   }
 
   /** Make the running servers match the config: new ones start, removed ones stop, changed ones restart. */

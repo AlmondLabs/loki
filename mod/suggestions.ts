@@ -5,6 +5,7 @@ import { DRAFT_HELD, FRAMES, type ChatState, type SuggestionAction } from "../co
 import { suggestedMark } from "../core/harness.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { ChatRouter } from "./chat-router.ts";
+import { keyedQueue } from "../core/serial.ts";
 
 /**
  * Suggestions (plan 049, U2): messages agents suggest for other chats, kept on the record of the chat they were made
@@ -120,8 +121,8 @@ function settledWords(s: Suggestion): string {
 /** The suggestions of every chat on this Mac, and the person's actions on them. */
 export class Suggestions {
   private readonly opts: SuggestionsOptions;
-  /** One change at a time per chat: the tail of each chat's queue of changes. */
-  private readonly locks = new Map<string, Promise<unknown>>();
+  /** One change at a time per chat. */
+  private readonly locks = keyedQueue();
   /** The suggestions this process is sending now; one stored as sending that is not here was left by a daemon that stopped. */
   private readonly inFlight = new Set<string>();
 
@@ -325,17 +326,7 @@ export class Suggestions {
 
   /** Run `work` after every earlier change to the chat, so a read and its write are never split by another's. */
   private locked<T>(source: ChatKey, work: () => Promise<T>): Promise<T> {
-    const key = `${source.agent_id}/${source.conversation_id}`;
-    const run = (this.locks.get(key) ?? Promise.resolve()).then(work, work);
-    const tail = run.then(
-      () => {},
-      () => {},
-    );
-    this.locks.set(key, tail);
-    void tail.then(() => {
-      if (this.locks.get(key) === tail) this.locks.delete(key);
-    });
-    return run;
+    return this.locks(`${source.agent_id}/${source.conversation_id}`, work);
   }
 
   private now(): string {

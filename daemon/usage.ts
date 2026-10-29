@@ -8,6 +8,8 @@ import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
+import { serialQueue } from "../core/serial.ts";
+import { Listeners } from "../core/listeners.ts";
 
 /**
  * The usage ledger (docs/plans/2026-10-17-019-feat-loki-usage-page-plan.md, KD4): what every model call cost, by
@@ -138,10 +140,11 @@ export class UsageLedger {
   private readonly origins = new Map<string, Promise<UsageOrigin>>();
   private readonly unsubscribe = new Map<string, () => void>();
   /** Every change is applied in order, after any baseline of its store. */
-  private queue: Promise<void> = Promise.resolve();
+  /** Writes to the ledger, one at a time. */
+  private readonly serial = serialQueue();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private seededUntil: string | null = null;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Listeners();
 
   constructor(deps: UsageLedgerDeps) {
     this.deps = deps;
@@ -183,8 +186,7 @@ export class UsageLedger {
 
   /** Call `listener` whenever the ledger counts more; returns the unsubscribe. */
   onChange(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.listeners.add(listener);
   }
 
   /** Every row, oldest hour first. */
@@ -194,7 +196,8 @@ export class UsageLedger {
 
   /** Waits until every change seen so far is counted. */
   settled(): Promise<void> {
-    return this.queue;
+    // Nothing queued behind the changes so far: it runs once they all have.
+    return this.serial(() => Promise.resolve());
   }
 
   /** Stop following, and write what is pending. */
@@ -220,7 +223,7 @@ export class UsageLedger {
   }
 
   private enqueue(work: () => Promise<void>): void {
-    this.queue = this.queue.then(work).catch((error: unknown) => {
+    void this.serial(work).catch((error: unknown) => {
       this.deps.report?.(`usage: ${String(error)}`);
     });
   }
@@ -245,7 +248,7 @@ export class UsageLedger {
   }
 
   private changed(): void {
-    for (const listener of this.listeners) listener();
+    this.listeners.emit();
     this.scheduleSave();
   }
 
