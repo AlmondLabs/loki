@@ -92,7 +92,9 @@ export async function loadModFolder(mods: ModRegistry, dir: string, report: (mes
   // fs.watch returns before its event stream has started, and a file written in between was never loaded.
   const stop = watchFiles(dir, isMod, load, 150, false);
   await sweep();
-  const again = setTimeout(() => void sweep(), WATCH_SETTLE_MS);
+  const again = setTimeout(() => {
+    sweep().catch((error: unknown) => report(`mods folder not read: ${error instanceof Error ? error.message : String(error)}`));
+  }, WATCH_SETTLE_MS);
   again.unref();
   return () => {
     clearTimeout(again);
@@ -126,6 +128,8 @@ export function watchFiles(dir: string, include: (file: string) => boolean, chan
       }, settleMs),
     );
   });
+  // The folder removed under it (EPERM on Windows) is emitted as an error, thrown when nobody listens: it stops watching.
+  watcher.on("error", () => watcher.close());
   return () => {
     watcher.close();
     for (const t of timers.values()) clearTimeout(t);

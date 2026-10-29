@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { connect as connectSocket } from "node:net";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
@@ -93,6 +94,23 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     const { tools, conversationId } = await setup();
     const loki = http(tools.serverFor("ada", conversationId) ?? undefined);
     expect((await fetch(loki.url, { method: "POST", body: "{}" })).status).toBe(401);
+  });
+
+  test("a request the agent drops mid-body fails alone, and the endpoint keeps serving", async () => {
+    const { tools, conversationId } = await setup();
+    const loki = http(tools.serverFor("ada", conversationId) ?? undefined);
+    const url = new URL(loki.url);
+    const auth = loki.headers.map((h) => `${h.name}: ${h.value}\r\n`).join("");
+    await new Promise<void>((resolve, reject) => {
+      const socket = connectSocket(Number(url.port), url.hostname, () => {
+        socket.write(`POST ${url.pathname} HTTP/1.1\r\nhost: ${url.host}\r\n${auth}content-length: 1000\r\n\r\n{"jsonrpc"`, () => {
+          socket.destroy();
+          resolve();
+        });
+      });
+      socket.on("error", reject);
+    });
+    await expect.poll(async () => (await fetch(loki.url, { method: "POST", body: "{}" })).status).toBe(401);
   });
 
   test("the tools that only read run without asking, named as the agent names them", async () => {

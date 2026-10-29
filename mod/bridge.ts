@@ -77,9 +77,12 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         client.send(frame);
       }
       if (home && deps.route)
-        void deps.route.forward(home, ask, "send").then((out) => {
-          if (!out.ok) client.send({ type: "error", message: out.message });
-        });
+        void deps.route.forward(home, ask, "send").then(
+          (out) => {
+            if (!out.ok) client.send({ type: "error", message: out.message });
+          },
+          (err: unknown) => client.send({ type: "error", message: errorMessage(err) }),
+        );
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {
@@ -102,10 +105,13 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       if (client.peerId || !route || !entry || entry.kind === "push" || typeof entry.parse(msg) === "string") return here(client, msg);
       const kind = entry.kind;
       const forward = (home: NonNullable<Target>) =>
-        void route.forward(home, msg, kind).then((out) => {
-          if (!out.ok) return client.send({ type: "error", ...(kind === "request" ? { request_id: requestId } : {}), message: out.message });
-          if (kind === "request" && out.reply) client.send({ ...out.reply, request_id: requestId });
-        });
+        void route.forward(home, msg, kind).then(
+          (out) => {
+            if (!out.ok) return client.send({ type: "error", ...(kind === "request" ? { request_id: requestId } : {}), message: out.message });
+            if (kind === "request" && out.reply) client.send({ ...out.reply, request_id: requestId });
+          },
+          (err: unknown) => client.send({ type: "error", ...(kind === "request" ? { request_id: requestId } : {}), message: errorMessage(err) }),
+        );
       const home = route.target(msg);
       if (!(home instanceof Promise)) return home ? forward(home) : here(client, msg);
       void home.then(

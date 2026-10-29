@@ -123,7 +123,12 @@ export function uploadRoute(
     if (!req.complete) return fail(400, "the upload broke off");
     // Taken while this one streamed? Pick the next free name rather than overwrite.
     const final = existsSync(target) ? freePath(folder, name) : target;
-    renameSync(partial, final);
+    // Inside a stream's event, a throw nobody catches ends the daemon: a name Windows keeps (CON, nul.txt) fails here.
+    try {
+      renameSync(partial, final);
+    } catch (err) {
+      return fail(500, err instanceof Error ? err.message : String(err));
+    }
     const file: Uploaded = { path: final, name: basename(final), size, mime };
     log("uploads:saved", { path: final, size, mime });
     reply(200, file);

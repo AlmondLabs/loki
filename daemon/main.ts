@@ -118,8 +118,14 @@ const mcp = new McpTools({
 // daemon/schedule.ts).
 const schedulesFile = join(args.dir, "state", "crons.json");
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
+// The notice's turn is followed to its end too: its outcome rejects when the store closes under it (the agent
+// deleted), and a rejection nobody handles ends the daemon.
 const background = new BackgroundTasks(
-  (agentId, chatId, text) => void chat.deliver(agentId, chatId, text, "steer").catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
+  (agentId, chatId, text) =>
+    void chat
+      .deliver(agentId, chatId, text, "steer")
+      .then((delivery) => delivery?.outcome)
+      .catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
 );
 const schedules = new Schedules(schedulesFile, deliver, report);
 // The approval gate asks by each tool's kind: loki's own declare theirs (builtinToolKinds, filled below, before any
@@ -227,7 +233,7 @@ const chat: DaemonChats = new DaemonChats({
   macId: installId(),
   schedules,
 });
-chats.follow(stores);
+chats.follow(stores, report);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
 const analytics = createAnalytics({

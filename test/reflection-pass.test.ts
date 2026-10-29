@@ -36,7 +36,7 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
     () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx),
   );
   const chats = new ChatProjection(ctx, () => "Ada");
-  chats.follow(stores);
+  chats.follow(stores, () => {});
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: opts.enabled ?? true } });
   const reports: string[] = [];

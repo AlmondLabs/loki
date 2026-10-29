@@ -30,7 +30,7 @@ async function setup() {
   const open = () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
   const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, open);
   const chats = new ChatProjection(ctx, () => "Ada");
-  chats.follow(stores);
+  chats.follow(stores, () => {});
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
   const events: Array<Record<string, unknown>> = [];
