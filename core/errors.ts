@@ -1,5 +1,5 @@
 /**
- * What went wrong, in words (plan 055). A catch receives `unknown`: an Error says its message, anything else is
+ * What went wrong, in words (plan 056). A catch receives `unknown`: an Error says its message, anything else is
  * written as it is. Every place that reports, logs or shows a failure says it this one way.
  */
 
