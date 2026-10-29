@@ -364,7 +364,7 @@ and provider credentials in the OS keychain.
    `recall.ts` back Tasks, pins, folders, the Agents pages and Learn; `pairing.ts`, `devices.ts`,
    `tailscale.ts` and `static.ts` are the phone listener; `boot.ts` re-bundles the mod on each reload in a checkout.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
-   `frames.ts` (the frame table) with `frame-types.ts`, `harness.ts` (recognising harness markup in transcripts),
+   `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it), `harness.ts` (recognising harness markup in transcripts),
    `attention/` (the Inbox: the chat client, the attention model, queue and focus
    ranking, `useAttention`; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
    `recall/` (Learn's cards and scheduling).

@@ -915,35 +915,6 @@ export function useAttention(opts: UseAttentionOptions) {
     reloadRef.current?.();
     return null;
   }, []);
-  const memory = useMemo(
-    () => ({
-      write: async (agentId: string, path: string, content: string, message?: string): Promise<string | null> => {
-        const sock = socketRef.current;
-        if (!sock) return "not connected to loki's daemon";
-        return sock.writeMemoryFile(agentId, path, content, message).then(
-          () => null,
-          (err: unknown) => (err instanceof Error ? err.message : String(err)),
-        );
-      },
-      remove: async (agentId: string, path: string, message?: string): Promise<string | null> => {
-        const sock = socketRef.current;
-        if (!sock) return "not connected to loki's daemon";
-        return sock.deleteMemoryFile(agentId, path, message).then(
-          () => null,
-          (err: unknown) => (err instanceof Error ? err.message : String(err)),
-        );
-      },
-      revert: async (agentId: string, sha: string): Promise<string | null> => {
-        const sock = socketRef.current;
-        if (!sock) return "not connected to loki's daemon";
-        return sock.revertMemoryCommit(agentId, sha).then(
-          () => null,
-          (err: unknown) => (err instanceof Error ? err.message : String(err)),
-        );
-      },
-    }),
-    [],
-  );
   /**
    * Labels on chats (plan 022): the list every chip takes its colour from, loaded on first use and after each
    * change; `set` gives a chat its labels and `edit` renames, recolours or deletes one everywhere. Each resolves to an
@@ -987,63 +958,6 @@ export function useAttention(opts: UseAttentionOptions) {
   useEffect(() => {
     if (status === "open") void labelsOnOpen.current();
   }, [status]);
-  /** Settings › Engines (plan 020); each resolves to the agents as they now stand, or an error message. */
-  const engines = useMemo(() => {
-    const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
-      const sock = socketRef.current;
-      if (!sock) return "not connected to loki's daemon";
-      return work(sock).catch((err: unknown) => (err instanceof Error ? err.message : String(err)));
-    };
-    return {
-      get: () => via((s) => s.engines.get()),
-      set: (engine: Parameters<ChatClient["engines"]["set"]>[0]) => via((s) => s.engines.set(engine)),
-      remove: (id: string) => via((s) => s.engines.remove(id)),
-      check: (id: string) => via((s) => s.engines.check(id)),
-    };
-  }, []);
-  /** Settings › MCP, Agents › Profile and Settings › Chat's always-allowed tools; each resolves to its result or an error message. */
-  const mcp = useMemo(() => {
-    const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
-      const sock = socketRef.current;
-      if (!sock) return "not connected to loki's daemon";
-      return work(sock).catch((err: unknown) => (err instanceof Error ? err.message : String(err)));
-    };
-    return {
-      get: () => via((s) => s.mcp.get()),
-      server: (entry: string, edit: Parameters<ChatClient["mcp"]["server"]>[1], rename?: string) => via((s) => s.mcp.server(entry, edit, rename)),
-      alwaysLoad: (entry: string, tools: string[]) => via((s) => s.mcp.alwaysLoad(entry, tools)),
-      restart: (name: string) => via((s) => s.mcp.restart(name)),
-      signOut: (name: string) => via((s) => s.mcp.signOut(name)),
-      agent: (agentId: string, server: string, on: boolean) => via((s) => s.mcp.agent(agentId, server, on)),
-      // A reference on success, an error message otherwise: never confusable, since one would land in mcp.json.
-      secret: (name: string, value: string) => via(async (s) => ({ ref: await s.mcp.secret(name, value) })),
-      approvals: {
-        list: () => via((s) => s.approvalsAlways()),
-        set: (tool: string, on: boolean) => via((s) => s.setApprovalAlways(tool, on)),
-      },
-    };
-  }, []);
-  const skills = useMemo(
-    () => ({
-      enable: async (path: string): Promise<string | null> => {
-        const sock = socketRef.current;
-        if (!sock) return "not connected to loki's daemon";
-        return sock.skillEnable(path).then(
-          () => null,
-          (err: unknown) => (err instanceof Error ? err.message : String(err)),
-        );
-      },
-      disable: async (name: string): Promise<string | null> => {
-        const sock = socketRef.current;
-        if (!sock) return "not connected to loki's daemon";
-        return sock.skillDisable(name).then(
-          () => null,
-          (err: unknown) => (err instanceof Error ? err.message : String(err)),
-        );
-      },
-    }),
-    [],
-  );
   const listModels = useCallback(async () => {
     const sock = socketRef.current;
     if (!sock) return [];
@@ -1232,11 +1146,7 @@ export function useAttention(opts: UseAttentionOptions) {
     disconnectProvider,
     createAgent,
     deleteAgent,
-    memory,
-    mcp,
-    engines,
     labels,
-    skills,
     updateAgent,
     reflection,
     listModels,

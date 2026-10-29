@@ -202,15 +202,15 @@ export function AgentsView({
       write={{
         createAgent: catchUp.createAgent,
         deleteAgent: catchUp.deleteAgent,
-        writeMemory: catchUp.memory.write,
-        removeMemory: catchUp.memory.remove,
-        revertMemory: catchUp.memory.revert,
+        writeMemory: desk.calls.memory.write,
+        removeMemory: desk.calls.memory.remove,
+        revertMemory: desk.calls.memory.revert,
       }}
       reflect={catchUp.reflection}
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
       onShowTasks={onShowTasks}
-      mcp={catchUp.mcp}
+      mcp={desk.calls.mcp}
       macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
     />
   );
@@ -267,9 +267,9 @@ export function SettingsView({
         daemon={daemon}
         phone={desk.phone}
         macs={desk.macs}
-        globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }}
-        mcp={catchUp.mcp}
-        engines={catchUp.engines}
+        globalSkills={{ list: desk.agents.globalSkills, enable: desk.calls.skills.enable, disable: desk.calls.skills.disable }}
+        mcp={desk.calls.mcp}
+        engines={desk.calls.engines}
         labels={{
           list: catchUp.labels.list,
           // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.

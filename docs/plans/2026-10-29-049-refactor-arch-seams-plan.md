@@ -30,6 +30,12 @@ several files. Two were small to fix and had a cost today:
    `everyone`, `desktop` (the Mac's own tabs) or `macs` (paired Macs only). It starts the loopback server and closes
    it if the mod stopped meanwhile, and holds the phone listener once it is built. `WsBridge.broadcast` takes the
    audience, so a `macs` push skips phones and tabs at the socket.
+3. **`core/daemon-calls.ts`** (added the same day, survey item 4): the daemon's settings and agent calls, by feature
+   (an agent's memory and skills, Engines, MCP with its always-allowed tools), each one request over the mod socket.
+   They were split by frame name: `useDesk` read memory and skills, while `FrameChatClient` wrote them and
+   `useAttention` wrapped each write again with its own "not connected" check and error text, 25 times over. `useDesk`
+   makes the calls once and Settings and Agents use them; the chat client keeps the chats. A call made while the
+   socket is down now waits for it, as every other request does, instead of failing at once.
 
 ## Left as it is
 
@@ -38,9 +44,12 @@ several files. Two were small to fix and had a cost today:
    copy of `test/fixtures/fake-acp.mjs` to keep in step.
 2. **`info.engine?.kind === "acp"`** stays where it is: `ChatEngine` has one kind, so the check reads as "runs on an
    ACP agent", and the migrations ask it about stored data, not about the `Engine` interface.
+3. **The agents, providers and labels stay in `useAttention`**: each holds a list the app shows, which a change
+   updates; moving them is the `ChatStore` work (survey item 6).
 
 ## Checked
 
 1. `test/engine-rules.test.ts`: `modeOf` and `engineMoveRefused` on every case.
 2. `test/sockets.test.ts`: each audience reaches only its listeners; a server that comes up after the mod stopped is
    closed. `test/server.test.ts`: a `macs` push reaches a paired Mac's socket and no other.
+3. `test/daemon-calls.test.ts`: each call's frame, its reply, and its refusal in words.
