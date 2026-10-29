@@ -368,7 +368,7 @@ and provider credentials in the OS keychain.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it), `harness.ts` (recognising harness markup in transcripts),
    `attention/` (the Inbox: the chat client, the attention model, queue and focus
-   ranking, `useAttention`; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
+   ranking, `chat-store.ts` with every chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
    `recall/` (Learn's cards and scheduling).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K
    search, keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames);

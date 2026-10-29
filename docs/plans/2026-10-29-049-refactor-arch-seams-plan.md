@@ -43,6 +43,15 @@ several files. Two were small to fix and had a cost today:
    sockets, its local lists, the chats, the marks) and hands back what the mod needs: pairing for the listener, the
    router for the bridge, Settings › Macs' frames, the merged lists, and whether a push changed the person's state. A
    second pairing code now replaces the first one's lapse timer instead of running beside it.
+5. **`core/attention/chat-store.ts`** (survey item 6): every chat this client follows, as a plain class. `useAttention`
+   was 1,184 lines of refs, effects and callbacks around one mutable map, and the decisions in its event handler
+   (a new approval to report, a folder move answered, a queued message sent when the turn ends, a chat the list does
+   not know) could be reached only by rendering it. `ChatStore` holds the list, the agents, providers and labels, the
+   live map and its two speeds of change (the snapshot when a chat's face moves, `watchThreads` for every streamed
+   piece, plan 032), and every call, each answering "not connected" or the daemon's error through one helper.
+   `useAttention` keeps what is React's: connecting while the socket is up, the clock tick, the scored items, the
+   Inbox's card analytics, and the same result shape, so no caller changed. The server info read on each list load
+   now keeps its object when nothing in it changed, so a repeat poll redraws nothing.
 
 ## Left as it is
 
@@ -51,8 +60,6 @@ several files. Two were small to fix and had a cost today:
    copy of `test/fixtures/fake-acp.mjs` to keep in step.
 2. **`info.engine?.kind === "acp"`** stays where it is: `ChatEngine` has one kind, so the check reads as "runs on an
    ACP agent", and the migrations ask it about stored data, not about the `Engine` interface.
-3. **The agents, providers and labels stay in `useAttention`**: each holds a list the app shows, which a change
-   updates; moving them is the `ChatStore` work (survey item 6).
 
 ## Checked
 
@@ -62,3 +69,7 @@ several files. Two were small to fix and had a cost today:
 3. `test/daemon-calls.test.ts`: each call's frame, its reply, and its refusal in words.
 4. `test/peering.test.ts`: a pairing code holds the listener up until it lapses; Settings › Macs lists the tailnet's
    computers only; a state push tells the paired Macs once; with no Mac paired the lists are this Mac's.
+5. `test/chat-store.test.ts`: connecting reads the shown agents and the list, and a repeat load keeps the snapshot; a
+   message typed mid-turn goes out once at the turn's end; an approval is reported once and comes back when refused;
+   a call's input growing tells the threads without moving the snapshot; a folder change resolves on the new folder
+   or the refusal; each call says "not connected" while the socket is down.
