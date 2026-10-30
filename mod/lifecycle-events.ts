@@ -1,32 +1,40 @@
 import type { Scope } from "../core/desk-core.ts";
-type Timer = ReturnType<typeof setTimeout>;
-type SetTimer = (callback: () => void, delay: number) => Timer;
-type ClearTimer = (timer: Timer) => void;
+import { debounce, type Burst } from "../core/timers.ts";
 
-/** Debounces work per desk so activity on one conversation cannot cancel another's refresh. */
+/**
+ * Debounces work per desk, so activity on one conversation cannot cancel another's refresh: core/timers.ts's
+ * `debounce`, one per desk that has work waiting. The latest work scheduled for a desk is the one that runs.
+ */
 export class ScopeDebouncer {
-  private readonly timers = new Map<Scope, Timer>();
-  private readonly setTimer: SetTimer;
-  private readonly clearTimer: ClearTimer;
+  private readonly waiting = new Map<Scope, { burst: Burst; work: () => void }>();
+  private readonly ms: number;
 
-  constructor(setTimer: SetTimer = setTimeout, clearTimer: ClearTimer = clearTimeout) {
-    this.setTimer = setTimer;
-    this.clearTimer = clearTimer;
+  /** `ms`: how long a desk must be quiet before its work runs. */
+  constructor(ms: number) {
+    this.ms = ms;
   }
 
-  schedule(scope: Scope, callback: () => void, delay: number): void {
-    const previous = this.timers.get(scope);
-    if (previous !== undefined) this.clearTimer(previous);
-    const timer = this.setTimer(() => {
-      if (this.timers.get(scope) !== timer) return;
-      this.timers.delete(scope);
-      callback();
-    }, delay);
-    this.timers.set(scope, timer);
+  /** Run `work` for `scope` once that desk has been quiet for `ms`, in place of any work it had waiting. */
+  schedule(scope: Scope, work: () => void): void {
+    let entry = this.waiting.get(scope);
+    if (!entry) {
+      const fresh: { burst: Burst; work: () => void } = {
+        work,
+        burst: debounce(() => {
+          this.waiting.delete(scope);
+          fresh.work();
+        }, this.ms),
+      };
+      entry = fresh;
+      this.waiting.set(scope, entry);
+    }
+    entry.work = work;
+    entry.burst.schedule();
   }
 
+  /** Drop every desk's waiting work (the mod is stopping). */
   clear(): void {
-    for (const timer of this.timers.values()) this.clearTimer(timer);
-    this.timers.clear();
+    for (const { burst } of this.waiting.values()) burst.cancel();
+    this.waiting.clear();
   }
 }
