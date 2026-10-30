@@ -8,7 +8,7 @@
  * `--loki-daemon` and the token file mark the command line as loki's, so a shell finds a leftover from a crash.
  * Exit code 3: another daemon holds this folder's lock; the shell then leaves that one serving.
  */
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -24,7 +24,7 @@ import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
 import { Schedules, scheduleTools } from "./schedule.ts";
 import { memoryRepos } from "./memory-sync.ts";
-import { memoryTools } from "./memory.ts";
+import { memoryRoot, memoryTools } from "./memory.ts";
 import { askTool } from "./ask.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
 import { chatEnvs } from "./tool-results.ts";
@@ -150,6 +150,8 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
+// Where a pass on an ACP agent runs before the agent has a memory folder (plan 061).
+const passScratch = join(args.dir, "scratch");
 const passes = new PassRunner({
   stores,
   chats,
@@ -166,6 +168,27 @@ const passes = new PassRunner({
     const slash = handle.indexOf("/");
     if (slash <= 0) return available.length > 0;
     return available.some((m) => m.provider === handle.slice(0, slash) && m.id === handle.slice(slash + 1));
+  },
+  // Without a model loki can reach, a pass runs on the agent's newest ACP chat's agent (plan 061), unless turned off.
+  acp: {
+    engineFor: async (agentId) => {
+      const infos = await (await stores.get(agentId)).chats(context);
+      const newest = infos
+        .filter((i) => !i.hidden && i.engine?.kind === "acp" && acp.agent(i.engine.agent))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .at(0);
+      return newest?.engine ?? null;
+    },
+    ask: async (agentId, engine, spec) => {
+      // The memory folder, so whatever the agent reads without asking is the pass's own; a scratch one before it exists.
+      const root = memoryRoot(backend, agentId);
+      const cwd = existsSync(root) ? root : passScratch;
+      mkdirSync(cwd, { recursive: true });
+      // Calls left from a run that was stopped are not this one's.
+      lokiTools.takeCalls(agentId, spec.chatId);
+      const text = await acp.runPass({ ...spec, agentId, engine, cwd });
+      return { text, toolCalls: lokiTools.takeCalls(agentId, spec.chatId) };
+    },
   },
   capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
@@ -209,6 +232,7 @@ const acp = new AcpChats({
     return [...(own ? [own] : []), ...(await mcp.acpServers(agentId))];
   },
   allowedTools: (agentId) => [...lokiTools.readOnly(), ...mcp.acpReadOnly(agentId)],
+  passServer: (agentId, conversationId, tools) => lokiTools.serverFor(agentId, conversationId, tools),
   openUrl: (url) => openInBrowser(url, report),
   configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),

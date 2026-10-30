@@ -103,12 +103,12 @@ describe("background passes: the first start carries over what reflection and Le
     }
   });
 
-  test("with nothing to carry over, reflection is on and Learn is off at 5 a day", () => {
+  test("with nothing to carry over, reflection is on, Learn is off at 5 a day, and the ACP fallback is on", () => {
     const s = setup();
     try {
       const state = s.state();
       state.migrate(s.old, []);
-      expect(state.settings()).toEqual({ reflection: { enabled: true }, learn: { enabled: false, daily_cap: 5 } });
+      expect(state.settings()).toEqual({ reflection: { enabled: true }, learn: { enabled: false, daily_cap: 5 }, acp: { enabled: true } });
     } finally {
       s.cleanup();
     }

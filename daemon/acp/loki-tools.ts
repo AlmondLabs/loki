@@ -13,6 +13,8 @@ export const LOKI_TOOLS_SERVER = "loki";
 interface ChatKey {
   agentId: string;
   conversationId: string;
+  /** The tools this chat is served (a background pass's own, plan 061); absent, every one of loki's. */
+  only?: ReadonlySet<string>;
 }
 
 /**
@@ -25,6 +27,8 @@ export class LokiTools {
   private readonly deps: { tools: () => ChatTool[]; stores: StoreManager; context: Context; version: string };
   private readonly chats = new Map<string, ChatKey>();
   private readonly keys = new Map<string, string>();
+  /** The tools each pass chat ran here and that did not fail, by chat, until taken (`takeCalls`). */
+  private readonly called = new Map<string, string[]>();
   private http: HttpServer | null = null;
   private url: string | null = null;
 
@@ -59,17 +63,36 @@ export class LokiTools {
     if (http) await new Promise<void>((resolve) => http.close(() => resolve()));
   }
 
-  /** loki's tools as an ACP session takes them, for one chat; null until the endpoint listens. */
-  serverFor(agentId: string, conversationId: string): acp.McpServer | null {
+  /**
+   * loki's tools as an ACP session takes them, for one chat; null until the endpoint listens. `only` serves just those
+   * tools, as a background pass gets its job's own (plan 061); asked again, the chat's list is the latest one.
+   */
+  serverFor(agentId: string, conversationId: string, only?: readonly string[]): acp.McpServer | null {
     if (!this.url) return null;
-    const chat = `${agentId}\u0000${conversationId}`;
+    const chat = chatKey(agentId, conversationId);
     let key = this.keys.get(chat);
     if (!key) {
       key = randomUUID();
       this.keys.set(chat, key);
-      this.chats.set(key, { agentId, conversationId });
     }
+    this.chats.set(key, { agentId, conversationId, ...(only ? { only: new Set(only) } : {}) });
     return { type: "http", name: LOKI_TOOLS_SERVER, url: this.url, headers: [{ name: "authorization", value: `Bearer ${key}` }] };
+  }
+
+  /**
+   * The tools a chat ran here since last asked, in order, leaving none behind: a pass counts its memory changes by
+   * them, as an ACP agent names a call in the transcript by its own title.
+   */
+  takeCalls(agentId: string, conversationId: string): string[] {
+    const chat = chatKey(agentId, conversationId);
+    const calls = this.called.get(chat) ?? [];
+    this.called.delete(chat);
+    return calls;
+  }
+
+  /** loki's tools as an ACP agent names them, given loki's own names. */
+  static named(tools: readonly string[]): string[] {
+    return tools.map((t) => `mcp__${LOKI_TOOLS_SERVER}__${t}`);
   }
 
   /** loki's tools that only read, as the agent names them: it runs them without asking, as loki's engine does. */
@@ -110,7 +133,7 @@ export class LokiTools {
   /** One request's MCP server: loki's tools, each run as `chat`. */
   private server(chat: ChatKey): McpServer {
     const server = new McpServer({ name: LOKI_TOOLS_SERVER, version: this.deps.version });
-    for (const tool of this.deps.tools())
+    for (const tool of this.deps.tools().filter((t) => !chat.only || chat.only.has(t.name)))
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: schema(tool.parameters), annotations: { readOnlyHint: tool.kind === "read" } },
@@ -120,7 +143,13 @@ export class LokiTools {
             const conversation = await store.chat(chat.conversationId, this.deps.context);
             if (!conversation) throw new Error("this chat is no longer here");
             const call = { read: store.harness, conversationId: conversation.id, callId: randomUUID(), signal: ctx.mcpReq.signal, output: () => {} };
-            return { content: (await tool.run(args, call, this.deps.context)).output ?? [] };
+            const content = (await tool.run(args, call, this.deps.context)).output ?? [];
+            // Only a pass's calls are kept (it takes them after its run); a chat's would pile up for nobody.
+            if (chat.only) {
+              const key = chatKey(chat.agentId, chat.conversationId);
+              this.called.set(key, [...(this.called.get(key) ?? []), tool.name]);
+            }
+            return { content };
           } catch (e) {
             return failed(e);
           }
@@ -129,6 +158,9 @@ export class LokiTools {
     return server;
   }
 }
+
+/** One chat's key in the maps above. */
+const chatKey = (agentId: string, conversationId: string) => `${agentId}\u0000${conversationId}`;
 
 /** A tool's JSON Schema as the server checks arguments against: an object, as every tool's is. */
 const schema = (parameters: object) => fromJsonSchema<Record<string, unknown>>(parameters);

@@ -38,6 +38,13 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
     if (err) setNotice(err);
     else setSettings({ ...settings, reflection: { enabled } });
   };
+  // Whether an agent with no model loki can reach runs its passes on its Claude Code or Cursor agent (plan 061).
+  const toggleAcp = async (enabled: boolean) => {
+    if (!settings) return;
+    const err = await reflect.set({ acp: { enabled } });
+    if (err) setNotice(err);
+    else setSettings({ ...settings, acp: { enabled } });
+  };
 
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(280px, 360px) 1fr" }}>
@@ -62,6 +69,21 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
           <Meta wrap>
             For every agent: once chats have been quiet for half an hour, the agent reads what was said in them since it last looked, several together and at
             most every two hours, and keeps in memory what will matter in later chats, what recurs across them most of all. /reflect in a chat does it now.
+          </Meta>
+          <div className="loki-label">Without a provider</div>
+          {settings && (
+            <span style={{ display: "inline-flex", gap: 6 }}>
+              <Chip label active={settings.acp.enabled} aria-pressed={settings.acp.enabled} onClick={() => void toggleAcp(true)}>
+                use claude code or cursor
+              </Chip>
+              <Chip label active={!settings.acp.enabled} aria-pressed={!settings.acp.enabled} onClick={() => void toggleAcp(false)}>
+                wait
+              </Chip>
+            </span>
+          )}
+          <Meta wrap>
+            An agent whose model loki cannot reach, with no provider set up, runs reflection, Learn and /doctor on the agent its newest Claude Code or Cursor
+            chat uses. Each run spends a little of that allowance. Set to wait, they run only once a provider is set up.
           </Meta>
         </div>
       </ListPane>

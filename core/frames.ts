@@ -731,16 +731,23 @@ export const FRAMES = {
       : "agent_id required",
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
-  chat_passes_get: request("chat_passes", "whether reflection and Learn run in the background, and Learn's cards a day", nothing),
-  chat_passes_set: request("chat_passes", "turn reflection or Learn on or off, or set Learn's cards a day", (m) => {
+  chat_passes_get: request(
+    "chat_passes",
+    "whether reflection and Learn run in the background, Learn's cards a day, and whether they run on an ACP agent when no loki model can",
+    nothing,
+  ),
+  chat_passes_set: request("chat_passes", "turn reflection, Learn or their ACP fallback on or off, or set Learn's cards a day", (m) => {
     const part = (v: unknown) => (v && typeof v === "object" ? (v as Raw) : undefined);
     const r = part(m.reflection),
-      l = part(m.learn);
+      l = part(m.learn),
+      a = part(m.acp);
     if (r?.enabled !== undefined && typeof r.enabled !== "boolean") return "reflection.enabled must be true or false";
+    if (a?.enabled !== undefined && typeof a.enabled !== "boolean") return "acp.enabled must be true or false";
     if (l?.enabled !== undefined && typeof l.enabled !== "boolean") return "learn.enabled must be true or false";
     if (l?.daily_cap !== undefined && !(isNum(l.daily_cap) && l.daily_cap >= 0)) return "learn.daily_cap must be a number, 0 or more";
     return {
       ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled } } : {}),
+      ...(a?.enabled !== undefined ? { acp: { enabled: a.enabled } } : {}),
       ...(l
         ? {
             learn: {

@@ -141,6 +141,8 @@ describe("the frame table", () => {
 
   test("the background passes' settings: each part optional, wrong kinds refused", () => {
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
+    expect(FRAMES.chat_passes_set.parse({ acp: { enabled: false } })).toEqual({ acp: { enabled: false } });
+    expect(FRAMES.chat_passes_set.parse({ acp: { enabled: "no" } })).toBe("acp.enabled must be true or false");
     expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, daily_cap: 3.7 } })).toEqual({ learn: { enabled: true, daily_cap: 3 } });
     expect(FRAMES.chat_passes_set.parse({})).toEqual({});
     expect(FRAMES.chat_passes_set.parse({ learn: { daily_cap: -1 } })).toBe("learn.daily_cap must be a number, 0 or more");

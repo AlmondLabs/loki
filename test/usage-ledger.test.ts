@@ -143,6 +143,10 @@ describe("the usage ledger", () => {
       const byOrigin = Object.fromEntries(ledger.rows().map((r) => [r.origin, r.input_tokens]));
       expect(byOrigin).toEqual({ chats: 20, reflection: 10, learn: 10, doctor: 10, helpers: 10 });
       expect(originOfChat("reflection-a2", "a1")).toBe("chats");
+      // A pass run on an ACP agent (plan 061) is its job's too.
+      expect(originOfChat("reflection-a1-acp", "a1")).toBe("reflection");
+      expect(originOfChat("doctor-a1-acp", "a1")).toBe("doctor");
+      expect(originOfChat("recall-a1-acp", "a1")).toBe("learn");
     } finally {
       s.cleanup();
     }

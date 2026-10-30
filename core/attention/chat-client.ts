@@ -3,7 +3,7 @@ import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } f
 import type { SuggestionTarget } from "../frame-types.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
-import type { ConnectProvider, PassSettings, Runtime, ServerEvent } from "./protocol.ts";
+import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime, ServerEvent } from "./protocol.ts";
 import { Listeners } from "../listeners.ts";
 import { messageOf } from "../errors.ts";
 
@@ -326,7 +326,7 @@ export class FrameChatClient {
   async getPassSettings(): Promise<PassSettings | null> {
     return this.call("chat_passes_get", {});
   }
-  async setPassSettings(s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; daily_cap?: number } }): Promise<PassSettings | null> {
+  async setPassSettings(s: PassSettingsChange): Promise<PassSettings | null> {
     return this.call("chat_passes_set", s);
   }
 

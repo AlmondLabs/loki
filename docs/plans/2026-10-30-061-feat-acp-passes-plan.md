@@ -1,7 +1,7 @@
 ---
 title: Reflection, Learn and the memory review on an ACP agent when no loki model is reachable
 date: 2026-10-30
-status: proposed
+status: active
 ---
 
 # Reflection, Learn and the memory review on an ACP agent
@@ -20,7 +20,7 @@ What made KD6 the safer choice then has changed: plan 044 serves loki's tools to
 
 1. **Only as a fallback.** A pass runs on loki's engine as today whenever `canRun` says the agent's model is reachable.
    When it is not, the pass runs on an ACP agent instead of being skipped. An agent with a loki model never changes.
-2. **Which ACP agent and model.** The one the agent's most recent ACP chat ran on (`ChatInfo.engine`: agent and
+2. **Which ACP agent and model.** The one the agent's newest ACP chat runs on (`ChatInfo.engine`: agent and
    model), so the pass uses an engine the person already signs in to and pays for. An agent with no ACP chat either
    is skipped, as today.
 3. **Its own hidden chat per job.** `reflection-<agent>-acp`, `recall-<agent>-acp` and `doctor-<agent>-acp`: the
@@ -44,10 +44,9 @@ What made KD6 the safer choice then has changed: plan 044 serves loki's tools to
 
 ## Decisions for review
 
-1. **On by default.** Without it, an ACP-only person's passes never run; with it, they spend some of the person's
-   Claude Code or Cursor allowance. I'd make it on by default with a switch in Preferences › Learn ("run background
-   passes on Claude Code when no provider is set up"), since the passes are small (one turn per quiet chat, Learn
-   capped per day).
+1. **On by default, with a switch** (decided 2026-10-30). Without it, an ACP-only person's passes never run; with it,
+   they spend some of the person's Claude Code or Cursor allowance. Agents › Reflection has a switch to turn it off;
+   the passes are small (one turn per quiet chat, Learn capped per day).
 2. **Fallback only, not a choice per agent.** Picking an engine for passes per agent is more to learn for one person;
    it can come later if a loki model is reachable but the person would rather use Claude Code.
 3. **This reverses plan 020's KD6** ("over hidden ACP sessions"). The reason it gave, no way for an ACP agent to write

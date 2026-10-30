@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { isWriterChat } from "../core/recall/model.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
+import { ACP_PASS_SUFFIX } from "./memory.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { serialQueue } from "../core/serial.ts";
@@ -112,8 +113,10 @@ const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
 /** Whose work a chat's calls are, by its id: a background pass's hidden chat, else the person's. */
 export function originOfChat(chatId: string, agentId: string): UsageOrigin {
   if (isWriterChat(chatId)) return "learn";
-  if (chatId === `reflection-${agentId}`) return "reflection";
-  if (chatId === doctorChatId(agentId)) return "doctor";
+  // A pass run on an ACP agent (plan 061) is its job's, as one on loki's engine is.
+  const own = chatId.endsWith(ACP_PASS_SUFFIX) ? chatId.slice(0, -ACP_PASS_SUFFIX.length) : chatId;
+  if (own === `reflection-${agentId}`) return "reflection";
+  if (own === doctorChatId(agentId)) return "doctor";
   return "chats";
 }
 

@@ -118,6 +118,24 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect(tools.readOnly()).toEqual(["mcp__loki__whoami"]);
   });
 
+  test("covers plan 061: a pass's chat is served only its job's tools, and the calls it ran are taken once", async () => {
+    const { tools, conversationId } = await setup();
+    const pass = await connect(http(tools.serverFor("ada", conversationId, ["echo"]) ?? undefined));
+    expect((await pass.listTools()).tools.map((t) => t.name)).toEqual(["echo"]);
+    await pass.callTool({ name: "echo", arguments: { words: "one" } });
+    await pass.callTool({ name: "echo", arguments: { words: "two" } });
+    expect(tools.takeCalls("ada", conversationId)).toEqual(["echo", "echo"]);
+    expect(tools.takeCalls("ada", conversationId)).toEqual([]);
+    expect(LokiTools.named(["memory_write"])).toEqual(["mcp__loki__memory_write"]);
+  });
+
+  test("an ordinary chat's calls are not kept: nothing would ever take them", async () => {
+    const { tools, conversationId } = await setup();
+    const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));
+    await loki.callTool({ name: "echo", arguments: { words: "hello" } });
+    expect(tools.takeCalls("ada", conversationId)).toEqual([]);
+  });
+
   test("suggestion_create through the loopback server stores the suggestion on the calling chat, and runs without asking", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-suggest-"));
     const models = createModels();
