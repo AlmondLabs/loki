@@ -39,7 +39,7 @@ What made KD6 the safer choice then has changed: plan 044 serves loki's tools to
 7. **The same limits.** The run timeout (10 minutes), the queue (one pass at a time), Learn's daily cap and the
    failure back-off apply unchanged. What the run costs lands in the usage ledger under the pass, as an ACP chat's
    turns do.
-8. **Said where it shows.** A pass's report and its telemetry name the engine it ran on; Preferences › Learn and the
+8. **Said where it shows.** A pass's report and its telemetry name the engine it ran on; Agents › Reflection and the
    manual say that passes use the agent's ACP agent when it has no loki model.
 
 ## Decisions for review
