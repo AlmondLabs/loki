@@ -30,6 +30,11 @@ export const MEMORY_TOOLS = ["memory_read", "memory_write", "memory_edit", "memo
 export const isReflectionChat = (chatId: string): boolean => chatId.startsWith("reflection-");
 /** A memory review's chat (daemon/doctor.ts, /doctor): its commits are the Doctor's. */
 export const isDoctorChat = (chatId: string): boolean => chatId.startsWith("doctor-");
+/**
+ * A pass's hidden chat on an ACP agent (plan 061) is its job's chat id with this after it: the job's prefix stays, so
+ * every check above, telemetry and the mod know it as that job's.
+ */
+export const ACP_PASS_SUFFIX = "-acp";
 
 /** Where an agent's memory repo is: `memfs/<id>/memory` in the backend folder. */
 export function memoryRoot(backendDir: string, agentId: string): string {

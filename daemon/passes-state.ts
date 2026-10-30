@@ -23,7 +23,12 @@ export const DEFAULT_DAILY_CAP = 5;
 const OLD_DEFAULT_DAILY_CAP = 25;
 
 /** The settings before the person changes any: reflection on, Learn off. */
-export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, daily_cap: DEFAULT_DAILY_CAP } };
+export const DEFAULT_SETTINGS: PassSettings = {
+  reflection: { enabled: true },
+  learn: { enabled: false, daily_cap: DEFAULT_DAILY_CAP },
+  // On, so a person who talks to their agents only through Claude Code or Cursor still gets the passes (plan 061).
+  acp: { enabled: true },
+};
 
 interface Cursors {
   cursors: Record<JobName, Record<string, number>>;
@@ -49,7 +54,9 @@ function writeJson(file: string, value: unknown): void {
 }
 
 /** Settings as read or sent, made whole: a missing field takes its default, and a cap that is not a non-negative number is DEFAULT_DAILY_CAP. */
-export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["reflection"]>; learn: Partial<PassSettings["learn"]> }> | null): PassSettings {
+export function normalSettings(
+  s: Partial<{ reflection: Partial<PassSettings["reflection"]>; learn: Partial<PassSettings["learn"]>; acp: Partial<PassSettings["acp"]> }> | null,
+): PassSettings {
   const cap = s?.learn?.daily_cap;
   return {
     reflection: { enabled: s?.reflection?.enabled ?? DEFAULT_SETTINGS.reflection.enabled },
@@ -57,6 +64,7 @@ export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["re
       enabled: s?.learn?.enabled ?? DEFAULT_SETTINGS.learn.enabled,
       daily_cap: typeof cap === "number" && Number.isFinite(cap) && cap >= 0 ? Math.round(cap) : DEFAULT_DAILY_CAP,
     },
+    acp: { enabled: s?.acp?.enabled ?? DEFAULT_SETTINGS.acp.enabled },
   };
 }
 
@@ -97,7 +105,10 @@ export class PassState {
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
     const now = this.settings();
-    writeJson(this.settingsFile, normalSettings({ reflection: { ...now.reflection, ...s?.reflection }, learn: { ...now.learn, ...s?.learn } }));
+    writeJson(
+      this.settingsFile,
+      normalSettings({ reflection: { ...now.reflection, ...s?.reflection }, learn: { ...now.learn, ...s?.learn }, acp: { ...now.acp, ...s?.acp } }),
+    );
     return this.settings();
   }
 

@@ -9,16 +9,34 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
-import { PassRunner, type PassInput, type PassJob } from "../daemon/passes.ts";
+import { PassRunner, type PassAnswer, type PassInput, type PassJob, type PassSpec } from "../daemon/passes.ts";
+import type { ChatEngine } from "../daemon/kernel/index.ts";
+import { DOCTOR_TOOLS } from "../daemon/doctor.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
+type Deps = ConstructorParameters<typeof PassRunner>[0];
+
+/** An ACP agent standing in for Claude Code (plan 061): the engine it offers, and every pass asked of it, answered as told. */
+function fakeAcp(engine: ChatEngine | null, answer: PassAnswer = { text: "kept", toolCalls: [] }) {
+  const asked: Array<{ agentId: string; engine: ChatEngine; spec: PassSpec & { timeoutMs: number } }> = [];
+  const acp: NonNullable<Deps["acp"]> = {
+    engineFor: () => Promise.resolve(engine),
+    ask: (agentId, e, spec) => {
+      asked.push({ agentId, engine: e, spec });
+      return Promise.resolve(answer);
+    },
+  };
+  return { acp, asked };
+}
+const CLAUDE: ChatEngine = { kind: "acp", agent: "claude-code", model: "default", session_id: "s-1" };
 /** Long enough to count as new material (MIN_NEW_CHARS). */
 const LONG = "a thought worth keeping about how the river delta builds land over centuries, ".repeat(5);
 
-async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean } = {}) {
+async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: () => boolean; acp?: Deps["acp"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-passes-"));
   const faux = fauxProvider();
   const models = createModels();
@@ -60,6 +78,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     jobs: [job],
     busy: () => Promise.resolve(opts.busy?.() ?? false),
     ...(opts.canRun ? { canRun: () => Promise.resolve(opts.canRun?.() ?? true) } : {}),
+    ...(opts.acp ? { acp: opts.acp } : {}),
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,
@@ -500,6 +519,86 @@ describe("background passes", () => {
       expect(s.seen.map((i) => i.parts.map((p) => p.chatId))).toEqual([["a"]]);
       expect(s.state.cursor("reflection", s.agentId, "a")).toBe(s.chats.answers("a", s.agentId, 0).entries);
       expect(s.state.cursor("reflection", s.agentId, "b")).toBeUndefined();
+    } finally {
+      await s.cleanup();
+    }
+  });
+});
+
+describe("covers plan 061: the passes on an ACP agent when no loki model can be reached", () => {
+  test("the pass runs on the agent's ACP agent, in a chat of its own, with the job's instructions, tools and the time", async () => {
+    const fake = fakeAcp(CLAUDE);
+    const s = await setup({ canRun: () => false, acp: fake.acp });
+    try {
+      await s.acpSay("cc", LONG, "noted");
+      await s.runner.sweep();
+      expect(fake.asked).toHaveLength(1);
+      const { spec, engine, agentId } = must(fake.asked[0], "the pass");
+      expect(agentId).toBe(s.agentId);
+      expect(engine).toEqual(CLAUDE);
+      expect(spec.chatId).toBe(`reflection-${s.agentId}-acp`);
+      expect(spec.instructions).toBe("test");
+      expect(spec.tools).toEqual([]);
+      expect(spec.prompt).toContain("river delta");
+      expect(spec.prompt).toContain("Local time on the user's Mac");
+      expect(spec.timeoutMs).toBeGreaterThan(0);
+      expect(s.events.at(-1)).toMatchObject({ chat: "cc", outcome: "changed", items: { kept: 1 }, engine: "acp:claude-code" });
+      expect(s.state.cursor("reflection", s.agentId, "cc")).toBeGreaterThan(0);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("with a model loki can reach, nothing changes: the pass runs on it, never on the ACP agent", async () => {
+    const fake = fakeAcp(CLAUDE);
+    const s = await setup({ canRun: () => true, acp: fake.acp });
+    try {
+      s.faux.setResponses([fauxAssistantMessage("kept")]);
+      await s.acpSay("cc", LONG, "noted");
+      await s.runner.sweep();
+      expect(fake.asked).toEqual([]);
+      expect(s.events.at(-1)).toMatchObject({ outcome: "changed", engine: "loki" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("turned off in the settings, or with no chat on an ACP agent, the pass waits quietly as before", async () => {
+    const off = fakeAcp(CLAUDE);
+    const s = await setup({ canRun: () => false, acp: off.acp });
+    try {
+      s.state.setSettings({ acp: { enabled: false } });
+      await s.acpSay("cc", LONG, "noted");
+      await s.runner.sweep();
+      expect(off.asked).toEqual([]);
+      expect(s.events).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+    const none = fakeAcp(null);
+    const t = await setup({ canRun: () => false, acp: none.acp });
+    try {
+      await t.acpSay("cc", LONG, "noted");
+      await t.runner.sweep();
+      expect(none.asked).toEqual([]);
+      expect(t.events).toEqual([]);
+    } finally {
+      await t.cleanup();
+    }
+  });
+
+  test("the memory review runs there too, counting the memory tools loki ran for it", async () => {
+    const fake = fakeAcp(CLAUDE, { text: "", toolCalls: ["memory_read", "memory_write", "memory_edit"] });
+    const s = await setup({ canRun: () => false, acp: fake.acp });
+    try {
+      const notes = join(s.dir, "memfs", s.agentId, "memory", "notes");
+      mkdirSync(notes, { recursive: true });
+      writeFileSync(join(notes, "garden.md"), "prune in March\n");
+      const review = await s.runner.runDoctor(s.agentId);
+      expect(review).toMatchObject({ outcome: "changed", changes: 2 });
+      const { spec } = must(fake.asked[0], "the review");
+      expect(spec.chatId).toBe(`doctor-${s.agentId}-acp`);
+      expect(spec.tools).toEqual(DOCTOR_TOOLS);
     } finally {
       await s.cleanup();
     }

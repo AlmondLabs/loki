@@ -556,8 +556,11 @@ terminal). In such a chat:
   removes it: Claude Code takes one message at a time;
 - the agent stays itself: loki adds its persona, its memory and its skills to Claude Code's prompt when the session
   starts, beside Claude Code's own `CLAUDE.md`. Reflection, Learn and /doctor keep the memory up to date from these
-  chats as from any other, on the agent's own model in loki. With no provider set up in loki, they wait until there
-  is one;
+  chats as from any other, on the agent's own model in loki. With no provider set up in loki, they run on the agent
+  its newest Claude Code or Cursor chat uses instead, in hidden chats of their own with only the memory tools (Learn
+  with none), in the agent's memory folder, and with every permission Claude Code asks for refused; each run spends
+  a little of that allowance. **Agents › Reflection › Without a provider** turns this off (**wait**), and they then
+  wait until a provider is set up;
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
   committed as in loki's chats), schedules, questions in loki's card, the canvas, `chat_list` and the suggestion
   tools, and any your mods add. Claude Code's own tools cover files, commands, web search and subagents;

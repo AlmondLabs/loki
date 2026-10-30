@@ -17,7 +17,7 @@ import {
   type Digest,
   type Live,
 } from "./model.ts";
-import type { ConnectProvider, PassSettings, Runtime } from "./protocol.ts";
+import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { SuggestionAction } from "../frames.ts";
 import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
@@ -804,8 +804,7 @@ export class ChatStore {
   };
 
   /** Turn reflection or Learn on or off; resolves to an error message or null. */
-  setPasses = (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; daily_cap?: number } }): Promise<string | null> =>
-    this.tried((c) => c.setPassSettings(s));
+  setPasses = (s: PassSettingsChange): Promise<string | null> => this.tried((c) => c.setPassSettings(s));
 
   /** A reflection pass started by hand, the same as /reflect in that chat: what the harness said. */
   reflect = async (rt: Runtime): Promise<string> => {

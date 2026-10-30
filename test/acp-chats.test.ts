@@ -41,6 +41,7 @@ function setup(
     env?: Record<string, string>;
     mcpServers?: AcpChatsDeps["mcpServers"];
     allowedTools?: AcpChatsDeps["allowedTools"];
+    passServer?: AcpChatsDeps["passServer"];
     openUrl?: AcpChatsDeps["openUrl"];
     stopWaitMs?: number;
     authMethod?: string;
@@ -70,6 +71,7 @@ function setup(
       ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
       ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
+      ...(opts.passServer ? { passServer: opts.passServer } : {}),
       ...(opts.openUrl ? { openUrl: opts.openUrl } : {}),
       ...(opts.stopWaitMs !== undefined ? { stopWaitMs: opts.stopWaitMs } : {}),
       report: (line) => logged.push(line),
@@ -144,6 +146,7 @@ function setup(
     say,
     stored,
     restart,
+    dir,
   };
 }
 
@@ -655,5 +658,55 @@ describe("ACP agents (plan 020)", () => {
     await until(() => s.events().filter((e) => e.kind === "turn_end").length === 2);
     expect(opened).toHaveLength(1);
     expect(s.words()).toContain("sign-in decline");
+  });
+});
+
+describe("covers plan 061: a background pass on an ACP agent", () => {
+  const ENGINE = { kind: "acp" as const, agent: "fake", model: "default", session_id: null };
+  const LOKI_SERVER = { type: "http" as const, name: "loki", url: "http://127.0.0.1:9/mcp", headers: [] };
+  const pass = (dir: string, prompt: string, over: { tools?: string[]; timeoutMs?: number } = {}) => ({
+    agentId: "ada",
+    chatId: "reflection-ada-acp",
+    title: "reflection",
+    engine: ENGINE,
+    cwd: dir,
+    instructions: "keep what will matter later",
+    tools: over.tools ?? ["memory_write"],
+    prompt,
+    timeoutMs: over.timeoutMs ?? 10_000,
+  });
+
+  test("it runs in a hidden chat of its own, with the job's instructions as the system prompt, and a new session each run", async () => {
+    const s = setup({ systemPrompt: () => "the agent's persona" });
+    expect(await s.acp.runPass(pass(s.dir, "prompt? first run"))).toBe("system: keep what will matter later | first: prompt? first run");
+    expect(await s.acp.runPass(pass(s.dir, "prompt? second run"))).toBe("system: keep what will matter later | first: prompt? second run");
+    const { store, conversation } = await s.stored("reflection-ada-acp");
+    expect(await store.chatInfo(conversation.id, ctx)).toMatchObject({ hidden: true, engine: { kind: "acp", agent: "fake" } });
+  });
+
+  test("its session gets only loki's server with the job's tools, never the agent's other servers", async () => {
+    const asked: string[][] = [];
+    const s = setup({
+      mcpServers: () => Promise.resolve([{ type: "http", name: "notion", url: "http://127.0.0.1:9/notion", headers: [] }]),
+      allowedTools: () => ["mcp__notion__search"],
+      passServer: (_agentId, _chatId, tools) => (asked.push([...tools]), LOKI_SERVER),
+    });
+    expect(await s.acp.runPass(pass(s.dir, "mcp?"))).toBe("mcp: loki http://127.0.0.1:9/mcp | allowed: mcp__loki__memory_write");
+    expect(asked).toEqual([["memory_write"]]);
+    // A job with no tools (Learn) gets no server at all.
+    expect(await s.acp.runPass(pass(s.dir, "mcp?", { tools: [] }))).toBe("mcp: none | allowed: none");
+  });
+
+  test("whatever the agent asks permission for is refused, and no approval card waits for anyone", async () => {
+    const s = setup();
+    const said = await s.acp.runPass(pass(s.dir, "edit"));
+    // The fake says "not edited" when its request was rejected, "cancelled" when it got no answer.
+    expect(said).toBe("not edited");
+    expect(s.approvals.waitingIn("ada", "reflection-ada-acp")).toEqual([]);
+  });
+
+  test("a turn past its time is stopped and the run fails, as on loki's engine", async () => {
+    const s = setup({ stopWaitMs: 50 });
+    await expect(s.acp.runPass(pass(s.dir, "deaf", { timeoutMs: 200 }))).rejects.toThrow(/did not finish within/);
   });
 });

@@ -9,7 +9,8 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
 import { unansweredWhy } from "./chat-events.ts";
 import type { StoreManager } from "./kernel/stores.ts";
-import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget } from "./memory.ts";
+import { ACP_PASS_SUFFIX, isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget } from "./memory.ts";
+import type { ChatEngine } from "./kernel/index.ts";
 import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
 import { modelRef } from "./loki-engine.ts";
 import { createHash } from "node:crypto";
@@ -122,6 +123,16 @@ interface Deps {
    * Absent, every model is taken as reachable.
    */
   canRun?(model: string): Promise<boolean>;
+  /**
+   * Where a pass runs when the agent's model cannot be reached (plan 061): on the agent's ACP agent (Claude Code,
+   * Cursor), when it has one and the person has not turned this off. Absent, such an agent's passes are skipped.
+   */
+  acp?: {
+    /** The engine of the agent's newest chat on an ACP agent, or null when it has none loki can run. */
+    engineFor(agentId: string): Promise<ChatEngine | null>;
+    /** One pass turn there: the agent's last words, and the loki tools it ran. */
+    ask(agentId: string, engine: ChatEngine, spec: PassSpec & { timeoutMs: number }): Promise<PassAnswer>;
+  };
   capture?(event: string, properties: Record<string, unknown>): void;
   report?(message: string): void;
   now?(): Date;
@@ -130,6 +141,19 @@ interface Deps {
   runTimeoutMs?: number;
   batchEveryMs?: number;
 }
+
+/** What a pass asks in its hidden chat: the chat, its instructions and tools, and the prompt. */
+export interface PassSpec {
+  chatId: string;
+  title: string;
+  instructions: string;
+  tools: readonly string[];
+  prompt: string;
+  requestId: string;
+}
+
+/** Where a pass runs: loki's engine on the agent's model, or the agent's ACP agent when that model is out of reach. */
+type PassEngine = { kind: "loki" } | { kind: "acp"; engine: ChatEngine };
 
 /** How a run ended: it wrote something, wrote nothing, hit Learn's cap (cursors stay), failed (tried again after a quiet spell), or was skipped (already queued, or its chats busy). */
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
@@ -360,8 +384,9 @@ export class PassRunner {
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
-      // No model to run on: nothing to report or retry, and nothing read (the cursors stay for when there is one).
-      if (this.deps.canRun && !(await this.deps.canRun(record?.model ?? ""))) return "skipped";
+      // Nothing to run on: nothing to report or retry, and nothing read (the cursors stay for when there is one).
+      const on = await this.engineFor(agentId, record?.model ?? "");
+      if (!on) return "skipped";
       const agentName = record?.name ?? null;
       const gathered = await this.gather(job, agentId, chatIds, agentName, force);
       parts = gathered.parts;
@@ -382,7 +407,7 @@ export class PassRunner {
         .digest("hex")
         .slice(0, 12);
       requestId = `pass:${job.name}:${agentId}:${which}:${started.getTime().toString(36)}`;
-      const answer = await this.ask(agentId, record?.model ?? "", {
+      const answer = await this.ask(agentId, record?.model ?? "", on, {
         chatId: job.chatId(agentId),
         title: job.title,
         instructions: job.instructions,
@@ -397,7 +422,7 @@ export class PassRunner {
       if (gathered.leftover) this.backlog.add(agentKey);
       else this.backlog.delete(agentKey);
       const wrote = Object.values(result.items).reduce((n, v) => n + v, 0);
-      return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { items: result.items });
+      return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { items: result.items, engine: engineName(on) });
     } catch (error) {
       // Each chat waits a quiet spell before it is tried again (due); not the batch gap too, or a failure costs hours.
       for (const c of parts.length ? parts.map((p) => p.chatId) : chatIds) this.failedAt.set(keyOf(c), this.now().getTime());
@@ -407,14 +432,27 @@ export class PassRunner {
   }
 
   /**
+   * Where a pass for this agent runs: loki's engine when its model can be reached; else its ACP agent, while the
+   * person lets passes run there (plan 061); else nowhere, and the pass is skipped.
+   */
+  private async engineFor(agentId: string, model: string): Promise<PassEngine | null> {
+    if (!this.deps.canRun || (await this.deps.canRun(model))) return { kind: "loki" };
+    if (!this.deps.acp || !this.deps.state.settings().acp.enabled) return null;
+    const engine = await this.deps.acp.engineFor(agentId);
+    return engine ? { kind: "acp", engine } : null;
+  }
+
+  /**
    * Ask the agent something in a pass's hidden chat, cleared first and set up with the pass's instructions and tools,
    * and read back what it said and which tools it called. A run past the time limit is stopped and fails.
    */
-  private async ask(
-    agentId: string,
-    agentModel: string,
-    spec: { chatId: string; title: string; instructions: string; tools: readonly string[]; prompt: string; requestId: string },
-  ): Promise<PassAnswer> {
+  private async ask(agentId: string, agentModel: string, on: PassEngine, spec: PassSpec): Promise<PassAnswer> {
+    const timeoutMs = this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS;
+    // The time after the prompt (plan 057): what the pass writes is dated by it, and nothing else in its chat says it.
+    const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
+    // On an ACP agent the pass has a chat of its own: an engine is fixed at a chat's first message (plan 020, KD4).
+    if (on.kind === "acp" && this.deps.acp)
+      return this.deps.acp.ask(agentId, on.engine, { ...spec, prompt: content, chatId: `${spec.chatId}${ACP_PASS_SUFFIX}`, timeoutMs });
     const { context } = this.deps;
     const store = await this.deps.stores.get(agentId);
     const model = modelRef(agentModel);
@@ -439,8 +477,6 @@ export class PassRunner {
     // submission, never alongside it: the run's own entries must all come after it, or some would be skipped.
     const before = await store.newestEntryId(chat, context);
     // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-    // The time after the prompt (plan 057): what the pass writes is dated by it, and nothing else in its chat says it.
-    const content = `${spec.prompt}\n\n${daemonTimeReminder(this.now())}`;
     const submission = await chat.submit({ type: "input", content, requestId: spec.requestId }, context);
     // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
     const limited = withCancel(context);
@@ -502,16 +538,18 @@ export class PassRunner {
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
-      if (this.deps.canRun && !(await this.deps.canRun(record?.model ?? "")))
+      const on = await this.engineFor(agentId, record?.model ?? "");
+      if (!on)
         return finish({
           outcome: "skipped",
           changes: 0,
-          report: "the memory review runs on the agent's own model, and it has none loki can reach; connect a provider in Preferences › Providers",
+          report:
+            "the memory review runs on the agent's own model or, without one, on the agent's Claude Code or Cursor chats, and it has neither loki can reach; connect a provider in Preferences › Providers",
         });
       const root = memoryRoot(this.deps.backendDir, agentId);
       const dump = memoryDump(root);
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
-      const answer = await this.ask(agentId, record?.model ?? "", {
+      const answer = await this.ask(agentId, record?.model ?? "", on, {
         chatId: doctorChatId(agentId),
         title: "doctor",
         instructions: DOCTOR_INSTRUCTIONS,
@@ -521,7 +559,7 @@ export class PassRunner {
       });
       const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
       const report = answer.text || (changes ? `${changes} change${changes === 1 ? "" : "s"} to memory` : "memory looks healthy");
-      return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars });
+      return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars, engine: engineName(on) });
     } catch (error) {
       this.deps.report?.(`memory review of ${agentId} failed: ${String(error)}`);
       return finish({ outcome: "failed", changes: 0, report: `the memory review did not finish: ${messageOf(error)}` });
@@ -559,3 +597,6 @@ export class PassRunner {
     return { ...fit, transcript: fit.transcript.slice(0, MAX_MATERIAL_CHARS) };
   }
 }
+
+/** The engine a run went to, as its telemetry names it: `loki`, or `acp:<agent>`. */
+const engineName = (on: PassEngine): string => (on.kind === "loki" ? "loki" : `acp:${on.engine.agent}`);

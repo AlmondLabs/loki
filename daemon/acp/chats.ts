@@ -11,7 +11,7 @@ import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView } from "../../core/frame-types.ts";
-import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
+import { LOKI_TOOLS_SERVER, LokiTools } from "./loki-tools.ts";
 import type { AcpAgentConfig } from "./agents.ts";
 import { AcpCatalog, selectOptions } from "./catalog.ts";
 import { AcpProcess } from "./process.ts";
@@ -50,6 +50,8 @@ export interface AcpChatsDeps {
   openUrl?: (url: string) => void;
   /** Tools the agent runs without asking (plan 044): those that only read, as Claude Code names them. */
   allowedTools?: (agentId: string) => string[];
+  /** loki's tool server limited to a background pass's own tools (plan 061); absent, a pass gets no tools. */
+  passServer?: (agentId: string, conversationId: string, tools: readonly string[]) => acp.McpServer | null;
   /** Analytics: each turn's `turn_finished` line (daemon/telemetry.ts); absent, nothing is recorded. */
   capture?: (event: string, properties: Record<string, unknown>) => void;
   /** Where each line the agents write to stderr goes, named by agent, so a hang can be traced; absent, nowhere. */
@@ -128,6 +130,34 @@ interface Live {
   commands: acp.AvailableCommand[];
   /** The agent's running total of dollars for the session (it reports the total, not each turn's). */
   costSoFar: number;
+  /**
+   * A background pass's hidden chat (plan 061): its session opens with the job's instructions and only the job's
+   * tools, and every permission the agent asks for is refused without a card.
+   */
+  pass: { instructions: string; tools: readonly string[] } | null;
+}
+
+/** What one turn came to: the agent's last words, and why it failed or null. */
+interface TurnOutcome {
+  text: string;
+  error: string | null;
+}
+
+/** What a background pass asks of an ACP agent (plan 061), in a hidden chat of its own. */
+export interface PassRun {
+  agentId: string;
+  /** The pass's hidden chat, made on first use. */
+  chatId: string;
+  title: string;
+  engine: ChatEngine;
+  /** The folder the session runs in: the agent's memory, so what the agent reads without asking is the pass's own. */
+  cwd: string;
+  instructions: string;
+  /** loki's tools the job may call, by loki's names; empty for none. */
+  tools: readonly string[];
+  prompt: string;
+  /** How long the turn may take before it is stopped and the run fails. */
+  timeoutMs: number;
 }
 
 const key = (agentId: string, conversationId: string) => `${agentId}\u0000${conversationId}`;
@@ -355,6 +385,7 @@ export class AcpChats {
         configOptions: [],
         commands: [],
         costSoFar: 0,
+        pass: null,
       };
       this.live.set(key(agentId, conversationId), live);
     }
@@ -433,7 +464,50 @@ export class AcpChats {
   }
 
   private enqueue(live: Live, text: string, images: PayloadOf<"chat_send">["images"]): void {
-    live.queue = live.queue.then(() => this.run(live, text, images)).catch(() => {});
+    live.queue = live.queue
+      .then(() => this.run(live, text, images))
+      .then(() => {})
+      .catch(() => {});
+  }
+
+  /**
+   * A background pass on an ACP agent (plan 061): its hidden chat, made on first use in the agent's memory folder and
+   * put on the engine given, starts a new session each run, with the job's instructions and only its tools, and the
+   * agent's last words come back. A run past `timeoutMs` is stopped and fails, as one on loki's engine does.
+   */
+  async runPass(p: PassRun): Promise<string> {
+    const { context } = this.deps;
+    const store = await this.deps.stores.get(p.agentId);
+    if (!(await store.chat(p.chatId, context))) await store.createChat(p.chatId, { title: p.title, hidden: true, agent: { cwd: p.cwd } }, context);
+    const engine: ChatEngine = { ...p.engine, session_id: null };
+    await store.updateChat(p.chatId, { engine }, context);
+    const live = this.liveOf(p.agentId, p.chatId, engine);
+    // A new session each run, as a pass chat on loki's engine is cleared first: nothing carries over between runs.
+    if (live.sessionId) this.bySession.delete(live.sessionId);
+    live.sessionId = null;
+    live.agent = engine.agent;
+    live.model = engine.model;
+    live.effort = engine.effort ?? null;
+    live.pass = { instructions: p.instructions, tools: p.tools };
+    const ran = live.queue.then(() => this.run(live, p.prompt, []));
+    live.queue = ran.then(
+      () => {},
+      () => {},
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        this.abort(p.agentId, p.chatId);
+        reject(new Error(`the pass did not finish within ${Math.round(p.timeoutMs / 1000)}s`));
+      }, p.timeoutMs);
+    });
+    try {
+      const outcome = await Promise.race([ran, late]);
+      if (outcome.error) throw new Error(`the pass did not finish: ${outcome.error}`);
+      return outcome.text;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
@@ -526,16 +600,23 @@ export class AcpChats {
     const settings = (await store.agentSettings(chat.id, this.deps.context)) as { cwd?: string } | undefined;
     const cwd = settings?.cwd ?? this.deps.homeDir;
     const takesPrompt = Boolean(caps.sessionCapabilities?.systemPrompt);
-    const mcpServers = (this.deps.mcpServers ? await this.deps.mcpServers(live.agentId, live.conversationId) : []).filter((m) =>
+    const pass = live.pass;
+    const servers = pass
+      ? [this.deps.passServer && pass.tools.length ? this.deps.passServer(live.agentId, live.conversationId, pass.tools) : null].filter((m) => m !== null)
+      : this.deps.mcpServers
+        ? await this.deps.mcpServers(live.agentId, live.conversationId)
+        : [];
+    const mcpServers = servers.filter((m) =>
       !("type" in m) ? true : m.type === "http" ? Boolean(caps.mcpCapabilities?.http) : m.type === "sse" ? Boolean(caps.mcpCapabilities?.sse) : false,
     );
-    const prompt =
-      this.deps.systemPrompt?.(
-        live.agentId,
-        mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER),
-      ) ?? null;
+    const prompt = pass
+      ? pass.instructions
+      : (this.deps.systemPrompt?.(
+          live.agentId,
+          mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER),
+        ) ?? null);
     const systemPrompt = prompt && takesPrompt ? { systemPrompt: { mode: "append" as const, content: [{ type: "text" as const, text: prompt }] } } : {};
-    const allowedTools = this.deps.allowedTools?.(live.agentId) ?? [];
+    const allowedTools = pass ? LokiTools.named(pass.tools) : (this.deps.allowedTools?.(live.agentId) ?? []);
     // Claude's adapter takes the tools it may run without asking as one of its options; another agent ignores it.
     const meta = allowedTools.length ? { _meta: { claudeCode: { options: { allowedTools } } } } : {};
     const opening = { cwd, mcpServers, ...systemPrompt, ...meta };
@@ -588,10 +669,13 @@ export class AcpChats {
     return opened.sessionId;
   }
 
-  /** One turn: the message written and shown, sent to the agent, and the chat settled when it answers or fails. */
-  private async run(live: Live, text: string, images: PayloadOf<"chat_send">["images"]): Promise<void> {
+  /**
+   * One turn: the message written and shown, sent to the agent, and the chat settled when it answers or fails. What it
+   * comes to: the agent's last words, and why it failed or null; a background pass reads both (plan 061).
+   */
+  private async run(live: Live, text: string, images: PayloadOf<"chat_send">["images"]): Promise<TurnOutcome> {
     const { store, chat, info } = await this.chat(live.agentId, live.conversationId);
-    if (info.engine?.kind !== "acp") return;
+    if (info.engine?.kind !== "acp") return { text: "", error: "the chat is not on an ACP agent" };
     const proc = this.process(live.agent);
     const turn: Turn = {
       id: `acp-${randomUUID()}`,
@@ -622,6 +706,7 @@ export class AcpChats {
     await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
     let usage: acp.Usage | null = null;
     let stopReason: acp.StopReason | null = null;
+    const outcome: TurnOutcome = { text: "", error: null };
     try {
       const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine), turn.abort.signal, this.stopWaitMs);
       const caps = await proc.capabilities();
@@ -636,7 +721,8 @@ export class AcpChats {
       const response = await unlessStopped(proc.prompt({ sessionId, prompt }), turn.abort.signal, this.stopWaitMs);
       usage = response.usage ?? null;
       stopReason = response.stopReason;
-      await this.finish(live, store, chat, turn, usage, info.engine);
+      outcome.text = await this.finish(live, store, chat, turn, usage, info.engine);
+      if (response.stopReason !== "end_turn") outcome.error = stopNote(response.stopReason) ?? `the agent stopped: ${response.stopReason}`;
       this.catalog.went(live.agent, { status: "ready", detail: null });
       const note = stopNote(response.stopReason);
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
@@ -645,10 +731,12 @@ export class AcpChats {
       if (error instanceof Stopped) {
         // The agent may still be working on it; the chat no longer waits.
         stopReason = "cancelled";
+        outcome.error = "the turn was stopped";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "the agent did not answer the stop, so loki ended the turn without it" }]);
-        return;
+        return outcome;
       }
       const message = proc.failure(error).message;
+      outcome.error = message;
       this.catalog.went(live.agent, { status: "failed", detail: message.split("\n")[0] });
       this.push(live.agentId, live.conversationId, [{ kind: "error", message }]);
     } finally {
@@ -657,6 +745,7 @@ export class AcpChats {
       this.push(live.agentId, live.conversationId, [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turn_id: turn.id }]);
       this.measure(live, turn, info.engine, usage, stopReason);
     }
+    return outcome;
   }
 
   /** The turn's `turn_finished` line: what the agent reported, and what loki saw go by. */
@@ -690,8 +779,8 @@ export class AcpChats {
     );
   }
 
-  /** The end of a turn: calls left open fail, the plan and the last words are written, and the usage counted. */
-  private async finish(live: Live, store: AgentStore, chat: Conversation, turn: Turn, usage: acp.Usage | null, engine: ChatEngine): Promise<void> {
+  /** The end of a turn: calls left open fail, the plan and the last words are written, and the usage counted; the words. */
+  private async finish(live: Live, store: AgentStore, chat: Conversation, turn: Turn, usage: acp.Usage | null, engine: ChatEngine): Promise<string> {
     await Promise.allSettled(turn.writes);
     // One at a time, in the order the calls were made: the thread is read back in the order its entries were written.
     for (const [id, call] of turn.calls) {
@@ -745,6 +834,7 @@ export class AcpChats {
         : null;
     if (entries.length || add)
       await store.appendEntries(chat, entries, add ? { model: `acp:${engine.agent}/${turn.model ?? engine.model}`, add } : null, this.deps.context);
+    return words;
   }
 
   /** A tool call that finished (or never will): its call and its result written, and the result shown. */
@@ -942,6 +1032,11 @@ export class AcpChats {
   private async permission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse> {
     const live = this.bySession.get(r.sessionId);
     if (!live?.turn) return { outcome: { outcome: "cancelled" } };
+    // A pass has no one to ask: whatever the agent would do beyond its job's tools is refused (plan 061).
+    if (live.pass) {
+      const reject = r.options.find((o) => o.kind === "reject_once") ?? r.options.find((o) => o.kind === "reject_always");
+      return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };
+    }
     const call = live.turn.calls.get(r.toolCall.toolCallId);
     const event = {
       kind: "approval" as const,
