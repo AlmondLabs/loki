@@ -72,7 +72,7 @@ export class AcpEngine implements Engine {
     await this.deps.acp.setModel(c.agentId, c.conversationId, wanted.model, p.reasoning_effort);
     if (!sameAgent) {
       // The agent's own modes replace loki's: its first until its session says which one it is in.
-      const view = this.deps.acp.view(c.agentId, c.conversationId, next);
+      const view = this.deps.acp.view(next);
       this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: view, ...(view.modes.length ? { mode: view.modes[0].id } : {}) }]);
     }
     // Its session opened now, before anything is said, tells the picker the agent's models and effort levels.

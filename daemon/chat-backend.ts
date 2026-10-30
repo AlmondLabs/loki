@@ -145,9 +145,16 @@ export class DaemonChats implements ChatBackend {
 
   /** A chat with the engine it runs on: an ACP agent when it names one and the daemon runs them, else loki's own. */
   private async resolve(agentId: string, conversationId: string): Promise<{ c: EngineChat; engine: Engine }> {
+    const found = await this.find(agentId, conversationId);
+    if (!found) throw new Error(`no chat ${conversationId} for ${agentId}`);
+    return found;
+  }
+
+  /** As `resolve`, or null when the agent has no such chat. */
+  private async find(agentId: string, conversationId: string): Promise<{ c: EngineChat; engine: Engine } | null> {
     const store = await this.deps.stores.get(agentId);
     const chat = await store.chat(conversationId, this.deps.context);
-    if (!chat) throw new Error(`no chat ${conversationId} for ${agentId}`);
+    if (!chat) return null;
     const saved = (await store.chatInfo(chat.id, this.deps.context))?.engine;
     const onAcp = saved?.kind === "acp" && this.acpEngine ? { saved, engine: this.acpEngine } : null;
     return { c: { agentId, conversationId, store, chat, engine: onAcp?.saved ?? null }, engine: onAcp?.engine ?? this.loki };
@@ -234,10 +241,9 @@ export class DaemonChats implements ChatBackend {
 
   /** Whether a turn is running in a chat, or waits on the person (the background passes leave such a chat alone). */
   async busy(agentId: string, conversationId: string): Promise<boolean> {
-    const store = await this.deps.stores.get(agentId);
-    if (!(await store.chat(conversationId, this.deps.context))) return false;
-    const { c, engine } = await this.resolve(agentId, conversationId);
-    return engine.busy(c);
+    // Each engine's busy counts an approval or question waiting too.
+    const found = await this.find(agentId, conversationId);
+    return found ? found.engine.busy(found.c) : false;
   }
 
   /**
@@ -520,7 +526,7 @@ export class DaemonChats implements ChatBackend {
 
   /** A chat copied out for another Mac, or `busy` while a turn runs or an approval waits, when it must wait to move. */
   async exportChat(agentId: string, chatId: string): Promise<{ chat: MovedChat | null; busy: boolean }> {
-    if ((await this.busy(agentId, chatId)) || this.deps.approvals.waitingIn(agentId, chatId).length > 0) return { chat: null, busy: true };
+    if (await this.busy(agentId, chatId)) return { chat: null, busy: true };
     const store = await this.deps.stores.get(agentId);
     const schedules = (this.deps.schedules?.list() ?? []).filter((t) => t.status === "active" && t.agent_id === agentId && t.conversation_id === chatId);
     const cursors: Record<string, number> = {};

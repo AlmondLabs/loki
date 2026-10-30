@@ -2,19 +2,18 @@ import type { Context } from "@earendil-works/chord";
 import type { Conversation } from "@earendil-works/pi-durable";
 import type * as acp from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { contentText } from "../../core/harness.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import { messageSteps } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
-import { REASONING_EFFORTS, type ChatEngineView, type ModelEntry, type ReasoningEffort } from "../../core/models.ts";
+import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
 import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
-import type { EnginesView, EngineView } from "../../core/frame-types.ts";
+import type { EnginesView } from "../../core/frame-types.ts";
 import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
-import { builtInAgent, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
+import type { AcpAgentConfig } from "./agents.ts";
+import { AcpCatalog, selectOptions } from "./catalog.ts";
 import { AcpProcess } from "./process.ts";
 import { acpTurnProperties } from "../telemetry.ts";
 
@@ -65,30 +64,6 @@ export interface AcpChatsDeps {
    */
   cacheFile?: string;
   now?: () => Date;
-}
-
-/** What an agent offered in its last session: the model picker's and the mode chip's choices, and its commands. */
-interface Offered {
-  models: Array<{ value: string; name: string; description: string | null }>;
-  modes: ChatEngineView["modes"];
-  commands: ChatEngineView["commands"];
-  /**
-   * Each model's effort levels, by the model's value, as its `thought_level` option listed them (plan 021, R4). A
-   * session reports only its current model's, so they gather as models are used; absent from a cache written
-   * before this field.
-   */
-  efforts?: Record<string, string[]>;
-}
-
-/** An agent's effort levels that loki has words for, least to most; its own "default" and any others are left out. */
-function knownEfforts(levels: string[] | undefined): ReasoningEffort[] {
-  return REASONING_EFFORTS.filter((e) => levels?.includes(e));
-}
-
-/** A select option list, its groups flattened. */
-function selectOptions(option: acp.SessionConfigOption | undefined): Offered["models"] {
-  if (option?.type !== "select") return [];
-  return option.options.flatMap((o) => ("options" in o ? o.options : [o])).map((o) => ({ value: o.value, name: o.name, description: o.description ?? null }));
 }
 
 /** A tool call in the turn running now: shown as it changes, written when it finishes. */
@@ -225,9 +200,8 @@ export class AcpChats {
   /** Who waits for a session to be registered: a sign-in it asks for while it opens (see `elicit`). */
   private readonly registering = new Map<string, Array<(live: Live) => void>>();
   private readonly processes = new Map<string, AcpProcess>();
-  private readonly offered: Map<string, Offered>;
-  /** How each agent last went: a message through, a start, or a failure with its reason (Settings › Engines). */
-  private readonly health = new Map<string, { status: "ready" | "started" | "failed"; detail: string | null }>();
+  /** The agents loki knows, how each stands, and what each offered (daemon/acp/catalog.ts). */
+  private readonly catalog: AcpCatalog;
   /** How long Stop waits for the agent to answer it. */
   private readonly stopWaitMs: number;
   private readonly deps: AcpChatsDeps;
@@ -235,21 +209,12 @@ export class AcpChats {
   constructor(deps: AcpChatsDeps) {
     this.deps = deps;
     this.stopWaitMs = deps.stopWaitMs ?? STOP_WAIT_MS;
-    this.offered = new Map(Object.entries(this.readCache()));
+    this.catalog = new AcpCatalog({ agents: deps.agents, configFile: deps.configFile, cacheFile: deps.cacheFile });
   }
 
-  private readCache(): Record<string, Offered> {
-    try {
-      const parsed: unknown = this.deps.cacheFile ? JSON.parse(readFileSync(this.deps.cacheFile, "utf8")) : null;
-      return parsed && typeof parsed === "object" ? (parsed as Record<string, Offered>) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  /** Remember what a session offers, for the picker and for chats whose agent is not running now. */
+  /** Tell the catalog what a session offers, for the picker and for chats whose agent is not running now. */
   private remember(live: Live): void {
-    const known = this.offered.get(live.agent);
+    const known = this.catalog.offeredBy(live.agent);
     const modeOption = live.configOptions.find((o) => o.category === "mode");
     const modelOption = live.configOptions.find((o) => o.category === "model");
     const effortOption = live.configOptions.find((o) => o.category === "thought_level");
@@ -261,7 +226,7 @@ export class AcpChats {
       // Filed under the model the agent says it is on, and under the chat's own name for it ("default").
       for (const model of new Set([modelOption?.type === "select" ? modelOption.currentValue : null, live.model])) if (model) efforts[model] = levels;
     }
-    const next: Offered = {
+    this.catalog.offer(live.agent, {
       models: selectOptions(modelOption),
       modes: live.modes
         ? live.modes.availableModes.map((m) => ({ id: m.id, name: m.name, description: m.description ?? null }))
@@ -270,76 +235,26 @@ export class AcpChats {
         ? live.commands.map((c) => ({ name: c.name, description: c.description, hint: c.input?.hint ?? null }))
         : (known?.commands ?? []),
       ...(Object.keys(efforts).length ? { efforts } : {}),
-    };
-    if (JSON.stringify(next) === JSON.stringify(known)) return;
-    this.offered.set(live.agent, next);
-    if (!this.deps.cacheFile) return;
-    try {
-      mkdirSync(dirname(this.deps.cacheFile), { recursive: true });
-      writeFileSync(this.deps.cacheFile, `${JSON.stringify(Object.fromEntries(this.offered), null, 2)}\n`);
-    } catch {
-      // Only a convenience: the next session offers them again.
-    }
+    });
   }
 
   /** Settings › Engines: every agent, how it starts and how it stands. */
   engines(): EnginesView {
-    return {
-      engines: this.deps.agents().map((a): EngineView => {
-        const shipped = builtInAgent(a.id);
-        const builtin = shipped !== undefined;
-        const health = this.health.get(a.id);
-        const failed = health?.status === "failed" ? (health.detail ?? "") : null;
-        // An agent that needs signing in says so in its own words; loki only tells the two kinds of failure apart.
-        const signedOut = failed !== null && /auth|sign.?in|log.?in|credential/i.test(failed);
-        const status: EngineView["status"] = !commandFound(a.command, { ...process.env, ...a.env })
-          ? "not_found"
-          : signedOut
-            ? "signed_out"
-            : (health?.status ?? "unknown");
-        const detail =
-          status === "not_found"
-            ? `${a.command} is not on loki's PATH${a.command === "npx" ? "; install Node" : ""}`
-            : status === "signed_out"
-              ? a.login
-                ? `run ${a.login} in a terminal, then send again`
-                : `sign in to ${a.name}, then send again`
-              : (health?.detail ?? null);
-        const changed = builtin && JSON.stringify(a) !== JSON.stringify(shipped);
-        return { id: a.id, name: a.name, command: a.command, args: a.args, builtin, changed, status, detail };
-      }),
-      config_path: this.deps.configFile ?? "",
-    };
+    return this.catalog.engines();
   }
 
-  private editAgents(change: (agents: AcpAgentConfig[]) => AcpAgentConfig[], id: string): EnginesView {
-    if (!this.deps.configFile) throw new Error("this daemon keeps no agents file");
-    writeAcpAgents(this.deps.configFile, change(readAcpAgents(this.deps.configFile)));
-    // The next message starts it the new way.
-    void this.processes.get(id)?.close();
-    this.processes.delete(id);
-    this.health.delete(id);
-    return this.engines();
-  }
-
-  /**
-   * Add an agent, or change how one starts (a built-in one's change is kept as an override of it). What Settings does
-   * not show (its environment, its sign-in method and command) is kept from the agent as it was.
-   */
+  /** Add an agent, or change how one starts; its process starts again the new way on the next message. */
   setEngine(agent: AcpAgentConfig): Promise<EnginesView> {
-    return Promise.resolve(
-      this.editAgents((agents) => {
-        const { env, auth_method, login } = agents.find((a) => a.id === agent.id) ?? {};
-        const kept = { ...(env ? { env } : {}), ...(auth_method ? { auth_method } : {}), ...(login ? { login } : {}) };
-        return [...agents.filter((a) => a.id !== agent.id), { ...kept, ...agent }];
-      }, agent.id),
-    );
+    this.catalog.set(agent);
+    this.restart(agent.id);
+    return Promise.resolve(this.catalog.engines());
   }
 
   /** Remove an agent; a built-in one goes back to how loki ships it. */
   removeEngine(id: string): Promise<EnginesView> {
-    const shipped = builtInAgent(id);
-    return Promise.resolve(this.editAgents((agents) => [...(shipped ? [shipped] : []), ...agents.filter((a) => a.id !== id)], id));
+    this.catalog.remove(id);
+    this.restart(id);
+    return Promise.resolve(this.catalog.engines());
   }
 
   /** Start an agent afresh and initialize it, to see that it starts; sign-in shows only on a first message. */
@@ -348,28 +263,27 @@ export class AcpChats {
     await proc.close();
     try {
       await proc.capabilities();
-      if (this.health.get(id)?.status !== "ready") this.health.set(id, { status: "started", detail: "it starts; sign-in shows on the first message" });
+      if (this.catalog.healthOf(id)?.status !== "ready") this.catalog.went(id, { status: "started", detail: "it starts; sign-in shows on the first message" });
     } catch (error) {
-      this.health.set(id, { status: "failed", detail: proc.failure(error).message });
+      this.catalog.went(id, { status: "failed", detail: proc.failure(error).message });
     }
-    return this.engines();
+    return this.catalog.engines();
+  }
+
+  /** The agent's process goes, so the next message starts it as its settings now say. */
+  private restart(id: string): void {
+    void this.processes.get(id)?.close();
+    this.processes.delete(id);
   }
 
   /** The chat's engine as the app shows it: the agent's name, the model, and its modes and commands. */
-  view(agentId: string, conversationId: string, engine: ChatEngine): ChatEngineView {
-    const offered = this.offered.get(engine.agent);
-    return {
-      agent: engine.agent,
-      name: this.agent(engine.agent)?.name ?? engine.agent,
-      model: engine.model,
-      modes: offered?.modes ?? [],
-      commands: offered?.commands ?? [],
-    };
+  view(engine: Pick<ChatEngine, "agent" | "model">): ChatEngineView {
+    return this.catalog.view(engine);
   }
 
   /** Tell every client the chat's engine changed (its modes or commands arrived), and its mode when that is known. */
   private pushView(live: Live, engine: Pick<ChatEngine, "agent" | "model">, mode?: string): void {
-    const view = this.view(live.agentId, live.conversationId, { kind: "acp", session_id: null, ...engine });
+    const view = this.catalog.view(engine);
     this.push(live.agentId, live.conversationId, [{ kind: "device", engine: view, ...(mode ? { mode } : {}) }]);
   }
 
@@ -380,32 +294,9 @@ export class AcpChats {
     return option?.type === "select" ? option.currentValue : null;
   }
 
-  /**
-   * Each ACP agent's models for the model picker: what it offered last, or its default before it has run. Its
-   * default is featured, so the agent is among the quick picks. A model whose effort levels are known is one entry
-   * per level, as loki's own presets are (plan 021, R4). An agent that has never run and is not installed is left out,
-   * so a built-in one the person does not have is no quick pick (plan 048).
-   */
+  /** Each ACP agent's models for the model picker (AcpCatalog.models). */
   models(): ModelEntry[] {
-    return this.deps.agents().flatMap((agent) => {
-      const offered = this.offered.get(agent.id);
-      if (!offered && !commandFound(agent.command, { ...process.env, ...agent.env })) return [];
-      const models = offered?.models ?? [];
-      const choices = models.some((m) => m.value === "default") ? models : [{ value: "default", name: "Default", description: null }, ...models];
-      return choices.flatMap((m) => {
-        const handle = `acp:${agent.id}/${m.value}`;
-        const entry: ModelEntry = {
-          id: handle,
-          handle,
-          label: m.value === "default" ? agent.name : `${agent.name} · ${m.name}`,
-          // Its default says what the agent is; its other models are under the agent's tab, so need no such line.
-          ...(m.description ? { description: m.description } : m.value === "default" ? { description: `runs on ${agent.name}, signed in as you` } : {}),
-          ...(m.value === "default" ? { is_featured: true } : {}),
-        };
-        const efforts = knownEfforts(offered?.efforts?.[m.value]);
-        return efforts.length ? efforts.map((e): ModelEntry => ({ ...entry, id: `${handle}@${e}`, reasoning_effort: e })) : [entry];
-      });
-    });
+    return this.catalog.models();
   }
 
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void {
@@ -418,7 +309,7 @@ export class AcpChats {
 
   /** The agent named `id`, if loki knows it. */
   agent(id: string): AcpAgentConfig | undefined {
-    return this.deps.agents().find((a) => a.id === id);
+    return this.catalog.agent(id);
   }
 
   /** The agent's process, made on first use (it starts when first asked for something). */
@@ -497,7 +388,7 @@ export class AcpChats {
       turn_id: turn?.id ?? null,
       mode: info.mode ?? live?.modes?.currentModeId ?? null,
       cwd: settings?.cwd ?? null,
-      engine: info.engine?.kind === "acp" ? this.view(agentId, conversationId, info.engine) : null,
+      engine: info.engine?.kind === "acp" ? this.view(info.engine) : null,
       ...(turn?.text ? { streaming: { text: turn.text, at: turn.at } } : {}),
     };
   }
@@ -689,7 +580,7 @@ export class AcpChats {
     // The chat's mode, when it is one of the agent's; otherwise the chat takes the mode the agent is in. Read again
     // now: it may have been chosen while the agent started.
     const wanted = (await store.chatInfo(chat.id, this.deps.context))?.mode ?? info.mode;
-    const offered = this.offered.get(live.agent)?.modes ?? [];
+    const offered = this.catalog.offeredBy(live.agent)?.modes ?? [];
     if (wanted && offered.some((m) => m.id === wanted)) await this.applyMode(live, wanted).catch(() => {});
     const mode = this.currentMode(live);
     if (mode && mode !== wanted) await store.updateChat(live.conversationId, { mode }, this.deps.context);
@@ -746,7 +637,7 @@ export class AcpChats {
       usage = response.usage ?? null;
       stopReason = response.stopReason;
       await this.finish(live, store, chat, turn, usage, info.engine);
-      this.health.set(live.agent, { status: "ready", detail: null });
+      this.catalog.went(live.agent, { status: "ready", detail: null });
       const note = stopNote(response.stopReason);
       if (note) this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
     } catch (error) {
@@ -758,7 +649,7 @@ export class AcpChats {
         return;
       }
       const message = proc.failure(error).message;
-      this.health.set(live.agent, { status: "failed", detail: message.split("\n")[0] });
+      this.catalog.went(live.agent, { status: "failed", detail: message.split("\n")[0] });
       this.push(live.agentId, live.conversationId, [{ kind: "error", message }]);
     } finally {
       live.turn = null;

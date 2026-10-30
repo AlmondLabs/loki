@@ -251,7 +251,7 @@ export class ChatStore {
    */
   connect(client: ChatClient): () => void {
     this.client = client;
-    client.onStatus = (s) => {
+    const offStatus = client.onStatus((s) => {
       this.set({ status: s });
       if (s === "closed") this.linkDropped = true;
       else if (s === "open") {
@@ -264,7 +264,7 @@ export class ChatStore {
         for (const l of this.liveMap.values()) if (l.thread.settleCommands()) changed = true;
         if (changed) this.bump();
       }
-    };
+    });
     let reloadTimer: ReturnType<typeof setTimeout> | null = null;
     const off = client.onChat((rt, events) => {
       const changed = this.heard(client, rt, events);
@@ -337,6 +337,7 @@ export class ChatStore {
       cancelled = true;
       clearInterval(poll);
       offStale();
+      offStatus();
       if (reloadTimer) clearTimeout(reloadTimer);
       off();
       client.close();

@@ -440,7 +440,7 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
-  const titleRefreshes = new ScopeDebouncer();
+  const titleRefreshes = new ScopeDebouncer(1200);
   /** The background passes' own chats get no desk, and the tab does not follow them. */
   const ignored = (e: ChatRef) => passChat(e.chatId);
 
@@ -493,15 +493,11 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (ignored(e)) return;
       // The turn itself is measured by the daemon (daemon/telemetry.ts, turn_finished).
       const scope = desks.remember(e.chatId, e.agentId);
-      titleRefreshes.schedule(
-        scope,
-        () => {
-          // A chat's title can come after its first turn; tell tabs when the title or status changes.
-          const frame = listing.titleFrame(scope);
-          if (frame) broadcast(frame, scope === SHARED_SCOPE ? undefined : scope);
-        },
-        1200,
-      );
+      titleRefreshes.schedule(scope, () => {
+        // A chat's title can come after its first turn; tell tabs when the title or status changes.
+        const frame = listing.titleFrame(scope);
+        if (frame) broadcast(frame, scope === SHARED_SCOPE ? undefined : scope);
+      });
     }),
   );
 

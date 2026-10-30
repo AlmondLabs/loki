@@ -41,7 +41,11 @@ export type ChatClient = Pick<
   | "onChat"
   | "onListsStale"
   | "serverInfo"
-> & { onStatus?: (s: "connecting" | "open" | "closed") => void };
+  | "onStatus"
+>;
+
+/** The link to the daemon as a chat client reports it. */
+export type LinkStatus = "connecting" | "open" | "closed";
 
 /** A new agent as the person describes it: its name, a line about it, who it is (its persona), and its model. */
 export interface NewAgentOptions {
@@ -60,12 +64,12 @@ export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>,
  * chat's agent as it meets it, and asks `agentOf` for the rest.
  */
 export class FrameChatClient {
-  onStatus?: (s: "connecting" | "open" | "closed") => void;
   private readonly request: FrameRequest;
   private readonly agentOf: (conversationId: string) => string | null;
   private readonly unsubscribe: () => void;
   private readonly listeners = new Listeners<[rt: Runtime, events: ChatEvent[]]>();
   private readonly staleListeners = new Listeners();
+  private readonly statuses = new Listeners<[status: LinkStatus]>();
   private readonly opened = new Set<string>();
   private readonly agents = new Map<string, string>();
   private readonly openUrl: (url: string) => void;
@@ -100,7 +104,8 @@ export class FrameChatClient {
       offReconnect();
       offStale();
     };
-    queueMicrotask(() => this.onStatus?.("open"));
+    // The mod's socket is this client's link: open once it is made, so whoever listens right after hears it.
+    queueMicrotask(() => this.statuses.emit("open"));
   }
 
   private emit(rt: Runtime, events: ChatEvent[]): void {
@@ -129,6 +134,11 @@ export class FrameChatClient {
     return this.staleListeners.add(fn);
   }
 
+  /** Told how the link to the daemon stands; returns the way to stop. */
+  onStatus(fn: (status: LinkStatus) => void): () => void {
+    return this.statuses.add(fn);
+  }
+
   onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void {
     return this.listeners.add(fn);
   }
@@ -141,6 +151,7 @@ export class FrameChatClient {
   close(): void {
     this.unsubscribe();
     this.listeners.clear();
+    this.statuses.clear();
   }
 
   /** Open every chat this client follows again (after the socket came back). */

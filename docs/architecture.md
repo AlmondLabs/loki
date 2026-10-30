@@ -181,7 +181,9 @@ every chat gets, the chats, then the mods.
     as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in asks
     for its page (a URL elicitation), shown as a card and opened in the Mac's browser (`open-url.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
     `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in
-    `state/acp-offered.json` for the picker. Settings › Engines shows how each stands.
+    `state/acp-offered.json` for the picker. Settings › Engines shows how each stands. Which agents there are, how each
+    stands and what each offered is `AcpCatalog` (`catalog.ts`, plan 060), apart from running them: `AcpChats` tells
+    it what a session offered and how a turn went.
 
 ## loki's own mod
 

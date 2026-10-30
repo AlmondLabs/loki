@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { DeskRegistry } from "../mod/desks.ts";
 import { ScopeDebouncer } from "../mod/lifecycle-events.ts";
 import { join } from "node:path";
@@ -17,29 +17,24 @@ describe("lifecycle event routing", () => {
   });
 
   test("debounces each desk independently and clears pending work", () => {
-    let nextId = 0;
-    const pending = new Map<number, () => void>();
-    const debouncer = new ScopeDebouncer(
-      (callback) => {
-        const id = ++nextId;
-        pending.set(id, () => {
-          pending.delete(id);
-          callback();
-        });
-        return id as unknown as ReturnType<typeof setTimeout>;
-      },
-      (id) => pending.delete(id as unknown as number),
-    );
-    const fired: string[] = [];
-
-    debouncer.schedule("desk-a", () => fired.push("old-a"), 1200);
-    debouncer.schedule("desk-b", () => fired.push("b"), 1200);
-    debouncer.schedule("desk-a", () => fired.push("new-a"), 1200);
-    for (const callback of [...pending.values()]) callback();
-
-    expect(fired).toEqual(["b", "new-a"]);
-    debouncer.schedule("desk-c", () => fired.push("c"), 1200);
-    debouncer.clear();
-    expect(pending.size).toBe(0);
+    vi.useFakeTimers();
+    try {
+      const debouncer = new ScopeDebouncer(1200);
+      const fired: string[] = [];
+      debouncer.schedule("desk-a", () => fired.push("old-a"));
+      debouncer.schedule("desk-b", () => fired.push("b"));
+      vi.advanceTimersByTime(600);
+      debouncer.schedule("desk-a", () => fired.push("new-a")); // desk-a's clock starts again; desk-b's does not
+      vi.advanceTimersByTime(600);
+      expect(fired).toEqual(["b"]);
+      vi.advanceTimersByTime(600);
+      expect(fired).toEqual(["b", "new-a"]);
+      debouncer.schedule("desk-c", () => fired.push("c"));
+      debouncer.clear();
+      vi.advanceTimersByTime(2000);
+      expect(fired).toEqual(["b", "new-a"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

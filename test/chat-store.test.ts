@@ -28,7 +28,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const started: string[] = [];
   const answers = { approval: true };
   const client = {
-    onStatus: undefined,
+    onStatus: () => () => {},
     onChat: (fn: typeof hear) => ((hear = fn), () => {}),
     onListsStale: () => () => {},
     serverInfo: () => Promise.resolve({ version: "1", protocol: 1, commands: [] }),

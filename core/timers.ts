@@ -3,7 +3,7 @@
  *  - coalesce: the first call starts the clock and later ones join it, so a steady stream still runs every `ms`
  *    (a streamed reply redrawn, marks written, paired Macs told);
  *  - debounce: each call starts the clock again, so it runs once the stream has gone quiet (a folder still being
- *    written to, a title still settling). Per desk, mod/lifecycle-events.ts's ScopeDebouncer does the same.
+ *    written to, a title still settling). Per desk, mod/lifecycle-events.ts's ScopeDebouncer is built on it.
  */
 
 /** A pending run: `schedule` asks for it, `flush` runs it now if one is waiting, `cancel` drops it. */
