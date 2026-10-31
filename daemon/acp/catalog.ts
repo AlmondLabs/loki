@@ -7,7 +7,7 @@ import type { ChatEngine } from "../kernel/index.ts";
 import { builtInAgent, commandFound, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "./agents.ts";
 
 /**
- * The ACP agents loki knows, apart from running them (plan 020): which there are and how each starts (Settings ›
+ * The ACP agents loki knows, apart from running them (plan 020): which there are and how each starts (Preferences ›
  * Engines edits them), how each last went, and what each offered in its last session (its models, modes, commands
  * and effort levels), kept so the model picker and a chat's menus have them before the agent next starts. The chats
  * themselves (daemon/acp/chats.ts) run the agents, and tell this what a session offered and how a turn went.
@@ -36,7 +36,7 @@ export interface AgentHealth {
 export interface AcpCatalogDeps {
   /** The ACP agents loki knows (daemon/acp/agents.ts), read on each use so an added agent needs no restart. */
   agents: () => AcpAgentConfig[];
-  /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
+  /** The person's agents file (`state/acp.json`), which Preferences › Engines edits; absent, the agents cannot be edited. */
   configFile?: string;
   /** Where what each agent last offered is kept; absent, it is kept only while the daemon runs. */
   cacheFile?: string;
@@ -87,7 +87,7 @@ export class AcpCatalog {
     }
   }
 
-  /** How the agent went just now (Settings › Engines shows it). */
+  /** How the agent went just now (Preferences › Engines shows it). */
   went(agent: string, health: AgentHealth): void {
     this.health.set(agent, health);
   }
@@ -97,7 +97,7 @@ export class AcpCatalog {
     return this.health.get(agent);
   }
 
-  /** Settings › Engines: every agent, how it starts and how it stands. */
+  /** Preferences › Engines: every agent, how it starts and how it stands. */
   engines(): EnginesView {
     return {
       engines: this.deps.agents().map((a): EngineView => {

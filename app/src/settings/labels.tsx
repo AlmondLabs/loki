@@ -5,7 +5,7 @@ import { keyFor } from "../shell/keymap";
 import { LABEL_COLORS, LABEL_MAX, labelName, type LabelView } from "../../../core/labels.ts";
 import { Block, Setting } from "./layout";
 
-/** What Settings › labels asks of use-attention's labels: the list, and a rename, recolour or delete (an error, or null). */
+/** What Preferences › Labels asks of use-attention's labels: the list, and a rename, recolour or delete (an error, or null). */
 export interface LabelsApi {
   list: LabelView[] | null;
   edit: (change: { name: string; rename?: string; color?: number } | { name: string; remove: true }) => Promise<string | null>;
@@ -15,7 +15,7 @@ export interface LabelsApi {
 type RowMode = "show" | "rename" | "color" | "remove";
 
 /**
- * Settings › labels (plan 022, R6): every label on a chat with its colour and how many chats carry it. Rename and
+ * Preferences › Labels (plan 022, R6): every label on a chat with its colour and how many chats carry it. Rename and
  * delete reach every chat that carries the label; a delete asks first, naming how many. The list loads with the link.
  */
 export function Labels({ api }: { api: LabelsApi }) {

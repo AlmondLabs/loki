@@ -3,7 +3,7 @@ import type { InputOf, ReplyOf, RequestName } from "./frames.ts";
 
 /**
  * The daemon's settings and agent calls, grouped by what they are about rather than by their frame names (plan 052):
- * an agent's memory and skills, Settings › Engines, and Settings › MCP with its always-allowed tools. Each is one
+ * an agent's memory and skills, Preferences › Engines, and Preferences › MCP servers with its always-allowed tools. Each is one
  * request through the mod's socket (core/frames.ts), so none needs the chat client: the chat client keeps the chats.
  * A call answers in Settings' words, never by throwing: what it was asked for, or why not as a sentence.
  */
@@ -38,14 +38,14 @@ export function daemonCalls(request: FrameRequest) {
       enable: (path: string) => done(request, "chat_skill_enable", { path }),
       disable: (name: string) => done(request, "chat_skill_disable", { name }),
     },
-    /** Settings › Engines: each answers with the ACP agents as they now stand. */
+    /** Preferences › Engines: each answers with the ACP agents as they now stand. */
     engines: {
       get: () => attempt(request, "chat_engines_get", {}),
       set: (engine: InputOf<"chat_engine_set">) => attempt(request, "chat_engine_set", engine),
       remove: (id: string) => attempt(request, "chat_engine_remove", { id }),
       check: (id: string) => attempt(request, "chat_engine_check", { id }),
     },
-    /** Settings › MCP, Agents › Profile and Settings › Chat's always-allowed tools: each answers with what now stands. */
+    /** Preferences › MCP servers, Agents › Profile and Preferences › Chat's always-allowed tools: each answers with what now stands. */
     mcp: {
       get: () => attempt(request, "chat_mcp_get", {}),
       server: (entry: string, edit: InputOf<"chat_mcp_server">["edit"], rename?: string) =>

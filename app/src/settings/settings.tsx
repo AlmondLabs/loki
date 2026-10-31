@@ -111,21 +111,21 @@ export function Settings({
   phone: PhoneApi;
   /** This Mac and the Macs paired with it (useDesk().macs, plan 023). */
   macs: MacsApi;
-  /** ~/.agents/skills, which every agent reads (Settings › skills). */
+  /** ~/.agents/skills, which every agent reads (Preferences › Skills). */
   globalSkills: GlobalSkillsApi;
-  /** Settings › MCP, and Settings › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
+  /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
-  /** Settings › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
+  /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
-  /** Settings › labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
+  /** Preferences › Labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
   labels: LabelsApi;
-  /** Newer loki releases, from GitHub (Settings › loki). */
+  /** Newer loki releases, from GitHub (Preferences › About). */
   update: LokiUpdate;
-  /** ⌥Space, held or released (Settings › keys). */
+  /** ⌥Space, held or released (Preferences › Keyboard shortcuts). */
   shortcut: GlobalShortcut;
-  /** The card writer's switch and knobs (Settings › learn). */
+  /** The card writer's switch and knobs (Preferences › Learn). */
   recall: RecallModel;
-  /** What the agents spent, and their names (Settings › usage). */
+  /** What the agents spent, and their names (Preferences › Usage). */
   usage: UsageApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
@@ -234,7 +234,7 @@ export function Settings({
   );
 }
 
-/** Settings › appearance: light or dark and the colour family, on this device only. */
+/** Preferences › Appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
   return (
@@ -254,7 +254,7 @@ function AppearancePage() {
   );
 }
 
-/** Settings › loki: this app, the mod, what loki needs on this machine, and what launch installed. */
+/** Preferences › About: this app, the mod, what loki needs on this machine, and what launch installed. */
 function LokiPage({
   update,
   harness,
@@ -504,7 +504,7 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
   return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-/** Settings › inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
+/** Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
 function InboxPage() {
   return (
     <>
@@ -546,7 +546,7 @@ function Score({ children }: { children: string }) {
   return <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)" }}>{children}</span>;
 }
 
-/** Settings › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
+/** Preferences › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
 function FilesFold() {
   return (
     <Fold title="Where loki keeps things">
@@ -565,7 +565,7 @@ function FilesFold() {
 /** The system-wide key as its row names it; it exists on the Mac only (global.inbox has no key elsewhere). */
 const GLOBAL_KEY = `${formatKeys("alt", "macos")}Space`;
 
-/** Settings › keys: ⌥Space held or released on the Mac; a browser tab cannot hold it, and Windows and Linux have none yet (R3). */
+/** Preferences › Keyboard shortcuts: ⌥Space held or released on the Mac; a browser tab cannot hold it, and Windows and Linux have none yet (R3). */
 export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShortcut; os?: Platform }) {
   if (os !== "macos") return <Fact label="System-wide" value={notYetOn("The system-wide key", os)} />;
   return (
@@ -589,7 +589,7 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
   );
 }
 
-/** Settings › keyboard shortcuts: ⌥Space, then every key loki has, found by what it does, its keys or where it works. */
+/** Preferences › Keyboard shortcuts shortcuts: ⌥Space, then every key loki has, found by what it does, its keys or where it works. */
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();

@@ -44,11 +44,11 @@ export interface DeskSocketState {
   recallVersion: number;
   /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
   usageVersion: number;
-  /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
+  /** The LAN listener (Preferences › Phone): its status, the paired phones, and the last pairing code minted here. */
   lanStatus: PhoneLanStatus | null;
   devices: PairedDevice[] | null;
   pairCode: PairCode | null;
-  /** Settings › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
+  /** Preferences › Macs (plan 023): this Mac and the Macs paired with it, and the last Mac pairing code minted here. */
   macs: Pushes["peers"] | null;
   macCode: Pushes["peer_pair_code"] | null;
   /**
@@ -125,7 +125,7 @@ export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["t
 export interface PushContext {
   now: number;
   lastInteraction: number;
-  /** Dev only: Settings › phone reads as if Tailscale were running (PHONE_DEMO). */
+  /** Dev only: Preferences › Phone reads as if Tailscale were running (PHONE_DEMO). */
   phoneDemo?: boolean;
 }
 
@@ -258,7 +258,7 @@ export function withMark<T>(current: Record<string, T>, key: string, value: T | 
   return kept === current[key] && key in current ? current : { ...current, [key]: kept };
 }
 
-/** Settings › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
+/** Preferences › Macs from a `peers` push: this Mac, the Macs paired with it, and the computers on its tailnet (plan 023). */
 export function macsFromFrame(msg: Pushes["peers"]): Pushes["peers"] {
   return { me: msg.me, peers: Array.isArray(msg.peers) ? msg.peers : [], tailnet: Array.isArray(msg.tailnet) ? msg.tailnet : [] };
 }
@@ -272,7 +272,7 @@ export function withReasoningEffort(current: Partial<Record<Scope, ReasoningEffo
 }
 
 /**
- * Dev only: `?phoneDemo=tailscale` on the Vite tab makes Settings › phone read as if Tailscale were
+ * Dev only: `?phoneDemo=tailscale` on the Vite tab makes Preferences › Phone read as if Tailscale were
  * running on this Mac, so the route chooser and the https switch can be seen without a tailnet. The
  * flag is compiled out of production builds; `setVia` / `setServe` then change local state instead of
  * asking the mod. Remove once the mod's `tailscale.ts` is in and a real tailnet is at hand.

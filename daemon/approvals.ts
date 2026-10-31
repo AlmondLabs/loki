@@ -88,7 +88,7 @@ export class Approvals {
   private readonly widgetsDir: string | undefined;
   private readonly kindOfTool: (name: string) => ToolKind;
   /**
-   * Tools you answered "always allow" for (any chat, any agent), kept in `alwaysPath`; Settings › Chat lists them to
+   * Tools you answered "always allow" for (any chat, any agent), kept in `alwaysPath`; Preferences › Chat lists them to
    * take back. They run without asking in every mode but strict, which asks for everything by choice.
    */
   private readonly alwaysPath: string | null;

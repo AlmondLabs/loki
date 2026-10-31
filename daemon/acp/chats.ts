@@ -58,7 +58,7 @@ export interface AcpChatsDeps {
   report?: (message: string) => void;
   /** How long Stop waits for the agent to answer it, in milliseconds; absent, three seconds. */
   stopWaitMs?: number;
-  /** The person's agents file (`state/acp.json`), which Settings › Engines edits; absent, the agents cannot be edited. */
+  /** The person's agents file (`state/acp.json`), which Preferences › Engines edits; absent, the agents cannot be edited. */
   configFile?: string;
   /**
    * Where what each agent last offered (its models, modes and commands) is kept, so the model picker and a chat's
@@ -268,7 +268,7 @@ export class AcpChats {
     });
   }
 
-  /** Settings › Engines: every agent, how it starts and how it stands. */
+  /** Preferences › Engines: every agent, how it starts and how it stands. */
   engines(): EnginesView {
     return this.catalog.engines();
   }

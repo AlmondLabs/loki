@@ -16,7 +16,7 @@ export interface PeerMoves {
   /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
   offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
 }
-/** What Settings › Macs' frame handler needs from its host; without `peers` every frame fails with an error. */
+/** What Preferences › Macs' frame handler needs from its host; without `peers` every frame fails with an error. */
 export interface PeersDeps {
   /** Pairing between Macs (mod/peers.ts), as the mod wires it to the listener. */
   peers?: {
@@ -54,7 +54,7 @@ export interface PeersDeps {
 }
 
 /**
- * Settings › Macs (plan 023, U1): this Mac, the Macs paired with it, a code to pair another, and pairing with one
+ * Preferences › Macs (plan 023, U1): this Mac, the Macs paired with it, a code to pair another, and pairing with one
  * from its code. Changes are broadcast so every window reads the same list.
  */
 export function peersFrames({ peers }: PeersDeps): FrameHandlers {

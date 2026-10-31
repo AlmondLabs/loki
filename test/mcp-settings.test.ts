@@ -16,7 +16,7 @@ const server = (config: McpServerView["config"]): McpServerView => ({
   sign_in: null,
 });
 
-describe("Settings › MCP's form", () => {
+describe("Preferences › MCP servers' form", () => {
   test("a server's config becomes the form's text, and the form comes back as the same edit", async () => {
     const local = server({ command: "npx", args: ["-y", "srv"], env: { A: "1", B: "${keychain:gh.B}" }, cwd: "/w" });
     const form = formOf(local);

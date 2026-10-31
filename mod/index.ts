@@ -209,7 +209,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
-  /** Tailscale's view of this Mac and its tailnet, shared by the phone listener and Settings › Macs. */
+  /** Tailscale's view of this Mac and its tailnet, shared by the phone listener and Preferences › Macs. */
   const tailscale = new Tailscale({ port: Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT) });
   // Paired Macs (plan 023, mod/peering.ts): pairing, the links and syncers, and where each chat lives.
   const macs: Peering = startPeering({

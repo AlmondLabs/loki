@@ -85,7 +85,7 @@ export function Providers({
 }
 
 /**
- * Settings › providers (plan 031): the providers you use first, each opening into its key or sign-in; the rest of the
+ * Preferences › Providers (plan 031): the providers you use first, each opening into its key or sign-in; the rest of the
  * daemon's catalogue only after "add a provider", behind a search, the usual ones on top.
  */
 export function ProviderSettings({

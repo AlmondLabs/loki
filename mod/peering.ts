@@ -88,7 +88,7 @@ export interface Peering {
   peers: Peers;
   /** Each chat answered by the Mac it lives on (U5), for the frame bridge. */
   router: ChatRouter;
-  /** Settings › Macs and the frames other Macs send, for the frame modules. */
+  /** Preferences › Macs and the frames other Macs send, for the frame modules. */
   frames: NonNullable<PeersDeps["peers"]>;
   /** Every chat in the chat list: this Mac's and each paired Mac's, sorted as one list (U4). */
   desks(): DeskSummary[];

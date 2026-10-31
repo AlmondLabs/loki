@@ -933,7 +933,7 @@ export const FRAMES = {
     isAgentId(m.agent_id) && str(m.name) ? { agent_id: m.agent_id, name: m.name, source: strOr(m.source, undefined) } : "agent_id and name required",
   ),
 
-  // The phone listener (Settings › phone)
+  // The phone listener (Preferences › Phone)
   lan_get: send("the listener's status, after asking Tailscale again", nothing, { causes: ["lan_status"] }),
   lan_set: send("turn the listener on or off (persisted, then bound or closed)", (m) => ({ enabled: m.enabled === true }), { causes: ["lan_status"] }),
   lan_via_set: send("which route the QR encodes", (m) => (isLanVia(m.via) ? { via: m.via } : 'via must be "tailscale" or "lan"'), { causes: ["lan_status"] }),
@@ -951,7 +951,7 @@ export const FRAMES = {
     }),
   ),
 
-  // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Settings › Macs
+  // Other Macs (plan 023, mod/peers.ts): pairing, and the Macs paired with this one, for Preferences › Macs
   peers_get: send("this Mac and the Macs paired with it", nothing, { causes: ["peers"] }),
   peer_pair_begin: send("mint a code another Mac types to pair with this one", nothing, { causes: ["peer_pair_code"] }),
   peer_pair_join: request("peer_paired", "pair with the Mac at `host` using the code it shows", (m) =>

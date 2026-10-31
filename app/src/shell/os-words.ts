@@ -18,7 +18,7 @@ export interface OsWords {
   fileManager: string;
   /** The folder field's example path. */
   folderExample: string;
-  /** Settings › loki's System fact, under runsOn: what loki needs of the system. */
+  /** Preferences › About's System fact, under runsOn: what loki needs of the system. */
   system: string;
 }
 
@@ -61,7 +61,7 @@ export function lokiUpgrade(cask: string, os: Platform = platform): string {
   return `brew upgrade --cask ${cask}, or the .dmg on the release page`;
 }
 
-/** Settings › loki's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
+/** Preferences › About's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
 export function runsOn(os: Platform, shell: boolean): string {
   const w = WORDS[os];
   return shell ? `loki runs on ${w.machine} (${systemName(os)})` : `loki runs on ${w.aMachine} (${systemName(os)}); you're viewing it in a browser`;

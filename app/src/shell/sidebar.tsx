@@ -125,11 +125,11 @@ export function Sidebar({
   tick: boolean;
   /** Cards due in Learn, shown quietly under its icon. */
   dueCards?: number;
-  /** The mod is reachable on the Wi‑Fi (Settings › phone): a green dot on the settings icon while it is. */
+  /** The mod is reachable on the Wi‑Fi (Preferences › Phone): a green dot on the settings icon while it is. */
   lanOn?: boolean;
-  /** A newer loki release exists (Settings › loki says which): the same dot. */
+  /** A newer loki release exists (Preferences › About says which): the same dot. */
   updateReady?: boolean;
-  /** The showing section's list column (ListColumn), when it has one: a toggle above Settings, pressed while the column shows. */
+  /** The showing section's list column (ListColumn), when it has one: a toggle above Preferences, pressed while the column shows. */
   column?: { open: boolean; onToggle: () => void } | null;
 }) {
   return (
@@ -215,7 +215,7 @@ export function Sidebar({
   );
 }
 
-/** Show / hide the list column (⌘⇧D, Slack's sidebar key): a panel with its left pane, above Settings. */
+/** Show / hide the list column (⌘⇧D, Slack's sidebar key): a panel with its left pane, above Preferences. */
 function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button
