@@ -87,7 +87,8 @@ export function learnJob(deps: Deps): PassJob {
       const at = input.now.toISOString();
       const cards = store.cards();
       const byId = new Map(cards.map((c) => [c.card.id, c]));
-      const ext = parseExtraction(answer.text, new Set(byId.keys()), { maxLeads: LEADS_PER_CONVERSATION });
+      // Two leads for each chat in the batch, as the prompt offers; the open pile's room is checked below.
+      const ext = parseExtraction(answer.text, new Set(byId.keys()), { maxLeads: LEADS_PER_CONVERSATION * Math.max(1, input.parts.length) });
       // Where a card or lead came from: the batch's chat its slice names; one that names none (or a replay) the first.
       const sourceOf = (slice: string | undefined) => {
         const part = input.parts[Number(/^s(\d+)$/.exec(slice ?? "")?.[1] ?? 1) - 1] ?? input.parts[0];

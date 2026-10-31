@@ -124,6 +124,27 @@ describe("Learn on the background passes", () => {
     }
   });
 
+  test("a batch of two chats keeps up to two leads for each, as the prompt offers", async () => {
+    const s = await setup();
+    try {
+      await s.say("c1", LONG);
+      await s.say("c2", `and later, how tides shape an estuary: ${LONG}`);
+      const lead = (slice: string, title: string) => ({ slice, title, why: "you asked how", depth: "primer" });
+      s.answers.push(
+        json({
+          cards: [],
+          revisions: [],
+          leads: [lead("s1", "Sediment transport"), lead("s1", "Delta lobes"), lead("s2", "Tidal prisms"), lead("s2", "Estuary mixing")],
+        }),
+      );
+      await s.runner.sweep();
+      expect(s.prompts[0]).toContain("name up to 4 things");
+      expect(s.recall.leads().map((l) => l.title)).toHaveLength(4);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a settled chat gives cards with their source, counted against the day, and its cursor moves on", async () => {
     const s = await setup();
     try {
