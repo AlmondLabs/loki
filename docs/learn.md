@@ -48,15 +48,20 @@ trigger, the same cursors, the same hidden chat run as the agent itself, one run
 
 - Once a minute the daemon looks over your chats. A conversation is read once it has been **quiet for half an
   hour** and holds new text since the writer last read it, so the writer never reads a thought half-finished.
-- "Run now", in the Learn section or Settings › learn, reads every conversation with something new at once,
+- "Run now", in the Learn section or Preferences › Learn, reads every conversation with something new at once,
   whether or not it is quiet.
 - The writer is **off by default**. It spends your provider budget in the background, so it never starts until
   you switch it on. The first visit to Learn explains this and offers the switch.
 
 ### What it reads
 
-- One conversation per run. Each has a **cursor**: the entry the writer has read up to. It reads from the
-  cursor to the end, at most the newest 24k characters.
+- A run takes a **batch**: every one of an agent's conversations that is due, each as its own labelled part, so the
+  writer sees what recurs across them. A batch holds up to 80k characters in all; a conversation whose stretch does
+  not fit waits for the next one. An agent's batches are at least two hours apart, so more conversations gather into
+  each, unless the last one left some for later.
+- Each conversation has a **cursor**: the entry the writer has read up to. Its stretch runs from the cursor, the
+  oldest part first, as many whole entries as fit in 24k characters; the rest is the next run's, so nothing is
+  skipped.
 - Less than 300 new characters is chatter: the cursor moves, nothing is asked.
 - Cards you keep failing bring the last 4k characters of their source conversation along as a marked
   **replay**, five at most. A replay is for the rewrite only; nothing new is written from it.
@@ -66,6 +71,9 @@ trigger, the same cursors, the same hidden chat run as the agent itself, one run
 - It asks the agent itself, in one **hidden conversation per agent** (`recall-<agent>`), cleared before each
   run and with no tools: it answers, and loki writes the files. The conversation stays out of the sidebar, the
   inbox and reflection.
+- When loki's own engine cannot reach the agent's model, and passes may run on ACP agents (on by default), the
+  writer asks the agent's ACP agent instead, in a hidden conversation of its own (`recall-<agent>-acp`). With that
+  off, the run is skipped.
 - The prompt says what is worth a card: a concept or principle you met, or knowledge of your field that will
   still be true in a few months. And what never is: a one-off detail of the task at hand, passing state, how the
   agent did its work, what you plainly already knew. Most stretches of work hold nothing worth a card, and zero
@@ -81,16 +89,16 @@ trigger, the same cursors, the same hidden chat run as the agent itself, one run
   reached, the writer reads nothing more until tomorrow, and a stretch that had more cards than room waits with
   its cursor unmoved. A front too close to an existing or deleted card is dropped.
 - **Revisions** to existing cards, when a conversation corrected or sharpened one, or to a failing card.
-- **Leads**, up to two per conversation, while the open pile is under twelve. A title near an open, started or
+- **Leads**, up to two for each chat in the run, while the open pile is under twelve. A title near an open, started or
   dismissed lead is the same lead again and is dropped.
-- A one-line note, shown in Settings and on the all-cards strip: "1 new · 1 lead from "KMS keys"", or
+- A one-line note, shown in Preferences and on the all-cards strip: "1 new · 1 lead from "KMS keys"", or
   "nothing worth a card".
 
 ### What it costs, and the levers
 
 Every run is one model turn as the agent, carrying the agent's whole fixed prompt (its system prompt and memory)
-on top of up to 24k characters of the stretch. Each run is measured (`npm run analytics`, the background passes
-section). Two levers:
+on top of the batch: up to 80k characters, at most 24k from any one conversation. Each run is measured
+(`npm run analytics`, the background passes section). Two levers:
 
 1. **The agent's memory size.** This is most of every ask. An agent whose `memory/system` folder has grown to
    tens of thousands of tokens pays that on every run and every turn of every lesson; moving bulk from `system/`
@@ -119,9 +127,8 @@ section). Two levers:
 - **Start** creates the `[Learn] · <title>` conversation for the agent that was there, puts an info card with
   the lead on its desk, opens the desk on Messages, and sends the brief as your first message: open with why
   this matters to you, furnish the desk with the outline as a list you can tick, ask before telling, one idea
-  at a time, a cold quiz at the end. The brief is a user message, sent only on your click, the way Tasks'
-  dispatch posts a task. A lesson whose brief never arrived is listed under "lessons under way" with
-  **send the brief**.
+  at a time, a cold quiz at the end. The brief is a user message, sent only on your click. A lesson whose brief
+  never arrived is listed under "lessons under way" with **send the brief**.
 - **Not this** moves the lead to the dismissed pile, which the writer reads before proposing again. Restore is
   in the **Deleted** view, beside the deleted cards.
 - Decided and kept: leads only, never auto-started; the agent who was there teaches; lessons stay out of the
@@ -133,8 +140,8 @@ section). Two levers:
 - It never posts in chat, never badges the inbox, never starts a lesson on its own.
 - It never reads its own conversations, and reflection never reads them either.
 - It never writes a card the deleted pile already covers, and never touches your schedule.
-- The phone has the review deck only (the answers, delete and undo); the leads, the writer's switch and its knobs
-  stay on the Mac.
+- The phone has Review (the answers, delete and undo), Leads (start the lesson or not this), the lessons under
+  way, and Deleted. The writer's switch and cards a day stay on the Mac.
 
 ## Files
 
@@ -146,9 +153,12 @@ section). Two levers:
   leads/  leads-dismissed/  lessons/
   worker.json               from before the background passes: read only for the writer's old hidden chats
 ~/.loki/state/
-  passes.json               reflection and Learn on or off, Learn's cards a day
+  passes.json               reflection and Learn on or off, Learn's cards a day, whether passes may run on ACP agents
   pass-cursors.json         each pass's cursor in each chat, cards written today, Learn's last run and its note
 ```
+
+Learn's files sync to your paired Macs file by file, the later write winning (`mod/recall-sync.ts`); `worker.json`
+stays on each Mac.
 
 ## Where the code is
 
@@ -161,7 +171,7 @@ section). Two levers:
 - `mod/recall.ts`: the store, one JSON file per thing.
 - `mod/frames/recall.ts`: the `recall_*` frames the section speaks to the mod (declared in `core/frames.ts`).
 - `app/src/recall/`: the section, its list of views (`learn-column.tsx`, `views.ts`), the deck, the leads view,
-  the worker strip. Settings › learn is in `app/src/settings/settings.tsx`; the phone's deck is
+  the worker strip. Preferences › Learn is in `app/src/settings/settings.tsx`; the phone's deck is
   `app/src/phone/learn.tsx`.
 - Plans: `docs/plans/2026-09-12-008-feat-loki-learn-plan.md` for leads and lessons;
   `docs/plans/2026-10-10-018-refactor-loki-background-passes-plan.md` for the background passes.

@@ -8,7 +8,7 @@ import { Block, Fact, Segmented } from "./layout";
 export type { UsageApi } from "../shared/use-usage";
 
 /**
- * Settings › usage: what the agents cost over a period, from the daemon's usage ledger (daemon/usage.ts). The figures
+ * Preferences › Usage: what the agents cost over a period, from the daemon's usage ledger (daemon/usage.ts). The figures
  * are estimates at each provider's API prices; a subscription sign-in is billed by its plan. Choosing a line of a
  * breakdown narrows the page to it.
  */

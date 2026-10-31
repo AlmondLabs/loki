@@ -14,7 +14,7 @@ labels: bug
 - System and version (macOS, or the Windows or Linux preview):
 - Node version the daemon runs on:
 - Where: the Mac window / the phone / a browser tab / more than one
-- The chat's agent: loki's own, or an ACP agent (Claude Code, or your own)
+- The chat's agent: loki's own, or an ACP agent (Claude Code, Cursor, or your own)
 
 **Logs**
 

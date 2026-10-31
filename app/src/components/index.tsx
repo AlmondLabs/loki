@@ -499,7 +499,7 @@ export function Notices() {
 export const notify = toast;
 
 /**
- * An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). `hideLabel` keeps the
+ * An on/off switch with its label: Preferences › Phone (the listener), Preferences › Keyboard shortcuts (⌥Space). `hideLabel` keeps the
  * label for a screen reader only, where the setting's name already stands beside it.
  */
 export function Switch({

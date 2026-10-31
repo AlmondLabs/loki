@@ -38,7 +38,7 @@ export interface Binding {
   menuAccel?: boolean;
   /** Not dispatched by the keymap (documented only): the view or the OS owns it. */
   note?: string;
-  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Settings › keys say it (R30). `{id}` reads as that binding's key (wasFor). */
+  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Preferences › Keyboard shortcuts say it (R30). `{id}` reads as that binding's key (wasFor). */
   was?: string;
 }
 
@@ -52,7 +52,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Preferences…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", typing: true, menu: "Go" },

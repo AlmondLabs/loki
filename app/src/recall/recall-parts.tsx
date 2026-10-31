@@ -327,7 +327,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
   );
 }
 
-/** Settings › learn: the writer's switch and knobs, in Settings' fact grid. */
+/** Preferences › Learn: the writer's switch and knobs, in Settings' fact grid. */
 export function RecallSettings({
   worker,
   onSettings,

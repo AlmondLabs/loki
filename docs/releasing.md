@@ -3,8 +3,8 @@
 Nothing is tagged by hand. `.github/workflows/release.yml` runs on every push to `main` (and on request from the
 Actions tab) and `scripts/release.ts` decides what the run does. There are two channels, nightly (the Mac's alone)
 and stable, and two PRs the workflow keeps for you: the release PR, which ships the Mac's stable when it merges, and
-the Windows and Linux PR, which puts their files on the newest stable. Neither carries a version number, so neither
-goes stale, and nothing runs on a schedule.
+the Windows and Linux PR, which puts their files on the newest stable. The release PR carries no version number, so it
+never goes stale; the Windows and Linux PR names the stable it is for. Nothing runs on a schedule.
 
 ## How a change ships
 
@@ -52,7 +52,7 @@ goes stale, and nothing runs on a schedule.
    | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
 
    Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
-   `ci.yml`'s. The last job downloads whatever built and runs `release.ts attach v<v> <files…>`:
+   `shell.yml`'s. The last job downloads whatever built and runs `release.ts attach v<v> <files…>`:
    `gh release upload --clobber` (a re-run replaces rather than fails) and the preview line on top of the notes if
    they do not carry it yet. Windows and Linux never create a release. One system failing leaves only its files off,
    with a warning on the run. **Re-run its failed jobs** from the Actions tab to add them: the Windows and Linux PR does
@@ -168,9 +168,9 @@ cd src-tauri/target/release/bundle/macos
 
 On Windows or Linux, `npm run tauri -- build --bundles nsis` or `npm run tauri -- build --bundles appimage,deb` makes the
 same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
-needs the apt packages in `ci.yml`). Neither needs the Finder workaround.
+needs the apt packages in `shell.yml`). Neither needs the Finder workaround.
 
 `npm run release -- plan` says what the workflow would do for the checkout as it stands,
 `npm run release -- version stable` the number a stable built now would get, and `npm run release -- notes` the notes
-the release PR would carry. None of them writes anything; `plan` and `notes` ask GitHub (`gh`, signed in) which
+the release PR would carry. None of them changes the checkout's files (`version` fetches the tags first); `plan` and `notes` ask GitHub (`gh`, signed in) which
 releases carry a `.dmg`.

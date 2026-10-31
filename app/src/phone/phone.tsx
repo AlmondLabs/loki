@@ -139,7 +139,7 @@ function macAway(catchUp: CatchUp): string | null {
   return catchUp.status === "open" ? null : "Mac unreachable: these wait until it is back";
 }
 
-/** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */
+/** A closed mod socket may mean this phone was forgotten in Preferences: ask /me once; a 401 sends us back to Pair. */
 function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
   const unpaired = useEffectEvent(() => onUnpaired());
   useEffect(() => {

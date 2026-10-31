@@ -10,5 +10,5 @@ export const SEGMENTS: Array<{ id: Segment; label: string; key: string }> = [
   segment("inbox", "Inbox"),
   segment("agents", "Agents"),
   segment("learn", "Learn"),
-  segment("settings", "Settings"),
+  segment("settings", "Preferences"),
 ];

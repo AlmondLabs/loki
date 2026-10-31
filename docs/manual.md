@@ -1,7 +1,7 @@
 # The loki manual
 
 Everything the README leaves out: every view, every key, every file loki writes. The README is the
-tour; this is the reference. Paths are the defaults; Preferences › About shows yours, under "where loki keeps things".
+tour; this is the reference. Paths are the defaults; Preferences › About shows yours, under "Where loki keeps things".
 
 ## Requirements
 
@@ -34,7 +34,7 @@ a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand 
 own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
 follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
 
-**Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main`, built about twenty
+**Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main` that changes more than the docs, built about twenty
 minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
 conflict — both builds share `~/.loki`, the daemon and the mod's ports — so switching channels is an uninstall
 and an install. Preferences › About shows which channel a build is on and names the right cask in its upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
@@ -66,7 +66,7 @@ Whichever way, the cask brings Node; the `.dmg`, source, Windows and Linux route
 (Requirements). Then:
 
 1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
-   skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "what launch installed".
+   skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "What launch installed".
    Then it finds Node and starts the daemon, which hosts the mod.
 2. The first launch shows **Welcome** over the empty window: connect a model provider (paste a key, or sign in in
    the browser, for Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and more; a key is checked with
@@ -84,19 +84,21 @@ in October 2026 did. Before the first start rewrites a store, loki copies it who
 `~/.loki/stores/backup-schema-<version>-<date>/`. An older loki cannot open the rewritten store, so those copies are the
 way back to it; delete them once you are happy. Each Mac copies and rewrites its own stores on its own first start.
 
-When loki renames one of its tools, saved chats take the new name too, so an old chat reads and resumes like a new
-one. The first start after such an update renames each store's tool calls once, after copying the store whole to
-`~/.loki/stores/backup-tool-names-<date>/`; `~/.loki/stores/tool-names.json` lists the stores already done. Chats on
-Claude Code keep its names. In October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became
-`canvas_read` and `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and
-`view_image` became `image_view`. Tasks and its four tools went later that month, replaced by
-[suggestions](#suggestions); old chats that called them still read as they did.
+Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. When a store
+first opens on a loki that changed those shapes, its saved entries are rewritten once, after a whole copy of the store
+to `~/.loki/stores/backup-letta-<date>/` (only when something changes); `~/.loki/stores/migrations.json` notes how far
+each store has come, and the older `tool-names.json` is deleted. There are two steps so far. The first takes loki's
+new tool names: in October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became `canvas_read` and
+`canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and `view_image` became
+`image_view`. Tasks and its four tools went later that month, replaced by [suggestions](#suggestions); old chats that
+called them still read as they did. Older names from before then (`Agent`, `Skill`, `bash_background`,
+`TaskOutput`, `loki_camera` and the like) take today's names the same way, and so does the "always allow" list; the
+whole map is `RENAMED_TOOLS` in `daemon/tool-kinds.ts`. The second rewrites what chats imported from Letta still carried: its tool
+arguments, notices and paths. A chat on Claude Code, Cursor or another ACP agent is left as it is, with its agent's
+own tool names.
 
-The update that left Letta behind migrates each store once more, on its first start. Chats imported from Letta still
-carried its shapes (its tool arguments, notices and paths); they are rewritten as loki writes them now, after a whole
-copy of the store to `~/.loki/stores/backup-letta-<date>/`. `~/.loki/stores/migrations.json` notes each store's
-version and replaces `tool-names.json`. Once on each Mac (noted in `~/.loki/state/migrations.json`), agent records
-take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named
+Leaving Letta behind also changed a few things once on each Mac (noted in `~/.loki/state/migrations.json`): agent
+records take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named
 `~/.letta/loki` name `~/.loki` in a commit by loki, chats run on pi-ai's model names in folders under `~/.loki`, and
 Learn's chats from Letta are hidden; a helper agent Letta made is moved to `~/.loki/backend/backup-letta-<date>/`.
 loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's.
@@ -105,8 +107,8 @@ loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, 
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
 window (double-click zooms). The window title still names what shows — the chat's name, "Inbox · n waiting",
-"Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of five sections with a red
-count on what needs you; beside it, for Chats, Agents and Learn, a **sidebar** listing
+"Agents", "Preferences" — for the Window menu and Mission Control. On the left, a rail of five sections, each icon
+with its label under it, a red count on what needs you and a quiet count of the cards due on Learn; beside it, for Chats, Agents and Learn, a **sidebar** listing
 that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
 sidebar (in the Inbox, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
 width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
@@ -129,7 +131,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
-  word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header, or with
+  word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header (**edit labels** once it has some), or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
   the first match or makes the label when none matches. A chat's header and its Inbox card show its labels as chips;
   the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
@@ -138,7 +140,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
+  with its name, its purpose line under it, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
   chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
@@ -154,7 +156,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
+  ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking") and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
   any agent added in Preferences › Engines; ←→ move between them), that harness's models (loki's lately used and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
@@ -163,33 +165,34 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
-- **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
+- **Inbox** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
-  a tab per page (a first visit lands on memory); the "+" at the top of the sidebar makes a new agent. **profile**: face, name, description and model
-  (editable), effort and context, where it is working (its live chats, each a link), and delete at
-  the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
-  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
+  a tab per page (a first visit lands on Memory); the "+" at the top of the sidebar makes a new agent. **Profile**: face, name, description and model
+  (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
+  link, then **main chat** and **chats**), and delete at the bottom. **Memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
+  this". **Changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
   reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
-  as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
+  as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **Reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
   every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, and the Skill tool gives the rest. **skills**:
+  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, and the Skill tool gives the rest. **Skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
-  source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
+  source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
   CLI recorded, a source you typed once). Pick a skill and it opens on the right with its origin, whether the agent has
   edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
-  current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window: six groups down the
+  current. A skill nobody recorded a source for asks for one the first time. **remove** takes a skill out of the
+  agent's memory. The page is remembered for the window.
+- **Preferences** (⌘, or ⌘6, or the rail's gear): opens over the whole window: six groups down the
   left, and the chosen group's pages as tabs across its top, the last page remembered for the window. A filter over
   the groups finds a page by its name or what it holds ("pair" finds Your devices; Enter opens the first page that
-  matched, Esc clears it). ⌘, closes Preferences again, Esc closes it, ⌘1-5 close it and go to that section. ↑↓, Home
+  matched, Esc clears it). ⌘, closes Preferences again, Esc closes it, ⌘1, ⌘2, ⌘4 and ⌘5 close it and go to that section. ↑↓, Home
   and End in the list move between groups, ←→ in the tabs between a group's pages, and ⌘[ and ⌘] step every page in
   order. Each page is the same: settings in rows, the name and a line of help on the left, the control on the right; a
   switch for on and off, a segmented control for a few choices, one green button for the page's main action, red only
@@ -210,8 +213,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      2. **Engines**: what a chat can run on besides loki's own models (see "Chat through Claude Code"): Claude Code and
         Cursor, built in, and any agent you add by the command that starts it, kept in `~/.loki/state/acp.json`. Each shows
         whether it is ready, not found (its command is not on loki's PATH), needs signing in (from its last failure),
-        or has not been tried; **details** shows the command, **try** starts it now, **edit** changes how it starts,
-        and **reset** puts a built-in agent back as loki ships it.
+        has not been tried yet, starts, or failed; **details** shows the command, **try** starts it now, **edit**
+        changes how it starts, **reset** puts a built-in agent back as loki ships it, and **remove** takes out one you
+        added. "Any agent that speaks ACP", under the list, adds one by the command that starts it.
      3. **MCP servers**: the servers in `~/.loki/mcp.json`, see "MCP servers".
      4. **Skills**: the global skills in `~/.agents/skills` that every agent reads, each with disable, and a field to
         enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
@@ -220,7 +224,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      2. **Phone**: the switch that lets phones reach this Mac, the route (Tailscale or this Wi‑Fi), pairing a phone
         (its QR and code) and the paired phones. Mac only for now.
   4. **Inbox and Learn**
-     1. **Inbox**: what Next, Archive and a reply do, and, under "how the order works", what each card's score is
+     1. **Inbox**: what Next, Archive and a reply do, and, under "How the order works", what each card's score is
         made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
@@ -231,7 +235,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      1. **About**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
         hours; `brew upgrade --cask loki` is the way up, or on Windows and Linux a link to that system's file, with
         the preview note), the system it runs on, how the app reaches the mod, requirements
-        (the daemon's Node), and, folded, what the last install put in place and where loki keeps things.
+        (the daemon's Node), and, folded, "What launch installed" and "Where loki keeps things".
      2. **Usage**: what your agents spent over the past 24 hours, 7, 30 or 90 days (remembered per device): the
         estimated cost and its tokens, a bar a day (an hour for 24 hours), tokens and cost by type with what the
         cache saved, and what each origin (your chats, helpers, reflection, Learn, the memory review), agent and
@@ -250,7 +254,7 @@ in a message box opens it too. ⌘K used to open the chats tree; the sidebar hol
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox,
 views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
-(`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar (the ☰ menu
+(`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
@@ -275,7 +279,7 @@ differs:
 3. **Not there yet.** The tray item and its count, the dock badge, the system-wide ⌥Space, the native menu bar,
    dictation (and its key), phone pairing and Tailscale. Where one would show, loki says it isn't on Windows (or
    Linux) yet.
-4. **Folders.** Browse… in the new-chat sheet opens the system's own folder dialog; folder completion takes
+4. **Folders.** **browse…** in the new-chat sheet opens the system's own folder dialog; folder completion takes
    drive paths and `~\`.
 5. **The daemon.** On Windows loki starts it with no console window, in a Job Object that ends it when loki
    exits; on Linux the daemon carries the parent-death signal, so it ends with loki too.
@@ -336,7 +340,7 @@ The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:4141
 when the Mac gets a new address. The phone talks to the Mac directly over the local network (port 41415), so
 both must be on the same Wi‑Fi and the Mac must be awake with loki running; some office networks isolate
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
-Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable, last seen …" and
+Preferences › Phone too) is the way around that; when it is not, the phone says "Mac unreachable · last seen …" and
 reconnects by itself. Each paired phone is listed in Preferences › Phone with when it was last seen; "forget"
 locks it out. The rail shows a green dot on the settings icon while the switch is on (a blue one when a newer loki is out). If the icon opens on
 "loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
@@ -373,7 +377,8 @@ and tools; from the other Mac you open it, read it and write in it as if you sat
 **Pairing.** Install [Tailscale](https://tailscale.com/download) on both Macs and sign in to the same account; Macs
 reach each other over your tailnet only, never the Wi‑Fi or the internet. On one Mac open Preferences › Macs and press
 **show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. On the other Mac, in
-Preferences › Macs, type the address and the code and press **pair**. Each Mac now lists the other, with **connected**
+Preferences › Macs, pick that Mac in the list of computers on your tailnet (which fills in its address, or type
+the address yourself), type the code and press **pair**. Each Mac now lists the other, with **connected**
 or when it was last seen, and **forget** on either side unpairs both. A Mac running another version of loki shows
 "needs an update": it stays paired, but nothing syncs until both run the same release. A third Mac needs one code:
 pair it with any Mac of yours, and it joins the others by itself, introduced by the Mac they share (each Mac must be
@@ -412,8 +417,8 @@ reachable; a closed lid still sleeps.
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to
    `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat
    on the Mac it lives on, so a Friday chat on the mini still teaches Friday, and a moved chat is not read twice.
-6. **What is yours syncs.** Done and not-done marks (the later one wins), the Inbox's focus (both Macs' engagement
-   adds up), pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
+6. **What is yours syncs.** Read, unread and viewed marks (the later one wins), the Inbox's focus (both Macs'
+   engagement adds up) and its rests, pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
    "always allow" list, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
    on.
 
@@ -474,15 +479,15 @@ or waiting for you, a restart would cut it off: **update** says so and offers **
 and a watching build keeps `app/dist` current for the phone. The mod reloads as above, and a change to `daemon/` or
 `core/` still waits for **update**. It costs more while it runs: Vite and the watching build hold well over a
 gigabyte, and React's development build keeps a timing record for every render, so the window's memory grows for as
-long as it stays open. `npm start --check` and `npm run dev -- --check` report what each would do without starting
+long as it stays open. `npm start -- --check` and `npm run dev -- --check` report what each would do without starting
 anything.
 
 Or run the pieces yourself: `npm run dev:vite` (Vite alone, for a browser tab) and `npm run desktop:dev` (the window
 against a Vite already running, in a second terminal).
 
-A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it); the daemon runs the checkout's
-code. It links the agent's skill, `~/.agents/skills/loki`, to the checkout's `skills/loki` when nothing is there
-yet; whatever is already there stays, and Preferences › About says which, under "what launch installed". The data is the same `~/.loki` the
+A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), and its daemon runs the
+checkout's code either way (`LOKI_NO_INSTALL=1` runs the installed bundles instead). It links the agent's skill, `~/.agents/skills/loki`, to the checkout's `skills/loki` when nothing is there
+yet; whatever is already there stays, and Preferences › About says which, under "What launch installed". The data is the same `~/.loki` the
 app uses, and only one daemon serves it (`~/.loki/daemon.lock`): with the installed app running, a development
 window leaves that app's daemon serving and tries again every 30 seconds, so quit the app to run your checkout's.
 
@@ -515,12 +520,12 @@ in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:517
 Press ⌘N, or the "+" at the top of the Chats sidebar or beside an agent's section (that agent is then
 chosen for you). The sheet asks for the agent (chips),
 the folder (defaults to that agent's most recent one; recents, typed paths with
-completion, or Browse… for the system's folder dialog; the git branch shows when the
-folder is a checkout) and an optional name. Start creates the conversation
+completion, or **browse…** for the system's folder dialog; the git branch shows when the
+folder is a checkout) and an optional name. **start** creates the conversation
 and opens the empty chat on Messages with the message box focused.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
-the same folder field, starting on the chat's folder (recents, completion, Browse…); Move needs a folder that
+the same folder field, starting on the chat's folder (recents, completion, **browse…**); **move** needs a folder that
 exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
 that agent has worked in. The daemon moves the chat, and its commands and file tools work in the new folder from
 the next turn.
@@ -536,8 +541,8 @@ the wrong way.
 in with your own Claude plan. In a new chat, before you send anything, choose the **Claude Code** tab in the model picker
 and one of its models (the others show once it has run once). From the first message the chat stays on Claude
 Code: the other tabs are greyed out, and a new chat is how you go back to loki's. loki starts Claude
-Code itself, the first time through `npx`, so it needs Node and a `claude` that is signed in (`claude /login` in a
-terminal). In such a chat:
+Code itself, always through `npx` at the adapter version this loki pins (npx fetches it the first time), so it needs
+Node and a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
 
 - the replies, tool calls and their diffs show as in any chat, and stay in loki's history and the Inbox;
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
@@ -573,8 +578,8 @@ terminal). In such a chat:
   Mac's browser. Claude Code keeps that sign-in for every later chat; loki's own sign-in stays for loki's chats. A
   local server you gave its own folder can't be handed over and stays out (the daemon's log says so). Servers you set
   up in Claude Code itself load as well;
-- tools that only read, and loki's memory, history, question and suggestion tools, run without a card, as they do in loki's
-  own chats; anything else asks as Claude Code's mode says.
+- tools that only read, and loki's memory, history, question and suggestion tools, run without a card, as they do in
+  loki's own chats; anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.
 
@@ -585,26 +590,27 @@ queued messages, loki's tools), with these differences:
 
 - the mode chip shows Cursor's modes: agent, plan and ask;
 - loki asks Cursor to use your CLI login each time it starts Cursor, which takes a few seconds. If you're signed out,
-  Settings › Engines says to run `cursor-agent login`;
+  Preferences › Engines says to run `cursor-agent login`;
 - Cursor loads the MCP servers set up in Cursor itself (a project's `.cursor/mcp.json`). It may not load the ones
   loki hands it.
 
 Any other agent that speaks ACP and needs the same sign-in step can be added in `~/.loki/state/acp.json` with an
-`auth_method`: the method id it lists when it starts (`grok.com` for Grok Build, for example).
+`auth_method`: the method id it lists when it starts (`grok.com` for Grok Build, for example). A `login` field, there
+or on any agent, is the sign-in command loki shows when the agent says you are signed out.
 
 ## Questions from the agent
 
 When an agent calls `user_ask`, the conversation (on either tab) and the inbox card show
-a question card instead of a permission block: each question with its options
-(pick one, or pick many), and an "or answer in your own words" line. Answer
-sends everything back in one go. A typed reply in the message box while a
-single question is open is treated as the answer.
+a question card instead of a permission block: each question with its options (pick one, or pick many), and, when
+there are several questions, an "or your own…" field under each. **answer** sends everything back in one go. With a
+single question, the message box is the way to answer in your own words: what you type there is treated as the
+answer.
 
 ## Images and files
 
 Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the phone.
 
-- **Images** (PNG, JPEG, GIF, WebP, HEIC) show as a thumbnail above the box, with × to remove; send puts them
+- **Images** (PNG, JPEG, GIF, WebP, HEIC, HEIF, BMP, TIFF) show as a thumbnail above the box, with × to remove; send puts them
   inside the message as base64 image parts, so the agent sees them at once. Large images are shrunk to 1600px on
   the long edge before sending. The picture shows on your message in every window, after a reload too, on the Mac
   the chat lives on and the phone: the daemon keeps a copy of each in `~/.loki/chat-images/`, named by its content,
@@ -629,8 +635,9 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
 
 ## Dictation
 
-The mic in any message box (or ⌘D while it is focused; ⌘M stays macOS's minimise) dictates through the
-browser's Web Speech API. Mac only for now. Recognition stops by itself when you pause; Enter
+The mic in any message box (or ⌘D while it is focused, on the Mac; ⌘M stays macOS's minimise) dictates through the
+browser's Web Speech API. It shows on the Mac and on the phone, where the browser has speech recognition; not on
+Windows or Linux yet. Recognition stops by itself when you pause; Enter
 sends. Chrome may send the audio to Google's speech service unless on-device
 recognition is available, so treat it like any other cloud dictation.
 
@@ -640,7 +647,9 @@ A chat is not done until it is archived. The inbox holds every chat you have not
 is mid-turn, where there is nothing to do yet. The inbox icon on the rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and moves on: a card with something new comes back in ten minutes, a card with nothing new rests longer each time (see "Next lets a stale card rest" below), and either comes back at once if the agent says something new. Once only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
-The header reads "n need you · m chats". Once you have been past every chat the deck says "You've been through
+The header reads "n need you" and "m chats". Once two agents have something waiting, filter pills sit over the
+deck: **All**, then each agent with cards, busiest first, each with its count; a pill shows only that agent's cards
+this visit. Once you have been past every chat the deck says "You've been through
 every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing the inbox
 ends a visit; opening it again starts a fresh one.
 Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
@@ -650,7 +659,7 @@ approvals, answers — comes over the same socket. The read (`seen`), viewed and
 `~/.loki/state/attention.json`, so the phone and the Mac share them.
 
 Slash commands work in the message box, and in the reply box of an inbox card: type `/` and a palette lists what the
-box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K search) and the daemon's:
+box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/inbox`, `/label [label]`, `/chats` for ⌘K search) and the daemon's:
 
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
@@ -662,7 +671,7 @@ box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K searc
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
   from the rest of memory). It also keeps the core notes (`system/`) under their 12 KB, moving what not every chat
   needs into described notes, all in one review where reflection takes a few runs. It edits directly, each change a commit by "Doctor"; the command's row shows its report,
-  one line per change, and Agents › changes lists the commits, each with revert. It runs in the agent's hidden
+  one line per change, and Agents › Changes lists the commits, each with revert. It runs in the agent's hidden
   `doctor-<agent>` chat, in the same queue as reflection and Learn, and only when you ask.
 
 ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away. A command lands
@@ -677,10 +686,10 @@ The mental model — what the writer reads, asks, writes and costs, and how lead
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
 writer spends your provider budget in the background, so the section's first visit explains what it does and
 offers the switch (Preferences › Learn has it too, with the knobs). Nothing about the cards happens in
-chat: a worker in the mod watches for conversations that have gone quiet, hands their new stretches of
+chat: the daemon's Learn pass, one of its background passes, watches for conversations that have gone quiet, hands their new stretches of
 transcript to the agent together — one question per agent, the stretches most worth reading first, up to a
 budget; what does not fit waits for the next tick — and writes whatever comes back: one fact per card, a
-question that stands alone, an answer in a line or two, up to a daily cap (twenty-five by default) shared
+question that stands alone, an answer in a line or two, up to a daily cap (five by default) shared
 across the stretches. Reading them side by side, the model writes one card for a fact that came up twice and
 a revision, not a second card, for a later correction; a card the person keeps failing brings the tail of the
 conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
@@ -826,7 +835,7 @@ Inbox, so it has a screen to show in.
 4. **reject** drops it.
 
 **When an action is refused.** When the chat a suggestion is for has been archived or deleted, or its agent is gone,
-the card says so and offers only **change chat**: nothing is dropped without you. The first action on a suggestion
+the card says so and offers only **change chat** and **reject**: nothing is dropped without you. The first action on a suggestion
 wins: open on the Mac and the phone, a send from the phone and then a reject on the Mac tells the Mac "already sent
 from the phone" and changes nothing. An action that cannot reach the Macs involved leaves the suggestion as it was,
 with the reason on the card; the phone's buttons are off while its Mac is out of reach. A suggestion lives with the
@@ -874,8 +883,8 @@ loki connects your agents to MCP (Model Context Protocol) servers listed in `~/.
 
 **Preferences › MCP servers** shows every server: its state (connected, starting, or down with its last error), its tools with
 their read-only and destructive marks, and what loading each tool, and all of them, would cost in tokens. Add, edit
-(rename too), restart and remove servers there; check the few tools to load always. "Keep values in this computer's
-keychain" stores each environment or header value in the keychain and writes `${keychain:<server>.<name>}` in the file
+(rename too), restart and remove servers there; check the few tools to load always. "keep … values in this computer's keychain" (environment values for a local
+server, header values for a remote one) stores each environment or header value in the keychain and writes `${keychain:<server>.<name>}` in the file
 in its place, filled in only when the server starts. Edits keep whatever else the file holds. **Agents › Profile ›
 MCP servers** switches a server off (or on again) for one agent: its chats stop seeing it from their next message,
 and switched back on, a chat searches again for what it needs.
@@ -923,14 +932,14 @@ loki keeps product analytics on itself — which views you open, which chats get
 what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
 writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
-`distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, phone,
-or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
+`distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, windows,
+linux, phone, or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
 `message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
 `inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
-`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod; a Claude Code turn's too, with its harness version
-`acp:claude-code` and without the model and tool times Claude Code doesn't report), `approval_requested` (reported by
+`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod; any ACP chat's turn too, Claude Code's or Cursor's, with its
+harness version `acp:<agent>` and without the model and tool times those agents don't report), `approval_requested` (reported by
 every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
 lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.
@@ -943,12 +952,16 @@ period.
 
 ## Environment variables
 
-`LOKI_PORT` (the mod's socket, default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
+`LOKI_DIR` (everything loki keeps, default `~/.loki`: for tests and a second loki), `LOKI_PORT` (the mod's socket,
+default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
 `LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
 `LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_BD` (the `bd` that the one-time move of open tasks reads
-with), `LOKI_INSTALL=1` (make a dev build install its bundle instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build from installing, and a dev build
-from linking), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
-never the system keychain: for tests and scratch runs). On Linux the shell sets `GDK_BACKEND=x11` unless it is
+with), `LOKI_INSTALL=1` (make a dev build install its bundles and skill into `~/.loki` as a release does, instead of
+linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
+installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
+never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
+`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR`, `LOKI_TASKS_DIR` (the beads store the move of open tasks
+reads) and `LOKI_EVENTS_PATH` (the file `npm run analytics` reads). On Linux the shell sets `GDK_BACKEND=x11` unless it is
 already set. The mod runs under Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
 Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product

@@ -47,7 +47,7 @@ export function findTailscale(look: Look = {}): string | null {
 
 /**
  * `tailscale status --json` → the other devices on the tailnet (its `Peer` map), each with its name, MagicDNS name,
- * system and whether it is online: what Settings › Macs offers to pair with (plan 023).
+ * system and whether it is online: what Preferences › Macs offers to pair with (plan 023).
  */
 export function parseDevices(json: string): TailnetDevice[] {
   let parsed: unknown;

@@ -70,7 +70,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   return (
     <section>
       <Head>
-        Desks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
+        Chats <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
       </Head>
       {myDesks.length === 0 && (
         <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>
@@ -241,7 +241,7 @@ function contextSize(tokens: number): string {
 
 /**
  * The MCP servers this agent can use, each switched on or off for it alone; its chats follow from their next message.
- * Servers are added in Settings › MCP.
+ * Servers are added in Preferences › MCP servers.
  */
 function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get" | "agent"> }) {
   const [view, setView] = useState<McpView | null>(null);

@@ -71,7 +71,7 @@ describe("Hide loki off the Mac is Minimise loki", () => {
 
 /**
  * No string the app shows names this Mac or Finder outside the words table and the views of Mac-only features
- * (the phone, which pairs with a Mac; Settings › phone), plus the Mac-only lines inside shared views, listed
+ * (the phone, which pairs with a Mac; Preferences › Phone), plus the Mac-only lines inside shared views, listed
  * one by one. Comments are not strings.
  */
 describe("the machine comes from the words table", () => {

@@ -57,7 +57,7 @@ export interface ChatBackend {
   /** Labels on chats (plan 022): every label with its colour and count, and renaming, recolouring or deleting one. */
   labels(): Promise<Replies["chat_labels"]>;
   setLabel(p: PayloadOf<"chat_label_set">): Promise<Replies["chat_labels"]>;
-  /** Settings › Engines (daemon/acp/, plan 020): the ACP agents, and adding, changing, removing and trying one. */
+  /** Preferences › Engines (daemon/acp/, plan 020): the ACP agents, and adding, changing, removing and trying one. */
   engines(): Promise<Replies["chat_engines"]>;
   setEngine(p: PayloadOf<"chat_engine_set">): Promise<Replies["chat_engines"]>;
   removeEngine(id: string): Promise<Replies["chat_engines"]>;

@@ -4,7 +4,7 @@ import { Button, Field } from "../components";
 import { Block, Setting } from "./layout";
 import type { GlobalSkill } from "../../../core/frame-types.ts";
 
-/** Settings › skills: the folder every agent reads, and the two things you do to it. */
+/** Preferences › Skills: the folder every agent reads, and the two things you do to it. */
 export interface GlobalSkillsApi {
   list: () => Promise<GlobalSkill[]>;
   /** Link a folder holding a SKILL.md into ~/.agents/skills (chat_skill_enable); an error message or null. */

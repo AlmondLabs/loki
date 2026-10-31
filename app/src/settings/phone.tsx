@@ -24,7 +24,7 @@ export interface PhoneApi {
 const ROUTE_NAME: Record<LanVia, string> = { tailscale: "Tailscale", lan: "this Wi‑Fi" };
 
 /**
- * Settings › phone, in blocks that answer four questions (plan 031). Can phones reach this Mac (a switch). Which way do
+ * Preferences › Phone, in blocks that answer four questions (plan 031). Can phones reach this Mac (a switch). Which way do
  * they come in (the route: one lit row, Tailscale or this Wi‑Fi; the lit one is what the QR carries and what a new
  * phone bookmarks). How does a new phone join (the QR, whose URL follows the lit route). Which phones are in, and
  * which way did each one last arrive.

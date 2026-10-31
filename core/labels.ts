@@ -10,7 +10,7 @@ export const LABELS_PER_CHAT = 8;
 /** How many colours the palette has; a label's colour is an index into it (the app holds the colours themselves). */
 export const LABEL_COLORS = 8;
 
-/** One label as Settings › labels and the picker list it: its name, its colour, and how many chats carry it. */
+/** One label as Preferences › Labels and the picker list it: its name, its colour, and how many chats carry it. */
 export interface LabelView {
   name: string;
   color: number;

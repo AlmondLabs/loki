@@ -19,7 +19,7 @@ export interface MacsApi {
 }
 
 /**
- * Settings › Macs (plan 023, U1): this Mac's name and tailnet address, the two halves of pairing (show a code here, or
+ * Preferences › Macs (plan 023, U1): this Mac's name and tailnet address, the two halves of pairing (show a code here, or
  * type another Mac's address and code), and the Macs paired with this one. Pairing is mutual: either side can forget
  * the other, and both stop.
  */

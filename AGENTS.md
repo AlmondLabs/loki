@@ -23,19 +23,22 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   world, and they clean up.
 - **Every export outside `test/` has a `/** … */` doc comment.** Comments say why, in full sentences and plain words;
   no commented-out code, no bare `TODO`.
-- **Words on screen**: desktop controls lowercase, phone sentence case, plain words, no exclamation marks.
+- **Words on screen**: desktop controls lowercase, phone sentence case, headings sentence case on both, plain words, no
+  exclamation marks.
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).
 - **Tests** inject the clock, the file root, runners and fetch; no real network, home or keychain; no sleeps; paths
   through `node:path` so they pass on Windows.
 
 ## Before you push
 
-Run every check, with CI's toolchain (Node 22.23.3, npm 10.9.9, `SHELL=/bin/bash`), and push only when all pass:
+Run every check, with CI's toolchain (the newest Node 22 and its npm 10, `SHELL=/bin/bash`), and push only when all pass:
 
 ```bash
 npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
+
+When `src-tauri/` changed, the cargo lines in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#checks) too.
 
 A failure is reproduced and fixed, never called flaky without evidence. After pushing, read the PR's CI, Windows
 included, before saying it is done.
@@ -46,7 +49,7 @@ included, before saying it is done.
   72 characters at most (`feat(chat): suggest work for another chat`). The PR title follows the same shape; CI checks
   it.
 - **The scope is one of these, or left out**; a folder or topic name that is not here fails CI: `chat`, `history`,
-  `acp`, `tasks`, `mcp`, `memory`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `peers`, `motion`,
+  `acp`, `mcp`, `memory`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `peers`, `motion`,
   `daemon`, `mod`, `core`, `app`, `shell`, `release`, `deps`, `style`. Check the title before opening the PR:
 
   ```bash

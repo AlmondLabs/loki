@@ -57,7 +57,7 @@ the steps.
 
 ## Keys
 
-1. **Ctrl keys everywhere:** Ctrl K search, Ctrl 1–6 sections, Ctrl N new chat, Ctrl L the message box, Ctrl
+1. **Ctrl keys everywhere:** Ctrl K search, Ctrl 1, 2, 4, 5 and 6 for the sections, Ctrl N new chat, Ctrl L the message box, Ctrl
    Shift [ and Ctrl Shift ] move the chat. The keys sheet (`?`) and Preferences › Keyboard shortcuts list Ctrl, Alt
    and Shift, never ⌘.
 2. **Browser keys do nothing in the installed app:** Ctrl R, F5, Ctrl P, Ctrl U, Ctrl G, Ctrl Shift I and F12

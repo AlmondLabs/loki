@@ -12,7 +12,7 @@ export type Adding = null | "write" | "install";
 /**
  * The skills page: the agent's own and the installed ones listed on the left, with the add form above
  * them; the picked skill's SKILL.md on the right, with refresh and remove. Global skills are not an
- * agent's and live in Settings › skills.
+ * agent's and live in Preferences › Skills.
  */
 export function SkillsPage({
   d,

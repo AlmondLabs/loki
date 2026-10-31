@@ -92,7 +92,7 @@ export function routeOf(host: string, protocol: string): string {
 }
 
 /**
- * The address a phone uses on this Wi‑Fi, as Settings › route prints it: the Bonjour name with the
+ * The address a phone uses on this Wi‑Fi, as Preferences › Phone prints it: the Bonjour name with the
  * port, then the raw address after a dot; the raw address alone when there is no name; a note on the
  * port when there is no network at all.
  */

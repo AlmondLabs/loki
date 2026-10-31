@@ -70,7 +70,7 @@ pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Settings › keys: hold or release ⌥Space. Registering again after a release is how the user reclaims it
+/// Preferences › Keyboard shortcuts: hold or release ⌥Space. Registering again after a release is how the user reclaims it
 /// from another app; the error names what went wrong so Settings can show it.
 #[cfg(target_os = "macos")]
 #[tauri::command]

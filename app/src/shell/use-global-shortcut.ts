@@ -4,7 +4,7 @@ import { messageOf } from "../../../core/errors.ts";
 
 const KEY = "loki.globalShortcut";
 
-/** ⌥Space as the app holds it: on or off (Settings › keys), and why the OS refused it, if it did. */
+/** ⌥Space as the app holds it: on or off (Preferences › Keyboard shortcuts), and why the OS refused it, if it did. */
 export interface GlobalShortcut {
   /** False in a browser tab (only the shell can register a system-wide key) and off the Mac (R3). */
   available: boolean;

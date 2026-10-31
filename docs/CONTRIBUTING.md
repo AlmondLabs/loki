@@ -24,7 +24,7 @@ Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-
 runner is one). `npm run tauri -- build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
 release's files.
 
-`npm start` bundles the mod before the window opens, and the window starts loki's daemon (`src-tauri/src/harness.rs`), which hosts it; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `npm start --check` reports the preflight without starting anything.
+`npm start` bundles the mod before the window opens, and the window starts loki's daemon (`src-tauri/src/harness.rs`), which hosts it; when the daemon does not come up, the script says so and names its log, `~/.loki/logs/daemon.log`. `npm start -- --check` reports the preflight without starting anything.
 
 ## Checks
 
@@ -45,8 +45,9 @@ npm run doctor                                    # optional: react-doctor's rep
 ```
 
 CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
-say something: `.github/workflows/ci.yml` runs types, lint, the suite, the Node runner's tests and both bundles once
-on Ubuntu 22.04, and the suite again on macOS 14 and Windows, where paths, shells and processes differ;
+say something: `.github/workflows/ci.yml` runs types, Prettier, lint, the suite, the Node runner's tests, both bundles and the
+smoke test on Ubuntu 22.04, and the suite, the Node runner's tests, the mod bundle and the smoke test again on
+macOS 14 and Windows, where paths, shells and processes differ;
 `shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory); `pr-title.yml` checks every PR's title against Conventional Commits (docs/style.md §9). A PR of docs alone starts only the title check. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
@@ -61,7 +62,8 @@ with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm 
 
 - `daemon/` loki's daemon, on Earendil's Pi libraries: agents, chats, tools, approvals, MCP, background passes.
   `scripts/build-mod.ts` bundles it for the app.
-- `mod/` the canvas mod the daemon hosts: widgets, gestures, Tasks, Learn, the phone listener and `/ws`. Plain
+- `mod/` the canvas mod the daemon hosts: widgets, gestures, suggestions, Learn, the phone and
+  Mac listener and `/ws`. Plain
   TypeScript, no build step in development; `scripts/build-mod.ts` bundles it too.
 - `core/` types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or Tauri imports.
 - `app/` the React canvas: `app/src/shell/` and the section folders are the desktop, `app/src/phone/` the

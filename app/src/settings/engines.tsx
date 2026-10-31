@@ -3,7 +3,7 @@ import { Button, Dot, Field, TextArea, sentence } from "../components";
 import { Block, Setting } from "./layout";
 import type { EnginesView, EngineView } from "../../../core/frame-types.ts";
 
-/** What Settings › Engines asks of the daemon; each call resolves to the agents as they now stand, or an error message. */
+/** What Preferences › Engines asks of the daemon; each call resolves to the agents as they now stand, or an error message. */
 export interface EnginesApi {
   get: () => Promise<EnginesView | string>;
   set: (engine: { id: string; name: string; command: string; args: string[] }) => Promise<EnginesView | string>;
@@ -38,7 +38,7 @@ export const engineId = (name: string): string =>
     .replace(/^-+|-+$/g, "");
 
 /**
- * Settings › Engines (plan 020, R10): the ACP agents a chat can run on, the built-in ones first, each with how it stands
+ * Preferences › Engines (plan 020, R10): the ACP agents a chat can run on, the built-in ones first, each with how it stands
  * (its command found, signed in, its last failure). Try starts one now; add and edit write ~/.loki/state/acp.json.
  */
 export function Engines({ api }: { api: EnginesApi }) {
