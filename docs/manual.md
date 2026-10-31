@@ -564,13 +564,16 @@ terminal). In such a chat:
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, write, edit and delete, each change
   committed as in loki's chats), schedules, questions in loki's card, the canvas, `chat_list` and the suggestion
   tools, and any your mods add. Claude Code's own tools cover files, commands, web search and subagents;
+- Claude Code compacts its context by its own rules, and `/compact` is Claude Code's. Every turn stays in loki's
+  history all the same, and the agent can search the whole chat (`history_search`) and read any part of it back
+  (`history_read`), so what a compaction dropped, or a session that couldn't be picked up again, isn't lost to it;
 - every MCP server the agent has on in loki (Agents › Profile) is there too, under its own name: loki hands Claude
   Code each one's settings and Claude Code connects to it. A server that signs in (Notion, say) asks once, the first
   time a Claude Code chat uses it: a card in the chat asks to open its sign-in page, and **allow** opens it in this
   Mac's browser. Claude Code keeps that sign-in for every later chat; loki's own sign-in stays for loki's chats. A
   local server you gave its own folder can't be handed over and stays out (the daemon's log says so). Servers you set
   up in Claude Code itself load as well;
-- tools that only read, and loki's memory, question and suggestion tools, run without a card, as they do in loki's
+- tools that only read, and loki's memory, history, question and suggestion tools, run without a card, as they do in loki's
   own chats; anything else asks as Claude Code's mode says.
 
 Whether your Claude plan allows use through another app is between you and Anthropic; read your plan's terms.

@@ -25,6 +25,7 @@ import { BackgroundTasks } from "./background.ts";
 import { Schedules, scheduleTools } from "./schedule.ts";
 import { memoryRepos } from "./memory-sync.ts";
 import { memoryRoot, memoryTools } from "./memory.ts";
+import { historyTools } from "./history-tools.ts";
 import { askTool } from "./ask.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
 import { chatEnvs } from "./tool-results.ts";
@@ -212,7 +213,7 @@ async function carryOverPasses(): Promise<void> {
 }
 // loki's own tools, served on loopback to chats on an ACP agent (plan 044): the same tool bodies loki's engine runs.
 const lokiTools = new LokiTools({
-  tools: () => [...memoryTools(backend), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
+  tools: () => [...memoryTools(backend), ...historyTools(chats), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
   stores,
   context,
   version: appVersion(paths.root) ?? "0",

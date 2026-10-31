@@ -37,6 +37,9 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       // Suggestions (plan 049, KTD5): an ACP agent never sees the mod's prompt sections, so the prompt names the tool.
       expect(withTools).toContain("suggestion_create");
       expect(prompt).not.toContain("suggestion_create");
+      // The history tools (plan 063): loki cannot see an ACP agent compact, so the prompt always names them.
+      expect(withTools).toContain("mcp__loki__history_search");
+      expect(prompt).not.toContain("history_search");
       // An agent with no memory and no skills still learns of the tool when loki's tools reach it.
       expect(agentPrompt(dir, "agent-nobody", null, true, globalSkills)).toContain("suggestion_create");
     } finally {

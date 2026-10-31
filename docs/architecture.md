@@ -107,8 +107,9 @@ every chat gets, the chats, then the mods.
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
    compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
-   definition (`daemon/tool-kinds.ts`). The memory, schedule and question tools, and the mods' tools, are written once
-   as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones. Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
+   definition (`daemon/tool-kinds.ts`). The memory, history, schedule and question tools, and the mods' tools, are
+   written once as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones; its prompt names
+   the history tools, since loki cannot see an ACP agent compact (plan 063). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
    own environment except that `bash` output past its limits is saved to the chat's `tool-results` folder, where
    MCP's big results go too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global

@@ -8,7 +8,8 @@ import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
  * included, as loki's own chats have it) and its skills. With loki's tools (plan 044) it changes its memory with them,
  * as in loki's own chats; without them, the memory is named by path for it to read and loki keeps it up to date through
  * its passes. The skills are named by path either way. Null when the agent has neither and no tools reach it: with
- * tools, the prompt still names suggestion_create, since a tool description alone may never be read.
+ * tools, the prompt still names suggestion_create and the history tools (plan 063), since a tool description alone may
+ * never be read.
  */
 export function agentPrompt(backendDir: string, agentId: string, name: string | null, withTools: boolean, globalSkillsDir?: string): string | null {
   const memory = memorySection(memoryRoot(backendDir, agentId), withTools ? "tools" : "files");
@@ -21,7 +22,7 @@ export function agentPrompt(backendDir: string, agentId: string, name: string | 
         .join("\n")}`
     : null;
   const tools = withTools
-    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when.`
+    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when. Every turn of this chat is kept, including what your own compaction or a lost session dropped: find earlier turns with mcp__${LOKI_TOOLS_SERVER}__history_search and read them with mcp__${LOKI_TOOLS_SERVER}__history_read before you guess.`
     : null;
   return [who, tools, memory ? `<memory>\n${memory}\n</memory>` : null, skillText ? `<skills>\n${skillText}\n</skills>` : null].filter(Boolean).join("\n\n");
 }

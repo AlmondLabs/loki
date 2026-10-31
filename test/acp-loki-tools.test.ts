@@ -10,6 +10,8 @@ import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/cli
 import type * as acp from "@agentclientprotocol/sdk";
 import { LokiTools } from "../daemon/acp/loki-tools.ts";
 import type { ChatTool } from "../daemon/chat-tools.ts";
+import { ChatProjection } from "../daemon/chats.ts";
+import { historyTools } from "../daemon/history-tools.ts";
 import { AgentStore, ChatDoc } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
@@ -18,6 +20,7 @@ import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { registerTools } from "../mod/tools.ts";
+import { sampleEntries } from "./fixtures/entries.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const cleanups: Array<() => Promise<void>> = [];
@@ -42,7 +45,8 @@ const echo: ChatTool = {
   run: (args) => Promise.resolve({ output: [{ type: "text", text: String(args.words) }] }),
 };
 
-async function setup() {
+/** loki's tools for one chat, served as to an ACP session; `make` gives the tools, from the chat's store. */
+async function setup(make: (store: AgentStore, conversationId: string) => Promise<ChatTool[]> = () => Promise.resolve([whoami, echo])) {
   const dir = mkdtempSync(join(tmpdir(), "loki-acp-tools-"));
   const models = createModels();
   const mods = new ModRegistry(() => {});
@@ -56,7 +60,8 @@ async function setup() {
   const store = await stores.get("ada");
   const conversationId = "local-conv-garden";
   await store.createChat(conversationId, { title: null }, ctx);
-  const tools = new LokiTools({ tools: () => [whoami, echo], stores, context: ctx, version: "test" });
+  const served = await make(store, conversationId);
+  const tools = new LokiTools({ tools: () => served, stores, context: ctx, version: "test" });
   await tools.start();
   cleanups.push(async () => {
     await tools.stop();
@@ -116,6 +121,24 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
   test("the tools that only read run without asking, named as the agent names them", async () => {
     const { tools } = await setup();
     expect(tools.readOnly()).toEqual(["mcp__loki__whoami"]);
+  });
+
+  test("covers plan 063: the history tools search the ACP chat's own stored turns, by the thread's rows, without asking", async () => {
+    const chats = new ChatProjection(ctx, () => null);
+    const { tools, conversationId } = await setup(async (store, chatId) => {
+      await store.setAgent({ id: "ada", name: "Ada" }, ctx);
+      const chat = await store.chat(chatId, ctx);
+      if (!chat) throw new Error("no chat");
+      await store.importEntries(chat, sampleEntries(), ctx);
+      await chats.attach("ada", store);
+      return historyTools(chats);
+    });
+    const asked = chats.thread(conversationId, "ada").findIndex((r) => r.role === "user" && r.text.includes("readme"));
+    expect(asked).toBeGreaterThanOrEqual(0);
+    const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));
+    const found = await loki.callTool({ name: "history_search", arguments: { query: "readme" } });
+    expect(JSON.stringify(found.content)).toContain(`#${asked} person`);
+    expect(tools.readOnly()).toEqual(["mcp__loki__history_search", "mcp__loki__history_read"]);
   });
 
   test("covers plan 061: a pass's chat is served only its job's tools, and the calls it ran are taken once", async () => {
