@@ -504,7 +504,7 @@ describe("ACP agents (plan 020)", () => {
     expect(result).toMatchObject({ step: { output: "--- a.txt\n+++ a.txt\n+a" } });
   });
 
-  test("Settings › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
+  test("Preferences › Engines: how each agent stands, and adding, changing, trying and removing one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-engines-"));
     const file = join(dir, "state", "acp.json");
     // Claude Code started the person's way, on the fake agent, so nothing here depends on npx being installed.

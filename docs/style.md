@@ -45,7 +45,8 @@ npm run build:app && npm run build:mod && npm run smoke
 **Names** **checked** (ESLint `naming-convention`) where the case is concerned, **review** for the rest:
 
 - Variables and functions camelCase; types, interfaces, classes and components PascalCase; module-level constants that
-  are fixed tables or limits UPPER_SNAKE (`QUOTE_MAX`, `KEYMAP`, `DONE_ASKED`). No `I` prefix on an interface.
+  are fixed tables or limits UPPER_SNAKE (`QUOTE_MAX`, `KEYMAP`, `DONE_ASKED`), which the rule allows but does not
+  require. No `I` prefix on an interface.
 - Acronyms are words: `agentUrl`, `McpTools`, `OauthStore`, `loadHttpUrl`, never `agentURL` or `OAuthStore`.
 - Object and type properties are left free, since they carry data in its own names (wire and file fields, headers); a
   name taken apart from data keeps it (`const { agent_id } = runtime`).
@@ -76,7 +77,8 @@ npm run build:app && npm run build:mod && npm run smoke
   which the mod loader imports by default. **checked**: ESLint (`no-restricted-exports`).
 - **`import type`** for types. **checked**: `verbatimModuleSyntax` and `consistent-type-imports`.
 - `core/`, `mod/` and `daemon/` import each other with the `.ts` extension (Node runs them unbundled); `app/` imports
-  `core/` with it too, and its own files without. **checked**: tsc and the runtime.
+  `core/` with it too, and its own files without. **review**: tsc accepts either form (`allowImportingTsExtensions`
+  with `bundler` resolution); only Node, running `daemon/` and `mod/` unbundled, fails on a missing extension.
 - `core/` never touches the browser, Tauri or `app/`. **checked**: `test/core-portability.test.ts`.
 - One concern per file. When a file passes ~600 lines, look for the second concern inside it. **review**.
 
@@ -130,17 +132,19 @@ Tuned on purpose (allowed, and why):
 
 Patterns the rules lead to:
 
-- A shape that must also be pi-durable's `JsonObject` (or any index-signature type) is
-  `interface ChatInfo extends JsonObject { … }`, which says so; a `type` alias stays only where that cannot work, with
-  the reason on an `eslint-disable-next-line` comment. That is the one disable comment the guide allows.
+- A shape that must also be pi-durable's `JsonObject` (or any index-signature type) stays a `type` alias, since an
+  interface with optional fields cannot extend one; the reason goes on an
+  `eslint-disable-next-line @typescript-eslint/consistent-type-definitions` comment above it (`ChatInfo` in
+  `daemon/kernel/index.ts`). That is the one disable comment the guide allows.
 - A parse function that returns literal types gets an annotated return type rather than `as` casts on its fields:
   TypeScript widens a narrowed literal back to `string` inside an object literal, and the cast hides that.
 - In tests, `must(value, "what")` (`test/fixtures/must.ts`) stands in for `value!` and fails with what was missing.
 
 ## 4. React
 
-**checked** by `eslint-plugin-react-hooks` (hooks rules and the React Compiler's rules, all errors) and React
-Doctor in CI (nothing new against `main`):
+**checked** by `eslint-plugin-react-hooks`: the hooks rules and the React Compiler's rules are errors, except
+`incompatible-library` and `unsupported-syntax`, which stay warnings. React Doctor posts an advisory comment on a PR
+that touches `app/` (new findings against `main`); it does not fail CI, so it is **review**:
 
 - Function components only, one main component per file, named after the file.
 - **Derive, don't sync**: a value computed from props or state is computed during render (or `useMemo`), never copied
@@ -164,9 +168,9 @@ Doctor in CI (nothing new against `main`):
 
 ## 5. Comments and doc comments
 
-- **Every export outside `test/` has a doc comment** (`/** … */`): what it is or does, in terms of loki, and anything
-  the caller must know. **checked**: ESLint (`jsdoc/require-jsdoc` on exported functions, classes, interfaces, type
-  aliases and components).
+- **Every export outside the tests has a doc comment** (`/** … */`): what it is or does, in terms of loki, and
+  anything the caller must know. **checked**: ESLint (`jsdoc/require-jsdoc` on exported functions, classes,
+  interfaces, type aliases, components and constants; `test/`, `test-node/` and `*.config.ts` are skipped).
 - **Comments say why**, or what something means for the person using loki; the code already says what it does.
   Write the reason a reader would otherwise have to rediscover: the bug it avoids, the constraint behind it, the
   decision it records. **review**.
@@ -180,11 +184,12 @@ Doctor in CI (nothing new against `main`):
 **review**, with design.md's rules for colour and badges:
 
 - **Desktop controls and labels are lowercase** (`save as draft`, `confirm`, `sign in to cloud tracker`); the phone uses
-  **sentence case**, as iOS does (`Save as draft`, `Mark as read`). Titles of sections are the names in the sidebar
-  (`Chats`, `Learn`).
+  **sentence case**, as iOS does (`Save as draft`, `Mark as read`). Headings are sentence case on both: titles of
+  sections are the names in the sidebar (`Chats`, `Learn`), and tabs, page titles and fold titles read the same way
+  (`Profile`, `MCP servers`, `What launch installed`).
 - Plain words, no jargon: "the agent is waiting for you", not "pending HITL approval". Name what the person sees,
   never an internal id or a stack trace (those go behind a "details" disclosure).
-- Errors say what happened and what to do: "the chat this was for is gone: pick another chat", "needs a sign-in: Settings › MCP".
+- Errors say what happened and what to do: "the chat this was for is gone: pick another chat", "needs a sign-in: Preferences › MCP servers".
 - No exclamation marks, no "please", no "simply" or "just". Numbers as digits.
 - Keys are written the Mac's way in docs (⌘, ⌥, ⇧); the app formats them for the viewer's system (`formatKeys`).
 
@@ -204,9 +209,10 @@ Doctor in CI (nothing new against `main`):
 
 - **Names read as behaviour**, in sentences: `describe("the chip on the message")`, `test("open: the agent's newest
   note; done?: Confirm and Reopen; done: ticked")`. **review**.
-- **Inject the outside world**: the clock, the `bd` runner, the file root, the keychain, fetch. Fake servers live in
+- **Inject the outside world**: the clock, runners, the file root, the keychain, fetch. Fake servers live in
   `test/fixtures/`. No real network, no real home directory, no real keychain. **review**.
-- **No sleeps for timing**: wait on a condition with a deadline (the `until` helper). **review**.
+- **No sleeps for timing**: wait on a condition with a deadline (each file
+  that needs one keeps a small `until`). **review**.
 - **Portable**: paths through `node:path`, never a hard-coded `/`; tests pass on macOS, Linux and Windows (CI runs
   all three). **checked**: CI.
 - A bug fix comes with the test that would have caught it. **review**.
@@ -224,7 +230,7 @@ commit.
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`; `!` after the
   scope for a breaking change.
 - Scopes are loki's areas: `chat`, `history` (a chat's history pages and their rows), `acp` (chats on an ACP agent
-  such as Claude Code), `tasks`, `mcp`, `memory` (an agent's memory and its notes), `learn`, `phone`, `desk`, `inbox`,
+  such as Claude Code), `mcp`, `memory` (an agent's memory and its notes), `learn`, `phone`, `desk`, `inbox`,
   `agents`, `settings`, `peers` (paired Macs), `motion` (animation and gestures), `daemon`, `mod`, `core`, `app`,
   `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for changes across the
   tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there, here and in AGENTS.md.

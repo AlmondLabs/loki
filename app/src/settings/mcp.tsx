@@ -5,7 +5,7 @@ import { openExternal } from "../desk/env";
 import { Block, Segmented, Setting } from "./layout";
 import { messageOf } from "../../../core/errors.ts";
 
-/** What Settings › MCP asks of the daemon; each call resolves to the servers as they now are, or an error message. */
+/** What Preferences › MCP servers asks of the daemon; each call resolves to the servers as they now are, or an error message. */
 export interface McpApi {
   get: () => Promise<McpView | string>;
   server: (entry: string, edit: McpEdit | null, rename?: string) => Promise<McpView | string>;
@@ -54,7 +54,7 @@ export const pairsText = (pairs: Record<string, string>, sep: "=" | ":"): string
     .join("\n");
 
 /**
- * Settings › MCP: the servers in ~/.loki/mcp.json, each with its state, its tools and what loading them all would
+ * Preferences › MCP servers: the servers in ~/.loki/mcp.json, each with its state, its tools and what loading them all would
  * cost. A server's tools wait behind the agent's search; the ones checked "always loaded" skip it. Add, edit, restart
  * and remove write the file the daemon follows. Values can be kept in the keychain, and the file names them instead.
  */
@@ -489,7 +489,7 @@ function RemoteFields({ uid, form, set }: { uid: string; form: Form; set: SetFie
   );
 }
 
-/** Settings › Chat: the tools answered "always allow", to take back one by one. */
+/** Preferences › Chat: the tools answered "always allow", to take back one by one. */
 export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const [tools, setTools] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);

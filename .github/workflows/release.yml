@@ -263,7 +263,7 @@ jobs:
           if-no-files-found: error
 
   # Linux: loki_<version>_amd64.AppImage and loki_<version>_amd64.deb, built on the oldest supported Ubuntu so they
-  # run on newer glibc too (KTD11). The apt list is ci.yml's: the 22.04 names, no appindicator (the tray is Mac-only).
+  # run on newer glibc too (KTD11). The apt list is shell.yml's: the 22.04 names, no appindicator (the tray is Mac-only).
   linux:
     name: Linux preview (v${{ needs.plan.outputs.version }})
     needs: plan

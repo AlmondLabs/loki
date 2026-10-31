@@ -11,7 +11,7 @@ export interface Me {
 
 /**
  * Not paired yet. A `?code=` in the address (the QR) is redeemed at once; otherwise, or when it has
- * expired, the six letters shown in Settings › phone go in the field — a home-screen icon launches
+ * expired, the six letters shown in Preferences › Phone go in the field — a home-screen icon launches
  * from "/" with no query, so the field is always there. Six characters typed is the tap.
  */
 export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {

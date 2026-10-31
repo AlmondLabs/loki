@@ -4,7 +4,7 @@ import type { FrameHandlers } from "./context.ts";
 
 /** What the phone settings' frame handler needs from its host; without `lan` every frame fails with an error. */
 export interface LanDeps {
-  /** The phone listener (mod/lan.ts) and its paired devices, for Settings › phone. */
+  /** The phone listener (mod/lan.ts) and its paired devices, for Preferences › Phone. */
   lan?: {
     status: () => LanStatus;
     /** status() after asking Tailscale again (what lan_get answers with). */
@@ -23,7 +23,7 @@ export interface LanDeps {
 }
 
 /**
- * Settings › phone: the listener on and off, the route its QR encodes, `tailscale serve`, pairing, and the paired
+ * Preferences › Phone: the listener on and off, the route its QR encodes, `tailscale serve`, pairing, and the paired
  * phones. Each answers with a push; the listener's own onChange also broadcasts its status to every tab.
  */
 export function lanFrames({ lan }: LanDeps): FrameHandlers {

@@ -46,20 +46,21 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
 ```
 
 1. **The shell starts the daemon and keeps it alive.** At launch it finds Node 22.19 or newer (`node.rs`), stops a
-   daemon an earlier loki left behind (`procs.rs`, matched by its command line and start time), and starts a new
-   one (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build
-   runs the checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to
-   `~/.loki/logs/daemon.log`. A checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it
-   reloads the mod when `mod/` or `core/` changes, and a change to `daemon/` or `core/` makes a restart due
-   (`restart_due`), which the window offers; `daemon_restart` stops it cleanly for the supervisor to start again.
+   daemon an earlier loki left behind (`procs.rs`, matched by its command line and start time), and starts a new one
+   (`harness.rs`). A release build runs the installed bundle, `~/.loki/daemon/daemon.mjs`; a development build runs the
+   checkout's `daemon/main.ts` with `mod/boot.ts`. The daemon's output is appended to `~/.loki/logs/daemon.log`. A
+   checkout's daemon keeps up with its sources (`daemon/dev-reload.ts`, plan 024): it reloads the mod when `mod/` or
+   `core/` changes, and a change to `daemon/` or `core/` makes a restart due (`restart_due`), which the window offers;
+   `daemon_restart` stops it cleanly for the supervisor to start again. Under `npm start`, which runs the built page, a
+   change to `app/` or `core/` also makes a build due (`daemon/page-build.ts`).
 2. **A daemon that dies is started again, with backoff.** The supervisor (`supervise_daemon` in `lib.rs`) waits one
    second, doubling with each exit in the last minute, never more than thirty. A daemon that crashes at start
    therefore does not spin. Quitting loki stops the daemon and the supervisor leaves it down.
-3. **Only one daemon serves a folder.** The daemon takes `~/.loki/daemon.lock` (a file holding its pid) before it
-   opens any store, because pi-durable has no lock of its own and two owners of one store would run the same tool
-   calls twice. A second daemon exits with code 3; its shell leaves the first one serving and tries again every 30
-   seconds, in case that one was a leftover that later dies. This is how a dev build beside the installed app shares
-   one daemon.
+3. **Only one daemon serves a folder.** The daemon takes `~/.loki/daemon.lock` (a file holding its pid,
+   `daemon/lock.ts`) before it opens any store, because pi-durable has no lock of its own and two owners of one store
+   would run the same tool calls twice. A second daemon exits with code 3; its shell leaves the first one serving and
+   tries again every 30 seconds, in case that one was a leftover that later dies. This is how a dev build beside the
+   installed app shares one daemon.
 4. **The daemon dies with loki.** On Windows it runs with no console window inside a Job Object that ends the whole
    tree when loki's handle closes. On Linux it is started with the parent-death signal. On the Mac, where neither
    exists, a leftover from a crash is found and stopped at the next launch.
@@ -73,45 +74,52 @@ The model is a remote service, not a process on your machine.
 
 ## Inside the daemon
 
-`daemon/main.ts` wires these pieces together, in this order: the lock, the keychain, the stores, the extensions
+`daemon/main.ts` wires these pieces together, in this order: the lock, the keychain, the stores, MCP, the extensions
 every chat gets, the chats, then the mods.
 
-1. **The kernel (`daemon/kernel/`).** The only code that imports pi-durable. Each agent has one pi-durable
-   `Harness` over one SQLite file, `~/.loki/stores/<agentId>.sqlite`, opened on first use. pi-durable saves every
-   model step and tool result before it is shown, so a turn cut off by a crash resumes from its last save when the
-   store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats; the
-   store manager reopens it. pi-durable numbers its own conversations, so a document in each store maps loki's chat
-   ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat keeps its id for life, and its
-   widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes what a store holds migrates
-   it on open, after a whole copy (`daemon/store-backup.ts`): pi-durable's own schema, to
-   `stores/backup-schema-<version>-<date>/`; and loki's entries, in `daemon/store-migration.ts`, one pass of
-   rewrites over a store's entries in one transaction (old tool names, and the shapes chats imported from Letta
-   carried), versioned per store in `stores/migrations.json`. It replaced `store-tool-names.ts` and its
-   `tool-names.json`. Chats on an ACP agent keep their agent's own names and shapes.
+1. **The kernel (`daemon/kernel/`).** The only code that opens pi-durable's `Harness` and its SQLite stores; other
+   modules use only its extension and tool API (`defineExtension`, `defineTool`, `section` and the like). Each agent has
+   one pi-durable `Harness` over one SQLite file, `~/.loki/stores/<agentId>.sqlite`, opened on first use. pi-durable
+   saves every model step and tool result before it is shown, so a turn cut off by a crash resumes from its last save
+   when the store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats;
+   the store manager (`StoreManager`, `kernel/stores.ts`) reopens it. pi-durable numbers its own conversations, so a
+   document in each store maps loki's chat ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat
+   keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
+   what a store holds migrates it on open, after a whole copy (`daemon/store-backup.ts`): pi-durable's own schema, to
+   `stores/backup-schema-<version>-<date>/`; and loki's entries, in `daemon/store-migration.ts`, one pass of rewrites
+   over a store's entries in one transaction (old tool names, and the shapes chats imported from Letta carried),
+   versioned per store in `stores/migrations.json`. It replaced `store-tool-names.ts` and its `tool-names.json`. Chats
+   on an ACP agent keep their agent's own names and shapes.
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
-   `agents/<id>.json` for the record, `memfs/<id>/memory/` for the memory repo. The memory repo's `system/` files go
-   into the prompt; the rest is listed by path. Each change is a git commit, by the agent, or by "Reflection".
-   `daemon/agent-migration.ts` migrates the records and memory once, noted in `state/migrations.json`.
-3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials
-   (API keys, or the tokens from signing in with ChatGPT) are kept in the OS keychain through `@napi-rs/keyring`,
-   one entry per provider under the service "loki". A key is tried before it is kept. Anthropic's subscription
-   sign-in is not offered, because pi-ai implements it by presenting itself as Claude Code; an Anthropic API key
-   works instead. Without a reachable keychain, keys come from environment variables only, and the log says so.
+   `agents/<id in base64>.json` for the record (`backendName`) and `memfs/<id>/memory/` for the memory repo. The memory
+   repo's `system/` files go into the prompt; the rest is listed by path. A section read from disk is reused for ten
+   seconds, and a commit to any memory repo clears it at once (`daemon/section-cache.ts`). Each change is a git commit,
+   by the agent, by "Reflection", or by "Doctor". `daemon/agent-migration.ts` migrates the records and memory once,
+   noted in `state/migrations.json`.
+3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials (API
+   keys, or the tokens from a provider's sign-in, such as ChatGPT, OpenRouter or GitHub Copilot) are kept in the OS
+   keychain through `@napi-rs/keyring`, one entry per provider under the service "loki". A key is tried before it is
+   kept. Anthropic's subscription sign-in is not offered, because pi-ai implements it by presenting itself as Claude
+   Code; an Anthropic API key works instead. Without a reachable keychain, keys come from environment variables only,
+   and the log says so.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
    the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
    crash never asks twice. `user_ask` shows a question card the same way.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
-   (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
+   (`daemon/tools.ts`, which shrinks an image to the size of a pasted one before the model gets it,
+   `daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
+   `daemon/store-images.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
-   compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one ordered
-   list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
-   definition (`daemon/tool-kinds.ts`). The memory, history, schedule and question tools, and the mods' tools, are
-   written once as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones; its prompt names
-   the history tools, since loki cannot see an ACP agent compact (plan 063). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
-   own environment except that `bash` output past its limits is saved to the chat's `tool-results` folder, where
-   MCP's big results go too.
+   compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one
+   ordered list, the permission gate first among them (`loki.mcp` is installed earlier, but has no hooks), and each of
+   loki's tools declares its kind (read, edit or command) on its own definition (`daemon/tool-kinds.ts`). The memory,
+   history, schedule and question tools, and the mods' tools, are written once as `ChatTool`s (`daemon/chat-tools.ts`),
+   so a chat on an ACP agent runs the same ones; its prompt names the history tools, since loki cannot see an ACP agent
+   compact (plan 063). Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's own environment
+   except that `bash` output past its limits is saved to the chat's `tool-results` folder, where MCP's big results go
+   too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
    ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `skill` tool hands over a
    skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
@@ -123,44 +131,52 @@ every chat gets, the chats, then the mods.
    keeps running after its turn; the agent reads its output, writes to it, waits on it or stops it, and its chat
    gets a `<task-notification>` when it ends. Scheduled prompts are kept in `~/.loki/state/crons.json` and checked
    once a minute; a slot missed while loki was closed fires once at the next start.
-9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory;
-   Learn (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner
-   looks over the chats, and a chat quiet for half an hour with new material past a pass's cursor is due for it
-   (reflection also takes a chat right after its context is compacted). A run takes all of one agent's due chats at
-   once, each chat's new stretch its own part (up to 80,000 characters; a chat that does not fit whole waits for the
-   next batch), so a pass sees what recurs or conflicts across conversations; an agent gets a batch at most every two
-   hours, so chats gather, unless a chat was compacted or the last batch left some behind. Cursors stay per chat and
-   move only when a run succeeds. A run works as the agent in that pass's hidden chat for the agent, cleared first,
-   never while a chat in it is busy, one run at a time across all agents, and is measured (`pass_finished`, with the
-   chats it read). The memory review (`/doctor`, `daemon/doctor.ts`) shares the queue and the hidden-chat run but reads
-   the agent's whole memory instead of chats, and runs only when asked; its commits are authored "Doctor". Their settings and cursors are in `~/.loki/state/passes.json` and
-   `pass-cursors.json`.
-10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools
-    and prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and
-    listens to turn events. Each mod becomes one pi-durable extension shared by every agent's store, so one install
-    reaches every chat. loki's own mod (`mod/index.ts`) is loaded first; then any file in `~/.loki/mods`. Editing a
-    mod reloads it in place: work already under way finishes on the old code and the next step uses the new. A mod
-    built for a newer major API version is refused.
-11. **MCP (`daemon/mcp/`).** One `@modelcontextprotocol/client` per server in `~/.loki/mcp.json` (`servers.ts`: local
-    over stdio, remote over Streamable HTTP, restarted with backoff, tools re-read when a server says they changed).
-    `index.ts` registers every tool as `mcp__<server>__<tool>` in one `loki.mcp` extension, with an `mcp` prompt
-    section (servers and tool names) and `mcp_search` (`search.ts`, BM25 over names, descriptions and parameters,
-    or `select:`). A chat's pi-durable tool filter hides every MCP tool until `mcp_search` returns `addTools` for it;
-    loki's engine (`LokiEngine`) sets the filter before each run (the chat's `mcpKnown` tells a loaded tool from a new one) and
-    empties it on /clear and compaction. Results map to text and images; big ones spill to files (`results.ts`).
-    A remote server with no Authorization header signs in with OAuth (`oauth.ts`, the SDK's provider interface):
-    an unauthorized connect is the `signin` state, Settings opens the authorization page, and the browser comes back
-    to the mod's loopback route (`oauthCallbackRoute` in `mod/server.ts`), which hands the code to `McpTools.finishAuth`.
+9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory; Learn
+   (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner looks
+   over the chats, and a chat quiet for half an hour with new material past a pass's cursor is due for it (reflection
+   also takes a chat right after its context is compacted). A run takes all of one agent's due chats at once, each
+   chat's new stretch its own part, so a pass sees what recurs or conflicts across conversations; an agent gets a batch
+   at most every two hours, so chats gather, unless a chat was compacted or the last batch left some behind. One chat's
+   part is at most 24,000 characters (`MAX_MATERIAL_CHARS`), its oldest, and the rest waits for the next run; a batch
+   reads at most 80,000 (`MAX_BATCH_CHARS`), and a chat that does not fit whole waits for the next batch. A stretch
+   under 300 characters (`MIN_NEW_CHARS`), a thanks or an acknowledgement, is not worth a model call: its cursor moves
+   on. Cursors stay per chat and move only when a run succeeds. A run works as the agent in that pass's hidden chat for
+   the agent, cleared first, never while a chat in it is busy, one run at a time across all agents, and is measured
+   (`pass_finished`, with the chats it read). The memory review (`/doctor`, `daemon/doctor.ts`) shares the queue and the
+   hidden-chat run but reads the agent's whole memory instead of chats, and runs only when asked; its commits are
+   authored "Doctor". Their settings and cursors are kept by `daemon/passes-state.ts`, in `~/.loki/state/passes.json`
+   and `pass-cursors.json`.
+10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools and
+    prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and listens to
+    turn events. Each mod becomes one pi-durable extension shared by every agent's store, so one install reaches every
+    chat (`registry.ts`). loki's own mod (`mod/index.ts`) is loaded first; then any file in `~/.loki/mods`, bundled
+    afresh and watched (`files.ts`). Editing a mod reloads it in place: work already under way finishes on the old code
+    and the next step uses the new. A mod built for a newer major API version is refused.
+11. **MCP (`daemon/mcp/`).** One `@modelcontextprotocol/client` per server in `~/.loki/mcp.json` (read by `config.ts`,
+    in the `mcpServers` shape other MCP clients use; `servers.ts`: local over stdio, remote over Streamable HTTP,
+    restarted with backoff, tools re-read when a server says they changed). `index.ts` registers every tool as
+    `mcp__<server>__<tool>` in one `loki.mcp` extension, with an `mcp` prompt section (servers and tool names) and
+    `mcp_search` (`search.ts`, BM25 over names, descriptions and parameters, or `select:`). A chat's pi-durable tool
+    filter hides every MCP tool until `mcp_search` returns `addTools` for it, except the tools a server names in
+    `alwaysLoad`, which skip the search; loki's engine (`LokiEngine`) sets the filter before each run (the chat's
+    `mcpKnown` tells a loaded tool from a new one) and empties it on /clear and compaction. Results map to text and
+    images; big ones spill to files (`results.ts`). A remote server with no Authorization header signs in with OAuth
+    (`oauth.ts`, the SDK's provider interface): an unauthorized connect is the `signin` state, Preferences opens the
+    authorization page, and the browser comes back to the mod's loopback route (`oauthCallbackRoute` in
+    `mod/server.ts`), which hands the code to `McpTools.finishAuth`.
 12. **The chats (`daemon/chat-backend.ts`, `daemon/engine.ts`, `daemon/loki-engine.ts`, `daemon/chats.ts`,
-    `daemon/chat-events.ts`).** `DaemonChats` runs chats for the mod's chat frames: open, send, steer, abort,
-    approve, answer, models, agents, providers, the passes, memory and skills. It finds each chat's engine and hands
-    every per-chat call to it through one interface (`Engine`), with two adapters: `LokiEngine` on pi-durable, and
-    `AcpEngine` (item 14). `DaemonChats` keeps only the rules about which engine a chat runs on: chosen before the
-    first message, fixed after it. On loki's engine, a message sent while the chat is busy waits its turn, or with
-    `steer` joins it; pi-durable's events become loki's chat events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
-    its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
-    chats often and needs an answer at once (the chat list, the Inbox, a thread's page, Learn's cursor), while
-    pi-durable answers asynchronously.
+    `daemon/chat-events.ts`).** `DaemonChats` runs chats for the mod's chat frames: open, send, steer, abort, approve,
+    answer, models, agents, providers, the passes, memory and skills. It finds each chat's engine and hands every
+    per-chat call to it through one interface (`Engine`), with two adapters: `LokiEngine` on pi-durable, and `AcpEngine`
+    (item 14). `DaemonChats` keeps only the rules about which engine a chat runs on: chosen before the first message,
+    fixed after it. On loki's engine, a message sent while the chat is busy waits its turn, or with `steer` joins it;
+    pi-durable's events become loki's chat events and are pushed to every socket. `ChatProjection` keeps a synchronous
+    view of every chat (its details and its entries as thread steps), kept current from each store's commits. It exists
+    because the mod asks about chats often and needs an answer at once (the chat list, the Inbox, a thread's page,
+    Learn's cursor), while pi-durable answers asynchronously. As it reads a message it writes each of the person's
+    pictures once to `~/.loki/chat-images/`, named by its content, so a window loads a file instead of base64
+    (`daemon/chat-images.ts`). Each label's colour is kept by `daemon/labels.ts`. When a turn ends,
+    `daemon/telemetry.ts` writes its `turn_finished` line, measured from what the store saved (`daemon/timing.ts`).
 13. **The usage ledger (`daemon/usage.ts`).** What every model call cost, by hour, agent, model and origin (the
     person's chats, helpers, or a background pass), in `state/usage.json`, for the usage page. pi-durable adds each
     call's tokens and cost into its conversation's `pi.usage` but keeps no time, so the ledger follows each store's
@@ -169,32 +185,36 @@ every chat gets, the chats, then the mods.
     once from analytics instead: on its first start the ledger reads the `turn_finished` lines from before it began
     (`seeded_until` in the file), their cost as `other` since a line has only the total. It does not depend on
     analytics otherwise: `LOKI_ANALYTICS=0` leaves it on.
-14. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on
-    pi-durable: its engine is `AcpEngine` (`daemon/acp/engine.ts`), which hands its send, stop, mode, model and
-    commands to `AcpChats`. Each agent is one process
-    (`process.ts`, on `@agentclientprotocol/sdk`, started on first use and again after it exits), offered no files
-    or terminals; each chat is a session on it, loaded again after a restart. What the agent reports
-    (`session/update`) becomes chat events and, as each message completes, `pi.user`, `pi.assistant` and
-    `pi.tool-result` entries in the chat's own store, written without pi (`AgentStore.appendEntries`), so the
-    projection, the Inbox, history and the passes read it as any chat; its reported usage goes into `pi.usage` for
-    the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona, memory and skills go in its
-    system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts` (plan 044): an MCP
-    endpoint on a loopback port, one HTTP server per session with a key that names the chat, running the same tool
-    bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are handed over
-    as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in asks
-    for its page (a URL elicitation), shown as a card and opened in the Mac's browser (`open-url.ts`). The agents are Claude Code (through npx, pinned) and the person's own in
-    `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in
-    `state/acp-offered.json` for the picker. Settings › Engines shows how each stands. Which agents there are, how each
-    stands and what each offered is `AcpCatalog` (`catalog.ts`, plan 060), apart from running them: `AcpChats` tells
-    it what a session offered and how a turn went.
+14. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on pi-durable:
+    its engine is `AcpEngine` (`daemon/acp/engine.ts`), which hands its send, stop, mode, model and commands to
+    `AcpChats` (`chats.ts`). Each agent is one process (`process.ts`, on `@agentclientprotocol/sdk`, started on first
+    use and again after it exits), offered no files or terminals; each chat is a session on it, loaded again after a
+    restart. What the agent reports (`session/update`) becomes chat events and, as each message completes, `pi.user`,
+    `pi.assistant` and `pi.tool-result` entries in the chat's own store, written without pi
+    (`AgentStore.appendEntries`), so the projection, the Inbox, history and the passes read it as any chat; its reported
+    usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
+    memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
+    (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
+    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are
+    handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
+    asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
+    `open`, `rundll32` or `xdg-open`). The agents are Claude Code (through npx, pinned) and the person's own in
+    `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in `state/acp-offered.json`
+    for the picker. Settings › Engines shows how each stands. Which agents there are, how each stands and what each
+    offered is `AcpCatalog` (`catalog.ts`, plan 060), apart from running them: `AcpChats` tells it what a session
+    offered and how a turn went.
 
 ## loki's own mod
 
 `mod/index.ts` is loki's product code: everything that is not a chat. It runs inside the daemon on the same mod API
 any other mod uses, and the daemon hands it the chats as its host (`chats` to read, `chat` to run). The host also
-hands it the memory repos and their queue (`memory`, plan 046). The mod is bundled apart from the daemon, so a daemon
+hands it the memory repos and their queue (`memory`, plan 046), the analytics (`analytics`), this Mac's install id
+(`macId`), the keychain (`secrets`), the suggestions on each chat's record (`suggestions`), the dev reload's restart
+and build (`daemon`) and the usage ledger (`usage`). The mod is bundled apart from the daemon, so a daemon
 module with state of its own, imported there, would be a second copy; `test/build-mod.test.ts` keeps the queue out of
-the mod's bundle.
+the mod's bundle. The other way is allowed for what holds no state: the daemon imports the mod's paths, agent
+records, skill descriptions, analytics and Learn's file store (`mod/recall.ts`, which reads its files on every call),
+so each bundle has its own copy and both see the same files. Anything that holds state lives once, on the host.
 
 1. **The canvas.** Widget files in `~/.loki/widgets/<desk>/` (`.json` kit widgets and `.tsx` React components),
    watched and pushed to the app; each chat's geometry and widget change log. A `.tsx` widget is agent-written code,
@@ -234,18 +254,19 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 
 | port | listener | trusts | serves |
 | --- | --- | --- | --- |
-| 41414 | loopback (`mod/server.ts`) | the token in `~/.loki/token`, carried as `?t=` | `/ws` (every frame), `/health`, `/uploads`, agent faces |
-| 41415 | LAN, off by default (`mod/lan.ts`) | a per-device `HttpOnly` cookie from pairing | the built canvas as a single-page app, `/pair`, `/me`, `/unpair`, and the same `/ws`, `/uploads` and faces |
+| 41414 | loopback (`mod/server.ts`) | the token in `~/.loki/token`: in the WebSocket subprotocol on `/ws` (`loki.t.<token>`, `core/ws-auth.ts`), as `?t=` only for the GETs an `<img>` makes | `/ws` (every frame), `/health` (no token), `/uploads`, `/chat-images/`, agent faces, the MCP sign-in's return |
+| 41415 | LAN, off by default (`mod/lan.ts`) | a per-device `HttpOnly` cookie from pairing; a paired Mac's bearer token on `/peer/*` | the built canvas as a single-page app, `/health`, `/pair`, `/me`, `/unpair`, and the same `/ws`, `/uploads`, `/chat-images/` and faces; for paired Macs, over the tailnet only, `/peer/pair`, `/peer/hello`, `/peer/unpair`, `/peer/uploads` and `/peer/chat-images/` |
 
 1. **Why a socket at all.** The daemon runs in Node and the app runs in a browser context (the WebView, a tab or a
    phone). A socket is the only bridge between them. Every client speaks the same protocol over it, chats included.
 2. **Why the token.** The shell writes `~/.loki/token` (mode 0600) and hands it to the page before any script runs;
    the daemon is told its path with `--token-file`. Only something that can read your files can connect.
-3. **Why a second port for the phone.** A token in a URL is fine on one machine and useless on a network. The LAN
-   listener serves the page to anyone (it is public code) but lets a device in only after `POST /pair` with a code
-   from Settings › Phone, answered by a cookie the page's JavaScript never sees. The desktop token is refused there.
-   From the canvas's side the difference is one flag: the served page carries `window.__LOKI__ = {lan: true}`,
-   `boot.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the same hooks connect to `/ws` with the cookie.
+3. **Why a second port for the phone.** A token the shell hands the page is fine on one machine and useless on a
+   network. The LAN listener serves the page to anyone (it is public code) but lets a device in only after `POST /pair`
+   with a code from Settings › Phone, answered by a cookie the page's JavaScript never sees. The desktop token is
+   refused there. From the canvas's side the difference is one flag: the served page carries
+   `window.__LOKI__ = {lan: true}`, `boot.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the same hooks connect to
+   `/ws` with the cookie.
 4. **Tailscale.** When Tailscale runs on the machine, the same 41415 listener is reached by the tailnet name, and
    `tailscale serve` can front it with https inside the tailnet. There is no third port of loki's own.
 
@@ -254,7 +275,7 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 Every client speaks loki's frame protocol on `/ws`, and every frame is declared once in the frame table,
 `core/frames.ts` (glossary.md: Frame, Frame table).
 
-1. **Requests** (`history_get`, `chat_send`, `chat_approve`, `recall_grade` …) carry a `requestId` and are answered by
+1. **Requests** (`history_get`, `chat_send`, `chat_approve`, `recall_grade` …) carry a `request_id` and are answered by
    their reply or by one `error`.
 2. **Sends** (`gesture`, `seen_mark`, `lan_set` …) are answered by the pushes they cause.
 3. **Pushes** (`desk`, `widgets`, `seen`, `chat_event`, `recall_changed` …) arrive unasked.
@@ -280,9 +301,11 @@ You type in the chat box and press Enter.
 3. The mod's router hands it to `DaemonChats.send`, which hands it to the chat's engine. On loki's own (`LokiEngine`),
    every mod's message transform runs; loki's own appends what you
    did on the canvas since the last turn.
-4. The kernel submits the message to the agent's Harness. pi-durable saves it, renders the prompt sections
-   (instructions, mod sections, the agent's memory, then history, in that order so the provider's prompt cache
-   holds), and streams a request to the provider through pi-ai.
+4. The kernel submits the message to the agent's Harness. pi-durable saves it, renders the prompt sections in the
+   order their extensions were installed (MCP's `mcp`; the built-ins' `memory`, `skills`, `project` and, once the
+   chat has been compacted, `history`; then each mod's own; and last the chat's `instructions`, which only a pass's
+   hidden chat sets), keeps that order from turn to turn so the provider's prompt cache holds, and streams a request
+   with the conversation after them to the provider through pi-ai.
 5. The model streams back thinking, text or tool calls. pi-durable saves each step; the daemon turns its events into
    chat events and pushes them as `chat_event` to every client following the chat.
 6. Before a tool runs, the approval hook checks the permission mode. If you are needed, an approval card appears on
@@ -300,7 +323,7 @@ Plan 023 (`docs/plans/2026-10-18-023-feat-loki-multi-mac-plan.md`) lets one pers
 Mac still runs its own daemon over its own `~/.loki`, and every chat still has exactly one writer: the Mac it lives
 on, its **home**. The Macs talk to each other directly over the tailnet; there is no server. `mod/peering.ts` wires
 every piece below once and hands the rest of the mod what it needs: the routes for the listener, the router for the
-bridge, Settings › Macs' frames, and the lists with the paired Macs' chats in them.
+bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats in them.
 
 1. **Pairing** (`mod/peers.ts`). A Mac is named by its install id (`state/device-id`) and its own name. Two Macs pair
    with a code over the phone listener's port, tailnet only: each mints a token for the other, keeps its hash in
@@ -353,16 +376,28 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
 4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; `stores/migrations.json`, each
    store's migration version; and `stores/backup-…/`, whole copies made before a migration.
-5. `backend/`: agent records (`agents/`) and memory repos (`memfs/<id>/memory/`).
+5. `backend/`: agent records (`agents/`, each file named by the agent's id in base64) and memory repos
+   (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
-7. `state/`: small JSON files: schedules (`crons.json`), pins, the Inbox's marks (`attention.json`), the LAN switch,
-   paired devices, each chat's canvas, and which migrations of records and memory have run (`migrations.json`).
-8. `mods/`: mods of your own, loaded after loki's.
-9. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
+7. `uploads/<date>/`: files attached to messages; `chat-images/`: the pictures in your messages, named by their
+   content; `tool-results/<chat>/`: tool output too big for the chat, saved whole.
+8. `recall/`: Learn's cards, leads and lessons; `scratch/`: where a pass on an ACP agent runs before the agent has a
+   memory folder.
+9. `mcp.json`: your MCP servers.
+10. `state/`: small files: schedules (`crons.json`), pins (`pins.json`), the Inbox's marks (`attention.json`),
+    "always allow" answers (`approvals.json`), label colours (`labels.json`), the usage ledger (`usage.json`), the
+    passes' settings and cursors (`passes.json`, `pass-cursors.json`), ACP agents and what each offered (`acp.json`,
+    `acp-offered.json`), the analytics id (`analytics.json`), the LAN switch (`lan.json`), paired phones
+    (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
+    (`recent-models.json`), each agent's switched-off MCP servers (`mcp-agents.json`), reflection's settings from
+    before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
+    (`migrations.json`).
+11. `mods/`: mods of your own, loaded after loki's.
+12. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
    (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
    to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
-10. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
-   events).
+13. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
+    events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain.
@@ -379,7 +414,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    (`core/serial.ts`). A failure never blocks the next piece.
 3. **A burst of calls as one run**: `coalesce` when a steady stream should still run every so often (a redraw, a
    write), `debounce` when it should wait for quiet (a folder still being written) (`core/timers.ts`). Per desk,
-   `ScopeDebouncer`.
+   `ScopeDebouncer` in `mod/lifecycle-events.ts`, one `debounce` per desk.
 4. **Talking to the daemon from the app**: a chat's calls through `ChatStore`, settings through `daemonCalls`.
    What the mod's pushes leave in a tab is `applyPush` in `app/src/desk/desk-pushes.ts`, a pure fold (plan 058); the
    socket hook keeps only the socket and the effects a push asks for.
@@ -392,33 +427,45 @@ timer written by hand stays a convention, as its shape is also ordinary code:
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
    `mods/` the mod API and registry; the rest one file per capability
    (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
-2. `mod/`: loki's own mod. `index.ts` wires it, and `peering.ts` the paired Macs; `server.ts` and `lan.ts` hold the ports, and `sockets.ts` pushes to them; `bridge.ts` routes each
-   frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
-   suggestions, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas
-   and watch widget files; `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the
-   daemon's projection; `seen.ts` keeps the done and viewed marks and the focus weights; `gestures.ts` turns what you
-   did into the message note; `suggestions.ts` and `task-migration.ts` keep the suggestions and move Tasks into them
-   once; `pins.ts`, `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back pins, folders, the
-   Agents pages and Learn; `pairing.ts`, `devices.ts`,
-   `tailscale.ts` and `static.ts` are the phone listener; `boot.ts` re-bundles the mod on each reload in a checkout.
+2. `mod/`: loki's own mod. `index.ts` wires it, and `peering.ts` the paired Macs; `server.ts` and `lan.ts` hold the
+   ports, and `sockets.ts` pushes to them; `bridge.ts` routes each frame to its handler under `frames/` (one module per
+   feature: chats, desks, seen marks, history, folders, Learn, suggestions, agents, the phone listener, the paired Macs,
+   the app's analytics events, the daemon's restart and build, and usage; `context.ts` is what every handler works
+   with); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files;
+   `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the daemon's projection;
+   `seen.ts` keeps the done and viewed marks and the focus weights; `gestures.ts` turns what you did into the message
+   note; `suggestions.ts` and `task-migration.ts` keep the suggestions and move Tasks into them once; `pins.ts`,
+   `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back pins, folders, the Agents pages and
+   Learn; `skill-sources.ts` says where each skill came from and refreshes the installed ones; `models.ts` keeps the
+   recent models for the picker; `tools.ts` holds the canvas, `chat_list` and suggestion tools; `requirements.ts` says
+   what this Mac lacks to run a chat; `uploads.ts` and `chat-images.ts` serve attached files and the pictures in
+   messages; `pairing.ts`, `devices.ts`, `tailscale.ts` and `static.ts` are the phone listener; `peer-group.ts` pairs
+   every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
-   `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it), `harness.ts` (recognising harness markup in transcripts),
-   `attention/` (the Inbox: the chat client, the attention model, queue and focus
-   ranking, `chat-store.ts` with every chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel and `pi-steps.ts` reads Pi's messages as its steps), and
-   `recall/` (Learn's cards and scheduling).
-4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K
-   search, keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames);
-   `chat/` the thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections;
-   `phone/` the phone; `shared/` logic both surfaces share; `components/` the chrome primitives; `kit/` the tokens
-   and the widget kit (`@loki/kit`).
+   `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),
+   `harness.ts` (recognising harness markup in transcripts), `ws-auth.ts` (the token in the socket's subprotocol),
+   `analytics.ts` (the local events' shape), `usage.ts` (the ledger's rows), `labels.ts` (the rules for a label's name),
+   `models.ts` (the model picker's harnesses, models and efforts), `pairing-code.ts`, `attention/` (the Inbox: the chat
+   client, the attention model, queue and focus ranking, `rest.ts` for resting a stale card, `chat-store.ts` with every
+   chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel, `pi-steps.ts` reads Pi's messages
+   as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
+   `commands.ts` the slash commands), and `recall/` (Learn's cards and scheduling).
+4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K search,
+   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames); `chat/` the
+   thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
+   phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
+   primitives; `kit/` the tokens and the widget kit (`@loki/kit`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar.
-6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
-   timing trial), `smoke.ts` (the built bundle in a scratch home), `cask.ts`, `release.ts` and
-   `analytics.ts`.
-7. `test/` (vitest, on Node) and `test-node/` (Node's own runner: SQLite stores, resuming after a crash, mods from a folder).
+6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
+   `trial.ts` (the timing trial), `smoke.ts` (the built bundle in a scratch home), `check-pr-title.ts` (a PR title
+   against the commit rules, run by `pr-title.yml`), `shrink-images.ts` (the pictures already in the stores),
+   `springs.ts` (the kit's springs into `tokens.css`), `cask.ts`, `release.ts` and `analytics.ts`.
+7. `test/` (vitest, on Node) and `test-node/` (Node's own runner, for what needs real SQLite, sockets or processes:
+   resuming after a crash, store backup, migration and images, mods from a folder, the LAN socket, and paired Macs'
+   pairing, links, groups, agents, memory and remote chats).
 
 ## One codebase, three systems
 
@@ -448,6 +495,8 @@ place, and the Mac's side of it is what shipped first.
    through `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.
-8. **Builds.** CI runs on a PR: the vitest suite on macOS, Ubuntu and Windows, types, lint and the bundles once, and
-   `cargo test` on all three when the shell changes (`ci.yml`, `shell.yml`); a release builds
-   the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner each ([releasing.md](releasing.md)).
+8. **Builds.** CI runs on a PR: the vitest and Node suites, the mod bundle and the smoke test on macOS, Ubuntu and
+   Windows; types, formatting, lint and the page build once, on Ubuntu; and `cargo test` on all three when the shell
+   changes (`ci.yml`, `shell.yml`). `pr-title.yml` checks the PR's title and `react-doctor.yml`, advisory, scans a PR
+   that touches `app/`. A release builds the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner
+   each ([releasing.md](releasing.md)).

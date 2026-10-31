@@ -63,7 +63,7 @@ describe("the paired Macs, as the mod uses them (plan 052)", () => {
     }
   });
 
-  test("Settings › Macs lists the tailnet's computers only, none paired", () => {
+  test("Preferences › Macs lists the tailnet's computers only, none paired", () => {
     const device = (name: string, os: string): TailnetDevice => ({ name, address: `${name}.tail1234.ts.net`, os, online: true });
     const m = mac({ tailnet: [device("mini", "macOS"), device("phone", "iOS"), device("box", "linux")] });
     try {

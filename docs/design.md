@@ -33,6 +33,10 @@ AA on every working surface. The roles:
 - `--loki-positive` / `--loki-negative` — status inks (a pass, a failure, a destructive action).
 - Inputs, agent speech, user speech and inline code each have their own surface token (`--loki-well`,
   `--loki-bubble`, `--loki-user-bubble`, `--loki-code`) instead of borrowing selection or accent.
+- `--loki-label-0` … `--loki-label-7` — the eight chat-label colours, each a mark that reads at 3:1 or more on
+  `--loki-bg`, `--loki-panel` and `--loki-well` in every family and side (the tokens test checks).
+- `--loki-grid` is the canvas's dot grid, `--loki-veil` the dim behind a sheet, and `--loki-focus-flash` the colour
+  the focus ring flashes in where a surface sets one (the phone's link colour); unset, it is the accent.
 
 No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
 selects dark or light values, and the saved `system` preference follows the operating system. `data-palette`
@@ -53,7 +57,7 @@ plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-r
 toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
 as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
 `--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
-`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, strip 250, toast 300), never arithmetic
+`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
 Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
@@ -113,11 +117,16 @@ in one flat list, in order: background tasks, commands, agents and anything that
 said they were for; reads, edits, searches and skills quieter. Past 8 steps, chips filter it: All, Failed, Steps,
 Files and search. A step opens its description, command
 and output under it, one at a time (on the phone, in the same sheet with a way back); a background task opens its
-result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
-from the live stream and the stored history alike.
+result. Each tool row keeps its input and output (capped at `TOOL_TEXT_MAX`, 4,000 characters, in
+`core/harness.ts`) and whether it failed. The live stream carries them; a history page travels lean, without a tool
+row's input and output (`core/attention/transcript.ts`), and the row fetches them when it opens.
 
 `test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
-and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
+and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines). The radius check
+allows the scale and the geometric radii for circles and hairlines it lists (1, 3, 4, 9, 24); the shadow check covers
+inline `boxShadow` only. The desktop has no spacing scale to check; the phone has its own, `--phone-space-1` to
+`--phone-space-6`. It fails a Mac key symbol (⌘, ⌥, ⇧ …) in any app string outside `MAC_SYMBOL` in
+`shell/keymap.ts`, so keys are formatted for the viewer's system. It checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
 and the native window carry `--loki-bg`, that every family defines the attention and affirm roles with AA ink,
 and that no serif or condensed face, no tracking and no display/label face is left in a stylesheet. Inline
@@ -137,6 +146,7 @@ float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline),
 flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or bottom), **Popover**, **Kbd**,
 **Meta** (sans 12 muted; brass, negative for a small error, wrap; a div that is a meta line takes the
 `loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, and
+**Switch** (an on/off switch with its label), **ListIcon** (an icon in a list row's avatar place), and
 **Notices** with `notify` (the window's notices, on [Sonner](https://sonner.emilkowal.ski): a line for four seconds,
 or one that stays with an action and a cancel button; one stack, top right under the window's top bar, in loki's
 colours; never a
@@ -150,7 +160,7 @@ stays mono. Selection and hover use distinct neutral steps; neither the accent n
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
 Button and Field share one height scale (sm 28 · md 36 · touch 44); a field and the button beside it always
 share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into that surface. What stays
-hand-built: the rail (`.loki-rail`), the chat bubble, the phone's tab bar, the switch.
+hand-built: the rail (`.loki-rail`), the chat bubble, the phone's tab bar.
 The Slack layout added its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
 the time or the red badge, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
 heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
@@ -162,7 +172,7 @@ The window has no native title bar (2026-09-23): the title bar is an overlay wit
 traffic lights sit over the rail, and loki draws the top edge itself — a 28px **title strip** that drags the
 window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). The
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
-"· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Settings" while Preferences
+"· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead, Slack's: a 48px name
 line (a `#` and the chat's name, or the agent's face and name) with a quiet aside and the actions on the
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
@@ -211,7 +221,7 @@ one; each row the name, its own description or else its handle, a check in the a
 then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
 permission mode stays under the box, beside approve and deny. While the agent works and the box is empty, send
 becomes **Stop** (Claude's: a filled round with a square), which ends the turn where it is — an approval it waits
-on too — through the app-server's `abort_message`, so you can take over; typing brings send back (it queues). The model and effort chips that sat in that
+on too — through the `chat_abort` frame, so you can take over; typing brings send back (it queues). The model and effort chips that sat in that
 row until 2026-09-24 are gone.
 
 ## Shell (2026-09-06; Slack layout 2026-09-23)
@@ -221,7 +231,7 @@ List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside i
 Vocabulary (2026-09-27): a conversation in the list is a chat; the widget surface inside it is its Canvas tab.
 Internals keep the name desk.
 
-- **Rail.** Five sections in Slack's labelled-icon style (Chats, Inbox, Agents, Learn, Settings), a red
+- **Rail.** Five sections in Slack's labelled-icon style (Chats, Inbox, Agents, Learn, Preferences), a red
   count badge on what needs you (the inbox's waiting count, due cards), and at the foot the column
   toggle and Settings. The pane is the window's one `main`; the rail is its navigation.
 - **List column.** Chats, Agents and Learn list their items in a second column (`ListColumn`), 260px by
@@ -257,8 +267,8 @@ Internals keep the name desk.
 - **Search (⌘K).** A sheet from anywhere over chats, agents, waiting Inbox items and the app's pages
   (sections and each Preferences page), from what the app already has; it does not search message text, and
   says so. An empty query lists recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
-- **Preferences.** Settings opens as a large sheet over the whole window, rail included: a named page list on
-  the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
+- **Preferences.** Preferences opens as a large sheet over the whole window, rail included: a named page list on
+  the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1, ⌘2, ⌘4 and ⌘5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Inbox** keeps its screen (the Slack look only); Enter or O on a card opens its chat on Messages.
   Once two agents have cards waiting, pills over the deck filter the visit by agent (All, then each agent, busiest
@@ -302,16 +312,17 @@ box is one for both, its sizes set by `touch`.
   fits the visible part with no bottom inset; the notice steps aside and a question or approval scrolls inside
   itself before the box would leave the screen. Without `visualViewport` the layout still works at the
   shrunken layout height.
-- **Controls.** One outlined icon set (`icons.tsx`, 24 box, 1.8 stroke); no text glyphs or emoji as controls.
+- **Controls.** One outlined icon set (`app/src/shared/icons.tsx`, which the phone's `icons.tsx` wraps; 24 box,
+  1.8 stroke); no text glyphs or emoji as controls.
   Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus flashes as on the Mac, in the
   link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
 - **Messages.** Under every message, yours and the agent's, its copy button (as markdown), always there, and its
   time beside it (the name above no longer carries one); a long
-  press on a message opens its actions (`MessageActions.tsx`): Copy, and Select text, which shows the message
-  on its own where selection works (the thread keeps the browser's selection and callout off so the press is
-  ours). A finger that moves (a scroll, a card swipe) is not a hold. The desktop has the same copy button under
+  press on a message opens its actions (`app/src/phone/use-message-actions.tsx`): Copy, and Select text, which
+  shows the message on its own where selection works (the thread keeps the browser's selection and callout off so
+  the press is ours). A finger that moves (a scroll, a card swipe) is not a hold. The desktop has the same copy button under
   each message, faint until the row is hovered; the hover toolbar it replaced is gone.
 - **Learn.** As the desktop's column lists it: Learn opens on its lists — Review, Leads, Lessons under way,
   Deleted — each its own page (`#/learn/<page>`), so the deck and the leads never share a screen. A lead is a

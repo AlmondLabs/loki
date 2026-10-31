@@ -170,7 +170,7 @@ describe("agents see a chat's labels (plan 022, unit 3)", () => {
   });
 });
 
-describe("Settings › labels (R6)", () => {
+describe("Preferences › Labels (R6)", () => {
   const api = (list: LabelView[] | null): LabelsApi => ({ list, edit: () => Promise.resolve(null) });
   test("every label with its colour and how many chats carry it, and rename, colour and delete", () => {
     const html = renderToStaticMarkup(createElement(Labels, { api: api(LIST) }));

@@ -42,7 +42,8 @@ loki runs its agents in its own daemon, a Node process the window starts; the sa
 Tauri CLI. git keeps each agent's memory. `npm start` says what is missing before it
 builds. The first start compiles the shell, a few
 minutes; the window then asks for a model provider: an API key you already have with Anthropic, OpenAI, Google,
-OpenRouter, Ollama for local models, or another provider, or signing in with ChatGPT. loki checks the key with the
+OpenRouter, Ollama for local models, or another provider, or signing in through the browser (ChatGPT, GitHub
+Copilot, OpenRouter and others). loki checks the key with the
 provider and keeps it in your system's keychain; each turn costs whatever that provider charges. Everything else,
 including the Homebrew install of the finished app, is under [Install](#install) and [Development](#development).
 
@@ -123,7 +124,7 @@ sudo apt install libfuse2
 chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 ```
 
-On both, upgrades are the next file from the releases page; Settings › loki links the one for your system when a
+On both, upgrades are the next file from the releases page; Preferences › About links the one for your system when a
 newer release carries it. There is no Homebrew, winget or Flatpak package yet.
 
 You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
@@ -134,7 +135,7 @@ You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop
 2. **git**, which keeps each agent's memory as a repo with history (Xcode's command line tools bring it on a Mac).
 
 On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
-others) or signing in with ChatGPT. Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
+others) or signing in through the browser (ChatGPT, GitHub Copilot, OpenRouter and others). Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
 key is checked with the provider and kept in your system's keychain, and you pay that provider for what you use.
 Then loki helps you name your first agent; ask it to put something on the canvas.
 
@@ -175,8 +176,9 @@ chats in a SQLite store per agent, runs the tools under your permission mode, ke
 each step before it shows it, so a turn cut off by a crash picks up where it stopped. Inside the daemon runs
 **loki's mod**, which owns the canvas, suggestions and Learn and serves the **React app** over one WebSocket. The app
 watches the widget files, and your gestures on the canvas go back to the agent as context on the next turn.
-Nothing leaves your machine except your messages to the provider you chose. [docs/architecture.md](docs/architecture.md)
-has the long version.
+Your messages go to the provider you chose; [SECURITY.md](docs/SECURITY.md#what-leaves-the-machine) lists everything
+else that reaches the network (web search, the update check, MCP servers, an ACP agent).
+[docs/architecture.md](docs/architecture.md) has the long version.
 
 ## Layout
 
@@ -238,7 +240,8 @@ exist first (`npm run build:app`; the shell embeds the built app). [Contributing
 
 Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever (the usage page's
 estimate of what your agents spent is the one exception, and its fixtures are made up); and widget code
-runs with the page's full trust, because this is your machine and your agent, not a sandbox.
+runs in a sandboxed frame that cannot reach the network or the daemon, but treat it like the agent's own commands:
+an agent that may write files may do much more.
 
 ## Licence
 

@@ -17,7 +17,7 @@ import { rewriteSharedImports } from "./src/frame/rewrite.ts";
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
 const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
-/** "owner/name": what the app asks GitHub about for newer releases (Settings › loki). */
+/** "owner/name": what the app asks GitHub about for newer releases (Preferences › About). */
 const repo = (repository ?? "")
   .replace(/^github:/, "")
   .replace(/^https?:\/\/github\.com\//, "")

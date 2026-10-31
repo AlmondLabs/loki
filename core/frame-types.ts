@@ -191,7 +191,7 @@ export interface FolderCheck {
   reason?: string;
 }
 
-/** The phone listener as Settings › phone shows it (mod/lan.ts). */
+/** The phone listener as Preferences › Phone shows it (mod/lan.ts). */
 export interface LanStatus {
   /** The persisted setting. `error` says whether the listener is up when this is true. */
   enabled: boolean;
@@ -294,7 +294,7 @@ export interface MacIdentity {
   name: string;
 }
 
-/** Another Mac paired with this one, as Settings › Macs shows it: never the token it holds (mod/peers.ts PeerRecord adds that). */
+/** Another Mac paired with this one, as Preferences › Macs shows it: never the token it holds (mod/peers.ts PeerRecord adds that). */
 export interface PeerSummary extends MacIdentity {
   /** Where this Mac reaches it: its tailnet name and port, as the person typed it or it sent when pairing. */
   host: string;
@@ -341,7 +341,7 @@ export interface McpServerView {
 }
 
 /**
- * One ACP agent as Settings › Engines shows it (plan 020, R10): how loki starts it, and how it stands. `ready`: a
+ * One ACP agent as Preferences › Engines shows it (plan 020, R10): how loki starts it, and how it stands. `ready`: a
  * message went through; `started`: it starts, and sign-in shows on the first message; `not_found`: its command is
  * not on loki's PATH; `signed_out`: it said it needs signing in; `failed`: it failed for another reason; `unknown`:
  * not tried yet.
@@ -358,7 +358,7 @@ export interface EngineView {
   detail: string | null;
 }
 
-/** Settings › Engines: the ACP agents and the file the person's own are kept in. */
+/** Preferences › Engines: the ACP agents and the file the person's own are kept in. */
 export interface EnginesView {
   engines: EngineView[];
   config_path: string;

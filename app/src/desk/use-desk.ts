@@ -393,7 +393,7 @@ export function useDesk() {
   };
 
   /**
-   * Settings › phone: the mod's LAN listener and the phones paired to it. Every action is a frame; the
+   * Preferences › Phone: the mod's LAN listener and the phones paired to it. Every action is a frame; the
    * answers (`lan_status`, `pair_code`, `devices`) land in state above, and the first and last are also
    * broadcast whenever they change, so the section reads the same in every window.
    */
@@ -417,7 +417,7 @@ export function useDesk() {
   };
 
   /**
-   * Settings › Macs (plan 023): this Mac, the Macs paired with it, and pairing. `peers` and `peer_pair_code` land in
+   * Preferences › Macs (plan 023): this Mac, the Macs paired with it, and pairing. `peers` and `peer_pair_code` land in
    * state above; a join answers with the reply or the reason it failed, in words for the person.
    */
   /**
@@ -522,7 +522,7 @@ export function useDesk() {
     },
     attention,
     phone,
-    /** Settings › Macs: the Macs paired with this one, and pairing another. */
+    /** Preferences › Macs: the Macs paired with this one, and pairing another. */
     macs,
     daemon,
     servedBuild,
@@ -540,7 +540,7 @@ export function useDesk() {
     },
     recall,
     recallVersion,
-    /** What the agents spent (Settings › usage): the ledger's rows for a period, and a count bumped as it grows. */
+    /** What the agents spent (Preferences › Usage): the ledger's rows for a period, and a count bumped as it grows. */
     usage: {
       get: (since: string, until: string) => request("usage_get", { since, until }, 15_000).then((r): UsageReply | null => (r.ok ? r.reply : null)),
       version: usageVersion,

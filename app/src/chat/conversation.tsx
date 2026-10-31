@@ -384,7 +384,7 @@ export function Conversation({
                       deny
                     </Button>
                   );
-                  // Allows this call and every later one of the same tool, in any chat, until taken back in Settings › Chat (not in strict mode).
+                  // Allows this call and every later one of the same tool, in any chat, until taken back in Preferences › Chat (not in strict mode).
                   const always = (
                     <Button
                       key="always"

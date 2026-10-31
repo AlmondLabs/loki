@@ -46,7 +46,7 @@ pub fn set_menu(menus: Vec<MenuSpec>) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn build<R: Runtime>(app: &AppHandle<R>, menus: Vec<MenuSpec>) -> tauri::Result<()> {
-    let settings = MenuItemBuilder::with_id(SETTINGS_ID, "Settings…").accelerator("CmdOrCtrl+Comma").build(app)?;
+    let settings = MenuItemBuilder::with_id(SETTINGS_ID, "Preferences…").accelerator("CmdOrCtrl+Comma").build(app)?;
     let app_menu = SubmenuBuilder::new(app, "loki")
         .item(&PredefinedMenuItem::about(app, Some("About loki"), None)?)
         .separator()

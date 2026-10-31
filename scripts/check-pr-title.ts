@@ -1,7 +1,7 @@
 /**
  * A pull request's title, held to Conventional Commits as docs/style.md §9 has it, since the title becomes the merge
  * commit's message: `type(scope): what changed`. Run by .github/workflows/pr-title.yml with the title in PR_TITLE:
- *   PR_TITLE="feat(tasks): add task from a chat message" node --experimental-strip-types scripts/check-pr-title.ts
+ *   PR_TITLE="feat(chat): suggest work for another chat" node --experimental-strip-types scripts/check-pr-title.ts
  */
 
 /** The kinds of change, as Conventional Commits names them. */
@@ -12,7 +12,6 @@ export const SCOPES = [
   "chat",
   "history",
   "acp",
-  "tasks",
   "mcp",
   "memory",
   "learn",
@@ -44,7 +43,7 @@ export function titleProblem(title: string): string | null {
   // GitHub's own revert button titles the PR `Revert "<the original title>"`.
   if (/^Revert ".+"$/.test(t)) return null;
   const m = SHAPE.exec(t);
-  if (!m?.groups) return 'the shape is "type(scope): what changed", e.g. "feat(tasks): add task from a chat message"';
+  if (!m?.groups) return 'the shape is "type(scope): what changed", e.g. "feat(chat): suggest work for another chat"';
   const { type, scope, subject } = m.groups;
   if (!(TYPES as readonly string[]).includes(type)) return `"${type}" is not a type; one of ${TYPES.join(", ")}`;
   if (scope && !(SCOPES as readonly string[]).includes(scope)) return `"${scope}" is not a scope; one of ${SCOPES.join(", ")}, or none`;

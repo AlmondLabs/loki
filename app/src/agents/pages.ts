@@ -3,7 +3,7 @@
  * profile: who it is and where it works. memory: the files, read. changes: what it learned, as a
  * timeline of commits. reflection: the daemon's reflection pass — when it fires, how it merges, each
  * conversation's count, a pass by hand. skills: its own and the installed ones, with refresh. Global
- * skills are not an agent's and live in Settings › skills. The phone's Agent screen uses profile,
+ * skills are not an agent's and live in Preferences › Skills. The phone's Agent screen uses profile,
  * memory, changes and skills as headings in one scroll.
  */
 export type AgentPage = "profile" | "memory" | "changes" | "reflection" | "skills";

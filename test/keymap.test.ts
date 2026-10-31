@@ -123,7 +123,7 @@ describe("keymap: resolution", () => {
     expect(KEYMAP.filter((b) => b.keys.includes("cmd+3"))).toEqual([]);
     expect(KEYMAP.filter((b) => b.id.startsWith("task"))).toEqual([]);
     // The rail: no Tasks between the Inbox and Agents.
-    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Inbox", "Agents", "Learn", "Settings"]);
+    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Inbox", "Agents", "Learn", "Preferences"]);
     expect(menuSpec().map((m) => m.title)).not.toContain("Tasks");
     expect(resolve(ev("1", { meta: true }), "agents")?.id).toBe("segment.desk");
     expect(resolve(ev("2", { meta: true }), "agents")?.id).toBe("segment.inbox");
