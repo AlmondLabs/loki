@@ -1,8 +1,9 @@
 # Security
 
-loki is a local desktop app. Everything it runs is on your machine, and everything it talks to is on your machine
-or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone and your other
-Macs.
+loki is a local desktop app. Everything it runs is on your machine, and almost everything it talks to is on your
+machine or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone and your
+other Macs. The rest (web search, the update check, npm for an ACP adapter) is listed under
+[What leaves the machine](#what-leaves-the-machine).
 
 ## What runs where
 
@@ -14,42 +15,54 @@ Macs.
   holds every agent, chat and tool, runs the agents' commands on your machine, and hosts loki's mod (`mod/`) and any
   mod you add in `~/.loki/mods`. A mod is code that runs in the daemon with the same privileges, so add only mods you
   trust.
-- **The token.** The daemon's mod serves the app on `127.0.0.1:41414` (`LOKI_PORT`), loopback only. Every request,
-  HTTP or WebSocket, must carry the token from `~/.loki/token` (32 random hex characters, mode 0600, written once; on
-  Windows the file is under `%USERPROFILE%` and relies on the profile folder's own permissions). Requests without it
-  are refused. Only something that can read your files can connect.
+- **The token.** The daemon's mod serves the app's socket and files on `127.0.0.1:41414` (`LOKI_PORT`), loopback
+  only; the page itself comes from the shell. Every request, HTTP or WebSocket, must carry the token from
+  `~/.loki/token` (32 random hex characters, mode 0600, written once; on Windows the file is under `%USERPROFILE%` and
+  relies on the profile folder's own permissions), except `/health` (liveness, the open chat ids and a few counts)
+  and the MCP sign-in callback described below. Requests without it are refused. Only something that can read your
+  files can connect.
 - **The page** (`app/`, React) runs in the system WebView (WebKit on the Mac, WebView2 on Windows, WebKitGTK on
   Linux). Its only Tauri permissions are the core defaults, set-title, set-theme, hide, start-dragging (the title
   strip that moves the window), minimise, maximise, close and is-maximised (the window buttons loki draws on Windows
-  and Linux), the system's folder dialog (`dialog:allow-open`, which hands back only the folder you pick), and opening
-  URLs in the system browser (see `src-tauri/capabilities/default.json`). It cannot read files or run programs.
-- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits, `rg` for
-  search, `bd` only to read the open tasks once when Tasks gave way to suggestions (the beads store is read, never
-  written), the local MCP servers you list, and the ACP agents you choose for a chat (Claude Code, or
-  your own in `~/.loki/state/acp.json`). An ACP chat reaches loki's own tools through an MCP endpoint on a random
-  loopback port, one per session, with a key that names the chat.
+  and Linux), the system's folder dialog (`dialog:allow-open`, which hands back only the folder you pick), opening
+  http(s), `mailto:` and `tel:` links and showing a file in the file manager (`opener:default`, see
+  `src-tauri/capabilities/default.json`), and loki's own shell commands (its log, the daemon's status and a retry, the
+  badge, the global key, the menu). It cannot read files or run programs.
+- **Children of the daemon.** The agents' bash commands and background tasks, `git` for memory commits and for
+  refreshing a skill from its upstream repo, `rg` for search, `bd` only to read the open tasks once when Tasks gave
+  way to suggestions (the beads store is read, never written), the local MCP servers you list, and the ACP agents you
+  choose for a chat (Claude Code, Cursor's CLI, or your own in `~/.loki/state/acp.json`). On the Mac it also runs
+  `osascript` for the folder chooser, `sips` to shrink images, `scutil` for the computer's name and `caffeinate`
+  (below); `open`, `xdg-open` or `rundll32` open an ACP agent's sign-in page, and `taskkill` stops a task on Windows.
+  An ACP chat reaches loki's own tools through one MCP endpoint on a random loopback port, with a key per chat, kept
+  in memory only, that names the chat.
+- **Provider sign-ins.** While you sign in to a provider in the browser, its sign-in code listens on loopback for the
+  redirect (127.0.0.1:1455 for ChatGPT and Codex, 1456 for Radius, a random port for OpenRouter) for up to ten
+  minutes.
 
 ## The phone, over the LAN
 
-Mac only for now: on Windows and Linux Settings › phone says pairing isn't there yet and offers no switch,
+Mac only for now: on Windows and Linux Preferences › Phone says pairing isn't there yet and offers no switch,
 so the listener stays off.
 
-Settings › phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
+Preferences › Phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
 Agents and chats). The model:
 
 - **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
   choice is persisted (`~/.loki/state/lan.json`) and the rail shows a green dot on the settings
   icon while it is on.
-- **The page's code is public while it is on.** The listener (`0.0.0.0:41415`) serves the canvas build to
-  anyone on the same network, unauthenticated: that is the app's JavaScript and nothing else. Every
+- **The page's code is public while it is on.** The listener (`0.0.0.0:41415`, `LOKI_LAN_PORT`) serves the
+  canvas build to anyone on the same network, unauthenticated: that is the app's JavaScript and a `/health` answer
+  (the build id and the number of connected phones), nothing else. Every
   *action* — the `/ws` socket, uploads, agent faces — needs a paired device.
 - **Pairing.** "pair a phone" mints a six-character code (alphabet without 0/O/1/I) that lives ten minutes
   and is kept in memory only. `POST /pair {code, name}` on the LAN redeems it and answers with a
   per-device token in an `HttpOnly; SameSite=Lax` cookie, so the page's JavaScript never sees it.
-  Only the token's SHA-256 is stored (`~/.loki/state/devices.json`). A code may be redeemed more
+  Only the token's SHA-256 is stored (`~/.loki/state/devices.json`). Too many wrong codes from one address are
+  refused for a while (429). A code may be redeemed more
   than once inside its ten minutes, each time as a separate device, because an iOS home-screen app has
   its own cookie jar and has to pair again after "Add to Home Screen".
-- **Forget a phone in Settings.** Each device is listed with when it was last seen; "forget" deletes it
+- **Forget a phone in Preferences › Phone.** Each device is listed with when it was last seen; "forget" deletes it
   and closes its sockets. `POST /unpair` from the phone does the same for itself.
 - **Plain http.** A LAN `http://` origin is not a secure context, so there is no service worker and no
   TLS; the traffic — transcripts, approvals, your replies — is readable by anyone on the network path. On
@@ -58,7 +71,7 @@ Agents and chats). The model:
 
 ## The phone, over Tailscale
 
-When Tailscale runs on the Mac, Settings › phone offers the tailnet as the route and the QR carries the
+When Tailscale runs on the Mac, Preferences › Phone offers the tailnet as the route and the QR carries the
 Mac's MagicDNS name. The model changes in one place:
 
 - **The tailnet replaces the Wi‑Fi as the boundary.** The listener still binds `0.0.0.0:41415`, but the
@@ -66,7 +79,7 @@ Mac's MagicDNS name. The model changes in one place:
   between the two is WireGuard-encrypted end to end, whatever network either sits on. Who may reach the
   Mac at all is decided by your tailnet's ACLs, not by whoever shares the café's Wi‑Fi.
 - **Pairing still gates every device.** A tailnet peer gets the same public page as a Wi‑Fi client and
-  nothing more until it redeems a code from Settings › phone; forgetting a phone works the same. Reaching
+  nothing more until it redeems a code from Preferences › Phone; forgetting a phone works the same. Reaching
   the Mac and being allowed to act on it stay two separate steps.
 - **`tailscale serve`, never Funnel.** The optional https switch runs `tailscale serve` to put a TLS
   front on the listener, reachable only from inside the tailnet, with a certificate Tailscale issues for
@@ -112,7 +125,10 @@ server or account is involved.
 - **What loki starts.** Exactly the local servers listed in `~/.loki/mcp.json` (`command` and `args`, run as you,
   with the usual environment plus the entry's `env`), for as long as the daemon runs, and nothing else. A server is
   as trusted as any program you run: it gets your permissions and whatever its `env` holds. loki installs none.
-- **Where secrets live.** Either in the system keychain (Settings › MCP's "keep values in this computer's keychain";
+- **ACP chats.** A chat on an ACP agent gets the servers the agent has on as their whole entries, `${keychain:…}`
+  values filled in, env and headers included; the ACP agent starts and connects to them itself, and signs in itself
+  to one that wants OAuth. Its own copy of those values is then as safe as that agent keeps it.
+- **Where secrets live.** Either in the system keychain (Preferences › MCP servers' "keep … values in this computer's keychain";
   the file then holds `${keychain:<name>}` and the value is read only when the server starts), or in
   `~/.loki/mcp.json` itself, as you write them. loki writes the file readable by you alone (mode 600).
 - **What reaches a server.** Only the arguments of the tool calls your agents make to it. A remote server is
@@ -124,7 +140,7 @@ server or account is involved.
   started, and a used or unknown state does nothing. Tokens, the registration and the PKCE verifier are kept in the
   system keychain (`mcp-oauth.<server>.*`); sign out forgets the tokens.
 - **Permissions.** A tool runs without asking in standard mode only when its server marks it read-only, or when you
-  answered "always allow" for it (kept in `~/.loki/state/approvals.json`, taken back in Settings › Chat); a server
+  answered "always allow" for it (kept in `~/.loki/state/approvals.json`, taken back in Preferences › Chat); a server
   can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode,
   which asks for everything, always-allowed tools included.
 
@@ -180,15 +196,16 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 ## Where data lives
 
 - Everything loki keeps is under `~/.loki` (`LOKI_DIR` overrides it): each agent's chats in a SQLite store
-  (`stores/`), agent records and memory repos (`backend/`), widgets, small state files (`state/`), your mods
-  (`mods/`), Learn's cards, and logs (`logs/daemon.log`, `mod.log`). The beads store of the retired Tasks (`tasks/`)
+  (`stores/`), agent records and memory repos (`backend/`), widgets, small state files (`state/`, the usage ledger
+  `state/usage.json` among them), your mods (`mods/`), Learn's cards, files you attach (`uploads/`), the pictures in
+  messages (`chat-images/`), and logs (`logs/daemon.log`, `mod.log`). The beads store of the retired Tasks (`tasks/`)
   stays where it was; loki reads it only to move each open task into a suggestion once, and never writes it.
   [architecture.md](architecture.md) lists every path. Store backups made before a migration (`stores/backup-…/`) hold whole copies of your chats; delete them once
   you are happy.
 - Outside it: the global skills in `~/.agents/skills`, and provider and MCP secrets in the keychain.
 - Nothing is uploaded, logged remotely, or telemetered. The daemon keeps a local usage log
-  (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only `npm run analytics`
-  on this machine reads; `LOKI_ANALYTICS=0` turns it off.
+  (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only this machine reads:
+  `npm run analytics`, and the usage page's ledger once, to seed its history; `LOKI_ANALYTICS=0` turns it off.
 
 ## What leaves the machine
 
@@ -196,8 +213,11 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 2. The agent's web searches, to DuckDuckGo's plain HTML results, which need no key.
 3. Tool calls to your MCP servers, as above.
 4. The update check to GitHub, as above.
-5. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
-6. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
+5. npm's registry, for the pinned Claude Code adapter, the first time a chat uses it.
+6. A skill's upstream git repo, when the skill is refreshed from it.
+7. A provider's sign-in page in your browser, when you sign in to it.
+8. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
+9. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
 
 ## Reporting
 

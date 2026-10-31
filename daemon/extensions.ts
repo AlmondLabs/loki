@@ -28,7 +28,8 @@ export interface BuiltinDeps {
 /**
  * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
  * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools, memory, skills,
- * helpers (subagents), web search, background tasks, schedules and the chat's own history. The mods and MCP servers install after these.
+ * helpers (subagents), web search, background tasks, schedules and the chat's own history. The mods install after these;
+ * loki.mcp installs before them, from McpTools' constructor, and has no hooks.
  */
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   return [

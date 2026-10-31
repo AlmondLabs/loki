@@ -40,7 +40,7 @@ history page. An approval request for the same tool attaches to it instead of ad
 
 **Frame**: one message on the mod's socket (`/ws`), the only protocol loki's clients speak, chats included. Three kinds:
 
-1. **Request**: the app asks and waits; it carries a `requestId` and is answered by exactly one reply frame or one
+1. **Request**: the app asks and waits; it carries a `request_id` and is answered by exactly one reply frame or one
    `error` frame.
 2. **Send**: the app tells the mod something and does not wait; any effect comes back as a push (a mark → `seen`).
 3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `recall_changed`).
@@ -71,13 +71,22 @@ as Claude Code. Chosen in the model picker before a chat's first message, fixed 
 belongs to (its name, memory, skills) stays the same either way. In the daemon each is an adapter behind one
 interface (`Engine`, `daemon/engine.ts`): `LokiEngine` and `AcpEngine`. _Avoid_: backend, harness (both taken).
 
-**Background pass** (`daemon/passes.ts`): a job the daemon runs on a chat once it has been quiet for half an hour
-and holds new material past the job's cursor, as the agent in that job's hidden chat, one run at a time. There are
-two: reflection, which keeps the agent's memory, and Learn, which writes the person's cards. Same process, different
-objectives. _Avoid_: worker, sweep (the mod's Learn worker and its timer before plan 018).
+**Background pass** (`daemon/passes.ts`): a job the daemon runs on a batch of one agent's due chats, as the agent in
+that job's hidden chat, one run at a time. A chat is due once it has been quiet for half an hour (or, for reflection,
+just compacted) and holds new material past the job's cursor. A batch reads up to 80k characters (`MAX_BATCH_CHARS`),
+and an agent's batches for a job are at least two hours apart (`BATCH_EVERY_MS`) unless a chat was compacted or the
+last batch left some for later. There are two: reflection, which keeps the agent's memory, and Learn, which writes
+the person's cards. Same process, different objectives. _Avoid_: worker, sweep (the mod's Learn worker and its timer
+before plan 018).
+
+**Pass chat**: a pass's hidden chat for one agent, cleared before each run: `reflection-<agent>` or `recall-<agent>`
+(Learn's writer), and `doctor-<agent>` for a memory review. On an ACP agent (plan 061) it is the same id with `-acp`
+after it (`ACP_PASS_SUFFIX`, `daemon/memory.ts`), so the prefix still names the job. It stays out of the chat list,
+the inbox and the passes themselves.
 
 **Agent store** (`daemon/kernel/`): one agent's chats in one pi-durable Harness over one SQLite file,
-`~/.loki/stores/<agentId>.sqlite`. Only `daemon/kernel/` imports pi-durable.
+`~/.loki/stores/<agentId>.sqlite`. Only `daemon/kernel/` opens the Harness and the stores; other daemon modules use
+pi-durable's extension and tool API.
 
 **ChatProjection** (`daemon/chats.ts`): the daemon's synchronous view of every chat, its details and its entries as
 steps, kept current from each store's commits. The mod reads chats through it (`mod/chat-source.ts`), because it
@@ -101,12 +110,31 @@ thread, until the person acts: **send now** (it goes as the person's message, wi
 The home carries out every action, and the first one wins. Agents never send one. Suggestions replaced Tasks, the
 beads-backed task list, in October 2026. _Avoid_: task, proposal, recommendation.
 
+**History tools** (`daemon/history-tools.ts`, plans 062 and 063): `history_search` and `history_read`, which let an
+agent find and read the turns of its own chat that a compaction summarized away. They read the ChatProjection, and
+number rows as the thread does. ACP chats have them too.
+
+**Canvas** and **widget** (`mod/widgets-fs.ts`): the canvas is the space beside a chat where its widgets sit, plus a
+shared canvas every chat sees. A widget is one file under `~/.loki/widgets/<desk>/` (`shared/` for the shared one):
+a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a custom one is `<name>.tsx`, a React
+component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
+code's desk is the chat).
+
+**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats that wait on you, one card at a time,
+highest score first (`core/attention/priority.ts`). Next reads a card and moves on (it rests, see Rest); archive is
+done.
+
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
 list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
 
 **Rest** (`core/attention/rest.ts`, plan 026): how long an Inbox card stays out after Next. A card with nothing new
 rests longer each Next in a row (its **rung**), a card with something new ten minutes; anything new in the chat ends
 it. _Avoid_: snooze, later (the removed key that did this by hand).
+
+**Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
+and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;
+a lesson is the `[Learn]` chat a lead starts, taught by the agent that was there. The writer is Learn's background
+pass, which reads quiet chats and writes cards and leads. _Avoid_: worker (its name before plan 018).
 
 **Paired Mac** (`mod/peers.ts`, plan 023): another of the person's Macs running loki, paired with a code over the
 tailnet. Named by its install id (`state/device-id`). _Avoid_: peer in UI copy; the code says peer.
@@ -129,8 +157,9 @@ from its agent's home); the hand-over of an agent's chats to its home leaves it 
 Mac paired with two Macs introduces them; the Mac being joined mints an invite (single use, for that Mac only, two
 minutes) and the joining Mac pairs with it directly. _Avoid_: transitive pairing (frames never go through a Mac).
 
-**Syncer** (`mod/peer-sync.ts`): one kind of thing kept current with the paired Macs (agents, memory, moves, state,
-group, directory), with what wakes it (a Mac coming into reach, a push by name) and the syncer it waits for.
+**Syncer** (`mod/peer-sync.ts`): one kind of thing kept current with the paired Macs (agents, memory, moves, tasks,
+state, group, directory; `mod/peering.ts`), where `tasks` moves a Mac's old tasks into suggestions, with what wakes
+it (a Mac coming into reach, a push by name) and the syncer it waits for.
 _Avoid_: wiring a new trigger into the link's callbacks.
 
 **Peer link** (`mod/peer-link.ts`): one Mac's socket to a paired Mac's `/ws`, over which it asks (requests by
@@ -153,9 +182,12 @@ others are files in `~/.loki/mods`.
 | acceptEdits | commands; edits and reads run freely |
 | unrestricted | nothing (the default) |
 
-Each of loki's tools declares its kind (`daemon/tool-kinds.ts`). Reads are `read`, `grep`, `find`, `ls`, `image_view`,
-`canvas_read`, `canvas_focus`, `web_search`, `skill`, `background_output`, `background_watch`, `schedule_list`, and a
-mod's or an MCP server's tools marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked
-about) count as reads too. Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget
-folder never asks, and `user_ask`, `chat_list` and the suggestion tools never ask in any mode (`NEVER_ASK`): a
-question card is not a permission, and what you do with a suggestion is already your decision.
+Each of loki's tools declares its kind on its own definition (`withKind`, or `kind` on a `ChatTool`); a mod's tool
+or an MCP server's says so with a `readOnly` annotation, and `daemon/tool-kinds.ts` names only pi-durable's coding
+tools, which loki cannot annotate. A tool that says nothing is a command. Reads are `read`, `grep`, `find`, `ls`,
+`image_view`, `canvas_read`, `canvas_focus`, `web_search`, `skill`, `background_output`, `background_watch`,
+`schedule_list`, `history_search`, `history_read`, `user_ask`, `mcp_search`, and a mod's or an MCP server's tools
+marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked about) count as reads too.
+Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget folder never asks, and
+`user_ask`, `chat_list` and the suggestion tools never ask in any mode (`NEVER_ASK`): a question card is not a
+permission, and what you do with a suggestion is already your decision.

@@ -7,7 +7,8 @@ Records a call's two sides and transcribes them on this Mac, with no bot in the 
 - **You:** the microphone.
 
 Apple's on-device SpeechAnalyzer turns both into text. No audio is saved and nothing leaves the Mac. The transcript
-is written as the call goes, to `~/.loki/calls/<yyyy-MM-dd-HHmm>.md` (or `$LOKI_CALLS_DIR`).
+is written as the call goes, to `~/.loki/calls/<yyyy-MM-dd-HHmm>.md` (or `$LOKI_CALLS_DIR`, or the folder `--out`
+names).
 
 It needs macOS 26 and Xcode or the Command Line Tools.
 
@@ -17,6 +18,7 @@ npm run listen -- --apps zoom     # or: chrome, slack, safari, teams, or any bun
 npm run listen -- --all           # every app's audio
 npm run listen -- --raw-mic       # the microphone without echo cancelling, to compare
 npm run listen -- --locale en-US  # the language spoken (default this Mac's)
+npm run listen -- --out ~/notes   # write the transcript to this folder
 npm run listen -- --list          # which apps Core Audio sees, and which are playing
 npm run listen -- --languages     # which languages are supported (✓ installed)
 npm run listen -- --file x.m4a    # transcribe a file, to check transcription without a call
@@ -27,7 +29,7 @@ npm run listen -- --file x.m4a    # transcribe a file, to check transcription wi
 The first run can fetch the language's speech model from Apple. macOS then asks the app you ran it from (Terminal,
 iTerm, Ghostty…) for two permissions:
 
-1. **Microphone,** for your side.
+1. **Microphone,** for your side. If it was refused, listen records their side only and says so.
 2. **System audio recording,** for theirs: System Settings › Privacy & Security › Screen & System Audio Recording ›
    System Audio Recording Only. If it was refused, the tap still runs but hears silence. listen says so when the call
    ends.
@@ -42,3 +44,9 @@ iTerm, Ghostty…) for two permissions:
 - **Tapping Chrome hears all of Chrome,** a YouTube tab included.
 - **Timing:** each side's times count from when listen started, so the two sides line up to within about a second.
 - **Consent:** tell the people on the call that you are transcribing it.
+
+## Tests
+
+```sh
+cd native/listen && swift test
+```

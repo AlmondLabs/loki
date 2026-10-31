@@ -6,7 +6,7 @@ product
 
 ## Users
 
-People who run personal AI agents on their own computer, mostly a Mac, and want one place to see what those agents built, what needs a reply, and what should happen next. loki runs the agents itself, in a daemon on that machine, with the model provider the person chose. They move between the desktop app and a paired phone during ongoing conversations, and between their own Macs, each running loki with the same agents.
+People who run personal AI agents on their own computer, mostly a Mac, and want one place to see what those agents built, what needs a reply, and what should happen next. loki runs the agents itself, in a daemon on that machine, with the model provider the person chose. They move between the desktop app and a paired phone during ongoing conversations, and between their own Macs, each running loki with the same agents. loki is Mac-first: Windows and Linux ship as previews, and phone pairing and Tailscale are Mac-only for now.
 
 ## Product Purpose
 

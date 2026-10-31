@@ -23,6 +23,10 @@ within a second.
 the absolute directory as `widgets_dir`. Call `canvas_read` first if you do not
 know it. Widget id = `<desk>/<name>`.
 
+In a chat on an ACP agent (Claude Code, say), loki's tools come through an MCP
+server named `loki`, so they go by `mcp__loki__<name>`: `mcp__loki__canvas_read`,
+`mcp__loki__canvas_focus`, `mcp__loki__chat_list` and so on.
+
 ## Kit widget (.json)
 
 ```json
@@ -89,10 +93,13 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   slider values, checkboxes, closes, render errors) is appended to their next
   message inside `<loki-desk>` tags.
 - **On demand:** `canvas_read` returns every widget with its data *as the user
-  left it*, its position, and any build or runtime `error`.
+  left it*, its position, and any build or runtime `error`. It also returns the
+  shared canvas's widgets as `shared` and its directory as `shared_widgets_dir`,
+  and any gestures not yet sent to you as `pending_canvas_activity`.
 - **Camera:** `canvas_focus({ widget_id })` glides the user's view to a widget;
   `{ widget_ids: [...] }` frames several together. Targets are highlighted
-  briefly. New files glide automatically.
+  briefly. `dwell` (0–8000 ms) holds before the call returns, for moving between
+  several widgets. New files glide automatically.
 - **In the thread:** each widget you add, change or remove shows as a line in the
   user's Messages tab; clicking it opens the Canvas tab on that widget. No need to
   narrate where a widget went.
