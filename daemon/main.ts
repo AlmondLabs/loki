@@ -136,17 +136,18 @@ const approvals = new Approvals({
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
 });
+// The person's pictures as files a window loads (plan 029), named as each message is read.
+const chatImages = new ChatImages(join(args.dir, "chat-images"));
+const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
+// Made before the built-in tools: the history tools read it (plan 062).
+const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
 // Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
-const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules });
+const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules, history: chats });
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
 // The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
 const installId = deviceIdIn(join(args.dir, "state", "device-id"));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, installId);
-// The person's pictures as files a window loads (plan 029), named as each message is read.
-const chatImages = new ChatImages(join(args.dir, "chat-images"));
-const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
-const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);

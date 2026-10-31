@@ -3,6 +3,7 @@ import { CodingTools } from "@earendil-works/pi-durable/tools";
 import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, type BackgroundTasks } from "./background.ts";
+import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
 import { scheduleExtension, type Schedules } from "./schedule.ts";
 import { skillsExtension } from "./skills.ts";
@@ -13,19 +14,21 @@ import { webSearchExtension } from "./web-search.ts";
 
 /**
  * What the built-in extensions are made from: the approval gate (which the question card shares), the agents' backend
- * folder for memory and skills, and the background tasks and schedules, which deliver into chats through the daemon.
+ * folder for memory and skills, the background tasks and schedules, which deliver into chats through the daemon, and
+ * the daemon's copy of every chat, which the history tools read.
  */
 export interface BuiltinDeps {
   approvals: Approvals;
   backendDir: string;
   background: BackgroundTasks;
   schedules: Schedules;
+  history: ChatHistory;
 }
 
 /**
  * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
  * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools, memory, skills,
- * helpers (subagents), web search, background tasks and schedules. The mods and MCP servers install after these.
+ * helpers (subagents), web search, background tasks, schedules and the chat's own history. The mods and MCP servers install after these.
  */
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   return [
@@ -39,6 +42,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     webSearchExtension(),
     backgroundExtension(deps.background),
     scheduleExtension(deps.schedules),
+    historyExtension(deps.history),
   ];
 }
 

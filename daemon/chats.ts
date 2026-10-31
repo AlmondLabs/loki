@@ -305,6 +305,12 @@ export class ChatProjection implements ChatSource {
     return { rows: all.slice(start, end), more: start > 0, start };
   }
 
+  /** A chat's whole thread, its rows at their positions: what the history tools search and read (plan 062). */
+  thread(conversationId: string, agentId: string): readonly TranscriptRow[] {
+    const chat = this.find(conversationId, agentId);
+    return chat ? this.folded(chat) : [];
+  }
+
   /** The row at position `row` of a chat's thread, whole, for what a lean page left out of it (plans 041 and 043). */
   row(conversationId: string, agentId: string | null, row: number): TranscriptRow | null {
     const chat = this.find(conversationId, agentId);

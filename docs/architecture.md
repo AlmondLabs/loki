@@ -103,7 +103,9 @@ every chat gets, the chats, then the mods.
    crash never asks twice. `user_ask` shows a question card the same way.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
    (`daemon/tools.ts`); web search over DuckDuckGo's plain HTML results, which need no key
-   (`daemon/web-search.ts`); the memory tools. `daemon/extensions.ts` installs the built-in extensions in one ordered
+   (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
+   read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
+   compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one ordered
    list, the permission gate first, and each of loki's tools declares its kind (read, edit or command) on its own
    definition (`daemon/tool-kinds.ts`). The memory, schedule and question tools, and the mods' tools, are written once
    as `ChatTool`s (`daemon/chat-tools.ts`), so a chat on an ACP agent runs the same ones. Each chat runs commands in a `ChatEnv` (`daemon/tool-results.ts`), pi-durable's
