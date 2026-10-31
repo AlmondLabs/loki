@@ -8,12 +8,12 @@ import { previewPr, releasePr } from "../scripts/release.ts";
 describe("PR titles", () => {
   test("type(scope): what changed passes, with or without a scope, breaking or not", () => {
     for (const title of [
-      "feat(tasks): add task from a chat message",
+      "feat(chat): suggest work for another chat",
       "fix(phone): pair over Tailscale",
       "fix(acp): let stop end a chat the agent never answers",
       "ci: pin the windows runner",
       "refactor(core)!: drop the Letta wire names",
-      'Revert "feat(tasks): add task from a chat message"',
+      'Revert "feat(chat): suggest work for another chat"',
     ])
       expect(titleProblem(title), title).toBeNull();
   });
@@ -22,10 +22,10 @@ describe("PR titles", () => {
     expect(titleProblem("Add task from a message")).toMatch(/type\(scope\): what changed/);
     expect(titleProblem("tasks: add task from a message")).toMatch(/"tasks" is not a type/);
     expect(titleProblem("feat(kitchen): a sink")).toMatch(/"kitchen" is not a scope/);
-    expect(titleProblem("feat(tasks): Add task")).toMatch(/starts lowercase/);
-    expect(titleProblem("feat(tasks): add task.")).toMatch(/full stop/);
+    expect(titleProblem("feat(chat): Add a label")).toMatch(/starts lowercase/);
+    expect(titleProblem("feat(chat): add a label.")).toMatch(/full stop/);
     expect(titleProblem(`feat: ${"x".repeat(MAX_TITLE)}`)).toMatch(/at most/);
-    expect(titleProblem("feat(tasks):missing space")).not.toBeNull();
+    expect(titleProblem("feat(chat):missing space")).not.toBeNull();
   });
 
   test("the release workflow's own PRs pass", () => {
