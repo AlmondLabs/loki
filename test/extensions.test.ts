@@ -20,6 +20,7 @@ function builtins() {
     backendDir: dir,
     background: new BackgroundTasks(() => {}),
     schedules: new Schedules(join(dir, "crons.json"), () => Promise.resolve(null)),
+    history: { thread: () => [], compactedSince: () => false },
   });
   return { extensions, dir };
 }
@@ -43,6 +44,8 @@ describe("the built-in tools", () => {
           "edit",
           "find",
           "grep",
+          "history_read",
+          "history_search",
           "ls",
           "memory_delete",
           "memory_edit",

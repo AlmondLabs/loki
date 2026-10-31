@@ -650,7 +650,9 @@ Slash commands work in the message box, and in the reply box of an inbox card: t
 box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K search) and the daemon's:
 
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
-  thread stays).
+  thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
+  stored, and the agent can search the whole chat (`history_search`) and read any part of it back (`history_read`),
+  by the same row numbers the thread has.
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
 - `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
