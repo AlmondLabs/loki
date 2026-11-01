@@ -307,7 +307,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
           if (!d.conversation_id) return "this chat has no conversation";
-          const err = await catchUp.archiveConversation(d.conversation_id, archived, "phone_list");
+          const err = await catchUp.archiveConversation(d.conversation_id, archived, "phone_list", d.agent_id ?? undefined);
           if (!err) desk.desks.request();
           return err;
         }
@@ -546,7 +546,7 @@ function ConversationPage({
               // Any chat but a main one can go, desk or not: an Inbox chat need not be on the mod's desk list.
               onArchive: onArchive
                 ? async (archived) => {
-                    const err = await catchUp.archiveConversation(thread.conversationId, archived, "phone_chat");
+                    const err = await catchUp.archiveConversation(thread.conversationId, archived, "phone_chat", thread.agentId);
                     if (!err) desk.desks.request();
                     return err;
                   }

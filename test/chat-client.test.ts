@@ -48,4 +48,17 @@ describe("the daemon's chat client", () => {
       { agent_id: "a", conversation_id: "c1", title: "named" },
     ]);
   });
+
+  test("an update names the agent it is given, so a chat this client has not opened can still be archived", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const request = ((type: string, payload: Record<string, unknown>) => {
+      if (type !== "chat_update") return Promise.resolve({ ok: false, error: "unexpected" });
+      sent.push(payload);
+      return Promise.resolve({ ok: true, reply: {} });
+    }) as unknown as FrameRequest;
+    const client = new FrameChatClient({ request, onChatEvent: () => () => {} });
+    await expect(client.updateConversation("c9", { archived: true })).rejects.toThrow("which agent's chat is c9?");
+    await client.updateConversation("c9", { archived: true }, "ada");
+    expect(sent).toEqual([{ agent_id: "ada", conversation_id: "c9", archived: true }]);
+  });
 });

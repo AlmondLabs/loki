@@ -219,9 +219,10 @@ export class FrameChatClient {
     await this.call("chat_folder", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, cwd });
   }
 
-  async updateConversation(conversationId: string, body: Record<string, unknown>): Promise<void> {
+  /** `agentId` names the chat's agent when the caller knows it, so a chat this client has not met still resolves. */
+  async updateConversation(conversationId: string, body: Record<string, unknown>, agentId?: string): Promise<void> {
     await this.call("chat_update", {
-      agent_id: this.agentFor(conversationId),
+      agent_id: agentId ?? this.agentFor(conversationId),
       conversation_id: conversationId,
       ...(typeof body.summary === "string" || body.summary === null ? { title: body.summary } : {}),
       ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),

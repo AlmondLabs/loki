@@ -293,6 +293,11 @@ export function useDesk() {
   useEffect(() => {
     sendRef.current = send;
   });
+  // The chat client is made once, so it reads the chat list through this ref: a closure would keep the first, empty one.
+  const deskListRef = useRef(deskList);
+  useEffect(() => {
+    deskListRef.current = deskList;
+  });
   // An event captured while the socket is between connections (a chat switch reopens it) waits for it, rather
   // than being lost: desk_switched always fell in that gap.
   const heldCaptures = useRef<Array<{ type: "capture"; event: string; properties?: Record<string, unknown> }>>([]);
@@ -323,7 +328,7 @@ export function useDesk() {
         onListsStale: (fn) => {
           return staleListeners.add(fn);
         },
-        agentOf: (conversationId) => deskList.find((d) => d.conversation_id === conversationId)?.agent_id ?? null,
+        agentOf: (conversationId) => deskListRef.current.find((d) => d.conversation_id === conversationId)?.agent_id ?? null,
         // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
         openUrl: (url) => {
           if (inTauri)

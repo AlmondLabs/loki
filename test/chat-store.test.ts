@@ -27,7 +27,9 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const sent: string[] = [];
   const started: string[] = [];
   const answers = { approval: true };
+  const updates: Array<[string, Record<string, unknown>, string | undefined]> = [];
   const client = {
+    updateConversation: (id: string, body: Record<string, unknown>, agentId?: string) => Promise.resolve(void updates.push([id, body, agentId])),
     onStatus: () => () => {},
     onChat: (fn: typeof hear) => ((hear = fn), () => {}),
     onListsStale: () => () => {},
@@ -54,7 +56,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured };
+  return { store, stop, events, sent, started, answers, captured, updates };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -138,6 +140,16 @@ describe("the chat store (plan 052)", () => {
     d.events({ kind: "error", message: "Not a directory: /nowhere" });
     expect(await refused).toBe("Not a directory: /nowhere");
     expect(d.store.getSnapshot().live.get("ada/c1")?.error ?? null).toBeNull();
+  });
+
+  test("an archive names the chat's agent to the daemon and takes the chat off the list", async () => {
+    const d = daemon();
+    await flush();
+    expect(await d.store.archiveConversation("c1", true, "inbox", "ada")).toBeNull();
+    expect(d.updates).toEqual([["c1", { archived: true }, "ada"]]);
+    expect(d.store.getSnapshot().conversations).toEqual([]);
+    expect(d.captured).toContain("chat_archived");
+    d.stop();
   });
 
   test("while not connected each call says so, and nothing is sent", async () => {

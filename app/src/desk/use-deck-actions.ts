@@ -69,7 +69,7 @@ export function useDeckActions({
       // The daemon refused: the chat is still live, so it comes back on top with the reason.
       setDecided((d) => d.filter((x) => !(x.item === item && x.action === "archived")));
       setQueue((q) => [item, ...q]);
-      say("not archived");
+      say(`not archived: ${err}`);
     });
     say("archived");
   };
