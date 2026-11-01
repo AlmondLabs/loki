@@ -758,10 +758,11 @@ export class ChatStore {
   /**
    * Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived.
    * Archiving is how a chat leaves the Inbox, so it goes from the list at once; a restore reads the list again.
+   * `agentId` is the chat's agent when the caller has it: the client knows only the chats it has opened or listed.
    */
-  archiveConversation = async (conversationId: string, archived: boolean, origin?: ArchiveOrigin): Promise<string | null> => {
+  archiveConversation = async (conversationId: string, archived: boolean, origin?: ArchiveOrigin, agentId?: string): Promise<string | null> => {
     if (this.client && conversationId === "default") return "a main chat cannot be archived";
-    const err = await this.tried((c) => c.updateConversation(conversationId, { archived }));
+    const err = await this.tried((c) => c.updateConversation(conversationId, { archived }, agentId));
     if (err) return err;
     if (origin)
       this.host().capture?.(archived ? "chat_archived" : "chat_restored", {

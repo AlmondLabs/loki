@@ -397,9 +397,9 @@ export function useAttention(opts: UseAttentionOptions) {
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agent_id, item.id), []);
   /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
-  const archive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, true, "inbox"), [store]);
+  const archive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, true, "inbox", item.agent_id), [store]);
   /** Undo of an archive: the chat comes back. */
-  const unarchive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, false, "inbox_undo"), [store]);
+  const unarchive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, false, "inbox_undo", item.agent_id), [store]);
   const server = snap.server;
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
