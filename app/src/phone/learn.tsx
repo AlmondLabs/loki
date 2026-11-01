@@ -8,7 +8,7 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import type { useDeckPass } from "../recall/use-deck-pass";
 import { ago } from "../shared/ago";
 import { avatarUrl } from "../desk/env";
-import { Button } from "../components";
+import { Button, sentence } from "../components";
 import { useLeave, type LeaveFrames } from "../kit/leave";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { spring } from "../kit/spring";
@@ -156,24 +156,6 @@ function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: Dec
 
 const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting", course: "A course · several sittings" };
 
-/** Where a lead came up, as a message header: the agent's face and name, the conversation and when. */
-function LeadSource({ source, at, aside }: { source: CardSource; at: string; aside?: ReactNode }) {
-  return (
-    <div className="loki-phone-learn-source">
-      <Avatar name={source.agent_name ?? "agent"} src={source.agent_id ? avatarUrl(source.agent_id) : null} size={36} />
-      <div className="loki-phone-row-copy">
-        <span className="loki-phone-learn-who">
-          <span className="loki-phone-ellipsis">{source.agent_name ?? "A conversation"}</span>
-          {aside}
-        </span>
-        <span className="loki-phone-row-preview">
-          {source.title ?? "a conversation"} · {ago(at)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /**
  * The leads, newest first: what went by in a conversation without being understood, quoted where it came
  * up. Start the lesson makes a [Learn] conversation with the agent who was there and opens it with the
@@ -220,7 +202,7 @@ function Leads({
               const busy = recall.starting === l.id;
               return (
                 <section key={l.id} aria-label={`lead: ${l.title}`} className="loki-phone-learn-card">
-                  <LeadSource source={l.source} at={l.created_at} />
+                  <Source source={l.source} at={l.created_at} />
                   <div className="loki-phone-learn-front">{l.title}</div>
                   <p className="loki-phone-lead-why">{l.why}</p>
                   <p className="loki-phone-meta">{DEPTH[l.depth]}</p>
@@ -412,10 +394,11 @@ function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextD
   );
 }
 
-/** Where the card came from, as a message header: the agent's face and name, the conversation and when, and what is new about it. */
-function Source({ c }: { c: CardWithSchedule }) {
-  const { source } = c.card;
-  const fresh = isNew(c.schedule) ? "New" : updatedSinceReview(c) ? `Updated ${ago(c.card.updated_at)}` : null;
+/**
+ * Where a lead or a card came from, as a message header: the agent's face and name, the conversation and when, and
+ * for a card what is new about it (`fresh`) and its tags.
+ */
+function Source({ source, at, fresh = null, tags = [] }: { source: CardSource; at: string | null; fresh?: string | null; tags?: string[] }) {
   return (
     <div className="loki-phone-learn-source">
       <Avatar name={source.agent_name ?? "agent"} src={source.agent_id ? avatarUrl(source.agent_id) : null} size={36} />
@@ -426,8 +409,8 @@ function Source({ c }: { c: CardWithSchedule }) {
         </span>
         <span className="loki-phone-row-preview">
           {source.title ?? "a conversation"}
-          {source.at ? ` · ${ago(source.at)}` : ""}
-          {c.card.tags.length ? ` · ${c.card.tags.join(", ")}` : ""}
+          {at ? ` · ${ago(at)}` : ""}
+          {tags.length ? ` · ${tags.join(", ")}` : ""}
         </span>
       </div>
     </div>
@@ -500,7 +483,12 @@ function PhoneCard({
   };
   return (
     <section ref={ref} aria-label={`card ${position} of ${total}`} className="loki-phone-learn-card" data-rise={rises || undefined}>
-      <Source c={c} />
+      <Source
+        source={c.card.source}
+        at={c.card.source.at}
+        fresh={isNew(c.schedule) ? "New" : updatedSinceReview(c) ? `Updated ${ago(c.card.updated_at)}` : null}
+        tags={c.card.tags}
+      />
       <div className="loki-phone-learn-front">{c.card.front}</div>
       {revealed ? (
         <div className="loki-phone-learn-back">{c.card.back}</div>
@@ -519,7 +507,7 @@ function PhoneCard({
               aria-label={`${label}, next in ${gaps[grade]}`}
               onClick={() => leave(THROW(grade >= 3 ? 1 : -1), () => onAnswer(grade))}
             >
-              <span className="loki-phone-learn-grade">{label[0].toUpperCase() + label.slice(1)}</span>
+              <span className="loki-phone-learn-grade">{sentence(label)}</span>
               <span className="loki-phone-learn-gap">{gaps[grade]}</span>
             </button>
           ))}

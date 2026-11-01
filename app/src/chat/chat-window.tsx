@@ -7,8 +7,6 @@ import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 
-export type { ChatStatus } from "./conversation";
-
 /**
  * The panel sits on the sheet in one of three places (⌘← / ⌘→ move it): stacked on the left
  * edge, floating centred and wider, or stacked on the right edge. Side placements come in two

@@ -214,6 +214,9 @@ let pending: Arrival | null = null;
 
 const url = (hash: string) => `${location.pathname}${location.search}${hash}`;
 
+/** Open a chat's page, with nothing to put in its box. */
+export const openConversation = (agentId: string, conversationId: string): void => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
+
 /** Go somewhere: a new history entry that remembers where it came from and the control that launched it. */
 export function navigate(r: Route): void {
   const hash = formatRoute(r);

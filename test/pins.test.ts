@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyPinChanges, isPinned, pinChanges, readPins, setPin } from "../mod/pins.ts";
+import { applyPinChanges, pinChanges, readPins, setPin } from "../mod/pins.ts";
 
 let dir: string;
 beforeAll(() => {
@@ -15,9 +15,8 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     const f = join(dir, "pins.json");
     writeFileSync(f, JSON.stringify({ version: 1, agents: { "agent-1": ["c1", "c2"], "agent-2": ["c9"] } }));
     expect([...readPins(f)].sort()).toEqual(["agent-1/c1", "agent-1/c2", "agent-2/c9"]);
-    expect(isPinned("agent-1", "c2", f)).toBe(true);
-    expect(isPinned("agent-1", "c3", f)).toBe(false);
-    expect(isPinned(null, "c1", f)).toBe(false);
+    expect(readPins(f).has("agent-1/c2")).toBe(true);
+    expect(readPins(f).has("agent-1/c3")).toBe(false);
   });
   test("pin and unpin rewrite the file, keeping other agents and dropping empty lists", () => {
     const f = join(dir, "pins2.json");
@@ -37,7 +36,7 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     const f = join(dir, "nope", "pins.json");
     expect(readPins(f).size).toBe(0);
     setPin("agent-1", "c1", true, f);
-    expect(isPinned("agent-1", "c1", f)).toBe(true);
+    expect(readPins(f).has("agent-1/c1")).toBe(true);
   });
 
   test("between two Macs, a pin made on one appears on the other, and the later change wins either way", () => {
@@ -51,7 +50,7 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     // Unpinned on the mini later: it beats the MacBook's older pin, and not the other way round.
     setPin("agent-1", "c1", false, mini, () => "2026-10-18T11:00:00.000Z");
     expect(applyPinChanges(pinChanges(mini), book)).toBe(true);
-    expect(isPinned("agent-1", "c1", book)).toBe(false);
+    expect(readPins(book).has("agent-1/c1")).toBe(false);
     expect(applyPinChanges(pinChanges(book), mini)).toBe(false);
   });
 });

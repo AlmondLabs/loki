@@ -10,7 +10,6 @@ import {
   canCommit,
   cardNotice,
   commitCard,
-  dayLabel,
   deckQueue,
   dismiss,
   holdCard,
@@ -29,9 +28,9 @@ import {
   tally,
   toFront,
   undoCard,
-  unreadBoundary,
   visibleQueue,
 } from "../app/src/phone/deck.ts";
+import { dayLabel, unreadBoundary } from "../app/src/shared/thread.ts";
 
 /**
  * The phone deck's pure half (app/src/phone/deck.ts): when a drag commits and which way, how the

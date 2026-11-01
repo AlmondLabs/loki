@@ -4,7 +4,8 @@ import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
-import { Diff, type AgentDetails } from "../agents/agents";
+import type { AgentDetails } from "../agents/agents";
+import { Diff } from "../agents/changes-page";
 import { ago } from "../shared/ago";
 import { avatarUrl } from "../desk/env";
 

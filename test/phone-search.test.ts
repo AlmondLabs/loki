@@ -4,18 +4,8 @@ import { must } from "./fixtures/must.ts";
 
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
-import {
-  DESTINATIONS,
-  GROUP_MAX,
-  MAX_QUERY,
-  buildIndex,
-  cleanQuery,
-  isPlace,
-  recentPlaceHits,
-  search,
-  tierOf,
-  type SearchSources,
-} from "../app/src/phone/search-index.ts";
+import { DESTINATIONS, buildIndex, isPlace, recentPlaceHits, search, type SearchSources } from "../app/src/phone/search-index.ts";
+import { GROUP_MAX, MAX_QUERY, cleanQuery, tierOf } from "../app/src/shared/search.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 /**

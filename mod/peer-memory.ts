@@ -4,6 +4,7 @@ import { isAgentId } from "../core/frames.ts";
 import type { MemoryApplied, MemoryRepos } from "../daemon/memory-sync.ts";
 import type { PeerLink } from "./peer-link.ts";
 import { log } from "./log.ts";
+import { memoryRoot } from "./agents.ts";
 
 /**
  * Every agent's memory the same on every paired Mac (plan 023, U7, R18). When a repo here gets new commits, paired
@@ -33,8 +34,9 @@ export class PeerMemory {
     this.opts = opts;
   }
 
+  /** Every caller has checked the id (the frame parse or isAgentId), so memoryRoot never throws here. */
   private root(agentId: string): string {
-    return join(this.opts.backendDir(), "memfs", agentId, "memory");
+    return memoryRoot(agentId, this.opts.backendDir());
   }
 
   /** Watch this Mac's memory repos, telling paired Macs when one moves. */

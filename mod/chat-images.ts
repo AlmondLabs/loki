@@ -1,10 +1,11 @@
-import { createReadStream, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { IMAGE_NAME } from "../daemon/chat-images.ts";
 import type { Authorize } from "./server.ts";
 import { log } from "./log.ts";
 import { messageOf } from "../core/errors.ts";
+import { writeFileAtomic } from "./json-file.ts";
 
 /**
  * The pictures in the person's messages, for the windows (plan 029): `GET <prefix><name>` serves the file the daemon
@@ -55,9 +56,7 @@ export function chatImageRoute(opts: {
       (data) => {
         if (!data) return void end(404);
         try {
-          mkdirSync(opts.dir, { recursive: true });
-          writeFileSync(`${file}.tmp`, data);
-          renameSync(`${file}.tmp`, file);
+          writeFileAtomic(file, data);
         } catch (err) {
           log("chat-images:keep-failed", { name, error: messageOf(err) });
           return void res.writeHead(200, { "content-type": TYPES[name.split(".")[1]] ?? "application/octet-stream" }).end(data);

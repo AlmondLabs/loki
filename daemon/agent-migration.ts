@@ -8,6 +8,7 @@ import type { StoreManager } from "./kernel/stores.ts";
 import { commitMemoryFiles, memoryRoot } from "./memory.ts";
 import { listAgents, writeRecord } from "./store/agents.ts";
 import { isRecord } from "./tool-kinds.ts";
+import { readJson } from "../mod/json-file.ts";
 
 /**
  * The agents' records, memory and chats' settings in the shapes loki writes now, once on each Mac (plan 045): what
@@ -63,14 +64,6 @@ export interface AgentMigrationDeps {
   context: Context;
   report: (line: string) => void;
 }
-
-const readJson = (file: string): unknown => {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    return null;
-  }
-};
 
 /** Run the migration unless this Mac has; true when it ran. */
 export async function migrateAgents(d: AgentMigrationDeps): Promise<boolean> {

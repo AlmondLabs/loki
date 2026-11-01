@@ -14,8 +14,7 @@ import { createRecents } from "../shared/recents";
 
 // ---- Drafts ---------------------------------------------------------------------------------------
 
-// Shared with the desktop (shared/drafts.ts): one store, one mechanism; the phone keeps its names.
-export { EMPTY_DRAFT, createDrafts, draftKey, drafts, useDraft, type Draft, type Drafts } from "../shared/drafts";
+// Drafts live in shared/drafts.ts, one store and one mechanism with the desktop; the phone imports them from there.
 
 // ---- Prefill --------------------------------------------------------------------------------------
 

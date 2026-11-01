@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import type { DeviceSummary, DeviceVia } from "../core/frame-types.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Paired phones. Each holds a 32-byte token (in an HttpOnly cookie, see mod/lan.ts);
@@ -106,10 +106,7 @@ export class DeviceStore {
 
   private persist(): void {
     try {
-      mkdirSync(dirname(this.path), { recursive: true });
-      const tmp = `${this.path}.${process.pid}.tmp`;
-      writeFileSync(tmp, JSON.stringify(this.devices, null, 2) + "\n", { mode: 0o600 });
-      renameSync(tmp, this.path);
+      writeJsonAtomic(this.path, this.devices, { pretty: true, newline: true, mode: 0o600, pidTemp: true });
     } catch {
       // best effort: a failed write costs a re-pair, never a crash
     }

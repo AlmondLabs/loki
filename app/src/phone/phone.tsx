@@ -25,8 +25,24 @@ import { useDeckPass } from "../recall/use-deck-pass";
 import { TabBar } from "./tab-bar";
 import { UpdateBar, useHealthBuild } from "./update-bar";
 import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, type LinkState } from "./model";
-import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
-import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
+import {
+  HOME,
+  back,
+  backTarget,
+  depthOf,
+  formatRoute,
+  labelOf,
+  navigate,
+  openConversation,
+  replace,
+  screenOf,
+  showsNav,
+  useRouteState,
+  type Route,
+  type Tab,
+} from "./router";
+import { draftKey } from "../shared/drafts";
+import { nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
@@ -52,9 +68,6 @@ type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: 
 type DeskApi = ReturnType<typeof useDesk>;
 type CatchUp = ReturnType<typeof useAttention>;
 type ConversationRoute = Extract<Route, { kind: "conversation" }>;
-
-/** An inbox card, opened: its conversation, full screen. */
-const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agent_id, conversationId: item.id, prefill: null });
 
 /** Out of the Inbox pass: back where it was opened from, or Home when the app was opened on it. */
 const closeInbox = () => {
@@ -105,9 +118,6 @@ export function Phone() {
   if (gate.kind === "unpaired") return <Pair onPaired={(me) => setGate({ kind: "paired", me })} />;
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
 }
-
-/** A conversation from Learn: where a lead came up, a lesson under way. */
-const openConversation = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /**
  * "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so. Owns the
@@ -676,7 +686,7 @@ function Screen({
         deck={deck}
         backLabel={inboxBack}
         onClose={closeInbox}
-        onOpen={(item) => (catchUp.decided(item, "open", "tap"), openItem(item))}
+        onOpen={(item) => (catchUp.decided(item, "open", "tap"), openConversation(item.agent_id, item.id))}
         onConnection={() => navigate({ kind: "connection" })}
         card={{
           onSend: (item, text, images) => (catchUp.decided(item, "reply", "tap"), catchUp.reply(item, text, images)),

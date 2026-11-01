@@ -97,17 +97,6 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   return out;
 }
 
-/** A text part's value as text: a string as it is, nothing as empty, anything else as JSON. */
-const textOf = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : JSON.stringify(v));
-/** Text of a message's content (a string, or its text parts joined); other parts and any other shape give nothing. */
-export function messageText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((p) => (typeof p === "object" && p !== null && (p as { type?: unknown }).type === "text" ? textOf((p as { text?: unknown }).text) : ""))
-    .join("");
-}
-
 /** The files a message carried: its attachment tags that name a local path. */
 export function messageFiles(text: string): FileRef[] {
   const out: FileRef[] = [];

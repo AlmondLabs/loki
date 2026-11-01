@@ -1,21 +1,20 @@
-import { useEffect, useEffectEvent, useMemo, useState, type ComponentProps, type ReactNode } from "react";
-import { useInlineWidgets } from "../chat/use-inline-widgets";
+import { useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
-import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import { OpenChat, type MessageLayout } from "../chat/transcript";
+import { OpenChat } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import type { SuggestionsProps } from "../chat/suggestion-card";
 import { useThreadRows, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
-import { dayLabel, threadNotice, unreadBoundary } from "./deck";
+import { threadNotice } from "./deck";
+import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { useMessageActions } from "./use-message-actions";
 import { SheetRow } from "./home";
 import { RenameSheet } from "./rename-sheet";
@@ -24,9 +23,9 @@ import { useViewed } from "../shared/use-viewed";
 import { doneAction } from "../shell/sidebar-model";
 import { Icon } from "./icons";
 import { threadLine } from "./model";
-import { navigate } from "./router";
+import { navigate, openConversation } from "./router";
 import { Avatar } from "./rows";
-import { draftKey, useDraft } from "./session";
+import { draftKey, useDraft } from "../shared/drafts";
 
 const noop = () => {};
 
@@ -174,21 +173,11 @@ export function ConversationScreen({
   useEffect(() => load(), [thread.agentId, thread.conversationId]);
 
   const agentName = thread.agentName ?? "the agent";
-  const people = useMemo(
-    () => ({ assistant: { name: thread.agentName ?? "agent", avatar: avatarUrl(thread.agentId) }, user: { name: "You" } }),
-    [thread.agentName, thread.agentId],
-  );
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
-  const notice =
-    banner ??
-    (said && (
-      <div className="loki-phone-notice" role="status">
-        <span className="loki-phone-ellipsis">{said}</span>
-      </div>
-    ));
+  const notice = banner ?? (said && <ThreadNotice text={said} status />);
   const canSee = waiting && !view.pending;
   const asked = view.question;
   const approval = view.pending;
@@ -213,7 +202,6 @@ export function ConversationScreen({
             thread={thread}
             item={item}
             heldLook={heldLook}
-            people={people}
             view={{
               status: view.status,
               error: view.error,
@@ -238,7 +226,7 @@ export function ConversationScreen({
             agentName={agentName}
             prefill={prefill}
             notice={notice || null}
-            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+            placeholder={replyPlaceholder(!!view.question, !!view.pending, agentName)}
             draft={{ value: draft, onChange: setDraft }}
             suggestions={suggestions ? { ...suggestions, rt } : null}
           />,
@@ -324,7 +312,6 @@ function ScreenThread({
   thread,
   item,
   heldLook,
-  people,
   view,
   ...conversation
 }: Omit<ComponentProps<typeof Conversation>, "view" | "layout" | "touch" | "dim" | "gutter"> & {
@@ -332,20 +319,12 @@ function ScreenThread({
   thread: Thread;
   item: AttentionItem | null;
   heldLook: string | null;
-  people: MessageLayout["people"];
   view: Omit<ConversationView, "rows">;
 }) {
   const rows = useThreadRows(chats, thread.agentId, thread.conversationId);
-  const dividerAt = unreadBoundary(rows, item?.unread ?? false, item?.seenAt, heldLook);
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), rows, thread.agentName ?? null, {
-    readOnly: true,
-  });
-  const layout = useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline }),
-    [people, dividerAt, item?.last_message_at, widgets, inline],
-  );
+  const layout = useThreadLayout(thread, rows, item, heldLook);
   return (
-    <OpenChat.Provider value={openChat}>
+    <OpenChat.Provider value={openConversation}>
       <Conversation
         {...conversation}
         touch
@@ -357,9 +336,6 @@ function ScreenThread({
     </OpenChat.Provider>
   );
 }
-
-/** A chip naming another chat (a message sent from a suggestion) opens that chat's page. */
-const openChat = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /**
  * The header, Slack's DM bar: a back circle, the identity pill (the agent's face with its working dot, its

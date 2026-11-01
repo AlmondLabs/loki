@@ -1,9 +1,10 @@
 import { lokiDir } from "./paths.ts";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected } from "../core/recall/model.ts";
+import { readJson, writeJsonAtomic } from "./json-file.ts";
 
 /**
  * The Recall files, under ~/.loki/recall (LOKI_RECALL_DIR in tests):
@@ -18,14 +19,6 @@ import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type 
  */
 export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-/** A JSON file's contents, or null when it is missing or not JSON; the caller says what it holds. */
-function readJson(path: string): unknown {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as unknown;
-  } catch {
-    return null;
-  }
-}
 /**
  * A file Recall wrote, renamed into today's snake_case shape: one saved camelCase before October 2026 (createdAt,
  * agentId, lastReview…) is written back once in the new shape.
@@ -41,11 +34,7 @@ function readStored(path: string): unknown {
   }
   return value;
 }
-function writeJson(path: string, value: unknown): void {
-  mkdirSync(join(path, ".."), { recursive: true });
-  writeFileSync(`${path}.tmp`, JSON.stringify(value, null, 2) + "\n");
-  renameSync(`${path}.tmp`, path);
-}
+const writeJson = (path: string, value: unknown) => writeJsonAtomic(path, value, { pretty: true, newline: true });
 function listJson<T>(dir: string): T[] {
   let names: string[];
   try {

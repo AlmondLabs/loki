@@ -1,8 +1,20 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 
-import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
+import {
+  GROUP_MAX,
+  WAITS,
+  buildSearchIndex,
+  groupHits,
+  rankHits,
+  timeOf,
+  type HitGroup,
+  type Indexed,
+  type Lead,
+  type SearchIndex as CoreIndex,
+} from "../shared/search";
 import type { IconName } from "./icons";
+import { deskName } from "./model";
 import { formatRoute, parseRoute, type Route } from "./router";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
@@ -16,16 +28,10 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
  * already had. This file is the phone's adapter: its hits, routes and pages. search.tsx draws the groups with the same rows as Home, Agents and More.
  */
 
-/** Rows per group; the group says how many matched in all. */
-export const GROUP_MAX = 5;
-
 /** Search's groups: chats ("desks", the code's older name), agents, what waits in the Inbox, and the app's pages. */
 export type GroupId = "desks" | "agents" | "inbox" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Inbox", pages: "Pages" };
 const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
-
-/** What the row starts with: the agent's face, or an icon. */
-export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
 
 /** One search result: the row it draws and the route it opens. */
 export interface Hit {
@@ -112,26 +118,14 @@ export const DESTINATIONS: readonly Destination[] = [
 
 // ---- Queries --------------------------------------------------------------------------------------
 
-// The matcher and ranker are shared with the desktop's search (shared/search.ts); the phone keeps its names.
-export { MAX_QUERY, cleanQuery, normalize, tierOf } from "../shared/search";
-
 // ---- The index ------------------------------------------------------------------------------------
-
-/** Home's name for a desk: its title, else "new desk" while live, else its scope. */
-const deskTitle = (d: DeskSummary): string => d.title ?? (d.status === "live" ? "new chat" : d.scope);
-const time = (iso: string | null | undefined): number => {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) ? t : 0;
-};
-/** What an Inbox item waits on, in the Inbox's words. */
-const WAITS: Record<string, string> = { approval: "needs approval", question: "asked you", failed: "failed", done: "finished" };
 
 type Entry = Indexed<Hit>;
 
 const deskHit = (d: DeskSummary & { agent_id: string; conversation_id: string }): Hit => ({
   key: `desk:${d.agent_id}/${d.conversation_id}`,
   group: "desks",
-  title: deskTitle(d),
+  title: deskName(d),
   preview: d.status === "live" ? (d.agent_name ?? "agent") : `${d.agent_name ?? "agent"} · ${d.status}`,
   route: { kind: "conversation", agentId: d.agent_id, conversationId: d.conversation_id, prefill: null },
   lead: { icon: d.status === "live" ? "desk" : "archive" },
@@ -176,13 +170,13 @@ export type SearchIndex = CoreIndex<Hit>;
  */
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
-  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskTitle(d), d.agent_name ?? ""], recency: time(d.last_active) });
+  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskName(d), d.agent_name ?? ""], recency: timeOf(d.last_active) });
   for (const a of src.agents) {
     const description = src.describe?.(a.id) ?? null;
     out.push({ hit: agentHit(a, description), fields: [a.name, description ?? ""], recency: 0 });
   }
   // What needs you, from the loaded items; every chat is findable by its title among the chats above.
-  for (const i of catchUpQueue(src.items)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agent_name ?? ""], recency: time(i.last_message_at) });
+  for (const i of catchUpQueue(src.items)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agent_name ?? ""], recency: timeOf(i.last_message_at) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
   return buildSearchIndex(out);
 }

@@ -24,15 +24,14 @@ import { REST_FIRST_MS, REST_GROWTH } from "../../../core/attention/rest.ts";
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
-import { UsagePage, type UsageApi } from "./usage";
+import type { UsageApi } from "../shared/use-usage";
+import { UsagePage } from "./usage";
 import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
 
 const HOME = "~/.loki";
-
-export { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 

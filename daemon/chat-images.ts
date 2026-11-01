@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { writeFileAtomic } from "../mod/json-file.ts";
 
 /**
  * The pictures in the person's messages, as files a window can load (plan 029). A chat's store keeps each picture as
@@ -40,10 +41,8 @@ export class ChatImages {
     const file = join(this.dir, name);
     try {
       if (!existsSync(file)) {
-        mkdirSync(this.dir, { recursive: true });
         // Written beside it, then renamed: a window asking meanwhile finds the whole file or none.
-        writeFileSync(`${file}.tmp`, Buffer.from(image.data, "base64"));
-        renameSync(`${file}.tmp`, file);
+        writeFileAtomic(file, Buffer.from(image.data, "base64"));
       }
     } catch {
       return null;

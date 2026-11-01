@@ -29,6 +29,7 @@ import { NO_RENAME_REASON, RenameDesk, renameDesk, savePurpose } from "../desk/r
 import { ChangeFolder, type FolderApi } from "../desk/new-desk";
 import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
+import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
@@ -205,9 +206,8 @@ export function DeskSidebar({
 
   const reveal = (scope: string | null) => {
     if (!scope) return;
-    const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     const row = scrollRef.current?.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(scope))}"]`);
-    row?.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    row?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     row?.focus({ preventScroll: true });
   };
 

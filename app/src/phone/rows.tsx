@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from "react";
+import { countText } from "../components";
 import { AgentFace } from "../desk/agent-chip";
 import { Icon, type IconName } from "./icons";
 
@@ -60,9 +61,6 @@ export function RowIcon({ name }: { name: IconName }) {
   );
 }
 
-/** "99+" past two digits, as the navigation's badge does. */
-const badgeCount = (n: number) => (n > 99 ? "99+" : String(n));
-
 /** The props of the phone's list row: its lead, title and preview, the time or badge on the right, and its marks. */
 export interface PhoneRowProps {
   /** The start: an Avatar or a RowIcon; none for a chat, whose section says whose it is. */
@@ -72,8 +70,8 @@ export interface PhoneRowProps {
   preview?: ReactNode;
   /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;
-  /** The unread badge: a number draws a count pill, true a dot; null or false draws nothing. */
-  badge?: number | boolean | null;
+  /** The unread badge: a number above zero draws a count pill; null or zero draws nothing. */
+  badge?: number | null;
   /** Bold title in full ink: something in it is new. */
   unread?: boolean;
   /** Small marks after the title, e.g. the pin. */
@@ -114,8 +112,7 @@ export function PhoneRow({
   flip,
 }: PhoneRowProps) {
   const hold = useHold(onActions);
-  const count = typeof badge === "number" && badge > 0 ? badge : null;
-  const dot = badge === true;
+  const count = badge != null && badge > 0 ? badge : null;
   return (
     <li className="loki-phone-row-item" data-dim={dim || undefined} data-flip={flip}>
       <button
@@ -144,13 +141,9 @@ export function PhoneRow({
           {preview && <span className="loki-phone-row-preview">{preview}</span>}
         </span>
         {count !== null ? (
-          <span className="loki-phone-badge">{badgeCount(count)}</span>
+          <span className="loki-phone-badge">{countText(count)}</span>
         ) : live ? (
           <span aria-hidden className="loki-phone-row-live" />
-        ) : dot ? (
-          <span className="loki-phone-badge loki-phone-badge--dot">
-            <span className="loki-phone-sr-only">new</span>
-          </span>
         ) : time ? (
           <span className="loki-phone-row-time">{time}</span>
         ) : null}
@@ -206,7 +199,7 @@ export function RowSection({
         {title}
         {aside && <span className="loki-phone-section-aside"> · {aside}</span>}
       </span>
-      {count != null && count > 0 && <span className="loki-phone-section-count">{badgeCount(count)}</span>}
+      {count != null && count > 0 && <span className="loki-phone-section-count">{countText(count)}</span>}
       {(onTitle ?? onToggle) && (
         <Icon
           name={onTitle ? "chevron-right" : "chevron-down"}

@@ -33,9 +33,6 @@ export interface FocusEntry {
   t: string;
 }
 
-/** Whether a value is one of the actions that count toward focus, for checking what a client sends. */
-export const isFocusAction = (v: unknown): v is FocusAction => typeof v === "string" && v in FOCUS_WEIGHT;
-
 /** The weight faded to `now`. */
 export function decayed(e: FocusEntry, now = Date.now()): number {
   const hours = Math.max(0, now - new Date(e.t).getTime()) / 3_600_000;

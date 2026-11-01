@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { backendName } from "../../core/desk-core.ts";
 import { readLocalAgent } from "../../mod/agents.ts";
+import { writeJsonAtomic } from "../../mod/json-file.ts";
 
 /**
  * The daemon's agents (plan 017, U6), under the daemon's own backend folder: `agents/<base64 id>.json` for the
@@ -51,11 +52,7 @@ export async function createAgent(backendDir: string, agent: NewAgent): Promise<
 
 /** Write an agent's record atomically. */
 export function writeRecord(backendDir: string, id: string, record: Record<string, unknown>): void {
-  const dir = join(backendDir, "agents");
-  mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${backendName(id)}.json`);
-  writeFileSync(`${file}.tmp`, JSON.stringify(record, null, 2));
-  renameSync(`${file}.tmp`, file);
+  writeJsonAtomic(join(backendDir, "agents", `${backendName(id)}.json`), record, { pretty: true });
 }
 
 /** The person's agents: those with a record and a memory folder, helper agents left out. */

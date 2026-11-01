@@ -1,8 +1,9 @@
-import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { backendName } from "../../core/desk-core.ts";
 import { isAgentId } from "../../core/frames.ts";
 import { writeRecord } from "./agents.ts";
+import { writeJsonAtomic } from "../../mod/json-file.ts";
 
 /**
  * One agent across the person's Macs (plan 023, U3, KTD5, KTD6). Every Mac keeps the same agents under the same ids,
@@ -136,10 +137,7 @@ export function readTombstones(backendDir: string): Tombstone[] {
 /** Record an agent's delete, keeping the latest stamp per agent. */
 export function addTombstone(backendDir: string, tombstone: Tombstone): void {
   const all = readTombstones(backendDir).filter((t) => t.id !== tombstone.id);
-  mkdirSync(backendDir, { recursive: true });
-  const file = tombstonesFile(backendDir);
-  writeFileSync(`${file}.tmp`, JSON.stringify([...all, tombstone], null, 2));
-  renameSync(`${file}.tmp`, file);
+  writeJsonAtomic(tombstonesFile(backendDir), [...all, tombstone], { pretty: true });
 }
 
 /** What applying another Mac's agents changed here. */

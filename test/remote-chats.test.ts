@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { SHARED_SCOPE, homeNote } from "../core/desk-core.ts";
+import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
 import { RemoteChats } from "../mod/remote-chats.ts";
 
@@ -93,12 +93,10 @@ describe("another Mac's chats in this Mac's lists", () => {
     await remote.refresh(MINI);
     remote.setReachable(MINI, false);
     expect(remote.desks().map((d) => d.reachable)).toEqual([false]);
-    expect(homeNote(remote.desks()[0])).toBe("waiting for Mac mini");
     state.lists.desks = [desk("conv-1", "plan the month")];
     remote.setReachable(MINI, true);
     await until(() => remote.desks()[0]?.reachable === true);
     expect(remote.desks()[0].title).toBe("plan the month");
-    expect(homeNote(remote.desks()[0])).toBe("on Mac mini");
   });
 
   test("a failed fetch marks the Mac out of reach", async () => {
@@ -136,7 +134,6 @@ describe("another Mac's chats in this Mac's lists", () => {
     const { remote, state } = fixture();
     await remote.refresh(MINI);
     expect(state.listed).toEqual([["conv-1"]]);
-    expect(homeNote({})).toBeNull();
   });
 
   test("a desk whose chat is gone on that Mac is not listed, and frames for that chat stay here", async () => {
