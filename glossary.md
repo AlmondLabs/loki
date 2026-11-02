@@ -127,9 +127,9 @@ done.
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
 list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
 
-**Rest** (`core/attention/rest.ts`, plan 026): how long an Inbox card stays out after Next. A card with nothing new
-rests longer each Next in a row (its **rung**), a card with something new ten minutes; anything new in the chat ends
-it. _Avoid_: snooze, later (the removed key that did this by hand).
+**Rest** (`core/attention/rest.ts`, plans 026 and 065): how long an Inbox card stays out after Next, an hour unless
+Preferences › Inbox says otherwise. A card with nothing new rests longer each Next in a row (its **rung**), a card with
+something new the first rest only; anything new in the chat ends it. _Avoid_: snooze, later (the removed key that did this by hand).
 
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
 and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;

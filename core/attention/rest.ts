@@ -2,11 +2,13 @@
  * Rest: Next on a stale Inbox card hides it for a while, longer each time (plan 026). A stale card has nothing new,
  * no approval and no question; the n-th Next on it in a row rests it for
  *
- *   rest = min(REST_CAP_MS, max(REST_FIRST_MS · REST_GROWTH^(n − 1), how long the chat has been quiet))
+ *   rest = min(REST_CAP_MS, max(first · REST_GROWTH^(n − 1), how long the chat has been quiet))
  *
- * so a chat just worked in comes back in ten minutes and a chat quiet for two days stays away two days more. Next on a
- * card with something new reads it and rests it for the first rung only, without climbing; so does a Next straight
- * after replying on the same card, which is moving on. A stopped agent (an approval, a question) never rests.
+ * where `first` is the person's setting, an hour unless they changed it (plan 065): long enough that a chat set aside
+ * stays set aside while they finish the one in front of them, instead of coming back half-loaded. A chat quiet for two
+ * days stays away two days more. Next on a card with something new reads it and rests it for the first rung only,
+ * without climbing; so does a Next straight after replying on the same card, which is moving on, and the answer
+ * landing ends that rest at once. A stopped agent (an approval, a question) never rests.
  *
  * Each rest is kept with the card's content stamp (queue.ts stampOf). Anything new in the chat changes the stamp,
  * which ends the rest and starts the ladder again: the agent's next message, question or approval, and so whatever the
@@ -17,8 +19,23 @@ import type { AttentionItem } from "./model.ts";
 import { isBlocked } from "./priority.ts";
 import { stampOf } from "./queue.ts";
 
-/** How long the first rest lasts: inside a pass, so an agent still at work comes back once it is done. */
-export const REST_FIRST_MS = 10 * 60_000;
+const MIN = 60_000;
+
+/** The first rungs a person can pick in Preferences › Inbox, by the key their choice is stored under. */
+export const REST_FIRST_CHOICES = { "10m": 10 * MIN, "30m": 30 * MIN, "1h": 60 * MIN, "3h": 180 * MIN } as const;
+/** A key of REST_FIRST_CHOICES. */
+export type RestFirst = keyof typeof REST_FIRST_CHOICES;
+/** The first rung unless the person picked another: an hour, long enough to finish the chat in front of them. */
+export const REST_FIRST_DEFAULT: RestFirst = "1h";
+/** How long the first rest lasts by default. */
+export const REST_FIRST_MS = REST_FIRST_CHOICES[REST_FIRST_DEFAULT];
+
+/** A stored choice as a key of REST_FIRST_CHOICES; anything else (nothing stored, an old value) reads as the default. */
+export function parseRestFirst(raw: string | null): RestFirst {
+  return raw !== null && isRestFirst(raw) ? raw : REST_FIRST_DEFAULT;
+}
+
+const isRestFirst = (raw: string): raw is RestFirst => Object.hasOwn(REST_FIRST_CHOICES, raw);
 /** How much longer each further Next on the same card makes its rest. */
 export const REST_GROWTH = 3;
 /** The longest rest: every chat not archived comes past at least once a week. */
@@ -51,9 +68,9 @@ export function isRest(v: unknown): v is Rest {
   );
 }
 
-/** The gap of the n-th rung, capped. */
-export function rungMs(n: number): number {
-  return Math.min(REST_CAP_MS, REST_FIRST_MS * REST_GROWTH ** Math.max(0, n - 1));
+/** The gap of the n-th rung, capped, on a ladder whose first rung is `first`. */
+export function rungMs(n: number, first: number = REST_FIRST_MS): number {
+  return Math.min(REST_CAP_MS, first * REST_GROWTH ** Math.max(0, n - 1));
 }
 
 /** The rung a card's last rest left it on, while nothing new has come since; 0 once something has. */
@@ -63,16 +80,16 @@ export function rungOf(item: AttentionItem, rest: Rest | undefined): number {
 
 /**
  * The rest after Next on `item`; null for a stopped agent, which never rests. `movedOn`: the Next comes straight after
- * acting on this card (a reply), so it is moving on, not a skip.
+ * acting on this card (a reply), so it is moving on, not a skip. `first`: the first rung, the person's setting.
  */
-export function restAfterNext(item: AttentionItem, prev: Rest | undefined, movedOn: boolean, now = Date.now()): Rest | null {
+export function restAfterNext(item: AttentionItem, prev: Rest | undefined, movedOn: boolean, now = Date.now(), first: number = REST_FIRST_MS): Rest | null {
   if (isBlocked(item)) return null;
   const stamp = stampOf(item);
   const rung = rungOf(item, prev);
   const climbs = !item.unread && !movedOn;
   const n = climbs ? rung + 1 : rung;
   const quiet = item.last_message_at ? Math.max(0, now - Date.parse(item.last_message_at)) : 0;
-  const gap = climbs ? Math.min(REST_CAP_MS, Math.max(rungMs(n), quiet)) : REST_FIRST_MS;
+  const gap = climbs ? Math.min(REST_CAP_MS, Math.max(rungMs(n, first), quiet)) : first;
   return { n, until: new Date(now + gap).toISOString(), stamp, at: new Date(now).toISOString() };
 }
 

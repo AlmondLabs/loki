@@ -4,12 +4,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
 import { inboxQueue, restingCount } from "../core/attention/queue.ts";
-import { REST_CAP_MS, REST_FIRST_MS, isResting, movesOn, restAfterNext, restState, restUndone, rungMs, type Rest } from "../core/attention/rest.ts";
+import {
+  REST_CAP_MS,
+  REST_FIRST_CHOICES,
+  REST_FIRST_MS,
+  isResting,
+  movesOn,
+  parseRestFirst,
+  restAfterNext,
+  restState,
+  restUndone,
+  rungMs,
+  type Rest,
+} from "../core/attention/rest.ts";
 import { EMPTY_DECK, commitCard, deckQueue, throughResting } from "../app/src/phone/deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { must } from "./fixtures/must.ts";
 
-/** Rest (core/attention/rest.ts, plan 026): Next on a stale card hides it, longer each time, until something new comes. */
+/** Rest (core/attention/rest.ts, plans 026 and 065): Next on a card hides it, a stale one longer each time, until something new comes. */
 
 const MIN = 60_000;
 const H = 60 * MIN;
@@ -19,17 +31,33 @@ const stale = (id = "c1", quiet = 0) => attentionItem(id, { unread: false, statu
 const gap = (r: Rest | null, at = T0) => Date.parse(must(r, "a rest").until) - at;
 
 describe("the ladder", () => {
-  test("each Next in a row on a stale card rests it three times longer, up to a week", () => {
-    expect([1, 2, 3, 4, 5, 6].map((n) => rungMs(n) / MIN)).toEqual([10, 30, 90, 270, 810, 2430]);
+  test("each Next in a row on a stale card rests it three times longer from an hour, up to a week", () => {
+    expect(REST_FIRST_MS).toBe(H);
+    expect([1, 2, 3, 4, 5, 6].map((n) => rungMs(n) / H)).toEqual([1, 3, 9, 27, 81, 168]);
     expect(rungMs(20)).toBe(REST_CAP_MS);
     let rest: Rest | null = null;
     const gaps: number[] = [];
     for (let i = 0; i < 3; i++) {
       rest = restAfterNext(stale(), rest ?? undefined, false, T0);
-      gaps.push(gap(rest) / MIN);
+      gaps.push(gap(rest) / H);
     }
-    expect(gaps).toEqual([10, 30, 90]);
+    expect(gaps).toEqual([1, 3, 9]);
     expect(must(rest, "a rest").n).toBe(3);
+  });
+
+  test("the first rung is the person's setting, and the ladder climbs from it", () => {
+    const first = REST_FIRST_CHOICES["10m"];
+    expect([1, 2, 3].map((n) => rungMs(n, first) / MIN)).toEqual([10, 30, 90]);
+    const once = restAfterNext(stale(), undefined, false, T0, first);
+    expect(gap(once) / MIN).toBe(10);
+    expect(gap(restAfterNext(stale(), must(once, "a rest"), false, T0, first)) / MIN).toBe(30);
+  });
+
+  test("a stored choice reads as itself; nothing or anything unknown reads as an hour", () => {
+    expect(parseRestFirst("3h")).toBe("3h");
+    expect(parseRestFirst(null)).toBe("1h");
+    expect(parseRestFirst("5m")).toBe("1h");
+    expect(parseRestFirst("toString")).toBe("1h");
   });
 
   test("a chat quiet for two days rests two days more; one quiet a month, a week", () => {
@@ -37,7 +65,7 @@ describe("the ladder", () => {
     expect(gap(restAfterNext(stale("c1", 30 * 24 * H), undefined, false, T0))).toBe(REST_CAP_MS);
   });
 
-  test("a card with something new, or a Next straight after replying, rests ten minutes and does not climb", () => {
+  test("a card with something new, or a Next straight after replying, rests the first rung and does not climb", () => {
     const fresh = attentionItem("c1", { last_message_at: new Date(T0 - 48 * H).toISOString() });
     const read = restAfterNext(fresh, undefined, false, T0);
     expect([gap(read), must(read, "a rest").n]).toEqual([REST_FIRST_MS, 0]);
@@ -60,11 +88,11 @@ describe("what ends a rest", () => {
   test("its time, or anything new in the chat, which also starts the ladder again; reading the card changes nothing", () => {
     const card = stale();
     const rest = must(restAfterNext(card, undefined, false, T0), "a rest");
-    expect(isResting(card, rest, T0 + 5 * MIN)).toBe(true);
+    expect(isResting(card, rest, T0 + 50 * MIN)).toBe(true);
     // Opened and read: the card is the same card.
-    expect(isResting({ ...card, viewedAt: new Date(T0 + MIN).toISOString() }, rest, T0 + 5 * MIN)).toBe(true);
-    expect(isResting(card, rest, T0 + 11 * MIN)).toBe(false);
-    expect(restState(card, rest, T0 + 11 * MIN)).toEqual({ resting: false, rung: 1, rested: true });
+    expect(isResting({ ...card, viewedAt: new Date(T0 + MIN).toISOString() }, rest, T0 + 50 * MIN)).toBe(true);
+    expect(isResting(card, rest, T0 + 61 * MIN)).toBe(false);
+    expect(restState(card, rest, T0 + 61 * MIN)).toEqual({ resting: false, rung: 1, rested: true });
     // The agent says something new (or the person sent something, which starts a turn): the rest is over, the rung 0.
     const moved = { ...card, lastAssistantText: "done" };
     expect(isResting(moved, rest, T0 + 5 * MIN)).toBe(false);
