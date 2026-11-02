@@ -1,3 +1,5 @@
+import type { IconName } from "./icons";
+
 /**
  * Search's matching and ranking, for any kind of hit: the phone's Search (phone/search-index.ts) and the
  * desktop's ⌘K build their own hits, routes and named pages and hand them here as entries. Pure, so
@@ -9,6 +11,21 @@
 
 /** Past this a query is cut: nothing loki names is longer, and it bounds the history too. */
 export const MAX_QUERY = 80;
+
+/** Rows per group; the group says how many matched in all. */
+export const GROUP_MAX = 5;
+
+/** What a result row starts with: the agent's face, or an icon. */
+export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
+
+/** An ISO time as a recency to rank by; missing or unreadable is oldest. */
+export const timeOf = (iso: string | null | undefined): number => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? t : 0;
+};
+
+/** What an Inbox item waits on, in the Inbox's words. */
+export const WAITS: Record<string, string> = { approval: "needs approval", question: "asked you", failed: "failed", done: "finished" };
 
 /** The query as typed, tidied for display and history: trimmed, runs of space as one, at most MAX_QUERY. */
 export function cleanQuery(raw: string): string {

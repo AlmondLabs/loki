@@ -1,13 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { PendingQuestion } from "../../../core/attention/model.ts";
+import type { Draft } from "../shared/drafts";
 import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
-
-/** What is in the box: the text and the images pasted, dropped or picked in. */
-export interface DraftValue {
-  text: string;
-  images: Attachment[];
-}
 
 /**
  * A draft the host keeps (the phone's per-conversation store, shared by an Inbox card and the desk page),
@@ -15,8 +10,8 @@ export interface DraftValue {
  * an empty one after a send.
  */
 export interface ControlledDraft {
-  value: DraftValue;
-  onChange: (next: DraftValue) => void;
+  value: Draft;
+  onChange: (next: Draft) => void;
 }
 
 interface SubmitContext {
@@ -34,7 +29,7 @@ interface SubmitContext {
  * then `clear` (only this draft — the host's clear knows which). A send or answer that throws keeps the
  * draft for another try. True when something went.
  */
-export function submitDraft(value: DraftValue, { question, onAnswer, onSend, commands = [], onCommand, onSent }: SubmitContext, clear: () => void): boolean {
+export function submitDraft(value: Draft, { question, onAnswer, onSend, commands = [], onCommand, onSent }: SubmitContext, clear: () => void): boolean {
   const text = value.text.trim();
   const images = value.images;
   if (!text && !images.length) return false;
@@ -58,8 +53,8 @@ export function submitDraft(value: DraftValue, { question, onAnswer, onSend, com
  * the last render saw — so an image that finishes decoding after the text changed, or a clear right after
  * a set, never brings back what was there before.
  */
-export function draftWriter(latest: { current: DraftValue }, onChange: (next: DraftValue) => void) {
-  const put = (patch: Partial<DraftValue>) => {
+export function draftWriter(latest: { current: Draft }, onChange: (next: Draft) => void) {
+  const put = (patch: Partial<Draft>) => {
     latest.current = { ...latest.current, ...patch };
     onChange(latest.current);
   };
@@ -91,7 +86,7 @@ export function useDraft({
   const [ownDraft, setOwnDraft] = useState("");
   const [ownImages, setOwnImages] = useState<Attachment[]>([]);
   // The latest host draft, for writes that land after the render that made them (see draftWriter).
-  const latest = useRef<DraftValue>(controlled?.value ?? { text: "", images: [] });
+  const latest = useRef<Draft>(controlled?.value ?? { text: "", images: [] });
   useLayoutEffect(() => {
     if (controlled) latest.current = controlled.value;
   });

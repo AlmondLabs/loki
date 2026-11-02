@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
+import { isRecord } from "../tool-kinds.ts";
 
 /**
  * The ACP agents a chat can run on (plan 020, KD1): programs loki starts and talks to over stdio, in the role an
@@ -55,8 +56,6 @@ export const BUILT_IN_AGENTS: readonly AcpAgentConfig[] = [CLAUDE_CODE, CURSOR];
 export function builtInAgent(id: string): AcpAgentConfig | undefined {
   return BUILT_IN_AGENTS.find((a) => a.id === id);
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** One agent from the file, or null when it is not one: the file is the person's, so anything in it may be wrong. */
 function parseAgent(v: unknown): AcpAgentConfig | null {

@@ -1,9 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
 import { isRest, type Rest } from "../core/attention/rest.ts";
 import type { Pushes } from "../core/frames.ts";
 import { coalesce, type Burst } from "../core/timers.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
@@ -216,23 +216,18 @@ export class SeenStore {
 
   private write(): void {
     try {
-      mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(
-        `${this.path}.tmp`,
-        JSON.stringify(
-          {
-            seen: this.seen,
-            ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}),
-            ...(Object.keys(this.focus).length ? { focus: this.focus } : {}),
-            ...(Object.keys(this.unseen).length ? { unseen: this.unseen } : {}),
-            ...(Object.keys(this.remoteFocus).length ? { remote_focus: this.remoteFocus } : {}),
-            ...(Object.keys(this.rests).length ? { rests: this.rests } : {}),
-          },
-          null,
-          2,
-        ),
+      writeJsonAtomic(
+        this.path,
+        {
+          seen: this.seen,
+          ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}),
+          ...(Object.keys(this.focus).length ? { focus: this.focus } : {}),
+          ...(Object.keys(this.unseen).length ? { unseen: this.unseen } : {}),
+          ...(Object.keys(this.remoteFocus).length ? { remote_focus: this.remoteFocus } : {}),
+          ...(Object.keys(this.rests).length ? { rests: this.rests } : {}),
+        },
+        { pretty: true },
       );
-      renameSync(`${this.path}.tmp`, this.path);
     } catch {
       // best effort
     }

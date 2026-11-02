@@ -230,14 +230,15 @@ describe("learn", () => {
 
 describe("navigation labels", () => {
   test("names, counts and the 99+ cap read the same to eyes and screen readers", async () => {
-    const { badgeText, navLabel, TAB_LABEL } = await import("../app/src/phone/tab-bar.tsx");
+    const { navLabel, TAB_LABEL } = await import("../app/src/phone/tab-bar.tsx");
+    const { countText } = await import("../app/src/components/index.tsx");
     expect(TABS.map((t) => TAB_LABEL[t])).toEqual(["Home", "Inbox", "Agents", "More"]);
     expect(navLabel("inbox", 0)).toBe("Inbox");
     expect(navLabel("inbox", 1)).toBe("Inbox, 1 waiting");
     expect(navLabel("inbox", 3)).toBe("Inbox, 3 waiting");
     expect(navLabel("inbox", 100)).toBe("Inbox, 99+ waiting");
-    expect(badgeText(99)).toBe("99");
-    expect(badgeText(250)).toBe("99+");
+    expect(countText(99)).toBe("99");
+    expect(countText(250)).toBe("99+");
     expect(navLabel("home", 0)).toBe("Home");
   });
 });

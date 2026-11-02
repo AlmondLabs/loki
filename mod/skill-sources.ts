@@ -1,19 +1,6 @@
 import { execFile } from "node:child_process";
 import type { MemoryRepos } from "../daemon/memory-sync.ts";
-import {
-  cpSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  readlinkSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { memoryLog, memoryRoot, readLocalAgent } from "./agents.ts";
@@ -21,6 +8,7 @@ import { globalSkillsDir } from "./skills.ts";
 import { log } from "./log.ts";
 import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillOrigin, SkillSource } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Where an agent's skills came from, and how to refresh the ones that came from elsewhere.
@@ -139,10 +127,7 @@ export class SkillSources {
     const all = this.readSources();
     all[`${agentId}/${name}`] = spec.trim();
     try {
-      mkdirSync(dirname(this.opts.sourcesFile), { recursive: true });
-      const tmp = `${this.opts.sourcesFile}.${process.pid}.tmp`;
-      writeFileSync(tmp, JSON.stringify(all, null, 2) + "\n");
-      renameSync(tmp, this.opts.sourcesFile);
+      writeJsonAtomic(this.opts.sourcesFile, all, { pretty: true, newline: true, pidTemp: true });
     } catch (err) {
       log("skills:sources-write-failed", messageOf(err));
     }

@@ -72,7 +72,7 @@ export class ChatListing {
     const { chats, desks, widgets } = this.opts;
     const agents = this.agents();
     const passChat = this.opts.passChats();
-    this.tidy(agents, passChat);
+    this.tidy(passChat);
     const scopes = new Set<Scope>([SHARED_SCOPE, ...this.opts.layouts(), ...desks.all().map((d) => d.scope)]);
     for (const e of widgets.entries()) scopes.add(e.scope);
     const rows = chats.list();
@@ -196,7 +196,7 @@ export class ChatListing {
   }
 
   /** Forget the desks an older loki kept for the passes' chats, so they do not come back. */
-  private tidy(agents: Agents, passChat: (conversationId: string) => boolean): void {
+  private tidy(passChat: (conversationId: string) => boolean): void {
     const { desks } = this.opts;
     const evicted = desks.forgetConversations(passChat);
     if (evicted) log("desks:evict-pass-chats", { evicted });

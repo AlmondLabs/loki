@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { needsReload, shouldAutoReload } from "./model";
-import { drafts } from "./session";
+import { drafts } from "../shared/drafts";
 import { Button } from "../components";
 
 /** The build id index.html was served with; undefined on an index.html from before builds were stamped. */

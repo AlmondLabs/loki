@@ -1,12 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { migrateKeys, OLD_TASK_METADATA_KEYS } from "../core/snake-keys.ts";
 import type { ChatRouter } from "./chat-router.ts";
 import { lokiDir } from "./paths.ts";
 import { envVar, execProgram, firstExisting, onPath } from "./programs.ts";
 import type { ChatKey, SuggestionInput, Suggestions } from "./suggestions.ts";
 import { messageOf } from "../core/errors.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Tasks retired into suggestions (plan 049, U7, KTD10): each open task in the beads store becomes a suggestion in the
@@ -151,10 +152,7 @@ const movedIds = (state: Record<string, unknown>): string[] =>
  */
 function record(file: string, id: string): void {
   const state = readState(file);
-  mkdirSync(dirname(file), { recursive: true });
-  const temp = `${file}.${String(process.pid)}.tmp`;
-  writeFileSync(temp, `${JSON.stringify({ ...state, tasks_moved: [...movedIds(state), id] }, null, 2)}\n`);
-  renameSync(temp, file);
+  writeJsonAtomic(file, { ...state, tasks_moved: [...movedIds(state), id] }, { pretty: true, newline: true, pidTemp: true });
 }
 
 /**

@@ -253,9 +253,6 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
 
 // ---- What the card says -----------------------------------------------------------------------------
 
-// Shared with the desktop (shared/thread.ts); the phone keeps its names.
-export { dayLabel, unreadBoundary } from "../shared/thread";
-
 /**
  * The line above the card's message box: what the agent is doing after your reply, or what it wants beyond a reply.
  * None for a plain wait: the box's own "Message atlas" already says it is your turn.

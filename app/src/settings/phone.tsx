@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import QRCode from "qrcode";
 import { Button, Dot, Row as PickRow, Switch } from "../components";
 import { Block, Setting } from "./layout";
+import { useNow } from "../components/use-now";
 import { notYetOn, platform, type Platform } from "../desk/env";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
@@ -233,7 +234,7 @@ function RouteRow({
 function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus }) {
   const url = pairUrlFor(status, code.code) ?? code.url;
   const [svg, setSvg] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const now = useNow(1000);
   useEffect(() => {
     let live = true;
     // Dark on light, whatever the page: cameras read that; the SVG carries its own quiet zone as the plate.
@@ -244,10 +245,6 @@ function PairPlate({ code, status }: { code: PairCode; status: PhoneLanStatus })
       live = false;
     };
   }, [url]);
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
   const left = countdown(code.expiresAt, now);
   const expired = left === "expired";
   return (

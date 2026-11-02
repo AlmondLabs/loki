@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { countText } from "../components";
 import { Icon, type IconName } from "./icons";
 import { TABS, navigate, type Tab } from "./router";
 
@@ -37,7 +38,7 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
                   {n > 0 && (
                     // Keyed by the count: a new number is a new badge, which pops in (phone.css).
                     <span key={n} aria-hidden className="loki-phone-nav-badge">
-                      {badgeText(n)}
+                      {countText(n)}
                     </span>
                   )}
                 </span>
@@ -60,11 +61,8 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
 export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Inbox", agents: "Agents", more: "More" };
 const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
 
-/** The badge's text: the count, capped at 99+ so a big queue never widens the capsule. */
-export const badgeText = (n: number): string => (n > 99 ? "99+" : String(n));
-
 /** A tab's accessible name: "Inbox" or "Inbox, 3 waiting". */
-export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${badgeText(n)} waiting` : TAB_LABEL[t]);
+export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${countText(n)} waiting` : TAB_LABEL[t]);
 
 /** Sets --phone-nav-clearance on the shell to the height the dock covers, from its top to the shell's bottom; removed with the dock. */
 function useNavClearance() {

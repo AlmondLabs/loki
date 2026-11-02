@@ -1,8 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
 import { execFileSync } from "node:child_process";
-import { dirname } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import type { DeviceStore } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
@@ -18,6 +17,7 @@ import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/fram
 import { isLanVia } from "../core/frames.ts";
 import { serialQueue } from "../core/serial.ts";
 import { messageOf } from "../core/errors.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
@@ -709,10 +709,7 @@ function readState(file: string): LanState {
 
 function writeState(file: string, state: LanState): void {
   try {
-    mkdirSync(dirname(file), { recursive: true });
-    const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(state.via ? state : { enabled: state.enabled }, null, 2) + "\n");
-    renameSync(tmp, file);
+    writeJsonAtomic(file, state.via ? state : { enabled: state.enabled }, { pretty: true, newline: true, pidTemp: true });
   } catch (err) {
     log("lan:state-write-failed", messageOf(err));
   }

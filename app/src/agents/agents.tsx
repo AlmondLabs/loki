@@ -26,8 +26,6 @@ import type { MacIdentity } from "../../../core/frame-types.ts";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
-export { Diff } from "./changes-page";
-export { AgentsColumn } from "./agents-column";
 
 /**
  * The Agents page, Slack's DMs (plan 013 U10): the agents down the column (AgentsColumn), the chosen one

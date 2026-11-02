@@ -1,7 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, UsageState } from "@earendil-works/pi-durable";
-import { createReadStream, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { isWriterChat } from "../core/recall/model.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
@@ -11,6 +10,7 @@ import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { serialQueue } from "../core/serial.ts";
 import { Listeners } from "../core/listeners.ts";
+import { writeJsonAtomic } from "../mod/json-file.ts";
 
 /**
  * The usage ledger (docs/plans/2026-10-17-019-feat-loki-usage-page-plan.md, KD4): what every model call cost, by
@@ -217,9 +217,7 @@ export class UsageLedger {
     this.prune();
     const data: LedgerFile = { version: 1, rows: this.rows(), seen: this.seen, ...(this.seededUntil ? { seeded_until: this.seededUntil } : {}) };
     try {
-      mkdirSync(dirname(this.deps.file), { recursive: true });
-      writeFileSync(`${this.deps.file}.tmp`, JSON.stringify(data));
-      renameSync(`${this.deps.file}.tmp`, this.deps.file);
+      writeJsonAtomic(this.deps.file, data);
     } catch (error) {
       this.deps.report?.(`usage: could not save ${this.deps.file}: ${String(error)}`);
     }

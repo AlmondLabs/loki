@@ -37,6 +37,3 @@ export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: s
 export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
   return desks.filter((d) => d.status !== "live" && deskMatches(d, agentFilter, q));
 }
-
-// The mark and the pin / archive rules live in the sidebar's model; the phone imports them from here.
-export { deskMark, type MarkKind } from "./sidebar-model";

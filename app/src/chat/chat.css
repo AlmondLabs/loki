@@ -896,10 +896,6 @@ button.loki-file-chip {
   font-weight: 600;
   color: var(--loki-fg);
 }
-.loki-model-aside {
-  font-size: 12px;
-  color: var(--loki-muted);
-}
 .loki-model-chev {
   flex: none;
   color: var(--loki-muted);

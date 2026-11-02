@@ -3,6 +3,7 @@ import type { UsageLine, UsageOrigin } from "../../../core/usage.ts";
 import { UsageBars } from "../shared/usage-bars";
 import { useUsage, type UsageApi } from "../shared/use-usage";
 import { PERIOD_LABELS, PERIODS, modelName, money, originName, shareText, tokenCount } from "../shared/usage-words";
+import { sentence } from "../components";
 import { FactRow, MenuRow, RowGroup } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
 
@@ -21,13 +22,7 @@ export function UsageScreen({ usage, banner, backLabel = "more", onBack }: { usa
         <div className="loki-phone-groups">
           <RowGroup title="Period" radio>
             {PERIODS.map((p) => (
-              <MenuRow
-                key={p}
-                icon="clock"
-                label={PERIOD_LABELS[p][0].toUpperCase() + PERIOD_LABELS[p].slice(1)}
-                checked={period === p}
-                onClick={() => pick(p)}
-              />
+              <MenuRow key={p} icon="clock" label={sentence(PERIOD_LABELS[p])} checked={period === p} onClick={() => pick(p)} />
             ))}
           </RowGroup>
           {!summary ? (

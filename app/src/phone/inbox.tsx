@@ -1,15 +1,12 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { useInlineWidgets } from "../chat/use-inline-widgets";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
-import { scopeFor } from "../../../core/desk-core.ts";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
-import { formatInput } from "../../../core/attention/format.ts";
 import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
 import { OpenChat, type TranscriptRow } from "../chat/transcript";
-import { navigate } from "./router";
+import { openConversation } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, Thread } from "../chat/conversation";
 import { bumpTick, chipText, tickOf, waitingCount, type ChatTick, type SuggestionsProps } from "../chat/suggestion-card";
@@ -20,8 +17,9 @@ import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, SkeletonCard } from "./rows";
 import { useMessageActions } from "./use-message-actions";
-import { draftKey, useDraft } from "./session";
+import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
+import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
@@ -36,7 +34,6 @@ import {
   cardNotice,
   cardsToDraw,
   commitCard,
-  dayLabel,
   deckQueue,
   flingVelocity,
   holdCard,
@@ -51,7 +48,6 @@ import {
   swipeDecision,
   throughResting,
   undoCard,
-  unreadBoundary,
   type DeckState,
   type PassSummary,
   type Role,
@@ -69,14 +65,6 @@ import {
  * seconds after Archive or Next. The pure parts (when a drag
  * commits, the lean, the pass itself, what the card says) are in deck.ts.
  */
-
-/** The two or three lines a card would show under its title without a thread (kept for callers). */
-export function preview(item: AttentionItem): string {
-  if (item.pendingApproval) return `run ${item.pendingApproval.toolName}\n${formatInput(item.pendingApproval.input)}`;
-  if (item.pendingQuestion) return item.pendingQuestion.questions.map((q) => q.question).join("\n");
-  if (item.status === "failed" && item.error) return item.error;
-  return item.lastAssistantText ?? "";
-}
 
 /** What the deck needs of a conversation to draw it inside a card (useAttention's `conversation`). */
 export interface CardView {
@@ -849,9 +837,6 @@ export function Card({
   );
 }
 
-/** A chip naming another chat (a message sent from a suggestion) opens that chat's page. */
-const openChat = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
-
 /** The top card's conversation, redrawn as its thread moves (useConversation). */
 function LiveCardConversation({ chats, ...card }: { chats: ChatViews } & Omit<Parameters<typeof CardConversation>[0], "view">) {
   const view = useConversation(chats, card.item.agent_id, card.item.id);
@@ -882,33 +867,17 @@ export function CardConversation({
 }) {
   const [draft, setDraft] = useDraft(draftKey(item.agent_id, item.id));
   const agentName = item.agent_name ?? "the agent";
-  const people = useMemo(
-    () => ({ assistant: { name: item.agent_name ?? "agent", avatar: avatarUrl(item.agent_id) }, user: { name: "You" } }),
-    [item.agent_name, item.agent_id],
-  );
-  const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt, item.viewedAt);
-  // The chat's widgets, drawn under the rows that made them; read only here (the phone may not change a desk).
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(item.id, item.agent_id), view.rows, item.agent_name ?? null, { readOnly: true });
-  const layout = useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item.last_message_at), widgets, inline }),
-    [people, dividerAt, item.last_message_at, widgets, inline],
-  );
+  const layout = useThreadLayout({ agentId: item.agent_id, conversationId: item.id, agentName: item.agent_name }, view.rows, item, item.viewedAt);
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;
   const said = cardNotice(item, view.status);
-  const notice =
-    banner ??
-    (said && (
-      <div className="loki-phone-notice">
-        <span className="loki-phone-ellipsis">{said}</span>
-      </div>
-    ));
+  const notice = banner ?? (said && <ThreadNotice text={said} />);
   const model = card.model;
   const onPick = model?.onPick;
   const onStop = card.onStop;
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
   return message.wrap(
-    <OpenChat.Provider value={openChat}>
+    <OpenChat.Provider value={openConversation}>
       {message.sheet}
       <Conversation
         touch
@@ -942,7 +911,7 @@ export function CardConversation({
         agentName={agentName}
         layout={layout}
         notice={notice || null}
-        placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
+        placeholder={replyPlaceholder(!!question, !!approval, agentName)}
         draft={{ value: draft, onChange: setDraft }}
         onSent={onHold}
         suggestions={card.suggestions ? { ...card.suggestions, rt: item.runtime } : null}

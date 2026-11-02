@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { LABEL_COLORS } from "../core/labels.ts";
+import { writeJsonAtomic } from "../mod/json-file.ts";
 
 /**
  * Each label's colour (plan 022, KD4), kept in `state/labels.json` as an index into the app's palette. A label seen
@@ -82,10 +82,8 @@ export class LabelColors {
   private save(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
       const changed = this.changed.size ? { changed: Object.fromEntries(this.changed) } : {};
-      writeFileSync(`${this.file}.tmp`, `${JSON.stringify({ colors: Object.fromEntries(this.colors), ...changed }, null, 2)}\n`);
-      renameSync(`${this.file}.tmp`, this.file);
+      writeJsonAtomic(this.file, { colors: Object.fromEntries(this.colors), ...changed }, { pretty: true, newline: true });
     } catch {
       // Only colours: a label that lost its colour takes one again when next seen.
     }
