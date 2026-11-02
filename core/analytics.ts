@@ -177,7 +177,22 @@ export interface AnalyticsReport {
   breakdowns: Array<{ event: string; property: string; values: Array<[string, number]> }>;
   inbox: { passes: number; decided: number; perPass: number | null; next: number; archive: number; approve: number; deny: number; replies: number };
   /**
-   * The metric the inbox's ranking is tuned for: how much you engage. `actions` are your messages, answers and
+   * Finished work, the metric the Inbox is tuned for (plan 065): how many chats you finish, how much it took, and how
+   * often you came back to a chat after messaging others in between. Engagement, below, counts every reply as a win
+   * and rose the more you hopped between chats; it stays for comparison.
+   */
+  finished: {
+    /** Chats archived in the period, and a day you were active. */
+    archived: number;
+    perActiveDay: number | null;
+    /** Your messages into each chat archived in the period (median), among those you messaged in it: clearing out old chats is not finishing work. */
+    messagesPerChat: number | null;
+    /** Your messages into a chat you had messaged within RETURN_WINDOW_MS, by how many other chats you messaged in between (0, 1, 2, 3+). */
+    returns: number;
+    between: Array<[string, number]>;
+  };
+  /**
+   * How much you engage, what the Inbox was tuned for before plan 065. `actions` are your messages, answers and
    * decisions; of the Inbox cards you decided, `engaged` are the ones you replied to, answered or decided rather
    * than cleared or put off, with where they stood in the queue (rank 1 is the card on top): a ranking that
    * reads you well puts what you engage with first.
@@ -344,6 +359,9 @@ function passRows(
 const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection", "doctor"]);
 
 const DAY_MS = 86_400_000;
+/** How soon a message into a chat counts as coming back to it, for `finished.between`. */
+export const RETURN_WINDOW_MS = 3 * 60 * 60_000;
+const BETWEEN_BUCKETS = ["0", "1", "2", "3+"];
 /** What counts as engaging with an Inbox card: acting on it or opening it, rather than moving past or archiving it. */
 export const ENGAGED_ACTIONS: ReadonlySet<string> = new Set(["reply", "answer", "approve", "deny", "open"]);
 const RANK_BUCKETS = ["1", "2", "3", "4+"];
@@ -416,6 +434,9 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const measured: MeasuredTurn[] = [];
   const passRuns: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }> = [];
   const passCost = new Map<string, number>();
+  /** Your messages in the order they went out, by chat (a turn_finished from a message, dated when it started). */
+  const sent: Array<{ desk: string; t: number }> = [];
+  const archived = new Set<string>();
 
   for (const e of events) {
     const p = e.properties;
@@ -446,10 +467,12 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     const desk = typeof p.desk === "string" ? p.desk : null;
     if (e.event === "turn_finished") {
       if (desk && !UNATTENDED_ORIGINS.has(String(p.origin))) waiting.set(desk, t);
+      if (desk && p.origin === "message") sent.push({ desk, t: t - num(p.total_ms) });
       const turn = measuredTurn(p);
       if (turn) measured.push(turn);
       if (typeof p.request_id === "string") passCost.set(p.request_id, num(p.cost));
     }
+    if (e.event === "chat_archived" && desk) archived.add(desk);
     if (e.event === "pass_finished")
       passRuns.push({
         job: String(p.job),
@@ -535,6 +558,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   engagement.rested = [...byRung.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   engagement.respondMinutes = median(respond);
   engagement.decideMinutes = median(decide);
+  const finished = finishedWork(sent, archived, activeDays.size);
   for (const row of rows.values()) row.sessions = eventSessions.get(row.event)?.size ?? 0;
   const byDevice: Record<DeviceType, number> = { mac: 0, windows: 0, linux: 0, phone: 0, mod: 0 };
   for (const s of sessionSpan.values()) byDevice[s.device]++;
@@ -558,12 +582,38 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([event, values]) => ({ event, property: BREAKDOWN[event], values: ranked(values, 8) })),
     inbox,
+    finished,
     engagement,
     harness: { turns: measured.length, byModel: harnessRows(measured, (t) => t.model), byVersion: harnessRows(measured, (t) => t.version) },
     passes: passRows(passRuns, passCost),
     hours,
     weekdays,
     neverFired: Object.keys(EVENTS).filter((name) => !rows.has(name)),
+  };
+}
+
+/** The finished-work numbers from your messages in order and the chats archived. */
+function finishedWork(sent: Array<{ desk: string; t: number }>, archived: ReadonlySet<string>, activeDays: number): AnalyticsReport["finished"] {
+  const ordered = [...sent].sort((a, b) => a.t - b.t);
+  const perChat = new Map<string, number>();
+  const last = new Map<string, number>();
+  const between = new Map<string, number>(BETWEEN_BUCKETS.map((b) => [b, 0]));
+  let returns = 0;
+  ordered.forEach((m, i) => {
+    tally(perChat, m.desk);
+    const prev = last.get(m.desk);
+    last.set(m.desk, i);
+    if (prev === undefined || m.t - ordered[prev].t >= RETURN_WINDOW_MS) return;
+    const others = new Set(ordered.slice(prev + 1, i).map((o) => o.desk));
+    returns++;
+    tally(between, others.size >= 3 ? "3+" : String(others.size));
+  });
+  return {
+    archived: archived.size,
+    perActiveDay: activeDays ? Math.round((archived.size / activeDays) * 10) / 10 : null,
+    messagesPerChat: median([...archived].flatMap((desk) => perChat.get(desk) ?? [])),
+    returns,
+    between: returns ? [...between.entries()] : [],
   };
 }
 
@@ -608,6 +658,15 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
     out.push(
       "",
       `inbox passes ${i.passes} · ${i.decided} cards · median ${i.perPass} a pass · next ${pct(i.next, i.decided)} · archive ${pct(i.archive, i.decided)} · approve ${pct(i.approve, i.decided)} · deny ${pct(i.deny, i.decided)} · ${i.replies} replies`,
+    );
+  const f = r.finished;
+  out.push(
+    "",
+    `finished work ${f.archived} chat${f.archived === 1 ? "" : "s"} archived · ${f.perActiveDay ?? "–"} an active day · median ${f.messagesPerChat ?? "–"} messages a finished chat`,
+  );
+  if (f.returns)
+    out.push(
+      `  back to a chat within ${RETURN_WINDOW_MS / 3_600_000} h ${f.returns} · other chats in between ${f.between.map(([n, c]) => `${n} ${pct(c, f.returns)}`).join(" · ")}`,
     );
   const g = r.engagement;
   out.push("", `engagement ${g.actions} messages, answers and decisions · ${g.perActiveDay ?? "–"} an active day`);

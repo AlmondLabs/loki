@@ -20,7 +20,8 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
-import { REST_FIRST_MS, REST_GROWTH } from "../../../core/attention/rest.ts";
+import { REST_GROWTH, type RestFirst } from "../../../core/attention/rest.ts";
+import { useRestFirst } from "../shared/rest-first";
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
@@ -505,14 +506,21 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
 
 /** Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
 function InboxPage() {
+  const [restFirst, setRestFirst] = useRestFirst();
   return (
     <>
       <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
         <Setting
           label="Next"
-          help={`Reads the card and rests it. A card with nothing new comes back in ${REST_FIRST_MS / 60_000} minutes, then ${REST_GROWTH} times longer each Next in a row, up to a week; anything new from the agent brings it back at once.`}
+          help={`Reads the card and sets the chat down for a while, then ${REST_GROWTH} times longer each Next in a row while nothing new comes, up to a week; anything new from the agent brings it back at once.`}
         >
           <Kbd>{keyFor("inbox.next")}</Kbd>
+        </Setting>
+        <Setting
+          label="Next rests a card for"
+          help="The first rest, on this device. Long enough to finish the chat in front of you before the one you set aside comes back."
+        >
+          <Segmented label="next rests a card for" options={REST_FIRST_KEYS} value={restFirst} onPick={setRestFirst} labels={REST_FIRST_LABELS} />
         </Setting>
         <Setting label="Archive" help="Done: the chat leaves the Inbox. Undo brings it back.">
           <Kbd>{keyFor("inbox.archive")}</Kbd>
@@ -539,6 +547,11 @@ function InboxPage() {
     </>
   );
 }
+
+/** The first rests on offer, shortest first. */
+const REST_FIRST_KEYS: readonly RestFirst[] = ["10m", "30m", "1h", "3h"];
+/** Each first rest as the setting says it. */
+const REST_FIRST_LABELS: Record<RestFirst, string> = { "10m": "10 min", "30m": "30 min", "1h": "1 hour", "3h": "3 hours" };
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {

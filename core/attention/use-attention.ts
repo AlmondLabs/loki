@@ -57,6 +57,8 @@ export interface UseAttentionOptions {
   rests?: Record<string, Rest>;
   /** Tell the mod a card was rested by Next, or its rest undone. */
   rest?: (agentId: string, conversationId: string, rest: Rest) => void;
+  /** How long Next first rests a card (rest.ts), the person's setting; left out, an hour. */
+  restFirstMs?: number;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the daemon's store, through the mod (compaction-proof); null when no page came (plan 041). */
@@ -304,10 +306,10 @@ export function useAttention(opts: UseAttentionOptions) {
         ...props,
         dwell_ms: since === undefined ? null : Math.round(clock.now() - since),
       });
-      // Next rests the card (rest.ts): a stale one longer each time, one with something new or just replied on, briefly.
+      // Next rests the card (rest.ts): a stale one longer each time, one with something new or just replied on, the first rung.
       if (action === "next") {
         const prev = optsRef.current.rests?.[keyOf(item.agent_id, item.id)];
-        const rest = restAfterNext(item, prev, movesOn(lastDecision.current, idOf(item)));
+        const rest = restAfterNext(item, prev, movesOn(lastDecision.current, idOf(item)), Date.now(), optsRef.current.restFirstMs);
         restBefore.current.set(idOf(item), prev);
         if (rest) optsRef.current.rest?.(item.agent_id, item.id, rest);
       }

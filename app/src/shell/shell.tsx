@@ -36,6 +36,8 @@ import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
+import { useRestFirst } from "../shared/rest-first";
+import { REST_FIRST_CHOICES } from "../../../core/attention/rest.ts";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -72,6 +74,7 @@ export function Shell() {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
+  const [restFirst] = useRestFirst();
   const catchUp = useAttention({
     enabled: attention.available,
     makeClient: attention.makeClient,
@@ -81,6 +84,7 @@ export function Shell() {
     engage: attention.engage,
     rests: attention.rests,
     rest: attention.rest,
+    restFirstMs: REST_FIRST_CHOICES[restFirst],
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,

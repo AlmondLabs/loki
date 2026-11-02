@@ -4,12 +4,13 @@ import { Listeners } from "../../../core/listeners.ts";
 /**
  * One value for the window, kept in sessionStorage and shared by every component that reads it — a list
  * column and the pane beside it stay on the same view without the shell holding it (plan 013 U11).
- * `parse` turns what was stored (or null) into a valid value, so a stale key reads as the default.
+ * `parse` turns what was stored (or null) into a valid value, so a stale key reads as the default. `storage` picks
+ * another store: localStorage for a preference that outlives the window.
  */
-export function createSessionValue<T extends string>(key: string, parse: (raw: string | null) => T) {
+export function createSessionValue<T extends string>(key: string, parse: (raw: string | null) => T, storage: () => Storage = () => sessionStorage) {
   const read = (): T => {
     try {
-      return parse(sessionStorage.getItem(key));
+      return parse(storage().getItem(key));
     } catch {
       return parse(null);
     }
@@ -20,7 +21,7 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
     if (next === value) return;
     value = next;
     try {
-      sessionStorage.setItem(key, next);
+      storage().setItem(key, next);
     } catch {
       // Storage off: the value still holds for this window.
     }
