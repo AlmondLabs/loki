@@ -53,6 +53,9 @@ jobs:
         run: npm run test:node
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
+      # The website imports the app's components (plan 066): a change that breaks it fails here, not after a merge.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:site
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod
