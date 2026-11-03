@@ -680,7 +680,10 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/inbox`, `/label
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
   stored, and the agent can search the whole chat (`history_search`) and read any part of it back (`history_read`),
-  by the same row numbers the thread has.
+  by the same row numbers the thread has. Each summary leaves one quiet "chat compacted" row where it was written:
+  below it the agent has every turn word for word, above it only the summary, which opening the row shows. While a
+  summary holds the turn up the row reads "compacting the chat", and a summary that fails says "compaction failed"
+  and why.
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
 - `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement

@@ -1,6 +1,6 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
+import { compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { turnIdOf } from "./telemetry.ts";
 
@@ -59,6 +59,8 @@ export class ChatEventConverter {
   private blocks = new Map<number, string>();
   /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
   private turnId: string | null = null;
+  /** The compactions running that hold the turn up, by task: the ones the thread shows while they run (plan 065). */
+  private readonly blocking = new Set<string>();
   private readonly agentId: string;
   /** Keeps the person's pictures as files a window loads (plan 029); without it they stay "[image]" lines. */
   private readonly nameImage?: ImageNamer;
@@ -92,12 +94,11 @@ export class ChatEventConverter {
         this.blocks.clear();
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
+      // A message begun. A user message is shown at its end, which comes with it and says what entry it is: a
+      // compaction's summary is a user message too, and shown as one it put the whole summary in the thread.
       case "message_start":
-        if (ev.message.role !== "user") {
-          this.blocks.clear();
-          return [];
-        }
-        return messageSteps(ev.message, messageAt(ev.message) ?? now, this.nameImage).map((step) => ({ kind: "step", step }));
+        if (ev.message.role !== "user") this.blocks.clear();
+        return [];
       // The in-flight message changes in batches, and a batch's words can come in any of four shapes: a text block
       // begun (holding all it has so far: an answer's first words, often), words added to one, a block or the whole
       // message rewritten. Taking only the added words lost the first ones until the written answer replaced them.
@@ -137,6 +138,17 @@ export class ChatEventConverter {
           },
         ];
       }
+      // A compaction that holds the turn up shows while it runs (plan 065): the turn waits on it, saying nothing else.
+      case "compaction_start":
+        if (!ev.blocking) return [];
+        this.blocking.add(String(ev.taskId));
+        return [{ kind: "step", step: { kind: "compaction", state: "running", detail: null, at: now } }];
+      // Its summary, written, came as a message (answered); without one, its running row goes, or says why it failed.
+      case "compaction_end": {
+        const shown = this.blocking.delete(String(ev.taskId));
+        if (ev.error) return [{ kind: "step", step: { kind: "compaction", state: "failed", detail: ev.error, at: now } }];
+        return shown ? [{ kind: "step", step: { kind: "compaction", state: "ended", detail: null, at: now } }] : [];
+      }
       case "task_failed":
         return [{ kind: "error", message: ev.message }];
       // A message the agent could not take up at all (no model to run it on, say): the turn ends here, and says why.
@@ -161,10 +173,18 @@ export class ChatEventConverter {
       .join("\n");
   }
 
-  /** An answer written: the stored message as a history page has it (its words whole, then its tool calls). */
+  /**
+   * A message written: an answer as a history page has it (its words whole, then its tool calls), a person's message,
+   * or a compaction's summary as its one row.
+   */
   private answered(entry: EntryRecord, now: string): ChatEvent[] {
     const message = entry.model?.[0] as PiMessage | undefined;
-    if (entry.kind !== "pi.assistant" || message?.role !== "assistant") return [];
-    return messageSteps(message, messageAt(message) ?? now).map((step) => ({ kind: "step", step }));
+    const steps =
+      entry.kind === "pi.compaction"
+        ? compactionSteps(entry, now)
+        : (entry.kind === "pi.assistant" && message?.role === "assistant") || (entry.kind === "pi.user" && message?.role === "user")
+          ? messageSteps(message, messageAt(message) ?? now, message.role === "user" ? this.nameImage : undefined)
+          : [];
+    return steps.map((step) => ({ kind: "step", step }));
   }
 }
