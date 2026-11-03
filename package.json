@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:node": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test-node/*.node-test.ts",
     "build:app": "vite build --config app/vite.config.ts",
+    "dev:site": "vite --config site/vite.config.ts",
+    "build:site": "vite build --config site/vite.config.ts",
     "build:mod": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-mod.ts",
     "smoke": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/smoke.ts",
     "tauri": "tauri",

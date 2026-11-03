@@ -3,6 +3,7 @@ node_modules/
 .DS_Store
 .loki-build/
 app/dist
+site/dist
 app/.dist-next
 app/.dist-old
 src-tauri/resources/
