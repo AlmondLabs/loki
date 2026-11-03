@@ -16,10 +16,52 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 049): old history only
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
     .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 049): a link back
+    .replace(REPLIES_BLOCK, "") // the agent's quick replies (plan 066): buttons, not words
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "");
+}
+
+/** The agent's quick replies at the end of a reply (plan 066): a `<loki-replies>` block of "- " lines. */
+const REPLIES_BLOCK = /<loki-replies>[\s\S]*?<\/loki-replies>/g;
+const OPEN_TAG = "<loki-replies>";
+/** The fewest options a reply may offer: one is not a choice. */
+const REPLIES_MIN = 2;
+/** The most quick replies a reply may offer; the Mac's keys 1 to 4 pick them. */
+export const REPLIES_MAX = 4;
+/** The longest an option may be: a button, not a paragraph. */
+const REPLY_CHARS = 80;
+
+/**
+ * The quick replies a reply ends on (plan 066), each the exact words sent as the person's message; null when it offers
+ * none. A block that is not the reply's last thing, has fewer than two or more than four options, repeats one, or has
+ * a line that is not a "- " item or is over 80 characters offers none: the reply shows without it.
+ */
+export function repliesOf(text: string): string[] | null {
+  const m = /<loki-replies>([\s\S]*?)<\/loki-replies>\s*$/.exec(text);
+  if (!m) return null;
+  const lines = m[1]
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.every((l) => /^[-*]\s+\S/.test(l))) return null;
+  const options = lines.map((l) => l.replace(/^[-*]\s+/, ""));
+  if (options.length < REPLIES_MIN || options.length > REPLIES_MAX || options.some((o) => o.length > REPLY_CHARS)) return null;
+  return new Set(options).size === options.length ? options : null;
+}
+
+/**
+ * A reply's text without its quick replies, as the thread draws it. While the reply streams the block is cut from its
+ * opening tag, and so is a tag still arriving at the end ("<loki-rep"), so the raw block never flashes on screen.
+ */
+export function withoutReplies(text: string): string {
+  const cut = text.replace(REPLIES_BLOCK, "");
+  const open = cut.indexOf(OPEN_TAG);
+  if (open >= 0) return cut.slice(0, open).trimEnd();
+  const lt = cut.lastIndexOf("<");
+  const tail = lt >= 0 ? cut.slice(lt) : "";
+  return tail.length >= 2 && OPEN_TAG.startsWith(tail) ? cut.slice(0, lt).trimEnd() : cut;
 }
 
 /** Undo the HTML escaping inside task-notification results (daemon/background.ts escapes them). */

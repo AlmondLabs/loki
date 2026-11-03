@@ -606,6 +606,21 @@ there are several questions, an "or your own…" field under each. **answer** se
 single question, the message box is the way to answer in your own words: what you type there is treated as the
 answer.
 
+## Quick replies
+
+When an agent's turn ends on a choice you are likely to make from a few clear options, it may offer them as quick
+replies: two to four buttons under its last reply, in the chat and on its Inbox card, on the Mac and the phone. A
+button's words are the message: a click sends them as yours, as if you had typed them, and the agent acts on them. On
+the Mac, **1** to **4** send the matching option while the message box is empty and has focus; each button shows its
+number. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
+another turn, they go. Agents are told to offer them only at a real fork, to ask with a question card when they cannot
+go on without an answer, and to make a [suggestion](#suggestions) for work that belongs in another chat. Every agent
+learns of them, loki's own and those on Claude Code or another ACP agent.
+
+The agent writes them at the end of its reply as a `<loki-replies>` block of `- ` lines, which the thread never shows
+as words. A block that is not the reply's last thing, or has one option, more than four, a repeat or a line over 80
+characters, shows no buttons. An older paired loki shows the block as written.
+
 ## Images and files
 
 Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the phone.

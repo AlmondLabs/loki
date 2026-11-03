@@ -30,6 +30,8 @@ describe("the built-in tools", () => {
     const { extensions, dir } = builtins();
     try {
       expect(extensions[0]?.name).toBe("loki.approvals");
+      // Quick replies (plan 066) reach every loki chat as a prompt section, with no tool of their own.
+      expect(extensions.find((e) => e.name === "loki.replies")?.sections?.length).toBe(1);
       const names = extensions.flatMap((e) => (e.tools ?? []).map((t) => t.name));
       expect(new Set(names).size).toBe(names.length);
       expect(names.sort()).toEqual(

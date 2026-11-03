@@ -27,7 +27,9 @@ describe("an agent's prompt for an ACP agent (plan 020, KD5)", () => {
       expect(prompt).toContain(`- pruning: how to prune roses (${join(root, "skills", "pruning", "SKILL.md")})`);
       // loki's own chats keep the memory tools' wording.
       expect(memorySection(root)).toContain("read one with memory_read");
-      expect(agentPrompt(dir, "agent-nobody", null, false, globalSkills)).toBeNull();
+      // Quick replies (plan 066) need no tool, so every agent is told of them, one with nothing else included.
+      expect(prompt).toContain("<loki-replies>");
+      expect(agentPrompt(dir, "agent-nobody", null, false, globalSkills)).toContain("<loki-replies>");
       // With loki's tools (plan 044), the memory is changed through them, as in loki's own chats.
       const withTools = must(agentPrompt(dir, id, "Ada", true, globalSkills));
       expect(withTools).toContain("mcp__loki__memory_read");

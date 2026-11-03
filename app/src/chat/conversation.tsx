@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -21,6 +22,7 @@ import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
+import { QuickReplies, lastReplies, replyKey } from "./quick-replies";
 import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
 import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
@@ -250,6 +252,20 @@ export function Conversation({
       }
     : undefined;
   const waiting = !!approval || !!question;
+  // The agent's quick replies (plan 066): only once its turn is over, and not while it waits on a question or approval.
+  const replies = status === "idle" && !waiting ? lastReplies(view.rows) : null;
+  const sendReply = (text: string) => {
+    actions.onSend(text);
+    onSent?.();
+  };
+  const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (palette.onKeyDown(e)) return true;
+    const option = replies && !touch && !hasContent ? replyKey(e, replies) : null;
+    if (!option) return false;
+    e.preventDefault();
+    sendReply(option);
+    return true;
+  };
   const picker = hasModelPicker && (
     <ModelPicker
       open={controls.pickerOpen}
@@ -297,6 +313,7 @@ export function Conversation({
           loadStep={view.loadStep}
           home={view.home ?? null}
           layout={layout}
+          tail={composer && replies && <QuickReplies options={replies} onPick={sendReply} touch={touch} column={!!layout?.people} />}
           style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }}
         />
       </StepsTouch.Provider>
@@ -320,7 +337,7 @@ export function Conversation({
               value={draft}
               onChange={setDraft}
               onSubmit={submit}
-              onKeyDown={palette.onKeyDown}
+              onKeyDown={onBoxKey}
               onEscape={() => {
                 inputRef.current?.blur();
                 if (!draft.trim()) onEscapeEmpty?.();
@@ -520,6 +537,11 @@ export const Thread = forwardRef<
     loadStep?: (row: number) => Promise<WholeRow | null>;
     home?: string | null;
     layout?: MessageLayout;
+    /**
+     * Drawn after the last row, inside the scroll (the agent's quick replies): going away it leaves the thread's height
+     * alone, so a message sent in its place is followed as any other.
+     */
+    tail?: ReactNode;
     style?: CSSProperties;
   }
 >(function Thread(
@@ -537,6 +559,7 @@ export const Thread = forwardRef<
     loadStep,
     home = null,
     layout,
+    tail,
     style,
   },
   ref,
@@ -622,6 +645,7 @@ export const Thread = forwardRef<
             />
           </StepsLoad.Provider>
         )}
+        {tail}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">
             thinking
