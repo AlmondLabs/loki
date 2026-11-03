@@ -1,6 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { chmodSync, existsSync, readFileSync } from "node:fs";
 import { messageOf } from "../../core/errors.ts";
+import { writeJsonAtomic } from "../../mod/json-file.ts";
 
 /**
  * MCP servers as the person configures them: `<loki>/mcp.json`, in the `mcpServers` shape Claude Code, Claude Desktop
@@ -129,10 +129,7 @@ function readRaw(path: string): Record<string, unknown> {
 
 /** Write the file whole (beside it, then moved into place), readable by you alone: it can hold tokens. */
 function writeRaw(path: string, raw: Record<string, unknown>): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, `${JSON.stringify(raw, null, 2)}\n`, { mode: 0o600 });
-  renameSync(temp, path);
+  writeJsonAtomic(path, raw, { pretty: true, newline: true, mode: 0o600, pidTemp: true });
   try {
     chmodSync(path, 0o600);
   } catch {

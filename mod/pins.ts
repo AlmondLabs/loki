@@ -1,6 +1,7 @@
 import { lokiDir } from "./paths.ts";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Pinned conversations, in <loki>/state/pins.json:
@@ -39,12 +40,7 @@ function readDoc(file: string): PinsDoc {
   }
 }
 
-function writeDoc(doc: PinsDoc, file: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\n");
-  renameSync(tmp, file);
-}
+const writeDoc = (doc: PinsDoc, file: string) => writeJsonAtomic(file, doc, { pretty: true, newline: true, pidTemp: true });
 
 /** Put one pin in or take it out of the agents map; the map keeps no empty lists. */
 function place(doc: PinsDoc, agentId: string, conversationId: string, pinned: boolean): void {
@@ -90,11 +86,6 @@ export function readPins(file = pinsFile()): Set<string> {
   const out = new Set<string>();
   for (const [a, list] of Object.entries(doc.agents)) for (const c of list) out.add(`${a}/${c}`);
   return out;
-}
-
-/** Whether the conversation is pinned; false when either id is missing. */
-export function isPinned(agentId: string | null, conversationId: string | null, file = pinsFile()): boolean {
-  return !!agentId && !!conversationId && readPins(file).has(`${agentId}/${conversationId}`);
 }
 
 /** Pin or unpin; writes atomically and keeps the rest of the file as Desktop left it. Returns the new state. */

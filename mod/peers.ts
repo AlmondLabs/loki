@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname } from "node:path";
 import type { MacIdentity, PeerSummary } from "../core/frame-types.ts";
@@ -8,6 +8,7 @@ import type { SecretBackend } from "../daemon/credentials.ts";
 import { hashToken } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { log } from "./log.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * The other Macs this one is paired with (plan 023, U1, KTD1). Pairing is mutual: each Mac mints a token for the other
@@ -206,10 +207,7 @@ export class PeerStore {
 
   private persist(): void {
     try {
-      mkdirSync(dirname(this.path), { recursive: true });
-      const tmp = `${this.path}.${process.pid}.tmp`;
-      writeFileSync(tmp, JSON.stringify(this.peers, null, 2) + "\n", { mode: 0o600 });
-      renameSync(tmp, this.path);
+      writeJsonAtomic(this.path, this.peers, { pretty: true, newline: true, mode: 0o600, pidTemp: true });
     } catch {
       // best effort: a failed write costs a re-pair, never a crash
     }

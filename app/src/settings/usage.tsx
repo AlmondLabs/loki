@@ -5,8 +5,6 @@ import { UsageBars } from "../shared/usage-bars";
 import { useUsage, type UsageApi } from "../shared/use-usage";
 import { Block, Fact, Segmented } from "./layout";
 
-export type { UsageApi } from "../shared/use-usage";
-
 /**
  * Preferences › Usage: what the agents cost over a period, from the daemon's usage ledger (daemon/usage.ts). The figures
  * are estimates at each provider's API prices; a subscription sign-in is billed by its plan. Choosing a line of a

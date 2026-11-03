@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { writeJsonAtomic } from "../mod/json-file.ts";
 
 /**
  * loki's own config the same on every paired Mac (plan 023, U10, KTD10, R20): the MCP servers in mcp.json, entry by
@@ -42,11 +43,7 @@ function readRaw(path: string): Record<string, unknown> & { mcpServers: Record<s
   }
 }
 
-function writeJson(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(`${path}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  renameSync(`${path}.tmp`, path);
-}
+const writeJson = (path: string, value: unknown) => writeJsonAtomic(path, value, { pretty: true, newline: true });
 
 function readManifest(path: string): Manifest {
   try {

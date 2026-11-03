@@ -5,14 +5,11 @@ import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone
 import { threadLine } from "../app/src/phone/model.ts";
 import { formatRoute, parseRoute } from "../app/src/phone/router.ts";
 import { keyboardInset } from "../app/src/phone/viewport.ts";
+import { EMPTY_DRAFT, createDrafts, draftKey, drafts } from "../app/src/shared/drafts.ts";
 import {
-  EMPTY_DRAFT,
-  createDrafts,
-  drafts,
   createFocusMemory,
   createRecents,
   createScrollMemory,
-  draftKey,
   nextPrefill,
   pushRecent,
   restoreFocus,

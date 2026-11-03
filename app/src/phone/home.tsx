@@ -15,9 +15,19 @@ import { agentChips } from "../shell/desk-tree";
 import type { SidebarSection } from "../shell/sidebar-model";
 import { Button, Chip, Field, Sheet } from "../components";
 import { Icon, type IconName } from "./icons";
-import { homeCounts, homeDeskSections, homeSections, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
+import {
+  deskName,
+  homeCounts,
+  homeDeskSections,
+  homeSections,
+  shortcutLine,
+  type HomeAttention,
+  type HomeCounts,
+  type LinkState,
+  type Shortcut,
+} from "./model";
 import type { Me } from "./pair";
-import { navigate, type Route } from "./router";
+import { navigate, openConversation, type Route } from "./router";
 import { PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
 import { RenameSheet } from "./rename-sheet";
@@ -28,11 +38,7 @@ import { messageOf } from "../../../core/errors.ts";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
-  if (d.agent_id && d.conversation_id) navigate({ kind: "conversation", agentId: d.agent_id, conversationId: d.conversation_id, prefill: null });
-}
-
-function openAttention(item: AttentionItem) {
-  navigate({ kind: "conversation", agentId: item.agent_id, conversationId: item.id, prefill: null });
+  if (d.agent_id && d.conversation_id) openConversation(d.agent_id, d.conversation_id);
 }
 
 /** Archive or restore a desk's conversation through the daemon; resolves to an error, or null when done. */
@@ -458,14 +464,9 @@ function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
       label={`${title}, ${item.agent_name ?? "agent"}, ${word}`}
       launch={`attention:${item.agent_id}/${item.id}`}
       flip={`conv:${item.agent_id}/${item.id}`}
-      onOpen={() => openAttention(item)}
+      onOpen={() => openConversation(item.agent_id, item.id)}
     />
   );
-}
-
-/** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
-export function deskName(d: DeskSummary): string {
-  return d.title ?? (d.status === "live" ? "new chat" : d.scope);
 }
 
 /**
@@ -732,7 +733,7 @@ function useNewDesk(
     try {
       const rt = await onCreate(agentId, folder, name.trim());
       onClose();
-      navigate({ kind: "conversation", agentId: rt.agent_id, conversationId: rt.conversation_id, prefill: null });
+      openConversation(rt.agent_id, rt.conversation_id);
     } catch (err) {
       setError(messageOf(err));
       // A failure frees the button here; on success the sheet closes and the chat opens, so busy stays set: a finally would let a second tap start a second chat.

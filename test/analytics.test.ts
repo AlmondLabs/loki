@@ -191,6 +191,49 @@ describe("analytics: the report", () => {
   });
 });
 
+describe("analytics: finished work (plan 065)", () => {
+  /** Your message into `desk` at `minute` past 10:00 today: a turn from a message, dated when it ended. */
+  const msg = (desk: string, minute: number) => ev(0, "turn_finished", { desk, origin: "message", total_ms: 60_000 }, "mod", "m1", minute + 1);
+  const events = [
+    msg("a", 0),
+    msg("b", 5),
+    msg("a", 10), // back to a after b
+    msg("a", 15), // straight back to a
+    msg("c", 20),
+    msg("d", 25),
+    msg("e", 30),
+    msg("a", 35), // back to a after c, d and e
+    ev(0, "turn_finished", { desk: "b", origin: "schedule", total_ms: 0 }, "mod", "m1", 36), // not yours
+    ev(0, "chat_archived", { desk: "a", origin: "inbox" }, "mac", "s1", 40),
+    ev(0, "chat_archived", { desk: "c", origin: "inbox" }, "mac", "s1", 41),
+    ev(0, "chat_archived", { desk: "old", origin: "sidebar" }, "mac", "s1", 42), // cleared out, never messaged
+  ];
+  const r = analyticsReport(events, { now: NOW, days: 30 });
+
+  test("archives a day, and messages a finished chat counting only chats you messaged", () => {
+    expect([r.finished.archived, r.finished.perActiveDay]).toEqual([3, 3]);
+    // a took 4 messages, c took 1: the median of the two.
+    expect(r.finished.messagesPerChat).toBe(2.5);
+  });
+
+  test("a return to a chat is bucketed by the other chats messaged in between", () => {
+    expect(r.finished.returns).toBe(3);
+    expect(r.finished.between).toEqual([
+      ["0", 1],
+      ["1", 1],
+      ["2", 0],
+      ["3+", 1],
+    ]);
+  });
+
+  test("the text report leads with finished work", () => {
+    const text = formatAnalyticsReport(r);
+    expect(text).toContain("finished work 3 chats archived · 3 an active day · median 2.5 messages a finished chat");
+    expect(text).toContain("other chats in between 0 33% · 1 33% · 2 0% · 3+ 33%");
+    expect(text.indexOf("finished work")).toBeLessThan(text.indexOf("engagement"));
+  });
+});
+
 describe("analytics: the harness, from the daemon's turns", () => {
   const turn = (over: Record<string, unknown>) => ({
     desk: "a",

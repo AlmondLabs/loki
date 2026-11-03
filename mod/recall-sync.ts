@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, utimesSync } from "node:fs";
+import { join } from "node:path";
+import { writeFileAtomic, writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Learn's files the same on every paired Mac (plan 023, U8, R19). Learn keeps one small JSON file per card, schedule,
@@ -46,9 +47,7 @@ function readManifest(dir: string): Manifest {
 }
 
 function writeManifest(dir: string, m: Manifest): void {
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${MANIFEST}.tmp`), JSON.stringify(m));
-  renameSync(join(dir, `${MANIFEST}.tmp`), join(dir, MANIFEST));
+  writeJsonAtomic(join(dir, MANIFEST), m);
 }
 
 /** The record without one key. */
@@ -120,9 +119,7 @@ export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapsh
     const mine = Math.max(files[path] ?? -1, manifest.deleted[path] ?? -1);
     if (file.mtime <= mine) continue;
     const full = join(dir, path);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(`${full}.tmp`, file.content);
-    renameSync(`${full}.tmp`, full);
+    writeFileAtomic(full, file.content);
     utimesSync(full, new Date(file.mtime), new Date(file.mtime));
     manifest.known[path] = file.mtime;
     manifest.deleted = without(manifest.deleted, path);

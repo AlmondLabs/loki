@@ -2,7 +2,18 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { scopeFor } from "../../../core/desk-core.ts";
 
-import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
+import {
+  GROUP_MAX,
+  WAITS,
+  buildSearchIndex,
+  groupHits,
+  rankHits,
+  timeOf,
+  type HitGroup,
+  type Indexed,
+  type Lead,
+  type SearchIndex as CoreIndex,
+} from "../shared/search";
 import { createRecents } from "../shared/recents";
 import type { IconName } from "../shared/icons";
 import { PAGES, PAGE_WORDS, pageTitle, type SettingsPage } from "../settings/pages";
@@ -19,9 +30,6 @@ import type { LabelView } from "../../../core/labels.ts";
  *
  * Groups come in the order of their best hit, so the first row drawn is the top result Enter opens.
  */
-
-/** Rows per group; the group says how many matched in all. */
-export const GROUP_MAX = 5;
 
 /** What search covers, said wherever it could pass for message search (the phone says the same). */
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
@@ -42,9 +50,6 @@ export type SearchTarget =
   | { kind: "label"; name: string }
   | { kind: "section"; segment: Exclude<Segment, "settings"> }
   | { kind: "preferences"; page: SettingsPage | null };
-
-/** What the row starts with: the agent's face, or an icon. */
-export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
 
 /** One ⌘K result: the row it draws, where it goes, and what the recent places remember of it. */
 export interface SearchHit {
@@ -141,12 +146,6 @@ const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conv
 
 /** The sidebar's name for a desk (DeskSidebar): its title, else Main chat, New desk, or its scope. */
 const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversation_id === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
-const time = (iso: string | null | undefined): number => {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) ? t : 0;
-};
-/** What an Inbox item waits on, in the Inbox's words. */
-const WAITS: Record<string, string> = { approval: "needs approval", question: "asked you", failed: "failed", done: "finished" };
 
 const agentNamer = (src: SearchSources) => {
   const names = new Map(src.agents.map((a) => [a.id, a.name]));
@@ -215,13 +214,13 @@ export function buildIndex(src: SearchSources): SearchIndex {
   const out: Array<Indexed<SearchHit>> = [];
   for (const d of src.desks)
     if (openable(d))
-      out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: time(d.last_active) });
+      out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: timeOf(d.last_active) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   for (const l of src.labels ?? []) out.push({ hit: labelHit(l), fields: [l.name, `label:${l.name}`], recency: 0 });
   // What needs you: the waiting group; every chat is findable by its title among the chats above.
   for (const i of catchUpQueue(src.items)) {
     const n = name(i.agent_id, i.agent_name);
-    out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: time(i.last_message_at) });
+    out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: timeOf(i.last_message_at) });
   }
   for (const p of DESTINATIONS) out.push({ hit: pageHit(p), fields: [p.label, ...p.keywords], recency: 0 });
   return buildSearchIndex(out);

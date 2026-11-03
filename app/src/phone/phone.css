@@ -84,16 +84,13 @@
   --phone-space-6: 24px;
   --phone-gutter: 16px;
   --phone-touch: 44px;
-  /* layers mirror kit/layers.ts: bars inside a screen, the floating navigation (rail), sheets (modal), toasts */
+  /* layers mirror kit/layers.ts: bars inside a screen, the floating navigation (rail), toasts */
   --phone-layer-bar: 10;
   --phone-layer-nav: 110;
-  --phone-layer-sheet: 200;
   --phone-layer-toast: 300;
-  /* motion: quick state changes, navigation pushes, sheets rising */
+  /* motion: quick state changes */
   --phone-ease: cubic-bezier(0.2, 0, 0, 1);
   --phone-dur-fast: 120ms;
-  --phone-dur: 220ms;
-  --phone-dur-sheet: 300ms;
   --phone-safe-top: env(safe-area-inset-top, 0px);
   --phone-safe-bottom: env(safe-area-inset-bottom, 0px);
   --phone-safe-left: env(safe-area-inset-left, 0px);
@@ -882,8 +879,10 @@ html:has(.loki-phone-shell) {
 }
 
 /* ---- Pages --------------------------------------------------------------------------------------- */
-/* A screen: one column under the shell. Home stays mounted while hidden, so `hidden` must win over flex. */
-.loki-phone-page {
+/* A screen, and the Inbox: one column under the shell. Home stays mounted while hidden, so `hidden` must win
+   over flex. */
+.loki-phone-page,
+.loki-phone-inbox {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1200,7 +1199,9 @@ span.loki-phone-section-btn {
 .loki-phone-row--quiet .loki-phone-row-icon {
   color: var(--loki-muted);
 }
-.loki-phone-row-copy {
+.loki-phone-row-copy,
+.loki-phone-sheet-copy,
+.loki-phone-me-copy {
   flex: 1;
   min-width: 0;
   display: grid;
@@ -1252,12 +1253,6 @@ span.loki-phone-section-btn {
   line-height: 22px;
   text-align: center;
   font-variant-numeric: tabular-nums;
-}
-.loki-phone-badge--dot {
-  min-width: 10px;
-  width: 10px;
-  height: 10px;
-  padding: 0;
 }
 /* The row's actions for keyboards and screen readers: out of sight until focused, then over the row's end. */
 .loki-phone-row-more {
@@ -1340,12 +1335,6 @@ span.loki-phone-section-btn {
   gap: var(--phone-space-3);
   min-width: 0;
 }
-.loki-phone-sheet-copy {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
 .loki-phone-sheet-actions {
   display: grid;
   grid-template-columns: 1fr 2fr;
@@ -1372,21 +1361,10 @@ span.loki-phone-section-btn {
   min-width: var(--phone-touch);
   justify-content: center;
 }
-.loki-phone-chip-count {
-  color: var(--loki-muted);
-  font-variant-numeric: tabular-nums;
-}
 
 /* ---- Inbox: the review pass ---------------------------------------------------------------------- */
 /* The Inbox stays mounted under other tabs and pages. Out of sight it keeps its boxes (visibility, not
    display), so the card's thread keeps its scroll offset and the box its caret; nothing in it is reachable. */
-.loki-phone-inbox {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
 .loki-phone-inbox[data-away] {
   position: absolute;
   inset: 0;
@@ -1943,8 +1921,10 @@ span.loki-phone-section-btn {
 
 /* Select model as the phone's bottom sheet: the grip, a round close at the top left and the title centred,
    then the grouped card on the sheet's ground (the model name at 17, its line muted), then Effort › and More
-   models › as rounded rows of their own. */
-.loki-sheet-card.loki-phone-sheet.loki-model-sheet {
+   models › as rounded rows of their own. The steps and suggestions sheets share its ground. */
+.loki-sheet-card.loki-phone-sheet.loki-model-sheet,
+.loki-sheet-card.loki-phone-sheet.loki-steps-sheet,
+.loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
   gap: 0;
   padding-top: var(--phone-space-2);
   background: var(--loki-bg);
@@ -1954,7 +1934,8 @@ span.loki-phone-section-btn {
   justify-items: center;
   gap: var(--phone-space-2);
 }
-.loki-phone .loki-model-grip {
+.loki-phone .loki-model-grip,
+.loki-phone .loki-steps-grip {
   width: 36px;
   height: 5px;
   border-radius: var(--phone-radius-pill);
@@ -2004,7 +1985,6 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-emph);
 }
 .loki-phone .loki-model-line,
-.loki-phone .loki-model-aside,
 .loki-phone .loki-model-status {
   font-size: var(--phone-text-meta);
 }
@@ -2131,22 +2111,11 @@ span.loki-phone-section-btn {
 /* A run of tools, opened (tool-steps.tsx): a bottom sheet with the grip, a round close (or back, in a step) and the
    title; the steps on a thin timeline, each its icon, a verb and what it was done to; a step opens its input and
    output in the same sheet. */
-.loki-sheet-card.loki-phone-sheet.loki-steps-sheet {
-  gap: 0;
-  padding-top: var(--phone-space-2);
-  background: var(--loki-bg);
-}
 .loki-phone .loki-steps-head {
   display: grid;
   justify-items: center;
   gap: var(--phone-space-2);
   touch-action: none;
-}
-.loki-phone .loki-steps-grip {
-  width: 36px;
-  height: 5px;
-  border-radius: var(--phone-radius-pill);
-  background: var(--loki-control-border);
 }
 .loki-phone .loki-steps-bar {
   width: 100%;
@@ -2361,12 +2330,7 @@ span.loki-phone-section-btn {
 .loki-phone-shell[data-keyboard] .loki-phone-notice {
   display: none;
 }
-/* The suggestions sheet (plans 052, 056) is the model sheet's ground: its header stays, its list scrolls under it. */
-.loki-sheet-card.loki-phone-sheet.loki-suggestion-sheet {
-  gap: 0;
-  padding-top: var(--phone-space-2);
-  background: var(--loki-bg);
-}
+/* The suggestions sheet (plans 052, 056): its header stays, its list scrolls under it. */
 .loki-phone .loki-suggestion-modal-head {
   padding: var(--phone-space-1) var(--phone-space-2) var(--phone-space-2) var(--phone-space-3);
 }
@@ -2411,12 +2375,6 @@ span.loki-phone-section-btn {
   width: 16px;
   height: 16px;
   box-shadow: 0 0 0 3px var(--loki-bg);
-}
-.loki-phone-me-copy {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 2px;
 }
 .loki-phone-me-name {
   font-size: var(--phone-text-title);
@@ -3200,8 +3158,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 @media (prefers-reduced-motion: reduce) {
   .loki-phone {
     --phone-dur-fast: 0ms;
-    --phone-dur: 0ms;
-    --phone-dur-sheet: 0ms;
   }
 }
 .loki-phone .loki-inline-widget {

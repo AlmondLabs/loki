@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { PassSettings } from "../core/attention/protocol.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
+import { readJson, writeJsonAtomic } from "../mod/json-file.ts";
 
 export type { PassSettings };
 
@@ -38,20 +39,7 @@ interface Cursors {
 
 const key = (agentId: string, chatId: string) => `${agentId}/${chatId}`;
 
-/** A JSON file's contents, or null when it is missing or not JSON; the caller says what it holds. */
-function readJson(file: string): unknown {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function writeJson(file: string, value: unknown): void {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2));
-  renameSync(`${file}.tmp`, file);
-}
+const writeJson = (file: string, value: unknown) => writeJsonAtomic(file, value, { pretty: true });
 
 /** Settings as read or sent, made whole: a missing field takes its default, and a cap that is not a non-negative number is DEFAULT_DAILY_CAP. */
 export function normalSettings(

@@ -627,3 +627,8 @@ export function moreSections(s: {
     },
   ];
 }
+
+/** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
+export function deskName(d: DeskSummary): string {
+  return d.title ?? (d.status === "live" ? "new chat" : d.scope);
+}

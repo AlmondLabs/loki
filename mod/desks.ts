@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
-import { backendName, scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/desk-core.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { ReasoningEffort } from "../core/models.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /** A chat by its agent and conversation ids, as the desk registry keeps it. */
 export interface Runtime {
@@ -113,9 +114,7 @@ export class DeskRegistry {
 
   private persist(): void {
     try {
-      mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(`${this.path}.tmp`, JSON.stringify(Object.fromEntries(this.byScope), null, 2));
-      renameSync(`${this.path}.tmp`, this.path);
+      writeJsonAtomic(this.path, Object.fromEntries(this.byScope), { pretty: true });
     } catch {
       // best effort
     }
@@ -165,16 +164,6 @@ export function hiddenScopes(rows: ReadonlyArray<Pick<LocalConversationRow, "con
   const out = new Set(rows.filter((r) => r.hidden).map((r) => scopeFor(r.conversationId, r.agentId)));
   for (const r of rows) if (!r.hidden) out.delete(scopeFor(r.conversationId, r.agentId));
   return out;
-}
-
-/** The agent's display name from its record, if present. */
-export function lookupLocalAgentName(agentId: string, backendDir = defaultBackendDir()): string | null {
-  try {
-    const a = JSON.parse(readFileSync(join(backendDir, "agents", `${backendName(agentId)}.json`), "utf8")) as { name?: string };
-    return typeof a.name === "string" && a.name.trim() ? a.name.trim() : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Agents with a memory folder are the person's own; helper agents have none of their own. */

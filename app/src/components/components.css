@@ -129,10 +129,6 @@
   text-align: left;
   white-space: normal;
 }
-.loki-btn--block.loki-btn--center {
-  justify-content: center;
-  text-align: center;
-}
 /* Pages down the left of Settings and Agents: the reading face, the row radius, the panel when current. */
 .loki-nav {
   display: block;
@@ -711,7 +707,8 @@ textarea.loki-field {
   gap: 4px;
   min-width: 0;
 }
-.loki-list-row-name {
+.loki-list-row-name,
+.loki-list-section-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -831,12 +828,6 @@ button.loki-list-section-toggle {
 .loki-list-section-chev--folded {
   transform: rotate(-90deg);
 }
-.loki-list-section-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .loki-list-section-count {
   font-size: 12px;
   font-weight: 400;
@@ -947,7 +938,8 @@ button.loki-list-section-toggle {
 .loki-title-submenu {
   min-width: 260px;
 }
-.loki-title-menu-item {
+.loki-title-menu-item,
+.loki-desk-pane-menu-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1089,14 +1081,6 @@ button.loki-list-section-toggle {
 .loki-desk-pane-menu-anchor {
   position: relative;
   display: inline-flex;
-}
-.loki-desk-pane-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  font-size: 13.5px;
 }
 
 /* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */

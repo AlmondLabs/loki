@@ -7,6 +7,7 @@ import { useTheme } from "../theme";
 import { FactRow, MenuRow, RowGroup, StateWord } from "./rows";
 import { BackButton, ConfirmSheet, Scroll, TopBar } from "./ui";
 import { messageOf } from "../../../core/errors.ts";
+import { standalone } from "./edge-swipe";
 
 /**
  * The pages behind More's utility rows, in Slack's Preferences grammar — groups of rows on hairlines:
@@ -225,7 +226,6 @@ function safeInsets(): { top: number; bottom: number } {
  * and the display mode. Read at mount; a rotation re-reads it.
  */
 function readViewport(): string {
-  const standalone = matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   const insets = safeInsets();
   const visual = window.visualViewport ? Math.round(window.visualViewport.height) : null;
   return [
@@ -234,7 +234,7 @@ function readViewport(): string {
     `insets ${insets.top}/${insets.bottom}`,
     `visual ${visual ?? "–"}`,
     `doc ${document.documentElement.clientHeight}`,
-    standalone ? "web app" : "browser",
+    standalone() ? "web app" : "browser",
     navigator.userAgent.includes("CriOS") ? "chrome" : "safari",
   ].join(" · ");
 }

@@ -9,13 +9,13 @@ import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
 import { avatarUrl, inTauri } from "../desk/env";
-import { AgentsColumn } from "../agents/agents";
+import { AgentsColumn } from "../agents/agents-column";
 import { LearnColumn } from "../recall/learn-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
-import type { Segment } from "./shortcuts";
+import type { Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
 import { useChatLayout } from "./use-chat-layout";
@@ -36,6 +36,8 @@ import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
 import { pageActivity, pageVisibility } from "../shared/page-activity";
+import { useRestFirst } from "../shared/rest-first";
+import { REST_FIRST_CHOICES } from "../../../core/attention/rest.ts";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -72,6 +74,7 @@ export function Shell() {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
+  const [restFirst] = useRestFirst();
   const catchUp = useAttention({
     enabled: attention.available,
     makeClient: attention.makeClient,
@@ -81,6 +84,7 @@ export function Shell() {
     engage: attention.engage,
     rests: attention.rests,
     rest: attention.rest,
+    restFirstMs: REST_FIRST_CHOICES[restFirst],
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,

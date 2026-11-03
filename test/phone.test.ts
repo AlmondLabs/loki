@@ -29,7 +29,7 @@ import {
   shouldAutoReload,
   stripFrontmatter,
 } from "../app/src/phone/model.ts";
-import { deskMark } from "../app/src/shell/desk-tree.tsx";
+import { deskMark } from "../app/src/shell/sidebar-model.ts";
 import type { AttentionItem } from "../core/attention/model.ts";
 
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";

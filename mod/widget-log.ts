@@ -1,9 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { Scope, WidgetActor, WidgetChange, WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
 import { migrateKeys } from "../core/snake-keys.ts";
 import type { WidgetsDiff } from "./widgets-fs.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 /**
  * Each desk's widget change log: what the agent (or the person, or loki) added, changed or removed, and when, so a desk's
@@ -141,10 +142,7 @@ export class WidgetLog {
   private persist(scope: Scope): void {
     if (!this.dir) return;
     try {
-      mkdirSync(this.dir, { recursive: true });
-      const path = this.file(this.dir, scope);
-      writeFileSync(`${path}.tmp`, JSON.stringify(this.load(scope)));
-      renameSync(`${path}.tmp`, path);
+      writeJsonAtomic(this.file(this.dir, scope), this.load(scope));
     } catch {
       // never break the desk over the log; the next change retries
     }

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { SEGMENTS, type Segment } from "./shortcuts";
+import { SEGMENTS } from "./shortcuts";
 import { LAYER } from "../kit/layers";
-import { Dot } from "../components";
+import { Dot, countText } from "../components";
 import { inTauri, platform, type Platform } from "../desk/env";
-import { keyFor } from "./keymap";
+import { keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
 
 /** The rail's width in px, down the window's left edge. */
@@ -270,7 +270,7 @@ function Badge({ n, tone }: { n: number; tone: "attention" | "quiet" }) {
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      {n > 99 ? "99+" : n}
+      {countText(n)}
     </span>
   );
 }

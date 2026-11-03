@@ -1,11 +1,11 @@
 import type { Context } from "@earendil-works/chord";
 import { defineExtension, type Extension } from "@earendil-works/pi-durable";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import type { Delivery } from "./engine.ts";
 import { piTool, type ChatCall, type ChatTool } from "./chat-tools.ts";
+import { writeJsonAtomic } from "../mod/json-file.ts";
 
 /**
  * Scheduled tasks (plan 017, U11): a prompt the agent sets to arrive in a chat on a cron schedule, in a timezone, once
@@ -184,9 +184,7 @@ export class Schedules {
   }
 
   private save(tasks: ScheduledTask[]): void {
-    mkdirSync(dirname(this.file), { recursive: true });
-    writeFileSync(`${this.file}.tmp`, JSON.stringify({ version: 1, tasks }, null, 2));
-    renameSync(`${this.file}.tmp`, this.file);
+    writeJsonAtomic(this.file, { version: 1, tasks }, { pretty: true });
   }
 
   create(t: Omit<ScheduledTask, "id" | "status" | "created_at" | "last_fired_at" | "fire_count">, now = new Date()): ScheduledTask {

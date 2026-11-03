@@ -1,7 +1,8 @@
-import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DeskState, Scope } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
+import { writeJsonAtomic } from "./json-file.ts";
 
 const DEBOUNCE_MS = 200;
 
@@ -56,10 +57,7 @@ export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNC
     const state = store.get(scope);
     if (Object.keys(state.layout).length === 0 && Object.keys(state.overlay).length === 0) return;
     try {
-      mkdirSync(dir, { recursive: true });
-      const path = join(dir, `${scope}.json`);
-      writeFileSync(`${path}.tmp`, JSON.stringify(state, null, 2));
-      renameSync(`${path}.tmp`, path);
+      writeJsonAtomic(join(dir, `${scope}.json`), state, { pretty: true });
     } catch {
       // never break the desk over a snapshot; next change retries
     }

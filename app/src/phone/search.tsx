@@ -4,7 +4,8 @@ import { Icon } from "./icons";
 import type { LinkState } from "./model";
 import { navigate, rewrite } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
-import { buildIndex, cleanQuery, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
+import { cleanQuery } from "../shared/search";
+import { buildIndex, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 
 /** What Search covers, said plainly wherever it would otherwise look like message search. */
