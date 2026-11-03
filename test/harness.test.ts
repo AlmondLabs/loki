@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { decodeEntities, extractHarnessEvents, movedMark, ownText, stripHarnessMarkup, suggestedMark, suggestedOf } from "../core/harness.ts";
+import {
+  decodeEntities,
+  extractHarnessEvents,
+  movedMark,
+  ownText,
+  repliesOf,
+  stripHarnessMarkup,
+  suggestedMark,
+  suggestedOf,
+  withoutReplies,
+} from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>aws sso login</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>`;
@@ -79,5 +89,33 @@ describe("a sent suggestion's link back (plan 049, KTD6)", () => {
 describe("a text's own copy (plan 042)", () => {
   test("reads the same as the text, a lone surrogate and markup included", () => {
     for (const text of ["", "plain", "a \ud800 lone half", '<b>\n\t"quoted"</b> é 🚀', "x".repeat(5000).slice(10, 4010)]) expect(ownText(text)).toBe(text);
+  });
+});
+
+describe("quick replies (plan 066)", () => {
+  const block = (...lines: string[]) => `<loki-replies>\n${lines.join("\n")}\n</loki-replies>`;
+  const reply = `Migration is ready.\n\n${block("- run the migration", "- show me the diff first")}\n`;
+
+  test("a block at the end of a reply gives its options, word for word", () => {
+    expect(repliesOf(reply)).toEqual(["run the migration", "show me the diff first"]);
+    expect(repliesOf(`ok\n${block("* yes", "* no", "- later", "- never")}`)).toEqual(["yes", "no", "later", "never"]);
+  });
+
+  test("a block that is not a choice, or not last, offers none", () => {
+    expect(repliesOf("no block here")).toBeNull();
+    expect(repliesOf(`ok\n${block("- only one")}`)).toBeNull();
+    expect(repliesOf(`ok\n${block("- a", "- b", "- c", "- d", "- e")}`)).toBeNull();
+    expect(repliesOf(`ok\n${block("- a", "- a")}`)).toBeNull();
+    expect(repliesOf(`ok\n${block("- a", `- ${"x".repeat(81)}`)}`)).toBeNull();
+    expect(repliesOf(`ok\n${block("- a", "not an item")}`)).toBeNull();
+    expect(repliesOf(`${block("- a", "- b")}\nand then more words`)).toBeNull();
+  });
+
+  test("the block never shows as words, finished or still streaming", () => {
+    expect(stripHarnessMarkup(reply).trim()).toBe("Migration is ready.");
+    expect(withoutReplies(reply).trim()).toBe("Migration is ready.");
+    expect(withoutReplies("Ready.\n<loki-replies>\n- run the mi")).toBe("Ready.");
+    expect(withoutReplies("Ready.\n<loki-rep")).toBe("Ready.");
+    expect(withoutReplies("a < b")).toBe("a < b");
   });
 });

@@ -5,6 +5,7 @@ import { askExtension } from "./ask.ts";
 import { backgroundExtension, type BackgroundTasks } from "./background.ts";
 import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
+import { repliesExtension } from "./replies.ts";
 import { scheduleExtension, type Schedules } from "./schedule.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
@@ -28,7 +29,7 @@ export interface BuiltinDeps {
 /**
  * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
  * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools, memory, skills,
- * helpers (subagents), web search, background tasks, schedules and the chat's own history. The mods install after these;
+ * helpers (subagents), web search, background tasks, schedules, the chat's own history and the quick-replies prompt. The mods install after these;
  * loki.mcp installs before them, from McpTools' constructor, and has no hooks.
  */
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
@@ -44,6 +45,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     backgroundExtension(deps.background),
     scheduleExtension(deps.schedules),
     historyExtension(deps.history),
+    repliesExtension(),
   ];
 }
 

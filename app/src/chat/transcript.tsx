@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "./markdown-image";
 
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
+import { withoutReplies } from "../../../core/harness.ts";
 import { chatImageUrl, inTauri } from "../desk/env";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
@@ -409,7 +410,7 @@ function Message({
   const time = clockLabel(m.at);
   const hold = useMessageHold(m);
   // Copy waits for a streaming reply to finish; its time is there from the start.
-  const copyable = !!m.text && !(last && streaming);
+  const copyable = !!shownText(m) && !(last && streaming);
   return (
     <div
       data-row={m.role}
@@ -433,7 +434,7 @@ function Message({
         )}
         {(copyable || time) && (
           <div className="loki-msg-actions">
-            {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
+            {copyable && <CopyMarkdown text={shownText(m)} className="loki-msg-action" />}
             {time && (
               <time className="loki-msg-time" dateTime={m.at}>
                 {time}
@@ -549,7 +550,7 @@ function Bubble({
         >
           {m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}
         </div>
-        {m.text && !(last && streaming) && <CopyMarkdown text={m.text} />}
+        {shownText(m) && !(last && streaming) && <CopyMarkdown text={shownText(m)} />}
       </div>
       {m.queued && (
         <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4 }}>
@@ -669,15 +670,21 @@ const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
   );
 });
 
+/** A message's words as the thread shows and copies them: an agent's quick replies (plan 066) are buttons, not words. */
+function shownText(m: TranscriptRow): string {
+  return m.role === "assistant" ? withoutReplies(m.text) : m.text;
+}
+
 function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
+  const text = withoutReplies(m.text);
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
       {cursor ? (
         // A block is named by where it starts in the reply: words added after it leave it as it is.
-        streamBlocks(m.text).map((block) => <LiveBlock key={block.at} text={block.text} />)
+        streamBlocks(text).map((block) => <LiveBlock key={block.at} text={block.text} />)
       ) : (
         <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-          {m.text}
+          {text}
         </Markdown>
       )}
       {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
