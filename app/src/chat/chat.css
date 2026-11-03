@@ -1534,3 +1534,22 @@ button.loki-label-chip:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The agent's quick replies under its last reply (plan 066): a wrapping row of buttons, each kept to the row's width. */
+.loki-quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+}
+/* In the avatar-led layout, under the message text: face 36px + gap 8px, as tool lines sit. */
+.loki-quick-replies--column:not(.loki-phone *) {
+  margin-left: 44px;
+}
+.loki-quick-reply {
+  max-width: 100%;
+}
+.loki-quick-reply-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

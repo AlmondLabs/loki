@@ -3196,3 +3196,8 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   background: var(--loki-positive);
   animation: loki-live-pulse 1.6s ease-in-out infinite;
 }
+
+/* Quick replies (plan 066) under the message text, past the 36px face and the row's gap. */
+.loki-phone .loki-quick-replies--column {
+  margin-left: calc(36px + var(--phone-space-2));
+}
