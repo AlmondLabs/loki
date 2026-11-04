@@ -59,6 +59,7 @@ import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
+import { registerAccountTools } from "./account-tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -624,6 +625,17 @@ export default function activate(api: ModApi, host: Host): () => void {
         }
       : undefined,
   });
+  // The owning agent's account tools (plan 067, U9): offered only to agents that own an account, re-checked every call.
+  toolDisposers.push(
+    ...registerAccountTools(api, {
+      accounts,
+      threads,
+      clientFor: (account) =>
+        account.provider === "gmail"
+          ? { provider: "gmail", client: gmailClient(account.account_id) }
+          : { provider: "slack", client: slackClient(account.account_id) },
+    }),
+  );
 
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
