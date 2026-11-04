@@ -21,6 +21,7 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
+import { OutsideLines, disconnectedText, outsideWho } from "../desk/outside-card";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
 import { onScreenOffset, releaseVelocity, type Sample } from "../kit/let-go";
@@ -59,7 +60,8 @@ import {
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
  * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
  * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
- * can be read and answered without leaving the Inbox. Under it, Open chat and Next (read, move on: the chat
+ * can be read and answered without leaving the Inbox; an outside card (plan 067) shows its thread's last messages
+ * instead, with Archive where Open chat is. Under it, Open chat and Next (read, move on: the chat
  * stays for your next visit); a right swipe is Next. Archiving (done) is in the chat's actions sheet.
  * Approvals refuse both, and the two buttons become Deny and Approve. Undo sits in the top bar for six
  * seconds after Archive or Next. The pure parts (when a drag
@@ -507,7 +509,7 @@ export function Inbox({
           </div>
           <Decisions
             item={current}
-            onOpen={() => onOpen(current)}
+            onOpen={() => (current.outside ? commit(current, "archive") : onOpen(current))}
             onSeen={() => commit(current, "seen")}
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
@@ -704,7 +706,7 @@ function Stack({
             transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
           }}
         >
-          <ReadOnlyThread item={item} chats={chats} />
+          {item.outside ? <OutsideBody item={item} /> : <ReadOnlyThread item={item} chats={chats} />}
         </Card>
       );
     if (role === "top") {
@@ -724,19 +726,28 @@ function Stack({
             transition: drag || reduced ? "none" : `transform ${homeFrom(item).ms}ms ${homeFrom(item).easing}`,
           }}
           handlers={handlers}
-          onOpen={() => {
-            openFromCard(); // the conversation grows out of the card (transitions.ts)
-            onOpen(item);
-          }}
+          onOpen={
+            // An outside card (plan 067) has no chat to open until it is handed off.
+            item.outside
+              ? undefined
+              : () => {
+                  openFromCard(); // the conversation grows out of the card (transitions.ts)
+                  onOpen(item);
+                }
+          }
         >
-          <LiveCardConversation
-            item={item}
-            chats={chats}
-            banner={banner}
-            card={card}
-            onHold={() => deck.hold(item)}
-            suggestionsTick={tickOf(suggestTick, idOf(item))}
-          />
+          {item.outside ? (
+            <OutsideBody item={item} banner={banner} />
+          ) : (
+            <LiveCardConversation
+              item={item}
+              chats={chats}
+              banner={banner}
+              card={card}
+              onHold={() => deck.hold(item)}
+              suggestionsTick={tickOf(suggestTick, idOf(item))}
+            />
+          )}
         </Card>
       );
     }
@@ -786,6 +797,8 @@ export function Card({
 }) {
   const top = role === "top";
   const title = item.title ?? item.id;
+  // An outside card names who wrote it, and its account and agent where a chat names its folder (plan 067, R10).
+  const who = item.outside ? item.outside.sender : (item.agent_name ?? "agent");
   return (
     <article
       className="loki-phone-card"
@@ -802,17 +815,23 @@ export function Card({
           type="button"
           className="loki-phone-card-who"
           onClick={onOpen}
-          aria-label={`Open ${title} with ${item.agent_name ?? "the agent"}`}
+          aria-label={item.outside ? `${title}, from ${who}` : `Open ${title} with ${item.agent_name ?? "the agent"}`}
           tabIndex={top ? undefined : -1}
         >
-          <Avatar name={item.agent_name} src={avatarUrl(item.agent_id)} size={28} />
-          <span className="loki-phone-ellipsis">{item.agent_name ?? "agent"}</span>
-          <Icon name="chevron-down" size={16} />
+          <Avatar name={item.outside ? who : item.agent_name} src={item.outside ? null : avatarUrl(item.agent_id)} size={28} />
+          <span className="loki-phone-ellipsis">{who}</span>
+          {!item.outside && <Icon name="chevron-down" size={16} />}
         </button>
         <span className="loki-phone-card-desk">
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
+          {item.outside && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="loki-phone-ellipsis">{outsideWho(item.outside)}</span>
+            </>
+          )}
           {item.has_draft && (
             <>
               <span aria-hidden>·</span>
@@ -921,6 +940,22 @@ export function CardConversation({
   );
 }
 
+/**
+ * An outside card's body (plan 067, U3): the account's state when it stopped working, then the thread's last messages
+ * as plain text. Archive sits where a chat's Open chat does, since there is no chat to open.
+ */
+function OutsideBody({ item, banner }: { item: AttentionItem; banner?: ReactNode }) {
+  const facts = item.outside;
+  if (!facts) return null;
+  return (
+    <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
+      {banner}
+      {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
+      <OutsideLines facts={facts} touch />
+    </div>
+  );
+}
+
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews }) {
   const view = useConversation(chats, item.agent_id, item.id);
@@ -960,9 +995,9 @@ export function Decisions({
         type="button"
         className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"}
         onClick={approval ? () => onApprove("deny") : onOpen}
-        aria-label={approval ? `Deny ${approval.toolName}` : "Open chat"}
+        aria-label={approval ? `Deny ${approval.toolName}` : item.outside ? "Archive" : "Open chat"}
       >
-        {approval ? "Deny" : "Open chat"}
+        {approval ? "Deny" : item.outside ? "Archive" : "Open chat"}
       </button>
       <button
         type="button"

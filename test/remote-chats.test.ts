@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow } from "../core/frame-types.ts";
-import { RemoteChats } from "../mod/remote-chats.ts";
+import { RemoteChats, peerChatsReply } from "../mod/remote-chats.ts";
 
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
@@ -152,5 +152,25 @@ describe("another Mac's chats in this Mac's lists", () => {
     expect(remote.awayWith("agent-ira")).toBe(MINI);
     expect(remote.awayWith("agent-friday")).toBeNull();
     expect(state.changes).toBeGreaterThan(0);
+  });
+});
+
+describe("outside cards between Macs (plan 067, R14)", () => {
+  const thread: InboxRow = { ...row("t1#1"), kind: "outside", agent_id: "account:gmail:ada@acme.com", last_role: null, last_assistant_text: null };
+
+  test("a Mac's outside cards travel apart from its chats and show on the paired Mac, marked with their home", async () => {
+    const { remote, state } = fixture();
+    state.lists = { ...peerChatsReply([], [row("conv-1"), thread]) };
+    await remote.refresh(MINI);
+    expect(remote.inbox().map((r) => [r.id, r.home])).toEqual([
+      ["conv-1", MINI],
+      ["t1#1", MINI],
+    ]);
+  });
+
+  test("a Mac that reads only the chats, as a loki from before outside cards does, is sent none of them", () => {
+    const reply = peerChatsReply([], [row("conv-1"), thread]);
+    expect(reply.inbox.map((r) => r.id)).toEqual(["conv-1"]);
+    expect(reply.outside.map((r) => r.id)).toEqual(["t1#1"]);
   });
 });

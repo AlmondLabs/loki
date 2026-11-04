@@ -135,6 +135,46 @@ export interface InboxRow extends LocalDigest, ChatHome {
   draft_text?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;
+  /**
+   * An outside card (plan 067, KTD1): a Gmail or Slack thread, not a chat. Its `agent_id` is `account:<account_id>` and
+   * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a
+   * hand-off starts clean. Absent on a chat's row.
+   */
+  kind?: "outside";
+  /** What an outside card shows and acts on; present exactly when `kind` is `outside`. */
+  outside?: OutsideFacts;
+}
+
+/**
+ * An outside card's own facts (plan 067, R10): the account and its owner, who wrote last and about what, the thread's
+ * last few messages as plain text, and the chat a hand-off took it to. Message text stays on this Mac's clients and
+ * paired Macs; it reaches a model only through a hand-off or the owner's tools (R23).
+ */
+export interface OutsideFacts {
+  account_id: string;
+  provider: AccountProvider;
+  /** The account as the card names it: the mailbox's address, or the workspace's name. */
+  account_label: string;
+  thread_id: string;
+  /** Rises with each hand-off, so a new message after one is a new card (R19). */
+  generation: number;
+  owner_agent_id: string;
+  /** The owner's name; null when its record gives none. */
+  owner_name: string | null;
+  /** Who wrote the newest message, as the card shows it. */
+  sender: string;
+  /** The sender's email address, which email focus is learned by (R9); null for Slack. */
+  sender_address: string | null;
+  /** The subject, or a Slack message's first line. */
+  subject: string;
+  /** The last few messages as plain text, oldest first. */
+  lines: string[];
+  newest_message_id: string;
+  newest_at: string;
+  /** The chat the thread was handed to before; null when it never was. */
+  handoff_conversation_id: string | null;
+  /** Why the account is not watched now (R22); null while it is connected. */
+  disconnected: AccountDisconnectCause | null;
 }
 
 /**

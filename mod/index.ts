@@ -44,6 +44,7 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
 import { Accounts } from "./accounts.ts";
+import { AccountThreads } from "./account-threads.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -179,6 +180,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
 
   // --- transport -------------------------------------------------------
+  // Each account's threads (plan 067, U3, KTD11): the memory that keeps a card from coming back, and the outside cards
+  // the inbox lists. The accounts are made below, once the paired Macs are, and read only when the list is.
+  const threads = new AccountThreads({
+    dir: join(paths.state, "account-threads"),
+    accounts: { get: (id) => accounts.get(id), list: () => accounts.list() },
+    agentName: (id) => {
+      const agent = readLocalAgent(id);
+      return agent && agent.name !== agent.id ? agent.name : null;
+    },
+  });
   // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
   const listing = new ChatListing({
     chats,
@@ -188,6 +199,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     pins: () => readPins(),
     passChats: () => isPassChat,
     activeScope: () => activeScope,
+    outside: () => threads.rows(),
   });
   const deskInfo = (scope: Scope) => listing.info(scope);
   const listLocalDesks = () => listing.desks();
@@ -238,7 +250,13 @@ export default function activate(api: ModApi, host: Host): () => void {
     agentExists: (id) => readLocalAgent(id) !== null,
     heldElsewhere: (id) => macs.accountHeldBy(id),
   });
-  accounts.onChange(() => broadcast({ type: "accounts_changed" }));
+  // A move or a disconnect changes what the account's outside cards say, so the lists are read again too.
+  accounts.onChange(() => {
+    broadcast({ type: "accounts_changed" });
+    broadcast({ type: "chat_changed" });
+  });
+  // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
+  threads.onChange(() => broadcast({ type: "chat_changed" }));
   // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
   // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
@@ -310,6 +328,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const moduleDeps: ModuleDeps = {
     store,
     accounts,
+    threads,
     widgets,
     gestures,
     // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).

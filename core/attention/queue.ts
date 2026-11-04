@@ -12,10 +12,14 @@ export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
  * anything new to read, and would bounce a decided card straight back. Nor on
  * turns counted live: rests keep the stamp on the Mac for every device, and a
  * count each client starts at 0 ended a rest made on another, or before a reload.
- * A turn that leaves the last words as they were is not something new.
+ * A turn that leaves the last words as they were is not something new. An outside card's stamp is its newest
+ * message's id.
  */
 export const stampOf = (i: AttentionItem) =>
-  `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
+  // An outside card's content is its newest message (plan 067, R11): a new one ends its rest, its text alone never does.
+  i.outside
+    ? `outside|${i.outside.newest_message_id}`
+    : `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
 
 /**
  * What needs you now: the count on the Inbox's badge, Home's "Needs your attention", Search's waiting group.

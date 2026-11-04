@@ -261,7 +261,15 @@ export interface Replies {
   /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
   peer_chat_taken: { moved: boolean; busy: boolean };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
-  peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
+  peer_chats: {
+    desks: DeskSummary[];
+    inbox: InboxRow[];
+    /**
+     * Its outside cards (plan 067, R14), apart from `inbox` so a Mac on a loki from before them, which reads only
+     * `inbox`, shows none of them.
+     */
+    outside?: InboxRow[];
+  };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
@@ -275,6 +283,8 @@ export interface Replies {
   suggestion_added: { suggestion: Suggestion };
   /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
   accounts: { accounts: AccountView[] };
+  /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
+  account_thread_archived: { account_id: string; thread_id: string };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -1042,6 +1052,16 @@ export const FRAMES = {
   ),
   account_disconnect: request("accounts", "disconnect an account: loki forgets it and its sign-in", (m) =>
     str(m.account_id) && m.account_id ? { account_id: m.account_id } : "account_id required",
+  ),
+  account_thread_archive: request(
+    "account_thread_archived",
+    "archive an outside card: the thread is archived in Gmail or marked read in Slack, then leaves the Inbox (plan 067, R12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { route: "home", relists: true },
   ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],

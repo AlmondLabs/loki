@@ -316,7 +316,8 @@ export class ChatStore {
       }
       this.set({ listed: true });
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
-      for (const c of convs.slice(0, this.host().subscribeLimit ?? 30)) {
+      // An outside card (plan 067) is no chat on the daemon: there is nothing to open.
+      for (const c of convs.filter((x) => !x.outside).slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
         // A conversation that cannot be reached still lists; it just has no live half. One at a time, newest first, on
         // purpose: the daemon opens each chat in turn rather than up to 30 at once, and a disconnect stops the rest.
@@ -772,6 +773,19 @@ export class ChatStore {
       });
     if (archived) this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
     else this.reload();
+    return null;
+  };
+
+  /**
+   * Archive an outside card (plan 067, R12): its thread is archived in Gmail or marked read in Slack by the Mac its
+   * account lives on, then the card leaves the list; resolves to the reason when that failed, and the card stays.
+   */
+  archiveOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.archiveOutside(o.account_id, o.thread_id, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;
   };
 

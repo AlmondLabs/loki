@@ -36,6 +36,7 @@ export type ChatClient = Pick<
   | "setPassSettings"
   | "updateAgent"
   | "updateConversation"
+  | "archiveOutside"
   | "updateModel"
   | "close"
   | "onChat"
@@ -217,6 +218,14 @@ export class FrameChatClient {
 
   async changeFolder(rt: Runtime, cwd: string): Promise<void> {
     await this.call("chat_folder", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, cwd });
+  }
+
+  /**
+   * Archive an outside card's thread (plan 067, R12) on the Mac its account lives on (`home`, null for this one): the
+   * account is written back first, and a refusal throws its reason.
+   */
+  async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<void> {
+    await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
   }
 
   /** `agentId` names the chat's agent when the caller knows it, so a chat this client has not met still resolves. */

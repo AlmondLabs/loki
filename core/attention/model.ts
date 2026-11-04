@@ -4,7 +4,7 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
-import type { Suggestion } from "../frame-types.ts";
+import type { OutsideFacts, Suggestion } from "../frame-types.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
@@ -54,6 +54,12 @@ export interface ConversationInfo {
   draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
+  /** An outside card: a Gmail or Slack thread, not a chat (plan 067, KTD1); absent on a chat. */
+  kind?: "outside";
+  /** The outside card's own facts, present exactly when `kind` is `outside`. */
+  outside?: OutsideFacts;
+  /** The paired Mac the row lives on, as the list marks it (frame-types.ts ChatHome); absent for this Mac's own. */
+  home?: string;
 }
 
 /** From the last few protocol messages of a conversation. */
@@ -139,6 +145,14 @@ export interface AttentionItem extends ConversationInfo {
 
 /** The key a chat goes by in the maps of live state, seen markers and focus: "agentId/conversationId". */
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
+
+/**
+ * The focus key an email sender goes by (plan 067, R9): `account:<account_id>/sender:<address>`, so working with one
+ * person's mail lifts their next thread too. Null for Slack, whose threads gain focus by their card alone.
+ */
+export function senderKeyOf(o: Pick<OutsideFacts, "account_id" | "sender_address">): { agentId: string; conversationId: string } | null {
+  return o.sender_address ? { agentId: `account:${o.account_id}`, conversationId: `sender:${o.sender_address.toLowerCase()}` } : null;
+}
 
 /**
  * Whether an event answers a folder change under way (useAttention changeFolder), read after the event was folded
@@ -403,8 +417,16 @@ export function buildItems(
   rests: Record<string, Rest> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
+  const shares = { ...focus };
   for (const c of conversations) {
     const key = keyOf(c.agent_id, c.id);
+    if (c.outside) {
+      out.push(outsideItem(c, c.outside, seen[key] ?? null, viewed[key] ?? null));
+      const sender = senderKeyOf(c.outside);
+      const senderShare = sender ? (focus[keyOf(sender.agentId, sender.conversationId)] ?? 0) : 0;
+      if (senderShare) shares[key] = Math.min(1, (focus[key] ?? 0) + senderShare);
+      continue;
+    }
     const d = digests.get(key);
     const l = live.get(key);
     const lastMessageAt = [c.last_message_at, l?.lastMessageAt].filter(Boolean).sort().pop() ?? null;
@@ -437,8 +459,31 @@ export function buildItems(
       runtime: { agent_id: c.agent_id, conversation_id: c.id },
     });
   }
-  return scored(out, now, focus).map((i) => {
+  return scored(out, now, shares).map((i) => {
     const key = keyOf(i.agent_id, i.id);
     return key in rests ? { ...i, ...restState(i, rests[key], now) } : i;
   });
+}
+
+/**
+ * An outside card before its score (plan 067, KTD1): new until its own mark is newer than its newest message, never
+ * blocked, so it scores like a chat with a new reply (R9). It has no live half; its preview is its last line.
+ */
+function outsideItem(c: ConversationInfo, o: OutsideFacts, seenAt: string | null, viewedAt: string | null): Unscored {
+  const unread = !seenAt || seenAt < o.newest_at;
+  return {
+    ...c,
+    status: unread ? "done" : "idle",
+    last_message_at: o.newest_at,
+    lastAssistantText: o.lines.at(-1) ?? null,
+    lastRole: null,
+    pendingApproval: null,
+    pendingQuestion: null,
+    error: null,
+    seenAt,
+    unread,
+    viewedAt,
+    lastAsk: null,
+    runtime: { agent_id: c.agent_id, conversation_id: c.id },
+  };
 }

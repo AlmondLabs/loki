@@ -61,6 +61,8 @@ export class ChatListing {
     backendDir?: string;
     /** Reads an agent's record; readLocalAgent in backendDir by default. */
     readAgent?: (agentId: string) => LocalAgent | null;
+    /** The connected accounts' open threads as outside cards (mod/account-threads.ts, plan 067); none when left out. */
+    outside?: () => InboxRow[];
   };
 
   constructor(opts: ChatListing["opts"]) {
@@ -113,7 +115,8 @@ export class ChatListing {
   /**
    * This Mac's inbox: every open chat of the person's own agents, main chats included, however old, newest first. A
    * chat leaves the inbox by being archived, not by going quiet, and a lesson is precisely the thing that can wait: a
-   * row in the chat list, never an inbox card.
+   * row in the chat list, never an inbox card. The connected accounts' open threads join it as outside cards (plan 067,
+   * KTD1), so the phone and paired Macs receive them with the chats.
    */
   inbox(): InboxRow[] {
     const { chats } = this.opts;
@@ -138,6 +141,7 @@ export class ChatListing {
         ...chats.digest(c.conversationId, c.agentId),
       });
     }
+    out.push(...(this.opts.outside?.() ?? []));
     return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   }
 

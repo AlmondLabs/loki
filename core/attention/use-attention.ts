@@ -7,6 +7,7 @@ import {
   buildItems,
   chatStatusOf,
   keyOf,
+  senderKeyOf,
   type AttentionItem,
   type ConversationInfo,
   type Digest,
@@ -24,7 +25,7 @@ import type { PayloadOf } from "../frames.ts";
 import type { Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
-import { scopeFor } from "../desk-core.ts";
+import { inboxCardSource } from "../analytics.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
 export type EngageAction = PayloadOf<"focus_add">["action"];
@@ -35,8 +36,6 @@ export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "an
 /** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
 export type CardVia = "key" | "click" | "swipe" | "tap";
 
-/** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
-const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
 const minutesSince = (iso: string | null, now: number): number | null => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
@@ -268,9 +267,8 @@ export function useAttention(opts: UseAttentionOptions) {
       const at = queue.findIndex((i) => idOf(i) === idOf(item));
       const it = queue[at] ?? item;
       return {
-        desk: deskOf(item.agent_id, item.id),
-        agent: item.agent_id,
-        turn_id: store.turnOf(item.agent_id, item.id),
+        ...inboxCardSource(item),
+        turn_id: item.outside ? null : store.turnOf(item.agent_id, item.id),
         rank: at >= 0 ? at + 1 : null,
         of: queue.length,
         score: Math.round(it.score * 10) / 10,
@@ -313,13 +311,16 @@ export function useAttention(opts: UseAttentionOptions) {
         restBefore.current.set(idOf(item), prev);
         if (rest) optsRef.current.rest?.(item.agent_id, item.id, rest);
       }
+      // Working with an email (plan 067, R9) lifts that sender's next thread too: its focus is learned by the sender.
+      const sender = item.outside && action !== "next" ? senderKeyOf(item.outside) : null;
+      if (sender) optsRef.current.engage?.(sender.agentId, sender.conversationId, "decide");
       lastDecision.current = { id: idOf(item), action };
     },
     [clock, cardProps],
   );
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
-    optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agent_id, item.id), agent: item.agent_id });
+    optsRef.current.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
     // A Next taken back: the card is back now, on the rung it had.
     if (action === "next") optsRef.current.rest?.(item.agent_id, item.id, restUndone(restBefore.current.get(idOf(item))));
   }, []);
@@ -398,10 +399,19 @@ export function useAttention(opts: UseAttentionOptions) {
   const loadHistory = useCallback((item: AttentionItem) => store.loadThread(item.runtime), [store]);
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agent_id, item.id), []);
-  /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
-  const archive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, true, "inbox", item.agent_id), [store]);
-  /** Undo of an archive: the chat comes back. */
-  const unarchive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, false, "inbox_undo", item.agent_id), [store]);
+  /**
+   * Done with a card: a chat is archived, an outside card's thread is archived out there (plan 067, R12), and it leaves
+   * the Inbox; resolves to an error or null.
+   */
+  const archive = useCallback(
+    (item: AttentionItem) => (item.outside ? store.archiveOutside(item) : store.archiveConversation(item.id, true, "inbox", item.agent_id)),
+    [store],
+  );
+  /** Undo of an archive: the chat comes back. An outside card's archive is not taken back here, so it stays done. */
+  const unarchive = useCallback(
+    (item: AttentionItem) => (item.outside ? Promise.resolve(null) : store.archiveConversation(item.id, false, "inbox_undo", item.agent_id)),
+    [store],
+  );
   const server = snap.server;
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.

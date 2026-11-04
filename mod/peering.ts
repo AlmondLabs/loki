@@ -32,7 +32,7 @@ import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { applyPinChanges, pinChanges } from "./pins.ts";
 import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall-sync.ts";
 import { recallDir } from "./recall.ts";
-import { RemoteChats } from "./remote-chats.ts";
+import { RemoteChats, peerChatsReply } from "./remote-chats.ts";
 import type { SeenStore } from "./seen.ts";
 import type { PushTo } from "./sockets.ts";
 import { messageOf } from "../core/errors.ts";
@@ -406,7 +406,7 @@ export function startPeering(deps: PeeringDeps): Peering {
     forget: (id) => peers.forget(id),
     hello: () => peers.hello(),
     agents: () => peerAgents.snapshot(),
-    chats: () => ({ desks: deps.local.desks(), inbox: deps.local.inbox() }),
+    chats: () => peerChatsReply(deps.local.desks(), deps.local.inbox()),
     state: (folders) => peerState.snapshotNow(folders),
     where: (chat) => directory.answer(chat),
     group: {
