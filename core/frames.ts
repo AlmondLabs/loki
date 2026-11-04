@@ -12,6 +12,7 @@ import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
   AccountView,
+  SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
   DeviceSummary,
@@ -285,6 +286,13 @@ export interface Replies {
   accounts: { accounts: AccountView[] };
   /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
   account_thread_archived: { account_id: string; thread_id: string };
+  /** Google's page to open for connecting a Gmail account (plan 067, U5); the account is kept when the browser comes back. */
+  account_signin: { url: string };
+  /**
+   * The workspaces signed in to the Slack desktop app here (plan 067, R21) when listing them, with `account` null; after
+   * connecting one, the account connected, and no workspaces.
+   */
+  slack_workspaces: { workspaces: SlackWorkspaceView[]; account: AccountView | null };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -1062,6 +1070,24 @@ export const FRAMES = {
         : "account_id and thread_id required",
     PHONE,
     { route: "home", relists: true },
+  ),
+  account_connect_gmail: request(
+    "account_signin",
+    "start connecting a Gmail account the given agent will own: Google's page to open, with the person's own Google app when `own_app` names one",
+    (m) => {
+      if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
+      if (m.own_app === undefined || m.own_app === null) return { owner_agent_id: m.owner_agent_id, own_app: null };
+      const app = typeof m.own_app === "object" ? (m.own_app as Raw) : {};
+      return str(app.client_id) && str(app.client_secret)
+        ? { owner_agent_id: m.owner_agent_id, own_app: { client_id: app.client_id, client_secret: app.client_secret } }
+        : "own_app needs client_id and client_secret";
+    },
+  ),
+  account_connect_slack: request(
+    "slack_workspaces",
+    "the workspaces signed in to the Slack desktop app on this Mac; with `team_id`, connect that workspace for the given agent, or connect it again after it signed out",
+    (m) =>
+      isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
   ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],

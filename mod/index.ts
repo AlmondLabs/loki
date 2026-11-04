@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { homedir } from "node:os";
 import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
@@ -45,6 +46,13 @@ import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
 import { Accounts } from "./accounts.ts";
 import { AccountThreads } from "./account-threads.ts";
+import { AccountWatcher } from "./account-watcher.ts";
+import { GmailClient } from "./gmail.ts";
+import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
+import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
+import { SlackSessions } from "./slack-session.ts";
+import { SlackClient } from "./slack.ts";
+import { SlackSync } from "./slack-sync.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -257,6 +265,41 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
   threads.onChange(() => broadcast({ type: "chat_changed" }));
+  // Connecting (U5): Gmail by a sign-in that comes back to the loopback server, Slack from the desktop app's sessions,
+  // read from this person's home and kept in memory only (KTD2, KTD7).
+  const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
+  const slackSessions = new SlackSessions({ home: homedir() });
+  // One Gmail client per account, shared by its watcher and its archive so a refreshed token is used by both; an
+  // account that changed gets a new one, which reads its sign-in from the keychain again.
+  const gmailClients = new Map<string, GmailClient>();
+  const gmailClient = (accountId: string): GmailClient => {
+    let client = gmailClients.get(accountId);
+    if (!client) {
+      client = new GmailClient({ accounts, account_id: accountId });
+      gmailClients.set(accountId, client);
+    }
+    return client;
+  };
+  accounts.onChange((change) => gmailClients.delete(change.account_id));
+  threads.register("gmail", gmailOutsideSource(gmailClient));
+  // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
+  const watcher = new AccountWatcher({
+    accounts,
+    factories: {
+      gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id) }),
+      slack: (account) => {
+        // A Slack account's id is `slack:<team_id>:<user_id>` (accountIdOf).
+        const teamId = account.account_id.split(":")[1] ?? "";
+        const client = new SlackClient({
+          session: (fresh) => slackSessions.get(teamId, fresh),
+          setStatus: (status) => accounts.setStatus(account.account_id, status),
+        });
+        return new SlackSync({ accounts, threads, account, client });
+      },
+    },
+    report: log,
+  });
+  watcher.start();
   // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
   // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
@@ -329,6 +372,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     store,
     accounts,
     threads,
+    connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     widgets,
     gestures,
     // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
@@ -419,6 +463,8 @@ export default function activate(api: ModApi, host: Host): () => void {
           chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
         ],
         health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: sockets.tabs() }),
+        // Back from a Gmail sign-in (plan 067, U4): only on this loopback server, like MCP's.
+        googleSignIn: (params) => googleSignIn.finish(params),
       });
     try {
       const s = await sockets.serve(start, (started) => attachWs(started.server, token, bridge));
@@ -559,6 +605,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
+    watcher.stop(); // the accounts are watched again when the mod comes back
     sockets.stop(); // the sockets only; the phone listener's setting stays so it returns with the mod
     macs.stop(); // the links to other Macs reopen with the mod
     widgets.close();

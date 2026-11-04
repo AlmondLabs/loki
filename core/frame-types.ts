@@ -435,3 +435,13 @@ export interface AccountView {
   status: AccountStatus;
   connected_at: string;
 }
+
+/** A workspace signed in to the Slack desktop app on this Mac, as the person picks one to connect (plan 067, R21). */
+export interface SlackWorkspaceView {
+  team_id: string;
+  team_name: string;
+  /** The workspace's address, `https://<domain>.slack.com/`. */
+  url: string;
+  /** The person in that workspace, when the desktop app records it. */
+  user_id: string | null;
+}
