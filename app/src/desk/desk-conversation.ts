@@ -5,6 +5,7 @@ import { labelCommand } from "../chat/labels";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { runAction } from "../shell/keymap";
+import { linksSeenFrom } from "../../../core/chat-links.ts";
 import type { useDesk } from "./use-desk";
 import type { DeskChatModel } from "./use-desk-chat";
 
@@ -54,6 +55,7 @@ export function deskConversation(
     loadFailed: deskChat?.loadFailed ?? null,
     loadStep: deskChat?.loadStep,
     home: row?.home ? (row.home_name ?? "another Mac") : null,
+    links: deskRuntime && deskChat ? linksSeenFrom(deskChat.links, deskRuntime) : undefined,
   };
   const actions: ConversationActions = {
     onSend: (text, images) =>
@@ -80,6 +82,7 @@ export function deskConversation(
     onPickMode: deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined,
     onCancelQueued: (text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text),
     onStop: deskRuntime ? () => catchUp.stop(deskRuntime) : undefined,
+    onCloseLink: deskRuntime ? (linkId) => catchUp.links.close(deskRuntime, linkId) : undefined,
   };
   return { view, actions };
 }

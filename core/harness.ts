@@ -16,6 +16,7 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // a chat's assigned tasks, from before Tasks was retired (plan 049): old history only
     .replace(/<loki-moved\b[^>]*\/>/g, "") // the chat moved to this Mac (plan 023, addendum A5): a quiet row
     .replace(/<loki-suggested\b[^>]*\/>/g, "") // the message came from a suggestion in another chat (plan 049): a link back
+    .replace(/<loki-chat-message\b[^>]*>[\s\S]*?<\/loki-chat-message>/g, "") // another chat's agent wrote it (plan 067): a row of its own
     .replace(REPLIES_BLOCK, "") // the agent's quick replies (plan 066): buttons, not words
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
@@ -118,6 +119,19 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
       summary: suggested.title || null,
       detail: null,
       link: { agent_id: suggested.from_agent, conversation_id: suggested.from_chat },
+    });
+  const message = chatMessageOf(text);
+  if (message)
+    out.push({
+      text: `from ${message.title || "another chat"}`,
+      summary:
+        message.text
+          .split("\n")
+          .find((l) => l.trim())
+          ?.trim()
+          .slice(0, 120) ?? null,
+      detail: message.text,
+      link: { agent_id: message.from_agent, conversation_id: message.from_chat },
     });
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
@@ -379,4 +393,31 @@ export function suggestedOf(text: string): SuggestedFrom | null {
   const field = (name: string) => decodeEntities(new RegExp(`\\b${name}="([^"]*)"`).exec(m[1])?.[1] ?? "");
   const fromChat = field("from_chat");
   return fromChat ? { from_agent: field("from_agent"), from_chat: fromChat, title: field("title") } : null;
+}
+
+/**
+ * A message another chat's agent sent (plan 067), as the receiving chat's input holds it: the text inside a mark naming
+ * the chat it came from. The transcript draws it as a row of its own with a link back, never as the person's words.
+ */
+export function chatMessageBlock(from: SuggestedFrom, text: string): string {
+  const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Only a closing tag inside the text is escaped, so it cannot end the block early; the rest reads as written.
+  const body = text.replace(/<\/loki-chat-message/g, "&lt;/loki-chat-message");
+  return `<loki-chat-message from_agent="${attr(from.from_agent)}" from_chat="${attr(from.from_chat)}" title="${attr(from.title)}">\n${body}\n</loki-chat-message>`;
+}
+
+/** The chat message an input holds, read from its block; null when it holds none. */
+export function chatMessageOf(text: string): (SuggestedFrom & { text: string }) | null {
+  const m = /<loki-chat-message\b([^>]*)>([\s\S]*?)<\/loki-chat-message>/.exec(text);
+  if (!m) return null;
+  const field = (name: string) => decodeEntities(new RegExp(`\\b${name}="([^"]*)"`).exec(m[1])?.[1] ?? "");
+  const fromChat = field("from_chat");
+  return fromChat
+    ? {
+        from_agent: field("from_agent"),
+        from_chat: fromChat,
+        title: field("title"),
+        text: m[2].trim().replace(/&lt;\/loki-chat-message/g, "</loki-chat-message"),
+      }
+    : null;
 }

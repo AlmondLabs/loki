@@ -1,6 +1,7 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type { HandoffProposal, SuggestionTarget } from "../frame-types.ts";
+import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime, ServerEvent } from "./protocol.ts";
@@ -23,6 +24,7 @@ export type ChatClient = Pick<
   | "labels"
   | "suggestions"
   | "replies"
+  | "links"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -188,6 +190,8 @@ export class FrameChatClient {
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
       // And the replies its agent proposed (plan 067), which keep its card blocked.
       ...(state.reply_proposals ? [{ kind: "reply_proposals" as const, proposals: state.reply_proposals }] : []),
+      // Its links to other chats (plan 067), for the header.
+      ...(state.links ? [{ kind: "links" as const, links: state.links }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -402,6 +406,16 @@ export class FrameChatClient {
         ...(opts.text ? { text: opts.text } : {}),
         replace: opts.replace === true,
       }),
+  };
+
+  /**
+   * Chat links (plan 067): this Mac's live links with the card's default duration, closing one from either of its
+   * chats (routed to that chat's Mac, which closes it on the other's too), and the default duration.
+   */
+  readonly links = {
+    list: () => this.call("chat_links_get", {}),
+    close: (rt: Runtime, linkId: string) => this.call("chat_link_close", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, link_id: linkId }),
+    setDefault: (duration: LinkDuration) => this.call("chat_links_default", { duration }),
   };
 
   /** A slash command, shown in the thread as it runs and when it answers. */

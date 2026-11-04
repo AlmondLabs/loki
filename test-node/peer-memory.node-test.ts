@@ -140,6 +140,8 @@ void test("a Mac without an agent's memory clones it, and a commit on the far Ma
     write(farMemory, "notes/today.md", "met Ira\n");
     lan.broadcast({ type: "memory_changed", agent_id: FRIDAY });
     await until(() => existsSync(join(nearMemory, "notes", "today.md")));
+    // git writes the files before it moves the head, so the pull is awaited before the heads are compared.
+    await pulling;
     const [a, b] = await Promise.all([memoryHead(nearMemory), memoryHead(farMemory)]);
     assert.equal(a, b);
   } finally {

@@ -1,3 +1,4 @@
+import type { ChatLink } from "../chat-links.ts";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { WholeRow } from "./transcript.ts";
 import type { Runtime } from "./protocol.ts";
@@ -104,6 +105,8 @@ export interface ChatFace {
    * them; absent from a face made elsewhere (the site's demo), which has none.
    */
   replyProposals?: ReplyProposal[];
+  /** The chat's live links to other chats (plan 067), for its header. */
+  links: ChatLink[];
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
@@ -212,6 +215,8 @@ export const savedDrafts = createSavedDrafts();
 const NO_SUGGESTIONS: Suggestion[] = [];
 /** No reply proposals, likewise. */
 const NO_REPLIES: ReplyProposal[] = [];
+/** No links: one array, so a chat's face stays the same while it has none. */
+const NO_LINKS: ChatLink[] = [];
 
 /**
  * The Inbox's state and actions for a client, the Mac app or the phone. The chats themselves are a ChatStore's
@@ -376,6 +381,7 @@ export function useAttention(opts: UseAttentionOptions) {
         suggestions: l?.suggestions ?? NO_SUGGESTIONS,
         // A chat not followed here has its waiting replies on its list row (plan 067).
         replyProposals: l?.replyProposals ?? rowReplies.get(key) ?? NO_REPLIES,
+        links: l?.links ?? NO_LINKS,
       };
     },
     [live, older, failed, store, rowReplies],
@@ -390,6 +396,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
   /** The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. */
   const replies = useMemo(() => ({ decide: store.decideReply }), [store]);
+  /** Chat links (plan 067): closing one, and Preferences' list and default duration. */
+  const links = useMemo(() => ({ close: store.closeLink, list: store.listLinks, setDefault: store.setLinkDefault }), [store]);
   // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
   const conversations = snap.conversations;
   const savedTexts = useMemo(
@@ -483,6 +491,7 @@ export function useAttention(opts: UseAttentionOptions) {
     answer: store.answer,
     suggestions,
     replies,
+    links,
     reply,
     send,
     cancelQueued: store.cancelQueued,

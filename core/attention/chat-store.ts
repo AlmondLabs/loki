@@ -1,3 +1,4 @@
+import { linkAnswerWords, linkAskOf, parseLinkAnswer, type ChatLink, type LinkDuration } from "../chat-links.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { LabelView } from "../labels.ts";
 import { scopeFor } from "../desk-core.ts";
@@ -519,9 +520,13 @@ export class ChatStore {
     const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
     if (!l || !was) return;
     l.pendingAsk = null;
-    const summary = Object.values(answers)
-      .map((a) => (Array.isArray(a) ? a.join(", ") : a))
-      .join(" · ");
+    // A link card (plan 067) says what was allowed in words, not the card's values.
+    const link = linkAskOf(was.input);
+    const summary = link
+      ? linkAnswerWords(link, parseLinkAnswer(answers))
+      : Object.values(answers)
+          .map((a) => (Array.isArray(a) ? a.join(", ") : a))
+          .join(" · ");
     if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date(this.now()).toISOString() });
     const host = this.host();
     host.markSeen(rt.agent_id, rt.conversation_id);
@@ -600,6 +605,15 @@ export class ChatStore {
     const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
     return typeof out === "string" ? { done: false, message: out, replace: false, proposal: null } : out;
   };
+  /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
+  closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
+
+  /** The live links of this Mac's chats and the link card's default duration (plan 067), or why they did not come. */
+  listLinks = (): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> => this.attempt((c) => c.links.list());
+
+  /** The duration the link card starts on (plan 067); the list as it then stands, or why not. */
+  setLinkDefault = (duration: LinkDuration): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> =>
+    this.attempt((c) => c.links.setDefault(duration));
 
   /** The chat holds no saved draft any more (plan 049, KTD7): its Inbox mark goes without waiting for the list. */
   noDraft = (agentId: string, conversationId: string): void => {

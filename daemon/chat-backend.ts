@@ -14,9 +14,11 @@ import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
-import type { Approvals } from "./approvals.ts";
+import { modeOf, type Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
+import { keyedQueue } from "../core/serial.ts";
+import { looserThan, lokiModeOf, stricterMode, type LokiMode } from "../core/chat-links.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
@@ -105,6 +107,8 @@ export class DaemonChats implements ChatBackend {
 
   /** Each label's colour (plan 022). */
   private readonly colors: LabelColors;
+  /** One send at a time per chat while a hold is read and changed (plan 067), so a hold and its message stay together. */
+  private readonly capped = keyedQueue();
 
   constructor(deps: Deps) {
     this.deps = deps;
@@ -235,6 +239,34 @@ export class DaemonChats implements ChatBackend {
     return { ref: await this.mcpTools.storeSecret(p.name, p.value) };
   }
 
+  async power(agentId: string, conversationId: string): Promise<LokiMode | null> {
+    const { c } = await this.resolve(agentId, conversationId);
+    if (c.engine) return lokiModeOf((await this.acp.state(agentId, conversationId)).mode, true);
+    const info = await c.store.chatInfo(c.chat.id, this.deps.context);
+    const own = modeOf(info?.mode);
+    // A turn held to a cap passes it on: a message it sends gives the next chat no more than the first had.
+    return info?.turn_cap ? stricterMode(own, lokiModeOf(info.turn_cap, false)) : own;
+  }
+
+  async sendHeld(p: PayloadOf<"chat_send">, cap: LokiMode | null): Promise<string | null> {
+    const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
+    if (c.engine) {
+      // loki cannot lower an ACP agent's mode for one turn, so a chat whose mode has more power is refused instead.
+      const mode = lokiModeOf((await this.acp.state(p.agent_id, p.conversation_id)).mode, true);
+      if (looserThan(mode, cap ?? "strict")) return "that chat runs in a mode with more power than the chat that sent this: lower its mode, or ask the person";
+      await engine.send(c, p);
+      return null;
+    }
+    // The hold is written before the message goes in, under the chat's queue, so no turn it starts runs without it.
+    await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
+      const held = (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap;
+      const next = held ? stricterMode(lokiModeOf(held, false), cap) : (cap ?? "strict");
+      await c.store.updateChat(p.conversation_id, { turn_cap: next }, this.deps.context);
+      await engine.send(c, p);
+    });
+    return null;
+  }
+
   answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
     return settled(() => this.deps.approvals.answer(p.question_id, p.input));
   }
@@ -263,7 +295,13 @@ export class DaemonChats implements ChatBackend {
 
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { c, engine } = await this.resolve(p.agent_id, p.conversation_id);
-    await engine.send(c, p);
+    await this.capped(`${p.agent_id}\u0000${p.conversation_id}`, async () => {
+      // The person's message to an idle chat ends a hold another chat's message put on it (plan 067). One sent while a
+      // held turn runs leaves the hold, so the rest of that turn keeps it, and so does the person's own turn after it.
+      if (!c.engine && (await c.store.chatInfo(c.chat.id, this.deps.context))?.turn_cap && !(await engine.busy(c)))
+        await c.store.updateChat(p.conversation_id, { turn_cap: null }, this.deps.context);
+      await engine.send(c, p);
+    });
     // A suggestion saved as a draft waits only until the chat next sends (plan 049, KTD7), from whichever box.
     if ((await c.store.chatInfo(c.chat.id, this.deps.context))?.draft) await c.store.updateChat(p.conversation_id, { draft: null }, this.deps.context);
     return true;

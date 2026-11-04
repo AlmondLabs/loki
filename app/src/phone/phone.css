@@ -3201,3 +3201,9 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 .loki-phone .loki-quick-replies--column {
   margin-left: calc(36px + var(--phone-space-2));
 }
+
+/* A chat's links to other chats (plan 067), a strip under the header with the time each has left. */
+.loki-phone-links {
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
+  flex: 0 0 auto;
+}

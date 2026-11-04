@@ -257,6 +257,7 @@ export class DemoChats implements ChatViews {
       loadFailed: null,
       loadStep: () => Promise.resolve(null),
       suggestions: s?.suggestions ?? [],
+      links: [],
     };
   };
 

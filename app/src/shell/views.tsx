@@ -222,6 +222,7 @@ export function SettingsView({
         accounts={desk.calls.accounts}
         agents={catchUp.agents}
         engines={desk.calls.engines}
+        links={catchUp.links}
         labels={{
           list: catchUp.labels.list,
           // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.

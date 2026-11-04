@@ -6,6 +6,7 @@ import { Conversation, ConversationHeader, type ConversationActions, type Conver
 import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
+import { LinkHeader } from "./link-header";
 
 /**
  * The panel sits on the sheet in one of three places (⌘← / ⌘→ move it): stacked on the left
@@ -96,6 +97,9 @@ export function ChatWindow({
               purpose={purpose}
               agentName={agentName}
               agentId={agentId}
+              below={
+                view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null
+              }
               right={
                 <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
                   {onToggleWidth && placement !== "center" && (

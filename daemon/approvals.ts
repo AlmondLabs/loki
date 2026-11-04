@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
 import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
@@ -25,9 +26,10 @@ export const modeOf = (stored: unknown): PermissionMode => (isPermissionMode(sto
 export type { ToolKind } from "./tool-kinds.ts";
 
 /**
- * A tool that is never a permission, strict included: a question card asks for answers, not leave, and a suggestion
- * waits for the person's own decision (plan 049, KTD4). A reply proposal's card is its approval in every mode, and
- * nothing is written before it (plan 067, KTD9), so it is never asked about, nor ever "always allowed".
+ * A tool that is never a permission, strict included: a question card asks for answers, not leave, a suggestion
+ * waits for the person's own decision (plan 049, KTD4), and a chat message asks on its own link card, which no mode or
+ * "always allow" may stand in for (plan 067). A reply proposal's card is its approval in every mode, and nothing is
+ * written before it (plan 067, KTD9), so it is never asked about, nor ever "always allowed".
  */
 const NEVER_ASK = new Set([
   "user_ask",
@@ -35,6 +37,7 @@ const NEVER_ASK = new Set([
   "suggestion_create",
   "suggestion_list",
   "suggestion_withdraw",
+  "chat_message",
   "reply_propose",
   "reply_list",
   "reply_withdraw",
@@ -225,7 +228,8 @@ export class Approvals {
       api.snapshot(AgentInfoDoc, context),
       api.snapshot(PiAgentDoc, api.conversationId, context),
     ]);
-    const mode = modeOf(chat?.mode);
+    // A turn another chat's message started runs with no more power than that chat has (plan 067).
+    const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";

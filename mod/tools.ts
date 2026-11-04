@@ -9,10 +9,11 @@ import { log, withTimeout } from "./log.ts";
 import type { DeskSummary, Suggestion } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
+import { linkLines, type ChatMessages } from "./chat-links.ts";
 import { messageOf } from "../core/errors.ts";
 
 /**
- * Two canvas tools, and chat_list with the suggestion tools when the daemon keeps suggestions. Rendering and authoring are file writes, not tool calls — the
+ * Two canvas tools, and chat_list with the suggestion tools (and chat_message, plan 067) when the daemon keeps suggestions. Rendering and authoring are file writes, not tool calls — the
  * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
  * reading back and for directing attention.
  */
@@ -52,6 +53,8 @@ export interface ChatToolDeps {
   chats(): DeskSummary[];
   /** A background pass's own chat (reflection, Learn), which has no chat screen for a suggestion to show in (KTD12). */
   passChat(conversationId: string): boolean;
+  /** Chat links and their messages (plan 067), when this daemon keeps them. */
+  messages?: Pick<ChatMessages, "send" | "linksOf">;
 }
 
 /**
@@ -94,6 +97,8 @@ export interface Call {
   args: Record<string, unknown>;
   conversation: { id: string };
   agent: { id: string; name: string };
+  /** The turn's stop: a call waiting on the person ends with it. */
+  signal?: AbortSignal;
 }
 /** One of loki's own tools as this mod writes it; `run` returning `{ status: "error", content }` fails the call. */
 export interface LokiTool {
@@ -123,7 +128,7 @@ export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () =
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
         ...(tool.forAgent ? { forAgent: tool.forAgent } : {}),
         execute: async (args, c) => {
-          const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName } });
+          const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName }, signal: c.signal });
           if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
             const content = (out as { content?: unknown }).content;
             throw new Error(content === undefined || content === null ? "the tool failed" : typeof content === "string" ? content : JSON.stringify(content));
@@ -136,7 +141,7 @@ export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () =
 
 /**
  * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and chat_list with the suggestion tools when
- * the daemon keeps suggestions); returns the functions that unregister them.
+ * the daemon keeps suggestions, with chat_message when it keeps chat links); returns the functions that unregister them.
  */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   const tools = toolRegistrar(api);
@@ -267,8 +272,9 @@ function suggestionLine(s: Suggestion, chats: OpenChat[]): string {
 }
 
 /**
- * chat_list, suggestion_create, suggestion_list and suggestion_withdraw (plan 049, U3). All four are marked read-only
- * (KTD4): a suggestion is the person's decision when they act on it, so making one never stops a turn for approval.
+ * chat_list, suggestion_create, suggestion_list and suggestion_withdraw (plan 049, U3), and chat_message (plan 067).
+ * All are marked read-only (KTD4): a suggestion is the person's decision when they act on it, so making one never stops
+ * a turn for approval, and a chat message asks on its own link card, which no mode stands in for.
  */
 function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, deps: ChatToolDeps): Array<() => void> {
   const failed = (content: string) => ({ status: "error", content });
@@ -298,12 +304,14 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
         .map((d) => chatLine(d, ctx.conversation.id))
         .filter(keep);
       log("tool:chat_list", { agents: agents.length, chats: chats.length });
+      const links = deps.messages ? linkLines(deps.messages.linksOf(source(ctx)), source(ctx)) : [];
       return [
         "Agents (id · name · Mac):",
         ...(agents.length ? agents : ["none"]),
         "",
         "Open chats (conversation id · agent · name · folder · …):",
         ...(chats.length ? chats : ["none"]),
+        ...(links.length ? ["", "This chat's links (chat_message goes along them without asking):", ...links] : []),
       ].join("\n");
     },
   };
@@ -412,5 +420,43 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     },
   };
 
-  return [chatList, create, list, withdraw].map((tool) => tools.register(tool));
+  const message: LokiTool = {
+    name: "chat_message",
+    annotations: { readOnly: true },
+    description:
+      "Send a message to another open chat's agent, to work on something together: ask it a question, hand it a piece " +
+      "of the work and hear back, or answer a message it sent you. The first message to a chat this one has no link to " +
+      "shows the person a card, and waits: they allow a link one way or both ways, for a while, or refuse. Along a live " +
+      "link it goes at once. The other agent reads it as a message from you, not from the person, and its turn runs " +
+      "with no more power than this chat has. Use suggestion_create instead for work the person should decide on, or " +
+      "for a new chat. Call chat_list first for the chat's ids. The text must stand alone: what you need and why, with " +
+      "absolute paths.",
+    parameters: {
+      type: "object",
+      properties: {
+        agent_id: { type: "string", description: "The other chat's agent, from chat_list." },
+        conversation_id: { type: "string", description: "The other chat, from chat_list." },
+        text: { type: "string", description: "The message, self-contained." },
+      },
+      required: ["agent_id", "conversation_id", "text"],
+      additionalProperties: false,
+    },
+    async run(ctx) {
+      if (deps.passChat(ctx.conversation.id)) return failed("a background pass has no chat screen to ask the person in, so it cannot message chats");
+      if (!deps.messages) return failed("chat links are not kept by this daemon");
+      const target = { agent_id: argText(ctx.args.agent_id), conversation_id: argText(ctx.args.conversation_id) };
+      if (!target.agent_id || !target.conversation_id) return failed("chat_message needs agent_id and conversation_id: call chat_list for them");
+      const chat = openChats(deps.chats()).find((d) => d.conversation_id === target.conversation_id);
+      if (chat && chat.agent_id !== target.agent_id) return failed(`chat ${target.conversation_id} belongs to agent ${chat.agent_id}, not ${target.agent_id}`);
+      try {
+        const out = await deps.messages.send(source(ctx), target, argText(ctx.args.text), ctx.signal ?? new AbortController().signal);
+        log("tool:chat_message", { conversation: ctx.conversation.id, to: target.conversation_id, ok: out.ok });
+        return out.ok ? out.message : failed(out.message);
+      } catch (err) {
+        return failed(reason(err));
+      }
+    },
+  };
+
+  return [chatList, create, list, withdraw, ...(deps.messages ? [message] : [])].map((tool) => tools.register(tool));
 }

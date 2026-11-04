@@ -6,6 +6,7 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { UsageReply } from "./usage.ts";
+import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import { isRest, type Rest } from "./attention/rest.ts";
@@ -175,6 +176,15 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
 /** What the person does with a reply an agent proposed (plan 067, KTD9): approve it, so loki drafts it, or reject it. */
 export type ReplyAction = "approve" | "reject";
 const REPLY_ACTIONS: readonly string[] = ["approve", "reject"] satisfies ReplyAction[];
+/** One end of a link as a frame names it: a chat, with its name. */
+const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
+  const e = typeof v === "object" && v !== null ? (v as Raw) : {};
+  return isAgentId(e.agent_id) && str(e.conversation_id) && e.conversation_id
+    ? { agent_id: e.agent_id, conversation_id: e.conversation_id, title: strOr(e.title, null) }
+    : null;
+};
+/** A permission mode as a chat message's cap names it; anything else is no cap known, which the receiver treats as strict. */
+const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
@@ -307,6 +317,8 @@ export interface Replies {
    * connecting one, the account connected, and no workspaces.
    */
   slack_workspaces: { workspaces: SlackWorkspaceView[]; account: AccountView | null };
+  /** The live links of a Mac's chats, and the duration the link card starts on (plan 067). */
+  chat_links: { links: ChatLink[]; default_duration: LinkDuration };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -328,6 +340,8 @@ export interface ChatState {
   suggestions?: Suggestion[];
   /** The replies proposed in the chat that wait on the person or are being drafted (plan 067); absent from a mod that predates them. */
   reply_proposals?: ReplyProposal[];
+  /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
+  links?: ChatLink[];
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
@@ -717,6 +731,48 @@ export const FRAMES = {
     },
     false,
     BY_CHAT,
+  ),
+  // Chat links (plan 067): a chat's leave to message another, kept and checked by the Mac each chat lives on.
+  chat_message: request(
+    "chat_accepted",
+    "a message from another chat's agent along a link: delivered only when a live link on this Mac allows it",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      const from = linkEnd(m.from);
+      if (!from || !str(m.text) || !str(m.send_id) || !m.send_id) return "from, text and send_id required";
+      return { ...c, from, text: m.text, send_id: m.send_id, cap: lokiMode(m.cap) };
+    },
+    false,
+    BY_CHAT,
+  ),
+  chat_link_put: request(
+    "chat_accepted",
+    "keep a link one of this Mac's chats has, opened on the other chat's Mac",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      const link = parseLink(m.link);
+      return link ? { ...c, link } : "link required";
+    },
+    false,
+    BY_CHAT,
+  ),
+  chat_link_close: request(
+    "chat_accepted",
+    "close a link of this chat, here and on the other chat's Mac",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      return str(m.link_id) && m.link_id ? { ...c, link_id: m.link_id } : "link_id required";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  // Preferences › Chat › Chat links, on the Mac only: the phone closes a link from the chat's header.
+  chat_links_get: request("chat_links", "the live links of this Mac's chats, and the duration the link card starts on", nothing),
+  chat_links_default: request("chat_links", "the duration the link card starts on: hour, day or always", (m) =>
+    isLinkDuration(m.duration) ? { duration: m.duration } : "duration must be hour, day or always",
   ),
   chat_update: request(
     "chat_done",

@@ -102,6 +102,12 @@ sheet, saying what the chat is for. It shows under the chat's name in its header
 `chat_list` to pick the chat a piece of work fits; only the person writes it. _Avoid_: description (an agent's own),
 topic.
 
+**Chat link** (`mod/chat-links.ts`, `core/chat-links.ts`, plan 067): the person's leave for one chat to message
+another with `chat_message`, one way or both ways, for an hour, a day or until closed. Opened only on the **link card**,
+a question card the sending chat shows when its agent first messages a chat it has no link to; kept and checked by each
+chat's Mac. A message along it lands as a row of its own and holds the receiving chat's turn to the sender's power (a
+**turn hold**, `ChatInfo.turn_cap`). _Avoid_: channel, permission (a tool approval), grant.
+
 **Suggestion** (`mod/suggestions.ts`, plan 049): a message an agent writes for another chat, an open one of any agent
 or a new one for an agent in a folder, made with `suggestion_create` whenever another chat fits the work better. It
 is kept on the record of the chat it was made in, on that chat's home, and shows in that chat's screen, outside the
