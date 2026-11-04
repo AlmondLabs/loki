@@ -1,9 +1,11 @@
 import type { FrameRequest } from "./attention/chat-client.ts";
+import type { AccountView } from "./frame-types.ts";
 import type { InputOf, ReplyOf, RequestName } from "./frames.ts";
 
 /**
  * The daemon's settings and agent calls, grouped by what they are about rather than by their frame names (plan 052):
- * an agent's memory and skills, Preferences › Engines, and Preferences › MCP servers with its always-allowed tools. Each is one
+ * an agent's memory and skills, Preferences › Engines, Preferences › MCP servers with its always-allowed tools, and Preferences ›
+ * Inbox's accounts. Each is one
  * request through the mod's socket (core/frames.ts), so none needs the chat client: the chat client keeps the chats.
  * A call answers in Settings' words, never by throwing: what it was asked for, or why not as a sentence.
  */
@@ -22,6 +24,9 @@ async function done<N extends RequestName>(request: FrameRequest, type: N, paylo
   const r = await request(type, payload, WAIT_MS);
   return r.ok ? null : r.error;
 }
+
+/** An accounts reply as Settings takes it: the accounts as they now stand (plan 067, U2), or the reason it failed. */
+const listed = (r: { accounts: AccountView[] } | string): AccountView[] | string => (typeof r === "string" ? r : r.accounts);
 
 /** Each of the daemon's settings and agent calls, over the mod socket's `request`. */
 export function daemonCalls(request: FrameRequest) {
@@ -69,6 +74,22 @@ export function daemonCalls(request: FrameRequest) {
           return r.ok ? r.reply.always : r.error;
         },
       },
+    },
+    /**
+     * Preferences › Inbox's accounts (plan 067, U11): each Gmail mailbox or Slack workspace on this Mac and the agent that
+     * owns it. Listing, moving and disconnecting answer with the accounts as they now stand; connecting Gmail answers with
+     * Google's page to open, and connecting Slack with the desktop app's workspaces, or the account once one is picked.
+     */
+    accounts: {
+      list: () => attempt(request, "account_list", {}).then(listed),
+      move: (accountId: string, ownerAgentId: string) => attempt(request, "account_move", { account_id: accountId, owner_agent_id: ownerAgentId }).then(listed),
+      disconnect: (accountId: string) => attempt(request, "account_disconnect", { account_id: accountId }).then(listed),
+      connectGmail: async (ownerAgentId: string, ownApp: { client_id: string; client_secret: string } | null): Promise<{ url: string } | string> => {
+        const r = await request("account_connect_gmail", { owner_agent_id: ownerAgentId, own_app: ownApp }, WAIT_MS);
+        return r.ok ? { url: r.reply.url } : r.error;
+      },
+      connectSlack: (ownerAgentId: string, teamId?: string) =>
+        attempt(request, "account_connect_slack", { owner_agent_id: ownerAgentId, team_id: teamId ?? null }),
     },
   };
 }
