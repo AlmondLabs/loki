@@ -28,7 +28,18 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const started: string[] = [];
   const answers = { approval: true };
   const updates: Array<[string, Record<string, unknown>, string | undefined]> = [];
+  const outside: Array<[string, string, string | null]> = [];
+  const refuse = { outside: null as string | null };
+  const handoffs: Array<[string, string, string | null, string | null]> = [];
   const client = {
+    handoffPropose: (accountId: string, threadId: string) =>
+      Promise.resolve({ account_id: accountId, thread_id: threadId, owner_agent_id: "ada", proposed: { kind: "new", title: "hi" }, choices: [], note: null }),
+    handoff: (accountId: string, threadId: string, conversationId: string | null, home: string | null) =>
+      refuse.outside
+        ? Promise.reject(new Error(refuse.outside))
+        : Promise.resolve((handoffs.push([accountId, threadId, conversationId, home]), { agent_id: "ada", conversation_id: conversationId ?? "c-new" })),
+    archiveOutside: (accountId: string, threadId: string, home: string | null) =>
+      refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void outside.push([accountId, threadId, home])),
     updateConversation: (id: string, body: Record<string, unknown>, agentId?: string) => Promise.resolve(void updates.push([id, body, agentId])),
     onStatus: () => () => {},
     onChat: (fn: typeof hear) => ((hear = fn), () => {}),
@@ -56,7 +67,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured, updates };
+  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -158,5 +169,78 @@ describe("the chat store (plan 052)", () => {
     expect(await store.createAgent({ name: "Bo" })).toEqual({ error: "not connected to loki's daemon" });
     expect(await store.updateModel(ADA, { id: "x", handle: "x" })).toEqual({ applied: null, error: "not connected to loki's daemon" });
     expect(await store.loadProviders()).toEqual([]);
+  });
+
+  test("an outside card is archived in its account on its home Mac, never as a chat, and is not opened as one; a refusal keeps it", async () => {
+    const card: ConversationInfo & Digest = {
+      ...row("t1#1", "2026-11-04T09:00:00Z"),
+      kind: "outside",
+      agent_id: "account:gmail:ada@acme.com",
+      home: "mac-mini",
+      outside: {
+        account_id: "gmail:ada@acme.com",
+        provider: "gmail",
+        account_label: "ada@acme.com",
+        thread_id: "t1",
+        generation: 1,
+        owner_agent_id: "ada",
+        owner_name: "Ada",
+        sender: "Grace",
+        sender_address: "grace@acme.com",
+        subject: "hi",
+        lines: ["hi"],
+        newest_message_id: "m1",
+        newest_at: "2026-11-04T09:00:00Z",
+        handoff_conversation_id: null,
+        disconnected: null,
+      },
+    };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    expect(d.started).toEqual(["c1"]);
+    d.refuse.outside = "Gmail is out of reach";
+    expect(await d.store.archiveOutside(card)).toBe("Gmail is out of reach");
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("t1#1");
+    d.refuse.outside = null;
+    expect(await d.store.archiveOutside(card)).toBeNull();
+    expect(d.outside).toEqual([["gmail:ada@acme.com", "t1", "mac-mini"]]);
+    expect(d.updates).toEqual([]);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  test("handing an outside card off asks the Mac its account lives on; done, the card leaves; refused, it stays with the reason", async () => {
+    const card: ConversationInfo & Digest = {
+      ...row("t1#1", "2026-11-04T09:00:00Z"),
+      kind: "outside",
+      agent_id: "account:gmail:ada@acme.com",
+      home: "mac-mini",
+      outside: {
+        account_id: "gmail:ada@acme.com",
+        provider: "gmail",
+        account_label: "ada@acme.com",
+        thread_id: "t1",
+        generation: 1,
+        owner_agent_id: "ada",
+        owner_name: "Ada",
+        sender: "Grace",
+        sender_address: "grace@acme.com",
+        subject: "hi",
+        lines: ["hi"],
+        newest_message_id: "m1",
+        newest_at: "2026-11-04T09:00:00Z",
+        handoff_conversation_id: null,
+        disconnected: null,
+      },
+    };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    expect(await d.store.handoffPropose(card)).toMatchObject({ proposed: { kind: "new", title: "hi" } });
+    d.refuse.outside = "Gmail wants a new sign-in: Preferences › Inbox accounts";
+    expect(await d.store.handoff(card, null)).toBe("Gmail wants a new sign-in: Preferences › Inbox accounts");
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("t1#1");
+    d.refuse.outside = null;
+    expect(await d.store.handoff(card, "c1")).toBeNull();
+    expect(d.handoffs).toEqual([["gmail:ada@acme.com", "t1", "c1", "mac-mini"]]);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).not.toContain("t1#1");
   });
 });

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SHARED_SCOPE, backendName, type Scope } from "../core/desk-core.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
-import type { LocalAgent } from "../core/frame-types.ts";
+import type { InboxRow, LocalAgent } from "../core/frame-types.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatListing } from "../mod/chat-listing.ts";
 import { DeskRegistry, type LocalConversationInfo, type LocalConversationRow } from "../mod/desks.ts";
@@ -64,7 +64,7 @@ const source: ChatSource = {
   folders: () => ({ recent: [], by_conversation: {}, by_agent: {} }),
 };
 
-const listing = (readAgent?: (agentId: string) => LocalAgent | null) =>
+const listing = (readAgent?: (agentId: string) => LocalAgent | null, outside?: () => InboxRow[]) =>
   new ChatListing({
     chats: source,
     desks,
@@ -75,6 +75,7 @@ const listing = (readAgent?: (agentId: string) => LocalAgent | null) =>
     activeScope: () => SHARED_SCOPE,
     backendDir: dir,
     readAgent,
+    outside,
   });
 
 beforeEach(() => {
@@ -133,6 +134,30 @@ describe("which chats show", () => {
     rows = [chat("conv-pinned", IRA)];
     const [, row] = listing().desks();
     expect(row).toMatchObject({ scope: "conv-pinned", pinned: true, agent_name: "ira", agent_id: IRA, model: "anthropic/claude-fable-5" });
+  });
+});
+
+describe("outside cards in the inbox (plan 067)", () => {
+  test("the inbox holds the accounts' open threads beside the chats, newest first; the chat list does not", () => {
+    rows = [chat("conv-1", IRA, { lastMessageAt: "2026-11-04T08:00:00Z" })];
+    const thread: InboxRow = {
+      kind: "outside",
+      id: "t1#1",
+      agent_id: "account:gmail:ada@acme.com",
+      agent_name: "ada@acme.com",
+      title: "Quarterly numbers",
+      last_message_at: "2026-11-04T09:00:00Z",
+      archived: false,
+      last_role: null,
+      last_assistant_text: null,
+      last_ask: null,
+    };
+    const l = listing(undefined, () => [thread]);
+    expect(l.inbox().map((r) => [r.kind ?? "chat", r.id])).toEqual([
+      ["outside", "t1#1"],
+      ["chat", "conv-1"],
+    ]);
+    expect(l.desks().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
   });
 });
 

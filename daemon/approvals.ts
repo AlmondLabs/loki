@@ -28,9 +28,20 @@ export type { ToolKind } from "./tool-kinds.ts";
 /**
  * A tool that is never a permission, strict included: a question card asks for answers, not leave, a suggestion
  * waits for the person's own decision (plan 049, KTD4), and a chat message asks on its own link card, which no mode or
- * "always allow" may stand in for (plan 067).
+ * "always allow" may stand in for (plan 067). A reply proposal's card is its approval in every mode, and nothing is
+ * written before it (plan 067, KTD9), so it is never asked about, nor ever "always allowed".
  */
-const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw", "chat_message"]);
+const NEVER_ASK = new Set([
+  "user_ask",
+  "chat_list",
+  "suggestion_create",
+  "suggestion_list",
+  "suggestion_withdraw",
+  "chat_message",
+  "reply_propose",
+  "reply_list",
+  "reply_withdraw",
+]);
 
 /**
  * A tool's kind for the mode table, when it is not one of loki's own (those declare theirs; daemon/extensions.ts

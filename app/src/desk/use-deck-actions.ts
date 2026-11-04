@@ -58,15 +58,18 @@ export function useDeckActions({
     onSeen(current, via);
     decide(current, "seen", via);
   };
-  /** Archive: done with the chat. A main chat cannot be archived; the card stays and says so. */
+  /**
+   * Archive: done with the chat. A main chat cannot be archived; the card stays and says so. An outside card's thread
+   * is archived in its account (plan 067), and a refusal there brings the card back the same way.
+   */
   const archive = () => {
     const item = current;
     if (!item) return;
-    if (item.id === "default") return say("main chats stay");
+    if (!item.outside && item.id === "default") return say("main chats stay");
     decide(item, "archived", "archive");
     void onArchive(item).then((err) => {
       if (!err) return;
-      // The daemon refused: the chat is still live, so it comes back on top with the reason.
+      // The daemon or the account refused: the card is still open, so it comes back on top with the reason.
       setDecided((d) => d.filter((x) => !(x.item === item && x.action === "archived")));
       setQueue((q) => [item, ...q]);
       say(`not archived: ${err}`);
@@ -88,6 +91,8 @@ export function useDeckActions({
     while (at >= 0 && agent && decided[at].item.agent_id !== agent) at--;
     const last = at >= 0 ? decided[at] : undefined;
     if (!last) return;
+    // An outside card's archive has reached Gmail or Slack: loki does not take it back.
+    if (last.action === "archived" && last.item.outside) return say("archived out there: not undone");
     if (last.action === "seen") onUnread(last.item);
     else onUnarchive(last.item);
     setDir("back");

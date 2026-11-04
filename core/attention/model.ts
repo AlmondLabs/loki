@@ -4,13 +4,13 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
-import type { Suggestion } from "../frame-types.ts";
+import type { OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
 import type { ChatLink } from "../chat-links.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
- *   approval  paused on a can_use_tool control_request
+ *   approval  paused on a can_use_tool control_request, or a reply its agent proposed waits on you (plan 067)
  *   question  the agent's last message asks you something and you have not replied
  *   done      the agent finished a turn after you last looked
  *   failed    the last turn errored
@@ -55,6 +55,14 @@ export interface ConversationInfo {
   draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
+  /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9), as the list has them. */
+  reply_proposals?: ReplyProposal[];
+  /** An outside card: a Gmail or Slack thread, not a chat (plan 067, KTD1); absent on a chat. */
+  kind?: "outside";
+  /** The outside card's own facts, present exactly when `kind` is `outside`. */
+  outside?: OutsideFacts;
+  /** The paired Mac the row lives on, as the list marks it (frame-types.ts ChatHome); absent for this Mac's own. */
+  home?: string;
 }
 
 /** From the last few protocol messages of a conversation. */
@@ -105,6 +113,11 @@ export interface Live {
   engine?: ChatEngineView | null;
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
+  /**
+   * The replies proposed in this chat that wait on the person or are being drafted (plan 067), as heard live; null until
+   * the chat's state or an event said, when the list's row is what counts.
+   */
+  replyProposals: ReplyProposal[] | null;
   /** The chat's live links to other chats (plan 067), for its header; absent until the backend tells it. */
   links?: ChatLink[];
 }
@@ -144,6 +157,14 @@ export interface AttentionItem extends ConversationInfo {
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
 
 /**
+ * The focus key an email sender goes by (plan 067, R9): `account:<account_id>/sender:<address>`, so working with one
+ * person's mail lifts their next thread too. Null for Slack, whose threads gain focus by their card alone.
+ */
+export function senderKeyOf(o: Pick<OutsideFacts, "account_id" | "sender_address">): { agentId: string; conversationId: string } | null {
+  return o.sender_address ? { agentId: `account:${o.account_id}`, conversationId: `sender:${o.sender_address.toLowerCase()}` } : null;
+}
+
+/**
  * Whether an event answers a folder change under way (useAttention changeFolder), read after the event was folded
  * in: "moved" when a device status shows the new folder (or, the folder before being known, any other), the
  * error's words when the daemon refused it, null when the event says nothing about it.
@@ -180,6 +201,7 @@ export function emptyLive(): Live {
     inTurn: false,
     queued: [],
     suggestions: [],
+    replyProposals: null,
   };
   return l;
 }
@@ -210,6 +232,7 @@ export function faceOf(l: Live): readonly unknown[] {
     l.cwd,
     l.engine,
     l.suggestions,
+    l.replyProposals,
     l.links,
     l.thread.streaming,
   ];
@@ -273,6 +296,8 @@ export type ChatEvent =
   | { kind: "turn_end"; turn_id?: string }
   /** The chat's open suggestions (plan 049), whole, on every change to any of them: the screen shows exactly these. */
   | { kind: "suggestions"; suggestions: Suggestion[] }
+  /** The chat's open reply proposals (plan 067, KTD9), whole, on every change to any of them. */
+  | { kind: "reply_proposals"; proposals: ReplyProposal[] }
   /** The chat's live links to other chats (plan 067), whole, on every change to any of them. */
   | { kind: "links"; links: ChatLink[] };
 
@@ -356,6 +381,9 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "suggestions":
       l.suggestions = e.suggestions;
       return { changed: true, userSpoke: false };
+    case "reply_proposals":
+      l.replyProposals = e.proposals;
+      return { changed: true, userSpoke: false };
     case "links":
       l.links = e.links;
       return { changed: true, userSpoke: false };
@@ -412,8 +440,16 @@ export function buildItems(
   rests: Record<string, Rest> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
+  const shares = { ...focus };
   for (const c of conversations) {
     const key = keyOf(c.agent_id, c.id);
+    if (c.outside) {
+      out.push(outsideItem(c, c.outside, seen[key] ?? null, viewed[key] ?? null));
+      const sender = senderKeyOf(c.outside);
+      const senderShare = sender ? (focus[keyOf(sender.agentId, sender.conversationId)] ?? 0) : 0;
+      if (senderShare) shares[key] = Math.min(1, (focus[key] ?? 0) + senderShare);
+      continue;
+    }
     const d = digests.get(key);
     const l = live.get(key);
     const lastMessageAt = [c.last_message_at, l?.lastMessageAt].filter(Boolean).sort().pop() ?? null;
@@ -422,7 +458,8 @@ export function buildItems(
     const seenAt = seen[key] ?? null;
     const unread = !!lastMessageAt && lastRole === "assistant" && (!seenAt || seenAt < lastMessageAt);
     let status: AttentionStatus = "idle";
-    if (l?.pending) status = "approval";
+    // A reply its agent proposed is an approval in every permission mode (KTD9): the card is blocked until you decide.
+    if (l?.pending || waitingReplies(c, l).length > 0) status = "approval";
     else if (l?.pendingAsk) status = "question";
     else if (l?.error && unread) status = "failed";
     else if (l?.loop === "running") status = "running";
@@ -446,8 +483,39 @@ export function buildItems(
       runtime: { agent_id: c.agent_id, conversation_id: c.id },
     });
   }
-  return scored(out, now, focus).map((i) => {
+  return scored(out, now, shares).map((i) => {
     const key = keyOf(i.agent_id, i.id);
     return key in rests ? { ...i, ...restState(i, rests[key], now) } : i;
   });
+}
+
+/**
+ * The replies proposed in a chat that wait on the person: as heard live once the chat is followed, else as its list row
+ * has them. One being drafted is the person's decision already, so it waits on no one.
+ */
+export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: Pick<Live, "replyProposals"> | undefined): ReplyProposal[] {
+  return (l?.replyProposals ?? c.reply_proposals ?? []).filter((p) => p.status === "pending");
+}
+
+/**
+ * An outside card before its score (plan 067, KTD1): new until its own mark is newer than its newest message, never
+ * blocked, so it scores like a chat with a new reply (R9). It has no live half; its preview is its last line.
+ */
+function outsideItem(c: ConversationInfo, o: OutsideFacts, seenAt: string | null, viewedAt: string | null): Unscored {
+  const unread = !seenAt || seenAt < o.newest_at;
+  return {
+    ...c,
+    status: unread ? "done" : "idle",
+    last_message_at: o.newest_at,
+    lastAssistantText: o.lines.at(-1) ?? null,
+    lastRole: null,
+    pendingApproval: null,
+    pendingQuestion: null,
+    error: null,
+    seenAt,
+    unread,
+    viewedAt,
+    lastAsk: null,
+    runtime: { agent_id: c.agent_id, conversation_id: c.id },
+  };
 }

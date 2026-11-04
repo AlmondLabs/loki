@@ -2,6 +2,7 @@ import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
 import { ChatLinks, type ChatLinksApi } from "./chat-links";
 import { Engines, type EnginesApi } from "./engines";
 import { Labels, type LabelsApi } from "./labels";
+import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
@@ -86,6 +87,8 @@ export function Settings({
   macs,
   globalSkills,
   mcp,
+  accounts,
+  agents,
   engines,
   links,
   labels,
@@ -117,6 +120,10 @@ export function Settings({
   globalSkills: GlobalSkillsApi;
   /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
+  /** Preferences › Inbox's accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067). */
+  accounts: AccountsApi;
+  /** Every agent by name, to choose an account's owner from. */
+  agents: readonly AgentName[];
   /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
   /** Preferences › Chat › Chat links (plan 067); left out, the block says the daemon is not linked. */
@@ -151,7 +158,7 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage />,
+    inbox: () => <InboxPage accounts={accounts} agents={agents} chatLink={chatLink} />,
     providers: () => (
       <ProvidersPage
         chatLink={chatLink}
@@ -514,11 +521,21 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
   return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-/** Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
-function InboxPage() {
+/**
+ * Preferences › Inbox: the accounts whose mail and messages become cards, what Next, Archive and a reply do, and how
+ * the deck orders its cards behind a fold.
+ */
+function InboxPage({ accounts, agents, chatLink }: { accounts: AccountsApi; agents: readonly AgentName[]; chatLink: ChatLink }) {
   const [restFirst, setRestFirst] = useRestFirst();
   return (
     <>
+      {chatLink === "open" ? (
+        <Accounts api={accounts} agents={agents} />
+      ) : (
+        <Block title="Accounts">
+          <Setting label="Not linked" help="loki's daemon is not linked yet." />
+        </Block>
+      )}
       <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
         <Setting
           label="Next"

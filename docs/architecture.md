@@ -400,7 +400,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
     (`recent-models.json`), each agent's switched-off MCP servers (`mcp-agents.json`), reflection's settings from
     before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
-    (`migrations.json`).
+    (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
+    account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`), and
+    each chat's reply proposals (`reply-proposals.json`).
 11. `mods/`: mods of your own, loaded after loki's.
 12. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
    (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
@@ -409,7 +411,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
-and provider credentials in the OS keychain.
+and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
+keychain, under `account:<account id>`, never in a file, since agents can read `~/.loki`; a Slack session lives only
+in the mod's memory, read again from the Slack desktop app when it is needed.
 
 ## One way per job
 
@@ -449,7 +453,16 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    recent models for the picker; `tools.ts` holds the canvas, `chat_list` and suggestion tools; `requirements.ts` says
    what this Mac lacks to run a chat; `uploads.ts` and `chat-images.ts` serve attached files and the pictures in
    messages; `pairing.ts`, `devices.ts`, `tailscale.ts` and `static.ts` are the phone listener; `peer-group.ts` pairs
-   every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout.
+   every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout. Email and Slack in the
+   Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
+   hold, so one account lives on one Mac), and `frames/accounts.ts` serves them to Preferences; `account-watcher.ts`
+   is the one watcher, ticking every account's sync once a minute, each on its own; `gmail-sync.ts` and
+   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, which have no call that sends;
+   `google-signin.ts` and `google-app.ts` are Gmail's loopback sign-in and the shared Google app;
+   `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
+   files); `account-threads.ts` keeps each thread's record and yields the outside cards; `handoff.ts` gives a thread
+   to its owner's chat; `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
+   `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),
    `harness.ts` (recognising harness markup in transcripts), `ws-auth.ts` (the token in the socket's subprotocol),
@@ -458,7 +471,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    client, the attention model, queue and focus ranking, `rest.ts` for resting a stale card, `chat-store.ts` with every
    chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel, `pi-steps.ts` reads Pi's messages
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
-   `commands.ts` the slash commands), and `recall/` (Learn's cards and scheduling).
+   `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
+   `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the batches of older items).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K search,
    keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames); `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the

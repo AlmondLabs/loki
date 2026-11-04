@@ -414,6 +414,8 @@ export function homeDeskSections(
 export interface HomeAttention {
   item: AttentionItem;
   desk: DeskSummary | undefined;
+  /** Where a tap goes: the chat, or for an email or Slack thread (plan 067), which is no chat, the Inbox with its card on top. */
+  opens: "chat" | "card";
 }
 
 /**
@@ -435,7 +437,7 @@ export function homeSections(
   const byKey = new Map<string, DeskSummary>();
   for (const d of desks) if (d.agent_id && d.conversation_id) byKey.set(`${d.agent_id}/${d.conversation_id}`, d);
   const waiting = catchUpQueue(items)
-    .map((item) => ({ item, desk: byKey.get(`${item.agent_id}/${item.id}`) }))
+    .map((item): HomeAttention => ({ item, desk: byKey.get(`${item.agent_id}/${item.id}`), opens: item.outside ? "card" : "chat" }))
     .filter(
       ({ item, desk }) =>
         (!agentFilter || item.agent_id === agentFilter) &&

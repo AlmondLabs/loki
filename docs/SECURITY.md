@@ -1,8 +1,8 @@
 # Security
 
 loki is a local desktop app. Everything it runs is on your machine, and almost everything it talks to is on your
-machine or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone and your
-other Macs. The rest (web search, the update check, npm for an ACP adapter) is listed under
+machine or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone, your
+other Macs, and the Gmail and Slack accounts you connect. The rest (web search, the update check, npm for an ACP adapter) is listed under
 [What leaves the machine](#what-leaves-the-machine).
 
 ## What runs where
@@ -153,6 +153,43 @@ on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
 
+## Accounts: Gmail and Slack
+
+The Inbox can show the mail and Slack threads waiting for you (plan 067). An account is connected in Preferences ›
+Inbox, belongs to one agent, its owner, and lives on the Mac that connected it. loki never sends: neither client has
+a call that sends, edits or schedules a message, so an agent's reply reaches Gmail or Slack only as a draft you
+approved, which you then send yourself.
+
+- **Gmail sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
+  comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
+  the one-time `state` of a sign-in loki started in the last 10 minutes (`mod/google-signin.ts`). loki asks for
+  `gmail.modify`, `openid` and `userinfo.email`. `gmail.modify` reads mail, changes labels (archiving and marking read
+  are label changes) and writes drafts; it would also allow sending, and loki keeps to "never sends" by having no send
+  call in `mod/gmail.ts`, not by the scope.
+- **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret
+  ship in the source (`mod/google-app.ts`), as Google intends for a desktop client: they identify the app, not you, and
+  grant nothing without your sign-in. You may use a Google app of your own instead; its id and secret are kept in the
+  keychain with that account's tokens.
+- **Slack session.** loki makes no Slack app and needs no admin: on macOS it reads the Slack desktop app's own session,
+  the desktop token (`xoxc-…`) from its Local Storage and the `d` cookie from its Cookies database, decrypted with the
+  "Slack Safe Storage" key, which macOS asks you once to let loki read from the keychain (`mod/slack-session.ts`).
+  Slack's files are copied to a private temporary folder to be read, since Slack locks them while it runs, and that
+  copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
+  when Slack refuses it.
+- **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
+  activity and counts, marking a DM read, and listing, writing and deleting drafts; none sends. Calls go only to
+  `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
+- **What reaches the model.** Mail and Slack text reaches your model provider only when you hand a thread to its
+  owner (`mod/handoff.ts`), or when the owning agent reads it with its account tools (`account_list`, `account_read`,
+  `account_search`), which only the owner's chats are offered and which check ownership on every call. Either way the
+  text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
+  tags made inert. The Inbox card itself is drawn in the app and goes to no model.
+- **Residual risks.** A fence asks the model to treat text as content; it cannot make it. An owner that also has shell
+  or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
+  are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. Account
+  secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain
+  entries may read the others.
+
 ## Agent-written code
 
 The point of loki is that your agent writes widgets: files under `~/.loki/widgets/<chat>/`. A `.tsx` widget is
@@ -175,9 +212,12 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   checked with its provider before it is kept. Without a reachable keychain, keys come from environment variables
   only; `LOKI_KEYCHAIN=0` keeps secrets in memory for the daemon's life, for tests and scratch runs.
 - **MCP secrets and sign-ins**, and the tokens of paired Macs, are in the same keychain, as described above.
+- **Gmail tokens**, and the id and secret of your own Google app when you use one, are in the same keychain, one entry
+  per account (`account:<account_id>`), never in a file under `~/.loki`, which your agents can read. A Slack session is
+  never kept at all, beyond the daemon's memory.
 - **Paired phones and Macs** are kept as the SHA-256 of their tokens only (`~/.loki/state/devices.json`,
   `~/.loki/state/peers.json`, mode 0600).
-- **Never in the clear on disk:** provider keys. The capability token is a file readable by you alone.
+- **Never in the clear on disk:** provider keys, Gmail tokens and Slack sessions. The capability token is a file readable by you alone.
 
 ## What loki downloads
 
@@ -202,7 +242,10 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   stays where it was; loki reads it only to move each open task into a suggestion once, and never writes it.
   [architecture.md](architecture.md) lists every path. Store backups made before a migration (`stores/backup-…/`) hold whole copies of your chats; delete them once
   you are happy.
-- Outside it: the global skills in `~/.agents/skills`, and provider and MCP secrets in the keychain.
+- The Inbox's accounts: their records and owners (`state/accounts.json`), the last few messages of each waiting
+  thread as plain text, for its card (`state/account-threads/`), hand-offs under way (`state/handoffs.json`) and your
+  agents' reply proposals (`state/reply-proposals.json`). No token or session is among them.
+- Outside it: the global skills in `~/.agents/skills`, and provider, MCP and account secrets in the keychain.
 - Nothing is uploaded, logged remotely, or telemetered. The daemon keeps a local usage log
   (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only this machine reads:
   `npm run analytics`, and the usage page's ledger once, to seed its history; `LOKI_ANALYTICS=0` turns it off.
@@ -217,7 +260,10 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 6. A skill's upstream git repo, when the skill is refreshed from it.
 7. A provider's sign-in page in your browser, when you sign in to it.
 8. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
-9. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
+9. With an account connected, calls to Google (sign-in, token refresh and the Gmail API) and to Slack (`slack.com`
+   and your workspaces' `*.slack.com` addresses), as [Accounts](#accounts-gmail-and-slack) describes; mail and Slack
+   text then goes to your model provider only through a hand-off or the owner's account tools.
+10. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
 
 ## Reporting
 

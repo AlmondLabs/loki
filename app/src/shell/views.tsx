@@ -160,6 +160,7 @@ export function AgentsView({
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
       mcp={desk.calls.mcp}
+      accounts={desk.calls.accounts}
       macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
     />
   );
@@ -218,6 +219,8 @@ export function SettingsView({
         macs={desk.macs}
         globalSkills={{ list: desk.agents.globalSkills, enable: desk.calls.skills.enable, disable: desk.calls.skills.disable }}
         mcp={desk.calls.mcp}
+        accounts={desk.calls.accounts}
+        agents={catchUp.agents}
         engines={desk.calls.engines}
         links={catchUp.links}
         labels={{

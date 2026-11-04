@@ -19,8 +19,8 @@ import {
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
-import type { SuggestionAction } from "../frames.ts";
-import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { ReplyAction, SuggestionAction } from "../frames.ts";
+import type { HandoffProposal, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -86,6 +86,17 @@ export interface SuggestionOutcome {
   done: boolean;
   message: string | null;
   suggestion: Suggestion | null;
+}
+
+/**
+ * What a person's action on a reply proposal came to (plan 067): whether it took, why not, whether to ask about
+ * replacing a draft already there, and the proposal as it then stands, when known.
+ */
+export interface ReplyOutcome {
+  done: boolean;
+  message: string | null;
+  replace: boolean;
+  proposal: ReplyProposal | null;
 }
 
 /** An agent as the lists show it. */
@@ -317,7 +328,8 @@ export class ChatStore {
       }
       this.set({ listed: true });
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
-      for (const c of convs.slice(0, this.host().subscribeLimit ?? 30)) {
+      // An outside card (plan 067) is no chat on the daemon: there is nothing to open.
+      for (const c of convs.filter((x) => !x.outside).slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
         // A conversation that cannot be reached still lists; it just has no live half. One at a time, newest first, on
         // purpose: the daemon opens each chat in turn rather than up to 30 at once, and a disconnect stops the rest.
@@ -585,6 +597,14 @@ export class ChatStore {
   retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> =>
     this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
 
+  /**
+   * The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. The
+   * new state reaches every client as the chat's `reply_proposals` event, as a suggestion's does.
+   */
+  decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}): Promise<ReplyOutcome> => {
+    const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
+    return typeof out === "string" ? { done: false, message: out, replace: false, proposal: null } : out;
+  };
   /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
   closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
 
@@ -787,6 +807,43 @@ export class ChatStore {
       });
     if (archived) this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
     else this.reload();
+    return null;
+  };
+
+  /**
+   * Archive an outside card (plan 067, R12): its thread is archived in Gmail or marked read in Slack by the Mac its
+   * account lives on, then the card leaves the list; resolves to the reason when that failed, and the card stays.
+   */
+  archiveOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.archiveOutside(o.account_id, o.thread_id, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+    return null;
+  };
+
+  /**
+   * What handing an outside card off proposes (plan 067, R15), from the Mac its account lives on; resolves to the
+   * proposal, or the reason in words when it could not be had.
+   */
+  handoffPropose = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<HandoffProposal | string> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    return this.attempt((c) => c.handoffPropose(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /**
+   * Hand an outside card's thread to its account's agent (plan 067, R16): to `conversationId`, one of its chats, or a
+   * new chat when null. On success the card leaves the list at once (the Mac's change push brings the new chat);
+   * resolves to the reason when it did not go, and the card stays.
+   */
+  handoff = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, conversationId: string | null): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.handoff(o.account_id, o.thread_id, conversationId, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;
   };
 

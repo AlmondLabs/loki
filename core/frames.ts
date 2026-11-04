@@ -12,6 +12,9 @@ import type { FocusEntry } from "./attention/focus.ts";
 import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
+  AccountView,
+  HandoffProposal,
+  SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
   DeviceSummary,
@@ -33,6 +36,7 @@ import type {
   RecentFolders,
   ReflectionState,
   RefreshOutcome,
+  ReplyProposal,
   SavedDraft,
   Suggestion,
   SuggestionTarget,
@@ -169,6 +173,9 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
   if (typeof c === "string") return c;
   return str(m.suggestion_id) && m.suggestion_id ? { ...c, suggestion_id: m.suggestion_id } : "suggestion_id required";
 };
+/** What the person does with a reply an agent proposed (plan 067, KTD9): approve it, so loki drafts it, or reject it. */
+export type ReplyAction = "approve" | "reject";
+const REPLY_ACTIONS: readonly string[] = ["approve", "reject"] satisfies ReplyAction[];
 /** One end of a link as a frame names it: a chat, with its name. */
 const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
   const e = typeof v === "object" && v !== null ? (v as Raw) : {};
@@ -270,7 +277,15 @@ export interface Replies {
   /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
   peer_chat_taken: { moved: boolean; busy: boolean };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
-  peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
+  peer_chats: {
+    desks: DeskSummary[];
+    inbox: InboxRow[];
+    /**
+     * Its outside cards (plan 067, R14), apart from `inbox` so a Mac on a loki from before them, which reads only
+     * `inbox`, shows none of them.
+     */
+    outside?: InboxRow[];
+  };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
@@ -282,6 +297,26 @@ export interface Replies {
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
   /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
   suggestion_added: { suggestion: Suggestion };
+  /**
+   * A reply proposal as it stands after an action (plan 067, KTD9): `done` when it took, else `message` says why not;
+   * `replace` asks the person whether to replace a draft already waiting in that place.
+   */
+  reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
+  /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
+  accounts: { accounts: AccountView[] };
+  /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
+  account_thread_archived: { account_id: string; thread_id: string };
+  /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
+  account_thread_handoff_proposal: HandoffProposal;
+  /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
+  account_thread_handed_off: { account_id: string; thread_id: string; agent_id: string; conversation_id: string };
+  /** Google's page to open for connecting a Gmail account (plan 067, U5); the account is kept when the browser comes back. */
+  account_signin: { url: string };
+  /**
+   * The workspaces signed in to the Slack desktop app here (plan 067, R21) when listing them, with `account` null; after
+   * connecting one, the account connected, and no workspaces.
+   */
+  slack_workspaces: { workspaces: SlackWorkspaceView[]; account: AccountView | null };
   /** The live links of a Mac's chats, and the duration the link card starts on (plan 067). */
   chat_links: { links: ChatLink[]; default_duration: LinkDuration };
 }
@@ -303,6 +338,8 @@ export interface ChatState {
   engine?: ChatEngineView | null;
   /** The suggestions made in the chat that wait on the person or are being sent (plan 049); absent from a mod that predates them. */
   suggestions?: Suggestion[];
+  /** The replies proposed in the chat that wait on the person or are being drafted (plan 067); absent from a mod that predates them. */
+  reply_proposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
   links?: ChatLink[];
 }
@@ -384,6 +421,8 @@ export interface Pushes {
   group_changed: NoPayload;
   /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
   chat_left: { agent_id: string | null; conversation_id: string; to: string };
+  /** An account here was connected, moved, disconnected or changed status (plan 067): clients and paired Macs ask again. */
+  accounts_changed: NoPayload;
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
@@ -467,7 +506,7 @@ const BY_HOME: PeerMeaning = { route: "home" };
 /** A frame only paired Macs send each other, answered where it lands. */
 const BETWEEN_MACS: PeerMeaning = {};
 /** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
-const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device"];
+const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"];
 
 /** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
@@ -658,6 +697,20 @@ export const FRAMES = {
       if (typeof r === "string") return r;
       const target = parseSuggestionTarget(m.target);
       return target ? { ...r, target } : "target needs agent_id and a conversation_id or a folder";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  // Reply proposals (plan 067, KTD9), carried out by the Mac the chat lives on, which holds the account.
+  reply_decide: request(
+    "reply_decided",
+    "approve a reply its agent proposed in this chat, so loki writes it as a draft in its thread (`text` as edited; `replace` a draft already there), or reject it; the first action wins",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      if (!str(m.proposal_id) || !m.proposal_id) return "proposal_id required";
+      if (!str(m.action) || !REPLY_ACTIONS.includes(m.action)) return "action must be approve or reject";
+      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, replace: m.replace === true };
     },
     PHONE,
     BY_CHAT,
@@ -1076,6 +1129,78 @@ export const FRAMES = {
     BETWEEN_MACS,
   ),
   peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, BETWEEN_MACS),
+  peer_accounts_get: request(
+    "accounts",
+    "the accounts connected on this Mac, so another Mac refuses to connect one twice (plan 067, KTD14)",
+    nothing,
+    false,
+    BETWEEN_MACS,
+  ),
+
+  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace on this Mac and the agent that owns it.
+  account_list: request("accounts", "the accounts connected on this Mac and the agent that owns each", nothing),
+  account_move: request("accounts", "give an account to another agent, which gets its hand-offs and its tools from now on", (m) =>
+    str(m.account_id) && m.account_id && isAgentId(m.owner_agent_id)
+      ? { account_id: m.account_id, owner_agent_id: m.owner_agent_id }
+      : "account_id and owner_agent_id required",
+  ),
+  account_disconnect: request("accounts", "disconnect an account: loki forgets it and its sign-in", (m) =>
+    str(m.account_id) && m.account_id ? { account_id: m.account_id } : "account_id required",
+  ),
+  account_thread_archive: request(
+    "account_thread_archived",
+    "archive an outside card: the thread is archived in Gmail or marked read in Slack, then leaves the Inbox (plan 067, R12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_handoff_propose: request(
+    "account_thread_handoff_proposal",
+    "what handing an outside card's thread to its account's agent proposes: the chat it went to before, else a new chat, and the agent's other chats (plan 067, KTD12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_handoff: request(
+    "account_thread_handed_off",
+    "hand an outside card's thread to its account's agent: to `conversation_id`, one of its chats, else to a new chat; the whole thread goes there and the card leaves (plan 067, R15, R16); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? {
+            account_id: m.account_id,
+            thread_id: m.thread_id,
+            conversation_id: str(m.conversation_id) && m.conversation_id ? m.conversation_id : null,
+            home: strOr(m.home, null),
+          }
+        : "account_id and thread_id required",
+    PHONE,
+    // A hand-off may wait on reading a long thread and on the owner's Mac making a chat.
+    { route: "home", relists: true, timeout_ms: 60_000 },
+  ),
+  account_connect_gmail: request(
+    "account_signin",
+    "start connecting a Gmail account the given agent will own: Google's page to open, with the person's own Google app when `own_app` names one",
+    (m) => {
+      if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
+      if (m.own_app === undefined || m.own_app === null) return { owner_agent_id: m.owner_agent_id, own_app: null };
+      const app = typeof m.own_app === "object" ? (m.own_app as Raw) : {};
+      return str(app.client_id) && str(app.client_secret)
+        ? { owner_agent_id: m.owner_agent_id, own_app: { client_id: app.client_id, client_secret: app.client_secret } }
+        : "own_app needs client_id and client_secret";
+    },
+  ),
+  account_connect_slack: request(
+    "slack_workspaces",
+    "the workspaces signed in to the Slack desktop app on this Mac; with `team_id`, connect that workspace for the given agent, or connect it again after it signed out",
+    (m) =>
+      isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
+  ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),
@@ -1112,6 +1237,7 @@ export const FRAMES = {
   restart_due: push("a checkout's code changed, so an update is due (a page build, a restart); the window offers it (plans 024 and 041)"),
   group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
   chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
+  accounts_changed: push("an account on this Mac was connected, moved, disconnected or changed status; sent to paired Macs too (plan 067)"),
 } as const;
 
 type Table = typeof FRAMES;

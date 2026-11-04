@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { stampOf } from "../core/attention/queue.ts";
+import { inboxCardSource } from "../core/analytics.ts";
 import {
   applyChatEvent,
   buildItems,
@@ -7,6 +8,7 @@ import {
   emptyLive,
   faceOf,
   keyOf,
+  senderKeyOf,
   sendMode,
   takeQueued,
   unviewed,
@@ -305,5 +307,171 @@ describe("a chat's open suggestions (plan 049)", () => {
     expect(faceOf(l)).not.toEqual(before);
     expect(applyChatEvent(l, { kind: "suggestions", suggestions: [] }).changed).toBe(true);
     expect(l.suggestions).toEqual([]);
+  });
+});
+
+describe("a chat's reply proposals (plan 067, U10)", () => {
+  const proposal = {
+    id: "reply-1",
+    account_id: "gmail:ada@acme.com",
+    provider: "gmail" as const,
+    account_label: "ada@acme.com",
+    thread_id: "t1",
+    subject: "Re: The plan",
+    to: ["Grace <grace@acme.com>"],
+    cc: [],
+    place: null,
+    text: "Friday works.",
+    status: "pending" as const,
+    reason: null,
+    created_at: "2026-11-04T10:00:00Z",
+  };
+  const chat = (id: string, extra: Partial<ConversationInfo> = {}): ConversationInfo => ({
+    id,
+    agent_id: "a",
+    agent_name: null,
+    title: id,
+    last_message_at: id === "fresh" ? "2026-11-04T11:00:00Z" : "2026-11-04T08:00:00Z",
+    archived: false,
+    ...extra,
+  });
+  const statuses = (convs: ConversationInfo[], live = new Map<string, Live>()) =>
+    buildItems(convs, new Map(), live, {}, Date.parse("2026-11-04T12:00:00Z")).map((i) => `${i.id}:${i.status}`);
+
+  test("a waiting one on the list's row makes the card an approval that ranks above a fresher chat", () => {
+    expect(statuses([chat("fresh"), chat("asks", { reply_proposals: [proposal] })])).toEqual(["asks:approval", "fresh:idle"]);
+    // One being drafted is decided already: it blocks no one.
+    expect(statuses([chat("asks", { reply_proposals: [{ ...proposal, status: "drafting" }] })])).toEqual(["asks:idle"]);
+  });
+
+  test("heard live, they replace what the row said, and move the chat's face", () => {
+    const l = emptyLive();
+    const before = faceOf(l);
+    expect(applyChatEvent(l, { kind: "reply_proposals", proposals: [proposal] })).toEqual({ changed: true, userSpoke: false });
+    expect(faceOf(l)).not.toEqual(before);
+    expect(statuses([chat("asks")], new Map([[keyOf("a", "asks"), l]]))).toEqual(["asks:approval"]);
+    applyChatEvent(l, { kind: "reply_proposals", proposals: [] });
+    expect(statuses([chat("asks", { reply_proposals: [proposal] })], new Map([[keyOf("a", "asks"), l]]))).toEqual(["asks:idle"]);
+  });
+});
+
+describe("outside cards (plan 067, U3)", () => {
+  const NOW = Date.parse("2026-11-04T10:00:00Z");
+  const AT = "2026-11-04T09:00:00Z";
+  /** An outside row as the mod lists it: one Gmail thread of the work agent's mailbox. */
+  const outside = (more: { generation?: number; message?: string; at?: string; owner?: string; sender?: string } = {}): ConversationInfo => ({
+    kind: "outside",
+    id: `t1#${String(more.generation ?? 1)}`,
+    agent_id: "account:gmail:ada@acme.com",
+    agent_name: "ada@acme.com",
+    title: "Quarterly numbers",
+    last_message_at: more.at ?? AT,
+    archived: false,
+    outside: {
+      account_id: "gmail:ada@acme.com",
+      provider: "gmail",
+      account_label: "ada@acme.com",
+      thread_id: "t1",
+      generation: more.generation ?? 1,
+      owner_agent_id: more.owner ?? "agent-work",
+      owner_name: "Work",
+      sender: "Grace",
+      sender_address: more.sender ?? "grace@acme.com",
+      subject: "Quarterly numbers",
+      lines: ["Can you look?"],
+      newest_message_id: more.message ?? "m1",
+      newest_at: more.at ?? AT,
+      handoff_conversation_id: null,
+      disconnected: null,
+    },
+  });
+  const chatRow = (id: string): ConversationInfo => ({ id, agent_id: "a", agent_name: "ira", title: id, last_message_at: AT, archived: false });
+  const replied = (id: string) => [keyOf("a", id), { last_role: "assistant" as const, last_assistant_text: "Finished.", last_ask: null }] as const;
+  const one = (c: ConversationInfo, opts: { seen?: Record<string, string>; focus?: Record<string, number>; rests?: Parameters<typeof buildItems>[7] } = {}) =>
+    must(buildItems([c], new Map(), new Map(), opts.seen ?? {}, NOW, {}, opts.focus ?? {}, opts.rests ?? {})[0], "the card");
+
+  test("an unread outside card scores exactly like a chat with a new reply", () => {
+    const items = buildItems([outside(), chatRow("c")], new Map([replied("c")]), new Map(), {}, NOW);
+    const card = must(
+      items.find((i) => i.outside),
+      "outside card",
+    );
+    const chat = must(
+      items.find((i) => i.id === "c"),
+      "chat card",
+    );
+    expect(card).toMatchObject({ unread: true, status: "done", reason: "new" });
+    expect(card.score).toBe(chat.score);
+  });
+
+  test("a blocked agent's chat still ranks above every outside card", () => {
+    const live = new Map<string, Live>();
+    const asking = emptyLive();
+    applyChatEvent(asking, { kind: "approval", request_id: "perm-1", tool_name: "Bash", input: {} }, AT);
+    live.set(keyOf("a", "blocked"), asking);
+    const items = buildItems([outside(), chatRow("blocked")], new Map(), live, {}, NOW);
+    expect(items.map((i) => i.id)).toEqual(["blocked", "t1#1"]);
+  });
+
+  test("covers AE2: a newer message on an open thread is the same card, and it ends the card's rest", () => {
+    const first = one(outside());
+    const rests = { [keyOf(first.agent_id, first.id)]: { n: 1, until: "2026-11-05T00:00:00Z", stamp: stampOf(first), at: AT } };
+    expect(one(outside(), { rests }).resting).toBe(true);
+    const later = one(outside({ message: "m2", at: "2026-11-04T09:30:00Z" }), { rests });
+    expect(keyOf(later.agent_id, later.id)).toBe(keyOf(first.agent_id, first.id));
+    expect(later.resting).toBe(false);
+  });
+
+  test("seen until a newer message comes, by the card's own mark", () => {
+    const key = keyOf("account:gmail:ada@acme.com", "t1#1");
+    expect(one(outside(), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
+    expect(one(outside({ message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("after a hand-off the next message is the next generation's card, with none of the old card's marks", () => {
+    const old = one(outside());
+    const key = keyOf(old.agent_id, old.id);
+    const marks = {
+      seen: { [key]: "2026-11-04T09:40:00Z" },
+      focus: { [key]: 0.5 },
+      rests: { [key]: { n: 2, until: "2026-11-06T00:00:00Z", stamp: stampOf(old), at: AT } },
+    };
+    const next = one(outside({ generation: 2, message: "m2", at: "2026-11-04T09:30:00Z" }), marks);
+    expect(next.id).toBe("t1#2");
+    expect(next).toMatchObject({ unread: true, focus: 0 });
+    expect(next.resting).toBeUndefined();
+  });
+
+  test("moving the account to another agent keeps the card's key, its rest and its focus", () => {
+    const before = one(outside());
+    const key = keyOf(before.agent_id, before.id);
+    const marks = { focus: { [key]: 0.3 }, rests: { [key]: { n: 1, until: "2026-11-05T00:00:00Z", stamp: stampOf(before), at: AT } } };
+    const moved = one(outside({ owner: "agent-home" }), marks);
+    expect(keyOf(moved.agent_id, moved.id)).toBe(key);
+    expect(moved).toMatchObject({ resting: true, focus: 0.3 });
+    expect(moved.outside?.owner_agent_id).toBe("agent-home");
+  });
+
+  test("an email card gains the focus its sender has, on top of its own", () => {
+    const sender = must(senderKeyOf(must(outside().outside, "outside")), "the sender's key");
+    expect(sender).toEqual({ agentId: "account:gmail:ada@acme.com", conversationId: "sender:grace@acme.com" });
+    const focus = { [keyOf(sender.agentId, sender.conversationId)]: 0.4 };
+    expect(one(outside(), { focus }).focus).toBe(0.4);
+    expect(one(outside({ sender: "someone@else.com" }), { focus }).focus).toBe(0);
+  });
+});
+
+describe("an outside card in analytics (plan 067)", () => {
+  test("says where it came from and whose it is, and nothing of its account, sender, subject or text", () => {
+    const card = {
+      agent_id: "account:gmail:ada@acme.com",
+      id: "t1#1",
+      title: "Quarterly numbers",
+      outside: { provider: "gmail" as const, owner_agent_id: "agent-work", sender: "Grace", subject: "Quarterly numbers", lines: ["Can you look?"] },
+    };
+    const props = inboxCardSource(card);
+    expect(props).toEqual({ source: "gmail", desk: null, agent: "agent-work" });
+    expect(JSON.stringify(props)).not.toMatch(/ada@acme|Grace|Quarterly|look/);
+    expect(inboxCardSource({ agent_id: "a", id: "c1" })).toMatchObject({ source: "chat", agent: "a" });
   });
 });

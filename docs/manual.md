@@ -224,8 +224,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      2. **Phone**: the switch that lets phones reach this Mac, the route (Tailscale or this Wi‑Fi), pairing a phone
         (its QR and code) and the paired phones. Mac only for now.
   4. **Inbox and Learn**
-     1. **Inbox**: what Next, Archive and a reply do; **Next rests a card for** 10 min, 30 min, 1 hour (the default)
-        or 3 hours, on this device (see "Next sets a chat down"); and, under "How the order works", what each card's
+     1. **Inbox**: **Accounts**, each Gmail mailbox and Slack workspace connected on this Mac with its service,
+        owner and state, **move to** and **disconnect** on each, and **reconnect gmail** or **reconnect slack** when
+        it needs it; **Connect an account**, where you choose the owner, then **connect gmail** or **connect slack**,
+        with **Use your own Google app** folded below it (see "Email and Slack"); what Next, Archive and a reply do;
+        **Next rests a card for** 10 min, 30 min, 1 hour (the default) or 3 hours, on this device (see "Next sets a chat down"); and, under "How the order works", what each card's
         score is made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
@@ -660,7 +663,9 @@ recognition is available, so treat it like any other cloud dictation.
 ## Inbox (Catch Up)
 
 A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
-is mid-turn, where there is nothing to do yet. The inbox icon on the rail counts what needs you; click it, press
+is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you are cards in it too, once
+you connect those accounts (see "Email and Slack" below). The inbox icon on the
+rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and sets it down: it comes back in an hour, a card with nothing new rests longer each time (see "Next sets a chat down" below), and either comes back at once if the agent says something new. Once only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox; if loki refuses, the card comes back on top and says why. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
 The header reads "n need you" and "m chats". Once two agents have something waiting, filter pills sit over the
@@ -800,6 +805,95 @@ above are the starting point.
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
 its chat's focus — behind whatever you are reading then.
+
+### Email and Slack
+
+Mail and Slack messages addressed to you arrive in the same deck as your chats, one card per thread, so you need not
+open Gmail or Slack to find what waits on you. Connect them in Preferences › Inbox, under **Accounts**. A Gmail
+mailbox or a Slack workspace is an **account**, and you can connect as many as you like.
+
+**Each account belongs to one agent.** Under **Connect an account**, choose its **Owner** first: the agent that gets
+the account's hand-offs and is the only agent with tools for it. No account is ever connected without one. **move to**
+on an account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
+…** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave the Inbox.
+Deleting an agent that owns accounts lists them on its Agents page and asks you to move each to another agent or
+disconnect it first. An account lives on the Mac it was connected on: only that Mac watches it, a paired Mac refuses
+to connect it a second time, and its cards reach the phone and your paired Macs the way that Mac's chat cards do.
+
+**Connecting Gmail.** **connect gmail** opens Google's sign-in in your browser; sign in and allow, and the mailbox
+shows on the page once Google sends you back. loki signs in with one shared Google app it ships, so there is nothing
+to set up in Google Cloud. That app is not verified by Google, which has two effects: Google shows a warning screen
+first ("Google hasn't verified this app"; choose Advanced, then go on to loki), and the shared app can sign in at most
+100 people over its whole life. A Google Workspace admin may also block unverified apps or the Gmail API for their
+people. In either case, fold open **Use your own Google app**, fill in the client id and secret of an OAuth client of
+your own in Google Cloud (a desktop app), and **connect gmail** signs in with it instead; its id and secret are kept
+in the keychain with the account. loki asks Google to read mail, change its labels and write drafts; its Gmail client
+has no way to send.
+
+**Connecting Slack.** **connect slack** reads the workspaces signed in to the Slack desktop app on this Mac and lists
+them; **connect** on one connects it, and each workspace is its own account. There is no Slack app to create and no
+admin to ask. The first time, macOS asks whether loki may use "Slack Safe Storage", the key Slack keeps its sign-in
+under; allow it. loki calls Slack as you, through that session, and keeps the session in memory only. Slack is Mac
+only for now, since the desktop app keeps its session differently on Windows and Linux. Some workspaces' rules forbid
+using the desktop session this way, and Enterprise Grid may notice it; check yours before connecting.
+
+**What becomes a card.** loki watches each account itself, once a minute, with fixed rules; no model reads your mail
+or messages to decide.
+
+1. Gmail: a thread becomes a card when a message from a person has you in To or Cc. Mailing lists, newsletters and
+   automated senders (no-reply addresses, list and bulk mail, notifications) stay in Gmail. The rule reads the
+   message's headers, so now and then it misjudges one.
+2. Slack: a DM or group DM with unread messages, and each unread Activity item: an @mention of you, a reply in a
+   thread you are in, an @channel or @here, and a mention of a user group you belong to. Mentions and replies inside
+   threads arrive as Slack's Activity lists them; loki does not search for them.
+
+A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
+a thread you archived. The card shows the sender, the
+subject or first line, the account, its service and its owner ("ada@acme.com · Gmail · Work"), and the thread's last
+messages. **The past comes in batches**: connecting brings what is unread and addressed to you from the last 3 days,
+and each time you clear that account's outside cards (a resting card is not cleared), the next older batch of up to 20
+threads arrives, a week back, then two, then a month, then a month more each time, until nothing unread is left.
+
+**Ranking, Next and archive.** An outside card ranks like a chat with something new, and gains focus as you work with
+that thread, or for mail that sender; an agent waiting on you still comes first. Next rests it on the same ladder as a
+chat card. Archive (E) removes the card and closes the thread out there too:
+
+1. Gmail: the thread is archived in Gmail.
+2. Slack DM or group DM: it is marked read up to the card's last message, and never later, so a message that came
+   after stays unread.
+3. Slack Activity item: the card closes in loki only for now, and Slack still shows the item unread.
+
+loki never moves a Slack channel's read marker, so archiving a mention in a busy channel leaves that channel's other
+messages unread. The other way round works too: read or archive a thread in Gmail or Slack first, and its card leaves
+the Inbox at the next check.
+
+**Hand-off.** **hand off** on a card gives the whole thread to the account's owner. loki proposes a chat: the one the
+thread went to before ("went here before"), or else a new chat with the owner titled by the subject ("new chat"); pick
+it or another of the owner's chats. The chat receives the whole thread as one message, each message marked as content
+from its sender rather than instructions, and the card leaves the Inbox. Nothing is marked read or archived in Gmail
+or Slack. When someone writes in that thread again, it comes back as a new card that names the chat it went to ("went
+to …"), and you hand it to that chat, another, or archive it. Hand off is off while the account is disconnected.
+
+**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts, all reads:
+`account_list` (its accounts and the threads waiting in each, with no message text), `account_read` (a whole thread)
+and `account_search` (a mailbox, in Gmail's search syntax; Slack cannot be searched yet). No other agent has them,
+and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
+even if you ask it to.
+
+**Replies are drafts.** A reply the owner writes in a handed-off thread always asks you first, in every permission
+mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
+draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. loki never sends.
+When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
+
+**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
+
+1. "Gmail wants a new sign-in": the sign-in expired or was revoked; **reconnect gmail** signs in again.
+2. "a workspace admin blocks loki in Gmail" (or Slack): ask the admin, or use your own Google app, then connect again.
+3. "the Slack app signed out": sign in to that workspace in the Slack desktop app, then **reconnect slack**.
+4. "… keeps failing for now": loki tries again on its own; nothing to do.
+
+**What reaches your model provider.** Only what you hand off and what the owner reads with its tools. Showing a card,
+ranking it and archiving it send nothing to any model.
 
 ## Scheduled tasks
 

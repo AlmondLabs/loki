@@ -230,6 +230,8 @@ const acp = new AcpChats({
   agents: () => readAcpAgents(acpFile),
   systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
   homeDir: homedir(),
+  // Mod prompt sections and message transforms reach ACP chats as they reach loki's own (plan 067).
+  mods,
   // A session gets loki's tools and the MCP servers its agent has on, which it connects to and signs in to itself.
   mcpServers: async (agentId, conversationId) => {
     const own = lokiTools.serverFor(agentId, conversationId);

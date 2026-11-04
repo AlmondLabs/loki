@@ -675,6 +675,7 @@ function Screen({
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
         homes={homesOf(desk.macs.view, catchUp.agents)}
         labelList={catchUp.labels.list}
+        onTopCard={deck.hold}
       />
       <Inbox
         hidden={tab !== "inbox"}

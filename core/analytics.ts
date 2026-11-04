@@ -1,3 +1,5 @@
+import { scopeFor } from "./desk-core.ts";
+
 /**
  * Product analytics for loki in PostHog's shape, without PostHog: one event per line in
  * ~/.loki/logs/events.jsonl — `{ event, timestamp, distinct_id, properties }`. Local only: the mod writes
@@ -7,6 +9,20 @@
  * mod/bridge.ts and the app decide when, daemon/telemetry.ts measures each agent turn, scripts/analytics.ts turns
  * the file into a report. A turn's `turn_id` (the daemon's) joins the client events made while it ran or after it.
  */
+
+/**
+ * Where an Inbox card comes from and who it is about, for its events: a chat by its desk and agent; an outside card
+ * (plan 067) by its provider and owning agent, with no desk, and never its account, sender, subject or text.
+ */
+export function inboxCardSource(item: { agent_id: string; id: string; outside?: { provider: "gmail" | "slack"; owner_agent_id: string } }): {
+  source: "chat" | "gmail" | "slack";
+  desk: string | null;
+  agent: string;
+} {
+  return item.outside
+    ? { source: item.outside.provider, desk: null, agent: item.outside.owner_agent_id }
+    : { source: "chat", desk: scopeFor(item.id, item.agent_id), agent: item.agent_id };
+}
 
 /** Where it happened: the desktop window (on a Mac, Windows or Linux), a paired phone, or the mod itself (turns and tools, whichever client began them). */
 export type DeviceType = "mac" | "windows" | "linux" | "phone" | "mod";
@@ -58,10 +74,10 @@ export const EVENTS: Record<string, string> = {
   mode_set: "a conversation's permission mode set { mode }",
   folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
-  inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
+  inbox_card_shown: "a card came to the top of the inbox { source: chat | gmail | slack, desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
   inbox_card_decided:
-    "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
-  inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, desk, agent }",
+    "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, source: chat | gmail | slack, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+  inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, source, desk, agent }",
   inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
   chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
   chat_restored: "a chat restored from the archive { desk, origin: inbox_undo | sidebar | chat_header | phone_list | phone_chat }",

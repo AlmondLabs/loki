@@ -87,7 +87,10 @@ export interface ChatBackend {
 /** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
-  /** Why an agent may not be deleted now (a paired Mac out of reach would keep its chats), or null (plan 023). */
+  /**
+   * Why an agent may not be deleted now, or null: a paired Mac out of reach would keep its chats (plan 023), or it owns
+   * Inbox accounts, here or on another Mac, that must be moved or disconnected first (plan 067, R4).
+   */
   agentDeleteBlocked?: (agentId: string) => string | null;
   /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
   chatBlocked?: (agentId: string, conversationId: string) => string | null;

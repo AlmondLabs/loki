@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { homedir } from "node:os";
 import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
@@ -43,6 +44,16 @@ import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
+import { Accounts } from "./accounts.ts";
+import { AccountThreads } from "./account-threads.ts";
+import { AccountWatcher } from "./account-watcher.ts";
+import { GmailClient } from "./gmail.ts";
+import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
+import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
+import { SlackSessions } from "./slack-session.ts";
+import { SlackClient } from "./slack.ts";
+import { SlackSync } from "./slack-sync.ts";
+import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -50,6 +61,8 @@ import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
+import { registerAccountTools } from "./account-tools.ts";
+import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -185,6 +198,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
 
   // --- transport -------------------------------------------------------
+  // Each account's threads (plan 067, U3, KTD11): the memory that keeps a card from coming back, and the outside cards
+  // the inbox lists. The accounts are made below, once the paired Macs are, and read only when the list is.
+  const threads = new AccountThreads({
+    dir: join(paths.state, "account-threads"),
+    accounts: { get: (id) => accounts.get(id), list: () => accounts.list() },
+    agentName: (id) => {
+      const agent = readLocalAgent(id);
+      return agent && agent.name !== agent.id ? agent.name : null;
+    },
+  });
   // Which chats show in the chat list and the inbox, and what each row says (mod/chat-listing.ts).
   const listing = new ChatListing({
     chats,
@@ -194,6 +217,8 @@ export default function activate(api: ModApi, host: Host): () => void {
     pins: () => readPins(),
     passChats: () => isPassChat,
     activeScope: () => activeScope,
+    outside: () => threads.rows(),
+    replies: (agentId, conversationId) => replies.open({ agent_id: agentId, conversation_id: conversationId }),
   });
   const deskInfo = (scope: Scope) => listing.info(scope);
   const listLocalDesks = () => listing.desks();
@@ -236,6 +261,66 @@ export default function activate(api: ModApi, host: Host): () => void {
     moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
+  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace here and the one agent that owns it. Its
+  // secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a change.
+  const accounts = new Accounts({
+    file: join(paths.state, "accounts.json"),
+    secrets: host.secrets,
+    agentExists: (id) => readLocalAgent(id) !== null,
+    heldElsewhere: (id) => macs.accountHeldBy(id),
+  });
+  // A move or a disconnect changes what the account's outside cards say, so the lists are read again too.
+  accounts.onChange(() => {
+    broadcast({ type: "accounts_changed" });
+    broadcast({ type: "chat_changed" });
+  });
+  // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
+  threads.onChange(() => broadcast({ type: "chat_changed" }));
+  // Connecting (U5): Gmail by a sign-in that comes back to the loopback server, Slack from the desktop app's sessions,
+  // read from this person's home and kept in memory only (KTD2, KTD7).
+  const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
+  const slackSessions = new SlackSessions({ home: homedir() });
+  // One Gmail client per account, shared by its watcher and its archive so a refreshed token is used by both; an
+  // account that changed gets a new one, which reads its sign-in from the keychain again.
+  const gmailClients = new Map<string, GmailClient>();
+  const gmailClient = (accountId: string): GmailClient => {
+    let client = gmailClients.get(accountId);
+    if (!client) {
+      client = new GmailClient({ accounts, account_id: accountId });
+      gmailClients.set(accountId, client);
+    }
+    return client;
+  };
+  // One Slack client per workspace too, shared by its watcher and the hand-off's reading of a thread.
+  const slackClients = new Map<string, SlackClient>();
+  const slackClient = (accountId: string): SlackClient => {
+    let client = slackClients.get(accountId);
+    if (!client) {
+      // A Slack account's id is `slack:<team_id>:<user_id>` (accountIdOf).
+      const teamId = accountId.split(":")[1] ?? "";
+      client = new SlackClient({
+        session: (fresh) => slackSessions.get(teamId, fresh),
+        setStatus: (status) => accounts.setStatus(accountId, status),
+      });
+      slackClients.set(accountId, client);
+    }
+    return client;
+  };
+  accounts.onChange((change) => {
+    gmailClients.delete(change.account_id);
+    slackClients.delete(change.account_id);
+  });
+  threads.register("gmail", gmailOutsideSource(gmailClient));
+  // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
+  const watcher = new AccountWatcher({
+    accounts,
+    factories: {
+      gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id) }),
+      slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id) }),
+    },
+    report: log,
+  });
+  watcher.start();
   // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
   // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
@@ -252,6 +337,30 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
+  // Hand-off (plan 067, U8): a card's whole thread, read with the clients above, sent to its owner's chat through the
+  // same chat caller suggestions use, so a new chat is made on the owner's Mac.
+  const handoff = new Handoff({
+    file: join(paths.state, "handoffs.json"),
+    accounts,
+    threads,
+    chats: () => macs.desks(),
+    agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
+    call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
+  });
+  // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
+  // written with the same clients; a move of the account withdraws the old owner's.
+  const replies = new ReplyProposals({
+    file: join(paths.state, "reply-proposals.json"),
+    accounts,
+    threads,
+    clientFor: (account) =>
+      account.provider === "gmail"
+        ? { provider: "gmail", client: gmailClient(account.account_id) }
+        : { provider: "slack", client: slackClient(account.account_id) },
+    push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
+    changed: () => broadcast({ type: "chat_changed" }),
+  });
   // Chat links (plan 067): kept in this Mac's state folder for its chats, checked here before a message is delivered,
   // and sent to the Mac the other chat lives on (mod/chat-links.ts).
   const askLink = host.askLink;
@@ -336,6 +445,10 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   const moduleDeps: ModuleDeps = {
     store,
+    accounts,
+    threads,
+    handoff,
+    connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     widgets,
     gestures,
     // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
@@ -363,10 +476,11 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
-    // A chat opens with the suggestions waiting in it (plan 049) and its links (plan 067).
-    chat: withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages),
+    // A chat opens with the suggestions waiting in it (plan 049), its links and its waiting replies (plan 067).
+    chat: withRepliesOnOpen(withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages), replies),
     suggestions,
     messages,
+    replies,
     decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? macs.mac(c.peerId).name : "desktop"),
     usage: host.usage,
     daemon: host.daemon,
@@ -387,8 +501,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     peers: macs.frames,
     chatBlocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId),
     titleFrame: (agentId, conversationId) => listing.titleFrame(scopeFor(conversationId, agentId)),
-    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
-    agentDeleteBlocked: (agentId) => macs.agentDeleteBlocked(agentId),
+    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5); one that
+    // owns accounts, here or on a paired Mac, would leave them without an owner (plan 067, R4).
+    agentDeleteBlocked: (agentId) => accounts.deleteBlocked(agentId) ?? macs.agentDeleteBlocked(agentId),
     agents: {
       get: (id) => readLocalAgent(id),
       tree: (id) => memoryTree(id),
@@ -426,6 +541,8 @@ export default function activate(api: ModApi, host: Host): () => void {
           chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
         ],
         health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: sockets.tabs() }),
+        // Back from a Gmail sign-in (plan 067, U4): only on this loopback server, like MCP's.
+        googleSignIn: (params) => googleSignIn.finish(params),
       });
     try {
       const s = await sockets.serve(start, (started) => attachWs(started.server, token, bridge));
@@ -563,10 +680,24 @@ export default function activate(api: ModApi, host: Host): () => void {
         }
       : undefined,
   });
+  // The owning agent's account tools (plan 067, U9): offered only to agents that own an account, re-checked every call.
+  toolDisposers.push(
+    ...registerAccountTools(api, {
+      accounts,
+      threads,
+      clientFor: (account) =>
+        account.provider === "gmail"
+          ? { provider: "gmail", client: gmailClient(account.account_id) }
+          : { provider: "slack", client: slackClient(account.account_id) },
+    }),
+    ...registerReplyTools(api, { accounts, replies }),
+  );
 
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
+    watcher.stop(); // the accounts are watched again when the mod comes back
+    replies.stop();
     sockets.stop(); // the sockets only; the phone listener's setting stays so it returns with the mod
     macs.stop(); // the links to other Macs reopen with the mod
     widgets.close();

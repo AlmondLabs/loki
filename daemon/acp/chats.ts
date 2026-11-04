@@ -8,7 +8,7 @@ import { messageSteps } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
 import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
-import type { AgentStore, ChatEngine, ChatInfo, UsageAdd } from "../kernel/index.ts";
+import { AgentInfoDoc, type AgentStore, type ChatEngine, type ChatInfo, type UsageAdd } from "../kernel/index.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import type { EnginesView } from "../../core/frame-types.ts";
 import { LOKI_TOOLS_SERVER, LokiTools } from "./loki-tools.ts";
@@ -16,6 +16,7 @@ import type { AcpAgentConfig } from "./agents.ts";
 import { AcpCatalog, selectOptions } from "./catalog.ts";
 import { AcpProcess } from "./process.ts";
 import { acpTurnProperties } from "../telemetry.ts";
+import type { ModRegistry } from "../mods/registry.ts";
 
 /** How long a page the agent asks the person to open waits for them: Claude Code's own wait for a sign-in. */
 const SIGN_IN_WAIT_MS = 10 * 60_000;
@@ -38,6 +39,11 @@ export interface AcpChatsDeps {
   agents: () => AcpAgentConfig[];
   /** What is added to the agent's system prompt for a loki agent: its persona and memory (KD5); null for nothing. */
   systemPrompt?: (agentId: string, withTools: boolean) => string | null;
+  /**
+   * The daemon's mods (plan 067): their prompt sections for the chat's agent join its system prompt when the session
+   * opens, and their message transforms run on the person's messages, as on loki's engine; absent, neither.
+   */
+  mods?: Pick<ModRegistry, "renderSections" | "transformMessage">;
   /** The folder a chat with none set runs in. */
   homeDir: string;
   /**
@@ -432,7 +438,7 @@ export class AcpChats {
       live.sent.add(p.send_id);
     }
     const text = [p.context, p.text.trim() ? p.text : null].filter((t): t is string => Boolean(t)).join("\n\n");
-    this.enqueue(live, text, p.images);
+    this.enqueue(live, text, p.images, { typed: p.text.trim() !== "" });
   }
 
   /**
@@ -463,9 +469,10 @@ export class AcpChats {
     this.enqueue(this.liveOf(agentId, conversationId, engine), text, []);
   }
 
-  private enqueue(live: Live, text: string, images: PayloadOf<"chat_send">["images"]): void {
+  /** A turn queued behind the chat's others; `person` marks the person's own message, which the mods' transforms see. */
+  private enqueue(live: Live, text: string, images: PayloadOf<"chat_send">["images"], person?: { typed: boolean }): void {
     live.queue = live.queue
-      .then(() => this.run(live, text, images))
+      .then(() => this.run(live, text, images, person))
       .then(() => {})
       .catch(() => {});
   }
@@ -609,12 +616,20 @@ export class AcpChats {
     const mcpServers = servers.filter((m) =>
       !("type" in m) ? true : m.type === "http" ? Boolean(caps.mcpCapabilities?.http) : m.type === "sse" ? Boolean(caps.mcpCapabilities?.sse) : false,
     );
+    // A pass runs on its job's instructions alone; a chat gets its agent's prompt and the mods' sections for it, read
+    // once as the session opens, since the agent keeps the system prompt it opened with.
     const prompt = pass
       ? pass.instructions
-      : (this.deps.systemPrompt?.(
-          live.agentId,
-          mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER),
-        ) ?? null);
+      : [
+          this.deps.systemPrompt?.(
+            live.agentId,
+            mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER),
+          ),
+          ...((await this.deps.mods?.renderSections({ chatId: live.conversationId, agentId: live.agentId, agentName: await this.agentName(store), cwd })) ??
+            []),
+        ]
+          .filter(Boolean)
+          .join("\n\n") || null;
     const systemPrompt = prompt && takesPrompt ? { systemPrompt: { mode: "append" as const, content: [{ type: "text" as const, text: prompt }] } } : {};
     const allowedTools = pass ? LokiTools.named(pass.tools) : (this.deps.allowedTools?.(live.agentId) ?? []);
     // Claude's adapter takes the tools it may run without asking as one of its options; another agent ignores it.
@@ -669,13 +684,33 @@ export class AcpChats {
     return opened.sessionId;
   }
 
+  /** The agent's name, as the mods hear it on loki's engine (daemon/mods/registry.ts). */
+  private async agentName(store: AgentStore): Promise<string> {
+    return (await store.harness.snapshot(AgentInfoDoc, this.deps.context))?.name ?? "";
+  }
+
+  /**
+   * The person's message after the mods' transforms (plan 067), as loki's engine sends it: what a mod has for the
+   * agent, such as what became of its reply proposals, rides with it. The agent takes the text; pictures go separately,
+   * so a transform's own non-text parts are left out.
+   */
+  private async transformed(live: Live, store: AgentStore, text: string, typed: boolean): Promise<string> {
+    const mods = this.deps.mods;
+    if (!mods) return text;
+    const content = mods.transformMessage({ chatId: live.conversationId, agentId: live.agentId, agentName: await this.agentName(store), content: text, typed });
+    if (typeof content === "string") return content;
+    return content.flatMap((p) => (p.type === "text" && typeof p.text === "string" ? [p.text] : [])).join("\n\n");
+  }
+
   /**
    * One turn: the message written and shown, sent to the agent, and the chat settled when it answers or fails. What it
    * comes to: the agent's last words, and why it failed or null; a background pass reads both (plan 061).
    */
-  private async run(live: Live, text: string, images: PayloadOf<"chat_send">["images"]): Promise<TurnOutcome> {
+  private async run(live: Live, sent: string, images: PayloadOf<"chat_send">["images"], person?: { typed: boolean }): Promise<TurnOutcome> {
     const { store, chat, info } = await this.chat(live.agentId, live.conversationId);
     if (info.engine?.kind !== "acp") return { text: "", error: "the chat is not on an ACP agent" };
+    // Transformed as the turn starts rather than when queued, so what a mod has for the agent by then rides with it.
+    const text = person ? await this.transformed(live, store, sent, person.typed) : sent;
     const proc = this.process(live.agent);
     const turn: Turn = {
       id: `acp-${randomUUID()}`,

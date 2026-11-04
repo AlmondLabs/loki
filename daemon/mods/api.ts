@@ -1,8 +1,8 @@
 /**
  * loki's mod API, version 1 (plan 017, KTD17). A mod adds tools, prompt sections, a say before a tool runs, a
  * transform of the person's message before it is sent, and listens to turn events. The daemon turns each mod into one
- * pi-durable extension (daemon/mods/registry.ts), so its tools and hooks reach every chat of every agent, and editing a
- * mod reloads it in place.
+ * pi-durable extension (daemon/mods/registry.ts), so its hooks reach every chat of every agent, and so do its tools unless
+ * a tool names the agents it is for (`ModTool.forAgent`). Editing a mod reloads it in place.
  *
  * `tools.register`, `events.on`, `diagnostics.report` and `signal` are its parts. Parameters are JSON Schema.
  */
@@ -24,7 +24,7 @@ export type ToolContext = ChatRef & {
   output(text: string): void;
 };
 
-/** A tool a mod registers, for every chat of every agent. What `execute` returns is the result the model reads: a string as it is, anything else as JSON, and nothing as no result. */
+/** A tool a mod registers, for every chat of every agent unless `forAgent` says otherwise. What `execute` returns is the result the model reads: a string as it is, anything else as JSON, and nothing as no result. */
 export interface ModTool {
   name: string;
   description: string;
@@ -32,6 +32,12 @@ export interface ModTool {
   parameters: object;
   /** Hints for permission modes (plan 017, U7): read-only tools never ask; destructive ones may. */
   annotations?: { readOnly?: boolean; destructive?: boolean };
+  /**
+   * Which agents' chats are offered the tool (plan 067, KTD10); absent, every agent's. Asked again before each turn on
+   * loki's engine and at each listing for an ACP chat, so the answer may change. A list can be stale by the time a call
+   * comes, so a tool that guards something checks again in `execute`. A predicate that throws hides the tool.
+   */
+  forAgent?: (agentId: string) => boolean;
   execute(args: Record<string, unknown>, ctx: ToolContext): unknown;
 }
 

@@ -4,6 +4,12 @@ import type { Decision } from "../../../core/attention/queue.ts";
 import { registerActions } from "../shell/keymap";
 
 /**
+ * Whether O opens the card's chat, leaving the deck. An email or Slack thread (plan 067) is no chat until it is
+ * handed off, so on its card O does nothing and the deck stays up.
+ */
+export const opensChat = (item: AttentionItem | undefined): item is AttentionItem => !!item && !item.outside;
+
+/**
  * The deck's keys: its actions by keymap id, and Esc with the reply box idle. The handlers always reach
  * the latest closures; the actions register again when the current card, the decisions or typing change,
  * so the deck's registration stays the newest one.
@@ -46,7 +52,7 @@ export function useDeckKeys({
       case "reply":
         return replyRef.current?.focus();
       case "open":
-        if (!current) return;
+        if (!opensChat(current)) return;
         onOpenDesk(current.agent_id, current.id);
         onClose();
         return;

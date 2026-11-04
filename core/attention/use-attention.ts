@@ -8,6 +8,7 @@ import {
   buildItems,
   chatStatusOf,
   keyOf,
+  senderKeyOf,
   type AttentionItem,
   type ConversationInfo,
   type Digest,
@@ -22,10 +23,10 @@ import { focusShares, type FocusEntry } from "./focus.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { Suggestion } from "../frame-types.ts";
+import type { HandoffProposal, ReplyProposal, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
-import { scopeFor } from "../desk-core.ts";
+import { inboxCardSource } from "../analytics.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
 export type EngageAction = PayloadOf<"focus_add">["action"];
@@ -36,8 +37,6 @@ export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "an
 /** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
 export type CardVia = "key" | "click" | "swipe" | "tap";
 
-/** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
-const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
 const minutesSince = (iso: string | null, now: number): number | null => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
@@ -101,6 +100,11 @@ export interface ChatFace {
   loadStep: (row: number) => Promise<WholeRow | null>;
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
+  /**
+   * The replies its agent proposed that wait on the person or are being drafted (plan 067), live or as the list has
+   * them; absent from a face made elsewhere (the site's demo), which has none.
+   */
+  replyProposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067), for its header. */
   links: ChatLink[];
 }
@@ -115,6 +119,15 @@ export interface ChatViews {
   conversation: (agentId: string, conversationId: string) => ChatFace;
   watchThreads: (onChange: () => void) => () => void;
   threadRows: (agentId: string, conversationId: string) => TranscriptRow[] | undefined;
+}
+
+/**
+ * Handing an outside card to its account's agent (plan 067, U8): what loki proposes, and the hand-off itself, to one
+ * of the agent's chats or to a new chat when `conversationId` is null. Both resolve to the reason in words when refused.
+ */
+export interface HandoffSource {
+  handoffPropose: (item: AttentionItem) => Promise<HandoffProposal | string>;
+  handoff: (item: AttentionItem, conversationId: string | null) => Promise<string | null>;
 }
 
 /**
@@ -200,6 +213,8 @@ export const savedDrafts = createSavedDrafts();
 
 /** No suggestions: one array, so a chat's face stays the same while it has none. */
 const NO_SUGGESTIONS: Suggestion[] = [];
+/** No reply proposals, likewise. */
+const NO_REPLIES: ReplyProposal[] = [];
 /** No links: one array, so a chat's face stays the same while it has none. */
 const NO_LINKS: ChatLink[] = [];
 
@@ -273,9 +288,8 @@ export function useAttention(opts: UseAttentionOptions) {
       const at = queue.findIndex((i) => idOf(i) === idOf(item));
       const it = queue[at] ?? item;
       return {
-        desk: deskOf(item.agent_id, item.id),
-        agent: item.agent_id,
-        turn_id: store.turnOf(item.agent_id, item.id),
+        ...inboxCardSource(item),
+        turn_id: item.outside ? null : store.turnOf(item.agent_id, item.id),
         rank: at >= 0 ? at + 1 : null,
         of: queue.length,
         score: Math.round(it.score * 10) / 10,
@@ -318,13 +332,16 @@ export function useAttention(opts: UseAttentionOptions) {
         restBefore.current.set(idOf(item), prev);
         if (rest) optsRef.current.rest?.(item.agent_id, item.id, rest);
       }
+      // Working with an email (plan 067, R9) lifts that sender's next thread too: its focus is learned by the sender.
+      const sender = item.outside && action !== "next" ? senderKeyOf(item.outside) : null;
+      if (sender) optsRef.current.engage?.(sender.agentId, sender.conversationId, "decide");
       lastDecision.current = { id: idOf(item), action };
     },
     [clock, cardProps],
   );
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
-    optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agent_id, item.id), agent: item.agent_id });
+    optsRef.current.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
     // A Next taken back: the card is back now, on the rung it had.
     if (action === "next") optsRef.current.rest?.(item.agent_id, item.id, restUndone(restBefore.current.get(idOf(item))));
   }, []);
@@ -333,6 +350,14 @@ export function useAttention(opts: UseAttentionOptions) {
     optsRef.current.capture?.("inbox_filtered", { agent });
   }, []);
 
+  /** Each listed chat's waiting reply proposals by key, from its row (plan 067), for chats this client does not follow. */
+  const rowReplies = useMemo(
+    () =>
+      new Map(
+        snap.conversations.flatMap((c): Array<[string, ReplyProposal[]]> => (c.reply_proposals?.length ? [[keyOf(c.agent_id, c.id), c.reply_proposals]] : [])),
+      ),
+    [snap.conversations],
+  );
   /**
    * A chat surface's view of one conversation besides its rows: the box status, the pending approval or question,
    * mode, folder, engine, and the way to older history. The rows come through useConversation, which redraws on them.
@@ -354,10 +379,12 @@ export function useAttention(opts: UseAttentionOptions) {
         loadFailed: failed[key] ? () => void store.loadThread(rt) : null,
         loadStep: (row) => optsRef.current.loadLocalStep?.(agentId, conversationId, row) ?? Promise.resolve(null),
         suggestions: l?.suggestions ?? NO_SUGGESTIONS,
+        // A chat not followed here has its waiting replies on its list row (plan 067).
+        replyProposals: l?.replyProposals ?? rowReplies.get(key) ?? NO_REPLIES,
         links: l?.links ?? NO_LINKS,
       };
     },
-    [live, older, failed, store],
+    [live, older, failed, store, rowReplies],
   );
 
   /** Labels on chats (plan 022): the list every chip takes its colour from, and the calls that change them. */
@@ -367,6 +394,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const reflection = useMemo(() => ({ get: store.getPasses, set: store.setPasses, run: store.reflect }), [store]);
   /** The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. */
   const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
+  /** The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. */
+  const replies = useMemo(() => ({ decide: store.decideReply }), [store]);
   /** Chat links (plan 067): closing one, and Preferences' list and default duration. */
   const links = useMemo(() => ({ close: store.closeLink, list: store.listLinks, setDefault: store.setLinkDefault }), [store]);
   // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
@@ -406,10 +435,19 @@ export function useAttention(opts: UseAttentionOptions) {
   const loadHistory = useCallback((item: AttentionItem) => store.loadThread(item.runtime), [store]);
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agent_id, item.id), []);
-  /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
-  const archive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, true, "inbox", item.agent_id), [store]);
-  /** Undo of an archive: the chat comes back. */
-  const unarchive = useCallback((item: AttentionItem) => store.archiveConversation(item.id, false, "inbox_undo", item.agent_id), [store]);
+  /**
+   * Done with a card: a chat is archived, an outside card's thread is archived out there (plan 067, R12), and it leaves
+   * the Inbox; resolves to an error or null.
+   */
+  const archive = useCallback(
+    (item: AttentionItem) => (item.outside ? store.archiveOutside(item) : store.archiveConversation(item.id, true, "inbox", item.agent_id)),
+    [store],
+  );
+  /** Undo of an archive: the chat comes back. An outside card's archive is not taken back here, so it stays done. */
+  const unarchive = useCallback(
+    (item: AttentionItem) => (item.outside ? Promise.resolve(null) : store.archiveConversation(item.id, false, "inbox_undo", item.agent_id)),
+    [store],
+  );
   const server = snap.server;
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
@@ -452,6 +490,7 @@ export function useAttention(opts: UseAttentionOptions) {
     decide: store.decide,
     answer: store.answer,
     suggestions,
+    replies,
     links,
     reply,
     send,
@@ -461,6 +500,8 @@ export function useAttention(opts: UseAttentionOptions) {
     unread: markNotDone,
     archive,
     unarchive,
+    handoffPropose: store.handoffPropose,
+    handoff: store.handoff,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
     shown,
