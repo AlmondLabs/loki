@@ -69,6 +69,7 @@ function setup(
       context: ctx,
       agents: () => [{ ...FAKE, ...(opts.env ? { env: opts.env } : {}), ...(opts.authMethod ? { auth_method: opts.authMethod } : {}) }],
       ...(opts.systemPrompt ? { systemPrompt: opts.systemPrompt } : {}),
+      mods,
       ...(opts.mcpServers ? { mcpServers: opts.mcpServers } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.passServer ? { passServer: opts.passServer } : {}),
@@ -136,6 +137,7 @@ function setup(
     get acp() {
       return daemon.acp;
     },
+    mods,
     pushed,
     captured,
     logged,
@@ -604,6 +606,49 @@ describe("ACP agents (plan 020)", () => {
     const b = await without.chat();
     await without.say(b, "prompt?");
     expect(without.words()).toMatch(/^system: none \| first: <loki-agent>\nYou are Ada.\n<\/loki-agent>/);
+  });
+
+  test("the mods' prompt sections for the chat's agent follow its persona; a section for another agent is left out (plan 067)", async () => {
+    const s = setup({ systemPrompt: () => "You are Ada." });
+    await s.mods.load({
+      name: "accounts-test",
+      apiVersion: 1,
+      activate: (api) => {
+        api.prompt.section("accounts", ({ agentId }) => (agentId === "ada" ? "You own mail account acc-1." : undefined));
+        api.prompt.section("other", ({ agentId }) => (agentId === "bob" ? "You own Slack account acc-2." : undefined));
+      },
+    });
+    const id = await s.chat();
+    await s.say(id, "prompt?");
+    expect(s.words()).toBe("system: You are Ada.\n\n<accounts>\nYou own mail account acc-1.\n</accounts> | first: prompt?");
+  });
+
+  test("what a mod queues for the agent rides on the person's next message, once (plan 067)", async () => {
+    const s = setup();
+    const queued: string[] = [];
+    const seen: Array<{ agentId: string; chatId: string; typed: boolean }> = [];
+    await s.mods.load({
+      name: "notices-test",
+      apiVersion: 1,
+      activate: (api) => {
+        api.message.transform((m) => {
+          seen.push({ agentId: m.agentId, chatId: m.chatId, typed: m.typed });
+          const notices = queued.splice(0);
+          if (notices.length === 0 || typeof m.content !== "string") return undefined;
+          return `${m.content}\n\n${notices.map((n) => `<system-reminder>${n}</system-reminder>`).join("\n")}`;
+        });
+      },
+    });
+    const id = await s.chat();
+    queued.push("the person approved your reply; it is a draft now");
+    await s.say(id, "prompt?");
+    expect(s.words()).toBe("system: none | first: prompt?\n\n<system-reminder>the person approved your reply; it is a draft now</system-reminder>");
+    expect(seen).toEqual([{ agentId: "ada", chatId: id, typed: true }]);
+    await s.say(id, "hello");
+    const users = (await s.stored(id)).entries.flatMap((e) => entrySteps(e)).flatMap((st) => (st.kind === "user" ? [st.raw] : []));
+    expect(users).toHaveLength(2);
+    expect(users[0]).toContain("it is a draft now");
+    expect(users[1]).not.toContain("system-reminder");
   });
 
   test("a session opens with loki's tools and the agent's MCP servers, and runs the read-only ones without asking (plan 044)", async () => {

@@ -248,6 +248,26 @@ export class ModRegistry {
     return [...this.loaded.keys()];
   }
 
+  /**
+   * Every loaded mod's prompt sections for one chat, in load order, each tagged `<key>…</key>` as pi-durable shows them
+   * on loki's engine; a section that says nothing is left out, and one that throws is reported and left out. For a chat
+   * on an ACP agent (plan 067), whose system prompt loki writes itself rather than through pi-durable.
+   */
+  async renderSections(input: SectionInput): Promise<string[]> {
+    const shown: string[] = [];
+    for (const { pieces, mod } of this.loaded.values()) {
+      for (const { key, render } of pieces.sections) {
+        try {
+          const text = await render(input);
+          if (text !== undefined) shown.push(`<${key}>\n${text}\n</${key}>`);
+        } catch (error) {
+          this.report(`${mod.name}: section ${key} failed: ${messageOf(error)}`);
+        }
+      }
+    }
+    return shown;
+  }
+
   /** The person's message after every mod's transform, in load order (U5 calls this before sending). */
   transformMessage(message: OutgoingMessage): OutgoingMessage["content"] {
     let content = message.content;
