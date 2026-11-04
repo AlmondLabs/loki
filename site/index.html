@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>loki · a memory palace your agent builds</title>
+    <meta name="description" content="Your own AI agents on your Mac, each chat with a live canvas the agent fills with widgets, and one inbox for everything waiting on you. Free and open source." />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <script>
+      // The system's light or dark before CSS paints, as the app's index.html does (ThemeProvider takes over after).
+      (function () {
+        var theme = "dark";
+        try {
+          var saved = localStorage.getItem("loki.theme");
+          theme = saved === "light" || saved === "dark" ? saved : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        } catch (_) {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.palette = "loki";
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
