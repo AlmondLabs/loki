@@ -590,6 +590,7 @@ function ConversationPage({
       onNotDone={catchUp.unread}
       onViewed={attention.markViewed}
       suggestions={{ source: catchUp, blocked: macAway(catchUp) }}
+      onCloseLink={(rt, id) => void catchUp.links.close(rt, id)}
     />
   );
 }

@@ -1,6 +1,7 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type { SuggestionTarget } from "../frame-types.ts";
+import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime, ServerEvent } from "./protocol.ts";
@@ -22,6 +23,7 @@ export type ChatClient = Pick<
   | "deleteAgent"
   | "labels"
   | "suggestions"
+  | "links"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -182,6 +184,8 @@ export class FrameChatClient {
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
       // The suggestions waiting in it (plan 049): a client opening late sees them as one that was listening does.
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
+      // Its links to other chats (plan 067), for the header.
+      ...(state.links ? [{ kind: "links" as const, links: state.links }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -351,6 +355,16 @@ export class FrameChatClient {
       this.call("suggestion_decide", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, action }),
     retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) =>
       this.call("suggestion_retarget", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, target }),
+  };
+
+  /**
+   * Chat links (plan 067): this Mac's live links with the card's default duration, closing one from either of its
+   * chats (routed to that chat's Mac, which closes it on the other's too), and the default duration.
+   */
+  readonly links = {
+    list: () => this.call("chat_links_get", {}),
+    close: (rt: Runtime, linkId: string) => this.call("chat_link_close", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, link_id: linkId }),
+    setDefault: (duration: LinkDuration) => this.call("chat_links_default", { duration }),
   };
 
   /** A slash command, shown in the thread as it runs and when it answers. */

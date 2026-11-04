@@ -341,6 +341,63 @@ describe("chat_list and the suggestion tools", () => {
       );
   });
 
+  /** The same, with chat links kept (plan 067): what chat_message was asked to send, and one link this chat has. */
+  function messaging() {
+    const sent: Array<{ source: unknown; target: unknown; text: string }> = [];
+    const messages = {
+      send: (source: { agent_id: string; conversation_id: string }, target: { agent_id: string; conversation_id: string }, text: string) => {
+        sent.push({ source, target, text });
+        return Promise.resolve({ ok: true, message: 'sent to "infra".' });
+      },
+      linksOf: () => [
+        {
+          id: "link-1",
+          from: { agent_id: FRIDAY, conversation_id: "conv-source", title: "suggestions plan" },
+          to: { agent_id: FRIDAY, conversation_id: "conv-infra", title: "infra" },
+          direction: "both_ways" as const,
+          created_at: "2026-11-04T10:00:00.000Z",
+          expires_at: null,
+        },
+      ],
+    };
+    const h = harness({
+      chats: {
+        suggestions: suggesting().suggestions,
+        agents: () => Promise.resolve(agents),
+        chats: () => chats,
+        passChat: (id) => id.startsWith("reflection-"),
+        messages,
+      },
+    });
+    const run = (tool: string, args: Record<string, unknown>, conversation = "conv-source") =>
+      must(h.tools.get(tool), tool).run({ args, conversation: { id: conversation }, agent: { id: FRIDAY, name: "Friday" } });
+    return { run, sent, tools: h.tools };
+  }
+
+  test("chat_message comes only with links kept, sends from the calling chat, and never asks in any mode (plan 067)", async () => {
+    expect(suggesting().tools.has("chat_message")).toBe(false);
+    const { run, sent, tools } = messaging();
+    expect(await run("chat_message", { agent_id: FRIDAY, conversation_id: "conv-infra", text: "is the cert renewed?" })).toBe('sent to "infra".');
+    expect(sent).toEqual([
+      {
+        source: { agent_id: FRIDAY, conversation_id: "conv-source" },
+        target: { agent_id: FRIDAY, conversation_id: "conv-infra" },
+        text: "is the cert renewed?",
+      },
+    ]);
+    await expect(run("chat_message", { agent_id: IRA, conversation_id: "conv-infra", text: "x" })).rejects.toThrow(/belongs to agent/);
+    await expect(run("chat_message", { agent_id: FRIDAY, conversation_id: "conv-infra", text: "x" }, "reflection-1")).rejects.toThrow(/background pass/);
+    for (const mode of ["strict", "standard", "acceptEdits"] as const)
+      expect(asks(mode, "chat_message", {}, { kind: kindOf("chat_message", must(tools.get("chat_message"), "chat_message").annotations) })).toBe(false);
+    expect(must(tools.get("chat_message"), "chat_message").description).toMatch(/suggestion_create instead/);
+  });
+
+  test("chat_list names this chat's links and which way each goes", async () => {
+    const out = String(await messaging().run("chat_list", {}));
+    expect(out).toContain("This chat's links");
+    expect(out).toContain('conv-infra "infra" (agent agent-local-friday): both ways');
+  });
+
   test("all four only read, so no mode asks; suggestion_create says when to suggest", () => {
     const { tools } = suggesting();
     for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"])

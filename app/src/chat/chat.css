@@ -1001,6 +1001,31 @@ button.loki-file-chip {
   color: var(--loki-accent);
   margin-bottom: 8px;
 }
+/* The link card (plan 067, link-card.tsx): a question card holding the message and two rows of choices. */
+.loki-link-choices {
+  display: grid;
+  gap: 6px;
+}
+.loki-link-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* The chat's links in its header (link-header.tsx): the other chat's name and the time left, a click closes one. */
+.loki-chat-links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+.loki-chat-link-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .loki-question-kicker {
   color: var(--loki-accent);
   font-size: 12px;

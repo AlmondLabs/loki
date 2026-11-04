@@ -49,6 +49,11 @@ export type ChatInfo = {
   /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted. */
   mode?: string;
   /**
+   * A mode with less power the chat runs in until it is next idle (plan 067): set when another chat's message comes
+   * in, so the turn it starts can do no more than the chat that sent it could. Absent or null, none.
+   */
+  turn_cap?: string | null;
+  /**
    * The MCP tools that existed when loki last set this chat's tool filter (daemon/mcp/index.ts). One missing from the
    * filter's hidden list and in here was loaded by mcp_search; one not in here is new, and starts hidden. Emptied by
    * /clear and a compaction, which unloads every MCP tool the chat had.
@@ -198,7 +203,9 @@ export class AgentStore {
   /** Change what loki keeps about a chat: its title, whether it is archived or hidden, its labels, purpose, draft or suggestions. */
   async updateChat(
     id: string,
-    change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved">>,
+    change: Partial<
+      Pick<ChatInfo, "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved">
+    >,
     context: Context,
   ): Promise<boolean> {
     const chat = await this.chat(id, context);
@@ -209,6 +216,7 @@ export class AgentStore {
       if (change.archived !== undefined) info.archived = change.archived;
       if (change.hidden !== undefined) info.hidden = change.hidden;
       if (change.mode !== undefined) info.mode = change.mode;
+      if (change.turn_cap !== undefined) info.turn_cap = change.turn_cap;
       if (change.engine !== undefined) info.engine = change.engine;
       if (change.labels !== undefined) info.labels = change.labels;
       if (change.purpose !== undefined) info.purpose = change.purpose;

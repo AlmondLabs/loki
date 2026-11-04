@@ -889,6 +889,54 @@ and when a paired Mac comes into reach, and one that names no chat it was filed 
 log names each. loki only reads the beads store (`~/.loki/tasks`) for this and leaves it on disk as it was; `bd` is
 needed for nothing else. Old chats that used Tasks still read cleanly.
 
+## Chat links
+
+An agent can message another open chat's agent with `chat_message`, to work on something together: ask it a
+question, hand it a piece of the work and hear back. It goes only along a link you opened, and only for as long as you
+said.
+
+**The link card.** The first time an agent messages a chat this chat has no link to, its turn stops on a card where a
+question card would be, in the chat and on its Inbox card, on the Mac and the phone. It names the other chat (with its
+agent, and its Mac when that is another) and shows the message. You pick:
+
+1. **direction**: **one way**, so this chat may message that one, or **both ways**, so each may message the other;
+2. **for**: **1 hour**, **1 day** or **until I close it**, starting on the default you set in Preferences › Chat ›
+   Chat links (1 hour until you change it);
+3. **allow** opens the link and sends the message; **deny** sends nothing, and the agent is told you refused.
+
+The card asks in every permission mode, unrestricted included, and **always allow** never covers `chat_message`: a
+link is opened only on this card. While a link is open, messages along it go without asking.
+
+**What the other chat gets.** The message lands as a row of its own, **from** the chat that sent it, with a link back;
+never as your message. It starts a turn there, or waits for the running one to end, as a message you typed would. That
+agent is told the message comes from another agent, that it may decline, and whether it may answer: along a link that
+runs both ways it answers with `chat_message`, and along a one-way link it cannot. The sending chat shows the call as
+a step, with its text.
+
+**No borrowed power.** A turn another chat's message starts runs in the stricter of the two chats' permission modes: a
+chat in standard mode cannot get an unrestricted chat to run what it would have had to ask you for. The hold stays on
+the chat until you next message it while it is idle, so the rest of that turn and anything queued behind it keep it,
+and a message the held chat sends on passes the hold along. A chat on Claude Code or another ACP agent keeps its own
+mode, which loki cannot lower for one turn, so a message to one whose mode has more power than the sender's is refused
+with the reason.
+
+**A cap.** A link carries at most 20 messages an hour into each of its chats. Past that, `chat_message` is refused and
+the agent is told to wait or tell you, so two agents answering each other cannot run on without end.
+
+**Seeing and closing links.** A chat with a live link shows it under its name in the header: an arrow for the way
+messages go (→ out, ← in, ⇄ both), the other chat's name and the time left, and **×** to close it at once. The phone
+shows the same strip under the chat's header. Preferences › Chat › Chat links lists the live links of this Mac's chats
+with their direction and time left, each with **close**, and sets the duration the card starts on. A closed or ended
+link asks again on the next message.
+
+**Chats on two Macs.** A link may join chats on two paired Macs. Each chat's Mac keeps the link, and the Mac a message
+lands on checks its own copy before it delivers: a Mac with no link for it refuses the message whatever the sending Mac
+says. Closing a link on either Mac closes it on both.
+
+`chat_list` names the calling chat's links and which way each goes. Reflection, Learn and the memory review cannot
+message chats: a background pass has no chat screen for the card. For work you should weigh yourself, or for a new
+chat, agents still make a [suggestion](#suggestions).
+
 ## MCP servers
 
 loki connects your agents to MCP (Model Context Protocol) servers listed in `~/.loki/mcp.json`, in the same

@@ -55,7 +55,7 @@ export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   phone: ["pairing", "wi-fi", "lan", "tailscale"],
   macs: ["pairing", "tailscale", "mesh"],
   appearance: ["theme", "dark mode", "light mode", "palette", "colours"],
-  chat: ["panel", "width", "always allowed", "approvals"],
+  chat: ["panel", "width", "always allowed", "approvals", "chat links", "links"],
   learn: ["recall", "cards"],
   keys: ["keys", "shortcuts", "keyboard"],
 };

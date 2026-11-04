@@ -22,6 +22,8 @@ import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
+import { LinkCard } from "./link-card";
+import { linkAskOf, type LinkSeen } from "../../../core/chat-links.ts";
 import { QuickReplies, lastReplies, replyKey } from "./quick-replies";
 import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
 import { ChatInput } from "./chat-input";
@@ -64,6 +66,8 @@ export interface ConversationView {
   loadStep?: (row: number) => Promise<WholeRow | null>;
   /** The name of the Mac the chat lives on, when it is another one: the thread says it is loading from there. */
   home?: string | null;
+  /** The chat's live links to other chats (plan 067), as its header shows them. */
+  links?: LinkSeen[];
 }
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
@@ -81,6 +85,8 @@ export interface ConversationActions {
   onCancelQueued?: (text: string) => void;
   /** Stop the agent's turn where it is, so the person can take over (the harness's abort_message); resolves to an error or null. */
   onStop?: () => Promise<string | null>;
+  /** Close one of the chat's links (plan 067); resolves to an error or null. */
+  onCloseLink?: (linkId: string) => Promise<string | null>;
 }
 
 /** Safe-area insets a host adds inside the thread and under the last row (the phone's notch and home indicator). */
@@ -188,6 +194,8 @@ export function Conversation({
   const status = view.status;
   const approval = view.approval ?? null;
   const question = view.question ?? null;
+  // A link card (plan 067) comes as a question whose input is the link asked for.
+  const linkAsk = question ? linkAskOf(question.input) : null;
   const model = view.model ?? null;
   const reasoningEffort = view.reasoningEffort ?? null;
   const { mode: currentMode, modes, started, commands } = engineControls(view, actions.commands);
@@ -320,7 +328,13 @@ export function Conversation({
 
       {composer && (
         <>
-          {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
+          {question &&
+            actions.onAnswer &&
+            (linkAsk ? (
+              <LinkCard requestId={question.requestId} ask={linkAsk} onAnswer={actions.onAnswer} touch={touch} />
+            ) : (
+              <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />
+            ))}
           {approval && <ApprovalCard approval={approval} />}
           {notice}
 
@@ -446,6 +460,7 @@ export function ConversationHeader({
   agentName,
   agentId,
   children,
+  below,
   right,
 }: {
   title: ReactNode;
@@ -454,6 +469,8 @@ export function ConversationHeader({
   agentName: string | null | undefined;
   agentId: string | null | undefined;
   children?: ReactNode;
+  /** A line under the agent's (the chat's links, plan 067). */
+  below?: ReactNode;
   right?: ReactNode;
 }) {
   return (
@@ -480,6 +497,7 @@ export function ConversationHeader({
           <AgentChip name={agentName} />
           {children}
         </div>
+        {below && <div style={{ marginTop: 6 }}>{below}</div>}
       </div>
       {right}
     </div>

@@ -1,3 +1,4 @@
+import type { ChatLink } from "../chat-links.ts";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { WholeRow } from "./transcript.ts";
 import type { Runtime } from "./protocol.ts";
@@ -100,6 +101,8 @@ export interface ChatFace {
   loadStep: (row: number) => Promise<WholeRow | null>;
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
+  /** The chat's live links to other chats (plan 067), for its header. */
+  links: ChatLink[];
 }
 
 /** A conversation as a chat surface draws it (useConversation): its face and its rows, undefined until asked for. */
@@ -197,6 +200,8 @@ export const savedDrafts = createSavedDrafts();
 
 /** No suggestions: one array, so a chat's face stays the same while it has none. */
 const NO_SUGGESTIONS: Suggestion[] = [];
+/** No links: one array, so a chat's face stays the same while it has none. */
+const NO_LINKS: ChatLink[] = [];
 
 /**
  * The Inbox's state and actions for a client, the Mac app or the phone. The chats themselves are a ChatStore's
@@ -349,6 +354,7 @@ export function useAttention(opts: UseAttentionOptions) {
         loadFailed: failed[key] ? () => void store.loadThread(rt) : null,
         loadStep: (row) => optsRef.current.loadLocalStep?.(agentId, conversationId, row) ?? Promise.resolve(null),
         suggestions: l?.suggestions ?? NO_SUGGESTIONS,
+        links: l?.links ?? NO_LINKS,
       };
     },
     [live, older, failed, store],
@@ -361,6 +367,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const reflection = useMemo(() => ({ get: store.getPasses, set: store.setPasses, run: store.reflect }), [store]);
   /** The person's actions on a chat's suggestions (plan 049), carried out by the Mac the chat lives on. */
   const suggestions = useMemo(() => ({ decide: store.decideSuggestion, retarget: store.retargetSuggestion }), [store]);
+  /** Chat links (plan 067): closing one, and Preferences' list and default duration. */
+  const links = useMemo(() => ({ close: store.closeLink, list: store.listLinks, setDefault: store.setLinkDefault }), [store]);
   // The saved drafts follow the list; a box emptied of one clears it on the daemon (chat_update draft null).
   const conversations = snap.conversations;
   const savedTexts = useMemo(
@@ -444,6 +452,7 @@ export function useAttention(opts: UseAttentionOptions) {
     decide: store.decide,
     answer: store.answer,
     suggestions,
+    links,
     reply,
     send,
     cancelQueued: store.cancelQueued,
