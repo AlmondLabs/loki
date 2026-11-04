@@ -17,7 +17,7 @@ import type { SlackSession } from "./slack-session.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
- * desktop app's session. It reads, lists activity and counts, marks a DM read and writes drafts, and nothing more: no
+ * desktop app's session. It reads, lists activity and counts, marks a DM read and writes and deletes drafts, and nothing more: no
  * call that sends, edits or schedules a message exists here, so "agents never send" (R18) holds by construction: every
  * request names one of SLACK_METHODS, and the type allows no other.
  *
@@ -37,6 +37,7 @@ export const SLACK_METHODS = [
   "conversations.mark",
   "drafts.list",
   "drafts.create",
+  "drafts.delete",
 ] as const;
 
 /** One of the methods this client may call. */
@@ -385,6 +386,14 @@ export class SlackClient {
       is_from_composer: true,
     });
     return parseDraft(r.draft);
+  }
+
+  /**
+   * Take one of the person's drafts away, as replacing the draft in a place does (KTD9). A draft is the person's own
+   * unsent text, so this touches no message anyone else sees.
+   */
+  async draftsDelete(draftId: string): Promise<void> {
+    await this.call("drafts.delete", { draft_id: draftId });
   }
 
   // --- the session and requests ------------------------------------------------------------------------------------

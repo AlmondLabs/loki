@@ -278,14 +278,22 @@ describe("what the client reads", () => {
     ]);
     expect(sent[1]?.params.is_active).toBe("true");
   });
+
+  test("a draft is taken away by its id, as replacing one does", async () => {
+    const { c, sent } = client(() => ({ body: { ok: true } }));
+    await c.draftsDelete("Dr1");
+    expect(sent.map((s) => [new URL(s.url).pathname, s.params.draft_id])).toEqual([["/api/drafts.delete", "Dr1"]]);
+  });
 });
 
 describe("loki never sends on Slack", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
+  /** Deleting one of the person's own drafts touches no message anyone sees; it is the one "delete" allowed. */
+  const DRAFT_DELETE = ["draftsDelete", "/api/drafts.delete"];
 
   test("the client has no method that could send, edit or schedule a message", () => {
     const names = Object.getOwnPropertyNames(SlackClient.prototype).filter((n) => n !== "constructor");
-    expect(names.filter((n) => SEND.test(n))).toEqual([]);
+    expect(names.filter((n) => SEND.test(n) && !DRAFT_DELETE.includes(n))).toEqual([]);
   });
 
   test("every call the client makes goes to a method that reads, marks a DM read or writes a draft", async () => {
@@ -302,6 +310,7 @@ describe("loki never sends on Slack", () => {
     await c.markDm("D0DM", "1.0");
     await c.draftsList();
     await c.draftsCreate({ channel: "D0DM", text: "x" });
+    await c.draftsDelete("Dr1");
     const paths = [...new Set(sent.map((s) => new URL(s.url).pathname))].sort();
     expect(paths).toEqual(
       [
@@ -313,10 +322,11 @@ describe("loki never sends on Slack", () => {
         "/api/conversations.mark",
         "/api/conversations.replies",
         "/api/drafts.create",
+        "/api/drafts.delete",
         "/api/drafts.list",
         "/api/users.info",
       ].sort(),
     );
-    expect(paths.filter((p) => SEND.test(p))).toEqual([]);
+    expect(paths.filter((p) => SEND.test(p) && !DRAFT_DELETE.includes(p))).toEqual([]);
   });
 });

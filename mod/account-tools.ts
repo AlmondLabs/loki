@@ -6,7 +6,7 @@ import type { GmailClient, GmailMessage, GmailMessagePart } from "./gmail.ts";
 import { log } from "./log.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
 import { argText, toolRegistrar, type Call, type LokiTool } from "./tools.ts";
-import { fenceThread, type ThreadMessage } from "./handoff.ts";
+import { fenceThread, inert, type ThreadMessage } from "./handoff.ts";
 
 /**
  * The owning agent's tools for its accounts (plan 067, U9, KTD10): account_list, account_read and account_search.
@@ -162,8 +162,8 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
           out.push(
             [
               `  ${t.thread_id}`,
-              `from ${t.sender}`,
-              `"${t.subject_or_first_line}"`,
+              `from ${inert(t.sender)}`,
+              `"${inert(t.subject_or_first_line)}"`,
               t.state === "open" ? "open" : "handed off",
               t.newest_at,
               t.handoff_conversation_id ? `chat ${t.handoff_conversation_id}` : null,
@@ -212,7 +212,7 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
           messages = await slackThread(reader.client, thread);
         }
         log("tool:account_read", { agent: ctx.agent.id, messages: messages.length });
-        const head = `Thread ${thread} in ${accountLabel(account)}${subject ? `, subject "${subject}"` : ""}, ${String(messages.length)} messages, oldest first.`;
+        const head = `Thread ${thread} in ${accountLabel(account)}${subject ? `, subject "${inert(subject)}"` : ""}, ${String(messages.length)} messages, oldest first.`;
         return `${head}\n\n${fenceThread(messages)}`;
       } catch (err) {
         return failed(`could not read ${thread} in ${accountLabel(account)}: ${messageOf(err)}`);
@@ -258,7 +258,7 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
           const first = t.messages.at(0);
           const newest = t.messages.at(-1);
           if (!first || !newest) continue;
-          lines.push(`${id} · from ${headerOf(newest, "From") || "someone"} · "${headerOf(first, "Subject")}" · ${gmailTime(newest)}`);
+          lines.push(`${id} · from ${inert(headerOf(newest, "From")) || "someone"} · "${inert(headerOf(first, "Subject"))}" · ${gmailTime(newest)}`);
         }
         log("tool:account_search", { agent: ctx.agent.id, found: lines.length });
         return lines.length ? lines.join("\n") : `nothing in ${accountLabel(account)} matches ${query}`;

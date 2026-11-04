@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { AccountDisconnectCause, AccountProvider, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { AccountProvider, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
 import type { ChatState, ReplyAction } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
@@ -10,6 +10,7 @@ import type { AccountThreads } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { GmailClient, GmailMessage } from "./gmail.ts";
+import { causeWords, inert } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 import type { SlackClient } from "./slack.ts";
@@ -31,8 +32,8 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 
 /** What a Gmail draft needs of the mailbox's client: the thread, the person's own addresses, and the draft call. */
 export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses" | "createDraft">;
-/** What a Slack draft needs of the workspace's client: the drafts there, a conversation's name, and the draft call. */
-export type ReplySlack = Pick<SlackClient, "draftsList" | "draftsCreate" | "conversationsInfo">;
+/** What a Slack draft needs of the workspace's client: the drafts there, a conversation's name, and the draft calls. */
+export type ReplySlack = Pick<SlackClient, "draftsList" | "draftsCreate" | "draftsDelete" | "conversationsInfo">;
 /** An account's client for drafts, by its provider. */
 export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack };
 
@@ -103,21 +104,11 @@ function settledWords(p: ReplyProposal): string {
   }
 }
 
-/** Why a disconnected account cannot take a draft (R22), with where to fix it. */
-function causeWords(cause: AccountDisconnectCause, provider: AccountProvider): string {
-  const service = SERVICE[provider];
-  const where = "Preferences › Inbox accounts";
-  switch (cause) {
-    case "sign_in_again":
-      return `${service} wants a new sign-in: ${where}`;
-    case "admin_blocks":
-      return `a workspace admin blocks loki in ${service}: ask them, then connect again in ${where}`;
-    case "slack_signed_out":
-      return `the Slack app signed out: sign in there, then connect again in ${where}`;
-    case "temporarily_failing":
-      return `${service} keeps failing for now: try again once loki reaches it`;
-  }
-}
+/** What the agent is told when its reply goes because the account moved to another agent (U10, step 7). */
+const movedNotice = (p: ReplyProposal): string =>
+  `${p.account_label} moved to another agent, so your reply in thread ${p.thread_id} was withdrawn: nothing was written.`;
+/** What the person is told when they approve a reply whose account moved since. */
+const MOVED = "that account moved to another agent: this reply was withdrawn";
 
 const headerOf = (m: GmailMessage | undefined, name: string): string =>
   m?.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -140,7 +131,8 @@ function people(header: string): Array<{ text: string; address: string }> {
   parts.push(current);
   return parts.flatMap((part) => {
     const text = part.replace(/\s+/g, " ").trim();
-    const address = (/<([^<>]+)>/.exec(text)?.[1] ?? text).trim().toLowerCase();
+    // The address is the last <…>: a display name may hold angle brackets of its own, quoted.
+    const address = ([...text.matchAll(/<([^<>]+)>/g)].at(-1)?.[1] ?? text).trim().toLowerCase();
     return address.includes("@") ? [{ text, address }] : [];
   });
 }
@@ -158,6 +150,20 @@ export function replyAllOf(message: GmailMessage | undefined, own: readonly stri
     list.filter((p) => !mine.has(p.address) && !seen.has(p.address) && seen.add(p.address)).map((p) => p.text);
   const to = keep([...(fromMe ? [] : from), ...people(headerOf(message, "To"))]);
   return { to, cc: keep(people(headerOf(message, "Cc"))) };
+}
+
+/** People as the agent is told of them: bare addresses, since a display name is the sender's own writing. */
+const addresses = (list: readonly string[]): string => inert(list.flatMap((t) => people(t).map((p) => p.address)).join(", "));
+
+/**
+ * The message a reply answers: the newest in the thread by Gmail's time that is not one of the person's own drafts, so
+ * an unsent draft never sets who the reply goes to or what it replies to (KTD9).
+ */
+function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefined {
+  return messages
+    .filter((m) => !m.labelIds.includes("DRAFT"))
+    .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
+    .at(-1);
 }
 
 /** A reply's subject: the message's own, with one "Re:" in front. */
@@ -305,6 +311,10 @@ export class ReplyProposals {
     const claim = await this.change(chat, id, (p) => {
       if (p.status !== "pending") return { done: false, message: settledWords(p) };
       const account = this.opts.accounts.get(p.account_id);
+      // A move this process did not hear (it was down, or the move came between): the reply is no longer this agent's.
+      if (account && account.owner_agent_id !== chat.agent_id) {
+        return { done: false, message: MOVED, next: { ...p, status: "withdrawn", reason: null, decided_by: "loki", decided_at: this.now() } };
+      }
       const refused = !account
         ? "that account is not connected on this Mac"
         : account.status !== "connected"
@@ -314,6 +324,8 @@ export class ReplyProposals {
       this.inFlight.add(flight);
       return { done: true, message: null, next: { ...p, status: "drafting", reason: null, ...(edited ? { text: edited } : {}) } };
     });
+    // Only this claim answers MOVED, and only as it withdraws the reply, so the agent is told once.
+    if (claim.message === MOVED) this.notify(chat, movedNotice(claim.proposal));
     if (!claim.done) return claim;
     try {
       const written = await this.write(claim.proposal, opts.replace === true).catch((err: unknown) => ({
@@ -362,7 +374,7 @@ export class ReplyProposals {
     const reader = this.opts.clientFor(account);
     if (reader.provider === "gmail") {
       const thread = await reader.client.getThread(p.thread_id, "metadata");
-      const newest = thread.messages.at(-1);
+      const newest = replyTarget(thread.messages);
       if (!newest) return { ok: false, message: "that thread is empty in Gmail now" };
       const own = [account.address, ...(await reader.client.sendAsAddresses())];
       const { to, cc } = replyAllOf(newest, own);
@@ -381,10 +393,10 @@ export class ReplyProposals {
       return { ok: true, drafted: { to, cc, subject }, url };
     }
     const { channel, ts } = slackPlace(p.thread_id);
-    if (!replace) {
-      const there = (await reader.client.draftsList()).some((d) => d.destinations.some((x) => x.channel_id === channel && (x.thread_ts ?? null) === ts));
-      if (there) return { ok: false, message: DRAFT_THERE };
-    }
+    const there = (await reader.client.draftsList()).filter((d) => d.destinations.some((x) => x.channel_id === channel && (x.thread_ts ?? null) === ts));
+    if (there.length > 0 && !replace) return { ok: false, message: DRAFT_THERE };
+    // Replacing takes the old draft away first, so the place holds one draft, the new one.
+    for (const d of there) await reader.client.draftsDelete(d.id);
     await reader.client.draftsCreate({ channel, ...(ts ? { thread_ts: ts } : {}), text: p.text });
     return { ok: true, drafted: {}, url: null };
   }
@@ -398,7 +410,7 @@ export class ReplyProposals {
     const reader = this.opts.clientFor(account);
     if (reader.provider === "gmail") {
       const thread = await reader.client.getThread(threadId, "metadata");
-      const newest = thread.messages.at(-1);
+      const newest = replyTarget(thread.messages);
       const own = [account.address, ...(await reader.client.sendAsAddresses().catch(() => []))];
       return { subject: replySubject(headerOf(newest, "Subject") || subject), ...replyAllOf(newest, own), place: null };
     }
@@ -409,17 +421,15 @@ export class ReplyProposals {
     return { subject, to: [], cc: [], place: ts ? `the thread in ${conversation}` : conversation };
   }
 
-  /** The old owner's waiting replies for a moved account are withdrawn, each with a notice to its chat. */
+  /**
+   * The old owner's waiting replies for a moved account are withdrawn, each with a notice to its chat. Read through
+   * `record`, so one a stopped daemon left drafting counts as waiting and goes too; one being drafted right now is
+   * refused by its own claim's owner check if it comes back to wait.
+   */
   private async withdrawMoved(accountId: string, from: string): Promise<void> {
     for (const chat of [...this.chats.values()].filter((c) => c.agent_id === from)) {
-      for (const p of chat.proposals.filter((x) => x.account_id === accountId && x.status === "pending"))
-        await this.settle(
-          chat,
-          p.id,
-          "withdrawn",
-          "loki",
-          (x) => `${x.account_label} moved to another agent, so your reply in thread ${x.thread_id} was withdrawn: nothing was written.`,
-        );
+      for (const p of this.record(chat).proposals.filter((x) => x.account_id === accountId && x.status === "pending"))
+        await this.settle(chat, p.id, "withdrawn", "loki", movedNotice);
     }
   }
 
@@ -485,18 +495,19 @@ export class ReplyProposals {
 
 /** What the agent is told once its reply is a draft: where, to whom, and what it says, and that nothing was sent. */
 function draftedNotice(p: ReplyProposal): string {
-  const who = p.provider === "gmail" ? `to ${[...p.to, ...p.cc].join(", ")}` : `in ${p.place ?? "that conversation"}`;
+  const who = p.provider === "gmail" ? `to ${addresses([...p.to, ...p.cc])}` : `in ${inert(p.place ?? "that conversation")}`;
   return [
     `The person approved your reply in ${p.account_label}, thread ${p.thread_id}, and loki saved it as a ${SERVICE[p.provider]} draft ${who}${p.draft_url ? ` (${p.draft_url})` : ""}.`,
     `Nothing was sent: the person sends it from ${SERVICE[p.provider]}. The draft says:`,
-    p.text,
+    // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
+    inert(p.text),
   ].join("\n");
 }
 
 /** A proposal as a tool result lists it: one line, with its id, where it goes and how it stands. */
 function proposalLine(p: ReplyProposal): string {
-  const who = p.provider === "gmail" ? `to ${[...p.to, ...p.cc].join(", ") || "no one"}` : `in ${p.place ?? "that conversation"}`;
-  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${p.subject}"`, who, p.status, p.reason].filter(Boolean).join(" · ");
+  const who = p.provider === "gmail" ? `to ${addresses([...p.to, ...p.cc]) || "no one"}` : `in ${inert(p.place ?? "that conversation")}`;
+  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, p.status, p.reason && inert(p.reason)].filter(Boolean).join(" · ");
 }
 
 /**
