@@ -131,6 +131,31 @@ list and the inbox, and builds each row. _Avoid_: a second filter over the chats
 Preferences › Inbox says otherwise. A card with nothing new rests longer each Next in a row (its **rung**), a card with
 something new the first rest only; anything new in the chat ends it. _Avoid_: snooze, later (the removed key that did this by hand).
 
+**Account** (`mod/accounts.ts`, plan 067): a Gmail mailbox or a Slack workspace connected on this Mac, whose threads
+addressed to the person become outside cards. Its id is `gmail:<address>` or `slack:<team>:<user>`; its record lives in
+`state/accounts.json` and what it signs in with only in the keychain. An account lives on one Mac. _Avoid_:
+integration, connector, source (a Source is where a thread's steps come from).
+
+**Owner** (`owner_agent_id` on an account): the one agent an account belongs to. It receives the account's hand-offs
+and is the only agent with its tools (`account_list`, `account_read`, `account_search`, `reply_propose`); moving the
+account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
+disconnected.
+
+**Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): an Inbox card for one thread in
+an account rather than a chat. It ranks like a chat with something new and rests like one; its archive also archives
+the email in Gmail or marks a Slack DM read. The thread's record (open, archived or handed off, and its newest
+message) is kept in `state/account-threads/<account id>.json`. _Avoid_: notification, email card.
+
+**Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki
+proposes (the one it went to before, or a new one) or another of the owner's chats. The chat gets the whole thread,
+fenced as content from its senders; Gmail and Slack are left as they were. Not the Handoff above, which is a history
+page taking over tail rows. _Avoid_: forward, delegate.
+
+**Reply proposal** (`mod/reply-proposals.ts`, plan 067): a reply the owner writes with `reply_propose` in a thread
+handed to its chat. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
+perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. loki
+never sends. _Avoid_: sent reply, outgoing message.
+
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
 and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;
 a lesson is the `[Learn]` chat a lead starts, taught by the agent that was there. The writer is Learn's background
