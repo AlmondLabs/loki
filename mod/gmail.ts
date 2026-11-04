@@ -11,6 +11,11 @@ import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, parseGmailSecret, type GmailSecret
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** An access token this close to its expiry is refreshed first, so a call does not start with one about to lapse. */
 const EXPIRY_MARGIN_MS = 60 * 1000;
+/**
+ * How long one call to Google may take, as SlackClient allows: a call that hangs past it fails that tick, which the
+ * next tick tries again, instead of holding the account's sync until loki restarts.
+ */
+const TIMEOUT_MS = 20_000;
 /** The reasons Google gives when a Workspace admin has not allowed the app. */
 const ADMIN_REASONS = ["admin_policy_enforced"];
 
@@ -114,6 +119,8 @@ export interface GmailClientOptions {
   sharedApp?: GoogleApp;
   fetch?: typeof fetch;
   now?: () => Date;
+  /** A fresh signal for each call, aborted when the call has run too long; tests pass one they abort themselves. */
+  timeout?: () => AbortSignal;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -267,9 +274,13 @@ export class GmailClient {
     return { id: str(r.id), historyId: str(r.historyId), messages: list(r.messages).map(parseMessage) };
   }
 
-  /** Take labels off a thread: INBOX to archive it, UNREAD to mark it read. */
-  async modifyThread(threadId: string, change: { removeLabels: string[] }): Promise<void> {
-    await this.call("POST", `/threads/${encodeURIComponent(threadId)}/modify`, undefined, { removeLabelIds: change.removeLabels });
+  /**
+   * Take labels off the given messages: INBOX to archive them, UNREAD to mark them read. By message, not by thread, so
+   * mail that came after what the person saw keeps its labels.
+   */
+  async batchModify(ids: string[], change: { removeLabels: string[] }): Promise<void> {
+    if (ids.length === 0) return;
+    await this.call("POST", "/messages/batchModify", undefined, { ids, removeLabelIds: change.removeLabels });
   }
 
   /** Keep a reply as a draft in its thread, for the person to read and send from Gmail; the draft's id. */
@@ -289,6 +300,10 @@ export class GmailClient {
     return this.opts.fetch ?? fetch;
   }
 
+  private signal(): AbortSignal {
+    return this.opts.timeout?.() ?? AbortSignal.timeout(TIMEOUT_MS);
+  }
+
   /** A Gmail call with a good access token; a 401 refreshes the token once and tries again. */
   private async call(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown): Promise<unknown> {
     const url = `${API}${path}${query ? `?${new URLSearchParams(query).toString()}` : ""}`;
@@ -297,6 +312,7 @@ export class GmailClient {
         method,
         headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: this.signal(),
       });
     let res = await request(await this.accessToken());
     if (res.status === 401) res = await request(await this.refresh());
@@ -346,6 +362,7 @@ export class GmailClient {
         client_id: app.client_id,
         client_secret: app.client_secret,
       }).toString(),
+      signal: this.signal(),
     });
     const answer = rec(await res.json().catch(() => ({})));
     if (!res.ok) {

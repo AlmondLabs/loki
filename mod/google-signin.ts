@@ -24,6 +24,8 @@ export const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify", "op
 /** How long a sign-in may take between opening Google's page and coming back. */
 export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
 
+/** How long one call to Google may take before the sign-in says it did not connect, as the Gmail client allows. */
+const TIMEOUT_MS = 20_000;
 const PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
 const START_AGAIN = "Start it again from Preferences › Inbox.";
 
@@ -49,6 +51,8 @@ export interface GoogleSignInOptions {
   redirect?: string;
   /** The app a sign-in uses when the person brings none (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
+  /** A fresh signal for each call, aborted when the call has run too long; tests pass one they abort themselves. */
+  timeout?: () => AbortSignal;
 }
 
 interface Pending {
@@ -70,6 +74,10 @@ export class GoogleSignIn {
 
   private now(): number {
     return (this.opts.now?.() ?? new Date()).getTime();
+  }
+
+  private signal(): AbortSignal {
+    return this.opts.timeout?.() ?? AbortSignal.timeout(TIMEOUT_MS);
   }
 
   private get redirect(): string {
@@ -145,6 +153,7 @@ export class GoogleSignIn {
         client_secret: pending.app.client_secret,
         redirect_uri: this.redirect,
       }).toString(),
+      signal: this.signal(),
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok)
@@ -158,7 +167,7 @@ export class GoogleSignIn {
 
   /** The mailbox's own address, from Gmail itself, so the account is the mailbox the tokens read. */
   private async address(accessToken: string): Promise<string> {
-    const res = await (this.opts.fetch ?? fetch)(PROFILE_URL, { headers: { authorization: `Bearer ${accessToken}` } });
+    const res = await (this.opts.fetch ?? fetch)(PROFILE_URL, { headers: { authorization: `Bearer ${accessToken}` }, signal: this.signal() });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok || typeof body.emailAddress !== "string" || !body.emailAddress) throw new Error(`Gmail would not say which mailbox this is (${res.status})`);
     return body.emailAddress;

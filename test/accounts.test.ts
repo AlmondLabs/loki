@@ -68,6 +68,14 @@ describe("connecting an account", () => {
     expect(accounts.list().map((a) => a.account_id)).toEqual(["gmail:ada@acme.com"]);
   });
 
+  test("two connects of one account at once add it once", async () => {
+    const { accounts, reopen } = fixture();
+    const results = await Promise.allSettled([accounts.add(WORK_MAIL, "token-1"), accounts.add(WORK_MAIL, "token-2")]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(accounts.list().map((a) => a.account_id)).toEqual(["gmail:ada@acme.com"]);
+    expect(reopen().list()).toHaveLength(1);
+  });
+
   test("an account a paired Mac's last list holds is refused through PeerAccounts", async () => {
     const mini = new PeerAccounts({
       link: () => ({ request: () => Promise.resolve({ accounts: [{ ...WORK_SLACK, status: "connected", connected_at: NOW.toISOString() }] }) }),

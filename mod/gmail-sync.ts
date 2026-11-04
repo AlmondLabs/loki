@@ -1,9 +1,11 @@
 import { advanceRefill, firstRefill, parseRefill, refillWindow, type RefillCursor, type RefillResult, type RefillWindow } from "../core/account-refill.ts";
+import { messageOf } from "../core/errors.ts";
 import { addressesIn, isDirectMail } from "../core/mail-filter.ts";
 import type { AccountThreads, OutsideSource } from "./account-threads.ts";
 import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { GmailError, type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
+import { log } from "./log.ts";
 
 /**
  * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11, KTD13). The first tick keeps the mailbox's history id
@@ -40,10 +42,27 @@ const REFILL_STEPS_PER_TICK = 4;
 const REBUILD_DAYS = 30;
 const DAY = 24 * 3600 * 1000;
 const UNREAD_IN_INBOX = "is:unread in:inbox";
+/** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
+const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
 
-/** Archive in Gmail (R12): the thread leaves the inbox and is marked read, by the client of the account it is in. */
-export function gmailOutsideSource(clientOf: (accountId: string) => Pick<GmailClient, "modifyThread">): OutsideSource {
-  return { archive: (accountId, record) => clientOf(accountId).modifyThread(record.thread_id, { removeLabels: ["INBOX", "UNREAD"] }) };
+/**
+ * Archive in Gmail (R12): the card's messages leave the inbox and are marked read, by the client of the account they
+ * are in. Only those up to the card's newest message: mail that came since the last poll stays unread in the inbox,
+ * and the next tick makes the card again for it.
+ */
+export function gmailOutsideSource(clientOf: (accountId: string) => Pick<GmailClient, "getThread" | "batchModify">): OutsideSource {
+  return {
+    archive: async (accountId, record) => {
+      const client = clientOf(accountId);
+      const messages = (await client.getThread(record.thread_id, "metadata")).messages.sort((a, b) => timeOf(a) - timeOf(b));
+      const newest = messages.findIndex((m) => m.id === record.newest_message_id);
+      const seen = newest >= 0 ? messages.slice(0, newest + 1) : messages.filter((m) => timeOf(m) <= Date.parse(record.newest_at));
+      await client.batchModify(
+        seen.map((m) => m.id),
+        { removeLabels: ["INBOX", "UNREAD"] },
+      );
+    },
+  };
 }
 
 const headerOf = (m: GmailMessage, name: string): string => m.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -186,8 +205,14 @@ export class GmailSync implements AccountSync {
     try {
       messages = (await this.opts.client.getThread(threadId, "metadata")).messages.sort((a, b) => timeOf(a) - timeOf(b));
     } catch (error) {
-      if (!(error instanceof GmailError) || error.status !== 404) throw error;
-      this.opts.threads.markReadOutThere(this.accountId, threadId);
+      if (!(error instanceof GmailError)) throw error;
+      if (error.status === 404) {
+        this.opts.threads.markReadOutThere(this.accountId, threadId);
+        return null;
+      }
+      if (!this.unreadable(error)) throw error;
+      // Gmail refuses this one thread for good: pass it over so the history moves on and other mail keeps coming.
+      log("gmail:thread-unreadable", { account_id: this.accountId, thread_id: threadId, error: messageOf(error) });
       return null;
     }
     const unread = messages.filter(isUnreadInInbox);
@@ -213,6 +238,16 @@ export class GmailSync implements AccountSync {
       from_backfill: fromBackfill,
     });
     return { observed, messages };
+  }
+
+  /**
+   * Whether Gmail refused one thread rather than the account: a client error that is not a sign-in, an admin's block or
+   * a rate limit. Those, a server error, and no answer at all fail the tick instead, so the thread is read again.
+   */
+  private unreadable(error: GmailError): boolean {
+    if (error.status < 400 || error.status >= 500 || error.status === 401 || error.status === 429) return false;
+    if (error.reason !== null && RATE_LIMITS.includes(error.reason)) return false;
+    return this.opts.accounts.get(this.accountId)?.status === "connected";
   }
 
   /** Bring the next batch of older unread direct threads when the account's cards are cleared (KTD13). */

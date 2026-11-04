@@ -10,6 +10,11 @@ import { GoogleSignIn } from "../mod/google-signin.ts";
 import { fakeGoogle } from "./fixtures/gmail.ts";
 import { must } from "./fixtures/must.ts";
 
+/** A fetch's URL as text, whatever form it came in. */
+const urlOf = (input: RequestInfo | URL): string => (input instanceof Request ? input.url : input instanceof URL ? input.href : input);
+/** An abort's reason as an Error, as fetch rejects with it. */
+const asError = (reason: unknown): Error => (reason instanceof Error ? reason : new Error(String(reason)));
+
 const SHARED = { client_id: "shared-client", client_secret: "shared-secret" };
 const OWN = { client_id: "own-client", client_secret: "own-secret" };
 const ACCOUNT = "gmail:ada@acme.com";
@@ -91,6 +96,60 @@ describe("the Gmail client's tokens", () => {
   });
 });
 
+/**
+ * A fetch that, while `hang` is on, never answers until its signal is aborted, and a timeout the test fires itself:
+ * `reached` settles once a hung call is under way, `expire` aborts it as a timeout would.
+ */
+function hanging(inner: typeof fetch) {
+  const signals: AbortController[] = [];
+  let hit: (url: string) => void = () => undefined;
+  const t = {
+    hang: false,
+    reached: new Promise<string>((resolve) => (hit = resolve)),
+    timeout: () => {
+      const c = new AbortController();
+      signals.push(c);
+      return c.signal;
+    },
+    fetch: (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (!t.hang) return inner(input, init);
+      hit(urlOf(input));
+      return new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(asError(init.signal?.reason))));
+    },
+    expire: () => must(signals.at(-1), "a signal").abort(new DOMException("The operation was aborted due to timeout", "TimeoutError")),
+  };
+  return t;
+}
+
+describe("a Gmail call that never answers", () => {
+  test("an API call fails when its time runs out, and the account stays connected", async () => {
+    const { accounts, google } = await connected();
+    const t = hanging(google.fetch);
+    const now = () => new Date("2026-11-04T09:00:00Z");
+    const client = new GmailClient({ accounts, account_id: ACCOUNT, sharedApp: SHARED, fetch: t.fetch, timeout: t.timeout, now });
+    t.hang = true;
+    const call = client.listMessages("in:inbox");
+    expect(await t.reached).toContain("/messages");
+    t.expire();
+    await expect(call).rejects.toThrow("timeout");
+    expect(must(accounts.get(ACCOUNT), "the account").status).toBe("connected");
+  });
+
+  test("a token refresh fails when its time runs out, and the account stays connected", async () => {
+    const { accounts, google } = await connected();
+    const t = hanging(google.fetch);
+    // An hour on, the access token has lapsed and the call starts with a refresh.
+    const now = () => new Date("2026-11-04T10:00:01Z");
+    const client = new GmailClient({ accounts, account_id: ACCOUNT, sharedApp: SHARED, fetch: t.fetch, timeout: t.timeout, now });
+    t.hang = true;
+    const call = client.profile();
+    expect(await t.reached).toBe("https://oauth2.googleapis.com/token");
+    t.expire();
+    await expect(call).rejects.toThrow("timeout");
+    expect(must(accounts.get(ACCOUNT), "the account").status).toBe("connected");
+  });
+});
+
 describe("the Gmail client's calls", () => {
   test("send-as lists every address, and a mailbox whose settings are refused gives its own address", async () => {
     const { client, google } = await connected();
@@ -132,10 +191,11 @@ describe("the Gmail client's calls", () => {
     expect(full.messages[0]?.payload?.body.data).toBe("bHVuY2ggb24gZnJpZGF5Pw");
   });
 
-  test("a thread's labels come off: INBOX to archive, UNREAD to mark read", async () => {
+  test("labels come off the given messages only: INBOX to archive, UNREAD to mark read; no messages makes no call", async () => {
     const { client, google } = await connected();
-    await client.modifyThread("t1", { removeLabels: ["INBOX", "UNREAD"] });
-    expect(google.modified).toEqual([{ threadId: "t1", removeLabelIds: ["INBOX", "UNREAD"] }]);
+    await client.batchModify(["m1", "m2"], { removeLabels: ["INBOX", "UNREAD"] });
+    await client.batchModify([], { removeLabels: ["INBOX"] });
+    expect(google.modified).toEqual([{ ids: ["m1", "m2"], removeLabelIds: ["INBOX", "UNREAD"] }]);
   });
 
   test("a draft is an RFC 2822 reply in its thread, and a header value cannot add a header", async () => {
@@ -190,7 +250,7 @@ describe("loki never sends from Gmail", () => {
     await client.historySince("200");
     await client.listMessages("in:inbox");
     await client.getThread("t1", "full");
-    await client.modifyThread("t1", { removeLabels: ["UNREAD"] });
+    await client.batchModify(["m1"], { removeLabels: ["UNREAD"] });
     await client.createDraft({ threadId: "t1", inReplyTo: "<m1@acme.com>", references: [], to: ["bob@acme.com"], cc: [], subject: "Re", body: "ok" });
     expect(google.requests.length).toBeGreaterThan(7);
     expect(google.requests.filter((r) => r.url.pathname.split("/").includes("send"))).toEqual([]);

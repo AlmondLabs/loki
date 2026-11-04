@@ -191,6 +191,20 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
     expect(cards()).toEqual([]);
   });
 
+  test("archive takes only the card's messages out of the inbox: one that came after the last poll stays unread and makes the card again", async () => {
+    const { box, sync, cards, ago, threads, id } = await setup();
+    const first = box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    const later = box.deliver({ thread: "t1", at: ago(60_000), from: GRACE, to: "ada@acme.com", snippet: "one more thing" });
+    await threads.archive(id(), "t1");
+    expect(box.labelsOfMessage(first)).toEqual([]);
+    expect(box.labelsOfMessage(later)).toEqual(["INBOX", "UNREAD"]);
+    await s.tick();
+    expect(cards()).toEqual(["t1"]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", newest_message_id: later });
+  });
+
   test("history Gmail no longer keeps rebuilds the account without bringing back archived threads", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     box.deliver({ thread: "t-archived", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
@@ -213,6 +227,22 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
 });
 
 describe("a Gmail account that fails (R22)", () => {
+  test("a thread Gmail will not give is passed over: the history moves on and other mail still makes cards", async () => {
+    const { box, sync, cards, ago } = await setup();
+    const s = sync();
+    await s.tick();
+    box.deliver({ thread: "t-bad", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t-good", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.state.unreadable.add("t-bad");
+    await s.tick();
+    expect(cards()).toEqual(["t-good"]);
+    // The next tick starts after the unreadable thread: it is not read again, and new mail flows.
+    box.deliver({ thread: "t-later", at: ago(0), from: GRACE, to: "ada@acme.com" });
+    await s.tick();
+    expect(cards()).toEqual(["t-good", "t-later"]);
+    expect(box.requests.filter((r) => r.url.pathname.endsWith("/threads/t-bad"))).toHaveLength(1);
+  });
+
   test("one account failing leaves another's sync running; three failures in a row say temporarily failing, and a good tick mends it", async () => {
     const { boxes, sync, cards, ago, accounts, id } = await setup(["ada@acme.com", "bo@acme.com"]);
     const watcher = new AccountWatcher({ accounts, factories: { gmail: (a) => sync(a.account_id === id(0) ? 0 : 1) } });

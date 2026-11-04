@@ -1,7 +1,7 @@
 /**
  * A Gmail mailbox that changes, behind an injected fetch (plan 067, U5): messages with labels and dates, a history
  * that records each delivery and label change, a search that understands the parts of Gmail's query the watcher sends
- * (`is:unread`, `in:inbox`, `after:` and `before:` in seconds), threads, and label changes. Any bearer token is taken:
+ * (`is:unread`, `in:inbox`, `after:` and `before:` in seconds), threads, and label changes by message. A thread named in `state.unreadable` answers 400. Any bearer token is taken:
  * test/fixtures/gmail.ts covers the tokens; this covers what the mailbox holds. Every request is recorded.
  */
 
@@ -42,7 +42,7 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
   const messages = new Map<string, Stored>();
   const history: HistoryEntry[] = [];
   const requests: Array<{ method: string; url: URL }> = [];
-  const state = { historyId: 100, oldestHistoryId: 0, seq: 0, failing: false };
+  const state = { historyId: 100, oldestHistoryId: 0, seq: 0, failing: false, unreadable: new Set<string>() };
 
   const json = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
   const view = (m: Stored) => ({ id: m.id, threadId: m.threadId, labelIds: [...m.labels] });
@@ -107,19 +107,15 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     const thread = /^\/threads\/([^/]+)$/.exec(path);
     if (thread && method === "GET") {
       const id = decodeURIComponent(thread[1]);
+      if (state.unreadable.has(id)) return json(400, { error: { code: 400, message: "Invalid thread", errors: [{ reason: "invalidArgument" }] } });
       const list = [...messages.values()].filter((m) => m.threadId === id).sort((a, b) => a.at - b.at);
       if (!list.length) return json(404, { error: { code: 404, message: "Requested entity was not found." } });
       return json(200, { id, historyId: String(state.historyId), messages: list.map(full) });
     }
-    const modify = /^\/threads\/([^/]+)\/modify$/.exec(path);
-    if (modify && method === "POST") {
-      const id = decodeURIComponent(modify[1]);
-      const { removeLabelIds } = JSON.parse(body) as { removeLabelIds: string[] };
-      removeLabels(
-        [...messages.values()].filter((m) => m.threadId === id).map((m) => m.id),
-        removeLabelIds,
-      );
-      return json(200, { id });
+    if (path === "/messages/batchModify" && method === "POST") {
+      const { ids, removeLabelIds } = JSON.parse(body) as { ids: string[]; removeLabelIds: string[] };
+      removeLabels(ids, removeLabelIds);
+      return new Response(null, { status: 204 });
     }
     return json(404, { error: { code: 404, message: "Not Found" } });
   };
@@ -165,6 +161,8 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       state.oldestHistoryId = ++state.historyId;
       history.length = 0;
     },
+    /** One message's labels, sorted. */
+    labelsOfMessage: (id: string) => [...(messages.get(id)?.labels ?? [])].sort(),
     labelsOf: (thread: string) => [...new Set([...messages.values()].filter((m) => m.threadId === thread).flatMap((m) => [...m.labels]))].sort(),
   };
 }

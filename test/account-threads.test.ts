@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -21,7 +21,12 @@ async function fixture(source?: OutsideSource) {
   const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), agentExists: () => true });
   await accounts.add({ account_id: MAIL, provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-work" });
   const make = () => {
-    const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts, agentName: (id) => (id === "agent-work" ? "Work" : null) });
+    const threads = new AccountThreads({
+      dir: join(dir, "account-threads"),
+      accounts,
+      agentName: (id) => (id === "agent-work" ? "Work" : null),
+      now: () => new Date("2026-11-04T12:00:00.000Z"),
+    });
     if (source) threads.register("gmail", source);
     return threads;
   };
@@ -107,6 +112,25 @@ describe("the thread records of an account", () => {
     expect(must(row.outside, "outside")).toMatchObject({ generation: 2, handoff_conversation_id: "conv-7" });
   });
 
+  test("a message that came while a hand-off ran keeps the card open as the next generation, naming the chat", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    // The hand-off read m1; m2 arrived before it finished.
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    threads.handedOff(MAIL, "t1", "conv-7", "m1");
+    const [row] = threads.rows();
+    expect(row.id).toBe("t1#2");
+    expect(must(row.outside, "outside")).toMatchObject({ generation: 2, newest_message_id: "m2", handoff_conversation_id: "conv-7" });
+  });
+
+  test("a hand-off of the newest message the card shows closes the card", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.handedOff(MAIL, "t1", "conv-7", "m1");
+    expect(threads.rows()).toEqual([]);
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "handed_off", generation: 1, handoff_conversation_id: "conv-7" });
+  });
+
   test("moving the account to another agent keeps the card's key and names the new owner", async () => {
     const { threads, accounts } = await fixture();
     threads.observe(MAIL, message());
@@ -155,5 +179,21 @@ describe("the thread records of an account", () => {
     const next = again();
     expect(next.observe(MAIL, message())).toBe(false);
     expect(next.rows()).toEqual([]);
+  });
+
+  test("a damaged file is moved aside, owner-only, and the account starts empty instead of overwriting it", async () => {
+    const { dir, threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const folder = join(dir, "account-threads");
+    const [name] = readdirSync(folder);
+    writeFileSync(join(folder, name), '{"version": 1, "threads": [{"thread_id"', { mode: 0o600 });
+    const next = again();
+    expect(next.rows()).toEqual([]);
+    next.observe(MAIL, message({ thread_id: "t2" }));
+    const bad = readdirSync(folder).filter((f) => f !== name);
+    expect(bad).toEqual([`${name}.bad-20261104T120000Z`]);
+    expect(readFileSync(join(folder, bad[0]), "utf8")).toBe('{"version": 1, "threads": [{"thread_id"');
+    if (process.platform !== "win32") expect(statSync(join(folder, bad[0])).mode & 0o777).toBe(0o600);
+    expect(next.list(MAIL).map((r) => r.thread_id)).toEqual(["t2"]);
   });
 });

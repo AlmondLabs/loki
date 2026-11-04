@@ -147,6 +147,8 @@ export class Accounts {
     const elsewhere = this.opts.heldElsewhere?.(input.account_id);
     if (elsewhere) throw new Error(`${label} is already connected on ${elsewhere}`);
     if (secret !== undefined) await this.setSecret(input.account_id, secret);
+    // A second sign-in of the same account may have finished while the keychain was written (two tabs, a double click).
+    if (this.records.some((a) => a.account_id === input.account_id)) throw new Error(`${label} is already connected`);
     const record: AccountRecord = {
       account_id: input.account_id,
       provider: input.provider,

@@ -1,9 +1,11 @@
+import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import type { AccountProvider, InboxRow } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
-import { readJson, writeJsonAtomic } from "./json-file.ts";
+import { writeJsonAtomic } from "./json-file.ts";
+import { log } from "./log.ts";
 
 /**
  * What loki remembers of each thread in a connected account (plan 067, U3, KTD11), and the outside Inbox cards it
@@ -64,6 +66,8 @@ export interface AccountThreadsOptions {
   accounts: Pick<Accounts, "get" | "list">;
   /** An agent's name for the card, or null. */
   agentName?: (agentId: string) => string | null;
+  /** The clock, for the name a damaged file is moved aside under. */
+  now?: () => Date;
 }
 
 /** How many messages a card shows, and how much of each. */
@@ -181,11 +185,21 @@ export class AccountThreads {
     });
   }
 
-  /** The thread went to its owner's chat (U8): the card leaves, and the chat is named on the next one. */
-  handedOff(accountId: string, threadId: string, conversationId: string): boolean {
+  /**
+   * The thread went to its owner's chat (U8): the card leaves, and the chat is named on the next one. When the hand-off
+   * says which message it sent (`handedMessageId`) and a newer one came while it ran, that message was not sent: the
+   * card stays open as the next generation, as observe() makes it after a hand-off, so the person still sees it.
+   */
+  handedOff(accountId: string, threadId: string, conversationId: string, handedMessageId?: string): boolean {
     const r = this.records(accountId).get(threadId);
     if (!r) return false;
-    this.records(accountId).set(threadId, { ...r, state: "handed_off", handoff_conversation_id: conversationId });
+    const missed = handedMessageId !== undefined && handedMessageId !== r.newest_message_id;
+    this.records(accountId).set(
+      threadId,
+      missed
+        ? { ...r, state: "open", generation: r.generation + 1, handoff_conversation_id: conversationId }
+        : { ...r, state: "handed_off", handoff_conversation_id: conversationId },
+    );
     this.save(accountId);
     return true;
   }
@@ -254,13 +268,45 @@ export class AccountThreads {
   private records(accountId: string): Map<string, ThreadRecord> {
     let records = this.byAccount.get(accountId);
     if (!records) {
-      const raw = readJson(this.file(accountId));
-      const list = typeof raw === "object" && raw !== null ? (raw as { threads?: unknown }).threads : null;
-      const parsed = Array.isArray(list) ? list.map(parseRecord).filter((r): r is ThreadRecord => r !== null) : [];
+      const list = this.read(accountId);
+      const parsed = list.map(parseRecord).filter((r): r is ThreadRecord => r !== null);
       records = new Map(parsed.map((r) => [r.thread_id, r]));
       this.byAccount.set(accountId, records);
     }
     return records;
+  }
+
+  /**
+   * An account's records as its file holds them, empty when there is no file. A file that is not a list of threads is
+   * moved aside first, so the next save does not write over the archived and handed-off records a person could recover.
+   */
+  private read(accountId: string): unknown[] {
+    const file = this.file(accountId);
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+      throw error;
+    }
+    let raw: unknown = null;
+    try {
+      raw = JSON.parse(text) as unknown;
+    } catch {
+      // Not JSON: handled below with any other shape that is not a list of threads.
+    }
+    const list = typeof raw === "object" && raw !== null ? (raw as { threads?: unknown }).threads : null;
+    if (Array.isArray(list)) return list as unknown[];
+    // A colon is not allowed in a Windows file name, so the time is written without them.
+    const stamp = (this.opts.now?.() ?? new Date())
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d+Z$/, "Z");
+    const aside = `${file}.bad-${stamp}`;
+    renameSync(file, aside);
+    chmodSync(aside, 0o600);
+    log("account-threads:file-unreadable", { account_id: accountId, moved_to: aside });
+    return [];
   }
 
   /** Write an account's file whole, owner-only since it holds message text, then tell the listeners. */

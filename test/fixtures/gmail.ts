@@ -31,7 +31,7 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
   const refresh = new Map<string, string>();
   const requests: FakeRequest[] = [];
   const drafts: Array<{ raw: string; threadId: string }> = [];
-  const modified: Array<{ threadId: string; removeLabelIds: unknown }> = [];
+  const modified: Array<{ ids: unknown; removeLabelIds: unknown }> = [];
   const state = {
     /** History older than this id is gone: a history call from before it is 404. */
     oldestHistoryId: 100,
@@ -128,10 +128,10 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
           },
         ],
       });
-    const modify = /^\/threads\/([^/]+)\/modify$/.exec(path);
-    if (modify && req.method === "POST") {
-      modified.push({ threadId: modify[1], removeLabelIds: (JSON.parse(req.body) as { removeLabelIds: unknown }).removeLabelIds });
-      return json(200, { id: modify[1] });
+    if (path === "/messages/batchModify" && req.method === "POST") {
+      const { ids, removeLabelIds } = JSON.parse(req.body) as { ids: unknown; removeLabelIds: unknown };
+      modified.push({ ids, removeLabelIds });
+      return new Response(null, { status: 204 });
     }
     if (path === "/drafts" && req.method === "POST") {
       const { message } = JSON.parse(req.body) as { message: { raw: string; threadId: string } };

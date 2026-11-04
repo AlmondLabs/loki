@@ -9,6 +9,11 @@ import { startServer } from "../mod/server.ts";
 import { fakeGoogle } from "./fixtures/gmail.ts";
 import { must } from "./fixtures/must.ts";
 
+/** A fetch's URL as text, whatever form it came in. */
+const urlOf = (input: RequestInfo | URL): string => (input instanceof Request ? input.url : input instanceof URL ? input.href : input);
+/** An abort's reason as an Error, as fetch rejects with it. */
+const asError = (reason: unknown): Error => (reason instanceof Error ? reason : new Error(String(reason)));
+
 const SHARED = { client_id: "shared-client.apps.googleusercontent.com", client_secret: "shared-secret" };
 const OWN = { client_id: "own-client.apps.googleusercontent.com", client_secret: "own-secret" };
 const REDIRECT = "http://127.0.0.1:41414/accounts/google/callback";
@@ -107,6 +112,35 @@ describe("signing in to Gmail", () => {
     expect(google.requests).toHaveLength(0);
     // The person's own app still works there.
     expect(new URL(signIn.start({ owner_agent_id: "agent-work", own_app: OWN })).searchParams.get("client_id")).toBe(OWN.client_id);
+  });
+
+  test("a token exchange or address read that never answers ends the sign-in when its time runs out, and nothing is kept", async () => {
+    const { secrets, accounts, google } = fixture();
+    let hangOn = "";
+    let expire: () => void = () => undefined;
+    let reached: (url: string) => void = () => undefined;
+    const hanging = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (!urlOf(input).startsWith(hangOn)) return google.fetch(input, init);
+      reached(urlOf(input));
+      return new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(asError(init.signal?.reason))));
+    };
+    const timeout = () => {
+      const c = new AbortController();
+      expire = () => c.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+      return c.signal;
+    };
+    const now = () => new Date("2026-11-04T09:00:00Z");
+    const signIn = new GoogleSignIn({ accounts, fetch: hanging, now, redirect: REDIRECT, sharedApp: SHARED, timeout });
+    for (const url of ["https://oauth2.googleapis.com/token", "https://gmail.googleapis.com/gmail/v1/users/me/profile"]) {
+      hangOn = url;
+      const at = new Promise<string>((resolve) => (reached = resolve));
+      const result = signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" })));
+      expect(await at).toBe(url);
+      expire();
+      expect(await result).toMatchObject({ ok: false, message: expect.stringContaining("Gmail did not connect") as unknown });
+    }
+    expect(accounts.list()).toEqual([]);
+    expect(secrets.entries.size).toBe(0);
   });
 
   test("a mailbox already connected is refused; one that lost its sign-in takes the new tokens and keeps its owner", async () => {
