@@ -1,5 +1,5 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
-import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
+import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type { HandoffProposal, SuggestionTarget } from "../frame-types.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -22,6 +22,7 @@ export type ChatClient = Pick<
   | "deleteAgent"
   | "labels"
   | "suggestions"
+  | "replies"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -185,6 +186,8 @@ export class FrameChatClient {
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
       // The suggestions waiting in it (plan 049): a client opening late sees them as one that was listening does.
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
+      // And the replies its agent proposed (plan 067), which keep its card blocked.
+      ...(state.reply_proposals ? [{ kind: "reply_proposals" as const, proposals: state.reply_proposals }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -383,6 +386,22 @@ export class FrameChatClient {
       this.call("suggestion_decide", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, action }),
     retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) =>
       this.call("suggestion_retarget", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, target }),
+  };
+
+  /**
+   * The person's action on a reply an agent proposed in a chat (plan 067, KTD9), carried out by the Mac that chat lives
+   * on: approve with the text as edited (and `replace`, to replace a Slack draft already there), or reject.
+   */
+  readonly replies = {
+    decide: (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}) =>
+      this.call("reply_decide", {
+        agent_id: rt.agent_id,
+        conversation_id: rt.conversation_id,
+        proposal_id: proposalId,
+        action,
+        ...(opts.text ? { text: opts.text } : {}),
+        replace: opts.replace === true,
+      }),
   };
 
   /** A slash command, shown in the thread as it runs and when it answers. */

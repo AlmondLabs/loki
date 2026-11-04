@@ -135,6 +135,8 @@ export interface InboxRow extends LocalDigest, ChatHome {
   draft_text?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;
+  /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9): the card is blocked. */
+  reply_proposals?: ReplyProposal[];
   /**
    * An outside card (plan 067, KTD1): a Gmail or Slack thread, not a chat. Its `agent_id` is `account:<account_id>` and
    * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a
@@ -223,6 +225,43 @@ export type Suggestion = {
   /** The chat made for a new-chat target, kept once made so a retry never makes a second one. */
   made_conversation_id?: string | null;
 };
+
+/**
+ * Where a reply proposal stands (plan 067, KTD9): waiting on the person, its draft being written, or settled by a
+ * draft written out there, the person rejecting it, or its agent (or a move of the account) taking it back.
+ */
+export type ReplyProposalStatus = "pending" | "drafting" | "drafted" | "rejected" | "withdrawn";
+
+/**
+ * A reply an agent proposes in a thread handed to its chat (plan 067, R18, KTD9), kept on that chat until the person
+ * acts. Approved, loki writes it as a draft in the same thread for the person to send; loki never sends it. The
+ * people it goes to come from the thread, never from the agent: Gmail's reply-all to the newest message, or Slack's
+ * same conversation and thread (`place`).
+ */
+export interface ReplyProposal {
+  id: string;
+  account_id: string;
+  provider: AccountProvider;
+  /** The account as a card names it: the mailbox's address, or the workspace's name. */
+  account_label: string;
+  thread_id: string;
+  /** The thread's subject, or a Slack thread's first line. */
+  subject: string;
+  /** Gmail: who the draft is addressed to and copied to, as the newest message names them; empty for Slack. */
+  to: string[];
+  cc: string[];
+  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); null for Gmail. */
+  place: string | null;
+  text: string;
+  status: ReplyProposalStatus;
+  /** Why an action was refused or failed, shown on the card; null when nothing went wrong. */
+  reason: string | null;
+  created_at: string;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack or before. */
+  draft_url?: string | null;
+}
 
 /**
  * A suggestion saved as a draft (plan 049, KTD7), kept on the chat it is for until that chat sends or the person

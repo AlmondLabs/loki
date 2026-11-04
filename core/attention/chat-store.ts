@@ -18,8 +18,8 @@ import {
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
-import type { SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { ReplyAction, SuggestionAction } from "../frames.ts";
+import type { HandoffProposal, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -85,6 +85,17 @@ export interface SuggestionOutcome {
   done: boolean;
   message: string | null;
   suggestion: Suggestion | null;
+}
+
+/**
+ * What a person's action on a reply proposal came to (plan 067): whether it took, why not, whether to ask about
+ * replacing a draft already there, and the proposal as it then stands, when known.
+ */
+export interface ReplyOutcome {
+  done: boolean;
+  message: string | null;
+  replace: boolean;
+  proposal: ReplyProposal | null;
 }
 
 /** An agent as the lists show it. */
@@ -580,6 +591,15 @@ export class ChatStore {
   /** Point a suggestion at another chat, or at a new chat with an agent in a folder, before acting on it (R4). */
   retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> =>
     this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
+
+  /**
+   * The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. The
+   * new state reaches every client as the chat's `reply_proposals` event, as a suggestion's does.
+   */
+  decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}): Promise<ReplyOutcome> => {
+    const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
+    return typeof out === "string" ? { done: false, message: out, replace: false, proposal: null } : out;
+  };
 
   /** The chat holds no saved draft any more (plan 049, KTD7): its Inbox mark goes without waiting for the list. */
   noDraft = (agentId: string, conversationId: string): void => {

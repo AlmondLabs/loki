@@ -1,5 +1,5 @@
 import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
-import type { DeskInfo, DeskSummary, InboxRow, LocalAgent } from "../core/frame-types.ts";
+import type { DeskInfo, DeskSummary, InboxRow, LocalAgent, ReplyProposal } from "../core/frame-types.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
@@ -63,6 +63,8 @@ export class ChatListing {
     readAgent?: (agentId: string) => LocalAgent | null;
     /** The connected accounts' open threads as outside cards (mod/account-threads.ts, plan 067); none when left out. */
     outside?: () => InboxRow[];
+    /** A chat's reply proposals that wait on the person or are being drafted (mod/reply-proposals.ts, plan 067). */
+    replies?: (agentId: string, conversationId: string) => ReplyProposal[];
   };
 
   constructor(opts: ChatListing["opts"]) {
@@ -126,6 +128,8 @@ export class ChatListing {
       if (c.archived) continue;
       const info = chats.info(c.conversationId, c.agentId);
       if (isLearnTitle(info?.title)) continue;
+      // A waiting reply blocks the card even on a client that does not follow the chat (KTD9).
+      const replies = this.opts.replies?.(c.agentId, c.conversationId) ?? [];
       out.push({
         id: c.conversationId,
         agent_id: c.agentId,
@@ -138,6 +142,7 @@ export class ChatListing {
         has_draft: info?.hasDraft ?? false,
         draft_text: info?.draftText ?? null,
         cwd: info?.cwd ?? null,
+        ...(replies.length ? { reply_proposals: replies } : {}),
         ...chats.digest(c.conversationId, c.agentId),
       });
     }

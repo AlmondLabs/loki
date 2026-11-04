@@ -310,6 +310,51 @@ describe("a chat's open suggestions (plan 049)", () => {
   });
 });
 
+describe("a chat's reply proposals (plan 067, U10)", () => {
+  const proposal = {
+    id: "reply-1",
+    account_id: "gmail:ada@acme.com",
+    provider: "gmail" as const,
+    account_label: "ada@acme.com",
+    thread_id: "t1",
+    subject: "Re: The plan",
+    to: ["Grace <grace@acme.com>"],
+    cc: [],
+    place: null,
+    text: "Friday works.",
+    status: "pending" as const,
+    reason: null,
+    created_at: "2026-11-04T10:00:00Z",
+  };
+  const chat = (id: string, extra: Partial<ConversationInfo> = {}): ConversationInfo => ({
+    id,
+    agent_id: "a",
+    agent_name: null,
+    title: id,
+    last_message_at: id === "fresh" ? "2026-11-04T11:00:00Z" : "2026-11-04T08:00:00Z",
+    archived: false,
+    ...extra,
+  });
+  const statuses = (convs: ConversationInfo[], live = new Map<string, Live>()) =>
+    buildItems(convs, new Map(), live, {}, Date.parse("2026-11-04T12:00:00Z")).map((i) => `${i.id}:${i.status}`);
+
+  test("a waiting one on the list's row makes the card an approval that ranks above a fresher chat", () => {
+    expect(statuses([chat("fresh"), chat("asks", { reply_proposals: [proposal] })])).toEqual(["asks:approval", "fresh:idle"]);
+    // One being drafted is decided already: it blocks no one.
+    expect(statuses([chat("asks", { reply_proposals: [{ ...proposal, status: "drafting" }] })])).toEqual(["asks:idle"]);
+  });
+
+  test("heard live, they replace what the row said, and move the chat's face", () => {
+    const l = emptyLive();
+    const before = faceOf(l);
+    expect(applyChatEvent(l, { kind: "reply_proposals", proposals: [proposal] })).toEqual({ changed: true, userSpoke: false });
+    expect(faceOf(l)).not.toEqual(before);
+    expect(statuses([chat("asks")], new Map([[keyOf("a", "asks"), l]]))).toEqual(["asks:approval"]);
+    applyChatEvent(l, { kind: "reply_proposals", proposals: [] });
+    expect(statuses([chat("asks", { reply_proposals: [proposal] })], new Map([[keyOf("a", "asks"), l]]))).toEqual(["asks:idle"]);
+  });
+});
+
 describe("outside cards (plan 067, U3)", () => {
   const NOW = Date.parse("2026-11-04T10:00:00Z");
   const AT = "2026-11-04T09:00:00Z";

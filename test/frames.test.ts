@@ -77,6 +77,7 @@ describe("the frame table", () => {
         "account_thread_archive",
         "account_thread_handoff_propose",
         "account_thread_handoff",
+        "reply_decide",
       ].sort(),
     );
   });
@@ -335,6 +336,7 @@ describe("every frame in the table, through the real router", () => {
     peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
     peer_forget: { mac_id: "mac-2" },
     suggestion_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", action: "reject" },
+    reply_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", proposal_id: "reply-1", action: "reject" },
     suggestion_retarget: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", target: { agent_id: "agent-local-a", folder: "/w" } },
     suggestion_add: { agent_id: "agent-local-a", conversation_id: "conv-1", title: "t", text: "x", target: { agent_id: "agent-local-a", folder: "/w" } },
   };
@@ -428,6 +430,25 @@ describe("frames: suggestions (plan 049)", () => {
     expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "draft" })).toEqual({ ...chat, suggestion_id: "sugg-1", action: "draft" });
     expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "archive" })).toBe("action must be send, draft or reject");
     expect(parse("suggestion_decide", { ...chat, action: "send" })).toBe("suggestion_id required");
+  });
+
+  test("a reply decision (plan 067) is approve, with the text as edited and whether to replace, or reject", () => {
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", text: "edited", replace: true })).toEqual({
+      ...chat,
+      proposal_id: "reply-1",
+      action: "approve",
+      text: "edited",
+      replace: true,
+    });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "reject" })).toEqual({
+      ...chat,
+      proposal_id: "reply-1",
+      action: "reject",
+      text: null,
+      replace: false,
+    });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve or reject");
+    expect(parse("reply_decide", { ...chat, action: "approve" })).toBe("proposal_id required");
   });
 
   test("a re-point names an existing chat, or an agent and a folder for a new one", () => {
@@ -532,6 +553,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_update",
       "history_get",
       "history_step_get",
+      "reply_decide",
       "suggestion_add",
       "suggestion_decide",
       "suggestion_retarget",
@@ -567,7 +589,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
 
   test("the pushes that change how chats are listed, and the chat events that do", () => {
     expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "desks"]);
-    expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device"]);
+    expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"]);
     expect(peerMeaning("chat_move")).toMatchObject({ relists: true, timeout_ms: 180_000 });
     expect(peerMeaning("peers_get")).toBeNull();
     expect(peerMeaning("nonsense")).toBeNull();

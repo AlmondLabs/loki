@@ -24,6 +24,7 @@ import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
 import { QuickReplies, lastReplies, replyKey } from "./quick-replies";
 import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
+import { ReplyProposalCards, type ReplySource } from "../desk/reply-proposal-card";
 import { ChatInput } from "./chat-input";
 import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
@@ -179,9 +180,10 @@ export function Conversation({
   composer?: boolean;
   /**
    * The suggestions made in this chat for other chats (plan 049), behind a chip in the message box (plan 052), drawn
-   * only by the view that draws the box; null or absent, none.
+   * only by the view that draws the box; null or absent, none. The same source carries the replies its agent proposed
+   * (plan 067), drawn as cards above the box when the source has them.
    */
-  suggestions?: SuggestionsProps | null;
+  suggestions?: (SuggestionsProps & { source: Partial<ReplySource> }) | null;
 }) {
   // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
   // would be drawn again with each one (plan 032).
@@ -322,6 +324,7 @@ export function Conversation({
         <>
           {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
           {approval && <ApprovalCard approval={approval} />}
+          {suggestions && <ReplyProposalCards source={suggestions.source} rt={suggestions.rt} blocked={suggestions.blocked ?? null} touch={touch} />}
           {notice}
 
           {/* The message box; a draft that starts with "/" opens the command palette above. */}

@@ -60,6 +60,7 @@ import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords 
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountTools } from "./account-tools.ts";
+import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -210,6 +211,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     passChats: () => isPassChat,
     activeScope: () => activeScope,
     outside: () => threads.rows(),
+    replies: (agentId, conversationId) => replies.open({ agent_id: agentId, conversation_id: conversationId }),
   });
   const deskInfo = (scope: Scope) => listing.info(scope);
   const listLocalDesks = () => listing.desks();
@@ -339,6 +341,19 @@ export default function activate(api: ModApi, host: Host): () => void {
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
   });
+  // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
+  // written with the same clients; a move of the account withdraws the old owner's.
+  const replies = new ReplyProposals({
+    file: join(paths.state, "reply-proposals.json"),
+    accounts,
+    threads,
+    clientFor: (account) =>
+      account.provider === "gmail"
+        ? { provider: "gmail", client: gmailClient(account.account_id) }
+        : { provider: "slack", client: slackClient(account.account_id) },
+    push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
+    changed: () => broadcast({ type: "chat_changed" }),
+  });
   // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
   // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
   // at a time, so two runs never add the same task twice; start does not wait for it.
@@ -425,8 +440,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     // A chat opens with the suggestions waiting in it (plan 049).
-    chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
+    chat: withRepliesOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, replies),
     suggestions,
+    replies,
     decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? macs.mac(c.peerId).name : "desktop"),
     usage: host.usage,
     daemon: host.daemon,
@@ -635,12 +651,14 @@ export default function activate(api: ModApi, host: Host): () => void {
           ? { provider: "gmail", client: gmailClient(account.account_id) }
           : { provider: "slack", client: slackClient(account.account_id) },
     }),
+    ...registerReplyTools(api, { accounts, replies }),
   );
 
   // --- lifecycle -------------------------------------------------------
   const shutdown = (): void => {
     log("shutdown");
     watcher.stop(); // the accounts are watched again when the mod comes back
+    replies.stop();
     sockets.stop(); // the sockets only; the phone listener's setting stays so it returns with the mod
     macs.stop(); // the links to other Macs reopen with the mod
     widgets.close();

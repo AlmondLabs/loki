@@ -12,6 +12,7 @@ import { historyFrames, type HistoryDeps } from "./history.ts";
 import { lanFrames, type LanDeps } from "./lan.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
+import { replyFrames, type ReplyDeps } from "./replies.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
 import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
@@ -27,6 +28,7 @@ export type ModuleDeps = DesksDeps &
   PeersDeps &
   ChatDeps &
   SuggestionDeps &
+  ReplyDeps &
   UsageDeps &
   AccountsDeps &
   DaemonDeps;
@@ -45,6 +47,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     peersFrames(deps),
     chatFrames(deps),
     suggestionFrames(deps),
+    replyFrames(deps),
     usageFrames(deps),
     accountFrames(deps),
     daemonFrames(deps),

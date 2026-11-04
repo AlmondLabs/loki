@@ -4,12 +4,12 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
-import type { OutsideFacts, Suggestion } from "../frame-types.ts";
+import type { OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
- *   approval  paused on a can_use_tool control_request
+ *   approval  paused on a can_use_tool control_request, or a reply its agent proposed waits on you (plan 067)
  *   question  the agent's last message asks you something and you have not replied
  *   done      the agent finished a turn after you last looked
  *   failed    the last turn errored
@@ -54,6 +54,8 @@ export interface ConversationInfo {
   draft_text?: string | null;
   /** The folder the chat works in. */
   cwd?: string | null;
+  /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9), as the list has them. */
+  reply_proposals?: ReplyProposal[];
   /** An outside card: a Gmail or Slack thread, not a chat (plan 067, KTD1); absent on a chat. */
   kind?: "outside";
   /** The outside card's own facts, present exactly when `kind` is `outside`. */
@@ -110,6 +112,11 @@ export interface Live {
   engine?: ChatEngineView | null;
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
+  /**
+   * The replies proposed in this chat that wait on the person or are being drafted (plan 067), as heard live; null until
+   * the chat's state or an event said, when the list's row is what counts.
+   */
+  replyProposals: ReplyProposal[] | null;
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -191,6 +198,7 @@ export function emptyLive(): Live {
     inTurn: false,
     queued: [],
     suggestions: [],
+    replyProposals: null,
   };
   return l;
 }
@@ -221,6 +229,7 @@ export function faceOf(l: Live): readonly unknown[] {
     l.cwd,
     l.engine,
     l.suggestions,
+    l.replyProposals,
     l.thread.streaming,
   ];
 }
@@ -282,7 +291,9 @@ export type ChatEvent =
   /** The turn ended. */
   | { kind: "turn_end"; turn_id?: string }
   /** The chat's open suggestions (plan 049), whole, on every change to any of them: the screen shows exactly these. */
-  | { kind: "suggestions"; suggestions: Suggestion[] };
+  | { kind: "suggestions"; suggestions: Suggestion[] }
+  /** The chat's open reply proposals (plan 067, KTD9), whole, on every change to any of them. */
+  | { kind: "reply_proposals"; proposals: ReplyProposal[] };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
@@ -364,6 +375,9 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "suggestions":
       l.suggestions = e.suggestions;
       return { changed: true, userSpoke: false };
+    case "reply_proposals":
+      l.replyProposals = e.proposals;
+      return { changed: true, userSpoke: false };
     case "turn_end":
       if (e.turn_id) l.turnId = e.turn_id;
       l.thread.settle(now);
@@ -435,7 +449,8 @@ export function buildItems(
     const seenAt = seen[key] ?? null;
     const unread = !!lastMessageAt && lastRole === "assistant" && (!seenAt || seenAt < lastMessageAt);
     let status: AttentionStatus = "idle";
-    if (l?.pending) status = "approval";
+    // A reply its agent proposed is an approval in every permission mode (KTD9): the card is blocked until you decide.
+    if (l?.pending || waitingReplies(c, l).length > 0) status = "approval";
     else if (l?.pendingAsk) status = "question";
     else if (l?.error && unread) status = "failed";
     else if (l?.loop === "running") status = "running";
@@ -463,6 +478,14 @@ export function buildItems(
     const key = keyOf(i.agent_id, i.id);
     return key in rests ? { ...i, ...restState(i, rests[key], now) } : i;
   });
+}
+
+/**
+ * The replies proposed in a chat that wait on the person: as heard live once the chat is followed, else as its list row
+ * has them. One being drafted is the person's decision already, so it waits on no one.
+ */
+export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: Pick<Live, "replyProposals"> | undefined): ReplyProposal[] {
+  return (l?.replyProposals ?? c.reply_proposals ?? []).filter((p) => p.status === "pending");
 }
 
 /**
