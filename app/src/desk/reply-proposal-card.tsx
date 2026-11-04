@@ -4,6 +4,7 @@ import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ChatFace } from "../../../core/attention/use-attention.ts";
 import type { ReplyProposal } from "../../../core/frame-types.ts";
 import type { ReplyAction } from "../../../core/frames.ts";
+import { messageOf } from "../../../core/errors.ts";
 import { Button, Meta, TextArea, sentence } from "../components";
 
 /**
@@ -80,9 +81,15 @@ function ReplyProposalCard({
   const size = touch ? "touch" : "sm";
   const act = async (action: ReplyAction) => {
     setBusy(true);
-    const out = await onDecide(action, action === "approve" ? { text: text === p.text ? null : text, replace: refused?.replace === true } : {});
-    setBusy(false);
-    setRefused(out.done ? null : { message: out.message, replace: out.replace });
+    try {
+      const out = await onDecide(action, action === "approve" ? { text: text === p.text ? null : text, replace: refused?.replace === true } : {});
+      setRefused(out.done ? null : { message: out.message, replace: out.replace });
+    } catch (err: unknown) {
+      // A call that throws leaves the card usable and says why, rather than holding its buttons off for good.
+      setRefused({ message: messageOf(err), replace: false });
+    } finally {
+      setBusy(false);
+    }
   };
   // The Inbox's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
