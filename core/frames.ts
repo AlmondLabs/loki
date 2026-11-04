@@ -11,6 +11,7 @@ import type { FocusEntry } from "./attention/focus.ts";
 import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
+  AccountView,
   DeskStatus,
   DeskSummary,
   DeviceSummary,
@@ -272,6 +273,8 @@ export interface Replies {
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
   /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
   suggestion_added: { suggestion: Suggestion };
+  /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
+  accounts: { accounts: AccountView[] };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -370,6 +373,8 @@ export interface Pushes {
   group_changed: NoPayload;
   /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
   chat_left: { agent_id: string | null; conversation_id: string; to: string };
+  /** An account here was connected, moved, disconnected or changed status (plan 067): clients and paired Macs ask again. */
+  accounts_changed: NoPayload;
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
@@ -1020,6 +1025,24 @@ export const FRAMES = {
     BETWEEN_MACS,
   ),
   peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, BETWEEN_MACS),
+  peer_accounts_get: request(
+    "accounts",
+    "the accounts connected on this Mac, so another Mac refuses to connect one twice (plan 067, KTD14)",
+    nothing,
+    false,
+    BETWEEN_MACS,
+  ),
+
+  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace on this Mac and the agent that owns it.
+  account_list: request("accounts", "the accounts connected on this Mac and the agent that owns each", nothing),
+  account_move: request("accounts", "give an account to another agent, which gets its hand-offs and its tools from now on", (m) =>
+    str(m.account_id) && m.account_id && isAgentId(m.owner_agent_id)
+      ? { account_id: m.account_id, owner_agent_id: m.owner_agent_id }
+      : "account_id and owner_agent_id required",
+  ),
+  account_disconnect: request("accounts", "disconnect an account: loki forgets it and its sign-in", (m) =>
+    str(m.account_id) && m.account_id ? { account_id: m.account_id } : "account_id required",
+  ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),
@@ -1056,6 +1079,7 @@ export const FRAMES = {
   restart_due: push("a checkout's code changed, so an update is due (a page build, a restart); the window offers it (plans 024 and 041)"),
   group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
   chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
+  accounts_changed: push("an account on this Mac was connected, moved, disconnected or changed status; sent to paired Macs too (plan 067)"),
 } as const;
 
 type Table = typeof FRAMES;

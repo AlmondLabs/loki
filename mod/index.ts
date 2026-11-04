@@ -43,6 +43,7 @@ import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
+import { Accounts } from "./accounts.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -229,6 +230,15 @@ export default function activate(api: ModApi, host: Host): () => void {
     moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
+  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace here and the one agent that owns it. Its
+  // secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a change.
+  const accounts = new Accounts({
+    file: join(paths.state, "accounts.json"),
+    secrets: host.secrets,
+    agentExists: (id) => readLocalAgent(id) !== null,
+    heldElsewhere: (id) => macs.accountHeldBy(id),
+  });
+  accounts.onChange(() => broadcast({ type: "accounts_changed" }));
   // Suggestions (plan 049): kept on the records of this Mac's chats and carried out here, sending to the Mac each
   // target lives on and waiting for its answer (mod/suggestions.ts).
   const suggestions = host.suggestions
@@ -299,6 +309,7 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   const moduleDeps: ModuleDeps = {
     store,
+    accounts,
     widgets,
     gestures,
     // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).
@@ -349,8 +360,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     peers: macs.frames,
     chatBlocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId),
     titleFrame: (agentId, conversationId) => listing.titleFrame(scopeFor(conversationId, agentId)),
-    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5).
-    agentDeleteBlocked: (agentId) => macs.agentDeleteBlocked(agentId),
+    // Deleting an agent while a Mac out of reach holds its chats would leave them there (KTD6, addendum D5); one that
+    // owns accounts, here or on a paired Mac, would leave them without an owner (plan 067, R4).
+    agentDeleteBlocked: (agentId) => accounts.deleteBlocked(agentId) ?? macs.agentDeleteBlocked(agentId),
     agents: {
       get: (id) => readLocalAgent(id),
       tree: (id) => memoryTree(id),

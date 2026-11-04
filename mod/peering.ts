@@ -8,6 +8,7 @@ import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config
 import type { SecretBackend } from "../daemon/credentials.ts";
 import type { MemoryRepos } from "../daemon/memory-sync.ts";
 import { homeOf as recordHome, readRecord } from "../daemon/store/agent-sync.ts";
+import { PeerAccounts } from "./accounts.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
 import { ChatDirectory } from "./chat-directory.ts";
 import { ChatMoves } from "./chat-moves.ts";
@@ -100,8 +101,13 @@ export interface Peering {
   chatBlocked(agentId: string, conversationId: string): string | null;
   /** A Mac by its id, this one for null or its own id: its name, and whether it can be reached now. */
   mac(macId: string | null): { name: string; reachable: boolean };
-  /** Why an agent may not be deleted now (a Mac out of reach holds its chats, KTD6), or null. */
+  /**
+   * Why an agent may not be deleted now, or null: a Mac out of reach holds its chats (KTD6), or a paired Mac holds
+   * accounts it owns (plan 067, KTD14), which are moved or disconnected on that Mac first.
+   */
   agentDeleteBlocked(agentId: string): string | null;
+  /** The name of the paired Mac that holds an account, as it last said, or null (plan 067, KTD14). */
+  accountHeldBy(accountId: string): string | null;
   /** A picture not here, from whichever paired Mac in reach holds it (plan 029). */
   chatImage(name: string): Promise<Buffer | null>;
   /** The listener is up: keep it up for the paired Macs, and open a link to each. */
@@ -209,6 +215,12 @@ export function startPeering(deps: PeeringDeps): Peering {
         reached: (id) => peerGroup.meshWith(id),
         pushes: { group_changed: (id) => peerGroup.meshWith(id) },
       },
+      // The accounts each Mac holds (plan 067, KTD14): one account is connected on one Mac only.
+      {
+        name: "accounts",
+        reached: (id) => peerAccounts.pull(id),
+        pushes: { accounts_changed: (id) => peerAccounts.pull(id) },
+      },
       // It let a chat go (addendum B3): frames for it go to the new home now, and that Mac's list has it.
       {
         name: "directory",
@@ -231,6 +243,8 @@ export function startPeering(deps: PeeringDeps): Peering {
     // A Mac's list is its word on which chats it holds (addendum B5).
     onListed: (id, scopes) => directory.heard(id, { kind: "holds", scopes }),
   });
+  // The paired Macs' accounts, kept through a Mac's time out of reach so its owners' deletion stays refused here.
+  const peerAccounts = new PeerAccounts({ link: (id) => links.get(id), name: (id) => peerStore.get(id)?.name ?? "another Mac" });
   // Where each chat lives (addendum B): this Mac's from its store, each paired Mac's from its own word.
   const directory: ChatDirectory = new ChatDirectory({
     here: macId,
@@ -355,6 +369,7 @@ export function startPeering(deps: PeeringDeps): Peering {
       awake.set(peerStore.size() > 0);
       links.sync(peerStore.list());
       remoteChats.sync(peerStore.list().map((p) => p.mac_id));
+      peerAccounts.sync(peerStore.list().map((p) => p.mac_id));
       for (const id of known) if (!peerStore.get(id)) directory.forget(id);
       known = new Set(peerStore.list().map((p) => p.mac_id));
       sockets.push({ type: "peers", ...peersView() }, { to: "desktop" });
@@ -417,8 +432,10 @@ export function startPeering(deps: PeeringDeps): Peering {
       id === null || id === macId ? { name: thisMacName, reachable: true } : { name: peerStore.get(id)?.name ?? "another Mac", reachable: links.reachable(id) },
     agentDeleteBlocked: (agentId) => {
       const away = remoteChats.awayWith(agentId);
-      return away ? `${peerStore.get(away)?.name ?? "another Mac"} is out of reach and has this agent's chats: delete it once that Mac is back` : null;
+      if (away) return `${peerStore.get(away)?.name ?? "another Mac"} is out of reach and has this agent's chats: delete it once that Mac is back`;
+      return peerAccounts.deleteBlocked(agentId);
     },
+    accountHeldBy: (accountId) => peerAccounts.heldBy(accountId),
     chatImage: async (name) => {
       for (const p of peerStore.list()) {
         if (!links.reachable(p.mac_id)) continue;

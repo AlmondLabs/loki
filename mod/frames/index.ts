@@ -1,5 +1,6 @@
 import { SHARED_SCOPE, type Scope } from "../../core/desk-core.ts";
 import type { PushFrame } from "../../core/frames.ts";
+import { accountFrames, type AccountsDeps } from "./accounts.ts";
 import { agentsFrames, type AgentsDeps } from "./agents.ts";
 import { captureFrames } from "./capture.ts";
 import { chatFrames, type ChatDeps } from "./chat.ts";
@@ -27,6 +28,7 @@ export type ModuleDeps = DesksDeps &
   ChatDeps &
   SuggestionDeps &
   UsageDeps &
+  AccountsDeps &
   DaemonDeps;
 
 /** Every feature's frame handlers (glossary.md: Frame handler), one module per feature. */
@@ -44,6 +46,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     chatFrames(deps),
     suggestionFrames(deps),
     usageFrames(deps),
+    accountFrames(deps),
     daemonFrames(deps),
   ];
 }

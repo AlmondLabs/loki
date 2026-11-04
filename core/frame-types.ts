@@ -371,3 +371,27 @@ export interface McpView {
   problems: string[];
   config_path: string;
 }
+
+/** The services an Inbox account connects (plan 067): a Gmail mailbox or a Slack workspace. */
+export type AccountProvider = "gmail" | "slack";
+/**
+ * Why an account stopped working, as an id the app turns into words and a way back (plan 067, R22): Google wants a new
+ * sign-in, a workspace admin blocks the app, the Slack desktop app signed out, or the service keeps failing for now.
+ */
+export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_signed_out" | "temporarily_failing";
+/** Whether an account is watched: connected, or disconnected with its cause. */
+export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
+
+/**
+ * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, or
+ * a Slack workspace's name), and the one agent that owns it. It never carries a token.
+ */
+export interface AccountView {
+  /** The provider and its stable id: `gmail:<address>` or `slack:<team_id>:<user_id>` (mod/accounts.ts accountIdOf). */
+  account_id: string;
+  provider: AccountProvider;
+  address: string;
+  owner_agent_id: string;
+  status: AccountStatus;
+  connected_at: string;
+}
