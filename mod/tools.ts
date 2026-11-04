@@ -90,12 +90,13 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
 }
 
 /** What a tool's body is told about its call: the arguments, and the chat and agent making it. */
-interface Call {
+export interface Call {
   args: Record<string, unknown>;
   conversation: { id: string };
   agent: { id: string; name: string };
 }
-interface LokiTool {
+/** One of loki's own tools as this mod writes it; `run` returning `{ status: "error", content }` fails the call. */
+export interface LokiTool {
   name: string;
   description: string;
   parameters: object;
@@ -106,15 +107,14 @@ interface LokiTool {
 }
 
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
-const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+export const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 /**
- * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and chat_list with the suggestion tools when
- * the daemon keeps suggestions); returns the functions that unregister them.
+ * Registers loki's own tools through the mod API, each returning the function that unregisters it. A result of
+ * `{ status: "error", content }` is a failed call with that message.
  */
-export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
-  /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
-  const tools = {
+export function toolRegistrar(api: ModApi): { register: (tool: LokiTool) => () => void } {
+  return {
     register: (tool: LokiTool) =>
       api.tools.register({
         name: tool.name,
@@ -132,6 +132,14 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         },
       }),
   };
+}
+
+/**
+ * Registers the agent's tools with the daemon (canvas_read, canvas_focus, and chat_list with the suggestion tools when
+ * the daemon keeps suggestions); returns the functions that unregister them.
+ */
+export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
+  const tools = toolRegistrar(api);
   const kitLine = Object.entries(KIT)
     .map(([t, k]) => `${t}: ${k.data_shape}`)
     .join("; ");
