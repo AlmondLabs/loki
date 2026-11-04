@@ -152,6 +152,28 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect(LokiTools.named(["memory_write"])).toEqual(["mcp__loki__memory_write"]);
   });
 
+  test("covers plan 067 U1: a mod tool for agent A only is listed for A's chat keys and not B's, as forAgent answers now", async () => {
+    const allowed = new Set(["agent-local-ada"]);
+    const mods = new ModRegistry(() => {});
+    const plain = { description: "A tool.", parameters: { type: "object", properties: {} }, execute: () => "ok" };
+    await mods.load({
+      name: "accounts",
+      apiVersion: 1,
+      activate: (api) => {
+        api.tools.register({ name: "everyone", ...plain });
+        api.tools.register({ name: "account_read", ...plain, forAgent: (agentId) => allowed.has(agentId) });
+      },
+    });
+    const { tools } = await setup(() => Promise.resolve(mods.chatTools()));
+    const ada = await connect(http(tools.serverFor("agent-local-ada", "local-conv-garden") ?? undefined));
+    const bo = await connect(http(tools.serverFor("agent-local-bo", "local-conv-shed") ?? undefined));
+    const names = async (client: Client) => (await client.listTools()).tools.map((t) => t.name);
+    expect(await names(ada)).toEqual(["everyone", "account_read"]);
+    expect(await names(bo)).toEqual(["everyone"]);
+    allowed.add("agent-local-bo");
+    expect(await names(bo)).toEqual(["everyone", "account_read"]);
+  });
+
   test("an ordinary chat's calls are not kept: nothing would ever take them", async () => {
     const { tools, conversationId } = await setup();
     const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));

@@ -1,20 +1,23 @@
 import type { Context } from "@earendil-works/chord";
 import {
+  configure,
   createRegistry,
   defineExtension,
   GenerationTask,
   hook,
   section,
   ToolTask,
+  type Conversation,
   type ConversationId,
   type DocumentReader,
   type Extension,
   type HookRegistration,
   type Registry,
+  type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { kindOf } from "../approvals.ts";
 import { piTool, type ChatTool } from "../chat-tools.ts";
-import { AgentInfoDoc, ChatDoc } from "../kernel/index.ts";
+import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import {
   MOD_API_VERSION,
   type BeforeToolResult,
@@ -69,13 +72,18 @@ function resultText(value: unknown): string | undefined {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
-/** A mod's tool as one of loki's chat tools: it hears the chat's ids, the abort signal and an output stream. */
-function modChatTool(tool: ModTool): ChatTool {
+/**
+ * A mod's tool as one of loki's chat tools: it hears the chat's ids, the abort signal and an output stream, and its
+ * `forAgent`, when it has one, as `forAgent` (a predicate that throws hides the tool, said through `report`).
+ */
+function modChatTool(tool: ModTool, report: (message: string) => void): ChatTool {
+  const forAgent = tool.forAgent;
   return {
     name: tool.name,
     description: tool.description,
     parameters: tool.parameters,
     kind: kindOf(tool.name, tool.annotations),
+    ...(forAgent ? { forAgent: (agentId: string) => listedFor(tool.name, forAgent, agentId, report) } : {}),
     run: async (args, call, context) => {
       const ref = await chatRef(call.read, call.conversationId, context);
       const text = resultText(await tool.execute(args, { ...ref, signal: call.signal, output: call.output }));
@@ -83,6 +91,19 @@ function modChatTool(tool: ModTool): ChatTool {
     },
   };
 }
+
+/** Whether a tool's `forAgent` offers it to `agentId`; one that throws (a mod is the person's own code) does not. */
+function listedFor(name: string, forAgent: (agentId: string) => boolean, agentId: string, report: (message: string) => void): boolean {
+  try {
+    return forAgent(agentId);
+  } catch (error) {
+    report(`tool ${name}: forAgent failed, so it is hidden: ${messageOf(error)}`);
+    return false;
+  }
+}
+
+/** The same names, in any order. */
+const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && new Set([...a, ...b]).size === new Set(a).size;
 
 /** The daemon's mods, by name, each as one pi-durable extension in the shared `registry`. */
 export class ModRegistry {
@@ -183,7 +204,34 @@ export class ModRegistry {
 
   /** Every loaded mod's tools, for a chat on an ACP agent (plan 044); each runs as it does on loki's own engine. */
   chatTools(): ChatTool[] {
-    return [...this.loaded.values()].flatMap((entry) => entry.pieces.tools.map(modChatTool));
+    return [...this.loaded.values()].flatMap((entry) => entry.pieces.tools.map((tool) => modChatTool(tool, (m) => this.report(`${entry.mod.name}: ${m}`))));
+  }
+
+  /**
+   * Set a chat's tool filter before it runs on loki's engine (plan 067, KTD10): the mod tools whose `forAgent` says no
+   * for the chat's agent are hidden, the rest shown, and the names others hid (MCP's, daemon/mcp/) are kept. Asked
+   * before each turn, so the list follows what `forAgent` answers now. A chat that names its tools outright (a
+   * background pass's) is left alone. Writes only when something changed.
+   */
+  async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
+    const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
+    if (Array.isArray(settings?.tools)) return;
+    const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id ?? "";
+    const tools = this.chatTools();
+    const ours = new Set(tools.map((t) => t.name));
+    const removed = settings?.tools?.remove ?? [];
+    const hide = tools.filter((t) => t.forAgent && !t.forAgent(agentId)).map((t) => t.name);
+    const next = [...removed.filter((n) => !ours.has(n)), ...hide];
+    if (sameSet(next, removed)) return;
+    const registered = new Map(
+      this.registry
+        .snapshot()
+        .tools()
+        .map(({ tool }) => [tool.name, tool]),
+    );
+    await chat.commit(async (tx) => {
+      await configure(tx, chat.id, { tools: { remove: next.map((n) => registered.get(n) ?? ({ name: n } as ToolRegistration)) } });
+    }, context);
   }
 
   /** What a mod says a tool of its does (daemon/approvals.ts), when one of the loaded mods has it. */
@@ -250,7 +298,7 @@ export class ModRegistry {
   /** One mod's pieces as a pi-durable extension. */
   private extension(name: string, pieces: Pieces): Extension {
     const notify = <K extends keyof ModEvents>(event: K, payload: ModEvents[K]) => this.notify(name, pieces, event, payload);
-    const tools = pieces.tools.map((tool) => piTool(modChatTool(tool)));
+    const tools = pieces.tools.map((tool) => piTool(modChatTool(tool, (m) => this.report(`${name}: ${m}`))));
     const sections = pieces.sections.map(({ key, render }) =>
       section(key, async (input, context) => render({ ...(await chatRef(input.read, input.conversationId, context)), cwd: input.agent.cwd })),
     );

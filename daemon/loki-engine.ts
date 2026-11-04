@@ -159,6 +159,7 @@ export class LokiEngine implements Engine {
           ? `Please remember this in your memory: ${what}`
           : "Look back over this conversation and save to your memory whatever is worth keeping.";
         await this.deps.mcp?.prepare(c.store, c.chat, this.deps.context);
+        await this.deps.mods.prepare(c.store, c.chat, this.deps.context);
         await c.chat.submit({ type: "input", content: text }, this.deps.context);
         return { success: true, output: "asked the agent to remember" };
       }
@@ -167,9 +168,10 @@ export class LokiEngine implements Engine {
     }
   }
 
-  /** Before a message goes in: the chat's MCP tools set, and the chat followed. */
+  /** Before a message goes in: the chat's MCP tools and its agent's mod tools set, and the chat followed. */
   private async ready(c: EngineChat): Promise<void> {
     await this.deps.mcp?.prepare(c.store, c.chat, this.deps.context);
+    await this.deps.mods.prepare(c.store, c.chat, this.deps.context);
     await this.watch(c);
   }
 

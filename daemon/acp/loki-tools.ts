@@ -130,10 +130,14 @@ export class LokiTools {
     }
   }
 
-  /** One request's MCP server: loki's tools, each run as `chat`. */
+  /**
+   * One request's MCP server: loki's tools for the chat's agent (a tool's `forAgent`, plan 067, asked afresh with each
+   * request, so a listing follows its latest answer), each run as `chat`.
+   */
   private server(chat: ChatKey): McpServer {
     const server = new McpServer({ name: LOKI_TOOLS_SERVER, version: this.deps.version });
-    for (const tool of this.deps.tools().filter((t) => !chat.only || chat.only.has(t.name)))
+    const served = this.deps.tools().filter((t) => (!chat.only || chat.only.has(t.name)) && (!t.forAgent || t.forAgent(chat.agentId)));
+    for (const tool of served)
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: schema(tool.parameters), annotations: { readOnlyHint: tool.kind === "read" } },

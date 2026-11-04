@@ -100,6 +100,8 @@ interface LokiTool {
   description: string;
   parameters: object;
   annotations?: { readOnly?: boolean };
+  /** The agents whose chats are offered the tool (plan 067, KTD10); absent, every agent's. */
+  forAgent?: (agentId: string) => boolean;
   run(ctx: Call): unknown;
 }
 
@@ -119,6 +121,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         description: tool.description,
         parameters: tool.parameters,
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
+        ...(tool.forAgent ? { forAgent: tool.forAgent } : {}),
         execute: async (args, c) => {
           const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName } });
           if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") {
