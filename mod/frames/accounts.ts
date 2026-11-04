@@ -1,5 +1,6 @@
 import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
+import type { Handoff } from "../handoff.ts";
 import type { GoogleSignIn } from "../google-signin.ts";
 import type { SlackSessions } from "../slack-session.ts";
 import { SlackClient } from "../slack.ts";
@@ -21,6 +22,8 @@ export interface AccountConnectDeps {
 export interface AccountsDeps {
   accounts?: Pick<Accounts, "list" | "get" | "add" | "setStatus" | "moveOwner" | "disconnect">;
   threads?: Pick<AccountThreads, "archive">;
+  /** Handing a card's thread to its owner's chat (mod/handoff.ts). */
+  handoff?: Pick<Handoff, "propose" | "handOff">;
   connect?: AccountConnectDeps;
 }
 
@@ -32,7 +35,7 @@ const NO_OWNER = "an account needs an owner: pick the agent it belongs to";
  * disconnecting one; and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
  * now stands, without secrets or the watcher's cursor; the host tells every client when it changed. Archiving an
  * outside card (U3) writes back to its account here, on the Mac the account lives on, and answers with the reason when
- * that failed, so the card comes back.
+ * that failed, so the card comes back. Handing a card off (U8) is proposed and carried out on that Mac too.
  */
 export function accountFrames(deps: AccountsDeps): FrameHandlers {
   const need = () => {
@@ -96,6 +99,23 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
       return reply({ account_id: accountId, thread_id: threadId });
+    },
+    account_thread_handoff_propose: ({ account_id: accountId, thread_id: threadId }) => {
+      if (!deps.handoff) return fail("handing off is not available in this mod");
+      try {
+        return reply(deps.handoff.propose(accountId, threadId));
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+    },
+    account_thread_handoff: async ({ account_id: accountId, thread_id: threadId, conversation_id: conversationId }) => {
+      if (!deps.handoff) return fail("handing off is not available in this mod");
+      try {
+        const out = await deps.handoff.handOff(accountId, threadId, { conversation_id: conversationId });
+        return reply({ account_id: accountId, thread_id: threadId, ...out });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
     },
     account_disconnect: async ({ account_id: accountId }) => {
       try {

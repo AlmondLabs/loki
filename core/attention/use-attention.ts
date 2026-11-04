@@ -22,7 +22,7 @@ import { focusShares, type FocusEntry } from "./focus.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { Suggestion } from "../frame-types.ts";
+import type { HandoffProposal, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -111,6 +111,15 @@ export interface ChatViews {
   conversation: (agentId: string, conversationId: string) => ChatFace;
   watchThreads: (onChange: () => void) => () => void;
   threadRows: (agentId: string, conversationId: string) => TranscriptRow[] | undefined;
+}
+
+/**
+ * Handing an outside card to its account's agent (plan 067, U8): what loki proposes, and the hand-off itself, to one
+ * of the agent's chats or to a new chat when `conversationId` is null. Both resolve to the reason in words when refused.
+ */
+export interface HandoffSource {
+  handoffPropose: (item: AttentionItem) => Promise<HandoffProposal | string>;
+  handoff: (item: AttentionItem, conversationId: string | null) => Promise<string | null>;
 }
 
 /**
@@ -462,6 +471,8 @@ export function useAttention(opts: UseAttentionOptions) {
     unread: markNotDone,
     archive,
     unarchive,
+    handoffPropose: store.handoffPropose,
+    handoff: store.handoff,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
     shown,

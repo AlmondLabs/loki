@@ -75,6 +75,8 @@ describe("the frame table", () => {
         "suggestion_decide",
         "suggestion_retarget",
         "account_thread_archive",
+        "account_thread_handoff_propose",
+        "account_thread_handoff",
       ].sort(),
     );
   });
@@ -535,7 +537,15 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "suggestion_retarget",
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
-    expect(by("home")).toEqual(["account_thread_archive", "chat_requirements", "folder_check", "folder_complete", "folders_get"]);
+    expect(by("home")).toEqual([
+      "account_thread_archive",
+      "account_thread_handoff",
+      "account_thread_handoff_propose",
+      "chat_requirements",
+      "folder_check",
+      "folder_complete",
+      "folders_get",
+    ]);
     expect(by("new-chat")).toEqual(["chat_create"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "chat")).toEqual(["chat_event"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["desk", "state", "widget_change", "widgets"]);

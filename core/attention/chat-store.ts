@@ -19,7 +19,7 @@ import {
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { SuggestionAction } from "../frames.ts";
-import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -784,6 +784,30 @@ export class ChatStore {
     const o = card.outside;
     if (!o) return "this card is not from an account";
     const err = await this.tried((c) => c.archiveOutside(o.account_id, o.thread_id, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+    return null;
+  };
+
+  /**
+   * What handing an outside card off proposes (plan 067, R15), from the Mac its account lives on; resolves to the
+   * proposal, or the reason in words when it could not be had.
+   */
+  handoffPropose = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<HandoffProposal | string> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    return this.attempt((c) => c.handoffPropose(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /**
+   * Hand an outside card's thread to its account's agent (plan 067, R16): to `conversationId`, one of its chats, or a
+   * new chat when null. On success the card leaves the list at once (the Mac's change push brings the new chat);
+   * resolves to the reason when it did not go, and the card stays.
+   */
+  handoff = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, conversationId: string | null): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.handoff(o.account_id, o.thread_id, conversationId, card.home ?? null));
     if (err) return err;
     this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;

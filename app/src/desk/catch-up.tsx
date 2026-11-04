@@ -4,7 +4,7 @@ import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
+import { useConversation, type ChatViews, type HandoffSource } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
 import { OpenChat } from "../chat/transcript";
@@ -17,7 +17,8 @@ import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysH
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
-import { OutsideCard } from "./outside-card";
+import { OutsideCard, wentTo } from "./outside-card";
+import { HandoffPicker } from "./handoff-picker";
 
 /**
  * The Inbox: every chat you have not archived, one at a time, highest score first (core/attention/priority.ts):
@@ -46,8 +47,11 @@ interface CatchUpProps {
   /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
-  /** The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions (plan 049). */
-  chats: ChatViews & SuggestionSource;
+  /**
+   * The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions
+   * (plan 049) and the hand-off of an outside card (plan 067); without that, outside cards have no hand off.
+   */
+  chats: ChatViews & SuggestionSource & Partial<HandoffSource>;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -118,6 +122,10 @@ function CatchUpDeck(props: DeckProps) {
   const live = useMemo(() => new Map(items.map((i) => [idOf(i), i])), [items]);
 
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
+  /** The card whose hand-off picker is open; another card on top closes it. */
+  const [picking, setPicking] = useState<string | null>(null);
+  const { handoffPropose, handoff } = props.chats;
+  const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
 
@@ -248,6 +256,22 @@ function CatchUpDeck(props: DeckProps) {
               typing={typing}
               next={actions.next}
               archive={actions.archive}
+              went={wentTo(current.outside, items)}
+              onHandoff={handoffSource ? () => setPicking(idOf(current)) : undefined}
+              picker={
+                handoffSource && picking === idOf(current) ? (
+                  <HandoffPicker
+                    item={current}
+                    source={handoffSource}
+                    onCancel={() => setPicking(null)}
+                    onDone={() => {
+                      setPicking(null);
+                      // The thread went to its chat: the card leaves this visit, and comes back only on a new message.
+                      setQueue((q) => q.filter((i) => idOf(i) !== idOf(current)));
+                    }}
+                  />
+                ) : null
+              }
             />
           </div>
         ) : (

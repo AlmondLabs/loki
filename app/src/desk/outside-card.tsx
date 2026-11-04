@@ -1,4 +1,5 @@
 import type { AccountDisconnectCause, AccountProvider, OutsideFacts } from "../../../core/frame-types.ts";
+import type { ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { Button, Chip, Meta, Title } from "../components";
 import { ago, deckKey } from "./catch-up-parts";
@@ -46,8 +47,20 @@ export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; to
 }
 
 /**
+ * What a follow-up card says of the chat its thread went to before (R19): that chat's title when the list has it, else
+ * that it went to a chat; null for a thread never handed off.
+ */
+export function wentTo(o: OutsideFacts, items: readonly AttentionItem[]): string | null {
+  if (!o.handoff_conversation_id) return null;
+  const chat = items.find((i) => !i.outside && i.agent_id === o.owner_agent_id && i.id === o.handoff_conversation_id);
+  return chat?.title ? `went to ${chat.title}` : "went to a chat before";
+}
+
+/**
  * The desktop card for an outside thread: the header (sender, subject, account and owner, and the badge's flash), the
- * thread's last lines, and the deck's moves. Archive here archives the thread in its account; Next sets it aside.
+ * thread's last lines, and the deck's moves. Archive here archives the thread in its account; Next sets it aside;
+ * hand off opens `picker`, where the thread goes to its account's agent (U8), and is off while the account is
+ * disconnected.
  */
 export function OutsideCard({
   current,
@@ -57,6 +70,9 @@ export function OutsideCard({
   typing,
   next,
   archive,
+  went = null,
+  onHandoff,
+  picker = null,
 }: {
   current: AttentionItem;
   facts: OutsideFacts;
@@ -65,6 +81,12 @@ export function OutsideCard({
   typing: boolean;
   next: () => void;
   archive: () => void;
+  /** The chat the thread went to before, in words (`wentTo`). */
+  went?: string | null;
+  /** Open the hand-off picker; absent, the card has no hand off. */
+  onHandoff?: () => void;
+  /** The hand-off picker while it is open. */
+  picker?: ReactNode;
 }) {
   const badge = current.unread ? "new" : "";
   return (
@@ -85,7 +107,7 @@ export function OutsideCard({
             <span style={{ fontSize: 12, fontWeight: 600 }}>{facts.sender}</span>
             <Meta>{outsideWho(facts)}</Meta>
             <Meta>{ago(facts.newest_at)}</Meta>
-            {facts.handoff_conversation_id && <Meta>handed off before</Meta>}
+            {went && <Meta>{went}</Meta>}
             {cameBack && <Meta>back · new since you moved on</Meta>}
           </div>
         </div>
@@ -99,7 +121,23 @@ export function OutsideCard({
         )}
         <OutsideLines facts={facts} />
       </div>
+      {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
+        {onHandoff && (
+          <Button
+            size="sm"
+            tone="positive"
+            onClick={onHandoff}
+            disabled={!!facts.disconnected || !!picker}
+            title={
+              facts.disconnected
+                ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+                : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
+            }
+          >
+            hand off
+          </Button>
+        )}
         <Button
           size="sm"
           onClick={archive}

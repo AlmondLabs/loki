@@ -53,6 +53,7 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
+import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -280,22 +281,32 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return client;
   };
-  accounts.onChange((change) => gmailClients.delete(change.account_id));
+  // One Slack client per workspace too, shared by its watcher and the hand-off's reading of a thread.
+  const slackClients = new Map<string, SlackClient>();
+  const slackClient = (accountId: string): SlackClient => {
+    let client = slackClients.get(accountId);
+    if (!client) {
+      // A Slack account's id is `slack:<team_id>:<user_id>` (accountIdOf).
+      const teamId = accountId.split(":")[1] ?? "";
+      client = new SlackClient({
+        session: (fresh) => slackSessions.get(teamId, fresh),
+        setStatus: (status) => accounts.setStatus(accountId, status),
+      });
+      slackClients.set(accountId, client);
+    }
+    return client;
+  };
+  accounts.onChange((change) => {
+    gmailClients.delete(change.account_id);
+    slackClients.delete(change.account_id);
+  });
   threads.register("gmail", gmailOutsideSource(gmailClient));
   // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
     factories: {
       gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id) }),
-      slack: (account) => {
-        // A Slack account's id is `slack:<team_id>:<user_id>` (accountIdOf).
-        const teamId = account.account_id.split(":")[1] ?? "";
-        const client = new SlackClient({
-          session: (fresh) => slackSessions.get(teamId, fresh),
-          setStatus: (status) => accounts.setStatus(account.account_id, status),
-        });
-        return new SlackSync({ accounts, threads, account, client });
-      },
+      slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id) }),
     },
     report: log,
   });
@@ -316,6 +327,17 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
+  // Hand-off (plan 067, U8): a card's whole thread, read with the clients above, sent to its owner's chat through the
+  // same chat caller suggestions use, so a new chat is made on the owner's Mac.
+  const handoff = new Handoff({
+    file: join(paths.state, "handoffs.json"),
+    accounts,
+    threads,
+    chats: () => macs.desks(),
+    agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
+    call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
+  });
   // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
   // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
   // at a time, so two runs never add the same task twice; start does not wait for it.
@@ -372,6 +394,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     store,
     accounts,
     threads,
+    handoff,
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     widgets,
     gestures,

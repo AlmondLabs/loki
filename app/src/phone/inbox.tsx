@@ -4,7 +4,7 @@ import { LabelChips } from "../chat/labels";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
-import { useConversation, type ChatViews } from "../../../core/attention/use-attention.ts";
+import { useConversation, type ChatViews, type HandoffSource } from "../../../core/attention/use-attention.ts";
 import { OpenChat, type TranscriptRow } from "../chat/transcript";
 import { openConversation } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
@@ -21,7 +21,8 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
-import { OutsideLines, disconnectedText, outsideWho } from "../desk/outside-card";
+import { OutsideLines, disconnectedText, outsideWho, wentTo } from "../desk/outside-card";
+import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
 import { onScreenOffset, releaseVelocity, type Sample } from "../kit/let-go";
@@ -399,8 +400,8 @@ export function Inbox({
   hidden?: boolean;
   /** "Mac unreachable · last seen …", or null while the link is fine. In a pass it takes the card's notice line. */
   banner?: ReactNode;
-  /** The live threads behind the cards (useAttention's), read through useConversation. */
-  chats: ChatViews;
+  /** The live threads behind the cards (useAttention's), read through useConversation, and an outside card's hand-off. */
+  chats: ChatViews & Partial<HandoffSource>;
   /** The pass, from `useDeck` in the parent. */
   deck: Deck;
   /** Where the top bar's back chevron goes, as a word ("Home"). */
@@ -505,6 +506,7 @@ export function Inbox({
               card={card}
               onOpen={onOpen}
               labelList={labelList}
+              items={items}
             />
           </div>
           <Decisions
@@ -662,8 +664,11 @@ function Stack({
   card,
   onOpen,
   labelList,
+  items,
 }: {
   labelList: readonly LabelView[] | null;
+  /** Every card in the Inbox, where a follow-up card finds the title of the chat its thread went to (R19). */
+  items: AttentionItem[];
   visible: AttentionItem[];
   leaving: Leaving | null;
   drag: { dx: number } | null;
@@ -672,7 +677,7 @@ function Stack({
   approval: boolean;
   refused: boolean;
   reduced: boolean;
-  chats: ChatViews;
+  chats: ChatViews & Partial<HandoffSource>;
   handlers: CardHandlers;
   deck: Deck;
   banner?: ReactNode;
@@ -737,7 +742,12 @@ function Stack({
           }
         >
           {item.outside ? (
-            <OutsideBody item={item} banner={banner} />
+            <OutsideBody
+              item={item}
+              banner={banner}
+              went={wentTo(item.outside, items)}
+              handoff={chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null}
+            />
           ) : (
             <LiveCardConversation
               item={item}
@@ -941,17 +951,46 @@ export function CardConversation({
 }
 
 /**
- * An outside card's body (plan 067, U3): the account's state when it stopped working, then the thread's last messages
- * as plain text. Archive sits where a chat's Open chat does, since there is no chat to open.
+ * An outside card's body (plan 067, U3, U8): the account's state when it stopped working, the chat the thread went to
+ * before, the thread's last messages as plain text, and Hand off, which opens the chats to give the thread to. Archive
+ * sits where a chat's Open chat does, since there is no chat to open.
  */
-function OutsideBody({ item, banner }: { item: AttentionItem; banner?: ReactNode }) {
+function OutsideBody({
+  item,
+  banner,
+  went = null,
+  handoff = null,
+}: {
+  item: AttentionItem;
+  banner?: ReactNode;
+  went?: string | null;
+  /** The hand-off, on the top card only. */
+  handoff?: HandoffSource | null;
+}) {
+  const [picking, setPicking] = useState(false);
   const facts = item.outside;
   if (!facts) return null;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
       {banner}
       {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
+      {went && <span className="loki-phone-meta">{sentence(went)}</span>}
       <OutsideLines facts={facts} touch />
+      {handoff &&
+        (picking ? (
+          // The card leaves the Inbox once the thread went, so there is nothing to do on done but close.
+          <HandoffPicker item={item} source={handoff} touch onCancel={() => setPicking(false)} onDone={() => setPicking(false)} />
+        ) : (
+          <Button
+            size="touch"
+            tone="positive"
+            disabled={!!facts.disconnected}
+            onClick={() => setPicking(true)}
+            aria-label={`Hand off to ${facts.owner_name ?? "its agent"}`}
+          >
+            Hand off
+          </Button>
+        ))}
     </div>
   );
 }

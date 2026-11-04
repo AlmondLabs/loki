@@ -177,6 +177,22 @@ export interface OutsideFacts {
   disconnected: AccountDisconnectCause | null;
 }
 
+/** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */
+export type HandoffTarget = { kind: "existing"; conversation_id: string; title: string } | { kind: "new"; title: string };
+
+/**
+ * What handing an outside card's thread off proposes (plan 067, R15): the chat loki picked and the owner's other open
+ * chats to pick from instead, newest first. `note` says why the chat the thread went to before is not proposed.
+ */
+export interface HandoffProposal {
+  account_id: string;
+  thread_id: string;
+  owner_agent_id: string;
+  proposed: HandoffTarget;
+  choices: Array<{ conversation_id: string; title: string }>;
+  note: string | null;
+}
+
 /**
  * Where a suggestion's message goes (plan 049, R1): an existing chat of any agent, or a new chat of an agent in a
  * folder.

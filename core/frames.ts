@@ -12,6 +12,7 @@ import { isRest, type Rest } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
   AccountView,
+  HandoffProposal,
   SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
@@ -286,6 +287,10 @@ export interface Replies {
   accounts: { accounts: AccountView[] };
   /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
   account_thread_archived: { account_id: string; thread_id: string };
+  /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
+  account_thread_handoff_proposal: HandoffProposal;
+  /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
+  account_thread_handed_off: { account_id: string; thread_id: string; agent_id: string; conversation_id: string };
   /** Google's page to open for connecting a Gmail account (plan 067, U5); the account is kept when the browser comes back. */
   account_signin: { url: string };
   /**
@@ -1070,6 +1075,32 @@ export const FRAMES = {
         : "account_id and thread_id required",
     PHONE,
     { route: "home", relists: true },
+  ),
+  account_thread_handoff_propose: request(
+    "account_thread_handoff_proposal",
+    "what handing an outside card's thread to its account's agent proposes: the chat it went to before, else a new chat, and the agent's other chats (plan 067, KTD12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_handoff: request(
+    "account_thread_handed_off",
+    "hand an outside card's thread to its account's agent: to `conversation_id`, one of its chats, else to a new chat; the whole thread goes there and the card leaves (plan 067, R15, R16); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? {
+            account_id: m.account_id,
+            thread_id: m.thread_id,
+            conversation_id: str(m.conversation_id) && m.conversation_id ? m.conversation_id : null,
+            home: strOr(m.home, null),
+          }
+        : "account_id and thread_id required",
+    PHONE,
+    // A hand-off may wait on reading a long thread and on the owner's Mac making a chat.
+    { route: "home", relists: true, timeout_ms: 60_000 },
   ),
   account_connect_gmail: request(
     "account_signin",

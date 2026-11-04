@@ -6,8 +6,11 @@ import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { AccountThreads, type OutsideSource } from "../mod/account-threads.ts";
 import { accountFrames, type AccountConnectDeps } from "../mod/frames/accounts.ts";
+import { Handoff } from "../mod/handoff.ts";
+import type { ChatCall } from "../mod/suggestions.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
-import { peerMeaning } from "../core/frames.ts";
+import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
+import { must } from "./fixtures/must.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
 const dirs: string[] = [];
@@ -16,7 +19,7 @@ afterEach(() => {
 });
 
 /** A bridge with only the account frames, over two accounts of the work agent. */
-async function fixture(source?: OutsideSource, connect?: AccountConnectDeps) {
+async function fixture(source?: OutsideSource, connect?: AccountConnectDeps, handoffOf?: (accounts: Accounts, threads: AccountThreads) => Handoff) {
   const dir = mkdtempSync(join(tmpdir(), "loki-frames-accounts-"));
   dirs.push(dir);
   const secrets = memorySecrets();
@@ -25,7 +28,8 @@ async function fixture(source?: OutsideSource, connect?: AccountConnectDeps) {
   await accounts.add({ account_id: "slack:T01:U02", provider: "slack", address: "Acme", owner_agent_id: "agent-work" });
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
   if (source) threads.register("gmail", source);
-  const bridge = bridgeOf({ modules: [accountFrames({ accounts, threads, ...(connect ? { connect } : {}) })] });
+  const handoff = handoffOf?.(accounts, threads);
+  const bridge = bridgeOf({ modules: [accountFrames({ accounts, threads, ...(connect ? { connect } : {}), ...(handoff ? { handoff } : {}) })] });
   const ask = async (frame: Record<string, unknown>, peerId?: string) => {
     const c = client("d1", undefined, peerId);
     bridge.onMessage(c, { request_id: "r1", ...frame });
@@ -113,6 +117,54 @@ describe("the account frames", () => {
 
   test("account_thread_archive goes to the Mac the account lives on, named by the card's home", () => {
     expect(peerMeaning("account_thread_archive")).toEqual({ route: "home", relists: true });
+  });
+
+  test("account_thread_handoff_propose answers the proposal; account_thread_handoff sends the thread to the chat and answers which", async () => {
+    const calls: ChatCall[] = [];
+    const { ask, threads } = await fixture(
+      undefined,
+      undefined,
+      (accounts, threads) =>
+        new Handoff({
+          file: join(must(dirs.at(-1), "the fixture's folder"), "handoffs.json"),
+          accounts,
+          threads,
+          chats: () => [{ agent_id: "agent-work", conversation_id: "c-plan", title: "Planning", status: "live", last_active: null }],
+          call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
+          threadText: { gmail: () => Promise.resolve([{ sender: "Grace", at: "2026-11-04T09:00:00.000Z", text: "hi" }]), slack: () => Promise.resolve([]) },
+        }),
+    );
+    threads.observe("gmail:ada@acme.com", { thread_id: "t1", message_id: "m1", at: "2026-11-04T09:00:00.000Z", sender: "Grace", subject: "hi", lines: ["hi"] });
+    expect(await ask({ type: "account_thread_handoff_propose", account_id: "gmail:ada@acme.com", thread_id: "t1" })).toEqual({
+      type: "account_thread_handoff_proposal",
+      request_id: "r1",
+      account_id: "gmail:ada@acme.com",
+      thread_id: "t1",
+      owner_agent_id: "agent-work",
+      proposed: { kind: "new", title: "hi" },
+      choices: [{ conversation_id: "c-plan", title: "Planning" }],
+      note: null,
+    });
+    expect(await ask({ type: "account_thread_handoff", account_id: "gmail:ada@acme.com", thread_id: "t1", conversation_id: "c-plan" })).toEqual({
+      type: "account_thread_handed_off",
+      request_id: "r1",
+      account_id: "gmail:ada@acme.com",
+      thread_id: "t1",
+      agent_id: "agent-work",
+      conversation_id: "c-plan",
+    });
+    expect(calls.map((c) => c.type)).toEqual(["chat_send"]);
+    expect(threads.rows()).toEqual([]);
+    expect(await ask({ type: "account_thread_handoff", account_id: "gmail:nobody@acme.com", thread_id: "t1" })).toMatchObject({
+      type: "error",
+      message: "that account is not connected on this Mac",
+    });
+  });
+
+  test("both hand-off frames go to the Mac the account lives on, from a paired Mac or the phone", () => {
+    expect(peerMeaning("account_thread_handoff_propose")).toEqual({ route: "home" });
+    expect(peerMeaning("account_thread_handoff")).toMatchObject({ route: "home", relists: true });
+    expect(PHONE_FRAMES.has("account_thread_handoff_propose") && PHONE_FRAMES.has("account_thread_handoff")).toBe(true);
   });
 });
 

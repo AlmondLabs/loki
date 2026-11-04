@@ -1,6 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, SuggestionTarget } from "../frame-types.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime, ServerEvent } from "./protocol.ts";
@@ -37,6 +37,8 @@ export type ChatClient = Pick<
   | "updateAgent"
   | "updateConversation"
   | "archiveOutside"
+  | "handoffPropose"
+  | "handoff"
   | "updateModel"
   | "close"
   | "onChat"
@@ -226,6 +228,27 @@ export class FrameChatClient {
    */
   async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<void> {
     await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
+  }
+
+  /** What handing an outside card's thread off proposes (plan 067, R15), asked of the Mac its account lives on. */
+  async handoffPropose(accountId: string, threadId: string, home: string | null): Promise<HandoffProposal> {
+    const r = await this.call("account_thread_handoff_propose", { account_id: accountId, thread_id: threadId, home });
+    return { account_id: r.account_id, thread_id: r.thread_id, owner_agent_id: r.owner_agent_id, proposed: r.proposed, choices: r.choices, note: r.note };
+  }
+
+  /**
+   * Hand an outside card's thread to its account's agent (plan 067, R16): to one of its chats, or a new chat when
+   * `conversationId` is null. Resolves to the chat it went to; a refusal throws its reason. Reading a long thread and
+   * making the chat on the agent's Mac may take a while, so it waits longer than a plain call.
+   */
+  async handoff(
+    accountId: string,
+    threadId: string,
+    conversationId: string | null,
+    home: string | null,
+  ): Promise<{ agent_id: string; conversation_id: string }> {
+    const r = await this.call("account_thread_handoff", { account_id: accountId, thread_id: threadId, conversation_id: conversationId, home }, 60_000);
+    return { agent_id: r.agent_id, conversation_id: r.conversation_id };
   }
 
   /** `agentId` names the chat's agent when the caller knows it, so a chat this client has not met still resolves. */
