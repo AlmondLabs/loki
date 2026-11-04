@@ -1,4 +1,5 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
+import { ChatLinks, type ChatLinksApi } from "./chat-links";
 import { Engines, type EnginesApi } from "./engines";
 import { Labels, type LabelsApi } from "./labels";
 import { useEffect, useState, type ReactNode } from "react";
@@ -86,6 +87,7 @@ export function Settings({
   globalSkills,
   mcp,
   engines,
+  links,
   labels,
   update,
   shortcut,
@@ -117,6 +119,8 @@ export function Settings({
   mcp: McpApi;
   /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
+  /** Preferences › Chat › Chat links (plan 067); left out, the block says the daemon is not linked. */
+  links?: ChatLinksApi;
   /** Preferences › Labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
   labels: LabelsApi;
   /** Newer loki releases, from GitHub (Preferences › About). */
@@ -172,6 +176,7 @@ export function Settings({
         chatPlacement={chatPlacement}
         onChatPlacement={onChatPlacement}
         approvals={chatLink === "open" ? mcp.approvals : null}
+        links={chatLink === "open" ? (links ?? null) : null}
       />
     ),
     labels: () => <LabelsPage labels={labels} chatLink={chatLink} />,
@@ -468,12 +473,14 @@ function ChatPage({
   chatPlacement,
   onChatPlacement,
   approvals,
+  links,
 }: {
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
   onChatPlacement: (p: ChatPlacement) => void;
   approvals: McpApi["approvals"] | null;
+  links: ChatLinksApi | null;
 }) {
   return (
     <>
@@ -487,6 +494,9 @@ function ChatPage({
       </Block>
       <Block title="Always allowed" help="tools that run without asking, in every chat and every mode but strict.">
         {approvals ? <AlwaysAllowed api={approvals} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
+      </Block>
+      <Block title="Chat links" help="which chats may message each other, opened on the card an agent shows when it first asks.">
+        {links ? <ChatLinks api={links} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
       </Block>
     </>
   );

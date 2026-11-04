@@ -209,7 +209,7 @@ every chat gets, the chats, then the mods.
 `mod/index.ts` is loki's product code: everything that is not a chat. It runs inside the daemon on the same mod API
 any other mod uses, and the daemon hands it the chats as its host (`chats` to read, `chat` to run). The host also
 hands it the memory repos and their queue (`memory`, plan 046), the analytics (`analytics`), this Mac's install id
-(`macId`), the keychain (`secrets`), the suggestions on each chat's record (`suggestions`), the dev reload's restart
+(`macId`), the keychain (`secrets`), the suggestions on each chat's record (`suggestions`), the link card (`askLink`), the dev reload's restart
 and build (`daemon`) and the usage ledger (`usage`). The mod is bundled apart from the daemon, so a daemon
 module with state of its own, imported there, would be a second copy; `test/build-mod.test.ts` keeps the queue out of
 the mod's bundle. The other way is allowed for what holds no state: the daemon imports the mod's paths, agent
@@ -226,9 +226,10 @@ so each bundle has its own copy and both see the same files. Anything that holds
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
-   `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line), and
-   `suggestion_create`, `suggestion_list` and `suggestion_withdraw`. These four are marked read-only and listed in
-   `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a background pass fails.
+   `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
+   links), `suggestion_create`, `suggestion_list` and `suggestion_withdraw`, and `chat_message`. These are marked
+   read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
+   background pass fails; `chat_message` asks on its own link card instead.
 4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,
    so they persist with no file of their own and move with the chat. That Mac carries out every action: a client
    sends `suggestion_decide` (send, draft, reject) or `suggestion_retarget`, routed by the chat like any chat frame;
@@ -237,12 +238,20 @@ so each bundle has its own copy and both see the same files. Anything that holds
    id as its `send_id` and a `<loki-suggested/>` mark in its context; a saved draft is a field on the target chat's
    record. `suggestion_add` exists only for `mod/task-migration.ts`, which turns each open task into a suggestion on
    its source chat's Mac once.
-5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
+5. **Chat links** (`mod/chat-links.ts`, plan 067). A chat's leave to message another, kept in
+   `~/.loki/state/chat-links.json` on each linked chat's Mac. `chat_message` with no live link asks through the host's
+   `askLink`, the daemon's `Approvals.ask` with a question whose input is the link (the app draws it as the link card);
+   an allow keeps the link here and sends `chat_link_put` to the other chat's Mac. The message is a `chat_message`
+   request routed by its chat; the Mac it lands on checks its own copy of the link and the hourly cap, then sends it in
+   with `ChatBackend.sendHeld`, which writes `turn_cap` on the chat's record before the message goes in. The approval
+   gate runs a chat with a `turn_cap` in the stricter of it and the chat's mode; the person's next message to the chat
+   while it is idle clears it.
+6. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
-6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
+7. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
    listener on `0.0.0.0:41415` for paired phones (off by default). `mod/sockets.ts` holds both, and every push
    names who it is for: everyone, this Mac's tabs, or the paired Macs only (plan 052).
-7. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
+8. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
    One rule decides which chats are the person's own: not hidden, not a background pass's, of an agent the person
    has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
    inbox shows only open chats. Both lists, a paired Mac's view of this one and the `desk_title` push read their

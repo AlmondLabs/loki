@@ -32,6 +32,8 @@ describe("the permission modes", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
     // A suggestion is already the person's decision (plan 049, KTD4): finding chats and suggesting never ask, strict included.
     for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]) expect(asks("strict", name, {}, {})).toBe(false);
+    // A chat message asks on its own link card (plan 067), which no mode stands in for.
+    expect(asks("strict", "chat_message", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });
 });
@@ -114,6 +116,34 @@ describe("approvals in a chat", () => {
     expect(again.setAlways("bash", false)).toEqual([]);
     expect(new Approvals({ alwaysPath }).always()).toEqual([]);
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("a turn another chat's message holds asks as the stricter mode, and an always-allowed tool stays allowed (plan 067)", async () => {
+    const s = await setup("unrestricted");
+    try {
+      await s.store.updateChat("c", { turn_cap: "standard" }, ctx);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "1" }, { id: "t1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      expect(s.ran).toEqual([]);
+      s.approvals.decide("approval-t1", true);
+      await run;
+      expect(s.ran).toEqual(["bash:1"]);
+      // Without the hold the same chat runs it freely.
+      await s.store.updateChat("c", { turn_cap: null }, ctx);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "2" }, { id: "t2" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      await (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
+      expect(s.ran).toEqual(["bash:1", "bash:2"]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-t1"]);
+    } finally {
+      await s.store.close(ctx);
+    }
   });
 
   test("a command waits for the person; allowed, it runs; the client following the chat sees the ask and the loop", async () => {

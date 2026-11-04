@@ -46,6 +46,8 @@ import { startPeering, type Peering } from "./peering.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
+import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
+import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
@@ -90,6 +92,11 @@ export interface Host {
    * daemon that predates them, and the suggestion frames say so.
    */
   suggestions?: SuggestionRecords;
+  /**
+   * Show the link card in a chat whose agent messages a chat it has no link to (plan 067), and wait for the person's
+   * answer or the turn's stop. Absent from a daemon that predates links, which then has no chat_message.
+   */
+  askLink?: (agentId: string, conversationId: string, link: LinkAsk, signal: AbortSignal) => Promise<LinkAnswer>;
   /**
    * The memory repos and their queue (daemon/memory-sync.ts). The mod is bundled apart from the daemon, so it takes
    * them from here: its own copy of the queue would race the daemon's commits and never hear them (plan 046).
@@ -245,6 +252,36 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
+  // Chat links (plan 067): kept in this Mac's state folder for its chats, checked here before a message is delivered,
+  // and sent to the Mac the other chat lives on (mod/chat-links.ts).
+  const askLink = host.askLink;
+  const messages = askLink
+    ? new ChatMessages({
+        links: new LinkStore(join(paths.state, "chat-links.json")),
+        chat: (ref) => {
+          const desk = macs.desks().find((d) => d.conversation_id === ref.conversation_id && (d.agent_id ?? ref.agent_id) === ref.agent_id);
+          return desk
+            ? { title: desk.title, agent_name: desk.agent_name, mac: desk.home ? (desk.home_name ?? null) : null, open: desk.status === "live" }
+            : null;
+        },
+        here: async (ref) => (await macs.router.target({ type: "chat_open", ...ref })) === null,
+        ask: (source, ask, signal) => askLink(source.agent_id, source.conversation_id, ask, signal),
+        forward: async (frame) => {
+          const home = await macs.router.target(frame);
+          if (!home) return { ok: false, message: "that chat is on this Mac" };
+          const out = await macs.router.forward(home, frame, "request");
+          return out.ok ? { ok: true, reply: out.reply ?? {} } : out;
+        },
+        power: (ref) => chatBackend.power(ref.agent_id, ref.conversation_id),
+        deliver: (ref, text, context, sendId, cap) => {
+          const blocked = macs.chatBlocked(ref.agent_id, ref.conversation_id);
+          if (blocked) return Promise.resolve(blocked);
+          return chatBackend.sendHeld({ ...ref, text, images: [], send_id: sendId, context }, cap);
+        },
+        push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
+        track: (event, properties) => analytics.capture("mod", event, properties),
+      })
+    : undefined;
   // Tasks retired into suggestions (plan 049, U7): each open task moves to the chat it was filed from once, at start and
   // again when a paired Mac comes into reach, since a chat that lives there moves only while its Mac answers. One run
   // at a time, so two runs never add the same task twice; start does not wait for it.
@@ -326,9 +363,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
-    // A chat opens with the suggestions waiting in it (plan 049).
-    chat: suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend,
+    // A chat opens with the suggestions waiting in it (plan 049) and its links (plan 067).
+    chat: withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages),
     suggestions,
+    messages,
     decidedBy: (c) => (c.deviceId ? "phone" : c.peerId ? macs.mac(c.peerId).name : "desktop"),
     usage: host.usage,
     daemon: host.daemon,
@@ -521,6 +559,7 @@ export default function activate(api: ModApi, host: Host): () => void {
             }),
           chats: () => macs.desks(),
           passChat,
+          messages,
         }
       : undefined,
   });

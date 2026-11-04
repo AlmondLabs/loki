@@ -27,9 +27,10 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, and the decisions on a suggestion", () => {
+  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, the decisions on a suggestion, and closing a chat link", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
+        "chat_link_close",
         "chat_open",
         "chat_approve",
         "chat_answer",
@@ -522,6 +523,9 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_answer",
       "chat_approve",
       "chat_folder",
+      "chat_link_close",
+      "chat_link_put",
+      "chat_message",
       "chat_model",
       "chat_move",
       "chat_open",

@@ -1,3 +1,5 @@
+import { linksSeenFrom, type ChatLink } from "../../../core/chat-links.ts";
+import { LinkHeader } from "../chat/link-header";
 import { useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
@@ -54,6 +56,8 @@ export interface ThreadView {
   loadFailed?: (() => void) | null;
   /** Fetch what a history page left out of a lean row: a tool row's step (plan 041), an event's detail (plan 043). */
   loadStep?: (row: number) => Promise<WholeRow | null>;
+  /** The chat's live links to other chats (plan 067), for the strip under the header. */
+  links?: ChatLink[];
 }
 
 /**
@@ -95,6 +99,7 @@ export function ConversationScreen({
   onNotDone,
   onViewed,
   suggestions = null,
+  onCloseLink,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -151,6 +156,8 @@ export function ConversationScreen({
   onViewed?: (agentId: string, conversationId: string) => void;
   /** The suggestions made in this chat for other chats (plan 049), over the box; null or absent, none. */
   suggestions?: Omit<SuggestionsProps, "rt"> | null;
+  /** Close one of the chat's links (plan 067); left out, the strip has no close buttons. */
+  onCloseLink?: (rt: Runtime, linkId: string) => void;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
@@ -194,6 +201,11 @@ export function ConversationScreen({
         onBack={onBack}
         onActions={() => setActionsOpen(true)}
       />
+      {view.links?.length ? (
+        <div className="loki-phone-links">
+          <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
+        </div>
+      ) : null}
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
         {message.wrap(

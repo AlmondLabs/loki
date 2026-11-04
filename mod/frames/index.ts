@@ -9,6 +9,7 @@ import { deskFrame, desksFrames, type DesksDeps } from "./desks.ts";
 import { foldersFrames, type FoldersDeps } from "./folders.ts";
 import { historyFrames, type HistoryDeps } from "./history.ts";
 import { lanFrames, type LanDeps } from "./lan.ts";
+import { linkFrames, type LinkDeps } from "./links.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
 import { recallFrames, type RecallDeps } from "./recall.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
@@ -26,6 +27,7 @@ export type ModuleDeps = DesksDeps &
   PeersDeps &
   ChatDeps &
   SuggestionDeps &
+  LinkDeps &
   UsageDeps &
   DaemonDeps;
 
@@ -43,6 +45,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     peersFrames(deps),
     chatFrames(deps),
     suggestionFrames(deps),
+    linkFrames(deps),
     usageFrames(deps),
     daemonFrames(deps),
   ];

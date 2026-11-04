@@ -5,6 +5,7 @@ import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
 import type { Suggestion } from "../frame-types.ts";
+import type { ChatLink } from "../chat-links.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
@@ -104,6 +105,8 @@ export interface Live {
   engine?: ChatEngineView | null;
   /** The suggestions made in this chat that wait on the person or are being sent (plan 049), for its chat screen. */
   suggestions: Suggestion[];
+  /** The chat's live links to other chats (plan 067), for its header; absent until the backend tells it. */
+  links?: ChatLink[];
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -207,6 +210,7 @@ export function faceOf(l: Live): readonly unknown[] {
     l.cwd,
     l.engine,
     l.suggestions,
+    l.links,
     l.thread.streaming,
   ];
 }
@@ -268,7 +272,9 @@ export type ChatEvent =
   /** The turn ended. */
   | { kind: "turn_end"; turn_id?: string }
   /** The chat's open suggestions (plan 049), whole, on every change to any of them: the screen shows exactly these. */
-  | { kind: "suggestions"; suggestions: Suggestion[] };
+  | { kind: "suggestions"; suggestions: Suggestion[] }
+  /** The chat's live links to other chats (plan 067), whole, on every change to any of them. */
+  | { kind: "links"; links: ChatLink[] };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
@@ -349,6 +355,9 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed: l.thread.resume(e.text, e.at), userSpoke: false };
     case "suggestions":
       l.suggestions = e.suggestions;
+      return { changed: true, userSpoke: false };
+    case "links":
+      l.links = e.links;
       return { changed: true, userSpoke: false };
     case "turn_end":
       if (e.turn_id) l.turnId = e.turn_id;

@@ -219,6 +219,7 @@ export function SettingsView({
         globalSkills={{ list: desk.agents.globalSkills, enable: desk.calls.skills.enable, disable: desk.calls.skills.disable }}
         mcp={desk.calls.mcp}
         engines={desk.calls.engines}
+        links={catchUp.links}
         labels={{
           list: catchUp.labels.list,
           // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
