@@ -15,10 +15,10 @@ export interface GoogleApp {
  * and secret as public (they ship inside every copy of an app), so they live in the source. The maintainer fills both
  * in; while they are empty, a sign-in with the shared app says so instead of calling Google.
  */
-export const SHARED_GOOGLE_CLIENT_ID = "";
+export const SHARED_GOOGLE_CLIENT_ID = "178065800575-fpkevdb0c2bh6s0l1vkun2udm26sj5m9.apps.googleusercontent.com";
 
 /** The shared app's client secret, public by Google's design for a Desktop client; see SHARED_GOOGLE_CLIENT_ID. */
-export const SHARED_GOOGLE_CLIENT_SECRET = "";
+export const SHARED_GOOGLE_CLIENT_SECRET = "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";
 
 /** The shared app as loki ships it. */
 export const SHARED_GOOGLE_APP: GoogleApp = { client_id: SHARED_GOOGLE_CLIENT_ID, client_secret: SHARED_GOOGLE_CLIENT_SECRET };
