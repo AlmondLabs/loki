@@ -291,9 +291,13 @@ export class ChatMessages {
     const link = this.opts.links.close(id);
     if (!link) return false;
     await this.pushLocal(link);
+    // The two ends are independent, so both are told at once.
     if (!fromPeer)
-      for (const end of [link.from, link.to])
-        if (!(await this.opts.here(end))) await this.opts.forward({ type: "chat_link_close", ...keyOf(end), link_id: id }).catch(() => undefined);
+      await Promise.all(
+        [link.from, link.to].map(async (end) => {
+          if (!(await this.opts.here(end))) await this.opts.forward({ type: "chat_link_close", ...keyOf(end), link_id: id }).catch(() => undefined);
+        }),
+      );
     this.opts.track?.("chat_link_closed", {});
     return true;
   }
@@ -324,8 +328,11 @@ export class ChatMessages {
 
   /** Tell the clients of each of a link's chats on this Mac what links the chat has now. */
   private async pushLocal(link: ChatLink): Promise<void> {
-    for (const end of [link.from, link.to])
-      if (await this.opts.here(end).catch(() => false)) this.opts.push(end.agent_id, end.conversation_id, [{ kind: "links", links: this.linksOf(end) }]);
+    await Promise.all(
+      [link.from, link.to].map(async (end) => {
+        if (await this.opts.here(end).catch(() => false)) this.opts.push(end.agent_id, end.conversation_id, [{ kind: "links", links: this.linksOf(end) }]);
+      }),
+    );
   }
 }
 

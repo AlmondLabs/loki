@@ -20,7 +20,9 @@ export function LinkCard(props: { requestId: string; ask: LinkAsk; onAnswer: (an
 
 function LinkCardFor({ ask, onAnswer, touch = false }: { ask: LinkAsk; onAnswer: (answers: Record<string, string>) => void; touch?: boolean }) {
   const [direction, setDirection] = useState<LinkDirection>("one_way");
-  const [duration, setDuration] = useState<LinkDuration>(ask.duration);
+  // Only the person's pick is kept; until they pick, the card shows the default the ask came with.
+  const [picked, setDuration] = useState<LinkDuration | null>(null);
+  const duration = picked ?? ask.duration;
   const answer = (allow: boolean) => onAnswer(linkAnswers({ allow, direction, duration }));
   const to = `${nameOf(ask.to)}${ask.to.agent_name ? ` (${ask.to.agent_name}${ask.to.mac ? ` on ${ask.to.mac}` : ""})` : ""}`;
   const pick = <T extends string>(label: string, value: T, current: T, set: (v: T) => void, words: string) => (
