@@ -7,6 +7,7 @@ import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { uploadRoute } from "./uploads.ts";
 import { messageOf } from "../core/errors.ts";
+import { GOOGLE_OAUTH_CALLBACK } from "./google-signin.ts";
 
 /**
  * Transport only. HTTP serves /health, /uploads (files attached to messages), the agents' faces, the WebSocket upgrade,
@@ -64,8 +65,11 @@ export async function startServer(opts: {
   authorize?: Authorize;
   uploads?: string;
   routes?: Route[];
+  /** Ends a Gmail sign-in (GoogleSignIn.finish): the browser back from Google at GOOGLE_OAUTH_CALLBACK, on this loopback server only. */
+  googleSignIn?: (params: Record<string, string>) => Promise<{ ok: boolean; message: string }>;
 }): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
+  const google = opts.googleSignIn && oauthCallbackRoute(GOOGLE_OAUTH_CALLBACK, opts.googleSignIn);
   const server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -76,6 +80,7 @@ export async function startServer(opts: {
       }
       if (profileRoute(req, res, url, authorize, opts.profile, 403)) return;
       if (opts.uploads && uploadRoute(req, res, url, { authorize, dir: opts.uploads, denied: 403 })) return;
+      if (google?.(req, res, url)) return;
       if (opts.routes?.some((route) => route(req, res, url))) return;
       res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");
     } catch {
@@ -283,7 +288,7 @@ function send(ws: WebSocket, msg: object): void {
 }
 
 /**
- * The browser back from signing in to a remote MCP server: GET MCP_OAUTH_CALLBACK with the server's `code` and
+ * The browser back from signing in to a remote MCP server or to Google: GET MCP_OAUTH_CALLBACK (or GOOGLE_OAUTH_CALLBACK) with the `code` and
  * loki's one-time `state`. No token, since a browser redirect carries none: the state is the credential (unknown or
  * used, nothing happens), and the route is on the loopback server only, never the LAN's. Answers with a page to close.
  */
@@ -310,7 +315,7 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?
 const messageText = (raw: WebSocket.RawData): string =>
   (Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8");
 
-/** The small page the browser shows after an MCP sign-in: signed in or not, and the message, escaped. */
+/** The small page the browser shows after an MCP or Google sign-in: signed in or not, and the message, escaped. */
 export function oauthPage(ok: boolean, message: string): string {
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>loki · ${ok ? "signed in" : "sign-in failed"}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}@media(prefers-color-scheme:dark){body{color:#eee;background:#1b1b1d}}h1{font-size:18px}</style><h1>${ok ? "Signed in" : "Not signed in"}</h1><p>${escapeHtml(message)}</p>`;
 }
