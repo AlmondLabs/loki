@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { must } from "./fixtures/must.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
@@ -113,6 +114,9 @@ describe("matching", () => {
       items: [item("i1", "Approve the invoice"), item("i2", "Invoice draft", { status: "running" }), item("i3", "Invoice idle", { status: "idle" })],
     });
     expect(titles(s, "invoice", "inbox")).toEqual(["Approve the invoice"]);
+  });
+  test("an email or Slack thread waiting in the Inbox is not a chat, so search does not offer to open it as one", () => {
+    expect(search(src({ items: [outsideItem("Quarterly numbers")] }), "quarterly")).toEqual([]);
   });
   test("deterministic: the same query on the same data gives the same answer", () => {
     expect(search(src(), "mobile")).toEqual(search(src(), "mobile"));

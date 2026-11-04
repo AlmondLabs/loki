@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
+import { outsideItem } from "./fixtures/outside-item.ts";
 import {
   AUTO_RELOAD_HIDDEN_MS,
   CODE_ALPHABET,
@@ -426,6 +427,11 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     expect(typed.attention.map((a) => [a.item.id, a.desk?.title])).toEqual([["c1", "Loki mobile"]]);
     expect(typed.desks).toEqual([]);
     expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
+  });
+  test("an email or Slack thread waiting in the Inbox is listed, and a tap opens the Inbox at its card, not a chat", () => {
+    const s = homeSections(desks, [...items, outsideItem("Quarterly numbers")], null, "");
+    expect(s.attention.map((a) => [a.item.title, a.opens])).toContainEqual(["Quarterly numbers", "card"]);
+    expect(s.attention.filter((a) => !a.item.outside).map((a) => a.opens)).toEqual(["chat", "chat"]);
   });
   test("label: terms narrow the attention list too: every label named, then the words (plan 028)", () => {
     const labelled = [

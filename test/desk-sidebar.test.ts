@@ -22,6 +22,7 @@ import {
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 
 /**
  * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent
@@ -188,6 +189,12 @@ describe("marks (scenario 3)", () => {
         "the agent:a2 section",
       ).waiting,
     ).toBe(0);
+  });
+  test("an email or Slack thread in the Inbox is not a chat: it adds no row and marks none, even the chat it was handed to", () => {
+    const base = outsideItem("Quarterly numbers");
+    const facts = must(base.outside, "the thread's facts");
+    const thread = { ...base, outside: { ...facts, handoff_conversation_id: "jira" } };
+    expect(sidebarModel(desks, [thread], {})).toEqual(sidebarModel(desks, [], {}));
   });
 });
 

@@ -79,6 +79,7 @@ export function Home({
   onCreate,
   homes,
   labelList = null,
+  onTopCard,
 }: {
   me: Me;
   link: LinkState;
@@ -107,6 +108,8 @@ export function Home({
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   /** A new conversation through the daemon; resolves to its runtime. */
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
+  /** Put a card on top of the Inbox's pass, so the Inbox opens at it (an email or Slack thread has no chat to open). */
+  onTopCard: (item: AttentionItem) => void;
 }) {
   const [query, setQuery] = useState("");
   // Sections folded shut, kept on this device across launches (the desktop keeps its own).
@@ -142,7 +145,7 @@ export function Home({
         <ShortcutRail counts={counts} />
         <FilterPills query={query} labelList={labelList} onQuery={setQuery} />
 
-        <AttentionSection attention={sections.attention} more={sections.more} waiting={counts.inbox} />
+        <AttentionSection attention={sections.attention} more={sections.more} waiting={counts.inbox} onTopCard={onTopCard} />
         <DeskSections
           groups={groups}
           marks={marks}
@@ -239,7 +242,17 @@ function ActingDesk({
 }
 
 /** "Needs your attention": the first of the ready queue, then "n more in Inbox"; absent when nothing waits. */
-function AttentionSection({ attention, more, waiting }: { attention: HomeAttention[]; more: number; waiting: number }) {
+function AttentionSection({
+  attention,
+  more,
+  waiting,
+  onTopCard,
+}: {
+  attention: HomeAttention[];
+  more: number;
+  waiting: number;
+  onTopCard: (item: AttentionItem) => void;
+}) {
   if (attention.length === 0) return null;
   return (
     <RowSection
@@ -251,7 +264,7 @@ function AttentionSection({ attention, more, waiting }: { attention: HomeAttenti
     >
       <ul className="loki-phone-list" aria-label="needs your attention">
         {attention.map((a) => (
-          <AttentionRow key={`${a.item.agent_id}/${a.item.id}`} entry={a} />
+          <AttentionRow key={`${a.item.agent_id}/${a.item.id}`} entry={a} onTopCard={onTopCard} />
         ))}
         {more > 0 && (
           <li data-flip="inbox-more">
@@ -449,7 +462,7 @@ function FilterPill({ label, tone, onClear }: { label: string; /** A label's col
  * A waiting conversation, one line as every chat row is (plan 028): the desk's name (else the item's), its agent after
  * it since the section mixes agents, and on the right the count while it waits on you, else the time.
  */
-function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
+function AttentionRow({ entry: { item, desk, opens }, onTopCard }: { entry: HomeAttention; onTopCard: (item: AttentionItem) => void }) {
   const title = desk?.title ?? item.title ?? "new chat";
   const word = BADGE[item.status].label;
   const row = deskRowState(item, desk ?? { status: "live" });
@@ -464,7 +477,13 @@ function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
       label={`${title}, ${item.agent_name ?? "agent"}, ${word}`}
       launch={`attention:${item.agent_id}/${item.id}`}
       flip={`conv:${item.agent_id}/${item.id}`}
-      onOpen={() => openConversation(item.agent_id, item.id)}
+      onOpen={() => {
+        if (opens === "chat") openConversation(item.agent_id, item.id);
+        else {
+          onTopCard(item);
+          navigate({ kind: "tab", tab: "inbox" });
+        }
+      }}
     />
   );
 }
