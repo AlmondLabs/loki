@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { stampOf } from "../core/attention/queue.ts";
+import { idOf, stampOf } from "../core/attention/queue.ts";
 import {
   COMMIT_FRACTION,
   DRAG_SLOP,
@@ -34,11 +34,13 @@ import {
   makeMove,
   returnChoices,
   undoMove,
+  isDismissed,
+  moveLedger,
 } from "../app/src/phone/deck.ts";
 import { dayLabel, unreadBoundary } from "../app/src/shared/thread.ts";
 import { createCardMoves, type CardMovesHost } from "../core/attention/use-attention.ts";
 import { keyOf } from "../core/attention/model.ts";
-import { RETURN_TIMES_DEFAULT, type Rest } from "../core/attention/rest.ts";
+import { RETURN_TIMES_DEFAULT, type Rest, type ReturnTimes } from "../core/attention/rest.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
@@ -383,7 +385,7 @@ describe("what the card says", () => {
 });
 
 /** A fake host for the real card moves (core/attention/use-attention.ts): the write-backs out there, seen marks and rests. */
-function movesHost(refuse: string | null = null) {
+function movesHost(refuse: string | null = null, returnTimes: ReturnTimes = RETURN_TIMES_DEFAULT) {
   const rests: Record<string, Rest> = {};
   const marks: string[] = [];
   const calls: string[] = [];
@@ -413,7 +415,7 @@ function movesHost(refuse: string | null = null) {
     },
     markSeen: (_agentId, conversationId) => void marks.push(`seen ${conversationId}`),
     unmarkSeen: (_agentId, conversationId) => void marks.push(`unseen ${conversationId}`),
-    returnTimes: () => RETURN_TIMES_DEFAULT,
+    returnTimes: () => returnTimes,
     now: () => Date.parse("2026-11-05T12:00:00Z"),
     report: () => {},
     reportUndone: () => {},
@@ -463,6 +465,51 @@ describe("the phone's moves (plan 070, U8)", () => {
     expect(await makeMove(t.moves, mail, "seen", "tap")).toEqual({ error: "Not marked read: Gmail refused", ask: false });
     expect(await makeMove(t.moves, mail, "later", "tap")).toEqual({ error: "Not saved for later: Gmail refused", ask: false });
     expect(await makeMove(t.moves, mail, "archive", "tap")).toEqual({ error: "Not archived: Gmail refused", ask: false });
+  });
+
+  test("a later follows the person's return time, not the default", async () => {
+    // The phone hands useAttention the daemon's return times (phone.tsx, as shell.tsx does); the moves rest by them.
+    const times: ReturnTimes = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "3h" } };
+    const t = movesHost(null, times);
+    await makeMove(t.moves, mail, "later", "swipe");
+    expect(Object.values(t.rests).map((r) => r.until)).toEqual(["2026-11-05T15:00:00.000Z"]);
+  });
+
+  test("a write-back failing after the person tapped Undo leaves the tally and the card as the undo left them", () => {
+    const [a, b] = [item("a"), item("b")];
+    const ledger = moveLedger();
+    let s = commitCard(EMPTY_DECK, a, "seen");
+    const move = ledger.made(idOf(a));
+    // Undo comes first: the card is back on top and the tally is clear.
+    ledger.takenBack(idOf(a));
+    s = undoCard(s, a, "seen");
+    const undone = s;
+    // Then the read fails out there: it is no longer the standing move, so nothing is brought back a second time.
+    expect(ledger.stands(idOf(a), move)).toBe(false);
+    expect(undone.pass).toEqual(EMPTY_PASS);
+    expect(deckQueue([a, b], undone).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+
+  test("a failure from an older move does not bring back a newer one on the same card", () => {
+    const ledger = moveLedger();
+    const first = ledger.made("a1/a");
+    ledger.takenBack("a1/a");
+    const second = ledger.made("a1/a");
+    expect(ledger.stands("a1/a", first)).toBe(false);
+    expect(ledger.stands("a1/a", second)).toBe(true);
+    expect(ledger.stands("a1/b", second)).toBe(false);
+  });
+
+  test("a reply's read is not counted again for a card a button already moved", () => {
+    const a = item("a");
+    let s = commitCard(EMPTY_DECK, a, "seen");
+    // The reply resolves after Read: the card is already dismissed at this stamp, so its own commit is skipped.
+    expect(isDismissed(s, a)).toBe(true);
+    if (!isDismissed(s, a)) s = commitCard(s, a, "seen");
+    expect(s.pass.seen).toBe(1);
+    expect(isDismissed(undoCard(s, a, "seen"), a)).toBe(false);
+    // Something new on the card is a new card: a reply to it counts.
+    expect(isDismissed(s, item("a", { lastAssistantText: "something new" }))).toBe(false);
   });
 
   test("an undo after a hand-off says it was handed off; any other refusal says why", async () => {

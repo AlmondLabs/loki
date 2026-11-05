@@ -133,10 +133,11 @@ describe("the Inbox card's suggestions (plan 049)", () => {
 });
 
 describe("the phone's decisions under a card", () => {
-  const html = (over: Partial<AttentionItem>, label = false) =>
+  const html = (over: Partial<AttentionItem>, label = false, sending = false) =>
     renderToStaticMarkup(
       createElement(Decisions, {
         item: item(over),
+        sending,
         onRead: () => {},
         onLater: () => {},
         onArchive: () => {},
@@ -170,5 +171,12 @@ describe("the phone's decisions under a card", () => {
 
   test("an email card has Label beside them", () => {
     expect(buttons(html({}, true))).toEqual(["Later", "Label", "Archive", "Read"]);
+  });
+
+  test("while a reply sends, Read, Later and Archive are refused, so the card is committed once, by the reply", () => {
+    const out = html({}, true, true);
+    const disabled = [...out.matchAll(/<button[^>]*disabled=""[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
+    expect(disabled).toEqual(["Later", "Archive", "Read"]);
+    expect(html({}, true)).not.toContain("disabled");
   });
 });

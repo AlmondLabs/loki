@@ -206,6 +206,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     engage: attention.engage,
     rests: attention.rests,
     rest: attention.rest,
+    // The person's return times (Preferences › Inbox), kept on the daemon, so a swipe rests a card as the Mac would.
+    returnTimes: attention.returnTimes,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,

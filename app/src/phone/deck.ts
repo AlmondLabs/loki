@@ -245,6 +245,39 @@ export function undoCard(s: DeckState, item: AttentionItem, via: Via, wasHeld = 
   return { ...s, dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
 }
 
+/** Whether `item` was sent away in this pass at its current stamp, so a late reply's read does not count it again. */
+export function isDismissed(s: DeckState, item: AttentionItem): boolean {
+  return s.dismissed.get(idOf(item)) === stampOf(item);
+}
+
+/**
+ * Which move on each card still stands, so a write-back that fails late brings the card back only for the move it
+ * belongs to: not after Undo took that move back (the card is back already and the tally cleared), and not over a newer
+ * move on the same card. `made` numbers a move, `takenBack` forgets the card's, `stands` asks whether a number is current.
+ */
+export interface MoveLedger {
+  made: (id: string) => number;
+  takenBack: (id: string) => void;
+  stands: (id: string, move: number) => boolean;
+}
+
+/** An empty ledger of moves (see `MoveLedger`). */
+export function moveLedger(): MoveLedger {
+  const standing = new Map<string, number>();
+  let next = 0;
+  return {
+    made: (id) => {
+      next += 1;
+      standing.set(id, next);
+      return next;
+    },
+    takenBack: (id) => {
+      standing.delete(id);
+    },
+    stands: (id, move) => standing.get(id) === move,
+  };
+}
+
 /** Something went out from the card: keep it in hand (see `held`). */
 export function holdCard(s: DeckState, item: AttentionItem): DeckState {
   return { ...s, held: item, topId: idOf(item) };
