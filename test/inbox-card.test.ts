@@ -133,8 +133,19 @@ describe("the Inbox card's suggestions (plan 049)", () => {
 });
 
 describe("the phone's decisions under a card", () => {
-  const html = (over: Partial<AttentionItem>) =>
-    renderToStaticMarkup(createElement(Decisions, { item: item(over), onOpen: () => {}, onSeen: () => {}, onApprove: () => {} }));
+  const html = (over: Partial<AttentionItem>, label = false, sending = false) =>
+    renderToStaticMarkup(
+      createElement(Decisions, {
+        item: item(over),
+        sending,
+        onRead: () => {},
+        onLater: () => {},
+        onArchive: () => {},
+        onLabel: label ? () => {} : undefined,
+        onApprove: () => {},
+      }),
+    );
+  const buttons = (out: string) => [...out.matchAll(/<button[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
 
   test("an approval offers deny, approve, and always allowing the tool", () => {
     const out = html({
@@ -148,11 +159,24 @@ describe("the phone's decisions under a card", () => {
     expect(out).toContain(">Deny<");
     expect(out).toContain(">Approve<");
     expect(out).toContain("Always allow mcp__github__create_issue");
+    expect(buttons(out)).not.toContain("Read");
+    expect(buttons(out)).not.toContain("Later");
   });
 
-  test("anything else offers open and next, and no always", () => {
+  test("anything else offers Later, Archive and Read as the swipes lie, in sentence case, and no always", () => {
     const out = html({});
-    expect(out).toContain(">Open chat<");
+    expect(buttons(out)).toEqual(["Later", "Archive", "Read"]);
     expect(out).not.toContain("Always allow");
+  });
+
+  test("an email card has Label beside them", () => {
+    expect(buttons(html({}, true))).toEqual(["Later", "Label", "Archive", "Read"]);
+  });
+
+  test("while a reply sends, Read, Later and Archive are refused, so the card is committed once, by the reply", () => {
+    const out = html({}, true, true);
+    const disabled = [...out.matchAll(/<button[^>]*disabled=""[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
+    expect(disabled).toEqual(["Later", "Archive", "Read"]);
+    expect(html({}, true)).not.toContain("disabled");
   });
 });

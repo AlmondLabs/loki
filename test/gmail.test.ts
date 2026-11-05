@@ -8,6 +8,7 @@ import { GmailClient } from "../mod/gmail.ts";
 import type { GoogleApp } from "../mod/google-app.ts";
 import { GoogleSignIn } from "../mod/google-signin.ts";
 import { fakeGoogle } from "./fixtures/gmail.ts";
+import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { must } from "./fixtures/must.ts";
 
 /** A fetch's URL as text, whatever form it came in. */
@@ -198,6 +199,28 @@ describe("the Gmail client's calls", () => {
     expect(google.modified).toEqual([{ ids: ["m1", "m2"], removeLabelIds: ["INBOX", "UNREAD"] }]);
   });
 
+  test("labels go on the given messages in one call, with no removeLabelIds when nothing comes off", async () => {
+    const { client, google } = await connected();
+    await client.batchModify(["m1", "m2"], { addLabels: ["INBOX", "UNREAD"] });
+    expect(google.modified).toEqual([{ ids: ["m1", "m2"], addLabelIds: ["INBOX", "UNREAD"] }]);
+  });
+
+  test("a change that adds and removes sends both lists in one request", async () => {
+    const { client, google } = await connected();
+    await client.batchModify(["m1"], { addLabels: ["Label_7"], removeLabels: ["INBOX"] });
+    expect(google.modified).toEqual([{ ids: ["m1"], addLabelIds: ["Label_7"], removeLabelIds: ["INBOX"] }]);
+    expect(google.requests.filter((r) => r.url.pathname.endsWith("/messages/batchModify"))).toHaveLength(1);
+  });
+
+  test("the account's labels come back with their id, name and type, the person's own and Gmail's", async () => {
+    const { client } = await connected();
+    expect(await client.labels()).toEqual([
+      { id: "INBOX", name: "INBOX", type: "system" },
+      { id: "UNREAD", name: "UNREAD", type: "system" },
+      { id: "Label_7", name: "Receipts", type: "user" },
+    ]);
+  });
+
   test("a draft is an RFC 2822 reply in its thread, and a header value cannot add a header", async () => {
     const { client, google } = await connected();
     const draft = await client.createDraft({
@@ -272,8 +295,34 @@ describe("only the person's own reply sends from Gmail (plan 068)", () => {
     await client.listMessages("in:inbox");
     await client.getThread("t1", "full");
     await client.batchModify(["m1"], { removeLabels: ["UNREAD"] });
+    await client.batchModify(["m1"], { addLabels: ["UNREAD"] });
+    await client.labels();
     await client.createDraft({ threadId: "t1", inReplyTo: "<m1@acme.com>", references: [], to: ["bob@acme.com"], cc: [], subject: "Re", body: "ok" });
-    expect(google.requests.length).toBeGreaterThan(7);
+    expect(google.requests.length).toBeGreaterThan(9);
     expect(google.requests.filter((r) => r.url.pathname.split("/").includes("send"))).toEqual([]);
+  });
+});
+
+describe("label changes in a mailbox that keeps its history", () => {
+  test("labels put back on a message show in the mailbox and as a labelsAdded record in its history", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-gmail-box-"));
+    dirs.push(dir);
+    const clock = () => new Date("2026-11-04T09:00:00Z");
+    const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), now: clock });
+    const secret = JSON.stringify({ access_token: "access-1", refresh_token: "refresh-1", expires_at: "2099-01-01T00:00:00.000Z" });
+    await accounts.add({ account_id: ACCOUNT, provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-work" }, secret);
+    const box = fakeMailbox();
+    const client = new GmailClient({ accounts, account_id: ACCOUNT, fetch: box.fetch, now: clock });
+    const id = box.deliver({ thread: "t1", at: new Date("2026-11-04T08:00:00Z"), from: "bob@acme.com", labels: [] });
+    const { historyId } = await client.profile();
+
+    await client.batchModify([id], { addLabels: ["INBOX", "UNREAD", "Label_1"] });
+
+    expect(box.labelsOfMessage(id)).toEqual(["INBOX", "Label_1", "UNREAD"]);
+    const history = await client.historySince(historyId);
+    expect(history.kind === "changes" && history.history.map((h) => h.labelsAdded.map((c) => [c.message.id, c.labelIds]))).toEqual([
+      [[id, ["INBOX", "UNREAD", "Label_1"]]],
+    ]);
+    expect((await client.labels()).filter((l) => l.type === "user").map((l) => l.name)).toEqual(["Receipts", "Travel"]);
   });
 });

@@ -80,8 +80,14 @@ describe("keymap: resolution", () => {
     const next = (segment: Parameters<typeof resolve>[1]) => resolve(ev("]", { meta: true }), segment)?.id;
     const prev = (segment: Parameters<typeof resolve>[1]) => resolve(ev("[", { meta: true }), segment)?.id;
     expect([next("desk"), prev("desk")]).toEqual(["desk.next", "desk.prev"]);
-    expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", undefined]); // the Inbox only moves on; there is no Later to step back to
+    // In the Inbox ⌘] reads the card and ⌘[ puts it off till later (plan 070): the same two keys on every kind of card.
+    expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", "inbox.later"]);
+    expect([resolve(ev("ArrowRight"), "inbox")?.id, resolve(ev("ArrowLeft"), "inbox")?.id]).toEqual(["inbox.next", "inbox.later"]);
+    expect(resolve(ev("[", { meta: true }, true), "inbox")?.id).toBe("inbox.later"); // from inside the reply box too
+    expect(resolve(ev("ArrowLeft", {}, true), "inbox")).toBeNull(); // the caret's
     expect(resolve(ev("e"), "inbox")?.id).toBe("inbox.archive");
+    expect(resolve(ev("l"), "inbox")?.id).toBe("inbox.label");
+    expect(resolve(ev("l", {}, true), "inbox")).toBeNull();
     expect([next("learn"), prev("learn")]).toEqual(["learn.nextView", "learn.prevView"]);
     expect([next("agents"), prev("agents")]).toEqual(["agents.next", "agents.prev"]);
     expect([next("settings"), prev("settings")]).toEqual(["settings.nextPage", "settings.prevPage"]);

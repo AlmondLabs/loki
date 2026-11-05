@@ -177,17 +177,79 @@ export interface OutsideFacts {
   handoff_conversation_id: string | null;
   /** Why the account is not watched now (R22); null while it is connected. */
   disconnected: AccountDisconnectCause | null;
+  /**
+   * Whether the thread is unread in its service (plan 070, KTD2). For email it is Gmail's own read state, which the
+   * card's unread follows, since reading a mail in Gmail keeps its card; a Slack card is always unread until it ends.
+   * A paired Mac on a loki older than plan 070 sends no value, which reads as unread, as the mod reads its own records.
+   */
+  unread_out_there?: boolean;
 }
 
 /**
- * One of the person's moves on an outside card, for the ledger (plan 069): Next, archive, their reply, or a hand-off to
- * the owning agent; how it was made (a key or a click on the Mac, a swipe or a tap on the phone; null when the box's
- * own send made it), and how long the card was on top first, when the app knows.
+ * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,
+ * label, their reply, a hand-off to the owning agent, or an undo of the last of those; how it was made (a key or a
+ * click on the Mac, a swipe or a tap on the phone; null when the box's own send made it), and how long the card was on
+ * top first, when the app knows. `next` is what ⌘] was called before plan 070, kept so older clients still reach the
+ * ledger; clients send `read` now.
  */
 export interface OutsideMove {
-  action: "next" | "archive" | "reply" | "handoff";
+  action: "read" | "later" | "archive" | "label" | "reply" | "handoff" | "undo" | "next";
   via: "key" | "click" | "swipe" | "tap" | null;
   dwell_ms: number | null;
+  /** ISO time the move's rest brings the card back (read and later, and a reply followed by either); null when none. */
+  return_at?: string | null;
+  /** The Gmail label ids a label move put on; null for every other move. */
+  labels?: string[] | null;
+  /** Whether the person chose the return time themselves, at the second ⌘[ (R7). */
+  picked?: boolean;
+  /** For a reply, the key that followed it (R11); null for every other move. */
+  after_reply?: ReplyThen | null;
+}
+
+/** A move loki writes back to an outside card's service (plan 070, KTD3). */
+export type OutsideWrite = "archive" | "read" | "unread" | "label";
+
+/** What one write-back did to one message: the Gmail labels it put on and took off, so an undo takes back just those. */
+export interface OutsideMessageChange {
+  message_id: string;
+  labels_added: string[];
+  labels_removed: string[];
+}
+
+/**
+ * What a write-back changed (plan 070, KTD3), kept by the client so an undo (R14) puts back exactly that. `messages`
+ * lists only the messages whose labels changed; a Slack write has none, since Slack has no labels. `ended` says the
+ * move ended the card in loki (an archive, or reading a Slack card), and `was_unread` how loki showed the thread before.
+ */
+export interface OutsideChange {
+  move: OutsideWrite;
+  messages: OutsideMessageChange[];
+  ended: boolean;
+  was_unread: boolean;
+}
+
+/**
+ * The move that follows a reply the person sent from an outside card (plan 070, R11, KTD6): mark the thread read, leave
+ * it unread and waiting for an answer (`later`), or archive it.
+ */
+export type ReplyThen = "read" | "later" | "archive";
+
+/**
+ * How a reply went (plan 070, KTD6): it was sent, and the move after it is told apart, so a move that failed can be
+ * tried again without sending the reply twice. `then_error` is that move's reason when it failed, and `change` what it
+ * wrote, for an undo, or null when it failed or wrote nothing.
+ */
+export interface OutsideReplied {
+  sent: true;
+  then_error: string | null;
+  change: OutsideChange | null;
+}
+
+/** One of an account's Gmail labels (plan 070, R12): Gmail's own (`system`, as STARRED) or one the person made (`user`). */
+export interface AccountLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
 }
 
 /**

@@ -20,7 +20,17 @@ import {
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { ReplyAction, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, OutsideMove, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type {
+  AccountLabel,
+  HandoffProposal,
+  OutsideChange,
+  OutsideMessage,
+  OutsideMove,
+  ReplyProposal,
+  ReplyThen,
+  Suggestion,
+  SuggestionTarget,
+} from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -42,6 +52,18 @@ export type SendOrigin = "desk" | "inbox" | "lesson";
 
 /** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
 export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
+
+/** An outside card as a write-back names it: which card it is in the list, its account and thread, and its home Mac. */
+export type OutsideCardRef = Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">;
+
+/**
+ * How a write-back on an outside card went (plan 070, KTD3): what it changed out there, kept for an undo (null when
+ * nothing was written), or the reason in words when it failed, and the card is left as it was.
+ */
+export interface OutsideWritten {
+  change: OutsideChange | null;
+  error: string | null;
+}
 
 /** A page of a chat's thread, as the mod reads it from the daemon's store (plan 041). */
 export interface HistoryPage {
@@ -137,6 +159,8 @@ export const HISTORY_PAGE = 400;
 const FOLDER_MOVE_MS = 8000;
 /** What every call says while the mod's socket is down. */
 const NOT_CONNECTED = "not connected to loki's daemon";
+/** Why an outside move on a chat card is refused. */
+const NOT_OUTSIDE = "this card is not from an account";
 
 /** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
 const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
@@ -205,6 +229,11 @@ export class ChatStore {
   /** Conversations the list knows; an event from another means the list is stale. */
   private known = new Set<string>();
   private lastReload = 0;
+  /**
+   * A card was taken off the list here before the daemon's list said so: the next answer is drawn even when it matches
+   * the last one, or a card put back by an undo before any poll would stay missing.
+   */
+  private droppedHere = false;
   /** The link dropped since it was last open: when it reopens, commands left running are settled. */
   private linkDropped = false;
   /** Whether the page is shown: the list poll skips while it is not (plan 047). */
@@ -312,7 +341,8 @@ export class ChatStore {
       if (stopped()) return;
       this.lastReload = this.now();
       // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
-      const same = keepSame(lastRows, rows) === lastRows;
+      const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
+      this.droppedHere = false;
       lastRows = rows;
       const convs: ConversationInfo[] = rows
         .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
@@ -812,16 +842,67 @@ export class ChatStore {
 
   /**
    * Archive an outside card (plan 067, R12): its thread is archived in Gmail or marked read in Slack by the Mac its
-   * account lives on, then the card leaves the list; resolves to the reason when that failed, and the card stays.
+   * account lives on, then the card leaves the list. Resolves to what the archive changed, kept for an undo (plan 070,
+   * R14), or the reason when it failed, and the card stays.
    */
-  archiveOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">): Promise<string | null> => {
-    const o = card.outside;
-    if (!o) return "this card is not from an account";
-    const err = await this.tried((c) => c.archiveOutside(o.account_id, o.thread_id, card.home ?? null));
-    if (err) return err;
-    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
-    return null;
+  archiveOutside = async (card: OutsideCardRef): Promise<OutsideWritten> => {
+    const r = await this.writeOutside(card, (c, o, home) => c.archiveOutside(o.account_id, o.thread_id, home));
+    if (!r.error) this.dropCard(card);
+    return r;
   };
+
+  /**
+   * Mark an outside card read out there (plan 070, R5): Gmail marks the thread read and the card stays; reading a Slack
+   * card ends it, and it leaves the list. Resolves to what changed, for an undo, or the reason it failed.
+   */
+  markReadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.markReadOutside(o.account_id, o.thread_id, home));
+
+  /** Leave an outside card unread out there (plan 070, R6); the card stays. Resolves to what changed, or the reason. */
+  markUnreadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.markUnreadOutside(o.account_id, o.thread_id, home));
+
+  /** Put Gmail labels, by id, on an outside card's thread (plan 070, R12); the card stays. Resolves to what changed, or the reason. */
+  labelOutside = (card: OutsideCardRef, labels: string[]): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.labelOutside(o.account_id, o.thread_id, labels, home));
+
+  /**
+   * Take back a move on an outside card (plan 070, R14): what `change` changed out there is put back, and a card that
+   * move ended is listed again. Resolves to the reason when it could not be, or null.
+   */
+  restoreOutside = async (card: OutsideCardRef, change: OutsideChange): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return NOT_OUTSIDE;
+    const err = await this.tried((c) => c.restoreOutside(o.account_id, o.thread_id, change, card.home ?? null));
+    if (!err && change.ended) this.reload();
+    return err;
+  };
+
+  /** An outside card's account's Gmail labels, for the label picker (plan 070, R12), or why they could not be had. */
+  labelsOf = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<AccountLabel[] | string> => {
+    const o = card.outside;
+    if (!o) return NOT_OUTSIDE;
+    return this.attempt((c) => c.labelsOutside(o.account_id, card.home ?? null));
+  };
+
+  /** One write-back on an outside card; a change that ended the card takes it off the list at once. */
+  private async writeOutside(
+    card: OutsideCardRef,
+    work: (client: ChatClient, outside: NonNullable<ConversationInfo["outside"]>, home: string | null) => Promise<OutsideChange | null>,
+  ): Promise<OutsideWritten> {
+    const o = card.outside;
+    if (!o) return { change: null, error: NOT_OUTSIDE };
+    const r = await this.attempt((c) => work(c, o, card.home ?? null));
+    if (typeof r === "string") return { change: null, error: r };
+    if (r?.ended) this.dropCard(card);
+    return { change: r, error: null };
+  }
+
+  /** Take one card off the list at once, before the next listing says so. */
+  private dropCard(card: Pick<ConversationInfo, "agent_id" | "id">): void {
+    this.droppedHere = true;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+  }
 
   /** An outside card's whole thread (plan 068), from the Mac its account lives on, or why it could not be read. */
   readOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<OutsideMessage[] | string> => {
@@ -831,16 +912,22 @@ export class ChatStore {
   };
 
   /**
-   * Send the person's reply in an outside card's thread (plan 068): on success the card is archived and leaves the
-   * list at once; resolves to the reason when it was not sent, and the card stays with the text still in its box.
+   * Send the person's reply in an outside card's thread (plan 068), then the key's move (`then`, plan 070, R11). Resolves
+   * whether it was sent, the reason for what failed (the send, or the move after it), and what the move changed. A move
+   * that ended the card, an archive or reading a Slack card, takes it off the list at once; after read or later the card
+   * stays. A reply that was sent must not be sent again, so the caller clears its box on `sent` whatever the error.
    */
-  replyOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, text: string): Promise<string | null> => {
+  replyOutside = async (
+    card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
+    text: string,
+    then: ReplyThen,
+  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null }> => {
     const o = card.outside;
-    if (!o) return "this card is not from an account";
-    const err = await this.tried((c) => c.replyOutside(o.account_id, o.thread_id, text, card.home ?? null));
-    if (err) return err;
-    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
-    return null;
+    if (!o) return { sent: false, error: "this card is not from an account", change: null };
+    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null));
+    if (typeof r === "string") return { sent: false, error: r, change: null };
+    if (r.change?.ended) this.dropCard(card);
+    return { sent: true, error: r.then_error, change: r.change };
   };
 
   /**

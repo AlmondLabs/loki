@@ -20,10 +20,21 @@ import type { TranscriptRow } from "./transcript.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
-import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
+import {
+  RETURN_TIMES_DEFAULT,
+  cardKindOf,
+  laterMs,
+  movesOn,
+  readFirstMs,
+  restAfterLater,
+  restAfterNext,
+  restUndone,
+  type Rest,
+  type ReturnTimes,
+} from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion } from "../frame-types.ts";
+import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, ReplyProposal, ReplyThen, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -31,8 +42,11 @@ import { inboxCardSource } from "../analytics.ts";
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
 export type EngageAction = PayloadOf<"focus_add">["action"];
 
-/** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
-export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open" | "handoff";
+/**
+ * What you did with an Inbox card: read it and moved on (`next`, ⌘]), put it off unread (`later`, ⌘[), archived it
+ * (done), labelled it, decided an approval, replied, answered its question, opened it, or handed it off.
+ */
+export type CardAction = "next" | "later" | "archive" | "label" | "approve" | "deny" | "reply" | "answer" | "open" | "handoff";
 
 /** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
 export type CardVia = "key" | "click" | "swipe" | "tap";
@@ -57,8 +71,8 @@ export interface UseAttentionOptions {
   rests?: Record<string, Rest>;
   /** Tell the mod a card was rested by Next, or its rest undone. */
   rest?: (agentId: string, conversationId: string, rest: Rest) => void;
-  /** How long Next first rests a card (rest.ts), the person's setting; left out, an hour. */
-  restFirstMs?: number;
+  /** How long ⌘] and ⌘[ rest each kind of card (rest.ts), the person's settings; left out, the defaults. */
+  returnTimes?: ReturnTimes;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the daemon's store, through the mod (compaction-proof); null when no page came (plan 041). */
@@ -136,8 +150,342 @@ export interface HandoffSource {
  */
 export interface OutsideSource {
   readOutside: (item: AttentionItem) => Promise<OutsideMessage[] | string>;
-  replyOutside: (item: AttentionItem, text: string) => Promise<string | null>;
+  replyOutside: (item: AttentionItem, text: string, then: ReplyThen) => Promise<OutsideReplyResult>;
 }
+
+/**
+ * How a reply on an outside card went (plan 070, KTD6): whether it was sent, and the reason for what failed, the send or
+ * the move after it. A sent reply is never sent again, so its box clears on `sent` even when `error` is set.
+ */
+export interface OutsideReplyResult {
+  sent: boolean;
+  error: string | null;
+}
+
+/**
+ * How a read (⌘]) or a later (⌘[) went (plan 070): the reason in words when its write-back failed, and the card is as
+ * it was; `ask` when a second later press should ask when the card comes back (R7), and nothing was done yet; and the
+ * rest it set, null when it set none (a stopped agent moved past for this visit, a Slack card read to its end, a failure).
+ */
+export interface MoveResult {
+  error: string | null;
+  ask: boolean;
+  rest: Rest | null;
+}
+
+/**
+ * What a move tells the ledger beyond its action (plan 070, KTD11): when its rest brings the card back, the labels it
+ * put on, whether the person picked the time, and for a reply the key that followed it. Analytics never sees these.
+ */
+export type MoveFacts = Pick<OutsideMove, "return_at" | "labels" | "picked" | "after_reply">;
+
+/**
+ * The ledger's move for one Inbox decision or undo on an outside card (plans 069 and 070), or null for a decision that
+ * is no move out there (approve, deny, answer, open). ⌘] is reported as `next` in analytics and kept as `read` here.
+ */
+export function ledgerMoveOf(action: CardAction | "undo", via: CardVia | null, dwellMs: number | null, facts: MoveFacts = {}): OutsideMove | null {
+  if (action === "approve" || action === "deny" || action === "answer" || action === "open") return null;
+  return { action: action === "next" ? "read" : action, via, dwell_ms: dwellMs, ...facts };
+}
+
+/** What the moves ask of the app and the store, read at call time; a test hands in fakes and its own clock. */
+export interface CardMovesHost {
+  store: Pick<ChatStore, "markReadOutside" | "markUnreadOutside" | "archiveOutside" | "labelOutside" | "restoreOutside" | "archiveConversation">;
+  rests: () => Record<string, Rest> | undefined;
+  rest: (agentId: string, conversationId: string, rest: Rest) => void;
+  markSeen: (agentId: string, conversationId: string) => void;
+  unmarkSeen: (agentId: string, conversationId: string) => void;
+  returnTimes: () => ReturnTimes | undefined;
+  now: () => number;
+  /** Keep one decision in analytics and, for an outside card, its account's ledger with the move's facts. */
+  report: (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => void;
+  /** Keep a move taken back in analytics. */
+  reportUndone: (item: AttentionItem, action: CardAction) => void;
+}
+
+/**
+ * One move on a card, kept so an undo can reverse exactly it: the rest before it when it set one, what it wrote
+ * out there, and the seen mark to put back (`mark` after a later unmarked a read card, `unmark` after a read of an
+ * unread one).
+ */
+interface MoveTaken {
+  action: CardAction;
+  rested: boolean;
+  prev: Rest | undefined;
+  change: OutsideChange | null;
+  seen: "mark" | "unmark" | null;
+}
+
+/**
+ * One move on a card's undo stack, kept from before its first wait so an undo pressed while it is still being written
+ * finds it: `done` resolves to the move once it has landed, or null when it failed, and `move` holds that answer.
+ */
+interface MoveEntry {
+  done: Promise<MoveTaken | null>;
+  move: MoveTaken | null | undefined;
+}
+
+/**
+ * The person's moves on Inbox cards (plan 070, U6), the same on a chat, an email and a Slack card: read (⌘]), later
+ * (⌘[), archive (⌘E) and label, each turned into its write-back out there, its rest, its seen mark and its report, and
+ * kept so each undo (⌘Z, R14) takes back exactly the newest one left, waiting for it when it is still being written. A
+ * failed write-back changes nothing here and resolves to the reason. Outside React, so a test drives it with a fake host and clock; useAttention keeps one.
+ */
+export function createCardMoves(first: CardMovesHost) {
+  /** The host as last set: useAttention's options are new on every render, so it hands in a fresh one after each. */
+  let host = first;
+  const setHost = (next: CardMovesHost): void => {
+    host = next;
+  };
+  /** Each card's moves, oldest first, so undo after undo takes them back newest first (R14). */
+  const taken = new Map<string, MoveEntry[]>();
+  /** The last decision, so a Next straight after acting on the same card reads as moving on (analytics.ts does the same). */
+  let last: { id: string; action: CardAction } | null = null;
+  const times = () => host.returnTimes() ?? RETURN_TIMES_DEFAULT;
+  const prevOf = (item: AttentionItem) => host.rests()?.[keyOf(item.agent_id, item.id)];
+  const note = (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => {
+    host.report(item, action, via, facts);
+    last = { id: idOf(item), action };
+  };
+  const stackOf = (item: AttentionItem): MoveEntry[] => {
+    const id = idOf(item);
+    const stack = taken.get(id) ?? [];
+    taken.set(id, stack);
+    return stack;
+  };
+  /**
+   * Put a move on `item`'s stack before it waits on anything, and hand back how to settle it: with the move it took, or
+   * with null when it failed, which takes it off the stack again. The first answer stands, so a `finally` can settle
+   * null after an answer without changing it, and a move that threw is settled as failed.
+   */
+  const begin = (item: AttentionItem) => {
+    let resolve: (move: MoveTaken | null) => void = () => {};
+    const entry: MoveEntry = { done: new Promise((r) => (resolve = r)), move: undefined };
+    stackOf(item).push(entry);
+    return (move: (Partial<MoveTaken> & { action: CardAction }) | null): void => {
+      if (entry.move !== undefined) return;
+      entry.move = move && { rested: false, prev: undefined, change: null, seen: null, ...move };
+      if (!entry.move) {
+        const stack = stackOf(item);
+        const at = stack.indexOf(entry);
+        if (at >= 0) stack.splice(at, 1);
+      }
+      resolve(entry.move);
+    };
+  };
+  /** Keep a move that waited on nothing. */
+  const keep = (item: AttentionItem, move: Partial<MoveTaken> & { action: CardAction }) => begin(item)(move);
+  const rest = (item: AttentionItem, r: Rest | null) => {
+    if (r) host.rest(item.agent_id, item.id, r);
+    return r;
+  };
+  /** The read rest ⌘] gives `item` now: the person's first rung for its kind, climbing while nothing new comes. */
+  const readRest = (item: AttentionItem, movedOn: boolean) => restAfterNext(item, prevOf(item), movedOn, host.now(), readFirstMs(times(), cardKindOf(item)));
+  /** The later rest ⌘[ gives `item` now, and whether the press asks when instead. */
+  const laterRest = (item: AttentionItem) => restAfterLater(item, prevOf(item), host.now(), laterMs(times(), cardKindOf(item)));
+
+  /** Read (⌘]): seen in loki and read out there, then a read rest; a Slack card read has ended, so it rests no more. */
+  const read = async (item: AttentionItem, via?: CardVia): Promise<MoveResult> => {
+    const movedOn = movesOn(last, idOf(item));
+    const prev = prevOf(item);
+    const settle = begin(item);
+    try {
+      let change: OutsideChange | null = null;
+      if (item.outside) {
+        const w = await host.store.markReadOutside(item);
+        if (w.error) return { error: w.error, ask: false, rest: null };
+        change = w.change;
+      }
+      host.markSeen(item.agent_id, item.id);
+      // A stopped agent never rests (restAfterNext gives null): the press moves past it for this visit only.
+      const r = rest(item, change?.ended ? null : readRest(item, movedOn));
+      settle({ action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
+      note(item, "next", via, { return_at: r?.until ?? null });
+      return { error: null, ask: false, rest: r };
+    } finally {
+      settle(null);
+    }
+  };
+
+  /** Whether ⌘[ on `item` now would ask when it comes back (R7): the second press in a row while nothing new came. */
+  const laterAsks = (item: AttentionItem): boolean => laterRest(item)?.ask ?? false;
+
+  /**
+   * Later (⌘[): the card stays unread, in loki and out there, and comes back after the kind's return time, or at
+   * `until` (ISO), the person's pick. A press that should ask does nothing without `until` and resolves `ask`, so the
+   * deck asks and calls again with the pick; a stopped agent is moved past for this visit with no rest.
+   */
+  const later = async (item: AttentionItem, via?: CardVia, until?: string): Promise<MoveResult> => {
+    const next = laterRest(item);
+    if (!next) {
+      keep(item, { action: "later" });
+      note(item, "later", via);
+      return { error: null, ask: false, rest: null };
+    }
+    if (next.ask && until === undefined) return { error: null, ask: true, rest: null };
+    const prev = prevOf(item);
+    const settle = begin(item);
+    try {
+      let change: OutsideChange | null = null;
+      if (item.outside) {
+        const w = await host.store.markUnreadOutside(item);
+        if (w.error) return { error: w.error, ask: false, rest: null };
+        change = w.change;
+      }
+      // A card already read is unmarked, so it shows unread; an email follows Gmail's mark, and loki's goes with it.
+      if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
+      const r = rest(item, until === undefined ? next.rest : { ...next.rest, until });
+      settle({ action: "later", rested: true, prev, change, seen: item.unread ? null : "mark" });
+      note(item, "later", via, { return_at: r?.until ?? null, picked: until !== undefined });
+      return { error: null, ask: false, rest: r };
+    } finally {
+      settle(null);
+    }
+  };
+
+  /** Archive (⌘E): a chat is archived, an outside card's thread is archived out there; resolves to the reason, or null. */
+  const archive = async (item: AttentionItem, via?: CardVia): Promise<string | null> => {
+    const settle = begin(item);
+    try {
+      if (item.outside) {
+        const w = await host.store.archiveOutside(item);
+        if (w.error) return w.error;
+        settle({ action: "archive", change: w.change });
+      } else {
+        const err = await host.store.archiveConversation(item.id, true, "inbox", item.agent_id);
+        if (err) return err;
+        settle({ action: "archive" });
+      }
+      note(item, "archive", via);
+      return null;
+    } finally {
+      settle(null);
+    }
+  };
+
+  /** Put Gmail labels, by id, on an email card's thread (R12); the card stays for the next key. Resolves to the reason, or null. */
+  const label = async (item: AttentionItem, labels: string[], via?: CardVia): Promise<string | null> => {
+    if (!item.outside) return "only an email card takes labels";
+    const settle = begin(item);
+    try {
+      const w = await host.store.labelOutside(item, labels);
+      if (w.error) return w.error;
+      settle({ action: "label", change: w.change });
+      note(item, "label", via, { labels });
+      return null;
+    } finally {
+      settle(null);
+    }
+  };
+
+  /**
+   * A reply on an outside card was sent and the key's move after it went (R11, KTD6): the reply is a decision, and the
+   * move rests the card as that key would and is kept, so an undo takes back the move and never the reply.
+   */
+  const replied = (item: AttentionItem, then: ReplyThen, change: OutsideChange | null): void => {
+    const prev = prevOf(item);
+    let r: Rest | null = null;
+    if (then === "archive") keep(item, { action: "archive", change });
+    else if (then === "read") {
+      host.markSeen(item.agent_id, item.id);
+      r = rest(item, change?.ended ? null : readRest(item, true));
+      keep(item, { action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
+    } else {
+      // As later does: a card already read is unmarked, so it comes back unread, and an undo marks it seen again.
+      if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
+      r = rest(item, laterRest(item)?.rest ?? null);
+      keep(item, { action: "later", rested: !!r, prev, change, seen: item.unread ? null : "mark" });
+    }
+    note(item, "reply", undefined, { after_reply: then, return_at: r?.until ?? null });
+  };
+
+  /** A hand-off went (plan 067): a decision, and the card's last move, which an undo does not take back. */
+  const handedOff = (item: AttentionItem): void => {
+    keep(item, { action: "handoff" });
+    note(item, "handoff");
+  };
+
+  /** Reverse what `move` wrote: out there, or a chat's archive. Resolves to the reason when it could not be, or null. */
+  const writeBack = (item: AttentionItem, move: MoveTaken): Promise<string | null> => {
+    if (move.change) return host.store.restoreOutside(item, move.change);
+    if (move.action === "archive" && !item.outside) return host.store.archiveConversation(item.id, false, "inbox_undo", item.agent_id);
+    return Promise.resolve(null);
+  };
+
+  /**
+   * Take back the newest move on `item` (R14), waiting for it first when it is still being written: what it wrote out
+   * there first, then a chat's archive, its rest and its seen mark. Resolves to the reason when it could not be, and the
+   * move stays to be tried again; "handed off" after a hand-off, which is not undone; and null when it was taken back,
+   * when the move it waited on failed and so changed nothing, or when there was nothing to take back.
+   */
+  const undo = async (item: AttentionItem): Promise<string | null> => {
+    const stack = stackOf(item);
+    const entry = stack.at(-1);
+    if (!entry) return null;
+    if (entry.move?.action === "handoff") return "handed off";
+    // Off the stack before the wait, so a second undo pressed meanwhile reaches the move before this one.
+    stack.pop();
+    const move = await entry.done;
+    if (!move) return null;
+    const err = await writeBack(item, move);
+    if (err) {
+      stackOf(item).push(entry);
+      return err;
+    }
+    if (move.rested) host.rest(item.agent_id, item.id, restUndone(move.prev, host.now()));
+    if (move.seen === "mark") host.markSeen(item.agent_id, item.id);
+    else if (move.seen === "unmark") host.unmarkSeen(item.agent_id, item.id);
+    host.reportUndone(item, move.action);
+    return null;
+  };
+
+  /**
+   * Log an Inbox decision the deck made by other means (approve, answer, open), and today's Next: it rests the card as
+   * read, while the deck marks it seen itself.
+   */
+  const decided = (item: AttentionItem, action: CardAction, via?: CardVia): void => {
+    if (action === "next") {
+      const prev = prevOf(item);
+      const r = rest(item, readRest(item, movesOn(last, idOf(item))));
+      keep(item, { action: "next", rested: !!r, prev });
+    }
+    note(item, action, via);
+  };
+
+  /** Today's undo of a Next or an Archive, whose seen mark or archive the deck takes back itself: the rest comes back. */
+  const undone = (item: AttentionItem, action: "next" | "archive"): void => {
+    const stack = stackOf(item);
+    const move = stack.at(-1)?.move;
+    if (action === "next") host.rest(item.agent_id, item.id, restUndone(move?.action === "next" ? move.prev : undefined, host.now()));
+    if (move?.action === action) stack.pop();
+    host.reportUndone(item, action);
+  };
+
+  return { read, later, laterAsks, archive, label, replied, handedOff, undo, decided, undone, setHost };
+}
+
+/** The moves' host from useAttention's options and store, as they stand at this render. */
+function movesHost(store: ChatStore, opts: UseAttentionOptions, report: CardMovesHost["report"]): CardMovesHost {
+  return {
+    store,
+    rests: () => opts.rests,
+    rest: (agentId, conversationId, rest) => opts.rest?.(agentId, conversationId, rest),
+    markSeen: opts.markSeen,
+    unmarkSeen: opts.unmarkSeen,
+    returnTimes: () => opts.returnTimes,
+    now: Date.now,
+    report,
+    // A move taken back: the ranking's miss, or a slip. On an outside card the ledger keeps the undo as a move of its own.
+    reportUndone: (item, action) => {
+      opts.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
+      const move = item.outside ? ledgerMoveOf("undo", null, null) : null;
+      if (move) store.moveOutside(item, move);
+    },
+  };
+}
+
+/** A card-moves registry, as `createCardMoves` returns it. */
+export type CardMoves = ReturnType<typeof createCardMoves>;
 
 /**
  * One conversation for a chat surface, redrawn when its rows move (plan 032): useAttention's result changes only when
@@ -320,12 +668,9 @@ export function useAttention(opts: UseAttentionOptions) {
     },
     [clock, cardProps],
   );
-  /** Each card's rest before its last Next, so an undo can put the card back on its rung. */
-  const restBefore = useRef(new Map<string, Rest | undefined>());
-  /** The last decision, so a Next straight after acting on the same card reads as moving on (analytics.ts does the same). */
-  const lastDecision = useRef<{ id: string; action: CardAction } | null>(null);
-  const decided = useCallback(
-    (item: AttentionItem, action: CardAction, via?: CardVia) => {
+  /** One Inbox decision in analytics, and for an outside card in its account's ledger. */
+  const report = useCallback(
+    (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => {
       const since = shownAt.current.get(idOf(item));
       const props = cardProps(item);
       const dwell = since === undefined ? null : Math.round(clock.now() - since);
@@ -335,29 +680,23 @@ export function useAttention(opts: UseAttentionOptions) {
         ...props,
         dwell_ms: dwell,
       });
-      // A move on an outside card also goes to its account's ledger, with who and what it was (plan 069).
-      if (item.outside && (action === "next" || action === "archive" || action === "reply" || action === "handoff"))
-        store.moveOutside(item, { action, via: via ?? null, dwell_ms: dwell });
-      // Next rests the card (rest.ts): a stale one longer each time, one with something new or just replied on, the first rung.
-      if (action === "next") {
-        const prev = optsRef.current.rests?.[keyOf(item.agent_id, item.id)];
-        const rest = restAfterNext(item, prev, movesOn(lastDecision.current, idOf(item)), Date.now(), optsRef.current.restFirstMs);
-        restBefore.current.set(idOf(item), prev);
-        if (rest) optsRef.current.rest?.(item.agent_id, item.id, rest);
-      }
+      // A move on an outside card also goes to its account's ledger, with who and what it was (plan 069), and with its
+      // return time, labels, pick and following key (plan 070), which analytics never carries.
+      const move = item.outside ? ledgerMoveOf(action, via ?? null, dwell, facts) : null;
+      if (move) store.moveOutside(item, move);
       // Working with an email (plan 067, R9) lifts that sender's next thread too: its focus is learned by the sender.
-      const sender = item.outside && action !== "next" ? senderKeyOf(item.outside) : null;
+      // Reading it or putting it off is not working with it.
+      const sender = item.outside && action !== "next" && action !== "later" ? senderKeyOf(item.outside) : null;
       if (sender) optsRef.current.engage?.(sender.agentId, sender.conversationId, "decide");
-      lastDecision.current = { id: idOf(item), action };
     },
     [clock, cardProps, store],
   );
-  /** A Next or an Archive taken back: the ranking's miss, or a slip. */
-  const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
-    optsRef.current.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
-    // A Next taken back: the card is back now, on the rung it had.
-    if (action === "next") optsRef.current.rest?.(item.agent_id, item.id, restUndone(restBefore.current.get(idOf(item))));
-  }, []);
+  /** The moves on cards and their undo (createCardMoves), kept for the life of the hook so an undo finds its move. */
+  // The report reads the dwell clocks, so it is handed in by the effect below, which runs before any press can.
+  const [moves] = useState(() => createCardMoves(movesHost(store, opts, () => {})));
+  useEffect(() => moves.setHost(movesHost(store, opts, report)));
+  const decided = moves.decided;
+  const undone = moves.undone;
   /** An agent pill chosen in the Inbox (null: All). */
   const filtered = useCallback((agent: string | null) => {
     optsRef.current.capture?.("inbox_filtered", { agent });
@@ -449,36 +788,32 @@ export function useAttention(opts: UseAttentionOptions) {
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agent_id, item.id), []);
   /**
-   * Done with a card: a chat is archived, an outside card's thread is archived out there (plan 067, R12), and it leaves
-   * the Inbox; resolves to an error or null.
+   * The person's reply on an outside card (plan 068), then the key's move (plan 070, R11); once sent it is an Inbox
+   * decision, kept in the ledger (plan 069), even when the move after it failed. A move that went rests the card as
+   * its key would and is what an undo takes back; the reply stays sent.
    */
-  const archive = useCallback(
-    (item: AttentionItem) => (item.outside ? store.archiveOutside(item) : store.archiveConversation(item.id, true, "inbox", item.agent_id)),
-    [store],
-  );
-  /** The person's reply on an outside card (plan 068); once sent it is an Inbox decision, kept in the ledger (plan 069). */
   const replyOutside = useCallback(
-    async (item: AttentionItem, text: string) => {
-      const err = await store.replyOutside(item, text);
-      if (!err) decided(item, "reply");
-      return err;
+    async (item: AttentionItem, text: string, then: ReplyThen): Promise<OutsideReplyResult> => {
+      const r = await store.replyOutside(item, text, then);
+      if (r.sent && !r.error) moves.replied(item, then, r.change);
+      else if (r.sent) decided(item, "reply");
+      return { sent: r.sent, error: r.error };
     },
-    [store, decided],
+    [store, moves, decided],
   );
   /** A hand-off of an outside card to its owner's chat (plan 067); once made it is an Inbox decision too (plan 069). */
   const handoffOutside = useCallback(
     async (item: AttentionItem, conversationId: string | null) => {
       const err = await store.handoff(item, conversationId);
-      if (!err) decided(item, "handoff");
+      if (!err) moves.handedOff(item);
       return err;
     },
-    [store, decided],
+    [store, moves],
   );
-  /** Undo of an archive: the chat comes back. An outside card's archive is not taken back here, so it stays done. */
-  const unarchive = useCallback(
-    (item: AttentionItem) => (item.outside ? Promise.resolve(null) : store.archiveConversation(item.id, false, "inbox_undo", item.agent_id)),
-    [store],
-  );
+  /**
+   * The labels an email card's account has, for the label picker (plan 070, R12), or the reason they could not be had.
+   */
+  const labelsOf = useCallback((item: AttentionItem): Promise<AccountLabel[] | string> => store.labelsOf(item), [store]);
   const server = snap.server;
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
@@ -529,8 +864,21 @@ export function useAttention(opts: UseAttentionOptions) {
     reload: store.reload,
     seen: markDone,
     unread: markNotDone,
-    archive,
-    unarchive,
+    /** ⌘] on any card (plan 070, R5): seen, read out there, rested; resolves to a MoveResult. */
+    read: moves.read,
+    /** ⌘[ on any card (R6, R7): unread, put off; resolves `ask` on a second press until called again with the pick. */
+    later: moves.later,
+    /** Whether ⌘[ on a card now would ask when it comes back, so the deck can ask before the press. */
+    laterAsks: moves.laterAsks,
+    /** ⌘E on any card (R9): a chat archived, an outside thread archived out there; resolves to the reason or null. */
+    archive: moves.archive,
+    /** Put Gmail labels, by id, on an email card (R12); the card stays. Resolves to the reason or null. */
+    label: moves.label,
+    labelsOf,
+    /** Take back the last move on a card (R14), whatever its kind; resolves to the reason, "handed off", or null. */
+    undo: moves.undo,
+    /** Undo of an archive, on a chat or an outside card: the same as `undo` once the archive was the card's last move. */
+    unarchive: moves.undo,
     handoffPropose: store.handoffPropose,
     handoff: handoffOutside,
     readOutside: store.readOutside,

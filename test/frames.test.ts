@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { frameModules, type ModuleDeps } from "../mod/frames/index.ts";
 import type { FrameHandlers } from "../mod/frames/context.ts";
 import { SeenStore } from "../mod/seen.ts";
+import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 import { RecallStore } from "../mod/recall.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
@@ -72,10 +73,16 @@ describe("the frame table", () => {
         "models_recent_add",
         "focus_add",
         "card_rest",
+        "return_times_set",
         "desk_get",
         "suggestion_decide",
         "suggestion_retarget",
         "account_thread_archive",
+        "account_thread_mark_read",
+        "account_thread_mark_unread",
+        "account_thread_label",
+        "account_thread_restore",
+        "account_labels_list",
         "account_thread_handoff_propose",
         "account_thread_handoff",
         "account_thread_read",
@@ -319,6 +326,7 @@ describe("every frame in the table, through the real router", () => {
     viewed_mark: { conversation_id: "conv-1" },
     focus_add: { conversation_id: "conv-1", action: "answer" },
     card_rest: { conversation_id: "conv-1", rest: { n: 1, until: "2026-10-20T09:10:00Z", stamp: "s", at: "2026-10-20T09:00:00Z" } },
+    return_times_set: { return_times: RETURN_TIMES_DEFAULT },
     capture: { event: "frames_walked" },
     history_get: { conversation_id: "conv-1" },
     recall_grade: { id: "k", grade: 3 },
@@ -567,12 +575,17 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual([
+      "account_labels_list",
       "account_thread_archive",
       "account_thread_handoff",
       "account_thread_handoff_propose",
+      "account_thread_label",
+      "account_thread_mark_read",
+      "account_thread_mark_unread",
       "account_thread_move",
       "account_thread_read",
       "account_thread_reply",
+      "account_thread_restore",
       "chat_requirements",
       "folder_check",
       "folder_complete",

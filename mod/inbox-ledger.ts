@@ -8,9 +8,10 @@ import { messageOf } from "../core/errors.ts";
 import { log, rotateIfLarge } from "./log.ts";
 
 /**
- * The ledger of the person's moves on outside cards (plan 069): every Next, archive, reply and hand-off on a Gmail or
- * Slack card, with what the thread was (its sender, subject, and for mail what kind it is) and how long the card was
- * on top first. It is the data a later step learns the person's preferences from, and in time acts on them; nothing
+ * The ledger of the person's moves on outside cards (plans 069 and 070): every read, later, archive, label, reply,
+ * hand-off and undo on a Gmail or Slack card, with when its rest brings it back, the labels put on, whether the person
+ * picked the time and the key that followed a reply; with what the thread was (its sender, subject, and for mail what
+ * kind it is) and how long the card was on top first. It is the data a later step learns the person's preferences from, and in time acts on them; nothing
  * reads it yet. It lives on the Mac the account lives on, in `state/inbox-ledger.jsonl`, one line a move, and never
  * leaves it: the analytics events stay free of senders and subjects.
  */
@@ -41,6 +42,14 @@ export interface LedgerEntry {
   /** For Slack, a DM or a thread (an Activity item); null for mail. */
   slack_kind: "dm" | "thread" | null;
   from_backfill: boolean;
+  /** When the move's rest brings the card back; this and the three facts below are absent on lines from before plan 070. */
+  return_at?: string | null;
+  /** The Gmail label ids a label move put on. */
+  labels?: string[] | null;
+  /** Whether the person chose the return time at the second ⌘[. */
+  picked?: boolean;
+  /** For a reply, the key that followed it. */
+  after_reply?: OutsideMove["after_reply"];
 }
 
 /** What the ledger is built from; the clock is injected so tests own it. */
@@ -89,6 +98,10 @@ export class InboxLedger {
       traits: r.traits,
       slack_kind: account.provider === "slack" ? (threadId.includes(":") ? "thread" : "dm") : null,
       from_backfill: r.from_backfill,
+      return_at: move.return_at ?? null,
+      labels: move.labels ?? null,
+      picked: move.picked ?? false,
+      after_reply: move.after_reply ?? null,
     };
     try {
       if (!this.ready) {

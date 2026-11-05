@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { AccountThreads, type ObservedMessage, type OutsideSource } from "../mod/account-threads.ts";
+import type { OutsideChange } from "../core/frame-types.ts";
+import { AccountThreads, type ObservedMessage, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -32,6 +33,25 @@ async function fixture(source?: OutsideSource) {
   };
   return { dir, accounts, threads: make(), again: make };
 }
+
+/** What a fake write-back says it changed: nothing on any message. */
+const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRecord): OutsideChange => ({
+  move,
+  messages: [],
+  ended,
+  was_unread: record.unread_out_there,
+});
+
+/** A write-back that changes nothing out there, with any of its writes replaced. */
+const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
+  archive: (_a, r) => Promise.resolve(changeOf("archive", true, r)),
+  markRead: (_a, r) => Promise.resolve(changeOf("read", false, r)),
+  markUnread: (_a, r) => Promise.resolve(changeOf("unread", false, r)),
+  addLabels: (_a, r) => Promise.resolve(changeOf("label", false, r)),
+  restore: () => Promise.resolve(),
+  labels: () => Promise.resolve([]),
+  ...more,
+});
 
 const message = (more: Partial<ObservedMessage> = {}): ObservedMessage => ({
   thread_id: "t1",
@@ -72,8 +92,51 @@ describe("the thread records of an account", () => {
         newest_message_id: "m1",
         handoff_conversation_id: null,
         disconnected: null,
+        unread_out_there: true,
       },
     });
+  });
+
+  test("covers AE7: the thread read out there keeps its card, shown as read, and unread again shows unread", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(true);
+    expect(threads.rows().map((r) => [r.id, r.outside?.unread_out_there])).toEqual([["t1#1", false]]);
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(false);
+    expect(threads.observe(MAIL, message({ unread_out_there: true }))).toBe(true);
+    expect(threads.get(MAIL, "t1")?.unread_out_there).toBe(true);
+  });
+
+  test("the read state of a thread that is not a card changes nothing", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.markGoneOutThere(MAIL, "t1");
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(false);
+    expect(threads.rows()).toEqual([]);
+  });
+
+  test("reopen brings an archived thread back as the same card without a newer message; open and handed-off ones stay", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.observe(MAIL, message({ thread_id: "t2" }));
+    threads.markGoneOutThere(MAIL, "t1");
+    threads.handedOff(MAIL, "t2", "conv-7");
+    expect(threads.reopen(MAIL, "t1")).toBe(true);
+    expect(threads.reopen(MAIL, "t1")).toBe(false);
+    expect(threads.reopen(MAIL, "t2")).toBe(false);
+    expect(threads.reopen(MAIL, "nope")).toBe(false);
+    expect(threads.rows().map((r) => r.id)).toEqual(["t1#1"]);
+  });
+
+  test("a record from before read state was kept reads as unread out there, so no card goes quiet", async () => {
+    const { dir, threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const folder = join(dir, "account-threads");
+    const [name] = readdirSync(folder);
+    const file = JSON.parse(readFileSync(join(folder, name), "utf8")) as { threads: Array<Record<string, unknown>> };
+    delete file.threads[0].unread_out_there;
+    writeFileSync(join(folder, name), JSON.stringify(file), { mode: 0o600 });
+    expect(again().get(MAIL, "t1")?.unread_out_there).toBe(true);
   });
 
   test("covers AE2: a newer message on an open thread updates the same card; the same or an older one changes nothing", async () => {
@@ -89,10 +152,10 @@ describe("the thread records of an account", () => {
     expect(must(rows[0].outside, "outside").lines).toEqual(["b", "c", "d"]);
   });
 
-  test("a thread read out there leaves the Inbox, and comes back only with a newer message, as the same card", async () => {
+  test("a thread gone out there leaves the Inbox, and comes back only with a newer message, as the same card", async () => {
     const { threads } = await fixture();
     threads.observe(MAIL, message());
-    threads.markReadOutThere(MAIL, "t1");
+    threads.markGoneOutThere(MAIL, "t1");
     expect(threads.rows()).toEqual([]);
     expect(threads.observe(MAIL, message())).toBe(false);
     expect(threads.rows()).toEqual([]);
@@ -149,12 +212,14 @@ describe("the thread records of an account", () => {
 
   test("archive writes back to the account first, then the card leaves", async () => {
     const archived: string[] = [];
-    const { threads } = await fixture({
-      archive: (accountId, record) => {
-        archived.push(`${accountId} ${record.thread_id} ${record.newest_message_id}`);
-        return Promise.resolve();
-      },
-    });
+    const { threads } = await fixture(
+      fakeSource({
+        archive: (accountId, record) => {
+          archived.push(`${accountId} ${record.thread_id} ${record.newest_message_id}`);
+          return Promise.resolve(changeOf("archive", true, record));
+        },
+      }),
+    );
     threads.observe(MAIL, message());
     await threads.archive(MAIL, "t1");
     expect(archived).toEqual([`${MAIL} t1 m1`]);
@@ -162,16 +227,84 @@ describe("the thread records of an account", () => {
   });
 
   test("an archive the account refuses throws its reason and the card stays", async () => {
-    const { threads } = await fixture({ archive: () => Promise.reject(new Error("Gmail is out of reach")) });
+    const { threads } = await fixture(fakeSource({ archive: () => Promise.reject(new Error("Gmail is out of reach")) }));
     threads.observe(MAIL, message());
     await expect(threads.archive(MAIL, "t1")).rejects.toThrow("Gmail is out of reach");
     expect(threads.rows().map((r) => r.id)).toEqual(["t1#1"]);
   });
 
+  test("mark read shows the card read and keeps it; mark unread shows it unread again (plan 070, R5, R6)", async () => {
+    const { threads } = await fixture(fakeSource());
+    threads.observe(MAIL, message());
+    expect(await threads.markRead(MAIL, "t1")).toEqual({ move: "read", messages: [], ended: false, was_unread: true });
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", unread_out_there: false });
+    expect(await threads.markUnread(MAIL, "t1")).toMatchObject({ move: "unread", was_unread: false });
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", unread_out_there: true });
+  });
+
+  test("a message that came while mark read ran keeps the card unread", async () => {
+    let arrive = () => {};
+    const { threads } = await fixture(
+      fakeSource({
+        markRead: (_a, r) => {
+          arrive();
+          return Promise.resolve(changeOf("read", false, r));
+        },
+      }),
+    );
+    threads.observe(MAIL, message());
+    arrive = () => threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    await threads.markRead(MAIL, "t1");
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", newest_message_id: "m2", unread_out_there: true });
+  });
+
+  test("restore puts the record back as the move found it: an archive reopens the card, a read shows it unread again", async () => {
+    const restored: string[] = [];
+    const { threads } = await fixture(
+      fakeSource({
+        restore: (_a, r, change) => {
+          restored.push(`${r.thread_id} ${change.move}`);
+          return Promise.resolve();
+        },
+      }),
+    );
+    threads.observe(MAIL, message());
+    const archived = must(await threads.archive(MAIL, "t1"), "the archive's change");
+    expect(threads.rows()).toEqual([]);
+    await threads.restore(MAIL, "t1", archived);
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", generation: 1, unread_out_there: true });
+    const read = must(await threads.markRead(MAIL, "t1"), "the read's change");
+    await threads.restore(MAIL, "t1", read);
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", unread_out_there: true });
+    expect(restored).toEqual(["t1 archive", "t1 read"]);
+  });
+
+  test("a card an undo reopened is kept open until a newer message, which clears the mark", async () => {
+    const { threads } = await fixture(fakeSource({}));
+    threads.observe(MAIL, message());
+    expect(threads.get(MAIL, "t1")?.kept_open).toBe(false);
+    const archived = must(await threads.archive(MAIL, "t1"), "the archive's change");
+    await threads.restore(MAIL, "t1", archived);
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", kept_open: true });
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", newest_message_id: "m2", kept_open: false });
+  });
+
+  test("a write on a card that is not open writes nothing and answers null; a refused restore leaves the record", async () => {
+    const { threads } = await fixture(fakeSource({ restore: () => Promise.reject(new Error("Gmail is out of reach")) }));
+    threads.observe(MAIL, message());
+    const archived = must(await threads.archive(MAIL, "t1"), "the archive's change");
+    expect(await threads.markRead(MAIL, "t1")).toBeNull();
+    expect(await threads.archive(MAIL, "t1")).toBeNull();
+    await expect(threads.restore(MAIL, "t1", archived)).rejects.toThrow("Gmail is out of reach");
+    expect(threads.get(MAIL, "t1")?.state).toBe("archived");
+    await expect(threads.restore(MAIL, "t9", archived)).rejects.toThrow("loki has no record of that thread");
+  });
+
   test("the records outlive a restart, in a file per account whose name Windows allows", async () => {
     const { dir, threads, again } = await fixture();
     threads.observe(MAIL, message());
-    threads.markReadOutThere(MAIL, "t1");
+    threads.markGoneOutThere(MAIL, "t1");
     const files = readdirSync(join(dir, "account-threads"));
     expect(files).toHaveLength(1);
     expect(files[0]).not.toMatch(/[<>:"/\\|?*]/);

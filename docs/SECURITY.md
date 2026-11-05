@@ -166,9 +166,13 @@ yourself.
 - **Gmail sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
   the one-time `state` of a sign-in loki started in the last 10 minutes (`mod/google-signin.ts`). loki asks for
-  `gmail.modify`, `openid` and `userinfo.email`. `gmail.modify` reads mail, changes labels (archiving and marking read
-  are label changes), writes drafts and sends; loki keeps agents from sending by giving no agent tool the send call in
-  `mod/gmail.ts`, not by the scope.
+  `gmail.modify`, `openid` and `userinfo.email`. `gmail.modify` reads mail, changes labels, writes drafts and sends;
+  loki keeps agents from sending by giving no agent tool the send call in `mod/gmail.ts`, not by the scope.
+- **What loki changes in Gmail.** Only labels, and only on your move on a card (plan 070): read removes UNREAD,
+  later adds UNREAD to the thread's newest incoming message, archive and a hand-off remove INBOX and UNREAD, label
+  adds a label of yours that you pick, and undo puts back exactly the labels the move changed. Each touches messages
+  up to the card's newest only. loki lists the account's labels for the picker and never creates, renames or deletes
+  one; nothing deletes or moves mail to the trash.
 - **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret
   ship in the source (`mod/google-app.ts`), as Google intends for a desktop client: they identify the app, not you, and
   grant nothing without your sign-in. You may use a Google app of your own instead; its id and secret are kept in the
@@ -180,7 +184,7 @@ yourself.
   copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
-  activity and counts, marking a DM read, listing, writing and deleting drafts, and `chat.postMessage` for your own
+  activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), listing, writing and deleting drafts, and `chat.postMessage` for your own
   reply, which no agent tool reaches; nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
 - **What reaches the model.** Mail and Slack text reaches your model provider only when you hand a thread to its

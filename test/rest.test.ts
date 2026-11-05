@@ -8,7 +8,15 @@ import {
   REST_CAP_MS,
   REST_FIRST_CHOICES,
   REST_FIRST_MS,
+  REST_LATER_CHOICES,
+  RETURN_TIMES_DEFAULT,
+  cardKindOf,
+  isRest,
   isResting,
+  isReturnTimes,
+  laterMs,
+  readFirstMs,
+  restAfterLater,
   movesOn,
   parseRestFirst,
   restAfterNext,
@@ -20,6 +28,8 @@ import {
 import { EMPTY_DECK, commitCard, deckQueue, throughResting } from "../app/src/phone/deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { must } from "./fixtures/must.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
+import { moveRestFirst } from "../app/src/shared/rest-first.ts";
 
 /** Rest (core/attention/rest.ts, plans 026 and 065): Next on a card hides it, a stale one longer each time, until something new comes. */
 
@@ -29,6 +39,7 @@ const T0 = Date.parse("2026-10-20T09:00:00Z");
 /** A card with nothing new, its chat quiet for `quiet` ms at T0. */
 const stale = (id = "c1", quiet = 0) => attentionItem(id, { unread: false, status: "idle", last_message_at: new Date(T0 - quiet).toISOString() });
 const gap = (r: Rest | null, at = T0) => Date.parse(must(r, "a rest").until) - at;
+const DAY = 24 * H;
 
 describe("the ladder", () => {
   test("each Next in a row on a stale card rests it three times longer from an hour, up to a week", () => {
@@ -84,6 +95,117 @@ describe("the ladder", () => {
   });
 });
 
+describe("later (plan 070, U4)", () => {
+  const later = (item = stale(), prev?: Rest, at = T0) => must(restAfterLater(item, prev, at, laterMs(RETURN_TIMES_DEFAULT, cardKindOf(item))), "a later rest");
+
+  test("a later press rests a day; the second on the same stamp asks when; a new message in between makes it a first press again", () => {
+    const once = later();
+    expect([gap(once.rest), once.rest.kind, once.rest.n, once.ask]).toEqual([DAY, "later", 1, false]);
+    const twice = later(stale(), once.rest, T0 + DAY);
+    expect([twice.rest.n, twice.ask]).toEqual([2, true]);
+    const moved = { ...stale(), lastAssistantText: "something new" };
+    const fresh = later(moved, once.rest, T0 + DAY);
+    expect([fresh.rest.n, fresh.ask]).toEqual([1, false]);
+  });
+
+  test("a read rest between two later presses starts the later count over", () => {
+    const once = later();
+    const read = must(restAfterNext(stale(), once.rest, false, T0 + DAY), "a read rest");
+    expect(read.kind).toBe("read");
+    const again = later(stale(), read, T0 + 2 * DAY);
+    expect([again.rest.n, again.ask]).toEqual([1, false]);
+  });
+
+  test("a stopped agent is never put off", () => {
+    expect(restAfterLater(attentionItem("c1", { status: "approval" }), undefined, T0, DAY)).toBeNull();
+  });
+
+  test("each kind of card keeps its own return times, and an unknown record is not one", () => {
+    const mail = outsideItem("Quarterly numbers");
+    const slack = outsideItem("hi", { outside: { ...must(mail.outside, "facts"), provider: "slack" } });
+    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack)]).toEqual(["chat", "email", "slack"]);
+    expect(readFirstMs(RETURN_TIMES_DEFAULT, "email")).toBe(H);
+    expect(laterMs(RETURN_TIMES_DEFAULT, "slack")).toBe(DAY);
+    expect(isReturnTimes(RETURN_TIMES_DEFAULT)).toBe(true);
+    expect(isReturnTimes({ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "5d", slack: "1d" } })).toBe(false);
+    expect(isReturnTimes(null)).toBe(false);
+  });
+
+  test("setting email's later return to two days changes the next press only; a card already resting keeps its time", () => {
+    const mail = outsideItem("Quarterly numbers");
+    const before = must(restAfterLater(mail, undefined, T0, laterMs(RETURN_TIMES_DEFAULT, "email")), "a later rest").rest;
+    const times = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "2d" as const } };
+    expect(laterMs(times, "email")).toBe(REST_LATER_CHOICES["2d"]);
+    expect(laterMs(times, "chat")).toBe(DAY);
+    // The stored rest is an absolute time: it ends a day after the press, whatever the setting says now.
+    expect(isResting(mail, before, T0 + DAY + MIN)).toBe(false);
+    const next = must(
+      restAfterLater({ ...mail, outside: { ...must(mail.outside, "facts"), newest_message_id: "m2" } }, before, T0, laterMs(times, "email")),
+      "a rest",
+    ).rest;
+    expect(gap(next)).toBe(2 * DAY);
+  });
+
+  test("a rest from an older Mac, with no kind, stays valid; an older Mac reads a later rest by the fields it knows", () => {
+    const rest = later().rest;
+    expect(isRest(rest)).toBe(true);
+    const { kind: _, ...old } = rest;
+    expect(isRest(old)).toBe(true);
+    expect(isRest({ ...rest, kind: "snooze" })).toBe(false);
+    // What an older Mac checks: n, until, stamp and at, each of its own type.
+    expect([typeof rest.n, typeof rest.until, typeof rest.stamp, typeof rest.at]).toEqual(["number", "string", "string", "string"]);
+  });
+});
+
+describe("read rests on an outside card (KTD10)", () => {
+  test("a week-old read email rests an hour, not a week; the next read rest on its return rests longer", () => {
+    const old = outsideItem("Newsletter", { unread: false, last_message_at: new Date(T0 - 7 * DAY).toISOString() });
+    const first = must(restAfterNext(old, undefined, false, T0, readFirstMs(RETURN_TIMES_DEFAULT, "email")), "a rest");
+    expect([gap(first), first.kind]).toEqual([H, "read"]);
+    const second = restAfterNext(old, first, false, T0 + H, readFirstMs(RETURN_TIMES_DEFAULT, "email"));
+    expect(gap(second, T0 + H)).toBe(3 * H);
+  });
+
+  test("a chat still rests by today's ladder, quiet time included", () => {
+    expect(gap(restAfterNext(stale("c1", 7 * DAY), undefined, false, T0))).toBe(REST_CAP_MS);
+    expect(gap(restAfterNext(stale("c1", 5 * H), undefined, false, T0))).toBe(5 * H);
+  });
+});
+
+describe("the first rest moves to the daemon", () => {
+  /** A storage holding what the test puts in it. */
+  const storage = (init: Record<string, string>) => {
+    const data = new Map(Object.entries(init));
+    return {
+      data,
+      getItem: (k: string) => data.get(k) ?? null,
+      removeItem: (k: string) => void data.delete(k),
+    };
+  };
+
+  test("the old setting's value becomes the chat and email read rest, once, and leaves this device", () => {
+    const local = storage({ "loki.restFirst": "3h" });
+    const sent: unknown[] = [];
+    expect(moveRestFirst(null, (t) => sent.push(t) > 0, local)).toBe(true);
+    expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, read_first: { chat: "3h", email: "3h" } }]);
+    expect(local.data.has("loki.restFirst")).toBe(false);
+    expect(moveRestFirst(null, (t) => sent.push(t) > 0, local)).toBe(false);
+  });
+
+  test("nothing moves while the daemon has its own, or before it has said, or when nothing was set here", () => {
+    const sent: unknown[] = [];
+    const local = storage({ "loki.restFirst": "3h" });
+    expect(moveRestFirst(RETURN_TIMES_DEFAULT, (t) => sent.push(t) > 0, local)).toBe(false);
+    expect(moveRestFirst(undefined, (t) => sent.push(t) > 0, local)).toBe(false);
+    expect(local.data.has("loki.restFirst")).toBe(true);
+    expect(moveRestFirst(null, (t) => sent.push(t) > 0, storage({}))).toBe(false);
+    expect(sent).toEqual([]);
+    // A send that did not go keeps the choice here for the next push.
+    expect(moveRestFirst(null, () => false, local)).toBe(false);
+    expect(local.data.has("loki.restFirst")).toBe(true);
+  });
+});
+
 describe("what ends a rest", () => {
   test("its time, or anything new in the chat, which also starts the ladder again; reading the card changes nothing", () => {
     const card = stale();
@@ -104,6 +226,8 @@ describe("what ends a rest", () => {
     const before: Rest = { n: 2, until: "", stamp: "s", at: "" };
     const undone = restUndone(before, T0);
     expect(undone).toEqual({ n: 2, until: new Date(T0).toISOString(), stamp: "s", at: new Date(T0).toISOString() });
+    const later: Rest = { ...before, kind: "later" };
+    expect(restUndone(later, T0).kind).toBe("later");
     expect(restUndone(undefined, T0).n).toBe(0);
   });
 });
@@ -141,6 +265,22 @@ describe("the mod keeps the rests", () => {
       now = "2026-10-20T09:01:00.000Z";
       store.flush();
       expect(new SeenStore(path).restsAll()).toEqual({ "a1/c1": rest });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a later rest picked three weeks out outlives the month the store forgets rests by", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-rests-"));
+    try {
+      let now = "2026-10-01T09:00:00.000Z";
+      const store = new SeenStore(join(dir, "attention.json"), { debounceMs: 0, now: () => now });
+      const far: Rest = { n: 2, until: "2026-11-05T09:00:00.000Z", stamp: "s", at: now, kind: "later" };
+      expect(store.rest("a1", "far", far)).toBe(true);
+      now = "2026-11-02T09:00:00.000Z"; // over a month since it was set, three days before it ends
+      expect(store.rest("a1", "c1", { n: 1, until: "2026-11-02T10:00:00.000Z", stamp: "s", at: now })).toBe(true);
+      expect(store.restsAll()["a1/far"]).toEqual(far);
+      store.flush();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

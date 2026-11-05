@@ -1,4 +1,5 @@
 import { messageOf } from "../core/errors.ts";
+import type { OutsideChange } from "../core/frame-types.ts";
 import type { AccountThreads, ObservedMessage, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { log } from "./log.ts";
@@ -86,14 +87,29 @@ const markActivityItemRead = (): "marked" | "not_available" => "not_available";
 /** Each AccountThreads' Slack syncs by account: one write-back serves every workspace, since it is registered per provider. */
 const syncsByThreads = new WeakMap<AccountThreads, Map<string, SlackSync>>();
 
-/** The one Slack write-back for an AccountThreads, handing each archive to the sync of the card's account. */
+/** Why a label move on a Slack card is refused. */
+const NO_LABELS = "Slack has no labels: labels are for email";
+
+/**
+ * The one Slack write-back for an AccountThreads, handing each move to the sync of the card's account (plan 070,
+ * KTD3). Read and archive are the same mark in Slack, and both end the card. Unread writes nothing: a Slack card is
+ * unread until it ends. An undo writes nothing either, since Slack cannot be marked unread again from here; the card
+ * opens again in loki only.
+ */
 function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
+  const mark = async (accountId: string, record: ThreadRecord, move: "archive" | "read"): Promise<OutsideChange> => {
+    const sync = syncs.get(accountId);
+    if (!sync) throw new Error("loki is not watching that Slack workspace right now");
+    await sync.archive(record);
+    return { move, messages: [], ended: true, was_unread: record.unread_out_there };
+  };
   return {
-    archive: (accountId, record) => {
-      const sync = syncs.get(accountId);
-      if (!sync) return Promise.reject(new Error("loki is not watching that Slack workspace right now"));
-      return sync.archive(record);
-    },
+    archive: (accountId, record) => mark(accountId, record, "archive"),
+    markRead: (accountId, record) => mark(accountId, record, "read"),
+    markUnread: (_accountId, record) => Promise.resolve({ move: "unread", messages: [], ended: false, was_unread: record.unread_out_there }),
+    addLabels: () => Promise.reject(new Error(NO_LABELS)),
+    restore: () => Promise.resolve(),
+    labels: () => Promise.reject(new Error(NO_LABELS)),
   };
 }
 
@@ -156,14 +172,17 @@ export class SlackSync {
     }
 
     for (const r of threads.list(this.accountId)) {
-      if (r.state !== "open" || candidates.has(r.thread_id)) continue;
+      // A card whose reply waits for an answer (plan 070, KTD7) is not ended by the read marker the person's own post
+      // moved; it waits for the other side to write, which clears the wait, or for the person to finish it. A card an
+      // undo brought back (R14) is the same: Slack keeps the read the undo could not take back, so it waits too.
+      if (r.state !== "open" || r.waiting || r.kept_open || candidates.has(r.thread_id)) continue;
       if (r.thread_id.includes(":")) {
-        if (feed.complete) threads.markReadOutThere(this.accountId, r.thread_id);
+        if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
         continue;
       }
       const dm = dms.get(r.thread_id);
       if (dm && (!dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read))))
-        threads.markReadOutThere(this.accountId, r.thread_id);
+        threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
     if (!threads.list(this.accountId).some((r) => r.state === "open")) await this.refill(older, feed.complete);

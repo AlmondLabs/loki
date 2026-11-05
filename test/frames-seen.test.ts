@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
 import { seenChatFrame, seenFrame } from "../mod/frames/seen.ts";
 import { bridgeWith, client } from "./fixtures/frames.ts";
+import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
 describe("the seen push", () => {
   test("the turn-start mark pushes the same frame seen_list answers, focus included", () => {
@@ -79,6 +80,26 @@ describe("the seen push", () => {
       expect(broadcasts[0]?.frame.seen).toEqual(expect.any(String));
       expect(broadcasts[1]?.frame.seen).toBeNull();
       expect(broadcasts[2]?.frame.rest).toMatchObject({ n: 0 });
+      seen.flush();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("return times are none until set, then a set one reaches every client in the whole push", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const seen = new SeenStore(join(dir, "attention.json"), { debounceMs: 0 });
+      expect(seenFrame({ seen }).return_times).toBeNull();
+      const { bridge, broadcasts } = bridgeWith({ seen });
+      const c = client("d1");
+      const times = { ...RETURN_TIMES_DEFAULT, later: { chat: "3h", email: "2d", slack: "1w" } };
+      bridge.onMessage(c, { type: "return_times_set", return_times: times });
+      expect(broadcasts.map((b) => b.frame.type)).toEqual(["seen"]);
+      expect(broadcasts[0]?.frame.return_times).toEqual(times);
+      bridge.onMessage(c, { type: "return_times_set", return_times: times }); // the same again sends nothing
+      bridge.onMessage(c, { type: "return_times_set", return_times: { later: { chat: "5d" } } }); // refused
+      expect(broadcasts).toHaveLength(1);
       seen.flush();
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -41,6 +41,9 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   handoff_conversation_id: null,
   from_backfill: false,
   traits: { to_you: true, list: false, automated: true, category: "updates" },
+  unread_out_there: true,
+  waiting: false,
+  kept_open: false,
   ...over,
 });
 
@@ -87,8 +90,35 @@ describe("the ledger of moves", () => {
         traits: { to_you: true, list: false, automated: true, category: "updates" },
         slack_kind: null,
         from_backfill: false,
+        return_at: null,
+        labels: null,
+        picked: false,
+        after_reply: null,
       },
     ]);
+  });
+
+  test("a later with a picked return time is one line with the time and the pick (plan 070, U10)", () => {
+    const { ledger, lines } = ledgerWith([[MAIL, record("t1")]]);
+    ledger.record(MAIL, "t1", { action: "later", via: "key", dwell_ms: 800, return_at: "2026-11-08T09:00:00.000Z", picked: true });
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0]).toMatchObject({ action: "later", return_at: "2026-11-08T09:00:00.000Z", picked: true, labels: null, after_reply: null });
+  });
+
+  test("a label move keeps the labels put on, and an undo is a line of its own", () => {
+    const { ledger, lines } = ledgerWith([[MAIL, record("t1")]]);
+    ledger.record(MAIL, "t1", { action: "label", via: "click", dwell_ms: 300, labels: ["Label_7", "Label_9"] });
+    ledger.record(MAIL, "t1", { action: "undo", via: null, dwell_ms: null });
+    expect(lines().map((l) => [l.action, l.labels])).toEqual([
+      ["label", ["Label_7", "Label_9"]],
+      ["undo", null],
+    ]);
+  });
+
+  test("a reply followed by ⌘E keeps the reply and the key that followed it", () => {
+    const { ledger, lines } = ledgerWith([[MAIL, record("t1")]]);
+    ledger.record(MAIL, "t1", { action: "reply", via: null, dwell_ms: 9000, after_reply: "archive" });
+    expect(lines()[0]).toMatchObject({ action: "reply", after_reply: "archive", return_at: null });
   });
 
   test("Slack moves say whether the card was a DM or a thread, and moves add up in order", () => {
@@ -145,16 +175,37 @@ describe("the move frame", () => {
     const { send, kept } = ask();
     await send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "next", via: "key", dwell_ms: 1200.4 });
     await send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "handoff", via: "elbow", dwell_ms: -3 });
+    const bare = { return_at: null, labels: null, picked: false, after_reply: null };
+    // A move from before plan 070 (Next, no return time, labels or pick) still reads.
     expect(kept).toEqual([
-      { accountId: MAIL, threadId: "t1", move: { action: "next", via: "key", dwell_ms: 1200 } },
-      { accountId: MAIL, threadId: "t1", move: { action: "handoff", via: null, dwell_ms: null } },
+      { accountId: MAIL, threadId: "t1", move: { action: "next", via: "key", dwell_ms: 1200, ...bare } },
+      { accountId: MAIL, threadId: "t1", move: { action: "handoff", via: null, dwell_ms: null, ...bare } },
+    ]);
+  });
+
+  test("read, later, label, undo and a reply's following key reach the ledger with their facts; ones it cannot read are left out", async () => {
+    const { send, kept } = ask();
+    const move = (m: Record<string, unknown>) => send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", via: "key", dwell_ms: 5, ...m });
+    await move({ action: "read", return_at: "2026-11-05T11:00:00.000Z" });
+    await move({ action: "later", return_at: "2026-11-08T09:00:00.000Z", picked: true });
+    await move({ action: "label", labels: ["Label_7"] });
+    await move({ action: "undo", via: null, dwell_ms: null });
+    await move({ action: "reply", via: null, after_reply: "archive" });
+    await move({ action: "later", return_at: "soon", labels: ["ok", 3], picked: "yes", after_reply: "spam" });
+    expect(kept.map((k) => (k as { move: unknown }).move)).toEqual([
+      { action: "read", via: "key", dwell_ms: 5, return_at: "2026-11-05T11:00:00.000Z", labels: null, picked: false, after_reply: null },
+      { action: "later", via: "key", dwell_ms: 5, return_at: "2026-11-08T09:00:00.000Z", labels: null, picked: true, after_reply: null },
+      { action: "label", via: "key", dwell_ms: 5, return_at: null, labels: ["Label_7"], picked: false, after_reply: null },
+      { action: "undo", via: null, dwell_ms: null, return_at: null, labels: null, picked: false, after_reply: null },
+      { action: "reply", via: null, dwell_ms: 5, return_at: null, labels: null, picked: false, after_reply: "archive" },
+      { action: "later", via: "key", dwell_ms: 5, return_at: null, labels: null, picked: false, after_reply: null },
     ]);
   });
 
   test("an action that is not a move is refused, and a mod without a ledger answers that it kept nothing", async () => {
     expect(await ask().send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "approve" })).toMatchObject({
       type: "error",
-      message: "action must be next, archive, reply or handoff",
+      message: "action must be read, later, archive, label, reply, handoff, undo or next",
     });
     expect(await ask(false).send({ type: "account_thread_move", account_id: MAIL, thread_id: "t1", action: "next" })).toMatchObject({
       type: "account_move_kept",

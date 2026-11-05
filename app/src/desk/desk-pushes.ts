@@ -1,6 +1,6 @@
 import type { DeskState, Scope, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
-import type { Rest } from "../../../core/attention/rest.ts";
+import { isReturnTimes, type Rest, type ReturnTimes } from "../../../core/attention/rest.ts";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 import type { PushFrame, Pushes } from "../../../core/frames.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
@@ -40,6 +40,11 @@ export interface DeskSocketState {
   viewedMap: Record<string, string>;
   focusMap: Record<string, FocusEntry>;
   restMap: Record<string, Rest>;
+  /**
+   * How long ⌘] and ⌘[ rest each kind of card (plan 070): undefined until the mod says, or from a mod from before them;
+   * null while the person has set none.
+   */
+  returnTimes: ReturnTimes | null | undefined;
   /** Bumped when the mod says the cards changed: the Learn view refetches. */
   recallVersion: number;
   /** Bumped when the mod says the usage ledger counted more: an open usage page refetches. */
@@ -82,6 +87,7 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
   viewedMap: {},
   focusMap: {},
   restMap: {},
+  returnTimes: undefined,
   recallVersion: 0,
   usageVersion: 0,
   lanStatus: null,
@@ -192,12 +198,14 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
     case "seen": {
       // Every chat's marks, on connect and after marks from a paired Mac: a map it repeats keeps its object. A mod from
       // before viewed, focus or rests sends none of that map: what is here stays rather than every mark forgotten.
-      const { seen, viewed, focus, rests } = msg;
+      const { seen, viewed, focus, rests, return_times: times } = msg;
       return withParts(state, {
         seenMap: keepSame(state.seenMap, seen),
         viewedMap: viewed && typeof viewed === "object" ? keepSame(state.viewedMap, viewed) : state.viewedMap,
         focusMap: focus && typeof focus === "object" ? keepSame(state.focusMap, focus) : state.focusMap,
         restMap: rests && typeof rests === "object" ? keepSame(state.restMap, rests) : state.restMap,
+        // Null is the mod keeping none; a value it does not know reads as none too, and a mod from before says nothing.
+        returnTimes: times === undefined ? state.returnTimes : isReturnTimes(times) ? keepSame(state.returnTimes ?? null, times) : null,
       });
     }
     case "seen_chat": {

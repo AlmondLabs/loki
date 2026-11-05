@@ -359,7 +359,9 @@ describe("outside cards (plan 067, U3)", () => {
   const NOW = Date.parse("2026-11-04T10:00:00Z");
   const AT = "2026-11-04T09:00:00Z";
   /** An outside row as the mod lists it: one Gmail thread of the work agent's mailbox. */
-  const outside = (more: { generation?: number; message?: string; at?: string; owner?: string; sender?: string } = {}): ConversationInfo => ({
+  const outside = (
+    more: { generation?: number; message?: string; at?: string; owner?: string; sender?: string; unreadOutThere?: boolean; provider?: "gmail" | "slack" } = {},
+  ): ConversationInfo => ({
     kind: "outside",
     id: `t1#${String(more.generation ?? 1)}`,
     agent_id: "account:gmail:ada@acme.com",
@@ -369,7 +371,7 @@ describe("outside cards (plan 067, U3)", () => {
     archived: false,
     outside: {
       account_id: "gmail:ada@acme.com",
-      provider: "gmail",
+      provider: more.provider ?? "gmail",
       account_label: "ada@acme.com",
       thread_id: "t1",
       generation: more.generation ?? 1,
@@ -383,6 +385,7 @@ describe("outside cards (plan 067, U3)", () => {
       newest_at: more.at ?? AT,
       handoff_conversation_id: null,
       disconnected: null,
+      unread_out_there: more.unreadOutThere ?? true,
     },
   });
   const chatRow = (id: string): ConversationInfo => ({ id, agent_id: "a", agent_name: "ira", title: id, last_message_at: AT, archived: false });
@@ -422,10 +425,28 @@ describe("outside cards (plan 067, U3)", () => {
     expect(later.resting).toBe(false);
   });
 
-  test("seen until a newer message comes, by the card's own mark", () => {
+  test("a Slack card is seen until a newer message comes, by the card's own mark", () => {
     const key = keyOf("account:gmail:ada@acme.com", "t1#1");
-    expect(one(outside(), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
-    expect(one(outside({ message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+    expect(one(outside({ provider: "slack" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
+    expect(one(outside({ provider: "slack", message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("an email card unread in Gmail shows unread even when loki's seen mark is newer (marked unread there)", () => {
+    const key = keyOf("account:gmail:ada@acme.com", "t1#1");
+    expect(one(outside({ unreadOutThere: true }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("an email row from a paired Mac on an older loki, with no Gmail read state, shows unread", () => {
+    const row = outside();
+    const facts = must(row.outside, "outside");
+    delete facts.unread_out_there;
+    expect(one(row)).toMatchObject({ unread: true, status: "done" });
+  });
+
+  test("covers AE7: an email card read in Gmail shows as read with no mark of loki's; a Slack card goes by its mark only", () => {
+    expect(one(outside({ unreadOutThere: false }))).toMatchObject({ unread: false, status: "idle" });
+    expect(one(outside({ unreadOutThere: true })).unread).toBe(true);
+    expect(one(outside({ provider: "slack", unreadOutThere: false })).unread).toBe(true);
   });
 
   test("after a hand-off the next message is the next generation's card, with none of the old card's marks", () => {

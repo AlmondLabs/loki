@@ -89,6 +89,7 @@ describe("an outside card in a visit (plan 067)", () => {
     newest_at: "2026-11-04T09:00:00Z",
     handoff_conversation_id: null,
     disconnected: null,
+    unread_out_there: true,
   });
   const card = (message: string, text = "lunch?") =>
     item("D1#1", { kind: "outside", agent_id: "account:slack:T01:U02", lastAssistantText: text, outside: facts(message, text) });
