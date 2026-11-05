@@ -31,7 +31,10 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const outside: Array<[string, string, string | null]> = [];
   const refuse = { outside: null as string | null };
   const handoffs: Array<[string, string, string | null, string | null]> = [];
+  const moves: unknown[] = [];
   const client = {
+    moveOutside: (accountId: string, threadId: string, move: unknown, home: string | null) =>
+      refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void moves.push([accountId, threadId, move, home])),
     handoffPropose: (accountId: string, threadId: string) =>
       Promise.resolve({ account_id: accountId, thread_id: threadId, owner_agent_id: "ada", proposed: { kind: "new", title: "hi" }, choices: [], note: null }),
     handoff: (accountId: string, threadId: string, conversationId: string | null, home: string | null) =>
@@ -67,7 +70,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs };
+  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -206,6 +209,13 @@ describe("the chat store (plan 052)", () => {
     expect(d.outside).toEqual([["gmail:ada@acme.com", "t1", "mac-mini"]]);
     expect(d.updates).toEqual([]);
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
+
+    // A move on it goes to the ledger on the same Mac (plan 069); one that does not get there is let go quietly.
+    d.store.moveOutside(card, { action: "archive", via: "key", dwell_ms: 900 });
+    d.refuse.outside = "out of reach";
+    d.store.moveOutside(card, { action: "next", via: "key", dwell_ms: 1 });
+    await flush();
+    expect(d.moves).toEqual([["gmail:ada@acme.com", "t1", { action: "archive", via: "key", dwell_ms: 900 }, "mac-mini"]]);
   });
 
   test("handing an outside card off asks the Mac its account lives on; done, the card leaves; refused, it stays with the reason", async () => {

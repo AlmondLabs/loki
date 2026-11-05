@@ -841,9 +841,9 @@ using the desktop session this way, and Enterprise Grid may notice it; check you
 **What becomes a card.** loki watches each account itself, once a minute, with fixed rules; no model reads your mail
 or messages to decide.
 
-1. Gmail: a thread becomes a card when a message from a person has you in To or Cc. Mailing lists, newsletters and
-   automated senders (no-reply addresses, list and bulk mail, notifications) stay in Gmail. The rule reads the
-   message's headers, so now and then it misjudges one.
+1. Gmail: every thread with unread mail in your inbox becomes a card, newsletters, receipts and notifications
+   included. loki notes what kind of mail each one is (to you or not, a list, sent by a machine, and Gmail's tab),
+   read from the message's headers and labels, and keeps that beside what you do with it (below).
 2. Slack: a DM or group DM with unread messages, and each unread Activity item: an @mention of you, a reply in a
    thread you are in, an @channel or @here, and a mention of a user group you belong to. Mentions and replies inside
    threads arrive as Slack's Activity lists them; loki does not search for them.
@@ -853,7 +853,7 @@ a thread you archived. A mail card is titled by its subject, with its sender bes
 owner ("ada@acme.com · Gmail · Work"); a Slack card is titled by who wrote. It files under its owner's tab in the
 Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
 first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
-each reply ("On … wrote:"). While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what is unread and addressed to you from the last 3 days,
+each reply ("On … wrote:"). While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what is unread from the last 3 days,
 and each time you clear that account's outside cards (a resting card is not cleared), the next older batch of up to 20
 threads arrives, a week back, then two, then a month, then a month more each time, until nothing unread is left.
 
@@ -876,6 +876,18 @@ chat card's does (R focuses it again, Esc gives the keys back or closes the deck
 the thread for an Activity item. Sending archives the card, as archive does, so it comes back when someone writes
 again. A send that fails keeps your text and says why. Only you send this way: no agent can, and an agent's own reply
 still becomes a draft once you approve it.
+
+**What loki keeps of your moves.** Each Next, archive, reply and hand-off on an outside card is written to
+`~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:
+
+1. the move, and whether you made it by key, click, swipe or tap;
+2. how long the card was on top first;
+3. who wrote the thread and its subject;
+4. for mail, what kind it was; for Slack, whether it was a DM or a thread.
+
+Nothing reads the ledger yet. It is what loki will learn your preferences from (which senders and kinds of mail you
+archive unread, which you answer) and, later, act on for you. It never leaves that Mac. The analytics events stay free
+of senders and subjects.
 
 **Hand-off.** **hand off** on a card gives the whole thread to the account's owner. loki proposes a chat: the one the
 thread went to before ("went here before"), or else a new chat with the owner titled by the subject ("new chat"); pick

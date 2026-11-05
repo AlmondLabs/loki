@@ -2,6 +2,7 @@ import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import type { AccountProvider, InboxRow } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
+import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import { writeJsonAtomic } from "./json-file.ts";
@@ -35,6 +36,8 @@ export interface ThreadRecord {
   handoff_conversation_id: string | null;
   /** It came from a batch of older unread items (KTD13), not from watching. */
   from_backfill: boolean;
+  /** What kind of mail its newest message is (plan 069); null for Slack and for records from before. */
+  traits: MailTraits | null;
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -49,6 +52,8 @@ export interface ObservedMessage {
   /** The thread's last messages as plain text, oldest first; only the last few are kept. */
   lines: string[];
   from_backfill?: boolean;
+  /** What kind of mail it is (plan 069); Slack has none. */
+  traits?: MailTraits | null;
 }
 
 /**
@@ -107,6 +112,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     lines: Array.isArray(r.lines) ? r.lines.filter((l): l is string => typeof l === "string") : [],
     handoff_conversation_id: s("handoff_conversation_id"),
     from_backfill: r.from_backfill === true,
+    traits: parseMailTraits(r.traits),
   };
 }
 
@@ -151,6 +157,7 @@ export class AccountThreads {
       lines: trimLines(m.lines),
       handoff_conversation_id: prev?.handoff_conversation_id ?? null,
       from_backfill: prev ? prev.from_backfill && m.from_backfill === true : m.from_backfill === true,
+      traits: m.traits ?? null,
     });
     this.save(accountId);
     return true;

@@ -20,7 +20,7 @@ import {
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { ReplyAction, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, OutsideMove, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -841,6 +841,15 @@ export class ChatStore {
     if (err) return err;
     this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;
+  };
+
+  /**
+   * Keep one of the person's moves on an outside card in its account's ledger (plan 069), on the Mac the account lives
+   * on. A move that does not reach the ledger is only data lost, so nothing waits on it and no refusal is shown.
+   */
+  moveOutside = (card: Pick<ConversationInfo, "outside" | "home">, move: OutsideMove): void => {
+    const o = card.outside;
+    if (o) void this.tried((c) => c.moveOutside(o.account_id, o.thread_id, move, card.home ?? null));
   };
 
   /**
