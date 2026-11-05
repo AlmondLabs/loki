@@ -1,7 +1,7 @@
 /**
  * A Gmail mailbox that changes, behind an injected fetch (plan 067, U5): messages with labels and dates, a history
  * that records each delivery and label change, a search that understands the parts of Gmail's query the watcher sends
- * (`is:unread`, `in:inbox`, `after:` and `before:` in seconds), threads, label changes by message both ways, and the account's labels. A thread named in `state.unreadable` answers 400. Any bearer token is taken:
+ * (`is:unread`, `in:inbox`, `after:` and `before:` in seconds), threads, label changes by message both ways, and the account's labels. A thread named in `state.unreadable` answers 400, and every label change answers 403 with `state.refuseModify` while it is set. Any bearer token is taken:
  * test/fixtures/gmail.ts covers the tokens; this covers what the mailbox holds. Every request is recorded.
  */
 
@@ -52,7 +52,7 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
   const messages = new Map<string, Stored>();
   const history: HistoryEntry[] = [];
   const requests: Array<{ method: string; url: URL }> = [];
-  const state = { historyId: 100, oldestHistoryId: 0, seq: 0, failing: false, unreadable: new Set<string>() };
+  const state = { historyId: 100, oldestHistoryId: 0, seq: 0, failing: false, unreadable: new Set<string>(), refuseModify: null as string | null };
 
   const json = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
   const view = (m: Stored) => ({ id: m.id, threadId: m.threadId, labelIds: [...m.labels] });
@@ -135,6 +135,7 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       return json(200, { id, historyId: String(state.historyId), messages: list.map(full) });
     }
     if (path === "/messages/batchModify" && method === "POST") {
+      if (state.refuseModify !== null) return json(403, { error: { code: 403, message: state.refuseModify, errors: [{ reason: "insufficientPermissions" }] } });
       const { ids, addLabelIds, removeLabelIds } = JSON.parse(body) as { ids: string[]; addLabelIds?: string[]; removeLabelIds?: string[] };
       addLabels(ids, addLabelIds ?? []);
       removeLabels(ids, removeLabelIds ?? []);
@@ -177,6 +178,12 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
     /** The person reads (or archives, with INBOX) a thread in Gmail itself. */
     removeLabels: (thread: string, labels: string[]) =>
       removeLabels(
+        [...messages.values()].filter((m) => m.threadId === thread).map((m) => m.id),
+        labels,
+      ),
+    /** The person moves a thread's mail back into the inbox, or labels it, in Gmail itself. */
+    addLabels: (thread: string, labels: string[]) =>
+      addLabels(
         [...messages.values()].filter((m) => m.threadId === thread).map((m) => m.id),
         labels,
       ),

@@ -61,7 +61,7 @@ function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; g
     threads: {
       archive: (accountId, threadId) => {
         archived.push(`${accountId}/${threadId}`);
-        return Promise.resolve();
+        return Promise.resolve(null);
       },
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },

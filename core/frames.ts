@@ -12,10 +12,14 @@ import type { FocusEntry } from "./attention/focus.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
+  AccountLabel,
   AccountView,
   HandoffProposal,
+  OutsideChange,
   OutsideMessage,
+  OutsideMessageChange,
   OutsideMove,
+  OutsideWrite,
   SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
@@ -306,8 +310,18 @@ export interface Replies {
   reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
   /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
   accounts: { accounts: AccountView[] };
-  /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
-  account_thread_archived: { account_id: string; thread_id: string };
+  /**
+   * An outside card's thread archived on the Mac its account lives on (plan 067, U3), with what the archive changed out
+   * there for an undo (plan 070, R14); null when nothing was written, as after a reply.
+   */
+  account_thread_archived: { account_id: string; thread_id: string; change: OutsideChange | null };
+  /**
+   * A move written back to an outside card's account (plan 070, KTD3): what it changed, for the client to keep for an
+   * undo; null when nothing was written (the card was not open) and after an undo itself.
+   */
+  account_thread_changed: { account_id: string; thread_id: string; change: OutsideChange | null };
+  /** An account's Gmail labels, for the label picker (plan 070, R12). */
+  account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
   account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[] };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
@@ -520,6 +534,30 @@ const BY_SCOPE: PeerMeaning = { route: "scope" };
 const BY_HOME: PeerMeaning = { route: "home" };
 const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["next", "archive", "reply", "handoff"];
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
+const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
+const allStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(str);
+
+/** A change a client kept from a write-back frame and sends back for an undo (plan 070, R14), or null when it is not one. */
+function parseOutsideChange(v: unknown): OutsideChange | null {
+  if (typeof v !== "object" || v === null) return null;
+  const c = v as Record<string, unknown>;
+  const move = OUTSIDE_WRITES.find((w) => w === c.move);
+  if (!move || !Array.isArray(c.messages) || typeof c.ended !== "boolean" || typeof c.was_unread !== "boolean") return null;
+  const messages: OutsideMessageChange[] = [];
+  for (const m of c.messages as unknown[]) {
+    if (typeof m !== "object" || m === null) return null;
+    const { message_id: id, labels_added: added, labels_removed: removed } = m as Record<string, unknown>;
+    if (typeof id !== "string" || !id || !allStrings(added) || !allStrings(removed)) return null;
+    messages.push({ message_id: id, labels_added: added, labels_removed: removed });
+  }
+  return { move, messages, ended: c.ended, was_unread: c.was_unread };
+}
+
+/** A frame naming one outside card's thread, sent to the Mac its account lives on by `home`. */
+const threadRef = (m: Raw) =>
+  str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+    ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+    : "account_id and thread_id required";
 /** A frame only paired Macs send each other, answered where it lands. */
 const BETWEEN_MACS: PeerMeaning = {};
 /** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
@@ -1178,6 +1216,50 @@ export const FRAMES = {
         : "account_id and thread_id required",
     PHONE,
     { route: "home", relists: true },
+  ),
+  account_thread_mark_read: request(
+    "account_thread_changed",
+    "mark an outside card read: in Gmail up to the card's newest message, and the card stays; in Slack the DM is marked read and the card ends (plan 070, R5); sent to the Mac the account lives on by `home`",
+    threadRef,
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_mark_unread: request(
+    "account_thread_changed",
+    "leave an outside card unread: in Gmail its newest incoming message is marked unread; Slack is left as it is (plan 070, R6); sent to the Mac the account lives on by `home`",
+    threadRef,
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_label: request(
+    "account_thread_changed",
+    "put Gmail labels, by id, on an outside card's thread; the card stays (plan 070, R12); sent to the Mac the account lives on by `home`",
+    (m) => {
+      const ref = threadRef(m);
+      if (typeof ref === "string") return ref;
+      return allStrings(m.labels) && m.labels.length > 0 && m.labels.every(Boolean) ? { ...ref, labels: m.labels } : "labels required: one label id or more";
+    },
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_restore: request(
+    "account_thread_changed",
+    "undo a move on an outside card: put back what `change`, as a write-back frame answered it, changed out there, and the card as it was (plan 070, R14); sent to the Mac the account lives on by `home`",
+    (m) => {
+      const ref = threadRef(m);
+      if (typeof ref === "string") return ref;
+      const change = parseOutsideChange(m.change);
+      return change ? { ...ref, change } : "change required, as a write-back answered it";
+    },
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_labels_list: request(
+    "account_labels",
+    "an account's Gmail labels, for the label picker (plan 070, R12); sent to the Mac the account lives on by `home`",
+    (m) => (str(m.account_id) && m.account_id ? { account_id: m.account_id, home: strOr(m.home, null) } : "account_id required"),
+    PHONE,
+    BY_HOME,
   ),
   account_thread_read: request(
     "account_thread",

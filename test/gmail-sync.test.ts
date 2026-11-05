@@ -307,6 +307,124 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
   });
 });
 
+describe("writing moves back to Gmail and putting them back (plan 070, U3)", () => {
+  test("mark read takes UNREAD off the messages up to the card's newest only; one that came after stays unread", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const first = box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    await sync().tick();
+    const later = box.deliver({ thread: "t1", at: ago(60_000), from: GRACE, to: "ada@acme.com", snippet: "one more thing" });
+    const change = await threads.markRead(id(), "t1");
+    expect(change).toEqual({ move: "read", messages: [{ message_id: first, labels_added: [], labels_removed: ["UNREAD"] }], ended: false, was_unread: true });
+    expect(box.labelsOfMessage(first)).toEqual(["INBOX"]);
+    expect(box.labelsOfMessage(later)).toEqual(["INBOX", "UNREAD"]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: false });
+  });
+
+  test("mark unread on a read thread sets UNREAD on its newest incoming message alone", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const older = box.deliver({ thread: "t1", at: ago(3 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const newest = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const mine = box.deliver({ thread: "t1", at: ago(HOUR), from: "Ada <ada@acme.com>", to: "grace@acme.com", labels: ["INBOX"] });
+    const s = sync();
+    await s.tick();
+    expect(threads.get(id(), "t1")?.unread_out_there).toBe(false);
+    const change = await threads.markUnread(id(), "t1");
+    expect(change?.messages).toEqual([{ message_id: newest, labels_added: ["UNREAD"], labels_removed: [] }]);
+    expect([older, newest, mine].map((m) => box.labelsOfMessage(m))).toEqual([["INBOX"], ["INBOX", "UNREAD"], ["INBOX"]]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: true });
+    await s.tick();
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: true });
+  });
+
+  test("restore after an archive puts INBOX and UNREAD back on exactly the messages archive changed, and the card reopens", async () => {
+    const { box, sync, ago, cards, threads, id } = await setup();
+    const unread = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com" });
+    const read = box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const s = sync();
+    await s.tick();
+    const change = must(await threads.archive(id(), "t1"), "the archive's change");
+    expect(change).toMatchObject({ move: "archive", ended: true, was_unread: true });
+    expect([unread, read].map((m) => box.labelsOfMessage(m))).toEqual([[], []]);
+    expect(cards()).toEqual([]);
+    await threads.restore(id(), "t1", change);
+    expect([unread, read].map((m) => box.labelsOfMessage(m))).toEqual([["INBOX", "UNREAD"], ["INBOX"]]);
+    expect(cards()).toEqual(["t1"]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: true });
+    await s.tick();
+    expect(cards()).toEqual(["t1"]);
+  });
+
+  test("the person moves an archived thread back into the inbox in Gmail: the next tick reopens its card", async () => {
+    const { box, sync, ago, cards, threads, id } = await setup();
+    box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    await threads.archive(id(), "t1");
+    await s.tick();
+    expect(cards()).toEqual([]);
+    box.addLabels("t1", ["INBOX"]);
+    await s.tick();
+    expect(cards()).toEqual(["t1"]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", generation: 1, unread_out_there: false });
+  });
+
+  test("a rebuild after history expired does not reopen a thread that has left the inbox", async () => {
+    const { box, sync, ago, cards, threads, id } = await setup();
+    box.deliver({ thread: "t-loki", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t-gmail", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    await threads.archive(id(), "t-loki");
+    box.removeLabels("t-gmail", ["INBOX"]);
+    box.expireHistory();
+    await s.tick();
+    expect(cards()).toEqual([]);
+    expect(["t-loki", "t-gmail"].map((t) => threads.get(id(), t)?.state)).toEqual(["archived", "archived"]);
+  });
+
+  test("adding the label Receipts puts it on the thread's messages and leaves INBOX and UNREAD alone; restore takes it off", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const first = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    const second = box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    await sync().tick();
+    const labels = await threads.labels(id());
+    const receipts = must(
+      labels.find((l) => l.name === "Receipts"),
+      "the Receipts label",
+    );
+    expect(receipts).toEqual({ id: "Label_1", name: "Receipts", type: "user" });
+    const change = must(await threads.addLabels(id(), "t1", [receipts.id, "INBOX", "UNREAD"]), "the label's change");
+    expect(change).toMatchObject({ move: "label", ended: false });
+    expect(change.messages.map((m) => [m.message_id, m.labels_added, m.labels_removed])).toEqual([
+      [first, ["Label_1"], []],
+      [second, ["Label_1"], []],
+    ]);
+    expect([first, second].map((m) => box.labelsOfMessage(m))).toEqual([
+      ["INBOX", "Label_1"],
+      ["INBOX", "Label_1", "UNREAD"],
+    ]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: true });
+    await threads.restore(id(), "t1", change);
+    expect([first, second].map((m) => box.labelsOfMessage(m))).toEqual([["INBOX"], ["INBOX", "UNREAD"]]);
+  });
+
+  test("a Gmail refusal answers the reason in words, and the record is unchanged", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t2", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    await sync().tick();
+    const before = threads.list(id());
+    const words = "Request had insufficient authentication scopes.";
+    box.state.refuseModify = words;
+    await expect(threads.markRead(id(), "t1")).rejects.toThrow(words);
+    await expect(threads.archive(id(), "t1")).rejects.toThrow(words);
+    await expect(threads.addLabels(id(), "t1", ["Label_2"])).rejects.toThrow(words);
+    await expect(threads.markUnread(id(), "t2")).rejects.toThrow(words);
+    expect(threads.list(id())).toEqual(before);
+    expect([box.labelsOf("t1"), box.labelsOf("t2")]).toEqual([["INBOX", "UNREAD"], ["INBOX"]]);
+  });
+});
+
 describe("a Gmail account that fails (R22)", () => {
   test("a thread Gmail will not give is passed over: the history moves on and other mail still makes cards", async () => {
     const { box, sync, cards, ago } = await setup();

@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { AccountThreads, type OutsideSource } from "../mod/account-threads.ts";
+import type { OutsideChange, OutsideMessageChange } from "../core/frame-types.ts";
+import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
 import { accountFrames, type AccountConnectDeps } from "../mod/frames/accounts.ts";
 import { Handoff } from "../mod/handoff.ts";
 import type { ChatCall } from "../mod/suggestions.ts";
@@ -16,6 +17,25 @@ import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
+/** What a fake write-back says it changed: nothing on any message. */
+const changeOf = (move: OutsideChange["move"], ended: boolean, record: ThreadRecord): OutsideChange => ({
+  move,
+  messages: [],
+  ended,
+  was_unread: record.unread_out_there,
+});
+
+/** A write-back that changes nothing out there, with any of its writes replaced. */
+const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
+  archive: (_a, r) => Promise.resolve(changeOf("archive", true, r)),
+  markRead: (_a, r) => Promise.resolve(changeOf("read", false, r)),
+  markUnread: (_a, r) => Promise.resolve(changeOf("unread", false, r)),
+  addLabels: (_a, r) => Promise.resolve(changeOf("label", false, r)),
+  restore: () => Promise.resolve(),
+  labels: () => Promise.resolve([]),
+  ...more,
 });
 
 /** A bridge with only the account frames, over two accounts of the work agent. */
@@ -97,7 +117,9 @@ describe("the account frames", () => {
 
   test("account_thread_archive archives the thread out there and the card leaves; one refused there answers why and stays", async () => {
     let refuse = false;
-    const { ask, threads } = await fixture({ archive: () => (refuse ? Promise.reject(new Error("Gmail is out of reach")) : Promise.resolve()) });
+    const { ask, threads } = await fixture(
+      fakeSource({ archive: (_a, r) => (refuse ? Promise.reject(new Error("Gmail is out of reach")) : Promise.resolve(changeOf("archive", true, r))) }),
+    );
     const seen = { message_id: "m1", at: "2026-11-04T09:00:00.000Z", sender: "Grace", subject: "hi", lines: ["hi"] };
     threads.observe("gmail:ada@acme.com", { ...seen, thread_id: "t1" });
     threads.observe("gmail:ada@acme.com", { ...seen, thread_id: "t2" });
@@ -106,6 +128,7 @@ describe("the account frames", () => {
       request_id: "r1",
       account_id: "gmail:ada@acme.com",
       thread_id: "t1",
+      change: { move: "archive", messages: [], ended: true, was_unread: true },
     });
     refuse = true;
     expect(await ask({ type: "account_thread_archive", account_id: "gmail:ada@acme.com", thread_id: "t2" })).toMatchObject({
@@ -117,6 +140,84 @@ describe("the account frames", () => {
 
   test("account_thread_archive goes to the Mac the account lives on, named by the card's home", () => {
     expect(peerMeaning("account_thread_archive")).toEqual({ route: "home", relists: true });
+  });
+
+  test("mark read, mark unread, label and restore answer the change for undo; a refusal answers why and the record stays (plan 070, U3)", async () => {
+    let refuse = false;
+    const restored: OutsideChange[] = [];
+    const refusing = <T>(value: T) => (refuse ? Promise.reject(new Error("Gmail is out of reach")) : Promise.resolve(value));
+    const labelChange = (labels: string[]): OutsideMessageChange => ({ message_id: "m1", labels_added: labels, labels_removed: [] });
+    const { ask, threads } = await fixture(
+      fakeSource({
+        markRead: (_a, r) => refusing(changeOf("read", false, r)),
+        addLabels: (_a, r, labels) => refusing({ ...changeOf("label", false, r), messages: [labelChange(labels)] }),
+        restore: (_a, _r, change) => {
+          restored.push(change);
+          return refusing(undefined);
+        },
+        labels: () => Promise.resolve([{ id: "Label_1", name: "Receipts", type: "user" }]),
+      }),
+    );
+    const seen = { message_id: "m1", at: "2026-11-04T09:00:00.000Z", sender: "Grace", subject: "hi", lines: ["hi"] };
+    threads.observe("gmail:ada@acme.com", { ...seen, thread_id: "t1" });
+    const thread = { account_id: "gmail:ada@acme.com", thread_id: "t1" };
+    expect(await ask({ type: "account_thread_mark_read", ...thread })).toEqual({
+      type: "account_thread_changed",
+      request_id: "r1",
+      ...thread,
+      change: { move: "read", messages: [], ended: false, was_unread: true },
+    });
+    expect(threads.get("gmail:ada@acme.com", "t1")?.unread_out_there).toBe(false);
+    expect(await ask({ type: "account_thread_mark_unread", ...thread })).toMatchObject({ type: "account_thread_changed", change: { move: "unread" } });
+    expect(threads.get("gmail:ada@acme.com", "t1")?.unread_out_there).toBe(true);
+    const labelled = await ask({ type: "account_thread_label", ...thread, labels: ["Label_1"] });
+    expect(labelled).toMatchObject({ type: "account_thread_changed", change: { move: "label", messages: [labelChange(["Label_1"])] } });
+    expect(await ask({ type: "account_thread_restore", ...thread, change: labelled.change })).toEqual({
+      type: "account_thread_changed",
+      request_id: "r1",
+      ...thread,
+      change: null,
+    });
+    expect(restored).toEqual([labelled.change]);
+    expect(await ask({ type: "account_labels_list", account_id: "gmail:ada@acme.com" })).toEqual({
+      type: "account_labels",
+      request_id: "r1",
+      account_id: "gmail:ada@acme.com",
+      labels: [{ id: "Label_1", name: "Receipts", type: "user" }],
+    });
+    refuse = true;
+    const before = threads.get("gmail:ada@acme.com", "t1");
+    expect(await ask({ type: "account_thread_mark_read", ...thread })).toMatchObject({ type: "error", message: "Gmail is out of reach" });
+    expect(await ask({ type: "account_thread_label", ...thread, labels: ["Label_1"] })).toMatchObject({ type: "error", message: "Gmail is out of reach" });
+    expect(threads.get("gmail:ada@acme.com", "t1")).toEqual(before);
+  });
+
+  test("label and restore frames refuse what is not a label list or a change; without threads each says so", async () => {
+    const { ask } = await fixture();
+    const thread = { account_id: "gmail:ada@acme.com", thread_id: "t1" };
+    expect(await ask({ type: "account_thread_label", ...thread, labels: [] })).toMatchObject({ type: "error" });
+    expect(await ask({ type: "account_thread_restore", ...thread, change: { move: "nonsense" } })).toMatchObject({ type: "error" });
+    const bare = bridgeOf({ modules: [accountFrames({})] });
+    for (const frame of [
+      { type: "account_thread_mark_read", ...thread },
+      { type: "account_thread_mark_unread", ...thread },
+      { type: "account_thread_label", ...thread, labels: ["Label_1"] },
+      { type: "account_thread_restore", ...thread, change: { move: "read", messages: [], ended: false, was_unread: true } },
+      { type: "account_labels_list", account_id: "gmail:ada@acme.com" },
+    ]) {
+      const c = client("d1");
+      bare.onMessage(c, { request_id: "r1", ...frame });
+      await settled();
+      expect(c.sent.at(-1), frame.type).toMatchObject({ type: "error", message: "Inbox accounts are not available in this mod" });
+    }
+  });
+
+  test("each new write-back frame goes to the Mac the account lives on and may come from the phone", () => {
+    for (const n of ["account_thread_mark_read", "account_thread_mark_unread", "account_thread_restore"])
+      expect(peerMeaning(n), n).toEqual({ route: "home", relists: true });
+    for (const n of ["account_thread_label", "account_labels_list"]) expect(peerMeaning(n), n).toEqual({ route: "home" });
+    for (const n of ["account_thread_mark_read", "account_thread_mark_unread", "account_thread_label", "account_thread_restore", "account_labels_list"])
+      expect([...PHONE_FRAMES] as string[], n).toContain(n);
   });
 
   test("account_thread_handoff_propose answers the proposal; account_thread_handoff sends the thread to the chat and answers which", async () => {

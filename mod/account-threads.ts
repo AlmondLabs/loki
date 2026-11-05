@@ -1,6 +1,6 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountProvider, InboxRow } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, InboxRow, OutsideChange } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -64,11 +64,23 @@ export interface ObservedMessage {
 }
 
 /**
- * A provider's write-back for archive (R12): archive the email in Gmail, mark a Slack item read. It throws why when
- * it could not, and the card stays.
+ * A provider's write-backs (plan 067, R12; plan 070, KTD3): each move on an outside card written to Gmail or Slack.
+ * Each write answers what it changed, so `restore` can put back exactly that for an undo (R14). Each throws why when it
+ * could not, and the record stays as it was.
  */
 export interface OutsideSource {
-  archive(accountId: string, record: ThreadRecord): Promise<void>;
+  /** Archive the email in Gmail; mark a Slack item read. */
+  archive(accountId: string, record: ThreadRecord): Promise<OutsideChange>;
+  /** Mark the thread read up to the card's newest message; in Slack, reading is the card's end. */
+  markRead(accountId: string, record: ThreadRecord): Promise<OutsideChange>;
+  /** Leave the thread unread: in Gmail its newest incoming message is marked unread. */
+  markUnread(accountId: string, record: ThreadRecord): Promise<OutsideChange>;
+  /** Put the account's labels, by id, on the thread; Slack has none. */
+  addLabels(accountId: string, record: ThreadRecord, labels: string[]): Promise<OutsideChange>;
+  /** Take back what one of the writes above changed. */
+  restore(accountId: string, record: ThreadRecord, change: OutsideChange): Promise<void>;
+  /** The account's labels, for the picker. */
+  labels(accountId: string): Promise<AccountLabel[]>;
 }
 
 /** What AccountThreads is built from. */
@@ -207,21 +219,92 @@ export class AccountThreads {
   /**
    * Archive from the Inbox (R12): written back to the account first, then the card leaves. Throws why when the account
    * refused or cannot be reached, and the card stays. A message that came while the write-back ran keeps the card open.
+   * Answers what the write-back changed, for an undo, or null when the card was not open and nothing was written.
    */
-  archive(accountId: string, threadId: string): Promise<void> {
+  archive(accountId: string, threadId: string): Promise<OutsideChange | null> {
+    return this.write(accountId, threadId, "archive", (source, r) => source.archive(accountId, r));
+  }
+
+  /**
+   * Mark read from the Inbox (plan 070, R5): written back first, then the card shows read and stays; in Slack, where
+   * reading ends a card, the card leaves. A message that came while it ran keeps the card as that message left it.
+   */
+  markRead(accountId: string, threadId: string): Promise<OutsideChange | null> {
+    return this.write(accountId, threadId, "mark read", (source, r) => source.markRead(accountId, r));
+  }
+
+  /** Leave the card unread (plan 070, R6): written back first, then the card shows unread. */
+  markUnread(accountId: string, threadId: string): Promise<OutsideChange | null> {
+    return this.write(accountId, threadId, "mark unread", (source, r) => source.markUnread(accountId, r));
+  }
+
+  /** Put labels on the card's thread (plan 070, R12); the card stays as it is, waiting for the next move. */
+  addLabels(accountId: string, threadId: string, labels: string[]): Promise<OutsideChange | null> {
+    return this.write(accountId, threadId, "label", (source, r) => source.addLabels(accountId, r, labels));
+  }
+
+  /** The labels of an account, for the picker (plan 070, R12). Throws why when its service has none or cannot answer. */
+  async labels(accountId: string): Promise<AccountLabel[]> {
+    return this.sourceOf(accountId, "list labels").labels(accountId);
+  }
+
+  /**
+   * Undo one move (plan 070, R14, KTD4): what the move changed out there is put back first, then the record as the move
+   * found it: a card the move ended opens again as the same card, and it shows read or unread as it did before. A
+   * label's undo leaves the record. Throws why when the account refused, and the record stays.
+   */
+  restore(accountId: string, threadId: string, change: OutsideChange): Promise<void> {
     return this.serial(`${accountId} ${threadId}`, async () => {
       const r = this.records(accountId).get(threadId);
-      if (r?.state !== "open") return;
-      const account = this.opts.accounts.get(accountId);
-      if (!account) throw new Error("that account is not connected on this Mac");
-      const source = this.sources.get(account.provider);
-      if (!source) throw new Error(`loki cannot archive in ${account.provider === "gmail" ? "Gmail" : "Slack"} yet`);
-      await source.archive(accountId, r);
+      if (!r) throw new Error("loki has no record of that thread");
+      await this.sourceOf(accountId, "undo").restore(accountId, r, change);
       const now = this.records(accountId).get(threadId);
-      if (now?.state !== "open" || now.newest_message_id !== r.newest_message_id) return;
-      this.records(accountId).set(threadId, { ...now, state: "archived" });
+      if (!now) return;
+      const state = change.ended && now.state === "archived" ? "open" : now.state;
+      const unread = change.move === "label" ? now.unread_out_there : change.was_unread;
+      if (state === now.state && unread === now.unread_out_there) return;
+      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread });
       this.save(accountId);
     });
+  }
+
+  /**
+   * One write-back on an open card, one at a time per thread so a second press never writes twice, then the record
+   * moved as the change says: ended, read or unread. A message that came while it ran leaves the record as that message
+   * made it, since the move was not about that message.
+   */
+  private write(
+    accountId: string,
+    threadId: string,
+    what: string,
+    run: (source: OutsideSource, r: ThreadRecord) => Promise<OutsideChange>,
+  ): Promise<OutsideChange | null> {
+    return this.serial(`${accountId} ${threadId}`, async () => {
+      const r = this.records(accountId).get(threadId);
+      if (r?.state !== "open") return null;
+      const change = await run(this.sourceOf(accountId, what), r);
+      const now = this.records(accountId).get(threadId);
+      if (now?.state !== "open" || now.newest_message_id !== r.newest_message_id) return change;
+      const next = change.ended
+        ? { ...now, state: "archived" as const }
+        : change.move === "read" || change.move === "unread"
+          ? { ...now, unread_out_there: change.move === "unread" }
+          : now;
+      if (next !== now) {
+        this.records(accountId).set(threadId, next);
+        this.save(accountId);
+      }
+      return change;
+    });
+  }
+
+  /** The write-back of an account's provider; throws why when the account is not here or its provider has none yet. */
+  private sourceOf(accountId: string, what: string): OutsideSource {
+    const account = this.opts.accounts.get(accountId);
+    if (!account) throw new Error("that account is not connected on this Mac");
+    const source = this.sources.get(account.provider);
+    if (!source) throw new Error(`loki cannot ${what} in ${account.provider === "gmail" ? "Gmail" : "Slack"} yet`);
+    return source;
   }
 
   /**

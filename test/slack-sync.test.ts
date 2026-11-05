@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts, accountIdOf } from "../mod/accounts.ts";
+import { initLog } from "../mod/log.ts";
 import { SlackClient } from "../mod/slack.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
 import { SlackSync } from "../mod/slack-sync.ts";
@@ -171,7 +172,7 @@ async function fixture() {
   const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch });
   const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client });
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
-  return { slack, accounts, threads, sync, open };
+  return { dir, slack, accounts, threads, sync, open };
 }
 
 describe("DMs", () => {
@@ -302,6 +303,55 @@ describe("Activity", () => {
     slack.readItem("a");
     await sync.tick();
     expect(open()).toEqual([]);
+  });
+});
+
+describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
+  test("mark read on a DM marks it read up to the card's last message, and the card ends", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    slack.post("D0GRACE", { ts: at(30), user: "U0GRACE", text: "came after the card was drawn" });
+    const change = await threads.markRead(ACCOUNT, "D0GRACE");
+    expect(change).toEqual({ move: "read", messages: [], ended: true, was_unread: true });
+    expect(slack.sent.filter((s) => s.method === "conversations.mark").map((s) => s.params)).toEqual([
+      { token: SESSION.token, channel: "D0GRACE", ts: at(20) },
+    ]);
+    expect(open()).toEqual([]);
+  });
+
+  test("mark read on an Activity item ends the card in loki, calls Slack for nothing, and logs the gap", async () => {
+    const { dir, slack, threads, sync, open } = await fixture();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    await sync.tick();
+    const before = slack.sent.length;
+    expect(await threads.markRead(ACCOUNT, `C0GEN:${at(10)}`)).toMatchObject({ move: "read", ended: true });
+    expect(slack.sent.slice(before)).toEqual([]);
+    expect(open()).toEqual([]);
+    expect(readFileSync(logFile, "utf8")).toContain("slack:activity-mark-unavailable");
+  });
+
+  test("mark unread keeps the card unread in loki and writes nothing to Slack; labels are refused in words; undo reopens in loki", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    const before = slack.sent.length;
+    expect(await threads.markUnread(ACCOUNT, "D0GRACE")).toEqual({ move: "unread", messages: [], ended: false, was_unread: true });
+    expect(slack.sent.slice(before)).toEqual([]);
+    expect(open().map((r) => [r.thread_id, r.unread_out_there])).toEqual([["D0GRACE", true]]);
+    await expect(threads.addLabels(ACCOUNT, "D0GRACE", ["Label_1"])).rejects.toThrow("Slack has no labels");
+    await expect(threads.labels(ACCOUNT)).rejects.toThrow("Slack has no labels");
+    const change = must(await threads.archive(ACCOUNT, "D0GRACE"), "the archive's change");
+    expect(open()).toEqual([]);
+    const marks = slack.sent.filter((s) => s.method === "conversations.mark").length;
+    await threads.restore(ACCOUNT, "D0GRACE", change);
+    expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
+    expect(slack.sent.filter((s) => s.method === "conversations.mark")).toHaveLength(marks);
   });
 });
 

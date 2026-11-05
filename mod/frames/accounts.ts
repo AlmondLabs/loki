@@ -1,3 +1,4 @@
+import type { OutsideChange } from "../../core/frame-types.ts";
 import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
 import type { Handoff } from "../handoff.ts";
@@ -17,13 +18,16 @@ export interface AccountConnectDeps {
   slackFetch?: typeof fetch;
 }
 
+/** The moves on a card's thread written back to its account (mod/account-threads.ts; plan 070, U3). */
+export type ThreadWrites = Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "addLabels" | "restore" | "labels">;
+
 /**
  * What the account frames need from their host: this Mac's accounts (mod/accounts.ts), their threads
  * (mod/account-threads.ts) and the ways to connect one; without them every frame fails.
  */
 export interface AccountsDeps {
   accounts?: Pick<Accounts, "list" | "get" | "add" | "setStatus" | "moveOwner" | "disconnect">;
-  threads?: Pick<AccountThreads, "archive">;
+  threads?: ThreadWrites;
   /** Handing a card's thread to its owner's chat (mod/handoff.ts). */
   handoff?: Pick<Handoff, "propose" | "handOff">;
   /** Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068). */
@@ -34,6 +38,7 @@ export interface AccountsDeps {
 }
 
 const NO_OWNER = "an account needs an owner: pick the agent it belongs to";
+const NO_THREADS = "Inbox accounts are not available in this mod";
 
 /**
  * Preferences › Accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
@@ -49,6 +54,15 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
     return deps.accounts;
   };
   const listed = () => reply({ accounts: need().list().map(accountView) });
+  /** One write-back on a card's thread, answered with what it changed, or with why it could not be made. */
+  const changed = async (accountId: string, threadId: string, write: (threads: ThreadWrites) => Promise<OutsideChange | null>) => {
+    if (!deps.threads) return fail(NO_THREADS);
+    try {
+      return reply({ account_id: accountId, thread_id: threadId, change: await write(deps.threads) });
+    } catch (err) {
+      return fail(errorMessage(err));
+    }
+  };
   return {
     account_list: listed,
     peer_accounts_get: listed,
@@ -98,13 +112,31 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       return listed();
     },
     account_thread_archive: async ({ account_id: accountId, thread_id: threadId }) => {
-      if (!deps.threads) return fail("Inbox accounts are not available in this mod");
+      if (!deps.threads) return fail(NO_THREADS);
       try {
-        await deps.threads.archive(accountId, threadId);
+        return reply({ account_id: accountId, thread_id: threadId, change: await deps.threads.archive(accountId, threadId) });
       } catch (err) {
         return fail(errorMessage(err));
       }
-      return reply({ account_id: accountId, thread_id: threadId });
+    },
+    account_thread_mark_read: ({ account_id: accountId, thread_id: threadId }) =>
+      changed(accountId, threadId, (threads) => threads.markRead(accountId, threadId)),
+    account_thread_mark_unread: ({ account_id: accountId, thread_id: threadId }) =>
+      changed(accountId, threadId, (threads) => threads.markUnread(accountId, threadId)),
+    account_thread_label: ({ account_id: accountId, thread_id: threadId, labels }) =>
+      changed(accountId, threadId, (threads) => threads.addLabels(accountId, threadId, labels)),
+    account_thread_restore: ({ account_id: accountId, thread_id: threadId, change }) =>
+      changed(accountId, threadId, async (threads) => {
+        await threads.restore(accountId, threadId, change);
+        return null;
+      }),
+    account_labels_list: async ({ account_id: accountId }) => {
+      if (!deps.threads) return fail(NO_THREADS);
+      try {
+        return reply({ account_id: accountId, labels: await deps.threads.labels(accountId) });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
     },
     account_thread_read: async ({ account_id: accountId, thread_id: threadId }) => {
       if (!deps.outside) return fail("reading threads is not available in this mod");
@@ -121,7 +153,8 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       } catch (err) {
         return fail(errorMessage(err));
       }
-      return reply({ account_id: accountId, thread_id: threadId });
+      // A reply's archive is not offered for undo: the reply itself cannot be taken back.
+      return reply({ account_id: accountId, thread_id: threadId, change: null });
     },
     account_thread_move: ({ account_id: accountId, thread_id: threadId, action, via, dwell_ms: dwellMs }) => {
       const kept = deps.ledger?.record(accountId, threadId, { action, via, dwell_ms: dwellMs }) ?? null;

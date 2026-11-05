@@ -195,6 +195,35 @@ export interface OutsideMove {
   dwell_ms: number | null;
 }
 
+/** A move loki writes back to an outside card's service (plan 070, KTD3). */
+export type OutsideWrite = "archive" | "read" | "unread" | "label";
+
+/** What one write-back did to one message: the Gmail labels it put on and took off, so an undo takes back just those. */
+export interface OutsideMessageChange {
+  message_id: string;
+  labels_added: string[];
+  labels_removed: string[];
+}
+
+/**
+ * What a write-back changed (plan 070, KTD3), kept by the client so an undo (R14) puts back exactly that. `messages`
+ * lists only the messages whose labels changed; a Slack write has none, since Slack has no labels. `ended` says the
+ * move ended the card in loki (an archive, or reading a Slack card), and `was_unread` how loki showed the thread before.
+ */
+export interface OutsideChange {
+  move: OutsideWrite;
+  messages: OutsideMessageChange[];
+  ended: boolean;
+  was_unread: boolean;
+}
+
+/** One of an account's Gmail labels (plan 070, R12): Gmail's own (`system`, as STARRED) or one the person made (`user`). */
+export interface AccountLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
+}
+
 /**
  * One message of an outside card's thread as the card draws it (plan 068): who wrote it, when (ISO, "" when unknown), its
  * text as plain text, and whether the account's own person wrote it.

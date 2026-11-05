@@ -1,7 +1,8 @@
 import { advanceRefill, firstRefill, parseRefill, refillWindow, type RefillCursor, type RefillResult, type RefillWindow } from "../core/account-refill.ts";
 import { messageOf } from "../core/errors.ts";
 import { addressesIn, mailTraits } from "../core/mail-filter.ts";
-import type { AccountThreads, OutsideSource } from "./account-threads.ts";
+import type { OutsideChange, OutsideMessageChange, OutsideWrite } from "../core/frame-types.ts";
+import type { AccountThreads, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { GmailError, type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
@@ -12,7 +13,8 @@ import { log } from "./log.ts";
  * read or unread, is a card that carries Gmail's read state. The first tick keeps the mailbox's history id and brings
  * every inbox thread of the last 3 days; each later tick asks Gmail what changed since that id (2 quota units when
  * nothing did), turns new mail in the inbox into cards, follows mail read or marked unread in Gmail, and takes away the
- * cards of threads the person archived there. When Gmail no longer keeps history that far back, the account is read
+ * cards of threads the person archived there, and brings a card back when its mail is moved back into the inbox
+ * (plan 070, KTD4). When Gmail no longer keeps history that far back, the account is read
  * again from a bounded search; the thread records keep archived and handed-off threads from coming back. When the
  * account has no unread cards, the next older batch comes (core/account-refill.ts).
  */
@@ -54,23 +56,81 @@ const CURSOR_VERSION = 2;
 /** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
 const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
 
+/** The calls Gmail's write-backs make; GmailClient has them. */
+export type GmailWriteClient = Pick<GmailClient, "getThread" | "batchModify" | "labels">;
+
 /**
- * Archive in Gmail (R12): the card's messages leave the inbox and are marked read, by the client of the account they
- * are in. Only those up to the card's newest message: mail that came since the last poll stays unread in the inbox,
- * and the next tick makes the card again for it.
+ * The write-backs to Gmail (plan 067, R12; plan 070, KTD3), each by the client of the account the thread is in, and
+ * each answering, message by message, the labels it actually put on or took off, so an undo puts back just those.
+ * Archive and mark read touch only the messages up to the card's newest: mail that came since the last poll stays
+ * unread in the inbox, and the next tick makes the card again for it. Mark unread marks the card's newest message,
+ * the newest one someone else sent. Labels go on every message of the thread and never move INBOX or UNREAD.
  */
-export function gmailOutsideSource(clientOf: (accountId: string) => Pick<GmailClient, "getThread" | "batchModify">): OutsideSource {
+export function gmailOutsideSource(clientOf: (accountId: string) => GmailWriteClient): OutsideSource {
+  const thread = async (client: GmailWriteClient, threadId: string) =>
+    (await client.getThread(threadId, "metadata")).messages.sort((a, b) => timeOf(a) - timeOf(b));
+  /** The messages the card showed: those up to its newest, or up to its time when that message is gone. */
+  const seenOf = (messages: GmailMessage[], record: ThreadRecord) => {
+    const newest = messages.findIndex((m) => m.id === record.newest_message_id);
+    return newest >= 0 ? messages.slice(0, newest + 1) : messages.filter((m) => timeOf(m) <= Date.parse(record.newest_at));
+  };
+  /** What adding and removing labels would change on each message, leaving out the messages it would not change. */
+  const plan = (messages: GmailMessage[], add: readonly string[], remove: readonly string[]): OutsideMessageChange[] =>
+    messages
+      .map((m) => ({
+        message_id: m.id,
+        labels_added: add.filter((l) => !m.labelIds.includes(l)),
+        labels_removed: remove.filter((l) => m.labelIds.includes(l)),
+      }))
+      .filter((c) => c.labels_added.length > 0 || c.labels_removed.length > 0);
+  /** Write changes, one request for each set of messages that changes alike. */
+  const apply = async (client: GmailWriteClient, changes: OutsideMessageChange[]) => {
+    const alike = new Map<string, { ids: string[]; add: string[]; remove: string[] }>();
+    for (const c of changes) {
+      const key = JSON.stringify([c.labels_added, c.labels_removed]);
+      const group = alike.get(key) ?? { ids: [], add: c.labels_added, remove: c.labels_removed };
+      group.ids.push(c.message_id);
+      alike.set(key, group);
+    }
+    for (const g of alike.values()) await client.batchModify(g.ids, { addLabels: g.add, removeLabels: g.remove });
+  };
+  const write = async (
+    accountId: string,
+    record: ThreadRecord,
+    move: OutsideWrite,
+    pick: (messages: GmailMessage[]) => OutsideMessageChange[],
+  ): Promise<OutsideChange> => {
+    const client = clientOf(accountId);
+    const changes = pick(await thread(client, record.thread_id));
+    await apply(client, changes);
+    return { move, messages: changes, ended: move === "archive", was_unread: record.unread_out_there };
+  };
   return {
-    archive: async (accountId, record) => {
+    archive: (accountId, record) => write(accountId, record, "archive", (messages) => plan(seenOf(messages, record), [], ["INBOX", "UNREAD"])),
+    markRead: (accountId, record) => write(accountId, record, "read", (messages) => plan(seenOf(messages, record), [], ["UNREAD"])),
+    markUnread: (accountId, record) =>
+      write(accountId, record, "unread", (messages) => {
+        const seen = seenOf(messages, record);
+        const newest = seen.find((m) => m.id === record.newest_message_id) ?? seen.at(-1);
+        return newest ? plan([newest], ["UNREAD"], []) : [];
+      }),
+    addLabels: (accountId, record, labels) => {
+      const wanted = [...new Set(labels)].filter((l) => l && l !== "INBOX" && l !== "UNREAD");
+      if (wanted.length === 0) return Promise.reject(new Error("pick a label to add: read, later and archive move INBOX and UNREAD"));
+      return write(accountId, record, "label", (messages) => plan(messages, wanted, []));
+    },
+    restore: async (accountId, record, change) => {
       const client = clientOf(accountId);
-      const messages = (await client.getThread(record.thread_id, "metadata")).messages.sort((a, b) => timeOf(a) - timeOf(b));
-      const newest = messages.findIndex((m) => m.id === record.newest_message_id);
-      const seen = newest >= 0 ? messages.slice(0, newest + 1) : messages.filter((m) => timeOf(m) <= Date.parse(record.newest_at));
-      await client.batchModify(
-        seen.map((m) => m.id),
-        { removeLabels: ["INBOX", "UNREAD"] },
+      // Only the thread's own messages, so a change kept for another card never moves mail outside this thread.
+      const ids = new Set((await thread(client, record.thread_id)).map((m) => m.id));
+      await apply(
+        client,
+        change.messages
+          .filter((c) => ids.has(c.message_id))
+          .map((c) => ({ message_id: c.message_id, labels_added: c.labels_removed, labels_removed: c.labels_added })),
       );
     },
+    labels: (accountId) => clientOf(accountId).labels(),
   };
 }
 
@@ -163,7 +223,8 @@ export class GmailSync implements AccountSync {
       const changes = await this.opts.client.historySince(cursor.history_id);
       if (changes.kind === "expired") await this.rebuild(own, cursor);
       else {
-        for (const threadId of this.touched(changes.history)) await this.syncThread(threadId, own, false);
+        const { all, back } = this.touched(changes.history);
+        for (const threadId of all) await this.syncThread(threadId, own, false, back.has(threadId));
         this.save({ ...cursor, history_id: changes.history_id });
       }
       if (cursor.version < CURSOR_VERSION) await this.reconcile(own);
@@ -190,20 +251,26 @@ export class GmailSync implements AccountSync {
   }
 
   /**
-   * The threads a tick reads again: those with new mail in the inbox, and the open cards' threads that lost UNREAD or
-   * INBOX (read or archived in Gmail), gained UNREAD (marked unread there) or lost a message.
+   * The threads a tick reads again: those with new mail in the inbox, those moved back into the inbox (plan 070, KTD4:
+   * by the person in Gmail, or by an undo), and the open cards' threads that lost UNREAD or INBOX (read or archived in
+   * Gmail), gained UNREAD (marked unread there) or lost a message. `back` names the threads moved back into the inbox,
+   * whose cards may open again.
    */
-  private touched(history: GmailHistoryRecord[]): Set<string> {
+  private touched(history: GmailHistoryRecord[]): { all: Set<string>; back: Set<string> } {
     const open = (threadId: string) => this.opts.threads.get(this.accountId, threadId)?.state === "open";
-    const out = new Set<string>();
+    const all = new Set<string>();
+    const back = new Set<string>();
     for (const h of history) {
-      for (const m of h.messagesAdded) if (m.labelIds.includes("INBOX")) out.add(m.threadId);
+      for (const m of h.messagesAdded) if (m.labelIds.includes("INBOX")) all.add(m.threadId);
       for (const c of h.labelsRemoved)
-        if ((c.labelIds.includes("UNREAD") || c.labelIds.includes("INBOX")) && open(c.message.threadId)) out.add(c.message.threadId);
-      for (const c of h.labelsAdded) if (c.labelIds.includes("UNREAD") && open(c.message.threadId)) out.add(c.message.threadId);
-      for (const m of h.messagesDeleted) if (open(m.threadId)) out.add(m.threadId);
+        if ((c.labelIds.includes("UNREAD") || c.labelIds.includes("INBOX")) && open(c.message.threadId)) all.add(c.message.threadId);
+      for (const c of h.labelsAdded) {
+        if (c.labelIds.includes("INBOX")) back.add(c.message.threadId);
+        if (c.labelIds.includes("INBOX") || (c.labelIds.includes("UNREAD") && open(c.message.threadId))) all.add(c.message.threadId);
+      }
+      for (const m of h.messagesDeleted) if (open(m.threadId)) all.add(m.threadId);
     }
-    return out;
+    return { all, back };
   }
 
   /**
@@ -230,15 +297,19 @@ export class GmailSync implements AccountSync {
    * Read one thread and bring its record in step (plan 070, KTD2): a card while any of its messages is in the inbox,
    * with Gmail's read state, or the card taken away when none is. The thread's messages are returned, for a batch's
    * place; null when the thread is gone or unreadable. `observed` says whether a card opened or changed, and `unread`
-   * whether the thread is unread in Gmail.
+   * whether the thread is unread in Gmail. With `reopen`, the thread was moved back into the inbox, so an archived
+   * record with mail in the inbox opens again as the same card (KTD4); a rebuild never asks this, so it keeps archived
+   * threads out.
    */
   private async syncThread(
     threadId: string,
     own: string[],
     fromBackfill: boolean,
+    reopen = false,
   ): Promise<{ observed: boolean; unread: boolean; messages: GmailMessage[] } | null> {
     const messages = await this.threadOf(threadId);
     if (!messages) return null;
+    if (reopen && messages.some(isInInbox)) this.opts.threads.reopen(this.accountId, threadId);
     return { ...this.apply(threadId, messages, own, fromBackfill), messages };
   }
 
