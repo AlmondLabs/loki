@@ -204,7 +204,7 @@ export interface CardMovesHost {
 }
 
 /**
- * The last move on one card, kept so an undo can reverse exactly it: the rest before it when it set one, what it wrote
+ * One move on a card, kept so an undo can reverse exactly it: the rest before it when it set one, what it wrote
  * out there, and the seen mark to put back (`mark` after a later unmarked a read card, `unmark` after a read of an
  * unread one).
  */
@@ -217,10 +217,19 @@ interface MoveTaken {
 }
 
 /**
+ * One move on a card's undo stack, kept from before its first wait so an undo pressed while it is still being written
+ * finds it: `done` resolves to the move once it has landed, or null when it failed, and `move` holds that answer.
+ */
+interface MoveEntry {
+  done: Promise<MoveTaken | null>;
+  move: MoveTaken | null | undefined;
+}
+
+/**
  * The person's moves on Inbox cards (plan 070, U6), the same on a chat, an email and a Slack card: read (⌘]), later
  * (⌘[), archive (⌘E) and label, each turned into its write-back out there, its rest, its seen mark and its report, and
- * kept so an undo (⌘Z, R14) takes back exactly the last one. A failed write-back changes nothing here and resolves to
- * the reason. Outside React, so a test drives it with a fake host and clock; useAttention keeps one.
+ * kept so each undo (⌘Z, R14) takes back exactly the newest one left, waiting for it when it is still being written. A
+ * failed write-back changes nothing here and resolves to the reason. Outside React, so a test drives it with a fake host and clock; useAttention keeps one.
  */
 export function createCardMoves(first: CardMovesHost) {
   /** The host as last set: useAttention's options are new on every render, so it hands in a fresh one after each. */
@@ -228,7 +237,8 @@ export function createCardMoves(first: CardMovesHost) {
   const setHost = (next: CardMovesHost): void => {
     host = next;
   };
-  const taken = new Map<string, MoveTaken>();
+  /** Each card's moves, oldest first, so undo after undo takes them back newest first (R14). */
+  const taken = new Map<string, MoveEntry[]>();
   /** The last decision, so a Next straight after acting on the same card reads as moving on (analytics.ts does the same). */
   let last: { id: string; action: CardAction } | null = null;
   const times = () => host.returnTimes() ?? RETURN_TIMES_DEFAULT;
@@ -237,8 +247,34 @@ export function createCardMoves(first: CardMovesHost) {
     host.report(item, action, via, facts);
     last = { id: idOf(item), action };
   };
-  const keep = (item: AttentionItem, move: Partial<MoveTaken> & { action: CardAction }) =>
-    taken.set(idOf(item), { rested: false, prev: undefined, change: null, seen: null, ...move });
+  const stackOf = (item: AttentionItem): MoveEntry[] => {
+    const id = idOf(item);
+    const stack = taken.get(id) ?? [];
+    taken.set(id, stack);
+    return stack;
+  };
+  /**
+   * Put a move on `item`'s stack before it waits on anything, and hand back how to settle it: with the move it took, or
+   * with null when it failed, which takes it off the stack again. The first answer stands, so a `finally` can settle
+   * null after an answer without changing it, and a move that threw is settled as failed.
+   */
+  const begin = (item: AttentionItem) => {
+    let resolve: (move: MoveTaken | null) => void = () => {};
+    const entry: MoveEntry = { done: new Promise((r) => (resolve = r)), move: undefined };
+    stackOf(item).push(entry);
+    return (move: (Partial<MoveTaken> & { action: CardAction }) | null): void => {
+      if (entry.move !== undefined) return;
+      entry.move = move && { rested: false, prev: undefined, change: null, seen: null, ...move };
+      if (!entry.move) {
+        const stack = stackOf(item);
+        const at = stack.indexOf(entry);
+        if (at >= 0) stack.splice(at, 1);
+      }
+      resolve(entry.move);
+    };
+  };
+  /** Keep a move that waited on nothing. */
+  const keep = (item: AttentionItem, move: Partial<MoveTaken> & { action: CardAction }) => begin(item)(move);
   const rest = (item: AttentionItem, r: Rest | null) => {
     if (r) host.rest(item.agent_id, item.id, r);
     return r;
@@ -252,18 +288,23 @@ export function createCardMoves(first: CardMovesHost) {
   const read = async (item: AttentionItem, via?: CardVia): Promise<MoveResult> => {
     const movedOn = movesOn(last, idOf(item));
     const prev = prevOf(item);
-    let change: OutsideChange | null = null;
-    if (item.outside) {
-      const w = await host.store.markReadOutside(item);
-      if (w.error) return { error: w.error, ask: false, rest: null };
-      change = w.change;
+    const settle = begin(item);
+    try {
+      let change: OutsideChange | null = null;
+      if (item.outside) {
+        const w = await host.store.markReadOutside(item);
+        if (w.error) return { error: w.error, ask: false, rest: null };
+        change = w.change;
+      }
+      host.markSeen(item.agent_id, item.id);
+      // A stopped agent never rests (restAfterNext gives null): the press moves past it for this visit only.
+      const r = rest(item, change?.ended ? null : readRest(item, movedOn));
+      settle({ action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
+      note(item, "next", via, { return_at: r?.until ?? null });
+      return { error: null, ask: false, rest: r };
+    } finally {
+      settle(null);
     }
-    host.markSeen(item.agent_id, item.id);
-    // A stopped agent never rests (restAfterNext gives null): the press moves past it for this visit only.
-    const r = rest(item, change?.ended ? null : readRest(item, movedOn));
-    keep(item, { action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
-    note(item, "next", via, { return_at: r?.until ?? null });
-    return { error: null, ask: false, rest: r };
   };
 
   /** Whether ⌘[ on `item` now would ask when it comes back (R7): the second press in a row while nothing new came. */
@@ -283,43 +324,58 @@ export function createCardMoves(first: CardMovesHost) {
     }
     if (next.ask && until === undefined) return { error: null, ask: true, rest: null };
     const prev = prevOf(item);
-    let change: OutsideChange | null = null;
-    if (item.outside) {
-      const w = await host.store.markUnreadOutside(item);
-      if (w.error) return { error: w.error, ask: false, rest: null };
-      change = w.change;
+    const settle = begin(item);
+    try {
+      let change: OutsideChange | null = null;
+      if (item.outside) {
+        const w = await host.store.markUnreadOutside(item);
+        if (w.error) return { error: w.error, ask: false, rest: null };
+        change = w.change;
+      }
+      // A card already read is unmarked, so it shows unread; an email follows Gmail's mark, and loki's goes with it.
+      if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
+      const r = rest(item, until === undefined ? next.rest : { ...next.rest, until });
+      settle({ action: "later", rested: true, prev, change, seen: item.unread ? null : "mark" });
+      note(item, "later", via, { return_at: r?.until ?? null, picked: until !== undefined });
+      return { error: null, ask: false, rest: r };
+    } finally {
+      settle(null);
     }
-    // A card already read is unmarked, so it shows unread; an email's unread needs loki's mark gone as well as Gmail's.
-    if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
-    const r = rest(item, until === undefined ? next.rest : { ...next.rest, until });
-    keep(item, { action: "later", rested: true, prev, change, seen: item.unread ? null : "mark" });
-    note(item, "later", via, { return_at: r?.until ?? null, picked: until !== undefined });
-    return { error: null, ask: false, rest: r };
   };
 
   /** Archive (⌘E): a chat is archived, an outside card's thread is archived out there; resolves to the reason, or null. */
   const archive = async (item: AttentionItem, via?: CardVia): Promise<string | null> => {
-    if (item.outside) {
-      const w = await host.store.archiveOutside(item);
-      if (w.error) return w.error;
-      keep(item, { action: "archive", change: w.change });
-    } else {
-      const err = await host.store.archiveConversation(item.id, true, "inbox", item.agent_id);
-      if (err) return err;
-      keep(item, { action: "archive" });
+    const settle = begin(item);
+    try {
+      if (item.outside) {
+        const w = await host.store.archiveOutside(item);
+        if (w.error) return w.error;
+        settle({ action: "archive", change: w.change });
+      } else {
+        const err = await host.store.archiveConversation(item.id, true, "inbox", item.agent_id);
+        if (err) return err;
+        settle({ action: "archive" });
+      }
+      note(item, "archive", via);
+      return null;
+    } finally {
+      settle(null);
     }
-    note(item, "archive", via);
-    return null;
   };
 
   /** Put Gmail labels, by id, on an email card's thread (R12); the card stays for the next key. Resolves to the reason, or null. */
   const label = async (item: AttentionItem, labels: string[], via?: CardVia): Promise<string | null> => {
     if (!item.outside) return "only an email card takes labels";
-    const w = await host.store.labelOutside(item, labels);
-    if (w.error) return w.error;
-    keep(item, { action: "label", change: w.change });
-    note(item, "label", via, { labels });
-    return null;
+    const settle = begin(item);
+    try {
+      const w = await host.store.labelOutside(item, labels);
+      if (w.error) return w.error;
+      settle({ action: "label", change: w.change });
+      note(item, "label", via, { labels });
+      return null;
+    } finally {
+      settle(null);
+    }
   };
 
   /**
@@ -335,8 +391,10 @@ export function createCardMoves(first: CardMovesHost) {
       r = rest(item, change?.ended ? null : readRest(item, true));
       keep(item, { action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
     } else {
+      // As later does: a card already read is unmarked, so it comes back unread, and an undo marks it seen again.
+      if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
       r = rest(item, laterRest(item)?.rest ?? null);
-      keep(item, { action: "later", rested: !!r, prev, change });
+      keep(item, { action: "later", rested: !!r, prev, change, seen: item.unread ? null : "mark" });
     }
     note(item, "reply", undefined, { after_reply: then, return_at: r?.until ?? null });
   };
@@ -347,26 +405,36 @@ export function createCardMoves(first: CardMovesHost) {
     note(item, "handoff");
   };
 
+  /** Reverse what `move` wrote: out there, or a chat's archive. Resolves to the reason when it could not be, or null. */
+  const writeBack = (item: AttentionItem, move: MoveTaken): Promise<string | null> => {
+    if (move.change) return host.store.restoreOutside(item, move.change);
+    if (move.action === "archive" && !item.outside) return host.store.archiveConversation(item.id, false, "inbox_undo", item.agent_id);
+    return Promise.resolve(null);
+  };
+
   /**
-   * Take back the last move on `item` (R14): what it wrote out there first, then a chat's archive, its rest and its seen
-   * mark. Resolves to the reason when it could not be, "handed off" after a hand-off, which is not undone, and null
-   * when it was taken back or there was nothing to take back.
+   * Take back the newest move on `item` (R14), waiting for it first when it is still being written: what it wrote out
+   * there first, then a chat's archive, its rest and its seen mark. Resolves to the reason when it could not be, and the
+   * move stays to be tried again; "handed off" after a hand-off, which is not undone; and null when it was taken back,
+   * when the move it waited on failed and so changed nothing, or when there was nothing to take back.
    */
   const undo = async (item: AttentionItem): Promise<string | null> => {
-    const move = taken.get(idOf(item));
+    const stack = stackOf(item);
+    const entry = stack.at(-1);
+    if (!entry) return null;
+    if (entry.move?.action === "handoff") return "handed off";
+    // Off the stack before the wait, so a second undo pressed meanwhile reaches the move before this one.
+    stack.pop();
+    const move = await entry.done;
     if (!move) return null;
-    if (move.action === "handoff") return "handed off";
-    if (move.change) {
-      const err = await host.store.restoreOutside(item, move.change);
-      if (err) return err;
-    } else if (move.action === "archive" && !item.outside) {
-      const err = await host.store.archiveConversation(item.id, false, "inbox_undo", item.agent_id);
-      if (err) return err;
+    const err = await writeBack(item, move);
+    if (err) {
+      stackOf(item).push(entry);
+      return err;
     }
     if (move.rested) host.rest(item.agent_id, item.id, restUndone(move.prev, host.now()));
     if (move.seen === "mark") host.markSeen(item.agent_id, item.id);
     else if (move.seen === "unmark") host.unmarkSeen(item.agent_id, item.id);
-    taken.delete(idOf(item));
     host.reportUndone(item, move.action);
     return null;
   };
@@ -386,9 +454,10 @@ export function createCardMoves(first: CardMovesHost) {
 
   /** Today's undo of a Next or an Archive, whose seen mark or archive the deck takes back itself: the rest comes back. */
   const undone = (item: AttentionItem, action: "next" | "archive"): void => {
-    const move = taken.get(idOf(item));
+    const stack = stackOf(item);
+    const move = stack.at(-1)?.move;
     if (action === "next") host.rest(item.agent_id, item.id, restUndone(move?.action === "next" ? move.prev : undefined, host.now()));
-    if (move?.action === action) taken.delete(idOf(item));
+    if (move?.action === action) stack.pop();
     host.reportUndone(item, action);
   };
 

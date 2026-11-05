@@ -180,8 +180,9 @@ export interface OutsideFacts {
   /**
    * Whether the thread is unread in its service (plan 070, KTD2). For email it is Gmail's own read state, which the
    * card's unread follows, since reading a mail in Gmail keeps its card; a Slack card is always unread until it ends.
+   * A paired Mac on a loki older than plan 070 sends no value, which reads as unread, as the mod reads its own records.
    */
-  unread_out_there: boolean;
+  unread_out_there?: boolean;
 }
 
 /**

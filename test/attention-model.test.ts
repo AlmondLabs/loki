@@ -425,10 +425,22 @@ describe("outside cards (plan 067, U3)", () => {
     expect(later.resting).toBe(false);
   });
 
-  test("seen until a newer message comes, by the card's own mark", () => {
+  test("a Slack card is seen until a newer message comes, by the card's own mark", () => {
     const key = keyOf("account:gmail:ada@acme.com", "t1#1");
-    expect(one(outside(), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
-    expect(one(outside({ message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+    expect(one(outside({ provider: "slack" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
+    expect(one(outside({ provider: "slack", message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("an email card unread in Gmail shows unread even when loki's seen mark is newer (marked unread there)", () => {
+    const key = keyOf("account:gmail:ada@acme.com", "t1#1");
+    expect(one(outside({ unreadOutThere: true }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("an email row from a paired Mac on an older loki, with no Gmail read state, shows unread", () => {
+    const row = outside();
+    const facts = must(row.outside, "outside");
+    delete facts.unread_out_there;
+    expect(one(row)).toMatchObject({ unread: true, status: "done" });
   });
 
   test("covers AE7: an email card read in Gmail shows as read with no mark of loki's; a Slack card goes by its mark only", () => {

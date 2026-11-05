@@ -231,6 +231,57 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     expect(restOf(t.rests, chat)).toEqual({ n: 0, until: new Date(NOW).toISOString(), stamp: "", at: new Date(NOW).toISOString() });
   });
 
+  test("an undo pressed while a read is still being written waits for it, then takes it back", async () => {
+    const t = host();
+    const item = email();
+    let land: (w: OutsideWritten) => void = () => {};
+    t.h.store.markReadOutside = () => new Promise((resolve) => (land = resolve));
+    const reading = t.moves.read(item, "key");
+    const undoing = t.moves.undo(item);
+    land({ change: { move: "read", messages: [], ended: false, was_unread: true }, error: null });
+    expect(await reading).toMatchObject({ error: null });
+    expect(await undoing).toBeNull();
+    expect(t.calls).toEqual([["restore", "t1#1", "read"]]);
+    expect(t.marks).toEqual(["seen account:gmail:ada@acme.com/t1#1", "unseen account:gmail:ada@acme.com/t1#1"]);
+    expect(t.reported).toEqual(["next", "undone next"]);
+  });
+
+  test("an undo pressed while an archive is being written that then fails takes back nothing, not the move before", async () => {
+    const t = host();
+    const item = email();
+    expect(await t.moves.label(item, ["L1"], "key")).toBeNull();
+    let land: (w: OutsideWritten) => void = () => {};
+    t.h.store.archiveOutside = () => new Promise((resolve) => (land = resolve));
+    const archiving = t.moves.archive(item, "key");
+    const undoing = t.moves.undo(item);
+    land({ change: null, error: "Gmail is out of reach" });
+    expect(await archiving).toBe("Gmail is out of reach");
+    expect(await undoing).toBeNull();
+    expect(t.calls).toEqual([["label", "t1#1", ["L1"]]]);
+    expect(t.reported).toEqual(["label"]);
+  });
+
+  test("after a label and an archive, the first undo restores the archive and the second takes the label off", async () => {
+    const t = host();
+    const item = email();
+    expect(await t.moves.label(item, ["L1"], "key")).toBeNull();
+    expect(await t.moves.archive(item, "key")).toBeNull();
+    expect(await t.moves.undo(item)).toBeNull();
+    expect(t.calls.at(-1)).toEqual(["restore", "t1#1", "archive"]);
+    expect(await t.moves.undo(item)).toBeNull();
+    expect(t.calls.at(-1)).toEqual(["restore", "t1#1", "label"]);
+    expect(t.reported).toEqual(["label", "archive", "undone archive", "undone label"]);
+  });
+
+  test("a reply with later on a read card clears loki's seen mark, and undo marks it seen again", async () => {
+    const t = host();
+    const item = email({ unread: false });
+    t.moves.replied(item, "later", { move: "unread", messages: [], ended: false, was_unread: false });
+    expect(t.marks).toEqual(["unseen account:gmail:ada@acme.com/t1#1"]);
+    expect(await t.moves.undo(item)).toBeNull();
+    expect(t.marks).toEqual(["unseen account:gmail:ada@acme.com/t1#1", "seen account:gmail:ada@acme.com/t1#1"]);
+  });
+
   test("an archived chat comes back on undo", async () => {
     const t = host();
     const chat = attentionItem("c1");

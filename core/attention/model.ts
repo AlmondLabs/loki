@@ -504,12 +504,13 @@ export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: 
 }
 
 /**
- * An outside card before its score (plan 067, KTD1): new until its own mark is newer than its newest message, never
- * blocked, so it scores like a chat with a new reply (R9). An email card is also read once Gmail says so (plan 070,
- * KTD2), since a mail read there keeps its card. It has no live half; its preview is its last line.
+ * An outside card before its score (plan 067, KTD1): never blocked, so it scores like a chat with a new reply (R9). An
+ * email card is unread exactly while Gmail says so (plan 070, KTD2): a mail read there keeps its card, one marked unread
+ * there comes back, and a read in loki reaches Gmail through its write-back. A Slack card is new until its own mark is
+ * newer than its newest message. It has no live half; its preview is its last line.
  */
 function outsideItem(c: ConversationInfo, o: OutsideFacts, seenAt: string | null, viewedAt: string | null): Unscored {
-  const unread = (o.provider !== "gmail" || o.unread_out_there) && (!seenAt || seenAt < o.newest_at);
+  const unread = o.provider === "gmail" ? o.unread_out_there !== false : !seenAt || seenAt < o.newest_at;
   return {
     ...c,
     status: unread ? "done" : "idle",
