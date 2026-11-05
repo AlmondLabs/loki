@@ -905,7 +905,10 @@ never counts as new, so your own reply does not bring a card back. A mail card i
 owner ("ada@acme.com · Gmail · Work"); a Slack card is titled by who wrote. It files under its owner's tab in the
 Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
 first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
-each reply ("On … wrote:"). While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what came in the last 3 days,
+each reply ("On … wrote:"). A mail with an HTML part is drawn as its sender designed it, on a light page: its
+layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
+you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
+text, with its web addresses made into links. While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what came in the last 3 days,
 and each time that account has no unread cards left in the Inbox (read cards, resting or not, do not hold it back),
 the next older batch arrives, a week back, then two, then a month, then a month more each time, until nothing older is
 left. Each batch brings every unread thread of its time and at most 20 read ones.

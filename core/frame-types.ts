@@ -263,6 +263,11 @@ export interface OutsideMessage {
   at: string;
   text: string;
   mine: boolean;
+  /**
+   * A mail's HTML as its sender wrote it, which the card draws in a frame where no script or form runs; absent for
+   * Slack, for mail with only a plain part, and from a Mac on a loki older than this field.
+   */
+  html?: string;
 }
 
 /** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */
