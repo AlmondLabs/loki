@@ -2,7 +2,7 @@ import type { Accounts } from "./accounts.ts";
 import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
 /**
- * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, label change,
+ * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
  * create a draft, and send the person's own reply (plan 068). Agents never send (R18): no agent tool is given
  * `sendReply`, which only the reply frame the person's own devices send reaches (mod/outside-threads.ts). Tokens come from the account's keychain secret and are
  * refreshed there; a refresh Google refuses marks the account disconnected, so the Inbox can say how to reconnect (R22).
@@ -72,6 +72,13 @@ export interface GmailHistoryRecord {
  * longer keeps history that far back, that it expired, so the watcher starts again from a fresh listing.
  */
 export type GmailHistory = { kind: "changes"; history: GmailHistoryRecord[]; history_id: string } | { kind: "expired" };
+
+/** One of the account's labels: Gmail's own (`system`, as INBOX) or one the person made (`user`), by id and name. */
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
+}
 
 /** One page of a message search: the ids found and where the next page starts. */
 export interface GmailMessagePage {
@@ -275,12 +282,25 @@ export class GmailClient {
   }
 
   /**
-   * Take labels off the given messages: INBOX to archive them, UNREAD to mark them read. By message, not by thread, so
-   * mail that came after what the person saw keeps its labels.
+   * Put labels on and take labels off the given messages in one request: INBOX off to archive, UNREAD off to mark read,
+   * and either back on to undo. By message, not by thread, so mail that came after what the person saw keeps its labels.
+   * A list left out or empty is not sent.
    */
-  async batchModify(ids: string[], change: { removeLabels: string[] }): Promise<void> {
-    if (ids.length === 0) return;
-    await this.call("POST", "/messages/batchModify", undefined, { ids, removeLabelIds: change.removeLabels });
+  async batchModify(ids: string[], change: { addLabels?: string[]; removeLabels?: string[] }): Promise<void> {
+    const add = change.addLabels ?? [];
+    const remove = change.removeLabels ?? [];
+    if (ids.length === 0 || (add.length === 0 && remove.length === 0)) return;
+    await this.call("POST", "/messages/batchModify", undefined, {
+      ids,
+      ...(add.length ? { addLabelIds: add } : {}),
+      ...(remove.length ? { removeLabelIds: remove } : {}),
+    });
+  }
+
+  /** The account's labels: Gmail's own (INBOX, UNREAD, STARRED and the like) and the ones the person made. */
+  async labels(): Promise<GmailLabel[]> {
+    const r = rec(await this.call("GET", "/labels"));
+    return list(r.labels).map((l) => ({ id: str(rec(l).id), name: str(rec(l).name), type: rec(l).type === "system" ? "system" : "user" }));
   }
 
   /** Keep a reply as a draft in its thread, for the person to read and send from Gmail; the draft's id. */

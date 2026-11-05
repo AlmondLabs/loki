@@ -32,7 +32,7 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
   const requests: FakeRequest[] = [];
   const drafts: Array<{ raw: string; threadId: string }> = [];
   const sentMail: Array<{ raw: string; threadId: string }> = [];
-  const modified: Array<{ ids: unknown; removeLabelIds: unknown }> = [];
+  const modified: Array<{ ids: unknown; addLabelIds?: unknown; removeLabelIds?: unknown }> = [];
   const state = {
     /** History older than this id is gone: a history call from before it is 404. */
     oldestHistoryId: 100,
@@ -130,10 +130,18 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
         ],
       });
     if (path === "/messages/batchModify" && req.method === "POST") {
-      const { ids, removeLabelIds } = JSON.parse(req.body) as { ids: unknown; removeLabelIds: unknown };
-      modified.push({ ids, removeLabelIds });
+      const { ids, addLabelIds, removeLabelIds } = JSON.parse(req.body) as { ids: unknown; addLabelIds?: unknown; removeLabelIds?: unknown };
+      modified.push({ ids, ...(addLabelIds === undefined ? {} : { addLabelIds }), ...(removeLabelIds === undefined ? {} : { removeLabelIds }) });
       return new Response(null, { status: 204 });
     }
+    if (path === "/labels" && req.method === "GET")
+      return json(200, {
+        labels: [
+          { id: "INBOX", name: "INBOX", type: "system" },
+          { id: "UNREAD", name: "UNREAD", type: "system" },
+          { id: "Label_7", name: "Receipts", type: "user" },
+        ],
+      });
     if (path === "/messages/send" && req.method === "POST") {
       const message = JSON.parse(req.body) as { raw: string; threadId: string };
       sentMail.push(message);
