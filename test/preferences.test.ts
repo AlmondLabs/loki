@@ -1,11 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { afterSegmentKey } from "../app/src/settings/preferences.ts";
-import { createElement } from "react";
+import { createElement, isValidElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GROUPS, PAGES, groupOf, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
-import { GlobalKeyRow } from "../app/src/settings/settings.tsx";
+import { GlobalKeyRow, InboxPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
+import { Segmented } from "../app/src/settings/layout.tsx";
+import { RETURN_TIMES_DEFAULT, type ReturnTimes } from "../core/attention/rest.ts";
+import { must } from "./fixtures/must.ts";
 import { lanStatusFromFrame } from "../app/src/phone/model.ts";
 import { shortcutAvailable, type GlobalShortcut } from "../app/src/shell/use-global-shortcut.ts";
 import { dictateTitle, dictationSupported } from "../app/src/chat/use-dictation.ts";
@@ -188,5 +191,51 @@ describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
   test("the not-yet line names the system", () => {
     expect(notYetOn("Phone pairing", "windows")).toBe("Phone pairing isn't on Windows yet");
     expect(notYetOn("Phone pairing", "linux")).toBe("Phone pairing isn't on Linux yet");
+  });
+});
+
+describe("Preferences › Inbox: read and later return times for each kind of card (plan 070, R15)", () => {
+  const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
+  /** The page's api with the daemon's defaults, and every set it was asked for. */
+  function page() {
+    const sent: ReturnTimes[] = [];
+    const api: ReturnTimesApi = { times: RETURN_TIMES_DEFAULT, set: (t) => sent.push(t) };
+    return { api, sent };
+  }
+  /** Every segmented control on the page, by its screen-reader name, read from the element tree (no DOM in these tests). */
+  function controls(node: unknown, out = new Map<string, (v: string) => void>()) {
+    if (Array.isArray(node)) for (const n of node) controls(n, out);
+    else if (isValidElement<{ children?: unknown; label?: string; onPick?: (v: string) => void }>(node)) {
+      const { label, onPick, children } = node.props;
+      if (node.type === Segmented && label !== undefined && onPick) out.set(label, onPick);
+      controls(children, out);
+    }
+    return out;
+  }
+  /** The choices of one control in the rendered page, in order, and the one chosen. */
+  function choices(out: string, label: string) {
+    const group = must(new RegExp(`aria-label="${label}"[^>]*>(.*?)</span>`).exec(out), label)[1];
+    return { all: [...group.matchAll(/>([^<]+)</g)].map((m) => m[1]), chosen: /aria-pressed="true">([^<]+)</.exec(group)?.[1] };
+  }
+
+  test("the page lists both rows with their choices, 1 hour and 1 day chosen for every kind", () => {
+    const out = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: page().api })));
+    expect(out).toContain("Read rests a card for");
+    expect(out).toContain("Later brings a card back after");
+    for (const label of ["read rests chats for", "read rests email for"]) {
+      expect(choices(out, label)).toEqual({ all: ["10 min", "30 min", "1 hour", "3 hours"], chosen: "1 hour" });
+    }
+    for (const label of ["later brings chats back after", "later brings email back after", "later brings Slack back after"]) {
+      expect(choices(out, label)).toEqual({ all: ["3 hours", "1 day", "2 days", "1 week"], chosen: "1 day" });
+    }
+    expect(out).not.toContain("read rests Slack for");
+  });
+
+  test("picking 2 days for email's later return sends that one change to the daemon, the rest as they were", () => {
+    const { api, sent } = page();
+    must(controls(InboxPage({ returnTimes: api })).get("later brings email back after"), "email's later control")("2d");
+    expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "2d", slack: "1d" } }]);
+    must(controls(InboxPage({ returnTimes: api })).get("read rests chats for"), "chats' read control")("10m");
+    expect(sent[1]).toEqual({ ...RETURN_TIMES_DEFAULT, read_first: { chat: "10m", email: "1h" } });
   });
 });

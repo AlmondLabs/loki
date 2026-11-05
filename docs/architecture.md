@@ -460,9 +460,15 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each no agent tool reaches;
    `google-signin.ts` and `google-app.ts` are Gmail's loopback sign-in and the shared Google app;
    `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
-   files); `account-threads.ts` keeps each thread's record and yields the outside cards; `handoff.ts` gives a thread
-   to its owner's chat; `outside-threads.ts` reads a card's whole thread and sends the person's own reply (plan 068), the
-   only caller of the clients' send calls; `inbox-ledger.ts` keeps the person's moves on outside cards with what each
+   files); `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
+   each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
+   recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
+   for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM
+   mark, and its `markUnread` and `restore` write nothing); `AccountThreads.reopen` opens an archived thread again as
+   the same card when it is back in the Gmail inbox, by undo or by hand in Gmail; `handoff.ts` gives a thread to its
+   owner's chat, then ends it out there through `AccountThreads.archiveHandedOff`; `outside-threads.ts` reads a card's
+   whole thread and sends the person's own reply, then the move of the key that sent it (plans 068 and 070), the only
+   caller of the clients' send calls; `inbox-ledger.ts` keeps the person's moves on outside cards with what each
    thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
@@ -470,13 +476,16 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `harness.ts` (recognising harness markup in transcripts), `ws-auth.ts` (the token in the socket's subprotocol),
    `analytics.ts` (the local events' shape), `usage.ts` (the ledger's rows), `labels.ts` (the rules for a label's name),
    `models.ts` (the model picker's harnesses, models and efforts), `pairing-code.ts`, `attention/` (the Inbox: the chat
-   client, the attention model, queue and focus ranking, `rest.ts` for resting a stale card, `chat-store.ts` with every
+   client, the attention model, queue and focus ranking, `rest.ts` for a card's read and later rests and the per-kind
+   return times (`ReturnTimes`, kept on the daemon by `mod/seen.ts`), `chat-store.ts` with every
    chat's state and calls, and `useAttention` over it; `thread.ts` is the ThreadModel, `pi-steps.ts` reads Pi's messages
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
    `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the batches of older items).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K search,
-   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames); `chat/` the
+   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames) and the
+   Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a
+   typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
    phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
    primitives; `kit/` the tokens and the widget kit (`@loki/kit`).
