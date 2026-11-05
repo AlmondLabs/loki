@@ -47,10 +47,13 @@ export function restingCount(items: AttentionItem[]): number {
 /** What you did with one card on an Inbox visit, kept so the visit can summarise itself and bring a card back when its chat moves on. */
 export interface Decision {
   item: AttentionItem;
-  /** Next marks the chat read and moves on; Archive is done, and the chat leaves the Inbox. */
-  action: "seen" | "archived";
+  /**
+   * Next (⌘]) marks the card read and moves on; Archive is done, and the card leaves the Inbox; Later (⌘[) leaves it
+   * unread and puts it off (plan 070, R6); Label put Gmail labels on an email card, which stays for the next key (R12).
+   */
+  action: "seen" | "archived" | "later" | "label";
   /** How the card went, for the visit's summary. */
-  via?: "next" | "archive" | "approve" | "deny";
+  via?: "next" | "later" | "archive" | "label" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
 }

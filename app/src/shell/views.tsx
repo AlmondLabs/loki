@@ -84,8 +84,8 @@ export function InboxView({
       labelList={catchUp.labels.list}
       onSeen={(item, moved) => (moved === "next" && catchUp.decided(item, "next", via()), catchUp.seen(item))}
       onUnread={(item) => (catchUp.undone(item, "next"), catchUp.unread(item))}
-      onArchive={(item) => (catchUp.decided(item, "archive", via()), catchUp.archive(item))}
-      onUnarchive={(item) => (catchUp.undone(item, "archive"), void catchUp.unarchive(item))}
+      onArchive={(item) => catchUp.archive(item, via())}
+      onUnarchive={(item) => void catchUp.unarchive(item)}
       onApprove={(item, requestId, behavior) => (
         catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", via()),
         catchUp.approve(item, requestId, behavior)

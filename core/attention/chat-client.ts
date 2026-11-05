@@ -1,6 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, OutsideMove, OutsideReplied, ReplyThen, SuggestionTarget } from "../frame-types.ts";
+import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, OutsideReplied, ReplyThen, SuggestionTarget } from "../frame-types.ts";
 import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -40,6 +40,11 @@ export type ChatClient = Pick<
   | "updateAgent"
   | "updateConversation"
   | "archiveOutside"
+  | "markReadOutside"
+  | "markUnreadOutside"
+  | "labelOutside"
+  | "restoreOutside"
+  | "labelsOutside"
   | "handoffPropose"
   | "readOutside"
   | "replyOutside"
@@ -234,10 +239,44 @@ export class FrameChatClient {
 
   /**
    * Archive an outside card's thread (plan 067, R12) on the Mac its account lives on (`home`, null for this one): the
-   * account is written back first, and a refusal throws its reason.
+   * account is written back first, and a refusal throws its reason. Resolves to what the archive changed out there, for
+   * an undo (plan 070, R14), or null when nothing was written.
    */
-  async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<void> {
-    await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
+  async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /**
+   * Mark an outside card's thread read out there (plan 070, R5): in Gmail up to the card's newest message, in Slack the
+   * DM's read mark, which ends the card. Resolves to what it changed, for an undo; a refusal throws its reason.
+   */
+  async markReadOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_mark_read", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /** Leave an outside card's thread unread out there (plan 070, R6); resolves to what it changed, and a refusal throws. */
+  async markUnreadOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_mark_unread", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /** Put Gmail labels, by id, on an outside card's thread (plan 070, R12); resolves to what it changed, and a refusal throws. */
+  async labelOutside(accountId: string, threadId: string, labels: string[], home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_label", { account_id: accountId, thread_id: threadId, labels, home });
+    return r.change;
+  }
+
+  /** Take back a write-back on an outside card (plan 070, R14), `change` as the write-back answered it; a refusal throws. */
+  async restoreOutside(accountId: string, threadId: string, change: OutsideChange, home: string | null): Promise<void> {
+    await this.call("account_thread_restore", { account_id: accountId, thread_id: threadId, change, home });
+  }
+
+  /** An account's Gmail labels, for the label picker (plan 070, R12), from the Mac the account lives on. */
+  async labelsOutside(accountId: string, home: string | null): Promise<AccountLabel[]> {
+    const r = await this.call("account_labels_list", { account_id: accountId, home });
+    return r.labels;
   }
 
   /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */

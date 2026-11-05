@@ -704,14 +704,10 @@ function Screen({
         )}
         onSeen={(item, how) => (catchUp.decided(item, "next", how), catchUp.seen(item))}
         onShown={catchUp.shown}
-        onArchive={(item) => {
-          catchUp.decided(item, "archive", "tap");
-          void catchUp.archive(item).then((err) => err && setCardNote(`Archive: ${err}`));
-        }}
-        onUndo={(item, via) => (
-          catchUp.undone(item, via === "seen" ? "next" : "archive"),
-          via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item).then((err) => err && setCardNote(`Undo: ${err}`))
-        )}
+        onArchive={(item) => void catchUp.archive(item, "tap").then((err) => err && setCardNote(`Archive: ${err}`))}
+        onUndo={(item, via) =>
+          via === "seen" ? (catchUp.undone(item, "next"), catchUp.unread(item)) : void catchUp.unarchive(item).then((err) => err && setCardNote(`Undo: ${err}`))
+        }
       />
       {tab === "agents" && (
         <Agents

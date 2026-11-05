@@ -4,6 +4,7 @@ import { ChatStore, type ChatStoreHost } from "../core/attention/chat-store.ts";
 import type { ChatEvent, ConversationInfo, Digest } from "../core/attention/model.ts";
 import type { Runtime } from "../core/attention/protocol.ts";
 import type { ChatEngineView } from "../core/models.ts";
+import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { call, piece } from "./fixtures/chat-events.ts";
 
 const ADA: Runtime = { agent_id: "ada", conversation_id: "c1" };
@@ -35,6 +36,21 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const replies: Array<[string, string, string, string, string | null]> = [];
   /** How the daemon answers a reply: refused before it was sent, or sent with the move's reason. */
   const replyAnswer = { refused: null as string | null, thenError: null as string | null };
+  /** Each write-back and restore the daemon was asked for. */
+  const writes: unknown[][] = [];
+  /** Whether the daemon's read ends the card, as reading a Slack card does. */
+  const readEnds = { value: false };
+  const change = (move: OutsideWrite, ended: boolean): OutsideChange => ({
+    move,
+    messages: [{ message_id: "m1", labels_added: [], labels_removed: ["INBOX"] }],
+    ended,
+    was_unread: true,
+  });
+  const write = (move: OutsideWrite, accountId: string, threadId: string, home: string | null, labels?: string[]) => {
+    if (refuse.outside) return Promise.reject(new Error(refuse.outside));
+    writes.push([move, accountId, threadId, home, ...(labels ? [labels] : [])]);
+    return Promise.resolve(change(move, move === "read" && readEnds.value));
+  };
   const client = {
     replyOutside: (accountId: string, threadId: string, text: string, then: string, home: string | null) => {
       if (replyAnswer.refused) return Promise.reject(new Error(replyAnswer.refused));
@@ -55,7 +71,14 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
         ? Promise.reject(new Error(refuse.outside))
         : Promise.resolve((handoffs.push([accountId, threadId, conversationId, home]), { agent_id: "ada", conversation_id: conversationId ?? "c-new" })),
     archiveOutside: (accountId: string, threadId: string, home: string | null) =>
-      refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void outside.push([accountId, threadId, home])),
+      refuse.outside ? Promise.reject(new Error(refuse.outside)) : (outside.push([accountId, threadId, home]), Promise.resolve(change("archive", true))),
+    markReadOutside: (accountId: string, threadId: string, home: string | null) => write("read", accountId, threadId, home),
+    markUnreadOutside: (accountId: string, threadId: string, home: string | null) => write("unread", accountId, threadId, home),
+    labelOutside: (accountId: string, threadId: string, labels: string[], home: string | null) => write("label", accountId, threadId, home, labels),
+    restoreOutside: (accountId: string, threadId: string, c: unknown, home: string | null) =>
+      refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void writes.push(["restore", accountId, threadId, home, c])),
+    labelsOutside: (accountId: string) =>
+      refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve([{ id: `${accountId}:L1`, name: "Clients", type: "user" }]),
     updateConversation: (id: string, body: Record<string, unknown>, agentId?: string) => Promise.resolve(void updates.push([id, body, agentId])),
     onStatus: () => () => {},
     onChat: (fn: typeof hear) => ((hear = fn), () => {}),
@@ -83,7 +106,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves, replies, replyAnswer };
+  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves, replies, replyAnswer, writes, readEnds };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -216,10 +239,10 @@ describe("the chat store (plan 052)", () => {
     await flush();
     expect(d.started).toEqual(["c1"]);
     d.refuse.outside = "Gmail is out of reach";
-    expect(await d.store.archiveOutside(card)).toBe("Gmail is out of reach");
+    expect(await d.store.archiveOutside(card)).toEqual({ change: null, error: "Gmail is out of reach" });
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("t1#1");
     d.refuse.outside = null;
-    expect(await d.store.archiveOutside(card)).toBeNull();
+    expect(await d.store.archiveOutside(card)).toMatchObject({ change: { move: "archive", ended: true }, error: null });
     expect(d.outside).toEqual([["gmail:ada@acme.com", "t1", "mac-mini"]]);
     expect(d.updates).toEqual([]);
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
@@ -275,6 +298,63 @@ describe("the chat store (plan 052)", () => {
     expect(ids()).toEqual(["c1"]);
     expect(d.replies.map((r) => r[3])).toEqual(["later", "read", "archive", "archive"]);
     expect(d.replies[0]).toEqual(["gmail:ada@acme.com", "t1", "hello", "later", "mac-mini"]);
+  });
+
+  test("read, unread and label are written back on the card's home Mac with what they changed; a read that ends the card drops it; restore brings it back", async () => {
+    const card: ConversationInfo & Digest = {
+      ...row("t1#1", "2026-11-04T09:00:00Z"),
+      kind: "outside",
+      agent_id: "account:gmail:ada@acme.com",
+      home: "mac-mini",
+      outside: {
+        account_id: "gmail:ada@acme.com",
+        provider: "gmail",
+        account_label: "ada@acme.com",
+        thread_id: "t1",
+        generation: 1,
+        owner_agent_id: "ada",
+        owner_name: "Ada",
+        sender: "Grace",
+        sender_address: "grace@acme.com",
+        subject: "hi",
+        lines: ["hi"],
+        newest_message_id: "m1",
+        newest_at: "2026-11-04T09:00:00Z",
+        handoff_conversation_id: null,
+        disconnected: null,
+        unread_out_there: true,
+      },
+    };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    const ids = () => d.store.getSnapshot().conversations.map((c) => c.id);
+
+    // A refused write says why and keeps the card.
+    d.refuse.outside = "Gmail is out of reach";
+    expect(await d.store.markReadOutside(card)).toEqual({ change: null, error: "Gmail is out of reach" });
+    expect(await d.store.labelsOf(card)).toBe("Gmail is out of reach");
+    expect(ids()).toContain("t1#1");
+    d.refuse.outside = null;
+
+    // An email read, put off or labelled stays in the list.
+    const read = await d.store.markReadOutside(card);
+    expect(read).toMatchObject({ change: { move: "read", ended: false }, error: null });
+    expect(await d.store.markUnreadOutside(card)).toMatchObject({ change: { move: "unread" }, error: null });
+    expect(await d.store.labelOutside(card, ["L1"])).toMatchObject({ change: { move: "label" }, error: null });
+    expect(await d.store.labelsOf(card)).toEqual([{ id: "gmail:ada@acme.com:L1", name: "Clients", type: "user" }]);
+    expect(ids()).toContain("t1#1");
+
+    // A read that ends the card, as on Slack, drops it; restoring that change lists the card again.
+    d.readEnds.value = true;
+    const ended = await d.store.markReadOutside(card);
+    expect(ids()).toEqual(["c1"]);
+    if (!ended.change) throw new Error("the read wrote nothing");
+    expect(await d.store.restoreOutside(card, ended.change)).toBeNull();
+    await flush();
+    expect(ids()).toContain("t1#1");
+    expect(d.writes.map((w) => w[0])).toEqual(["read", "unread", "label", "read", "restore"]);
+    expect(d.writes[2]).toEqual(["label", "gmail:ada@acme.com", "t1", "mac-mini", ["L1"]]);
+    expect(d.writes[4]).toEqual(["restore", "gmail:ada@acme.com", "t1", "mac-mini", ended.change]);
   });
 
   test("handing an outside card off asks the Mac its account lives on; done, the card leaves; refused, it stays with the reason", async () => {
