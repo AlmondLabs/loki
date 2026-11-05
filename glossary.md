@@ -183,8 +183,8 @@ fenced as content from its senders, and the card is done: the thread is archived
 to the message handed, unless a newer one came meanwhile (`AccountThreads.archiveHandedOff`, plan 070). Not the
 Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
 
-**Reply proposal** (`mod/reply-proposals.ts`, plan 067): a reply the owner writes with `reply_propose` in a thread
-handed to its chat. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
+**Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
+thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
 perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. loki
 never sends. _Avoid_: sent reply, outgoing message.
 
