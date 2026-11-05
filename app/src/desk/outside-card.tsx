@@ -109,14 +109,16 @@ export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource
  * a press opens it.
  */
 function MessageRow({ m, touch, folded }: { m: OutsideMessage; touch: boolean; folded: boolean }) {
-  const [open, setOpen] = useState(!folded);
+  // Only the press is kept; whether it is folded is the thread's to say, so a mail a newer one arrives under folds.
+  const [opened, setOpened] = useState(false);
+  const open = !folded || opened;
   const size = touch ? "var(--phone-text-body)" : 13.5;
   const who = (
     <span style={{ fontSize: size, fontWeight: 600, color: m.mine ? "var(--loki-positive)" : undefined }}>{m.mine ? "you" : senderName(m.sender)}</span>
   );
   if (!open)
     return (
-      <button type="button" className="loki-mail-fold" onClick={() => setOpen(true)} aria-expanded={false}>
+      <button type="button" className="loki-mail-fold" onClick={() => setOpened(true)} aria-expanded={false}>
         {who}
         {m.at && <Meta>{ago(m.at)}</Meta>}
         <span className="loki-mail-fold-line" style={{ fontSize: size }}>
