@@ -65,7 +65,7 @@ async function setup(addresses = ["ada@acme.com"]) {
 }
 
 describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
-  test("a colleague's mail with the person in Cc is a card; a list, an automated mail and a no-reply sender are not", async () => {
+  test("every unread mail is a card, a list, an automated mail and a no-reply sender too, each with what kind it is (plan 069)", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     box.deliver({
       thread: "t-cc",
@@ -75,12 +75,26 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
       cc: "ada@acme.com",
       subject: "Budget",
       snippet: "can you check the numbers?",
+      labels: ["INBOX", "UNREAD", "CATEGORY_PERSONAL"],
     });
-    box.deliver({ thread: "t-news", at: ago(HOUR), from: "News <news@acme.com>", to: "ada@acme.com", headers: { "List-Unsubscribe": "<mailto:u@acme.com>" } });
+    box.deliver({
+      thread: "t-news",
+      at: ago(HOUR),
+      from: "News <news@acme.com>",
+      to: "ada@acme.com",
+      headers: { "List-Unsubscribe": "<mailto:u@acme.com>" },
+      labels: ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"],
+    });
     box.deliver({ thread: "t-auto", at: ago(HOUR), from: "CI <ci@acme.com>", to: "ada@acme.com", headers: { "Auto-Submitted": "auto-generated" } });
-    box.deliver({ thread: "t-noreply", at: ago(HOUR), from: "GitHub <noreply@github.com>", to: "ada@acme.com" });
+    box.deliver({ thread: "t-noreply", at: ago(HOUR), from: "GitHub <noreply@github.com>", to: "team@acme.com" });
     await sync().tick();
-    expect(cards()).toEqual(["t-cc"]);
+    expect(cards().sort()).toEqual(["t-auto", "t-cc", "t-news", "t-noreply"]);
+    expect(["t-cc", "t-news", "t-auto", "t-noreply"].map((t) => threads.get(id(), t)?.traits)).toEqual([
+      { to_you: true, list: false, automated: false, category: "primary" },
+      { to_you: true, list: true, automated: false, category: "promotions" },
+      { to_you: true, list: false, automated: true, category: null },
+      { to_you: false, list: false, automated: true, category: null },
+    ]);
     expect(threads.get(id(), "t-cc")).toMatchObject({
       sender: "Grace Hopper",
       sender_address: "grace@acme.com",
@@ -142,17 +156,18 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
 });
 
 describe("watching a Gmail account (R7, R12, R13)", () => {
-  test("a thread whose first mail was automated becomes a card when a person writes in it", async () => {
+  test("a thread whose first mail was automated is a card at once, and a person writing in it updates the card and its kind", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     const s = sync();
     await s.tick();
     box.deliver({ thread: "t1", at: ago(10 * 60_000), from: "Jira <jira@acme.com>", to: "ada@acme.com", headers: { "Auto-Submitted": "auto-generated" } });
     await s.tick();
-    expect(cards()).toEqual([]);
+    expect(cards()).toEqual(["t1"]);
+    expect(threads.get(id(), "t1")?.traits?.automated).toBe(true);
     const human = box.deliver({ thread: "t1", at: ago(60_000), from: GRACE, to: "ada@acme.com", snippet: "I looked at it" });
     await s.tick();
     expect(cards()).toEqual(["t1"]);
-    expect(threads.get(id(), "t1")?.newest_message_id).toBe(human);
+    expect(threads.get(id(), "t1")).toMatchObject({ newest_message_id: human, traits: { automated: false } });
   });
 
   test("a new mail in an open thread updates its card rather than adding one", async () => {

@@ -462,7 +462,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
    files); `account-threads.ts` keeps each thread's record and yields the outside cards; `handoff.ts` gives a thread
    to its owner's chat; `outside-threads.ts` reads a card's whole thread and sends the person's own reply (plan 068), the
-   only caller of the clients' send calls; `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
+   only caller of the clients' send calls; `inbox-ledger.ts` keeps the person's moves on outside cards with what each
+   thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),

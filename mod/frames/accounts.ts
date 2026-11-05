@@ -1,6 +1,7 @@
 import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
 import type { Handoff } from "../handoff.ts";
+import type { InboxLedger } from "../inbox-ledger.ts";
 import type { OutsideThreads } from "../outside-threads.ts";
 import type { GoogleSignIn } from "../google-signin.ts";
 import type { SlackSessions } from "../slack-session.ts";
@@ -27,6 +28,8 @@ export interface AccountsDeps {
   handoff?: Pick<Handoff, "propose" | "handOff">;
   /** Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068). */
   outside?: Pick<OutsideThreads, "read" | "reply">;
+  /** The ledger of the person's moves on outside cards (mod/inbox-ledger.ts, plan 069). */
+  ledger?: Pick<InboxLedger, "record">;
   connect?: AccountConnectDeps;
 }
 
@@ -119,6 +122,10 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
       return reply({ account_id: accountId, thread_id: threadId });
+    },
+    account_thread_move: ({ account_id: accountId, thread_id: threadId, action, via, dwell_ms: dwellMs }) => {
+      const kept = deps.ledger?.record(accountId, threadId, { action, via, dwell_ms: dwellMs }) ?? null;
+      return reply({ account_id: accountId, thread_id: threadId, kept: kept !== null });
     },
     account_thread_handoff_propose: ({ account_id: accountId, thread_id: threadId }) => {
       if (!deps.handoff) return fail("handing off is not available in this mod");

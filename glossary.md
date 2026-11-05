@@ -154,6 +154,11 @@ takes the person's own reply, which sends and archives it (`mod/outside-threads.
 owner's tab. The thread's record (open, archived or handed off, and its newest message) is kept in
 `state/account-threads/<account id>.json`. _Avoid_: notification, email card.
 
+**Inbox ledger** (`mod/inbox-ledger.ts`, plan 069): one line for each of the person's moves on an outside card (Next,
+archive, reply, hand-off), with how it was made, how long the card was on top, the thread's sender and subject, and
+the mail's traits (`MailTraits`: to you, a list, automated, Gmail's tab). It is kept in `state/inbox-ledger.jsonl` on
+the account's Mac, as the data for learning the person's preferences. _Avoid_: history, activity log.
+
 **Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki
 proposes (the one it went to before, or a new one) or another of the owner's chats. The chat gets the whole thread,
 fenced as content from its senders; Gmail and Slack are left as they were. Not the Handoff above, which is a history

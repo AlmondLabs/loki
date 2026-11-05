@@ -32,7 +32,7 @@ import { inboxCardSource } from "../analytics.ts";
 export type EngageAction = PayloadOf<"focus_add">["action"];
 
 /** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
-export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open";
+export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open" | "handoff";
 
 /** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
 export type CardVia = "key" | "click" | "swipe" | "tap";
@@ -328,12 +328,16 @@ export function useAttention(opts: UseAttentionOptions) {
     (item: AttentionItem, action: CardAction, via?: CardVia) => {
       const since = shownAt.current.get(idOf(item));
       const props = cardProps(item);
+      const dwell = since === undefined ? null : Math.round(clock.now() - since);
       optsRef.current.capture?.("inbox_card_decided", {
         action,
         ...(via ? { via } : {}),
         ...props,
-        dwell_ms: since === undefined ? null : Math.round(clock.now() - since),
+        dwell_ms: dwell,
       });
+      // A move on an outside card also goes to its account's ledger, with who and what it was (plan 069).
+      if (item.outside && (action === "next" || action === "archive" || action === "reply" || action === "handoff"))
+        store.moveOutside(item, { action, via: via ?? null, dwell_ms: dwell });
       // Next rests the card (rest.ts): a stale one longer each time, one with something new or just replied on, the first rung.
       if (action === "next") {
         const prev = optsRef.current.rests?.[keyOf(item.agent_id, item.id)];
@@ -346,7 +350,7 @@ export function useAttention(opts: UseAttentionOptions) {
       if (sender) optsRef.current.engage?.(sender.agentId, sender.conversationId, "decide");
       lastDecision.current = { id: idOf(item), action };
     },
-    [clock, cardProps],
+    [clock, cardProps, store],
   );
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
@@ -452,6 +456,24 @@ export function useAttention(opts: UseAttentionOptions) {
     (item: AttentionItem) => (item.outside ? store.archiveOutside(item) : store.archiveConversation(item.id, true, "inbox", item.agent_id)),
     [store],
   );
+  /** The person's reply on an outside card (plan 068); once sent it is an Inbox decision, kept in the ledger (plan 069). */
+  const replyOutside = useCallback(
+    async (item: AttentionItem, text: string) => {
+      const err = await store.replyOutside(item, text);
+      if (!err) decided(item, "reply");
+      return err;
+    },
+    [store, decided],
+  );
+  /** A hand-off of an outside card to its owner's chat (plan 067); once made it is an Inbox decision too (plan 069). */
+  const handoffOutside = useCallback(
+    async (item: AttentionItem, conversationId: string | null) => {
+      const err = await store.handoff(item, conversationId);
+      if (!err) decided(item, "handoff");
+      return err;
+    },
+    [store, decided],
+  );
   /** Undo of an archive: the chat comes back. An outside card's archive is not taken back here, so it stays done. */
   const unarchive = useCallback(
     (item: AttentionItem) => (item.outside ? Promise.resolve(null) : store.archiveConversation(item.id, false, "inbox_undo", item.agent_id)),
@@ -510,9 +532,9 @@ export function useAttention(opts: UseAttentionOptions) {
     archive,
     unarchive,
     handoffPropose: store.handoffPropose,
-    handoff: store.handoff,
+    handoff: handoffOutside,
     readOutside: store.readOutside,
-    replyOutside: store.replyOutside,
+    replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
     shown,

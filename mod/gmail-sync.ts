@@ -1,6 +1,6 @@
 import { advanceRefill, firstRefill, parseRefill, refillWindow, type RefillCursor, type RefillResult, type RefillWindow } from "../core/account-refill.ts";
 import { messageOf } from "../core/errors.ts";
-import { addressesIn, isDirectMail } from "../core/mail-filter.ts";
+import { addressesIn, mailTraits } from "../core/mail-filter.ts";
 import type { AccountThreads, OutsideSource } from "./account-threads.ts";
 import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
@@ -9,8 +9,8 @@ import { log } from "./log.ts";
 
 /**
  * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11, KTD13). The first tick keeps the mailbox's history id
- * and brings every unread direct thread of the last 3 days; each later tick asks Gmail what changed since that id
- * (2 quota units when nothing did), turns new direct mail into cards and takes away the cards of threads the person
+ * and brings every unread thread of the last 3 days; each later tick asks Gmail what changed since that id
+ * (2 quota units when nothing did), turns new unread mail into cards and takes away the cards of threads the person
  * read or archived in Gmail. When Gmail no longer keeps history that far back, the account is read again from a bounded
  * search; the thread records keep archived and handed-off threads from coming back. When the account has no open
  * outside cards, the next older batch comes (core/account-refill.ts).
@@ -177,7 +177,7 @@ export class GmailSync implements AccountSync {
 
   /**
    * History lost (KTD3): watch on from the mailbox's history id now, read again the unread mail of the part already
-   * covered (at most the last 30 days), and check each open card's thread. A thread whose newest direct mail is the
+   * covered (at most the last 30 days), and check each open card's thread. A thread whose newest unread mail is the
    * one recorded stays as it was, archived or handed off included (AccountThreads.observe).
    */
   private async rebuild(own: string[], cursor: GmailCursor): Promise<void> {
@@ -196,7 +196,7 @@ export class GmailSync implements AccountSync {
   }
 
   /**
-   * Read one thread and bring its record in step: a card for its newest unread direct mail, or the card taken away
+   * Read one thread and bring its record in step: a card for its newest unread mail, or the card taken away
    * when nothing in it is unread in the inbox now. The newest message read is returned, for a batch's place; null when
    * the thread is gone. `observed` says whether a card opened or changed.
    */
@@ -220,7 +220,8 @@ export class GmailSync implements AccountSync {
       this.opts.threads.markReadOutThere(this.accountId, threadId);
       return { observed: false, messages };
     }
-    const newest = unread.filter((m) => isDirectMail(m.payload?.headers ?? [], own)).at(-1);
+    // Every unread mail in the inbox is a card (plan 069); what kind it is goes with it, and nothing keeps it out.
+    const newest = unread.at(-1);
     if (!newest) return { observed: false, messages };
     const sender = senderOf(headerOf(newest, "From"));
     const upTo = messages.slice(0, messages.indexOf(newest) + 1);
@@ -236,6 +237,7 @@ export class GmailSync implements AccountSync {
         .map((m) => plain(m.snippet))
         .filter(Boolean),
       from_backfill: fromBackfill,
+      traits: mailTraits(newest.payload?.headers ?? [], own, newest.labelIds),
     });
     return { observed, messages };
   }
@@ -250,7 +252,7 @@ export class GmailSync implements AccountSync {
     return this.opts.accounts.get(this.accountId)?.status === "connected";
   }
 
-  /** Bring the next batch of older unread direct threads when the account's cards are cleared (KTD13). */
+  /** Bring the next batch of older unread threads when the account's cards are cleared (KTD13). */
   private async refill(own: string[]): Promise<void> {
     for (let step = 0; step < REFILL_STEPS_PER_TICK; step++) {
       const cursor = this.cursor();

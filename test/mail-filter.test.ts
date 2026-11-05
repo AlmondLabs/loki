@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { addressesIn, isDirectMail } from "../core/mail-filter.ts";
+import { addressesIn, isDirectMail, mailTraits, parseMailTraits } from "../core/mail-filter.ts";
 
 const OWN = ["ada@acme.com", "ada@example.org"];
 const h = (headers: Record<string, string>) => Object.entries(headers).map(([name, value]) => ({ name, value }));
@@ -47,5 +47,41 @@ describe("whether a mail is to the person, from a person (R5, KTD6)", () => {
 describe("the addresses in a header", () => {
   test("bare, bracketed and quoted names with commas, in lower case", () => {
     expect(addressesIn('"Lovelace, Ada" <Ada@Acme.com>, bob@acme.com; Grace <grace@acme.com>')).toEqual(["ada@acme.com", "bob@acme.com", "grace@acme.com"]);
+  });
+});
+
+describe("what kind of mail a message is (plan 069)", () => {
+  test("to you, a list, a machine, and Gmail's tab, each on its own", () => {
+    expect(mailTraits(h({ ...colleague, Cc: "ada@acme.com" }), OWN, ["INBOX", "CATEGORY_PERSONAL"])).toEqual({
+      to_you: true,
+      list: false,
+      automated: false,
+      category: "primary",
+    });
+    expect(mailTraits(h({ ...colleague, "List-Id": "eng.acme.com", Precedence: "list" }), OWN, ["CATEGORY_FORUMS"])).toEqual({
+      to_you: false,
+      list: true,
+      automated: false,
+      category: "forums",
+    });
+    expect(mailTraits(h({ From: "Bank <no-reply@bank.example>", To: "ada@acme.com" }), OWN, ["CATEGORY_UPDATES"])).toEqual({
+      to_you: true,
+      list: false,
+      automated: true,
+      category: "updates",
+    });
+    // A mailbox without tabs has no category; a mail with no From is no person's.
+    expect(mailTraits(h({ To: "ada@acme.com" }), OWN)).toEqual({ to_you: true, list: false, automated: true, category: null });
+  });
+
+  test("traits read back from a file, and a record from before them has none", () => {
+    expect(parseMailTraits({ to_you: true, list: false, automated: true, category: "social" })).toEqual({
+      to_you: true,
+      list: false,
+      automated: true,
+      category: "social",
+    });
+    expect(parseMailTraits({ to_you: true, list: false, automated: false, category: "elsewhere" })?.category).toBeNull();
+    expect([parseMailTraits(undefined), parseMailTraits({ to_you: "yes" })]).toEqual([null, null]);
   });
 });

@@ -15,6 +15,7 @@ import type {
   AccountView,
   HandoffProposal,
   OutsideMessage,
+  OutsideMove,
   SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
@@ -309,6 +310,8 @@ export interface Replies {
   account_thread_archived: { account_id: string; thread_id: string };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
   account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[] };
+  /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
+  account_move_kept: { account_id: string; thread_id: string; kept: boolean };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
   account_thread_handoff_proposal: HandoffProposal;
   /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
@@ -506,6 +509,8 @@ const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
 const BY_SCOPE: PeerMeaning = { route: "scope" };
 /** A frame about the Mac a new chat will live on, routed by its `home`. */
 const BY_HOME: PeerMeaning = { route: "home" };
+const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["next", "archive", "reply", "handoff"];
+const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 /** A frame only paired Macs send each other, answered where it lands. */
 const BETWEEN_MACS: PeerMeaning = {};
 /** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
@@ -1179,6 +1184,20 @@ export const FRAMES = {
         : "account_id, thread_id and text required",
     PHONE,
     { route: "home", relists: true, timeout_ms: 30_000 },
+  ),
+  account_thread_move: request(
+    "account_move_kept",
+    "one of the person's moves on an outside card (Next, archive, their reply, a hand-off), kept in the ledger of the Mac the account lives on so its preferences can be learned (plan 069); sent there by `home`",
+    (m) => {
+      if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id) return "account_id and thread_id required";
+      const action = OUTSIDE_MOVES.find((a) => a === m.action);
+      if (!action) return "action must be next, archive, reply or handoff";
+      const via = MOVE_VIAS.find((v) => v === m.via) ?? null;
+      const dwell = typeof m.dwell_ms === "number" && Number.isFinite(m.dwell_ms) && m.dwell_ms >= 0 ? Math.round(m.dwell_ms) : null;
+      return { account_id: m.account_id, thread_id: m.thread_id, ...({ action, via, dwell_ms: dwell } satisfies OutsideMove), home: strOr(m.home, null) };
+    },
+    PHONE,
+    BY_HOME,
   ),
   account_thread_handoff_propose: request(
     "account_thread_handoff_proposal",
