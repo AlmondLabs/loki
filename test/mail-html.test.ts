@@ -46,11 +46,11 @@ describe("the frame's document for a mail", () => {
 describe("a plain mail's links", () => {
   test("web addresses become links; a full stop after one is not part of it", () => {
     expect(linkParts("Bill at https://x.test/a.pdf. Thanks")).toEqual([
-      { text: "Bill at ", href: null },
-      { text: "https://x.test/a.pdf", href: "https://x.test/a.pdf" },
-      { text: ". Thanks", href: null },
+      { at: 0, text: "Bill at ", href: null },
+      { at: 8, text: "https://x.test/a.pdf", href: "https://x.test/a.pdf" },
+      { at: 28, text: ". Thanks", href: null },
     ]);
-    expect(linkParts("no links here")).toEqual([{ text: "no links here", href: null }]);
+    expect(linkParts("no links here")).toEqual([{ at: 0, text: "no links here", href: null }]);
   });
 });
 

@@ -127,27 +127,30 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
   );
 }
 
-/** The web addresses in plain text, as text and links in turn, so a plain mail's links can be clicked too. */
-export function linkParts(text: string): Array<{ text: string; href: string | null }> {
-  const parts: Array<{ text: string; href: string | null }> = [];
+/**
+ * The web addresses in plain text, as text and links in turn, so a plain mail's links can be clicked too; `at` is where
+ * each part starts in the text, which names it while the text stays the same.
+ */
+export function linkParts(text: string): Array<{ at: number; text: string; href: string | null }> {
+  const parts: Array<{ at: number; text: string; href: string | null }> = [];
   let at = 0;
   for (const m of text.matchAll(/https?:\/\/[^\s<>"'\])]+/gi)) {
     // A sentence's full stop or comma after an address is not part of it.
     const url = m[0].replace(/[.,;:!?]+$/, "");
-    if (m.index > at) parts.push({ text: text.slice(at, m.index), href: null });
-    parts.push({ text: url, href: url });
+    if (m.index > at) parts.push({ at, text: text.slice(at, m.index), href: null });
+    parts.push({ at: m.index, text: url, href: url });
     at = m.index + url.length;
   }
-  if (at < text.length) parts.push({ text: text.slice(at), href: null });
+  if (at < text.length) parts.push({ at, text: text.slice(at), href: null });
   return parts;
 }
 
 /** Plain text with its web addresses as links that open in the person's browser. */
 export function LinkedText({ text }: { text: string }): ReactNode {
-  return linkParts(text).map((p, i) =>
+  return linkParts(text).map((p) =>
     p.href ? (
       <a
-        key={i}
+        key={p.at}
         className="loki-mail-link"
         href={p.href}
         onClick={(e) => {
@@ -158,7 +161,7 @@ export function LinkedText({ text }: { text: string }): ReactNode {
         {p.text}
       </a>
     ) : (
-      <Fragment key={i}>{p.text}</Fragment>
+      <Fragment key={p.at}>{p.text}</Fragment>
     ),
   );
 }
