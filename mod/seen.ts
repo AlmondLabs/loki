@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
-import { isRest, type Rest } from "../core/attention/rest.ts";
+import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "../core/attention/rest.ts";
 import type { Pushes } from "../core/frames.ts";
 import { coalesce, type Burst } from "../core/timers.ts";
 import { writeJsonAtomic } from "./json-file.ts";
@@ -14,12 +14,14 @@ import { writeJsonAtomic } from "./json-file.ts";
  *  - focus:  each chat's engagement weight, fading by half every 12 hours (core/attention/focus.ts): the
  *            inbox ranks by its share; your messages, answers, decisions and reads add to it
  *  - rests:  how long Next has rested each chat's Inbox card, and on which rung (core/attention/rest.ts)
+ *  - return times: how long ⌘] and ⌘[ rest each kind of card, the person's setting (plan 070, KTD8)
  * The browser decides what these mean; the mod only remembers them.
  *
  * Shared with paired Macs (plan 023, U8, KTD9): a mark is a time, so the later one wins wherever it was made, and
  * "not done" is a time too (`unseen`), so a later "not done" beats an earlier "done". Focus is engagement, which adds
  * up rather than overwrites: each Mac keeps its own entries, this Mac holds the others' last known (`remoteFocus`), and
- * the Inbox reads their sum. A rest is set at a time too, so the later one wins wherever Next was pressed.
+ * the Inbox reads their sum. A rest is set at a time too, so the later one wins wherever Next was pressed, and so are
+ * the return times, as one setting.
  */
 
 /** What one Mac sends another of its marks: its done, not-done and viewed times, its own focus, and its rests. */
@@ -30,8 +32,23 @@ export interface MarksSnapshot {
   focus: Record<string, FocusEntry>;
   /** Missing from a Mac on a loki from before rests (plan 026). */
   rests?: Record<string, Rest>;
+  /** The person's return times and when they were set; missing from a Mac from before plan 070, null where none are set. */
+  return_times?: ReturnTimesMark | null;
 }
-/** Rests set longer ago than this are dropped when the next is set: past the longest rest, and a month on the rung is stale. */
+
+/** The return times as one setting, with when it was set: between Macs the later one wins. */
+export interface ReturnTimesMark {
+  times: ReturnTimes;
+  at: string;
+}
+
+const isReturnTimesMark = (v: unknown): v is ReturnTimesMark =>
+  !!v && typeof v === "object" && isReturnTimes((v as Partial<ReturnTimesMark>).times) && typeof (v as Partial<ReturnTimesMark>).at === "string";
+
+/**
+ * Rests set longer ago than this are dropped when the next is set, unless they have not ended yet: a month on the rung
+ * is stale, but a later rest picked weeks out still has to bring its card back.
+ */
 const REST_FORGET_MS = 30 * 24 * 60 * 60_000;
 /** How long a burst of marks waits before it is written: one write per burst, and flush() on shutdown. */
 const PERSIST_DEBOUNCE_MS = 250;
@@ -50,6 +67,8 @@ export class SeenStore {
   private remoteFocus: Record<string, Record<string, FocusEntry>> = {};
   /** Each conversation's Inbox rest, set by Next on any Mac. */
   private rests: Record<string, Rest> = {};
+  /** The person's return times for each kind of card (plan 070), null until they set any. */
+  private returns: ReturnTimesMark | null = null;
   private readonly path: string;
   private readonly now: () => string;
   /** One write per burst of marks. */
@@ -71,6 +90,7 @@ export class SeenStore {
           this.remoteFocus = parsed.remote_focus as Record<string, Record<string, FocusEntry>>;
         if (parsed.rests && typeof parsed.rests === "object")
           this.rests = Object.fromEntries(Object.entries(parsed.rests as Record<string, unknown>).filter((e): e is [string, Rest] => isRest(e[1])));
+        if (isReturnTimesMark(parsed.return_times)) this.returns = parsed.return_times;
       } else {
         this.seen = parsed as Record<string, string>; // v1 file: a flat map of markers
       }
@@ -120,15 +140,36 @@ export class SeenStore {
   rest(agentId: string | null | undefined, conversationId: string, rest: Rest): boolean {
     const key = SeenStore.key(agentId, conversationId);
     if (key in this.rests && this.rests[key].at >= rest.at) return false;
-    const forget = new Date(Date.parse(this.now()) - REST_FORGET_MS).toISOString();
-    this.rests = Object.fromEntries([...Object.entries(this.rests).filter(([, r]) => r.at >= forget), [key, rest]]);
+    const now = this.now();
+    const forget = new Date(Date.parse(now) - REST_FORGET_MS).toISOString();
+    this.rests = Object.fromEntries([...Object.entries(this.rests).filter(([, r]) => r.at >= forget || Date.parse(r.until) > Date.parse(now)), [key, rest]]);
     this.persist();
     return true;
   }
 
-  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, and the rests. */
+  /** The person's return times for each kind of card; null while none are set, so the client may move its own here. */
+  returnTimes(): ReturnTimes | null {
+    return this.returns?.times ?? null;
+  }
+
+  /** New return times, from any device: false when they are the ones kept already, so nothing is broadcast. */
+  setReturnTimes(times: ReturnTimes): boolean {
+    if (this.returns && JSON.stringify(this.returns.times) === JSON.stringify(times)) return false;
+    this.returns = { times, at: this.now() };
+    this.persist();
+    return true;
+  }
+
+  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, the rests and the return times. */
   snapshot(): MarksSnapshot {
-    return { seen: { ...this.seen }, unseen: { ...this.unseen }, viewed: { ...this.viewed }, focus: { ...this.focus }, rests: { ...this.rests } };
+    return {
+      seen: { ...this.seen },
+      unseen: { ...this.unseen },
+      viewed: { ...this.viewed },
+      focus: { ...this.focus },
+      rests: { ...this.rests },
+      return_times: this.returns,
+    };
   }
 
   /** Take a paired Mac's marks: every later time, its focus as its own, every later rest. True when anything here moved. */
@@ -147,6 +188,11 @@ export class SeenStore {
     for (const [key, rest] of Object.entries(snap.rests ?? {})) {
       if (!isRest(rest) || (key in this.rests && this.rests[key].at >= rest.at)) continue;
       this.rests = { ...this.rests, [key]: rest };
+      moved = true;
+    }
+    const theirs = snap.return_times;
+    if (isReturnTimesMark(theirs) && !(this.returns && this.returns.at >= theirs.at)) {
+      this.returns = theirs;
       moved = true;
     }
     if (JSON.stringify(this.remoteFocus[macId] ?? {}) !== JSON.stringify(snap.focus)) {
@@ -225,6 +271,7 @@ export class SeenStore {
           ...(Object.keys(this.unseen).length ? { unseen: this.unseen } : {}),
           ...(Object.keys(this.remoteFocus).length ? { remote_focus: this.remoteFocus } : {}),
           ...(Object.keys(this.rests).length ? { rests: this.rests } : {}),
+          ...(this.returns ? { return_times: this.returns } : {}),
         },
         { pretty: true },
       );

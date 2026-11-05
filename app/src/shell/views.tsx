@@ -236,6 +236,7 @@ export function SettingsView({
         shortcut={shortcut}
         recall={recall}
         usage={{ ...desk.usage, agents: catchUp.agents }}
+        returnTimes={{ times: desk.attention.returnTimes, set: desk.attention.setReturnTimes }}
       />
     </Suspense>
   );

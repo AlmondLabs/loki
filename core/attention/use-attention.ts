@@ -20,7 +20,7 @@ import type { TranscriptRow } from "./transcript.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
-import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
+import { RETURN_TIMES_DEFAULT, cardKindOf, movesOn, readFirstMs, restAfterNext, restUndone, type Rest, type ReturnTimes } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
 import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion } from "../frame-types.ts";
@@ -57,8 +57,8 @@ export interface UseAttentionOptions {
   rests?: Record<string, Rest>;
   /** Tell the mod a card was rested by Next, or its rest undone. */
   rest?: (agentId: string, conversationId: string, rest: Rest) => void;
-  /** How long Next first rests a card (rest.ts), the person's setting; left out, an hour. */
-  restFirstMs?: number;
+  /** How long ⌘] and ⌘[ rest each kind of card (rest.ts), the person's settings; left out, the defaults. */
+  returnTimes?: ReturnTimes;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the daemon's store, through the mod (compaction-proof); null when no page came (plan 041). */
@@ -341,7 +341,8 @@ export function useAttention(opts: UseAttentionOptions) {
       // Next rests the card (rest.ts): a stale one longer each time, one with something new or just replied on, the first rung.
       if (action === "next") {
         const prev = optsRef.current.rests?.[keyOf(item.agent_id, item.id)];
-        const rest = restAfterNext(item, prev, movesOn(lastDecision.current, idOf(item)), Date.now(), optsRef.current.restFirstMs);
+        const first = readFirstMs(optsRef.current.returnTimes ?? RETURN_TIMES_DEFAULT, cardKindOf(item));
+        const rest = restAfterNext(item, prev, movesOn(lastDecision.current, idOf(item)), Date.now(), first);
         restBefore.current.set(idOf(item), prev);
         if (rest) optsRef.current.rest?.(item.agent_id, item.id, rest);
       }

@@ -7,10 +7,17 @@ export interface SeenDeps {
   seen?: SeenStore;
 }
 
-/** The done and viewed marks, the focus weights and the rests, as one push: the one place it is built (the turn-start mark too). */
+/** The done and viewed marks, the focus weights, the rests and the return times, as one push: the one place it is built (the turn-start mark too). */
 export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   const { seen } = deps;
-  return { type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll() ?? {}, rests: seen?.restsAll() ?? {} };
+  return {
+    type: "seen",
+    seen: seen?.all() ?? {},
+    viewed: seen?.viewedAll() ?? {},
+    focus: seen?.focusAll() ?? {},
+    rests: seen?.restsAll() ?? {},
+    return_times: seen?.returnTimes() ?? null,
+  };
 }
 
 /** One chat's marks, after a change to that chat alone (plan 055): a few hundred bytes, not every chat's. */
@@ -47,6 +54,10 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
     // Tracked as part of the decision (inbox_card_decided), which says the rung.
     card_rest: ({ agent_id: agentId, conversation_id: conversationId, rest }, ctx) => {
       if (seen?.rest(agentId, conversationId, rest)) ctx.broadcast(seenChatFrame(seen, agentId, conversationId));
+    },
+    // A setting, changed now and then: the whole push carries it, and it reaches paired Macs as every seen push does.
+    return_times_set: ({ return_times: times }, ctx) => {
+      if (seen?.setReturnTimes(times)) ctx.broadcast(seenFrame(deps));
     },
   };
 }

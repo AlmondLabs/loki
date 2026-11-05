@@ -13,7 +13,8 @@ import type { CardWithSchedule, RecallReply, RecallSnapshot } from "../../../cor
 import type { UsageReply } from "../../../core/usage.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
-import type { Rest } from "../../../core/attention/rest.ts";
+import { RETURN_TIMES_DEFAULT, type Rest, type ReturnTimes } from "../../../core/attention/rest.ts";
+import { moveRestFirst } from "../shared/rest-first";
 import type { TranscriptRow } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 
@@ -101,6 +102,7 @@ export function useDesk() {
     viewedMap,
     focusMap,
     restMap,
+    returnTimes,
     recallVersion,
     usageVersion,
     lanStatus,
@@ -311,6 +313,10 @@ export function useDesk() {
     heldCaptures.current = [];
     for (const frame of held) sendRef.current(frame);
   }, [connection]);
+  // The Mac's old first-rest choice moves to the mod once, when the mod says it keeps no return times (plan 070, KTD8).
+  useEffect(() => {
+    moveRestFirst(returnTimes, (times) => sendRef.current({ type: "return_times_set", return_times: times }));
+  }, [returnTimes]);
 
   const attention = {
     // loki's daemon serves chats on this socket, wherever the page runs; a request made before it opens waits for it.
@@ -345,6 +351,9 @@ export function useDesk() {
     /** Each chat's Inbox rest (the mod's; core/attention/rest.ts), and a Next's new one. */
     rests: restMap,
     rest: (agentId: string, conversationId: string, rest: Rest) => send({ type: "card_rest", agent_id: agentId, conversation_id: conversationId, rest }),
+    /** How long ⌘] and ⌘[ rest each kind of card (the mod's, plan 070), the defaults while none are set, and new ones. */
+    returnTimes: returnTimes ?? RETURN_TIMES_DEFAULT,
+    setReturnTimes: (times: ReturnTimes) => send({ type: "return_times_set", return_times: times }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agent_id: agentId, conversation_id: conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */

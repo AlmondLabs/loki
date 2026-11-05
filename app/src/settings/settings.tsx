@@ -22,8 +22,13 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
-import { REST_GROWTH, type RestFirst } from "../../../core/attention/rest.ts";
-import { useRestFirst } from "../shared/rest-first";
+import { REST_GROWTH, type RestFirst, type ReturnTimes } from "../../../core/attention/rest.ts";
+
+/** Preferences › Inbox's return times, kept by the mod (plan 070): what they are now, and new ones. */
+export interface ReturnTimesApi {
+  times: ReturnTimes;
+  set: (times: ReturnTimes) => void;
+}
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
@@ -96,6 +101,7 @@ export function Settings({
   shortcut,
   recall,
   usage,
+  returnTimes,
   onClose,
 }: {
   chatLink: ChatLink;
@@ -138,6 +144,8 @@ export function Settings({
   recall: RecallModel;
   /** What the agents spent, and their names (Preferences › Usage). */
   usage: UsageApi;
+  /** How long ⌘] and ⌘[ rest each kind of card (Preferences › Inbox). */
+  returnTimes: ReturnTimesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
@@ -158,7 +166,7 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage />,
+    inbox: () => <InboxPage returnTimes={returnTimes} />,
     accounts: () =>
       chatLink === "open" ? <Accounts api={accounts} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     providers: () => (
@@ -527,8 +535,10 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
  * Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. The accounts
  * whose mail and messages become cards have their own page, Preferences › Accounts (plan 068).
  */
-function InboxPage() {
-  const [restFirst, setRestFirst] = useRestFirst();
+function InboxPage({ returnTimes }: { returnTimes: ReturnTimesApi }) {
+  // One choice for chats and email until the page sets each kind apart (plan 070, U11).
+  const restFirst = returnTimes.times.read_first.chat;
+  const setRestFirst = (first: RestFirst) => returnTimes.set({ ...returnTimes.times, read_first: { chat: first, email: first } });
   return (
     <>
       <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
@@ -540,7 +550,7 @@ function InboxPage() {
         </Setting>
         <Setting
           label="Next rests a card for"
-          help="The first rest, on this device. Long enough to finish the chat in front of you before the one you set aside comes back."
+          help="The first rest of a chat or an email, on every device. Long enough to finish the chat in front of you before the one you set aside comes back."
         >
           <Segmented label="next rests a card for" options={REST_FIRST_KEYS} value={restFirst} onPick={setRestFirst} labels={REST_FIRST_LABELS} />
         </Setting>
