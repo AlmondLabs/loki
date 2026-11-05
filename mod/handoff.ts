@@ -25,6 +25,8 @@ export interface ThreadMessage {
   text: string;
   /** Whether the account's own person wrote it (plan 068), so the card can mark it; absent when the reader cannot tell. */
   mine?: boolean;
+  /** The message's own id in its service (Gmail's id, Slack's ts), so the card can key it; absent when unknown. */
+  id?: string;
 }
 
 /** A chat as the lists know it (this Mac's and the paired Macs'), which a hand-off may go to. */
@@ -318,6 +320,7 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
       const at = Number(m.internalDate);
       return {
         sender: from || "someone",
+        id: m.id,
         mine: own !== "" && addressOf(from) === own,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
         text: (plain ? decoded(plain) : html ? htmlText(decoded(html)) : m.snippet).trim(),
@@ -362,7 +365,7 @@ export function slackThreadText(client: (accountId: string) => Pick<SlackClient,
     const me = accountId.split(":").at(2) ?? "";
     const out: ThreadMessage[] = [];
     for (const m of messages)
-      out.push({ sender: await senderOf(m, name), at: tsIso(m.ts), text: await slackPlain(m.text, name), mine: me !== "" && m.user === me });
+      out.push({ sender: await senderOf(m, name), at: tsIso(m.ts), text: await slackPlain(m.text, name), mine: me !== "" && m.user === me, id: m.ts });
     return out;
   };
 }

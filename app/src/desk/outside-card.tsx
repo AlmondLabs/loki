@@ -137,9 +137,8 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
     );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
-      {state.messages.map((m, i) => (
-        // A thread's messages have no id here and never reorder: they are read whole, oldest first, each time.
-        <MessageRow key={`${m.at}:${i}`} m={m} touch={touch} />
+      {state.messages.map((m) => (
+        <MessageRow key={m.id} m={m} touch={touch} />
       ))}
       <div ref={end} />
     </div>
@@ -242,6 +241,82 @@ export function OutsideReply({
   );
 }
 
+/** The card's header: what it is about, who wrote, where and when, and the badge or the last move's flash. */
+function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; badge: string | null; went: string | null; cameBack: boolean }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+        padding: "14px 18px",
+        borderBottom: "1px solid var(--loki-border)",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{outsideTitle(facts)}</Title>
+        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexWrap: "wrap" }}>
+          {facts.provider === "gmail" && <span style={{ fontSize: 12, fontWeight: 600 }}>{senderName(facts.sender)}</span>}
+          <Meta>{outsideWho(facts)}</Meta>
+          <Meta>{ago(facts.newest_at)}</Meta>
+          {went && <Meta>{went}</Meta>}
+          {cameBack && <Meta>back · new since you moved on</Meta>}
+        </div>
+      </div>
+      {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
+    </div>
+  );
+}
+
+/** Hand off, archive and next: they share the reply's row, so the card has one bar of buttons. */
+function OutsideMoves({
+  facts,
+  typing,
+  next,
+  archive,
+  onHandoff,
+  picking,
+}: {
+  facts: OutsideFacts;
+  typing: boolean;
+  next: () => void;
+  archive: () => void;
+  onHandoff?: () => void;
+  picking: boolean;
+}) {
+  return (
+    <>
+      {onHandoff && (
+        <Button
+          size="sm"
+          onClick={onHandoff}
+          disabled={!!facts.disconnected || picking}
+          title={
+            facts.disconnected
+              ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+              : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
+          }
+        >
+          hand off
+        </Button>
+      )}
+      <Button
+        size="sm"
+        onClick={archive}
+        title={`done with this thread: it leaves the Inbox and is ${facts.provider === "gmail" ? "archived in Gmail" : "marked read in Slack"}`}
+        kbd={deckKey("inbox.archive", typing)}
+      >
+        archive
+      </Button>
+      <span style={{ flex: 1 }} />
+      <Button size="sm" tone="paper" onClick={next} title="set it aside: the thread stays for your next visit" kbd={deckKey("inbox.next", typing)}>
+        next →
+      </Button>
+    </>
+  );
+}
+
 /**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
  * the reply box, and the deck's moves. Archive here archives the thread in its account; Next sets it aside; hand off
@@ -282,63 +357,11 @@ export function OutsideCard({
   onTyping?: (typing: boolean) => void;
   onEscapeEmpty?: () => void;
 }) {
-  const badge = current.unread ? "new" : "";
   const thread = useOutsideThread(current, source);
-  // Hand off, archive and next share the reply's row, so the card has one bar of buttons.
-  const moves = (
-    <>
-      {onHandoff && (
-        <Button
-          size="sm"
-          onClick={onHandoff}
-          disabled={!!facts.disconnected || !!picker}
-          title={
-            facts.disconnected
-              ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
-              : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
-          }
-        >
-          hand off
-        </Button>
-      )}
-      <Button
-        size="sm"
-        onClick={archive}
-        title={`done with this thread: it leaves the Inbox and is ${facts.provider === "gmail" ? "archived in Gmail" : "marked read in Slack"}`}
-        kbd={deckKey("inbox.archive", typing)}
-      >
-        archive
-      </Button>
-      <span style={{ flex: 1 }} />
-      <Button size="sm" tone="paper" onClick={next} title="set it aside: the thread stays for your next visit" kbd={deckKey("inbox.next", typing)}>
-        next →
-      </Button>
-    </>
-  );
+  const moves = <OutsideMoves facts={facts} typing={typing} next={next} archive={archive} onHandoff={onHandoff} picking={!!picker} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          padding: "14px 18px",
-          borderBottom: "1px solid var(--loki-border)",
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{outsideTitle(facts)}</Title>
-          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexWrap: "wrap" }}>
-            {facts.provider === "gmail" && <span style={{ fontSize: 12, fontWeight: 600 }}>{senderName(facts.sender)}</span>}
-            <Meta>{outsideWho(facts)}</Meta>
-            <Meta>{ago(facts.newest_at)}</Meta>
-            {went && <Meta>{went}</Meta>}
-            {cameBack && <Meta>back · new since you moved on</Meta>}
-          </div>
-        </div>
-        {(flash ?? badge) && <Chip tone="var(--loki-positive)">{flash ?? badge}</Chip>}
-      </div>
+      <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
       <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>

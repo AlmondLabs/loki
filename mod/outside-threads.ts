@@ -47,7 +47,9 @@ export class OutsideThreads {
   async read(accountId: string, threadId: string): Promise<OutsideMessage[]> {
     const account = this.need(accountId);
     const messages = await this.opts.threadText[account.provider](accountId, threadId);
-    return messages.map((m) => ({
+    // A reader that gives no id leaves the message's place in the thread, which is stable since a thread is read whole.
+    return messages.map((m, i) => ({
+      id: m.id ?? `at-${i}`,
       sender: m.sender,
       at: m.at,
       text: account.provider === "gmail" ? withoutQuoted(m.text) : m.text,

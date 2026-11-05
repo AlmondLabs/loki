@@ -184,6 +184,8 @@ export interface OutsideFacts {
  * text as plain text, and whether the account's own person wrote it.
  */
 export interface OutsideMessage {
+  /** The message's id in its service (Gmail's id, Slack's ts); unique within its thread. */
+  id: string;
   sender: string;
   at: string;
   text: string;

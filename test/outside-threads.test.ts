@@ -113,13 +113,13 @@ describe("reading a card's whole thread", () => {
   test("every message with its sender and time; mail loses the quoted thread, and the person's own are marked", async () => {
     const { t } = threads({
       thread: [
-        { sender: "Bob <bob@acme.com>", at: "2026-11-04T10:00:00.000Z", text: "Lunch?" },
+        { sender: "Bob <bob@acme.com>", at: "2026-11-04T10:00:00.000Z", text: "Lunch?", id: "m1" },
         { sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.\n\nOn Tue, Bob wrote:\n> Lunch?", mine: true },
       ],
     });
     expect(await t.read(MAIL, "t1")).toEqual([
-      { sender: "Bob <bob@acme.com>", at: "2026-11-04T10:00:00.000Z", text: "Lunch?", mine: false },
-      { sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.", mine: true },
+      { id: "m1", sender: "Bob <bob@acme.com>", at: "2026-11-04T10:00:00.000Z", text: "Lunch?", mine: false },
+      { id: "at-1", sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.", mine: true },
     ]);
   });
   test("an account not on this Mac is refused", async () => {
@@ -198,7 +198,7 @@ describe("the reply frames", () => {
 
   test("a read answers the thread, a reply answers the archived card, and a refusal comes back in words", async () => {
     const send = ask({
-      read: () => Promise.resolve([{ sender: "Bob", at: "", text: "hi", mine: false }]),
+      read: () => Promise.resolve([{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }]),
       reply: (_a, _t, text) => (text === "boom" ? Promise.reject(new Error("Slack refused it")) : Promise.resolve()),
     });
     expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1" })).toMatchObject({
@@ -281,8 +281,8 @@ describe("the card", () => {
         state: {
           kind: "read",
           messages: [
-            { sender: "Shipyard", at: "", text: "Please review", mine: false },
-            { sender: "Ada", at: "", text: "Looking now", mine: true },
+            { id: "1.0", sender: "Shipyard", at: "", text: "Please review", mine: false },
+            { id: "2.0", sender: "Ada", at: "", text: "Looking now", mine: true },
           ],
         },
       }),
