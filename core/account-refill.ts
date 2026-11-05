@@ -1,16 +1,16 @@
 /**
- * How the past arrives in batches (plan 067, R8, KTD13). The first sync brings every unread direct item of the last 3
- * days. After that, each time the account has no open outside cards (resting cards are open: Next sets a card aside,
- * it does not clear it), the next older batch of at most 20 threads comes, stepping back through windows 7, 14 and 30
- * days before the first sync, then 30 days more each time, until nothing older is left. The cursor lives on the
- * account (Accounts.setBackfill), so a restart goes on where it stood.
+ * How the past arrives in batches (plan 067, R8, KTD13; plan 070, KTD5). The first sync brings every item of the last 3
+ * days. After that, each time the account has no unread cards in the Inbox (read cards, resting or not, do not hold
+ * it back), the next older batch comes: every unread thread of its window and at most 20 read ones, stepping back
+ * through windows 7, 14 and 30 days before the first sync, then 30 days more each time, until nothing older is left.
+ * The cursor lives on the account (Accounts.setBackfill), so a restart goes on where it stood.
  */
 
 /** Where an account's batches stand. */
 export interface RefillCursor {
   /** ISO time of the first sync: every window is measured back from it, so the steps stay put as time passes. */
   anchor: string;
-  /** ISO time: every unread item newer than this has been read; the next batch reads older ones. */
+  /** ISO time: every item newer than this has been read; the next batch reads older ones. */
   before: string;
   /** How many days before the anchor the finished windows reach: 0 before the first sync, then 3, 7, 14, 30, 60… */
   days: number;
@@ -18,7 +18,10 @@ export interface RefillCursor {
   exhausted: boolean;
 }
 
-/** One window to read: unread items at or after `after` and before `before`, up to `limit` new threads (null: all). */
+/**
+ * One window to read: items at or after `after` and before `before`. Every unread thread in it comes, and up to `limit`
+ * new read ones (null: all).
+ */
 export interface RefillWindow {
   after: string;
   before: string;
@@ -26,13 +29,13 @@ export interface RefillWindow {
 }
 
 /**
- * How reading a window went: `full` stopped at its limit, at the oldest thread it took; `done` read the whole window;
- * `empty` found no unread mail in it at all, and says when the newest unread item older than the window came (null
- * when there is none, and the past is all in).
+ * How reading a window went: `full` stopped at its limit, at the oldest read thread it took; `done` read the whole
+ * window; `empty` found no mail in it at all, and says when the newest item older than the window came (null when
+ * there is none, and the past is all in).
  */
 export type RefillResult = { kind: "full"; oldest_at: string } | { kind: "done" } | { kind: "empty"; newest_older_at: string | null };
 
-/** The most threads one later batch brings. */
+/** The most read threads one later batch brings; its unread ones all come. */
 export const REFILL_BATCH = 20;
 /** The windows' reach before the anchor, in days; past the last, each window reaches STEP_DAYS further. */
 const WINDOW_DAYS = [3, 7, 14, 30];
@@ -50,11 +53,12 @@ export function firstRefill(now: Date): RefillCursor {
 }
 
 /**
- * The window to read next, or null when none is due: the past is all in, or the account still has `open` outside
- * cards. The first window (the last 3 days) is read whole whatever the count, since it is the connection itself.
+ * The window to read next, or null when none is due: the past is all in, or the account still has `unreadOpen`
+ * unread cards in the Inbox. The first window (the last 3 days) is read whole whatever the count, since it is the
+ * connection itself.
  */
-export function refillWindow(cursor: RefillCursor, open: number): RefillWindow | null {
-  if (cursor.exhausted || (cursor.days > 0 && open > 0)) return null;
+export function refillWindow(cursor: RefillCursor, unreadOpen: number): RefillWindow | null {
+  if (cursor.exhausted || (cursor.days > 0 && unreadOpen > 0)) return null;
   return { after: back(cursor.anchor, nextDays(cursor.days)), before: cursor.before, limit: cursor.days === 0 ? null : REFILL_BATCH };
 }
 

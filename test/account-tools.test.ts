@@ -106,7 +106,7 @@ async function fixture(threadsPerMailbox = 3) {
   threads.observe(MAIL, { thread_id: "work-t2", message_id: "m", at: "2026-11-04T08:00:00.000Z", sender: "Alan", subject: "Lunch", lines: [BODY] });
   threads.handedOff(MAIL, "work-t2", "local-conv-lunch");
   threads.observe(MAIL, { thread_id: "work-t3", message_id: "m", at: "2026-11-04T07:00:00.000Z", sender: "Old", subject: "Gone", lines: [BODY] });
-  threads.markReadOutThere(MAIL, "work-t3");
+  threads.markGoneOutThere(MAIL, "work-t3");
   const mailboxes = new Map([
     [MAIL, fakeMailbox("work", threadsPerMailbox)],
     [OTHER_MAIL, fakeMailbox("home", threadsPerMailbox)],

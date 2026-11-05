@@ -34,10 +34,15 @@ export interface ThreadRecord {
   /** The last few messages as plain text, oldest first, for the card's body. */
   lines: string[];
   handoff_conversation_id: string | null;
-  /** It came from a batch of older unread items (KTD13), not from watching. */
+  /** It came from a batch of older items (KTD13), not from watching. */
   from_backfill: boolean;
   /** What kind of mail its newest message is (plan 069); null for Slack and for records from before. */
   traits: MailTraits | null;
+  /**
+   * Whether the thread is unread in its service (plan 070, KTD2): for Gmail, whether any of its messages in the inbox
+   * is unread. A record from before this was kept reads as unread, so no card goes quiet on the upgrade.
+   */
+  unread_out_there: boolean;
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -54,6 +59,8 @@ export interface ObservedMessage {
   from_backfill?: boolean;
   /** What kind of mail it is (plan 069); Slack has none. */
   traits?: MailTraits | null;
+  /** Whether the thread is unread out there (plan 070); unread when not said, as every Slack card is. */
+  unread_out_there?: boolean;
 }
 
 /**
@@ -113,6 +120,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     handoff_conversation_id: s("handoff_conversation_id"),
     from_backfill: r.from_backfill === true,
     traits: parseMailTraits(r.traits),
+    unread_out_there: r.unread_out_there !== false,
   };
 }
 
@@ -138,12 +146,19 @@ export class AccountThreads {
   /**
    * A thread a watcher saw, with its newest message (R7, KTD11): a new thread opens a card; a newer message updates the
    * open card, reopens an archived one as the same card, or makes a handed-off one a card of the next generation (R19).
-   * Returns whether anything changed; a message no newer than the recorded one changes nothing.
+   * Returns whether anything changed. A message no newer than the recorded one changes only an open card's read state
+   * out there (plan 070, AE7), so mail read in Gmail keeps its card.
    */
   observe(accountId: string, m: ObservedMessage): boolean {
     const records = this.records(accountId);
     const prev = records.get(m.thread_id);
-    if (prev && !newer(m, prev)) return false;
+    const unreadOutThere = m.unread_out_there ?? true;
+    if (prev && !newer(m, prev)) {
+      if (prev.state !== "open" || prev.unread_out_there === unreadOutThere) return false;
+      records.set(m.thread_id, { ...prev, unread_out_there: unreadOutThere });
+      this.save(accountId);
+      return true;
+    }
     const generation = !prev ? 1 : prev.state === "handed_off" ? prev.generation + 1 : prev.generation;
     records.set(m.thread_id, {
       thread_id: m.thread_id,
@@ -158,16 +173,33 @@ export class AccountThreads {
       handoff_conversation_id: prev?.handoff_conversation_id ?? null,
       from_backfill: prev ? prev.from_backfill && m.from_backfill === true : m.from_backfill === true,
       traits: m.traits ?? null,
+      unread_out_there: unreadOutThere,
     });
     this.save(accountId);
     return true;
   }
 
-  /** The person read or archived the thread in Gmail or Slack first (R13): its card leaves; nothing is written back. */
-  markReadOutThere(accountId: string, threadId: string): boolean {
+  /**
+   * The thread reached its end in its service first (R13, plan 070 R2, R3): it left the Gmail inbox, or the Slack item
+   * was read. Its card leaves; nothing is written back.
+   */
+  markGoneOutThere(accountId: string, threadId: string): boolean {
     const r = this.records(accountId).get(threadId);
     if (r?.state !== "open") return false;
     this.records(accountId).set(threadId, { ...r, state: "archived" });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
+   * An archived thread is back in its service's inbox (plan 070, KTD4): it opens again as the same card, without the
+   * check for a newer message. The caller has seen it in the inbox. Returns whether it reopened; an open or handed-off
+   * thread stays as it is.
+   */
+  reopen(accountId: string, threadId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (r?.state !== "archived") return false;
+    this.records(accountId).set(threadId, { ...r, state: "open" });
     this.save(accountId);
     return true;
   }
@@ -264,6 +296,7 @@ export class AccountThreads {
         newest_at: r.newest_at,
         handoff_conversation_id: r.handoff_conversation_id,
         disconnected: account.status === "connected" ? null : account.status.disconnected,
+        unread_out_there: r.unread_out_there,
       },
     };
   }

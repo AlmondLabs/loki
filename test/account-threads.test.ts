@@ -72,8 +72,51 @@ describe("the thread records of an account", () => {
         newest_message_id: "m1",
         handoff_conversation_id: null,
         disconnected: null,
+        unread_out_there: true,
       },
     });
+  });
+
+  test("covers AE7: the thread read out there keeps its card, shown as read, and unread again shows unread", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(true);
+    expect(threads.rows().map((r) => [r.id, r.outside?.unread_out_there])).toEqual([["t1#1", false]]);
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(false);
+    expect(threads.observe(MAIL, message({ unread_out_there: true }))).toBe(true);
+    expect(threads.get(MAIL, "t1")?.unread_out_there).toBe(true);
+  });
+
+  test("the read state of a thread that is not a card changes nothing", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.markGoneOutThere(MAIL, "t1");
+    expect(threads.observe(MAIL, message({ unread_out_there: false }))).toBe(false);
+    expect(threads.rows()).toEqual([]);
+  });
+
+  test("reopen brings an archived thread back as the same card without a newer message; open and handed-off ones stay", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.observe(MAIL, message({ thread_id: "t2" }));
+    threads.markGoneOutThere(MAIL, "t1");
+    threads.handedOff(MAIL, "t2", "conv-7");
+    expect(threads.reopen(MAIL, "t1")).toBe(true);
+    expect(threads.reopen(MAIL, "t1")).toBe(false);
+    expect(threads.reopen(MAIL, "t2")).toBe(false);
+    expect(threads.reopen(MAIL, "nope")).toBe(false);
+    expect(threads.rows().map((r) => r.id)).toEqual(["t1#1"]);
+  });
+
+  test("a record from before read state was kept reads as unread out there, so no card goes quiet", async () => {
+    const { dir, threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const folder = join(dir, "account-threads");
+    const [name] = readdirSync(folder);
+    const file = JSON.parse(readFileSync(join(folder, name), "utf8")) as { threads: Array<Record<string, unknown>> };
+    delete file.threads[0].unread_out_there;
+    writeFileSync(join(folder, name), JSON.stringify(file), { mode: 0o600 });
+    expect(again().get(MAIL, "t1")?.unread_out_there).toBe(true);
   });
 
   test("covers AE2: a newer message on an open thread updates the same card; the same or an older one changes nothing", async () => {
@@ -89,10 +132,10 @@ describe("the thread records of an account", () => {
     expect(must(rows[0].outside, "outside").lines).toEqual(["b", "c", "d"]);
   });
 
-  test("a thread read out there leaves the Inbox, and comes back only with a newer message, as the same card", async () => {
+  test("a thread gone out there leaves the Inbox, and comes back only with a newer message, as the same card", async () => {
     const { threads } = await fixture();
     threads.observe(MAIL, message());
-    threads.markReadOutThere(MAIL, "t1");
+    threads.markGoneOutThere(MAIL, "t1");
     expect(threads.rows()).toEqual([]);
     expect(threads.observe(MAIL, message())).toBe(false);
     expect(threads.rows()).toEqual([]);
@@ -171,7 +214,7 @@ describe("the thread records of an account", () => {
   test("the records outlive a restart, in a file per account whose name Windows allows", async () => {
     const { dir, threads, again } = await fixture();
     threads.observe(MAIL, message());
-    threads.markReadOutThere(MAIL, "t1");
+    threads.markGoneOutThere(MAIL, "t1");
     const files = readdirSync(join(dir, "account-threads"));
     expect(files).toHaveLength(1);
     expect(files[0]).not.toMatch(/[<>:"/\\|?*]/);

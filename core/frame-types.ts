@@ -177,6 +177,11 @@ export interface OutsideFacts {
   handoff_conversation_id: string | null;
   /** Why the account is not watched now (R22); null while it is connected. */
   disconnected: AccountDisconnectCause | null;
+  /**
+   * Whether the thread is unread in its service (plan 070, KTD2). For email it is Gmail's own read state, which the
+   * card's unread follows, since reading a mail in Gmail keeps its card; a Slack card is always unread until it ends.
+   */
+  unread_out_there: boolean;
 }
 
 /**

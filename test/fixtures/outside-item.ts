@@ -27,6 +27,7 @@ export const outsideItem = (title: string, over: Partial<AttentionItem> = {}): A
       newest_at: "2026-09-05T10:00:00Z",
       handoff_conversation_id: null,
       disconnected: null,
+      unread_out_there: true,
     },
     ...over,
   });

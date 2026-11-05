@@ -110,7 +110,26 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
     expect(cards()).toEqual(["t-alias"]);
   });
 
-  test("with 300 unread direct threads only the last 3 days come; each clearing brings the next batch of at most 20 (AE3)", async () => {
+  test("a thread whose mail is all read but still in the inbox is a card, shown as read out there", async () => {
+    const { box, sync, cards, ago, threads, id } = await setup();
+    box.deliver({ thread: "t-read", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    box.deliver({ thread: "t-unread", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t-out", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["UNREAD"] });
+    await sync().tick();
+    expect(cards()).toEqual(["t-read", "t-unread"]);
+    expect(["t-read", "t-unread"].map((t) => threads.get(id(), t)?.unread_out_there)).toEqual([false, true]);
+  });
+
+  test("the person's own mail in a thread never becomes the card's newest message", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const theirs = box.deliver({ thread: "t1", at: ago(2 * HOUR), from: GRACE, to: "ada@acme.com", snippet: "can you?" });
+    // A reply the person sent with a copy to themselves lands in the inbox too, read.
+    box.deliver({ thread: "t1", at: ago(HOUR), from: "Ada <ada@example.org>", to: "grace@acme.com", cc: "ada@acme.com", labels: ["INBOX", "SENT"] });
+    await sync().tick();
+    expect(threads.get(id(), "t1")).toMatchObject({ newest_message_id: theirs, sender: "Grace Hopper", unread_out_there: true });
+  });
+
+  test("with 300 unread direct threads only the last 3 days come; each clearing brings every unread thread of the next window (AE3)", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     // One direct thread every 6 hours, newest first: 12 in the last 3 days, 16 more back to 7 days, 28 more to 14.
     for (let i = 0; i < 300; i++) box.deliver({ thread: `t${String(i).padStart(3, "0")}`, at: ago(i * 6 * HOUR + HOUR), from: GRACE, to: "ada@acme.com" });
@@ -128,30 +147,49 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
     await clear();
     await s.tick();
     const second = cards();
-    expect(second).toHaveLength(16);
-    expect(second[0]).toBe("t012");
+    expect(second).toEqual(Array.from({ length: 16 }, (_, i) => `t${String(12 + i).padStart(3, "0")}`));
+    // Unread threads are not capped: the whole of the next window comes at once.
     await clear();
     await s.tick();
-    const third = cards();
-    expect(third).toHaveLength(20);
-    expect(third).toEqual(Array.from({ length: 20 }, (_, i) => `t${String(28 + i).padStart(3, "0")}`));
-    // The rest of that window comes next, from where the batch stopped.
-    await clear();
-    await s.tick();
-    expect(cards()).toEqual(Array.from({ length: 8 }, (_, i) => `t${String(48 + i).padStart(3, "0")}`));
+    expect(cards()).toEqual(Array.from({ length: 28 }, (_, i) => `t${String(28 + i).padStart(3, "0")}`));
   });
 
-  test("a card left open, resting or not, holds the next batch back", async () => {
+  test("a window of 30 read threads and 5 unread ones brings all 5 unread and the 20 newest read (KTD5)", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
-    box.deliver({ thread: "t-new", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
-    box.deliver({ thread: "t-old", at: ago(5 * DAY), from: GRACE, to: "ada@acme.com" });
+    const read = Array.from({ length: 30 }, (_, i) => `r${String(i).padStart(2, "0")}`);
+    const unread = Array.from({ length: 5 }, (_, i) => `u${String(i)}`);
+    // All of them between 3 and 7 days old, so the first window is empty and the next holds them; the unread ones oldest.
+    read.forEach((t, i) => box.deliver({ thread: t, at: ago(3 * DAY + (i + 1) * HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] }));
+    unread.forEach((t, i) => box.deliver({ thread: t, at: ago(6 * DAY + i * HOUR), from: GRACE, to: "ada@acme.com" }));
     const s = sync();
     await s.tick();
+    expect(cards()).toEqual([...read.slice(0, 20), ...unread].sort());
+    expect(threads.list(id()).filter((r) => r.unread_out_there)).toHaveLength(5);
+    // The unread cards hold the rest back until they are read; the read cards never do.
     await s.tick();
-    expect(cards()).toEqual(["t-new"]);
-    await threads.archive(id(), "t-new");
+    expect(cards()).toHaveLength(25);
+    for (const t of unread) box.removeLabels(t, ["UNREAD"]);
     await s.tick();
-    expect(cards()).toEqual(["t-old"]);
+    expect(cards()).toEqual([...read, ...unread].sort());
+    expect(threads.get(id(), read[29])?.state).toBe("open");
+  });
+
+  test("only an unread card holds the next batch back; read cards, resting or not, do not", async () => {
+    const { box, sync, cards, ago } = await setup();
+    for (const t of ["t-a", "t-b", "t-c"]) box.deliver({ thread: t, at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
+    box.deliver({ thread: "t-old", at: ago(5 * DAY), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t-older", at: ago(10 * DAY), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    expect(cards()).toEqual(["t-a", "t-b", "t-c"]);
+    // Three read cards and no unread one: the next older batch comes, and its unread card holds the one after.
+    await s.tick();
+    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old"]);
+    await s.tick();
+    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old"]);
+    box.removeLabels("t-old", ["UNREAD"]);
+    await s.tick();
+    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old", "t-older"]);
   });
 });
 
@@ -181,14 +219,18 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
     expect(threads.get(id(), "t1")).toMatchObject({ sender: "Bob", lines: ["first", "second"] });
   });
 
-  test("reading the thread in Gmail takes its card away at the next tick", async () => {
-    const { box, sync, cards, ago } = await setup();
+  test("covers AE7: reading the thread in Gmail keeps its card, shown as read; archiving it there ends the card at the next tick", async () => {
+    const { box, sync, cards, ago, threads, id } = await setup();
     box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
     box.deliver({ thread: "t2", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
     const s = sync();
     await s.tick();
     box.removeLabels("t1", ["UNREAD"]);
     box.removeLabels("t2", ["INBOX"]);
+    await s.tick();
+    expect(cards()).toEqual(["t1"]);
+    expect(threads.get(id(), "t1")).toMatchObject({ state: "open", unread_out_there: false });
+    box.removeLabels("t1", ["INBOX"]);
     await s.tick();
     expect(cards()).toEqual([]);
   });
@@ -233,11 +275,35 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
     box.deliver({ thread: "t-new", at: ago(60_000), from: GRACE, to: "ada@acme.com" });
     box.expireHistory();
     await s.tick();
-    expect(cards()).toEqual(["t-new"]);
+    // The thread read in Gmail is still in the inbox, so its card stays.
+    expect(cards()).toEqual(["t-new", "t-read"]);
     // The account watches on from the history it rebuilt from.
     box.deliver({ thread: "t-after", at: ago(0), from: GRACE, to: "ada@acme.com" });
     await s.tick();
-    expect(cards()).toEqual(["t-after", "t-new"]);
+    expect(cards()).toEqual(["t-after", "t-new", "t-read"]);
+  });
+
+  test("after the upgrade, a thread archived only because it was read and still in the inbox reopens; one archived in Gmail stays out", async () => {
+    const { box, sync, cards, ago, threads, accounts, id } = await setup();
+    box.deliver({ thread: "t-read", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    box.deliver({ thread: "t-gone", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    // What the old rule left behind: both records archived, one read in Gmail, one archived there, and a cursor of before.
+    box.removeLabels("t-read", ["UNREAD"]);
+    box.removeLabels("t-gone", ["INBOX"]);
+    threads.markGoneOutThere(id(), "t-read");
+    threads.markGoneOutThere(id(), "t-gone");
+    const { history_id, refill } = must(accounts.get(id()), "the account").backfill;
+    accounts.setBackfill(id(), { history_id, refill });
+    await s.tick();
+    expect(cards()).toEqual(["t-read"]);
+    expect(threads.get(id(), "t-read")).toMatchObject({ state: "open", unread_out_there: false });
+    expect(threads.get(id(), "t-gone")?.state).toBe("archived");
+    // The check is made once: a thread archived from loki later stays archived although Gmail still holds it.
+    threads.markGoneOutThere(id(), "t-read");
+    await s.tick();
+    expect(cards()).toEqual([]);
   });
 });
 

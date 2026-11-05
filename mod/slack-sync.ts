@@ -158,12 +158,12 @@ export class SlackSync {
     for (const r of threads.list(this.accountId)) {
       if (r.state !== "open" || candidates.has(r.thread_id)) continue;
       if (r.thread_id.includes(":")) {
-        if (feed.complete) threads.markReadOutThere(this.accountId, r.thread_id);
+        if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
         continue;
       }
       const dm = dms.get(r.thread_id);
       if (dm && (!dm.has_unreads || (dm.last_read !== null && !tsAfter(r.newest_message_id, dm.last_read))))
-        threads.markReadOutThere(this.accountId, r.thread_id);
+        threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
     if (!threads.list(this.accountId).some((r) => r.state === "open")) await this.refill(older, feed.complete);

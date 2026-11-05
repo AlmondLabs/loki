@@ -196,6 +196,7 @@ describe("the chat store (plan 052)", () => {
         newest_at: "2026-11-04T09:00:00Z",
         handoff_conversation_id: null,
         disconnected: null,
+        unread_out_there: true,
       },
     };
     const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
@@ -240,6 +241,7 @@ describe("the chat store (plan 052)", () => {
         newest_at: "2026-11-04T09:00:00Z",
         handoff_conversation_id: null,
         disconnected: null,
+        unread_out_there: true,
       },
     };
     const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);

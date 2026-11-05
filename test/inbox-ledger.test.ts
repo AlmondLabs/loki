@@ -41,6 +41,7 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   handoff_conversation_id: null,
   from_backfill: false,
   traits: { to_you: true, list: false, automated: true, category: "updates" },
+  unread_out_there: true,
   ...over,
 });
 

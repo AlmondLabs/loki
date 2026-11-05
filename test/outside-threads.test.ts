@@ -258,6 +258,7 @@ const FACTS: OutsideFacts = {
   newest_at: "2026-11-04T10:00:00.000Z",
   handoff_conversation_id: null,
   disconnected: null,
+  unread_out_there: true,
 };
 
 describe("the card", () => {
