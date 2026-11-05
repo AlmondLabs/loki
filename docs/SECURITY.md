@@ -198,7 +198,10 @@ yourself.
   server. They are under `~/.loki`, which an agent with file tools can read.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
-  are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. Account
+  are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
+  propose a reply in any thread of its accounts (plan 071), not only one you handed it, so mail could steer it to
+  propose a reply somewhere you did not ask; the approval card, which names the thread and who the reply goes to, is
+  the gate, and an approved reply is still only a draft to that thread's own people. Account
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain
   entries may read the others.
 

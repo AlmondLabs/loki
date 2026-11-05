@@ -459,10 +459,33 @@ describe("reply proposals (plan 067, U10)", () => {
     expect(dm).not.toContain("<task-notification>");
   });
 
-  test("a reply only goes in a thread handed to this very chat, of an account its agent owns", async () => {
+  test("a reply may go in any thread of an account its agent owns, handed off or found by search (plan 071)", async () => {
     const f = await fixture();
-    expect(await f.call("reply_propose", { account: MAIL, thread: "t-other", text: "x" })).toMatch(/^refused: that thread was not handed to this chat/);
-    expect(await f.call("reply_propose", { account: MAIL, thread: "t-open", text: "x" })).toMatch(/^refused: that thread was not handed to this chat/);
+    // A thread the agent found with account_search has no record here, and one went to another chat.
+    f.box.deliver({
+      thread: "t-search",
+      at: new Date("2026-11-04T10:00:00.000Z"),
+      from: "Tommy <tommy@micro1.example>",
+      to: "Ada <ada@acme.com>",
+      subject: "Farmart <> Micro1",
+      headers: { "Message-ID": "<s1@micro1.example>" },
+    });
+    f.box.deliver({ thread: "t-other", at: new Date("2026-11-04T10:00:00.000Z"), from: "Eve <eve@acme.com>", to: "ada@acme.com", subject: "Elsewhere" });
+    expect(f.threads.get(MAIL, "t-search")).toBeNull();
+    expect(await f.call("reply_propose", { account: MAIL, thread: "t-search", text: "Here is the manifest." })).toMatch(/waits for the person's approval/);
+    const p = f.only();
+    expect(p).toMatchObject({ thread_id: "t-search", subject: "Re: Farmart <> Micro1", to: ["Tommy <tommy@micro1.example>"], status: "pending" });
+    expect(f.writes()).toEqual([]);
+    await f.replies.decide(f.chat, p.id, "approve", "desktop");
+    const draft = must(f.drafts[0], "the draft");
+    expect(draft.threadId).toBe("t-search");
+    expect(decoded(draft.raw).headers["In-Reply-To"]).toBe("<s1@micro1.example>");
+    expect(await f.call("reply_propose", { account: MAIL, thread: "t-other", text: "x" })).toMatch(/waits for the person's approval/);
+  });
+
+  test("a thread the account does not have, or an account the agent does not own, is refused", async () => {
+    const f = await fixture();
+    expect(await f.call("reply_propose", { account: MAIL, thread: "t-nowhere", text: "x" })).toMatch(/^refused: there is no thread t-nowhere in ada@acme.com/);
     expect(await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "x" }, { agentId: HOME })).toMatch(/^refused: /);
     expect(must(f.tools.get("reply_propose"), "reply_propose").forAgent?.(HOME)).toBe(false);
     expect(f.replies.list(f.chat)).toEqual([]);

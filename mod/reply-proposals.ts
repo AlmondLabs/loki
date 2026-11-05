@@ -9,7 +9,7 @@ import { ownedAccount } from "./account-tools.ts";
 import type { AccountThreads } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import type { GmailClient, GmailMessage } from "./gmail.ts";
+import { GmailError, type GmailClient, type GmailMessage } from "./gmail.ts";
 import { causeWords, inert } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
@@ -18,7 +18,7 @@ import type { ChatKey } from "./suggestions.ts";
 import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 
 /**
- * Reply proposals (plan 067, U10, KTD9): a reply the owning agent writes in a thread the person handed to its chat
+ * Reply proposals (plan 067, U10, KTD9; plan 071): a reply the owning agent writes in a thread of its own account
  * reaches the person as an approval card, in every permission mode, and only their approve makes loki write it as a
  * draft in that same thread, which the person sends from Gmail or Slack; nothing here sends (R18, KTD4). The agent names
  * the thread and the text, never who it goes to: a Gmail draft replies to all of the newest message's people but the
@@ -61,7 +61,7 @@ export interface ReplyDecided {
   replace: boolean;
 }
 
-/** A reply as the agent proposes it: the account, the thread handed to its chat, and the text. Nothing names a recipient. */
+/** A reply as the agent proposes it: the account, a thread of that account, and the text. Nothing names a recipient. */
 export interface ReplyInput {
   account_id: string;
   thread_id: string;
@@ -249,18 +249,18 @@ export class ReplyProposals {
   }
 
   /**
-   * A new reply, pending, for a thread the person handed to this chat (R18). The account must be the chat's agent's,
-   * connected or not, and the thread one loki handed to this very chat; the people it goes to are read from the thread
-   * now for the card, and again when it is drafted.
+   * A new reply, pending, for a thread of one of the chat's agent's accounts (R18, plan 071): handed to this chat, found
+   * by search, or read. The account must be the agent's, connected or not; the people it goes to are read from the
+   * thread now for the card, and again when it is drafted. A thread the account does not have is refused.
    */
   async propose(chat: ChatKey, input: ReplyInput): Promise<ReplyProposal> {
     if (!input.text.trim()) throw new Error("a reply needs text");
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
+    // Any thread of the agent's own account will do (plan 071): the person's approval on the card is the gate. A thread
+    // found by search has no record here, so its subject comes from the thread itself.
     const record = this.opts.threads.get(input.account_id, input.thread_id);
-    if (record?.handoff_conversation_id !== chat.conversation_id)
-      throw new Error("that thread was not handed to this chat: reply only in a thread the person handed you here");
-    const where = await this.where(account, input.thread_id, record.subject_or_first_line);
+    const where = await this.where(account, input.thread_id, record?.subject_or_first_line ?? "");
     const proposal: ReplyProposal = {
       id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
       account_id: account.account_id,
@@ -410,7 +410,10 @@ export class ReplyProposals {
   ): Promise<{ subject: string; to: string[]; cc: string[]; place: string | null }> {
     const reader = this.opts.clientFor(account);
     if (reader.provider === "gmail") {
-      const thread = await reader.client.getThread(threadId, "metadata");
+      const thread = await reader.client.getThread(threadId, "metadata").catch((err: unknown) => {
+        if (err instanceof GmailError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
+        throw err;
+      });
       const newest = replyTarget(thread.messages);
       const own = [account.address, ...(await reader.client.sendAsAddresses().catch(() => []))];
       return { subject: replySubject(headerOf(newest, "Subject") || subject), ...replyAllOf(newest, own), place: null };
@@ -526,15 +529,16 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     name: "reply_propose",
     forAgent,
     description:
-      "Propose a reply in a thread the person handed to this chat. The person sees it as a card, may edit it, and on " +
+      "Propose a reply in a thread of an account you own: one the person handed to this chat, or one you found with " +
+      "account_search or read with account_read. The person sees it as a card, may edit it, and on " +
       "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
       "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
       "conversation and thread), so there is no recipient to choose. You hear what became of it with the next message.",
     parameters: {
       type: "object",
       properties: {
-        account: { type: "string", description: "The account's id or name, from account_list or the hand-off." },
-        thread: { type: "string", description: "The thread id the hand-off named." },
+        account: { type: "string", description: "The account's id or name, from account_list, account_search or the hand-off." },
+        thread: { type: "string", description: "The thread id, from the hand-off, account_search or account_read." },
         text: { type: "string", description: "The reply, as plain text." },
       },
       required: ["account", "thread", "text"],
@@ -599,7 +603,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread the person handed you, use reply_propose: the person approves it and loki saves it as a draft there. Never send mail or Slack messages any other way."
+        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there. Never send mail or Slack messages any other way."
         : undefined,
     ),
   );

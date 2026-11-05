@@ -983,7 +983,9 @@ and `account_search` (a mailbox, in Gmail's search syntax; Slack cannot be searc
 and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
 even if you ask it to.
 
-**Replies are drafts.** A reply the owner writes in a handed-off thread always asks you first, in every permission
+**Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
+one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
+The reply always asks you first, in every permission
 mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
