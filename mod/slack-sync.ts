@@ -25,12 +25,20 @@ export interface SlackSyncOptions {
   threads: AccountThreads;
   account: AccountRecord;
   client: SlackClient;
+  /** The clock, for when the whole Activity feed is walked next; the system's when not given. */
+  now?: () => Date;
 }
 
-/** How many unread DM messages one read fetches, and how many Activity pages a tick walks at most. */
+/** How many unread DM messages one read fetches, and how many Activity pages one walk of the feed reads at most. */
 const DM_MESSAGES = 20;
 const FEED_PAGE = 50;
 const FEED_PAGES = 20;
+/**
+ * How often the whole unread Activity feed is walked. Slack allows few `activity.feed` calls a minute, and walking every
+ * page each minute kept it refusing (2026-11-05); between walks a tick reads only the newest page, which is where a new
+ * mention arrives. What the walk alone finds, an older item or one read in Slack, waits for the next walk.
+ */
+const FULL_WALK_MS = 15 * 60_000;
 /** The refill rule (KTD13): the windows back from the connection, in days, then everything older; and a batch's size. */
 const REFILL_DAYS = [3, 7, 14, 30];
 const REFILL_BATCH = 20;
@@ -120,6 +128,10 @@ export class SlackSync {
   /** People's names by user id, so each is asked for once. */
   private readonly names = new Map<string, string>();
   private toldNoActivityMark = false;
+  /** When the next whole walk of the Activity feed is due, in ms since the epoch: at once, at first. */
+  private nextFullWalk = 0;
+  /** A walk Slack stopped part way with a rate limit: it goes on from here on a later tick, not from the start. */
+  private walk: { cursor: string; items: SlackActivityItem[]; pages: number } | null = null;
 
   constructor(opts: SlackSyncOptions) {
     this.opts = opts;
@@ -197,18 +209,43 @@ export class SlackSync {
     }
   }
 
-  /** Every unread Activity item of a card's kinds, newest first, and whether the walk reached the end of the feed. */
+  /**
+   * The unread Activity items of a card's kinds, newest first, and whether they are all of them. A tick reads the
+   * newest page; every FULL_WALK_MS it walks the whole feed instead, and a walk a rate limit stops goes on from where it
+   * stopped on a later tick, so a long feed is still read to its end.
+   */
   private async unreadActivity(): Promise<{ items: SlackActivityItem[]; complete: boolean }> {
-    const items: SlackActivityItem[] = [];
-    let cursor: string | undefined;
-    for (let page = 0; page < FEED_PAGES; page++) {
+    const now = (this.opts.now?.() ?? new Date()).getTime();
+    const page = async (cursor: string | undefined) => {
       const p = await this.opts.client.activityFeed({ unreadOnly: true, types: SLACK_ACTIVITY_TYPES, cursor, limit: FEED_PAGE });
       // Slack may send kinds that were not asked for; a reaction or anything else is never a card.
-      items.push(...p.items.filter((i) => i.is_unread && (SLACK_ACTIVITY_TYPES as readonly string[]).includes(i.type)));
-      if (!p.next_cursor) return { items, complete: true };
-      cursor = p.next_cursor;
+      return { items: p.items.filter((i) => i.is_unread && (SLACK_ACTIVITY_TYPES as readonly string[]).includes(i.type)), next: p.next_cursor };
+    };
+    if (!this.walk && now < this.nextFullWalk) {
+      const first = await page(undefined);
+      return { items: first.items, complete: !first.next };
     }
-    return { items, complete: false };
+    const walk = this.walk ?? { cursor: "", items: [], pages: 0 };
+    this.walk = null;
+    try {
+      while (walk.pages < FEED_PAGES) {
+        const p = await page(walk.cursor || undefined);
+        walk.pages++;
+        walk.items.push(...p.items);
+        if (!p.next) {
+          this.nextFullWalk = now + FULL_WALK_MS;
+          return { items: walk.items, complete: true };
+        }
+        walk.cursor = p.next;
+      }
+      this.nextFullWalk = now + FULL_WALK_MS;
+      return { items: walk.items, complete: false };
+    } catch (err) {
+      // Stopped part way: keep what was read and go on later. Stopped before any page, the tick fails as before.
+      if (!(err instanceof SlackError && err.code === "ratelimited") || walk.pages === 0) throw err;
+      this.walk = walk;
+      return { items: walk.items, complete: false };
+    }
   }
 
   /**

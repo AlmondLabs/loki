@@ -62,7 +62,7 @@ function fakeWorkspace() {
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
   /** A Slack error to answer conversations.mark with, when set. */
-  const refuse = { mark: null as string | null };
+  const refuse = { mark: null as string | null, feedAt: null as string | null };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
   const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts });
@@ -93,6 +93,7 @@ function fakeWorkspace() {
         return { ok: true, ims: of("im"), mpims: of("mpim"), channels: [], threads: { has_unreads: false, mention_count: 0 } };
       }
       case "activity.feed": {
+        if (refuse.feedAt !== null && (p.cursor ?? "0") === refuse.feedAt) return { ok: false, error: "ratelimited" };
         const all = activity.filter((i) => p.unread_only !== "true" || i.unread).sort((a, b) => b.ts.localeCompare(a.ts));
         const from = Number(p.cursor ?? "0");
         const limit = Number(p.limit ?? "50");
@@ -176,15 +177,16 @@ function fakeWorkspace() {
 }
 
 /** One connected workspace over the fake, its thread records and its sync. */
-async function fixture() {
+async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const dir = mkdtempSync(join(tmpdir(), "loki-slack-sync-"));
   dirs.push(dir);
   const slack = fakeWorkspace();
   const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now: () => new Date(CONNECTED * 1000) });
   await accounts.add({ account_id: ACCOUNT, provider: "slack", address: "Acme", owner_agent_id: "agent-work" });
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
-  const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch });
-  const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client });
+  const now = () => new Date(clock.t);
+  const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch, now });
+  const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client, now });
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
   // The person's reply (plan 070, U5), sent through the same client and records the sync uses.
   const outside = new OutsideThreads({
@@ -193,7 +195,7 @@ async function fixture() {
     threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
     clientFor: () => ({ provider: "slack", client }),
   });
-  return { dir, slack, accounts, threads, sync, open, outside };
+  return { dir, slack, accounts, threads, sync, open, outside, clock };
 }
 
 describe("DMs", () => {
@@ -324,6 +326,44 @@ describe("Activity", () => {
     slack.readItem("a");
     await sync.tick();
     expect(open()).toEqual([]);
+  });
+});
+
+describe("walking the Activity feed", () => {
+  /** 120 unread mentions: three pages of 50. */
+  const busy = (slack: ReturnType<typeof fakeWorkspace>) => {
+    for (let i = 1; i <= 120; i++) {
+      slack.post("C0GEN", { ts: at(i), user: "U0GRACE", text: `<@U0ME> item ${String(i)}` });
+      slack.item({ key: `k${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(i) });
+    }
+  };
+  const feedCalls = (slack: ReturnType<typeof fakeWorkspace>) => slack.sent.filter((c) => c.method === "activity.feed").map((c) => c.params.cursor || "0");
+
+  test("a tick reads the newest page; the whole feed is walked at first and then every 15 minutes", async () => {
+    const { slack, sync, clock } = await fixture();
+    busy(slack);
+    await sync.tick();
+    expect(feedCalls(slack)).toEqual(["0", "50", "100"]);
+    clock.t += 60_000;
+    await sync.tick();
+    expect(feedCalls(slack)).toEqual(["0", "50", "100", "0"]);
+    clock.t += 15 * 60_000;
+    await sync.tick();
+    expect(feedCalls(slack)).toEqual(["0", "50", "100", "0", "0", "50", "100"]);
+  });
+
+  test("a walk a rate limit stops goes on from where it stopped, and the tick keeps what it read", async () => {
+    const { slack, sync, open, clock } = await fixture();
+    busy(slack);
+    slack.refuse.feedAt = "50";
+    await sync.tick();
+    expect(feedCalls(slack)).toEqual(["0", "50"]);
+    expect(open().length).toBeGreaterThan(0);
+    slack.refuse.feedAt = null;
+    // Slack's wait (a minute, with no Retry-After) passes; the walk goes on at its second page, not its first.
+    clock.t += 61_000;
+    await sync.tick();
+    expect(feedCalls(slack)).toEqual(["0", "50", "50", "100"]);
   });
 });
 
