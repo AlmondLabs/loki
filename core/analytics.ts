@@ -76,7 +76,7 @@ export const EVENTS: Record<string, string> = {
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
   inbox_card_shown: "a card came to the top of the inbox { source: chat | gmail | slack, desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
   inbox_card_decided:
-    "an inbox card decided { action: next | archive | approve | deny | reply | answer | open | handoff, via: key | click | swipe | tap, source: chat | gmail | slack, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+    "an inbox card decided { action: next | later | archive | label | approve | deny | reply | answer | open | handoff, via: key | click | swipe | tap, source: chat | gmail | slack, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, source, desk, agent }",
   inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
   chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",

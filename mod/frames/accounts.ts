@@ -154,8 +154,19 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
-    account_thread_move: ({ account_id: accountId, thread_id: threadId, action, via, dwell_ms: dwellMs }) => {
-      const kept = deps.ledger?.record(accountId, threadId, { action, via, dwell_ms: dwellMs }) ?? null;
+    account_thread_move: ({
+      account_id: accountId,
+      thread_id: threadId,
+      action,
+      via,
+      dwell_ms: dwellMs,
+      return_at: returnAt,
+      labels,
+      picked,
+      after_reply: afterReply,
+    }) => {
+      const move = { action, via, dwell_ms: dwellMs, return_at: returnAt, labels, picked, after_reply: afterReply };
+      const kept = deps.ledger?.record(accountId, threadId, move) ?? null;
       return reply({ account_id: accountId, thread_id: threadId, kept: kept !== null });
     },
     account_thread_handoff_propose: ({ account_id: accountId, thread_id: threadId }) => {

@@ -185,14 +185,24 @@ export interface OutsideFacts {
 }
 
 /**
- * One of the person's moves on an outside card, for the ledger (plan 069): Next, archive, their reply, or a hand-off to
- * the owning agent; how it was made (a key or a click on the Mac, a swipe or a tap on the phone; null when the box's
- * own send made it), and how long the card was on top first, when the app knows.
+ * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,
+ * label, their reply, a hand-off to the owning agent, or an undo of the last of those; how it was made (a key or a
+ * click on the Mac, a swipe or a tap on the phone; null when the box's own send made it), and how long the card was on
+ * top first, when the app knows. `next` is what ⌘] was called before plan 070, kept so older clients still reach the
+ * ledger; clients send `read` now.
  */
 export interface OutsideMove {
-  action: "next" | "archive" | "reply" | "handoff";
+  action: "read" | "later" | "archive" | "label" | "reply" | "handoff" | "undo" | "next";
   via: "key" | "click" | "swipe" | "tap" | null;
   dwell_ms: number | null;
+  /** ISO time the move's rest brings the card back (read and later, and a reply followed by either); null when none. */
+  return_at?: string | null;
+  /** The Gmail label ids a label move put on; null for every other move. */
+  labels?: string[] | null;
+  /** Whether the person chose the return time themselves, at the second ⌘[ (R7). */
+  picked?: boolean;
+  /** For a reply, the key that followed it (R11); null for every other move. */
+  after_reply?: ReplyThen | null;
 }
 
 /** A move loki writes back to an outside card's service (plan 070, KTD3). */

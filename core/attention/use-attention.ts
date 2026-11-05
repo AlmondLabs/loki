@@ -34,7 +34,7 @@ import {
 } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, ReplyProposal, ReplyThen, Suggestion } from "../frame-types.ts";
+import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, ReplyProposal, ReplyThen, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -173,6 +173,21 @@ export interface MoveResult {
   rest: Rest | null;
 }
 
+/**
+ * What a move tells the ledger beyond its action (plan 070, KTD11): when its rest brings the card back, the labels it
+ * put on, whether the person picked the time, and for a reply the key that followed it. Analytics never sees these.
+ */
+export type MoveFacts = Pick<OutsideMove, "return_at" | "labels" | "picked" | "after_reply">;
+
+/**
+ * The ledger's move for one Inbox decision or undo on an outside card (plans 069 and 070), or null for a decision that
+ * is no move out there (approve, deny, answer, open). ⌘] is reported as `next` in analytics and kept as `read` here.
+ */
+export function ledgerMoveOf(action: CardAction | "undo", via: CardVia | null, dwellMs: number | null, facts: MoveFacts = {}): OutsideMove | null {
+  if (action === "approve" || action === "deny" || action === "answer" || action === "open") return null;
+  return { action: action === "next" ? "read" : action, via, dwell_ms: dwellMs, ...facts };
+}
+
 /** What the moves ask of the app and the store, read at call time; a test hands in fakes and its own clock. */
 export interface CardMovesHost {
   store: Pick<ChatStore, "markReadOutside" | "markUnreadOutside" | "archiveOutside" | "labelOutside" | "restoreOutside" | "archiveConversation">;
@@ -182,8 +197,8 @@ export interface CardMovesHost {
   unmarkSeen: (agentId: string, conversationId: string) => void;
   returnTimes: () => ReturnTimes | undefined;
   now: () => number;
-  /** Keep one decision in analytics and, for an outside card, its account's ledger. */
-  report: (item: AttentionItem, action: CardAction, via?: CardVia) => void;
+  /** Keep one decision in analytics and, for an outside card, its account's ledger with the move's facts. */
+  report: (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => void;
   /** Keep a move taken back in analytics. */
   reportUndone: (item: AttentionItem, action: CardAction) => void;
 }
@@ -218,8 +233,8 @@ export function createCardMoves(first: CardMovesHost) {
   let last: { id: string; action: CardAction } | null = null;
   const times = () => host.returnTimes() ?? RETURN_TIMES_DEFAULT;
   const prevOf = (item: AttentionItem) => host.rests()?.[keyOf(item.agent_id, item.id)];
-  const note = (item: AttentionItem, action: CardAction, via?: CardVia) => {
-    host.report(item, action, via);
+  const note = (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => {
+    host.report(item, action, via, facts);
     last = { id: idOf(item), action };
   };
   const keep = (item: AttentionItem, move: Partial<MoveTaken> & { action: CardAction }) =>
@@ -247,7 +262,7 @@ export function createCardMoves(first: CardMovesHost) {
     // A stopped agent never rests (restAfterNext gives null): the press moves past it for this visit only.
     const r = rest(item, change?.ended ? null : readRest(item, movedOn));
     keep(item, { action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
-    note(item, "next", via);
+    note(item, "next", via, { return_at: r?.until ?? null });
     return { error: null, ask: false, rest: r };
   };
 
@@ -278,7 +293,7 @@ export function createCardMoves(first: CardMovesHost) {
     if (!item.unread) host.unmarkSeen(item.agent_id, item.id);
     const r = rest(item, until === undefined ? next.rest : { ...next.rest, until });
     keep(item, { action: "later", rested: true, prev, change, seen: item.unread ? null : "mark" });
-    note(item, "later", via);
+    note(item, "later", via, { return_at: r?.until ?? null, picked: until !== undefined });
     return { error: null, ask: false, rest: r };
   };
 
@@ -303,7 +318,7 @@ export function createCardMoves(first: CardMovesHost) {
     const w = await host.store.labelOutside(item, labels);
     if (w.error) return w.error;
     keep(item, { action: "label", change: w.change });
-    note(item, "label", via);
+    note(item, "label", via, { labels });
     return null;
   };
 
@@ -313,16 +328,17 @@ export function createCardMoves(first: CardMovesHost) {
    */
   const replied = (item: AttentionItem, then: ReplyThen, change: OutsideChange | null): void => {
     const prev = prevOf(item);
+    let r: Rest | null = null;
     if (then === "archive") keep(item, { action: "archive", change });
     else if (then === "read") {
       host.markSeen(item.agent_id, item.id);
-      const r = rest(item, change?.ended ? null : readRest(item, true));
+      r = rest(item, change?.ended ? null : readRest(item, true));
       keep(item, { action: "next", rested: !!r, prev, change, seen: item.unread ? "unmark" : null });
     } else {
-      const r = rest(item, laterRest(item)?.rest ?? null);
+      r = rest(item, laterRest(item)?.rest ?? null);
       keep(item, { action: "later", rested: !!r, prev, change });
     }
-    note(item, "reply");
+    note(item, "reply", undefined, { after_reply: then, return_at: r?.until ?? null });
   };
 
   /** A hand-off went (plan 067): a decision, and the card's last move, which an undo does not take back. */
@@ -390,8 +406,12 @@ function movesHost(store: ChatStore, opts: UseAttentionOptions, report: CardMove
     returnTimes: () => opts.returnTimes,
     now: Date.now,
     report,
-    // A move taken back: the ranking's miss, or a slip.
-    reportUndone: (item, action) => opts.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) }),
+    // A move taken back: the ranking's miss, or a slip. On an outside card the ledger keeps the undo as a move of its own.
+    reportUndone: (item, action) => {
+      opts.capture?.("inbox_card_undone", { action, ...inboxCardSource(item) });
+      const move = item.outside ? ledgerMoveOf("undo", null, null) : null;
+      if (move) store.moveOutside(item, move);
+    },
   };
 }
 
@@ -581,7 +601,7 @@ export function useAttention(opts: UseAttentionOptions) {
   );
   /** One Inbox decision in analytics, and for an outside card in its account's ledger. */
   const report = useCallback(
-    (item: AttentionItem, action: CardAction, via?: CardVia) => {
+    (item: AttentionItem, action: CardAction, via?: CardVia, facts?: MoveFacts) => {
       const since = shownAt.current.get(idOf(item));
       const props = cardProps(item);
       const dwell = since === undefined ? null : Math.round(clock.now() - since);
@@ -591,10 +611,10 @@ export function useAttention(opts: UseAttentionOptions) {
         ...props,
         dwell_ms: dwell,
       });
-      // A move on an outside card also goes to its account's ledger, with who and what it was (plan 069). Later and
-      // label are not ledger moves yet: plan 070's U10 adds them to OutsideMove.
-      if (item.outside && (action === "next" || action === "archive" || action === "reply" || action === "handoff"))
-        store.moveOutside(item, { action, via: via ?? null, dwell_ms: dwell });
+      // A move on an outside card also goes to its account's ledger, with who and what it was (plan 069), and with its
+      // return time, labels, pick and following key (plan 070), which analytics never carries.
+      const move = item.outside ? ledgerMoveOf(action, via ?? null, dwell, facts) : null;
+      if (move) store.moveOutside(item, move);
       // Working with an email (plan 067, R9) lifts that sender's next thread too: its focus is learned by the sender.
       // Reading it or putting it off is not working with it.
       const sender = item.outside && action !== "next" && action !== "later" ? senderKeyOf(item.outside) : null;

@@ -539,7 +539,7 @@ const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
 const BY_SCOPE: PeerMeaning = { route: "scope" };
 /** A frame about the Mac a new chat will live on, routed by its `home`. */
 const BY_HOME: PeerMeaning = { route: "home" };
-const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["next", "archive", "reply", "handoff"];
+const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "archive", "label", "reply", "handoff", "undo", "next"];
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
 const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
@@ -1294,14 +1294,24 @@ export const FRAMES = {
   ),
   account_thread_move: request(
     "account_move_kept",
-    "one of the person's moves on an outside card (Next, archive, their reply, a hand-off), kept in the ledger of the Mac the account lives on so its preferences can be learned (plan 069); sent there by `home`",
+    "one of the person's moves on an outside card (read, later, archive, label, their reply, a hand-off, an undo), with its return time, labels, pick and the key after a reply, kept in the ledger of the Mac the account lives on so its preferences can be learned (plans 069 and 070); sent there by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id) return "account_id and thread_id required";
       const action = OUTSIDE_MOVES.find((a) => a === m.action);
-      if (!action) return "action must be next, archive, reply or handoff";
+      if (!action) return "action must be read, later, archive, label, reply, handoff, undo or next";
       const via = MOVE_VIAS.find((v) => v === m.via) ?? null;
       const dwell = typeof m.dwell_ms === "number" && Number.isFinite(m.dwell_ms) && m.dwell_ms >= 0 ? Math.round(m.dwell_ms) : null;
-      return { account_id: m.account_id, thread_id: m.thread_id, ...({ action, via, dwell_ms: dwell } satisfies OutsideMove), home: strOr(m.home, null) };
+      // The facts a move from before plan 070 lacks, or that cannot be read, are left out rather than refused: the ledger is data, not a gate.
+      const move: OutsideMove = {
+        action,
+        via,
+        dwell_ms: dwell,
+        return_at: str(m.return_at) && !Number.isNaN(Date.parse(m.return_at)) ? m.return_at : null,
+        labels: allStrings(m.labels) ? m.labels : null,
+        picked: m.picked === true,
+        after_reply: REPLY_THENS.find((t) => t === m.after_reply) ?? null,
+      };
+      return { account_id: m.account_id, thread_id: m.thread_id, ...move, home: strOr(m.home, null) };
     },
     PHONE,
     BY_HOME,

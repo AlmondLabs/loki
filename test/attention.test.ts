@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createCardMoves, type CardMovesHost } from "../core/attention/use-attention.ts";
+import { createCardMoves, ledgerMoveOf, type CardMovesHost, type MoveFacts } from "../core/attention/use-attention.ts";
 import { keyOf, type AttentionItem } from "../core/attention/model.ts";
 import { stampOf } from "../core/attention/queue.ts";
 import { RETURN_TIMES_DEFAULT, type Rest } from "../core/attention/rest.ts";
@@ -40,6 +40,7 @@ function host() {
   const marks: string[] = [];
   const calls: unknown[][] = [];
   const reported: string[] = [];
+  const told: Array<MoveFacts | undefined> = [];
   const refuse = { outside: null as string | null };
   const change = (move: OutsideWrite, ended = false): OutsideChange => ({
     move,
@@ -75,10 +76,13 @@ function host() {
     unmarkSeen: (agentId, conversationId) => void marks.push(`unseen ${keyOf(agentId, conversationId)}`),
     returnTimes: () => RETURN_TIMES_DEFAULT,
     now: () => NOW,
-    report: (_item, action) => void reported.push(action),
+    report: (_item, action, _via, facts) => {
+      reported.push(action);
+      told.push(facts);
+    },
     reportUndone: (_item, action) => void reported.push(`undone ${action}`),
   };
-  return { h, moves: createCardMoves(h), rests, marks, calls, reported, refuse };
+  return { h, moves: createCardMoves(h), rests, marks, calls, reported, told, refuse };
 }
 
 const restOf = (rests: Record<string, Rest>, item: AttentionItem) => rests[keyOf(item.agent_id, item.id)];
@@ -236,5 +240,47 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
       ["archive_chat", "c1"],
       ["unarchive_chat", "c1"],
     ]);
+  });
+});
+
+describe("what a move tells the ledger (plan 070, U10)", () => {
+  test("a later with a pick tells its return time and that it was picked; one without a pick, the kind's time", async () => {
+    const t = host();
+    const chat = attentionItem("c1", { unread: false });
+    await t.moves.later(chat, "key");
+    expect(t.told.at(-1)).toEqual({ return_at: new Date(NOW + DAY).toISOString(), picked: false });
+    const pick = new Date(NOW + 3 * DAY).toISOString();
+    await t.moves.later({ ...chat, unread: true }, "key", pick);
+    expect(t.told.at(-1)).toEqual({ return_at: pick, picked: true });
+  });
+
+  test("a read tells when the card comes back, a label the labels, a reply the key that followed it", async () => {
+    const t = host();
+    const item = email();
+    await t.moves.read(item, "key");
+    expect(t.told.at(-1)).toEqual({ return_at: new Date(NOW + HOUR).toISOString() });
+    await t.moves.label(item, ["L1", "L2"], "click");
+    expect(t.told.at(-1)).toEqual({ labels: ["L1", "L2"] });
+    t.moves.replied(item, "archive", { move: "archive", messages: [], ended: true, was_unread: true });
+    expect(t.told.at(-1)).toEqual({ after_reply: "archive", return_at: null });
+  });
+
+  test("⌘] goes to the ledger as read, an undo as undo, and decisions that are not moves out there not at all", () => {
+    expect(ledgerMoveOf("next", "key", 40, { return_at: "2026-11-05T13:00:00.000Z" })).toEqual({
+      action: "read",
+      via: "key",
+      dwell_ms: 40,
+      return_at: "2026-11-05T13:00:00.000Z",
+    });
+    expect(ledgerMoveOf("later", "swipe", null, { return_at: "x", picked: true })).toEqual({
+      action: "later",
+      via: "swipe",
+      dwell_ms: null,
+      return_at: "x",
+      picked: true,
+    });
+    expect(ledgerMoveOf("undo", null, null)).toEqual({ action: "undo", via: null, dwell_ms: null });
+    expect(ledgerMoveOf("reply", null, 9, { after_reply: "archive" })).toEqual({ action: "reply", via: null, dwell_ms: 9, after_reply: "archive" });
+    for (const a of ["approve", "deny", "answer", "open"] as const) expect(ledgerMoveOf(a, "key", 1)).toBeNull();
   });
 });
