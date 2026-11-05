@@ -2,9 +2,9 @@ import type { Accounts } from "./accounts.ts";
 import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
 /**
- * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, label change and
- * create a draft, and nothing more. It has no send call of any kind: `gmail.modify` would allow sending, and "loki never
- * sends" (R18) holds because no such call exists here. Tokens come from the account's keychain secret and are
+ * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, label change,
+ * create a draft, and send the person's own reply (plan 068). Agents never send (R18): no agent tool is given
+ * `sendReply`, which only the reply frame the person's own devices send reaches (mod/outside-threads.ts). Tokens come from the account's keychain secret and are
  * refreshed there; a refresh Google refuses marks the account disconnected, so the Inbox can say how to reconnect (R22).
  */
 
@@ -290,6 +290,16 @@ export class GmailClient {
     return { id: str(r.id), messageId: str(rec(r.message).id) };
   }
 
+  /**
+   * Send the person's own reply in its thread (plan 068): the message `createDraft` would keep, sent now. Only the
+   * person's reply frame calls this; no agent tool is given it.
+   */
+  async sendReply(reply: GmailDraftInput): Promise<{ id: string }> {
+    const raw = Buffer.from(rfc2822(reply), "utf8").toString("base64url");
+    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, threadId: reply.threadId }));
+    return { id: str(r.id) };
+  }
+
   // --- tokens and requests -----------------------------------------------------------------------------------------
 
   private now(): number {
@@ -322,7 +332,7 @@ export class GmailClient {
     if (res.status === 403 && isAdminBlock(reasons)) this.disconnect("admin_blocks");
     const message = str(rec(answer.error).message) || `Gmail answered ${res.status}`;
     throw new GmailError(
-      res.status === 403 && isAdminBlock(reasons) ? "your Google admin blocks this app: use your own Google app in Preferences › Inbox" : message,
+      res.status === 403 && isAdminBlock(reasons) ? "your Google admin blocks this app: use your own Google app in Preferences › Accounts" : message,
       res.status,
       reasons[0] ?? null,
     );
@@ -369,7 +379,7 @@ export class GmailClient {
       const reasons = reasonsOf(answer);
       if (isAdminBlock(reasons)) {
         this.disconnect("admin_blocks");
-        throw new GmailError("your Google admin blocks this app: use your own Google app in Preferences › Inbox", res.status, reasons[0] ?? null);
+        throw new GmailError("your Google admin blocks this app: use your own Google app in Preferences › Accounts", res.status, reasons[0] ?? null);
       }
       if (reasons.includes("invalid_grant")) {
         this.disconnect("sign_in_again");

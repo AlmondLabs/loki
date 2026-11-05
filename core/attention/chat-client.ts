@@ -1,6 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, SuggestionTarget } from "../frame-types.ts";
 import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -41,6 +41,8 @@ export type ChatClient = Pick<
   | "updateConversation"
   | "archiveOutside"
   | "handoffPropose"
+  | "readOutside"
+  | "replyOutside"
   | "handoff"
   | "updateModel"
   | "close"
@@ -235,6 +237,20 @@ export class FrameChatClient {
    */
   async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<void> {
     await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
+  }
+
+  /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */
+  async readOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideMessage[]> {
+    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home }, 30_000);
+    return r.messages;
+  }
+
+  /**
+   * Send the person's own reply in an outside card's thread (plan 068), from the Mac its account lives on, which then
+   * archives the card; a refusal throws its reason, and nothing was sent.
+   */
+  async replyOutside(accountId: string, threadId: string, text: string, home: string | null): Promise<void> {
+    await this.call("account_thread_reply", { account_id: accountId, thread_id: threadId, text, home }, 30_000);
   }
 
   /** What handing an outside card's thread off proposes (plan 067, R15), asked of the Mac its account lives on. */

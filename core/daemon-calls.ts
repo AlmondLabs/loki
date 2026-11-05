@@ -76,7 +76,7 @@ export function daemonCalls(request: FrameRequest) {
       },
     },
     /**
-     * Preferences › Inbox's accounts (plan 067, U11): each Gmail mailbox or Slack workspace on this Mac and the agent that
+     * Preferences › Accounts (plan 067, U11): each Gmail mailbox or Slack workspace on this Mac and the agent that
      * owns it. Listing, moving and disconnecting answer with the accounts as they now stand; connecting Gmail answers with
      * Google's page to open, and connecting Slack with the desktop app's workspaces, or the account once one is picked.
      */

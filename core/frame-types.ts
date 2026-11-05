@@ -179,6 +179,17 @@ export interface OutsideFacts {
   disconnected: AccountDisconnectCause | null;
 }
 
+/**
+ * One message of an outside card's thread as the card draws it (plan 068): who wrote it, when (ISO, "" when unknown), its
+ * text as plain text, and whether the account's own person wrote it.
+ */
+export interface OutsideMessage {
+  sender: string;
+  at: string;
+  text: string;
+  mine: boolean;
+}
+
 /** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */
 export type HandoffTarget = { kind: "existing"; conversation_id: string; title: string } | { kind: "new"; title: string };
 

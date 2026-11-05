@@ -24,7 +24,7 @@ export const SHARED_GOOGLE_CLIENT_SECRET = "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"
 export const SHARED_GOOGLE_APP: GoogleApp = { client_id: SHARED_GOOGLE_CLIENT_ID, client_secret: SHARED_GOOGLE_CLIENT_SECRET };
 
 /** What a sign-in says when this copy of loki carries no shared app. */
-export const SHARED_APP_MISSING = "the shared Google app is not set; use your own Google app in Preferences › Inbox";
+export const SHARED_APP_MISSING = "the shared Google app is not set; use your own Google app in Preferences › Accounts";
 
 /** Whether an app has both halves of its credentials, so a sign-in or a refresh with it can reach Google at all. */
 export const isUsableApp = (app: GoogleApp): boolean => app.client_id.trim() !== "" && app.client_secret.trim() !== "";

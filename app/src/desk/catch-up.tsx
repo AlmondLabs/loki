@@ -1,10 +1,10 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import { useConversation, type ChatViews, type HandoffSource } from "../../../core/attention/use-attention.ts";
+import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
 import { OpenChat } from "../chat/transcript";
@@ -51,7 +51,7 @@ interface CatchUpProps {
    * The live conversations behind the cards (useAttention's), read through useConversation, with their suggestions
    * (plan 049) and the hand-off of an outside card (plan 067); without that, outside cards have no hand off.
    */
-  chats: ChatViews & SuggestionSource & Partial<HandoffSource>;
+  chats: ChatViews & SuggestionSource & Partial<HandoffSource> & Partial<OutsideSource>;
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -104,12 +104,12 @@ function CatchUpDeck(props: DeckProps) {
   const { onClose, items, loadHistory, onOpenDesk } = props;
   /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
-  const shown = useMemo(() => (agent ? items.filter((i) => i.agent_id === agent) : items), [items, agent]);
+  const shown = useMemo(() => (agent ? items.filter((i) => ownerAgentOf(i) === agent) : items), [items, agent]);
   /** Going through the cards Next rested, asked for at the end of the pass. */
   const [resting, setResting] = useState(false);
   const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent, resting);
   // What undo takes back: this agent's part of the visit.
-  const decided = agent ? allDecided.filter((d) => d.item.agent_id === agent) : allDecided;
+  const decided = agent ? allDecided.filter((d) => ownerAgentOf(d.item) === agent) : allDecided;
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
@@ -126,6 +126,8 @@ function CatchUpDeck(props: DeckProps) {
   const [picking, setPicking] = useState<string | null>(null);
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
+  const { readOutside, replyOutside } = props.chats;
+  const outsideSource = readOutside && replyOutside ? { readOutside, replyOutside } : null;
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
 
@@ -258,6 +260,10 @@ function CatchUpDeck(props: DeckProps) {
               archive={actions.archive}
               went={wentTo(current.outside, items)}
               onHandoff={handoffSource ? () => setPicking(idOf(current)) : undefined}
+              source={outsideSource}
+              replyRef={replyRef}
+              onTyping={setTyping}
+              onEscapeEmpty={onClose}
               picker={
                 handoffSource && picking === idOf(current) ? (
                   <HandoffPicker

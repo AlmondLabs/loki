@@ -457,11 +457,12 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
    hold, so one account lives on one Mac), and `frames/accounts.ts` serves them to Preferences; `account-watcher.ts`
    is the one watcher, ticking every account's sync once a minute, each on its own; `gmail-sync.ts` and
-   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, which have no call that sends;
+   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each no agent tool reaches;
    `google-signin.ts` and `google-app.ts` are Gmail's loopback sign-in and the shared Google app;
    `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
    files); `account-threads.ts` keeps each thread's record and yields the outside cards; `handoff.ts` gives a thread
-   to its owner's chat; `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
+   to its owner's chat; `outside-threads.ts` reads a card's whole thread and sends the person's own reply (plan 068), the
+   only caller of the clients' send calls; `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),

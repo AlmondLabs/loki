@@ -809,12 +809,13 @@ its chat's focus — behind whatever you are reading then.
 ### Email and Slack
 
 Mail and Slack messages addressed to you arrive in the same deck as your chats, one card per thread, so you need not
-open Gmail or Slack to find what waits on you. Connect them in Preferences › Inbox, under **Accounts**. A Gmail
-mailbox or a Slack workspace is an **account**, and you can connect as many as you like.
+open Gmail or Slack to find what waits on you. Connect them in Preferences › Accounts. A Gmail mailbox or a Slack
+workspace is an **account**, and you can connect as many as you like.
 
-**Each account belongs to one agent.** Under **Connect an account**, choose its **Owner** first: the agent that gets
-the account's hand-offs and is the only agent with tools for it. No account is ever connected without one. **move to**
-on an account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
+**Each account belongs to one agent.** Under **Connect an account**, press **connect gmail** or **connect slack**; the
+account goes to the agent under **Goes to**, which starts on your first agent: the agent that gets the account's
+hand-offs and is the only agent with tools for it. No account is ever connected without one. The owner picker on an
+account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
 …** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave the Inbox.
 Deleting an agent that owns accounts lists them on its Agents page and asks you to move each to another agent or
 disconnect it first. An account lives on the Mac it was connected on: only that Mac watches it, a paired Mac refuses
@@ -827,8 +828,8 @@ first ("Google hasn't verified this app"; choose Advanced, then go on to loki), 
 100 people over its whole life. A Google Workspace admin may also block unverified apps or the Gmail API for their
 people. In either case, fold open **Use your own Google app**, fill in the client id and secret of an OAuth client of
 your own in Google Cloud (a desktop app), and **connect gmail** signs in with it instead; its id and secret are kept
-in the keychain with the account. loki asks Google to read mail, change its labels and write drafts; its Gmail client
-has no way to send.
+in the keychain with the account. loki asks Google to read mail, change its labels, write drafts and send; it sends
+only a reply you write yourself on a card.
 
 **Connecting Slack.** **connect slack** reads the workspaces signed in to the Slack desktop app on this Mac and lists
 them; **connect** on one connects it, and each workspace is its own account. There is no Slack app to create and no
@@ -848,9 +849,11 @@ or messages to decide.
    threads arrive as Slack's Activity lists them; loki does not search for them.
 
 A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
-a thread you archived. The card shows the sender, the
-subject or first line, the account, its service and its owner ("ada@acme.com · Gmail · Work"), and the thread's last
-messages. **The past comes in batches**: connecting brings what is unread and addressed to you from the last 3 days,
+a thread you archived. A mail card is titled by its subject, with its sender beside the account, its service and its
+owner ("ada@acme.com · Gmail · Work"); a Slack card is titled by who wrote. It files under its owner's tab in the
+Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
+first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
+each reply ("On … wrote:"). While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what is unread and addressed to you from the last 3 days,
 and each time you clear that account's outside cards (a resting card is not cleared), the next older batch of up to 20
 threads arrives, a week back, then two, then a month, then a month more each time, until nothing unread is left.
 
@@ -867,6 +870,13 @@ loki never moves a Slack channel's read marker, so archiving a mention in a busy
 messages unread. The other way round works too: read or archive a thread in Gmail or Slack first, and its card leaves
 the Inbox at the next check.
 
+**Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
+chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and Enter or
+**send** sends it (Shift-Enter starts a new line) as you: in Gmail a reply to all in the thread, never to your own addresses; in Slack in the DM, or in
+the thread for an Activity item. Sending archives the card, as archive does, so it comes back when someone writes
+again. A send that fails keeps your text and says why. Only you send this way: no agent can, and an agent's own reply
+still becomes a draft once you approve it.
+
 **Hand-off.** **hand off** on a card gives the whole thread to the account's owner. loki proposes a chat: the one the
 thread went to before ("went here before"), or else a new chat with the owner titled by the subject ("new chat"); pick
 it or another of the owner's chats. The chat receives the whole thread as one message, each message marked as content
@@ -882,7 +892,7 @@ even if you ask it to.
 
 **Replies are drafts.** A reply the owner writes in a handed-off thread always asks you first, in every permission
 mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
-draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. loki never sends.
+draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
 
 **When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:

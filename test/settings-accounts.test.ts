@@ -41,12 +41,12 @@ const SLACK: AccountView = {
   connected_at: "2026-11-01T09:00:00.000Z",
 };
 
-describe("Preferences › Inbox accounts (plan 067, U11)", () => {
+describe("Preferences › Accounts (plan 067, U11)", () => {
   test("connect is not possible before the owning agent is chosen (R2)", () => {
     for (const provider of ["gmail", "slack"] as const) {
       const state = connectState(provider, null, "macos");
       expect(state.ready).toBe(false);
-      expect(state.reason).toBe("choose the agent that will own it first");
+      expect(state.reason).toBe("add an agent first: an account belongs to one");
       expect(connectState(provider, "agent-work", "macos")).toEqual({ ready: true, reason: null });
     }
   });
@@ -85,7 +85,7 @@ describe("Preferences › Inbox accounts (plan 067, U11)", () => {
   test("AE8: a workspace whose Slack app signed out shows that state and a reconnect with its team", () => {
     const [row] = accountRows([{ ...SLACK, status: { disconnected: "slack_signed_out" } }], AGENTS);
     expect(row.problem).toBe(true);
-    expect(row.state).toBe("the Slack app signed out: sign in there, then connect again in Preferences › Inbox accounts");
+    expect(row.state).toBe("the Slack app signed out: sign in there, then connect again in Preferences › Accounts");
     expect(row.reconnect).toEqual({ provider: "slack", owner_agent_id: "agent-work", team_id: "T01" });
   });
 

@@ -1,6 +1,7 @@
 import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
 import type { Handoff } from "../handoff.ts";
+import type { OutsideThreads } from "../outside-threads.ts";
 import type { GoogleSignIn } from "../google-signin.ts";
 import type { SlackSessions } from "../slack-session.ts";
 import { SlackClient } from "../slack.ts";
@@ -24,13 +25,15 @@ export interface AccountsDeps {
   threads?: Pick<AccountThreads, "archive">;
   /** Handing a card's thread to its owner's chat (mod/handoff.ts). */
   handoff?: Pick<Handoff, "propose" | "handOff">;
+  /** Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068). */
+  outside?: Pick<OutsideThreads, "read" | "reply">;
   connect?: AccountConnectDeps;
 }
 
 const NO_OWNER = "an account needs an owner: pick the agent it belongs to";
 
 /**
- * Preferences › Inbox accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
+ * Preferences › Accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
  * a Gmail account (a sign-in) or a Slack workspace (the desktop app's session), moving one to another agent, and
  * disconnecting one; and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
  * now stands, without secrets or the watcher's cursor; the host tells every client when it changed. Archiving an
@@ -95,6 +98,23 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       if (!deps.threads) return fail("Inbox accounts are not available in this mod");
       try {
         await deps.threads.archive(accountId, threadId);
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+      return reply({ account_id: accountId, thread_id: threadId });
+    },
+    account_thread_read: async ({ account_id: accountId, thread_id: threadId }) => {
+      if (!deps.outside) return fail("reading threads is not available in this mod");
+      try {
+        return reply({ account_id: accountId, thread_id: threadId, messages: await deps.outside.read(accountId, threadId) });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+    },
+    account_thread_reply: async ({ account_id: accountId, thread_id: threadId, text }) => {
+      if (!deps.outside) return fail("replying is not available in this mod");
+      try {
+        await deps.outside.reply(accountId, threadId, text);
       } catch (err) {
         return fail(errorMessage(err));
       }

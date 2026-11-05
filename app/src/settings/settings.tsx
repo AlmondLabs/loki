@@ -120,7 +120,7 @@ export function Settings({
   globalSkills: GlobalSkillsApi;
   /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
-  /** Preferences › Inbox's accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067). */
+  /** Preferences › Accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067). */
   accounts: AccountsApi;
   /** Every agent by name, to choose an account's owner from. */
   agents: readonly AgentName[];
@@ -158,7 +158,9 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage accounts={accounts} agents={agents} chatLink={chatLink} />,
+    inbox: () => <InboxPage />,
+    accounts: () =>
+      chatLink === "open" ? <Accounts api={accounts} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     providers: () => (
       <ProvidersPage
         chatLink={chatLink}
@@ -522,20 +524,13 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
 }
 
 /**
- * Preferences › Inbox: the accounts whose mail and messages become cards, what Next, Archive and a reply do, and how
- * the deck orders its cards behind a fold.
+ * Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. The accounts
+ * whose mail and messages become cards have their own page, Preferences › Accounts (plan 068).
  */
-function InboxPage({ accounts, agents, chatLink }: { accounts: AccountsApi; agents: readonly AgentName[]; chatLink: ChatLink }) {
+function InboxPage() {
   const [restFirst, setRestFirst] = useRestFirst();
   return (
     <>
-      {chatLink === "open" ? (
-        <Accounts api={accounts} agents={agents} />
-      ) : (
-        <Block title="Accounts">
-          <Setting label="Not linked" help="loki's daemon is not linked yet." />
-        </Block>
-      )}
       <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
         <Setting
           label="Next"

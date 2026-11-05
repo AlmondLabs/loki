@@ -149,8 +149,10 @@ disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): an Inbox card for one thread in
 an account rather than a chat. It ranks like a chat with something new and rests like one; its archive also archives
-the email in Gmail or marks a Slack DM read. The thread's record (open, archived or handed off, and its newest
-message) is kept in `state/account-threads/<account id>.json`. _Avoid_: notification, email card.
+the email in Gmail or marks a Slack DM read. It shows the whole thread, read from its account when it comes up, and
+takes the person's own reply, which sends and archives it (`mod/outside-threads.ts`, plan 068); it files under its
+owner's tab. The thread's record (open, archived or handed off, and its newest message) is kept in
+`state/account-threads/<account id>.json`. _Avoid_: notification, email card.
 
 **Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki
 proposes (the one it went to before, or a new one) or another of the owner's chats. The chat gets the whole thread,

@@ -4,7 +4,7 @@ import { LabelChips } from "../chat/labels";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
-import { useConversation, type ChatViews, type HandoffSource } from "../../../core/attention/use-attention.ts";
+import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import { OpenChat, type TranscriptRow } from "../chat/transcript";
 import { openConversation } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
@@ -21,7 +21,7 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
-import { OutsideLines, disconnectedText, outsideWho, wentTo } from "../desk/outside-card";
+import { OutsideReply, OutsideThread, disconnectedText, outsideTitle, outsideWho, senderName, useOutsideThread, wentTo } from "../desk/outside-card";
 import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
@@ -401,7 +401,7 @@ export function Inbox({
   /** "Mac unreachable · last seen …", or null while the link is fine. In a pass it takes the card's notice line. */
   banner?: ReactNode;
   /** The live threads behind the cards (useAttention's), read through useConversation, and an outside card's hand-off. */
-  chats: ChatViews & Partial<HandoffSource>;
+  chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource>;
   /** The pass, from `useDeck` in the parent. */
   deck: Deck;
   /** Where the top bar's back chevron goes, as a word ("Home"). */
@@ -677,7 +677,7 @@ function Stack({
   approval: boolean;
   refused: boolean;
   reduced: boolean;
-  chats: ChatViews & Partial<HandoffSource>;
+  chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource>;
   handlers: CardHandlers;
   deck: Deck;
   banner?: ReactNode;
@@ -747,6 +747,7 @@ function Stack({
               banner={banner}
               went={wentTo(item.outside, items)}
               handoff={chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null}
+              outside={chats.readOutside && chats.replyOutside ? { readOutside: chats.readOutside, replyOutside: chats.replyOutside } : null}
             />
           ) : (
             <LiveCardConversation
@@ -806,9 +807,10 @@ export function Card({
   children?: ReactNode;
 }) {
   const top = role === "top";
-  const title = item.title ?? item.id;
-  // An outside card names who wrote it, and its account and agent where a chat names its folder (plan 067, R10).
-  const who = item.outside ? item.outside.sender : (item.agent_name ?? "agent");
+  // An outside card names who wrote it, and its account and agent where a chat names its folder (plan 067, R10); a mail
+  // has its subject for a title, a Slack message only its sender (plan 068).
+  const title = item.outside ? (item.outside.provider === "gmail" ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
+  const who = item.outside ? senderName(item.outside.sender) : (item.agent_name ?? "agent");
   return (
     <article
       className="loki-phone-card"
@@ -836,7 +838,7 @@ export function Card({
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
-          {item.outside && (
+          {item.outside?.provider === "gmail" && (
             <>
               <span aria-hidden>·</span>
               <span className="loki-phone-ellipsis">{outsideWho(item.outside)}</span>
@@ -951,23 +953,27 @@ export function CardConversation({
 }
 
 /**
- * An outside card's body (plan 067, U3, U8): the account's state when it stopped working, the chat the thread went to
- * before, the thread's last messages as plain text, and Hand off, which opens the chats to give the thread to. Archive
- * sits where a chat's Open chat does, since there is no chat to open.
+ * An outside card's body (plan 067, U3, U8; plan 068): the account's state when it stopped working, the chat the thread
+ * went to before, the whole thread, the box for the person's own reply, and Hand off, which opens the chats to give the
+ * thread to. Archive sits where a chat's Open chat does, since there is no chat to open.
  */
 function OutsideBody({
   item,
   banner,
   went = null,
   handoff = null,
+  outside = null,
 }: {
   item: AttentionItem;
   banner?: ReactNode;
   went?: string | null;
   /** The hand-off, on the top card only. */
   handoff?: HandoffSource | null;
+  /** Reading the thread and replying, on the top card only. */
+  outside?: OutsideSource | null;
 }) {
   const [picking, setPicking] = useState(false);
+  const thread = useOutsideThread(item, outside);
   const facts = item.outside;
   if (!facts) return null;
   return (
@@ -975,7 +981,13 @@ function OutsideBody({
       {banner}
       {facts.disconnected && <ThreadNotice text={sentence(disconnectedText(facts.disconnected, facts.provider))} />}
       {went && <span className="loki-phone-meta">{sentence(went)}</span>}
-      <OutsideLines facts={facts} touch />
+      <OutsideThread facts={facts} state={thread} touch />
+      {outside && (
+        // The card takes a drag for a swipe; a drag or a tap inside the reply is the reply's.
+        <div onPointerDown={stopPointer} onPointerMove={stopPointer} onPointerUp={stopPointer}>
+          <OutsideReply facts={facts} touch onSend={(text) => outside.replyOutside(item, text)} />
+        </div>
+      )}
       {handoff &&
         (picking ? (
           // The card leaves the Inbox once the thread went, so there is nothing to do on done but close.
@@ -994,6 +1006,9 @@ function OutsideBody({
     </div>
   );
 }
+
+/** Keeps a pointer inside the reply box from moving the card. */
+const stopPointer = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews }) {

@@ -31,6 +31,7 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
   const refresh = new Map<string, string>();
   const requests: FakeRequest[] = [];
   const drafts: Array<{ raw: string; threadId: string }> = [];
+  const sentMail: Array<{ raw: string; threadId: string }> = [];
   const modified: Array<{ ids: unknown; removeLabelIds: unknown }> = [];
   const state = {
     /** History older than this id is gone: a history call from before it is 404. */
@@ -133,6 +134,11 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
       modified.push({ ids, removeLabelIds });
       return new Response(null, { status: 204 });
     }
+    if (path === "/messages/send" && req.method === "POST") {
+      const message = JSON.parse(req.body) as { raw: string; threadId: string };
+      sentMail.push(message);
+      return json(200, { id: `s${sentMail.length}`, threadId: message.threadId });
+    }
     if (path === "/drafts" && req.method === "POST") {
       const { message } = JSON.parse(req.body) as { message: { raw: string; threadId: string } };
       drafts.push(message);
@@ -159,6 +165,7 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     requests,
     issued,
     drafts,
+    sentMail,
     modified,
     state,
     /** The person approves on Google's page: a code bound to the URL's challenge, client and redirect. */

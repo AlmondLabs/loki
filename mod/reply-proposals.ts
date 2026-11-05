@@ -110,7 +110,8 @@ const movedNotice = (p: ReplyProposal): string =>
 /** What the person is told when they approve a reply whose account moved since. */
 const MOVED = "that account moved to another agent: this reply was withdrawn";
 
-const headerOf = (m: GmailMessage | undefined, name: string): string =>
+/** A Gmail message's header by name, any case; "" when it has none. */
+export const headerOf = (m: GmailMessage | undefined, name: string): string =>
   m?.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 
 /** An address header's people, each as written ("Grace <grace@acme.com>") and by its bare address, lower case. */
@@ -159,7 +160,7 @@ const addresses = (list: readonly string[]): string => inert(list.flatMap((t) =>
  * The message a reply answers: the newest in the thread by Gmail's time that is not one of the person's own drafts, so
  * an unsent draft never sets who the reply goes to or what it replies to (KTD9).
  */
-function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefined {
+export function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefined {
   return messages
     .filter((m) => !m.labelIds.includes("DRAFT"))
     .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
@@ -167,10 +168,10 @@ function replyTarget(messages: readonly GmailMessage[]): GmailMessage | undefine
 }
 
 /** A reply's subject: the message's own, with one "Re:" in front. */
-const replySubject = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`.trim());
+export const replySubject = (subject: string): string => (/^re:/i.test(subject.trim()) ? subject.trim() : `Re: ${subject.trim()}`.trim());
 
 /** A Slack card's thread id as its place: a DM card's is its channel, an Activity card's `<channel>:<thread ts>`. */
-function slackPlace(threadId: string): { channel: string; ts: string | null } {
+export function slackPlace(threadId: string): { channel: string; ts: string | null } {
   const at = threadId.indexOf(":");
   return at < 0 ? { channel: threadId, ts: null } : { channel: threadId.slice(0, at), ts: threadId.slice(at + 1) };
 }
