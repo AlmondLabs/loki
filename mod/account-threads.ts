@@ -326,6 +326,20 @@ export class AccountThreads {
     return true;
   }
 
+  /**
+   * Archive a handed-off thread out there (plan 070, U9, R13): Gmail archives it, Slack marks it read, each up to the
+   * newest message the record holds, which is the one handed off. The record stays handed off. A thread that is not
+   * handed off, because a newer message came during the hand-off and its card is open again, is left alone and null
+   * comes back, so nothing the chat never got is archived. Throws why when the account refused.
+   */
+  archiveHandedOff(accountId: string, threadId: string): Promise<OutsideChange | null> {
+    return this.serial(`${accountId} ${threadId}`, async () => {
+      const r = this.records(accountId).get(threadId);
+      if (r?.state !== "handed_off") return null;
+      return this.sourceOf(accountId, "archive").archive(accountId, r);
+    });
+  }
+
   /** One thread's record, or null. */
   get(accountId: string, threadId: string): ThreadRecord | null {
     const r = this.records(accountId).get(threadId);

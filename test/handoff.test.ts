@@ -1,12 +1,14 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { AccountThreads } from "../mod/account-threads.ts";
+import type { OutsideChange } from "../core/frame-types.ts";
+import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
 import { Handoff, fenceThread, gmailThreadText, slackThreadText, type HandoffChat, type ThreadMessage } from "../mod/handoff.ts";
 import type { GmailMessagePart, GmailThread } from "../mod/gmail.ts";
+import { initLog } from "../mod/log.ts";
 import type { SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";
 import type { CallOutcome, ChatCall } from "../mod/suggestions.ts";
 import { must } from "./fixtures/must.ts";
@@ -100,7 +102,7 @@ describe("handing a thread to its owner's chat", () => {
     const { text } = sent[0];
     expect(text.startsWith("Handed off from ada@acme.com, thread t1. Use account_read for newer messages.")).toBe(true);
     expect(text).toContain(fenceThread(THREAD));
-    // The card leaves; Gmail is not touched (no archive was registered, and none was asked for).
+    // The card leaves; no write-back is registered here, so Gmail is not touched (the U9 tests register one).
     expect(threads.get(GMAIL, "t1")).toMatchObject({ state: "handed_off", handoff_conversation_id: "c-new-1" });
     expect(threads.rows()).toEqual([]);
   });
@@ -291,6 +293,109 @@ const slackMessage = (ts: string, user: string, text: string): SlackMessage => (
   subtype: null,
   reply_count: 0,
   raw: {},
+});
+
+/** A write-back that records each archive it is asked for, by account, thread and the newest message it covers. */
+function recordingSource(refuse: string | null = null) {
+  const archived: string[] = [];
+  const change = (move: OutsideChange["move"], r: ThreadRecord): OutsideChange => ({ move, messages: [], ended: true, was_unread: r.unread_out_there });
+  const source: OutsideSource = {
+    archive: (accountId, r) => {
+      if (refuse) return Promise.reject(new Error(refuse));
+      archived.push(`${accountId} ${r.thread_id} ${r.newest_message_id}`);
+      return Promise.resolve(change("archive", r));
+    },
+    markRead: (_a, r) => Promise.resolve(change("read", r)),
+    markUnread: (_a, r) => Promise.resolve(change("unread", r)),
+    addLabels: (_a, r) => Promise.resolve(change("label", r)),
+    restore: () => Promise.resolve(),
+    labels: () => Promise.resolve([]),
+  };
+  return { source, archived };
+}
+
+describe("a hand-off ends the thread out there (plan 070, U9, R13)", () => {
+  test("a Gmail hand-off archives the thread's messages up to the handed one, after the chat has it", async () => {
+    const { handoff, threads, calls } = await fixture();
+    const { source, archived } = recordingSource();
+    threads.register("gmail", source);
+    await handoff.handOff(GMAIL, "t1", { conversation_id: "c-plan" });
+    expect(sends(calls)).toHaveLength(1);
+    expect(archived).toEqual([`${GMAIL} t1 m2`]);
+    expect(threads.get(GMAIL, "t1")).toMatchObject({ state: "handed_off", handoff_conversation_id: "c-plan" });
+  });
+
+  test("a Slack DM hand-off marks the DM read", async () => {
+    const { dir, accounts, threads, chats, calls } = await fixture();
+    const SLACK = "slack:T01:U2";
+    await accounts.add({ account_id: SLACK, provider: "slack", address: "acme", owner_agent_id: "agent-work" }, "token-2");
+    threads.observe(SLACK, {
+      thread_id: "D7",
+      message_id: "1762243200.000100",
+      at: "2026-11-04T08:00:00.000Z",
+      sender: "Grace",
+      subject: "lunch?",
+      lines: ["lunch?"],
+    });
+    const { source, archived } = recordingSource();
+    threads.register("slack", source);
+    const handoff = new Handoff({
+      file: join(dir, "handoffs.json"),
+      accounts,
+      threads,
+      chats: () => chats,
+      call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
+      threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve(THREAD) },
+    });
+    await handoff.handOff(SLACK, "D7", { conversation_id: "c-plan" });
+    // Slack's archive write-back is its read mark: the DM is read up to the handed message.
+    expect(archived).toEqual([`${SLACK} D7 1762243200.000100`]);
+    expect(threads.get(SLACK, "D7")?.state).toBe("handed_off");
+  });
+
+  test("a message that arrives mid-hand-off leaves the thread unarchived out there and the card open", async () => {
+    const { dir, accounts, threads, chats, calls } = await fixture();
+    const { source, archived } = recordingSource();
+    threads.register("gmail", source);
+    const handoff = new Handoff({
+      file: join(dir, "handoffs.json"),
+      accounts,
+      threads,
+      chats: () => chats,
+      call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
+      threadText: {
+        gmail: () => {
+          threads.observe(GMAIL, {
+            thread_id: "t1",
+            message_id: "m3",
+            at: "2026-11-04T09:00:00.000Z",
+            sender: "Grace Hopper",
+            subject: "Q3 numbers",
+            lines: ["One more thing"],
+          });
+          return Promise.resolve(THREAD);
+        },
+        slack: () => Promise.resolve([]),
+      },
+    });
+    await handoff.handOff(GMAIL, "t1", { conversation_id: "c-plan" });
+    expect(archived).toEqual([]);
+    expect(threads.get(GMAIL, "t1")).toMatchObject({ state: "open", newest_message_id: "m3" });
+  });
+
+  test("Gmail refusing the archive still leaves the chat with the thread and the card ended, and the failure is logged", async () => {
+    const { dir, handoff, threads, calls } = await fixture();
+    const logFile = join(dir, "mod.log");
+    initLog(logFile);
+    threads.register("gmail", recordingSource("Gmail said 403").source);
+    expect(await handoff.handOff(GMAIL, "t1", { conversation_id: "c-plan" })).toEqual({ agent_id: "agent-work", conversation_id: "c-plan" });
+    expect(sends(calls)).toHaveLength(1);
+    expect(threads.get(GMAIL, "t1")?.state).toBe("handed_off");
+    expect(threads.rows()).toEqual([]);
+    const logged = readFileSync(logFile, "utf8");
+    expect(logged).toContain("handoff:archive-failed");
+    expect(logged).toContain("Gmail said 403");
+  });
 });
 
 describe("reading a whole thread for a hand-off", () => {

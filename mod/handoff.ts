@@ -1,3 +1,4 @@
+import { messageOf } from "../core/errors.ts";
 import { htmlToText, tidyMail } from "../core/mail-text.ts";
 import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget } from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -5,6 +6,7 @@ import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { GmailClient, GmailMessagePart } from "./gmail.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
+import { log } from "./log.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
 import type { CallOutcome, ChatCall } from "./suggestions.ts";
 
@@ -13,7 +15,9 @@ import type { CallOutcome, ChatCall } from "./suggestions.ts";
  * the thread went to before, else a new chat with the owner titled by the subject; the person confirms or picks
  * another of the owner's chats. The hand-off reads the whole thread from Gmail or Slack and sends it to that chat as
  * one message, each message fenced as content from its sender (KTD8), then marks the thread handed off so its card
- * leaves. Nothing is marked read or archived out there.
+ * leaves. The thread then ends out there too (plan 070, U9, R13): Gmail archives it and Slack marks it read, up to the
+ * message that was handed, unless a newer one came during the hand-off and its card stayed open. A refusal there is
+ * logged and does not undo the hand-off.
  *
  * A hand-off to a new chat records the chat it made in `state/handoffs.json` before anything is sent there, as a
  * suggestion's carry does, so a retry after a failed send, or after a restart, never makes a second chat.
@@ -47,7 +51,7 @@ export interface HandoffOptions {
   /** `state/handoffs.json`: the chat each unfinished hand-off made. */
   file: string;
   accounts: Pick<Accounts, "get">;
-  threads: Pick<AccountThreads, "get" | "handedOff">;
+  threads: Pick<AccountThreads, "get" | "handedOff" | "archiveHandedOff">;
   /** Every chat the lists know now, archived ones included. */
   chats: () => HandoffChat[];
   /** The Mac an agent lives on, where its new chat is made; null when its record names none. */
@@ -223,6 +227,13 @@ export class Handoff {
       if (out.reply.accepted === false) throw new Error("the chat did not take the thread: try again");
       this.opts.threads.handedOff(accountId, threadId, conversationId, handedMessageId);
       this.writePending(this.readPending().filter((p) => !(p.account_id === accountId && p.thread_id === threadId)));
+      // The chat has the thread, so it ends out there too (R13). A refusal does not undo the hand-off: the card has
+      // ended in loki and the chat holds the thread, so the failure is only logged.
+      try {
+        await this.opts.threads.archiveHandedOff(accountId, threadId);
+      } catch (error) {
+        log("handoff:archive-failed", { account_id: accountId, thread_id: threadId, error: messageOf(error) });
+      }
       return { agent_id: owner, conversation_id: conversationId };
     });
   }
