@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 
 /**
@@ -88,7 +88,7 @@ export function useDeckActions({
   };
   const undo = () => {
     let at = decided.length - 1;
-    while (at >= 0 && agent && decided[at].item.agent_id !== agent) at--;
+    while (at >= 0 && agent && ownerAgentOf(decided[at].item) !== agent) at--;
     const last = at >= 0 ? decided[at] : undefined;
     if (!last) return;
     // An outside card's archive has reached Gmail or Slack: loki does not take it back.

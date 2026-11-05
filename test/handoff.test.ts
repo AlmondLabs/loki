@@ -269,7 +269,7 @@ describe("handing a thread to its owner's chat", () => {
   test("a hand-off on a disconnected account is refused with the cause, before anything is made or read", async () => {
     const { handoff, accounts, calls, read } = await fixture();
     accounts.setStatus(GMAIL, { disconnected: "sign_in_again" });
-    await expect(handoff.handOff(GMAIL, "t1")).rejects.toThrow("Gmail wants a new sign-in: Preferences › Inbox accounts");
+    await expect(handoff.handOff(GMAIL, "t1")).rejects.toThrow("Gmail wants a new sign-in: Preferences › Accounts");
     expect(calls).toEqual([]);
     expect(read).toEqual([]);
   });
@@ -327,8 +327,8 @@ describe("reading a whole thread for a hand-off", () => {
     const asked: string[] = [];
     const read = gmailThreadText((accountId) => ({ getThread: (id, format) => (asked.push(`${accountId} ${id} ${format}`), Promise.resolve(thread)) }));
     expect(await read(GMAIL, "t1")).toEqual([
-      { sender: "Grace <grace@navy.mil>", at: "2026-11-04T08:00:00.000Z", text: "Can you send the Q3 numbers?" },
-      { sender: "ada@acme.com", at: "2026-11-04T08:30:00.000Z", text: "Thanks & regards\n\nAda" },
+      { sender: "Grace <grace@navy.mil>", id: "m1", mine: false, at: "2026-11-04T08:00:00.000Z", text: "Can you send the Q3 numbers?" },
+      { sender: "ada@acme.com", id: "m2", mine: true, at: "2026-11-04T08:30:00.000Z", text: "Thanks & regards\n\nAda" },
     ]);
     expect(asked).toEqual([`${GMAIL} t1 full`]);
   });
@@ -351,11 +351,12 @@ describe("reading a whole thread for a hand-off", () => {
       ),
       usersInfo: (id) => Promise.resolve(must(users[id], id)),
     }));
-    expect(await read("slack:T01:U02", "C9:1762243200.000100")).toEqual([
-      { sender: "Grace", at: "2025-11-04T08:00:00.000Z", text: "hi @Ada Lovelace" },
-      { sender: "Ada Lovelace", at: "2025-11-04T08:01:00.000Z", text: "the doc & more" },
+    // The account calls as U2, so Ada's message is the person's own (plan 068).
+    expect(await read("slack:T01:U2", "C9:1762243200.000100")).toEqual([
+      { sender: "Grace", at: "2025-11-04T08:00:00.000Z", text: "hi @Ada Lovelace", mine: false, id: "1762243200.000100" },
+      { sender: "Ada Lovelace", at: "2025-11-04T08:01:00.000Z", text: "the doc & more", mine: true, id: "1762243260.000200" },
     ]);
-    expect((await read("slack:T01:U02", "D7")).map((m) => m.text)).toEqual(["first", "second"]);
+    expect((await read("slack:T01:U2", "D7")).map((m) => m.text)).toEqual(["first", "second"]);
     expect(calls).toEqual(["replies C9 1762243200.000100", "history D7"]);
   });
 });

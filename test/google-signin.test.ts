@@ -108,7 +108,7 @@ describe("signing in to Gmail", () => {
 
   test("with no shared app in this copy of loki, a sign-in says so instead of calling Google", () => {
     const { google, signIn } = fixture({ client_id: "", client_secret: "" });
-    expect(() => signIn.start({ owner_agent_id: "agent-work" })).toThrow("the shared Google app is not set; use your own Google app in Preferences › Inbox");
+    expect(() => signIn.start({ owner_agent_id: "agent-work" })).toThrow("the shared Google app is not set; use your own Google app in Preferences › Accounts");
     expect(google.requests).toHaveLength(0);
     // The person's own app still works there.
     expect(new URL(signIn.start({ owner_agent_id: "agent-work", own_app: OWN })).searchParams.get("client_id")).toBe(OWN.client_id);

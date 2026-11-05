@@ -23,7 +23,7 @@ import { focusShares, type FocusEntry } from "./focus.ts";
 import { movesOn, restAfterNext, restUndone, type Rest } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { HandoffProposal, ReplyProposal, Suggestion } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -128,6 +128,15 @@ export interface ChatViews {
 export interface HandoffSource {
   handoffPropose: (item: AttentionItem) => Promise<HandoffProposal | string>;
   handoff: (item: AttentionItem, conversationId: string | null) => Promise<string | null>;
+}
+
+/**
+ * An outside card's thread for the person (plan 068): the whole thread, and their own reply sent in it, which archives
+ * the card. Both resolve to the reason in words when refused.
+ */
+export interface OutsideSource {
+  readOutside: (item: AttentionItem) => Promise<OutsideMessage[] | string>;
+  replyOutside: (item: AttentionItem, text: string) => Promise<string | null>;
 }
 
 /**
@@ -502,6 +511,8 @@ export function useAttention(opts: UseAttentionOptions) {
     unarchive,
     handoffPropose: store.handoffPropose,
     handoff: store.handoff,
+    readOutside: store.readOutside,
+    replyOutside: store.replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
     shown,

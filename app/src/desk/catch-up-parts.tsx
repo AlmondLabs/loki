@@ -1,4 +1,4 @@
-import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
+import { ownerAgentOf, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
@@ -53,13 +53,19 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
   );
 }
 
-/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many chats. */
+/** That agent's name as its pill says it. */
+const pillNameOf = (i: AttentionItem): string => (i.outside ? i.outside.owner_name : i.agent_name) ?? "agent";
+
+/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many cards, its accounts' included. */
 export function agentPills(items: AttentionItem[]): Array<{ agentId: string; name: string; count: number }> {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
   for (const i of inboxQueue(items)) {
-    const p = by.get(i.agent_id) ?? { agentId: i.agent_id, name: i.agent_name ?? "agent", count: 0 };
+    const id = ownerAgentOf(i);
+    const p = by.get(id) ?? { agentId: id, name: pillNameOf(i), count: 0 };
+    // A chat names its agent better than a card from one of its accounts does.
+    if (!i.outside && i.agent_name) p.name = i.agent_name;
     p.count++;
-    by.set(i.agent_id, p);
+    by.set(id, p);
   }
   return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
@@ -71,8 +77,10 @@ export function agentPills(items: AttentionItem[]): Array<{ agentId: string; nam
  */
 export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
   const pills = agentPills(items);
-  if (agent && !pills.some((p) => p.agentId === agent))
-    pills.push({ agentId: agent, name: items.find((i) => i.agent_id === agent)?.agent_name ?? "agent", count: 0 });
+  if (agent && !pills.some((p) => p.agentId === agent)) {
+    const one = items.find((i) => ownerAgentOf(i) === agent);
+    pills.push({ agentId: agent, name: one ? pillNameOf(one) : "agent", count: 0 });
+  }
   if (pills.length < 2 && !agent) return null;
   const all = pills.reduce((n, p) => n + p.count, 0);
   return (

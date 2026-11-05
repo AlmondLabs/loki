@@ -20,7 +20,7 @@ import {
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { ReplyAction, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -818,6 +818,26 @@ export class ChatStore {
     const o = card.outside;
     if (!o) return "this card is not from an account";
     const err = await this.tried((c) => c.archiveOutside(o.account_id, o.thread_id, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+    return null;
+  };
+
+  /** An outside card's whole thread (plan 068), from the Mac its account lives on, or why it could not be read. */
+  readOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<OutsideMessage[] | string> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /**
+   * Send the person's reply in an outside card's thread (plan 068): on success the card is archived and leaves the
+   * list at once; resolves to the reason when it was not sent, and the card stays with the text still in its box.
+   */
+  replyOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, text: string): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.replyOutside(o.account_id, o.thread_id, text, card.home ?? null));
     if (err) return err;
     this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;

@@ -235,8 +235,8 @@ describe("the chat store (plan 052)", () => {
     const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
     await flush();
     expect(await d.store.handoffPropose(card)).toMatchObject({ proposed: { kind: "new", title: "hi" } });
-    d.refuse.outside = "Gmail wants a new sign-in: Preferences › Inbox accounts";
-    expect(await d.store.handoff(card, null)).toBe("Gmail wants a new sign-in: Preferences › Inbox accounts");
+    d.refuse.outside = "Gmail wants a new sign-in: Preferences › Accounts";
+    expect(await d.store.handoff(card, null)).toBe("Gmail wants a new sign-in: Preferences › Accounts");
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("t1#1");
     d.refuse.outside = null;
     expect(await d.store.handoff(card, "c1")).toBeNull();

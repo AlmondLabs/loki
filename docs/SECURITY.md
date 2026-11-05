@@ -156,16 +156,19 @@ chat it came from, and runs under that chat's own permission mode. A background 
 ## Accounts: Gmail and Slack
 
 The Inbox can show the mail and Slack threads waiting for you (plan 067). An account is connected in Preferences ›
-Inbox, belongs to one agent, its owner, and lives on the Mac that connected it. loki never sends: neither client has
-a call that sends, edits or schedules a message, so an agent's reply reaches Gmail or Slack only as a draft you
-approved, which you then send yourself.
+Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Agents never send.** loki sends
+one thing only: a reply you type yourself on an outside card (plan 068). That reply goes through the
+`account_thread_reply` frame, which only your own devices send, to `mod/outside-threads.ts`, the one caller of each
+client's send call (`GmailClient.sendReply`, `SlackClient.postReply`; a test checks there is no other). No agent tool
+is given those calls, so an agent's reply reaches Gmail or Slack only as a draft you approved, which you then send
+yourself.
 
 - **Gmail sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
   the one-time `state` of a sign-in loki started in the last 10 minutes (`mod/google-signin.ts`). loki asks for
   `gmail.modify`, `openid` and `userinfo.email`. `gmail.modify` reads mail, changes labels (archiving and marking read
-  are label changes) and writes drafts; it would also allow sending, and loki keeps to "never sends" by having no send
-  call in `mod/gmail.ts`, not by the scope.
+  are label changes), writes drafts and sends; loki keeps agents from sending by giving no agent tool the send call in
+  `mod/gmail.ts`, not by the scope.
 - **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret
   ship in the source (`mod/google-app.ts`), as Google intends for a desktop client: they identify the app, not you, and
   grant nothing without your sign-in. You may use a Google app of your own instead; its id and secret are kept in the
@@ -177,7 +180,8 @@ approved, which you then send yourself.
   copy is removed at once. The session stays in the daemon's memory and is never written anywhere; loki reads it again
   when Slack refuses it.
 - **What loki calls in Slack.** Only the methods in `SLACK_METHODS` (`mod/slack.ts`): reading conversations, users,
-  activity and counts, marking a DM read, and listing, writing and deleting drafts; none sends. Calls go only to
+  activity and counts, marking a DM read, listing, writing and deleting drafts, and `chat.postMessage` for your own
+  reply, which no agent tool reaches; nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
 - **What reaches the model.** Mail and Slack text reaches your model provider only when you hand a thread to its
   owner (`mod/handoff.ts`), or when the owning agent reads it with its account tools (`account_list`, `account_read`,

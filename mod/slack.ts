@@ -17,9 +17,10 @@ import type { SlackSession } from "./slack-session.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
- * desktop app's session. It reads, lists activity and counts, marks a DM read and writes and deletes drafts, and nothing more: no
- * call that sends, edits or schedules a message exists here, so "agents never send" (R18) holds by construction: every
- * request names one of SLACK_METHODS, and the type allows no other.
+ * desktop app's session. It reads, lists activity and counts, marks a DM read, writes and deletes drafts, and posts the
+ * person's own reply (plan 068), and nothing more: no call that edits, deletes or schedules a message exists here, and
+ * every request names one of SLACK_METHODS. Agents never send (R18): no agent tool is given `postReply`, which only the
+ * reply frame the person's own devices send reaches (mod/outside-threads.ts).
  *
  * Slack refusing the session gets one fresh read of the desktop app's session; when that is refused too, the account
  * says "Slack signed out" (R22). A rate limit holds calls back for as long as Slack asks and never counts as a sign-out.
@@ -38,6 +39,7 @@ export const SLACK_METHODS = [
   "drafts.list",
   "drafts.create",
   "drafts.delete",
+  "chat.postMessage",
 ] as const;
 
 /** One of the methods this client may call. */
@@ -396,6 +398,17 @@ export class SlackClient {
     await this.call("drafts.delete", { draft_id: draftId });
   }
 
+  /**
+   * Post the person's own reply (plan 068): in the thread when `thread_ts` names one, else in the conversation. Only the
+   * person's reply frame calls this; no agent tool is given it.
+   */
+  async postReply(input: SlackDraftInput): Promise<{ ts: string }> {
+    // Slack reads <, > and & as its markup, so the person's own text is escaped to arrive as they typed it.
+    const text = input.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
+    return { ts: typeof r.ts === "string" ? r.ts : "" };
+  }
+
   // --- the session and requests ------------------------------------------------------------------------------------
 
   private now(): number {
@@ -440,7 +453,7 @@ export class SlackClient {
     this.current = null;
     log("slack:signed-out", { why });
     this.opts.setStatus({ disconnected: "slack_signed_out" });
-    throw new SlackError("Slack signed out: open the Slack app, sign in, then reconnect in Preferences › Inbox", "signed_out");
+    throw new SlackError("Slack signed out: open the Slack app, sign in, then reconnect in Preferences › Accounts", "signed_out");
   }
 
   private async request(session: SlackSession, method: SlackMethod, params: Record<string, unknown>): Promise<Record<string, unknown>> {

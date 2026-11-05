@@ -23,6 +23,10 @@ export interface ThreadMessage {
   sender: string;
   at: string;
   text: string;
+  /** Whether the account's own person wrote it (plan 068), so the card can mark it; absent when the reader cannot tell. */
+  mine?: boolean;
+  /** The message's own id in its service (Gmail's id, Slack's ts), so the card can key it; absent when unknown. */
+  id?: string;
 }
 
 /** A chat as the lists know it (this Mac's and the paired Macs'), which a hand-off may go to. */
@@ -75,7 +79,7 @@ const TITLE_MAX = 80;
  */
 export function causeWords(cause: AccountDisconnectCause, provider: AccountProvider): string {
   const service = SERVICE[provider];
-  const where = "Preferences › Inbox accounts";
+  const where = "Preferences › Accounts";
   switch (cause) {
     case "sign_in_again":
       return `${service} wants a new sign-in: ${where}`;
@@ -308,6 +312,7 @@ function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePa
 export function gmailThreadText(client: (accountId: string) => Pick<GmailClient, "getThread">): ThreadText {
   return async (accountId, threadId) => {
     const thread = await client(accountId).getThread(threadId, "full");
+    const own = accountId.startsWith("gmail:") ? accountId.slice("gmail:".length) : "";
     return thread.messages.map((m) => {
       const from = m.payload?.headers.find((h) => h.name.toLowerCase() === "from")?.value ?? "";
       const plain = partOf(m.payload, "text/plain")?.body.data;
@@ -315,11 +320,19 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
       const at = Number(m.internalDate);
       return {
         sender: from || "someone",
+        id: m.id,
+        mine: own !== "" && addressOf(from) === own,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
         text: (plain ? decoded(plain) : html ? htmlText(decoded(html)) : m.snippet).trim(),
       };
     });
   };
+}
+
+/** The address in a From header ("Ada <ada@acme.com>" or a bare address), lowercased; "" when it has none. */
+function addressOf(from: string): string {
+  const angled = /<([^>]+)>/.exec(from)?.[1] ?? from;
+  return angled.trim().toLowerCase();
 }
 
 /** How many messages of a Slack DM a hand-off sends: its latest, since a DM is one long conversation. */
@@ -348,8 +361,11 @@ export function slackThreadText(client: (accountId: string) => Pick<SlackClient,
         ? await slack.conversationsHistory({ channel: threadId, limit: DM_MESSAGES })
         : await slack.conversationsReplies({ channel: threadId.slice(0, at), ts: threadId.slice(at + 1), limit: 200 });
     const messages = [...page.messages].sort((a, b) => Number(a.ts) - Number(b.ts));
+    // The account is the workspace and the person it calls as (`slack:<team>:<user>`), so a message by that user is theirs.
+    const me = accountId.split(":").at(2) ?? "";
     const out: ThreadMessage[] = [];
-    for (const m of messages) out.push({ sender: await senderOf(m, name), at: tsIso(m.ts), text: await slackPlain(m.text, name) });
+    for (const m of messages)
+      out.push({ sender: await senderOf(m, name), at: tsIso(m.ts), text: await slackPlain(m.text, name), mine: me !== "" && m.user === me, id: m.ts });
     return out;
   };
 }

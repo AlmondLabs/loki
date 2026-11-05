@@ -6,12 +6,12 @@ import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
 
 /**
- * Preferences › Inbox's accounts (plan 067, U11): the Gmail mailboxes and Slack workspaces whose mail and messages reach
+ * Preferences › Accounts (plan 067, U11): the Gmail mailboxes and Slack workspaces whose mail and messages reach
  * the Inbox, each owned by one agent. Connecting asks for the owner first (R2); an account can move to another agent
  * (R3) or be disconnected, and one that stopped working says why and how to get it back (R22).
  */
 
-/** What Preferences › Inbox asks of the daemon about accounts (core/daemon-calls.ts); each call answers, or says why not. */
+/** What Preferences › Accounts asks of the daemon about accounts (core/daemon-calls.ts); each call answers, or says why not. */
 export interface AccountsApi {
   list: () => Promise<AccountView[] | string>;
   move: (accountId: string, ownerAgentId: string) => Promise<AccountView[] | string>;
@@ -63,7 +63,7 @@ const POLL_MS = 3000;
 /** Whether connecting can start: an owner must be chosen first, and Slack is read from the desktop app on a Mac only. */
 export function connectState(provider: AccountProvider, owner: string | null, os: Platform): { ready: boolean; reason: string | null } {
   if (provider === "slack" && os !== "macos") return { ready: false, reason: notYetOn("Connecting Slack", os) };
-  if (!owner) return { ready: false, reason: "choose the agent that will own it first" };
+  if (!owner) return { ready: false, reason: "add an agent first: an account belongs to one" };
   return { ready: true, reason: null };
 }
 
@@ -169,13 +169,16 @@ function useAccounts(api: AccountsApi) {
 }
 
 /**
- * Preferences › Inbox's accounts block: each account with its service, owner and state, "move" and "disconnect" on each,
- * and "connect gmail" and "connect slack" once the owning agent is chosen. Gmail opens Google's page in the browser;
- * Slack lists the workspaces signed in to its desktop app to pick from.
+ * Preferences › Accounts (plan 068): each account with its service, owner and state, the owner changed in place and
+ * "disconnect" on each; then "connect gmail" and "connect slack", with the agent a new account goes to beside them,
+ * already set to the first agent. Gmail opens Google's page in the browser; Slack lists the workspaces signed in to its
+ * desktop app to pick from.
  */
 export function Accounts({ api, agents, os = platform }: { api: AccountsApi; agents: readonly AgentName[]; os?: Platform }) {
   const { accounts, error, setError, apply } = useAccounts(api);
-  const [owner, setOwner] = useState<string | null>(null);
+  const [picked, setOwner] = useState<string | null>(null);
+  // A new account goes to the agent picked, else the first one, so connecting never waits on a choice first.
+  const owner = picked && agents.some((g) => g.id === picked) ? picked : (agents[0]?.id ?? null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -216,10 +219,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
           <AccountLine key={row.account_id} row={row} agents={agents} api={api} apply={apply} onReconnect={reconnect} />
         ))}
       </Block>
-      <Block title="Connect an account" help="choose the agent that will own it, then connect.">
-        <Setting label="Owner" help="Gets the account's hand-offs, and is the only agent with tools for it.">
-          <AgentPicker agents={agents} value={owner} onPick={setOwner} label="the agent that will own the account" placeholder="choose an agent" />
-        </Setting>
+      <Block title="Connect an account" help="a mailbox or a workspace; it goes to the agent below, which you can change on its row later.">
         <Setting label="Gmail" help={gmailState.reason ?? "Opens Google's sign-in in your browser."}>
           <Button tone="positive" disabled={!gmailState.ready} onClick={() => owner && void gmail(owner)}>
             connect gmail
@@ -229,6 +229,9 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
           <Button tone="positive" disabled={!slackState.ready} onClick={() => owner && void slack(owner)}>
             connect slack
           </Button>
+        </Setting>
+        <Setting label="Goes to" help="The agent that gets a new account's hand-offs, and the only one with tools for it.">
+          <AgentPicker agents={agents} value={owner} onPick={setOwner} label="the agent a new account goes to" placeholder="choose an agent" />
         </Setting>
         {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
         {workspaces?.list.length === 0 && <Setting label="No workspaces" help="Sign in to a workspace in the Slack desktop app, then connect slack again." />}

@@ -53,6 +53,7 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
+import { OutsideThreads } from "./outside-threads.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
@@ -348,6 +349,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
   });
+  // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
+  const outside = new OutsideThreads({
+    accounts,
+    threads,
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
+    clientFor: (account) =>
+      account.provider === "gmail"
+        ? { provider: "gmail", client: gmailClient(account.account_id) }
+        : { provider: "slack", client: slackClient(account.account_id) },
+  });
   // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
   // written with the same clients; a move of the account withdraws the old owner's.
   const replies = new ReplyProposals({
@@ -448,6 +459,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     accounts,
     threads,
     handoff,
+    outside,
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     widgets,
     gestures,

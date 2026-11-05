@@ -27,7 +27,7 @@ export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
 /** How long one call to Google may take before the sign-in says it did not connect, as the Gmail client allows. */
 const TIMEOUT_MS = 20_000;
 const PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
-const START_AGAIN = "Start it again from Preferences › Inbox.";
+const START_AGAIN = "Start it again from Preferences › Accounts.";
 
 /** What starting a sign-in takes: the agent that will own the account, and the person's own Google app when they use one. */
 export interface GoogleSignInStart {

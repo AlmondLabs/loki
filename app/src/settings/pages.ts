@@ -1,6 +1,6 @@
 /** The pages down Preferences' left side. "loki" is About: its version, the mod, requirements, install. */
 export type SettingsPage =
-  "loki" | "usage" | "inbox" | "providers" | "engines" | "mcp" | "phone" | "macs" | "skills" | "learn" | "appearance" | "chat" | "labels" | "keys";
+  "loki" | "usage" | "inbox" | "accounts" | "providers" | "engines" | "mcp" | "phone" | "macs" | "skills" | "learn" | "appearance" | "chat" | "labels" | "keys";
 
 /** One of Preferences' groups: a row down its left side, and a page whose tabs are the group's pages (plan 031). */
 export interface SettingsGroup {
@@ -13,7 +13,7 @@ export const GROUPS: readonly SettingsGroup[] = [
   { title: "General", pages: ["appearance", "chat", "keys"] },
   { title: "Models and tools", pages: ["providers", "engines", "mcp", "skills"] },
   { title: "Your devices", pages: ["macs", "phone"] },
-  { title: "Inbox and Learn", pages: ["inbox", "learn"] },
+  { title: "Inbox and Learn", pages: ["inbox", "accounts", "learn"] },
   { title: "Labels", pages: ["labels"] },
   { title: "loki", pages: ["loki", "usage"] },
 ];
@@ -29,6 +29,7 @@ const TITLES: Record<SettingsPage, string> = {
   loki: "About",
   usage: "Usage",
   inbox: "Inbox",
+  accounts: "Accounts",
   providers: "Providers",
   engines: "Engines",
   mcp: "MCP servers",
@@ -48,7 +49,8 @@ export const pageTitle = (p: SettingsPage): string => TITLES[p];
 export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
-  inbox: ["order", "score", "focus", "archive", "accounts", "gmail", "email", "slack"],
+  inbox: ["order", "score", "focus", "archive"],
+  accounts: ["gmail", "email", "mail", "slack", "connect", "google"],
   providers: ["models", "api key", "openai", "anthropic"],
   engines: ["claude code", "acp", "agents"],
   mcp: ["tools"],

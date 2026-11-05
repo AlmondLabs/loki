@@ -286,14 +286,25 @@ describe("what the client reads", () => {
   });
 });
 
-describe("loki never sends on Slack", () => {
+describe("only the person's own reply posts on Slack (plan 068)", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
-  /** Deleting one of the person's own drafts touches no message anyone sees; it is the one "delete" allowed. */
-  const DRAFT_DELETE = ["draftsDelete", "/api/drafts.delete"];
+  /**
+   * Deleting one of the person's own drafts touches no message anyone sees; posting the person's own reply is the one
+   * send, reached only from the reply frame.
+   */
+  const ALLOWED = ["draftsDelete", "/api/drafts.delete", "postReply"];
 
-  test("the client has no method that could send, edit or schedule a message", () => {
+  test("the person's reply posts in its thread, with Slack's markup characters escaped so it arrives as typed", async () => {
+    const { c, sent } = client(() => ({ body: { ok: true, ts: "2.0" } }));
+    expect(await c.postReply({ channel: "D0DM", thread_ts: "1.0", text: "a < b & c > d" })).toEqual({ ts: "2.0" });
+    expect(sent.map((s) => [new URL(s.url).pathname, s.params.channel, s.params.thread_ts, s.params.text])).toEqual([
+      ["/api/chat.postMessage", "D0DM", "1.0", "a &lt; b &amp; c &gt; d"],
+    ]);
+  });
+
+  test("postReply is the client's only method that could send, and none edits or schedules a message", () => {
     const names = Object.getOwnPropertyNames(SlackClient.prototype).filter((n) => n !== "constructor");
-    expect(names.filter((n) => SEND.test(n) && !DRAFT_DELETE.includes(n))).toEqual([]);
+    expect(names.filter((n) => SEND.test(n) && !ALLOWED.includes(n))).toEqual([]);
   });
 
   test("every call the client makes goes to a method that reads, marks a DM read or writes a draft", async () => {
@@ -327,6 +338,6 @@ describe("loki never sends on Slack", () => {
         "/api/users.info",
       ].sort(),
     );
-    expect(paths.filter((p) => SEND.test(p) && !DRAFT_DELETE.includes(p))).toEqual([]);
+    expect(paths.filter((p) => SEND.test(p) && !ALLOWED.includes(p))).toEqual([]);
   });
 });

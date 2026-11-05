@@ -14,6 +14,7 @@ import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts
 import type {
   AccountView,
   HandoffProposal,
+  OutsideMessage,
   SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
@@ -306,6 +307,8 @@ export interface Replies {
   accounts: { accounts: AccountView[] };
   /** An outside card's thread archived on the Mac its account lives on (plan 067, U3). */
   account_thread_archived: { account_id: string; thread_id: string };
+  /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[] };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
   account_thread_handoff_proposal: HandoffProposal;
   /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
@@ -1156,6 +1159,26 @@ export const FRAMES = {
         : "account_id and thread_id required",
     PHONE,
     { route: "home", relists: true },
+  ),
+  account_thread_read: request(
+    "account_thread",
+    "an outside card's whole thread, every message with its sender and time, read from its account (plan 068); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { ...BY_HOME, timeout_ms: 30_000 },
+  ),
+  account_thread_reply: request(
+    "account_thread_archived",
+    "send the person's own reply in an outside card's thread, then archive the card (plan 068); only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id && str(m.text) && m.text.trim()
+        ? { account_id: m.account_id, thread_id: m.thread_id, text: m.text, home: strOr(m.home, null) }
+        : "account_id, thread_id and text required",
+    PHONE,
+    { route: "home", relists: true, timeout_ms: 30_000 },
   ),
   account_thread_handoff_propose: request(
     "account_thread_handoff_proposal",

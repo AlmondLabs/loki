@@ -360,7 +360,7 @@ describe("reply proposals (plan 067, U10)", () => {
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Hi." });
     f.accounts.setStatus(MAIL, { disconnected: "sign_in_again" });
     const out = await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
-    expect(out).toMatchObject({ done: false, message: "Gmail wants a new sign-in: Preferences › Inbox accounts", proposal: { status: "pending" } });
+    expect(out).toMatchObject({ done: false, message: "Gmail wants a new sign-in: Preferences › Accounts", proposal: { status: "pending" } });
     expect(f.writes()).toEqual([]);
   });
 

@@ -83,7 +83,7 @@ describe("the Gmail client's tokens", () => {
   test("an admin blocking the app marks the account admin blocks", async () => {
     const { client, google, accounts } = await connected();
     google.state.adminBlocked = true;
-    await expect(client.listMessages("in:inbox")).rejects.toThrow("use your own Google app in Preferences › Inbox");
+    await expect(client.listMessages("in:inbox")).rejects.toThrow("use your own Google app in Preferences › Accounts");
     expect(must(accounts.get(ACCOUNT), "the account").status).toEqual({ disconnected: "admin_blocks" });
   });
 
@@ -236,11 +236,32 @@ describe("the Gmail client's calls", () => {
   });
 });
 
-describe("loki never sends from Gmail", () => {
-  test("the client has no send call, and no request it makes reaches a send endpoint", async () => {
+describe("only the person's own reply sends from Gmail (plan 068)", () => {
+  test("the person's reply goes to Gmail's send in its thread, as the same RFC 2822 message a draft is", async () => {
+    const { client, google } = await connected();
+    expect(
+      await client.sendReply({
+        threadId: "t1",
+        inReplyTo: "<m1@acme.com>",
+        references: [],
+        to: ["bob@acme.com"],
+        cc: [],
+        subject: "Re: Lunch",
+        body: "Friday.",
+      }),
+    ).toEqual({ id: "s1" });
+    const sent = must(google.sentMail[0], "a sent message");
+    expect(sent.threadId).toBe("t1");
+    const raw = Buffer.from(sent.raw, "base64url").toString("utf8");
+    expect(raw).toContain("To: bob@acme.com\r\n");
+    expect(raw).toContain("In-Reply-To: <m1@acme.com>\r\n");
+    expect(google.drafts).toEqual([]);
+  });
+
+  test("sendReply is the client's only send call, and nothing else it does reaches a send endpoint", async () => {
     const names = Object.getOwnPropertyNames(GmailClient.prototype);
     // sendAsAddresses reads the addresses the person writes from; it sends nothing.
-    expect(names.filter((n) => /send/i.test(n))).toEqual(["sendAsAddresses"]);
+    expect(names.filter((n) => /send/i.test(n)).sort()).toEqual(["sendAsAddresses", "sendReply"]);
 
     const { client, google, advance } = await connected();
     advance(HOUR + 1);

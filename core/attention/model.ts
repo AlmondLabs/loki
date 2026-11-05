@@ -153,6 +153,12 @@ export interface AttentionItem extends ConversationInfo {
   runtime: Runtime;
 }
 
+/**
+ * The agent a card belongs to in the Inbox's tabs (plan 068): a chat's own agent, and for an outside card the agent
+ * that owns its account, so mail and Slack file under the agent that handles them.
+ */
+export const ownerAgentOf = (i: Pick<AttentionItem, "agent_id" | "outside">): string => i.outside?.owner_agent_id ?? i.agent_id;
+
 /** The key a chat goes by in the maps of live state, seen markers and focus: "agentId/conversationId". */
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
 
