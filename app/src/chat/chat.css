@@ -1020,6 +1020,27 @@ button.loki-file-chip {
   align-items: center;
   min-width: 0;
 }
+/* Several links fold into one chip; its list hangs below it, right-aligned to the header's edge. */
+.loki-chat-links--folded {
+  position: relative;
+  flex-wrap: nowrap;
+}
+.loki-chat-link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.loki-chat-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--loki-radius-sm);
+}
+.loki-chat-link-row .loki-chat-link-name {
+  flex: 1;
+  max-width: none;
+}
 .loki-chat-link-name {
   max-width: 160px;
   overflow: hidden;

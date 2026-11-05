@@ -416,6 +416,23 @@ describe("the link card and the header", () => {
     expect(html).toContain("close link to infra");
     expect(html).not.toContain("old");
   });
+
+  test("several live links fold into one chip that says how many, so the header stays one line", () => {
+    const later = new Date(Date.now() + 2 * 3600_000).toISOString();
+    const seen = ["infra", "release", "secrets", "router"].map((title, i) => ({
+      id: `l${String(i)}`,
+      other: { ...B, title },
+      way: "both" as const,
+      expires_at: later,
+    }));
+    const html = renderToStaticMarkup(createElement(LinkHeader, { links: seen, onClose: () => {} }));
+    expect(html).toContain("4 links");
+    expect(html).toContain('aria-haspopup="dialog"');
+    // The list opens on a click; closed, no other chat's name crowds the header.
+    for (const title of ["infra", "release", "secrets", "router"]) expect(html).not.toContain(title);
+    const phone = renderToStaticMarkup(createElement(LinkHeader, { links: seen, touch: true }));
+    expect(phone).toContain("4 links");
+  });
 });
 
 describe("a chat's links in the live state", () => {
