@@ -183,7 +183,22 @@ export interface OutsideFacts {
    * A paired Mac on a loki older than plan 070 sends no value, which reads as unread, as the mod reads its own records.
    */
   unread_out_there?: boolean;
+  /** How directly the newest message is meant for the person (plan 073); absent from an older loki. */
+  reach?: OutsideReach | null;
+  /** Where a Slack message was posted, as `#channel`; null for a DM and for mail (plan 073). */
+  place?: string | null;
+  /** The sender's photo: a Slack profile image's address; null for mail (plan 073). */
+  sender_avatar?: string | null;
+  /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
+  only_account?: boolean;
 }
+
+/**
+ * How directly a card's newest message is meant for the person (plan 073): a Slack DM or a mail to them, a mention of
+ * them, a reply in their thread, a mention of a user group they are in or a mail not addressed to them, @channel or a
+ * mailing list, a mail sent by a machine. `core/outside-reach.ts` orders them.
+ */
+export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "group" | "not_to_you" | "channel" | "list" | "automated";
 
 /**
  * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,

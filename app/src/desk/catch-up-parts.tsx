@@ -5,7 +5,8 @@ import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { chipText } from "../chat/suggestion-card";
-import { ConversationHeader } from "../chat/conversation";
+import { CardFace, CardHead } from "./card-head";
+import { avatarUrl } from "./env";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 
@@ -174,17 +175,38 @@ export interface CardHeaderProps {
   onSuggestions?: () => void;
 }
 
-/** Title, who and when, why it ranks here, and the status badge. The mode and model chips sit in the card's last row. */
+/**
+ * The chat card's header in the Inbox's one shape (plan 073): the agent's face, its name, then the chat's title and
+ * when, why it ranks here and the rest; the status badge is the tag. The chat's purpose shows on the title's hover, so
+ * the header stays two lines. The mode and model chips sit in the card's last row.
+ */
 export function CardHeader({ current, cameBack, flash, labelList = null, suggestions = 0, onSuggestions }: CardHeaderProps) {
   const badge = BADGE[current.status];
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
+  const agent = current.agent_name ?? "agent";
+  const title = current.title ?? current.id;
   return (
-    <ConversationHeader
-      title={current.title ?? current.id}
-      purpose={current.purpose}
-      agentName={current.agent_name}
-      agentId={current.agent_id}
+    <CardHead
+      face={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
+      who={agent}
+      line={
+        <>
+          <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
+            {title}
+          </span>
+          <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
+          {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
+          {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
+          {current.has_draft && <Meta>draft</Meta>}
+          {suggestions > 0 && (
+            <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
+              {chipText(suggestions, false)}
+            </Chip>
+          )}
+          <LabelChips labels={current.labels} list={labelList} />
+        </>
+      }
       right={
         needsYou(current.status) ? (
           <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
@@ -195,18 +217,7 @@ export function CardHeader({ current, cameBack, flash, labelList = null, suggest
           <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
         ) : null
       }
-    >
-      <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
-      {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
-      {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
-      {current.has_draft && <Meta>draft</Meta>}
-      {suggestions > 0 && (
-        <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
-          {chipText(suggestions, false)}
-        </Chip>
-      )}
-      <LabelChips labels={current.labels} list={labelList} />
-    </ConversationHeader>
+    />
   );
 }
 
