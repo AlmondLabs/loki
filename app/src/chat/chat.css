@@ -1587,3 +1587,9 @@ button.loki-label-chip:focus-visible {
   border-radius: var(--loki-radius-md);
   color-scheme: light;
 }
+/* A web address in a plain mail or a Slack message, made a link that opens in the browser. */
+.loki-mail-link {
+  color: var(--loki-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

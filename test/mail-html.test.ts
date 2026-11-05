@@ -89,6 +89,6 @@ describe("the card", () => {
     expect(html).toContain("<iframe");
     expect(html).toContain('sandbox="allow-same-origin"');
     expect(html).not.toContain("allow-scripts");
-    expect(html).toContain('<a href="https://x.test">https://x.test</a>');
+    expect(html).toContain('href="https://x.test">https://x.test</a>');
   });
 });

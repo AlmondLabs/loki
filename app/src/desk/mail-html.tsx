@@ -88,7 +88,9 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
       if (page) setHeight(Math.max(40, Math.ceil(page.scrollHeight)));
     };
     const click = (e: MouseEvent) => {
-      const target = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      // The click comes from the frame's own document, whose elements are the frame's Element, not this page's.
+      const inside = el.contentDocument?.defaultView;
+      const target = inside && e.target instanceof inside.Element ? e.target.closest("a[href]") : null;
       if (!target) return;
       // Nothing navigates inside the frame: a web or mail link goes to the browser, anything else stays put.
       e.preventDefault();
@@ -146,6 +148,7 @@ export function LinkedText({ text }: { text: string }): ReactNode {
     p.href ? (
       <a
         key={i}
+        className="loki-mail-link"
         href={p.href}
         onClick={(e) => {
           e.preventDefault();
