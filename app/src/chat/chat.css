@@ -1608,6 +1608,32 @@ button.loki-label-chip:focus-visible {
   border-radius: var(--loki-radius-md);
   color-scheme: light;
 }
+/* A mail before the newest in its thread, folded to one line; a press opens it. */
+.loki-mail-fold {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-mail-fold:hover {
+  background: var(--loki-hover);
+}
+.loki-mail-fold-line {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--loki-muted);
+}
 /* A web address in a plain mail or a Slack message, made a link that opens in the browser. */
 .loki-mail-link {
   color: var(--loki-accent);

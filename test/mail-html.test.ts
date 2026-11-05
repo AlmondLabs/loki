@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
 import { MAIL_POLICY, linkParts, mailDocument, openableHref } from "../app/src/desk/mail-html.tsx";
-import { OutsideThread } from "../app/src/desk/outside-card.tsx";
+import { OutsideThread, firstLine } from "../app/src/desk/outside-card.tsx";
 
 /** A mail drawn as its sender wrote it, in a frame where nothing runs, its links opened in the browser. */
 
@@ -73,22 +73,67 @@ const FACTS: OutsideFacts = {
 };
 
 describe("the card", () => {
-  test("a mail with HTML is drawn in a frame that runs no script; a plain one keeps its text, links made", () => {
+  test("a mail with HTML is drawn in a frame that runs no script", () => {
     const html = renderToStaticMarkup(
       createElement(OutsideThread, {
         facts: FACTS,
         state: {
           kind: "read",
           messages: [
-            { id: "m1", sender: "DOBIGCLOUD", at: "", text: "Bill", mine: false, html: "<p>Bill</p>" },
-            { id: "m2", sender: "Ada", at: "", text: "See https://x.test", mine: true },
+            { id: "m1", sender: "Ada", at: "", text: "See https://x.test", mine: true },
+            { id: "m2", sender: "DOBIGCLOUD", at: "", text: "Bill", mine: false, html: "<p>Bill</p>" },
           ],
         },
       }),
     );
     expect(html).toContain("<iframe");
-    expect(html).toContain('sandbox="allow-same-origin"');
+    // Popups only so the Mac's webview can hand a clicked link to the shell, which sends it to the browser.
+    expect(html).toContain('sandbox="allow-same-origin allow-popups"');
     expect(html).not.toContain("allow-scripts");
+  });
+
+  test("a mail before the newest is folded to one line, so a bill sent three times draws once", () => {
+    const bill = { sender: "DOBIGCLOUD", at: "", text: "\n  Your bill is ready\nAmount 6490.0 INR", mine: false, html: "<p>Bill</p>" };
+    const html = renderToStaticMarkup(
+      createElement(OutsideThread, {
+        facts: FACTS,
+        state: {
+          kind: "read",
+          messages: [
+            { id: "m1", ...bill },
+            { id: "m2", ...bill },
+            { id: "m3", ...bill },
+          ],
+        },
+      }),
+    );
+    expect(html.match(/<iframe/g)).toHaveLength(1);
+    expect(html.match(/class="loki-mail-fold"/g)).toHaveLength(2);
+    expect(html).toContain("Your bill is ready");
+  });
+
+  test("a Slack thread is never folded: every message shows, its addresses made links", () => {
+    const html = renderToStaticMarkup(
+      createElement(OutsideThread, {
+        facts: { ...FACTS, provider: "slack" },
+        state: {
+          kind: "read",
+          messages: [
+            { id: "1", sender: "Ada", at: "", text: "one", mine: false },
+            { id: "2", sender: "Ada", at: "", text: "two, see https://x.test", mine: false },
+          ],
+        },
+      }),
+    );
+    expect(html).not.toContain("loki-mail-fold");
+    expect(html).toContain("one");
     expect(html).toContain('href="https://x.test">https://x.test</a>');
+  });
+});
+
+describe("a folded mail's line", () => {
+  test("is the first line with words in it", () => {
+    expect(firstLine("\n \n  Hello there \nmore")).toBe("Hello there");
+    expect(firstLine("")).toBe("");
   });
 });

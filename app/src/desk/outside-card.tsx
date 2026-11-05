@@ -103,23 +103,51 @@ export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource
 }
 
 /** One message: who wrote it (or "you"), when, and the mail as its sender drew it, else its text with links that open. */
-function MessageRow({ m, touch }: { m: OutsideMessage; touch: boolean }) {
+/**
+ * One message of the thread. A mail before the newest starts folded to its sender, time and first line, as a mail
+ * client shows a thread, so a run of near-identical mails (a bill sent again) does not draw the same page three times;
+ * a press opens it.
+ */
+function MessageRow({ m, touch, folded }: { m: OutsideMessage; touch: boolean; folded: boolean }) {
+  const [open, setOpen] = useState(!folded);
+  const size = touch ? "var(--phone-text-body)" : 13.5;
+  const who = (
+    <span style={{ fontSize: size, fontWeight: 600, color: m.mine ? "var(--loki-positive)" : undefined }}>{m.mine ? "you" : senderName(m.sender)}</span>
+  );
+  if (!open)
+    return (
+      <button type="button" className="loki-mail-fold" onClick={() => setOpen(true)} aria-expanded={false}>
+        {who}
+        {m.at && <Meta>{ago(m.at)}</Meta>}
+        <span className="loki-mail-fold-line" style={{ fontSize: size }}>
+          {firstLine(m.text)}
+        </span>
+      </button>
+    );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-        <span style={{ fontSize: touch ? "var(--phone-text-body)" : 13.5, fontWeight: 600, color: m.mine ? "var(--loki-positive)" : undefined }}>
-          {m.mine ? "you" : senderName(m.sender)}
-        </span>
+        {who}
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
       {m.html ? (
         <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
       ) : (
-        <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+        <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: size }}>
           <LinkedText text={m.text} />
         </p>
       )}
     </div>
+  );
+}
+
+/** A message's first line with words in it, for a folded mail. */
+export function firstLine(text: string): string {
+  return (
+    text
+      .split("\n")
+      .find((l) => l.trim() !== "")
+      ?.trim() ?? ""
   );
 }
 
@@ -145,8 +173,8 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
     );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
-      {state.messages.map((m) => (
-        <MessageRow key={m.id} m={m} touch={touch} />
+      {state.messages.map((m, i) => (
+        <MessageRow key={m.id} m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
       ))}
       <div ref={end} />
     </div>
