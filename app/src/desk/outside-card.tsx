@@ -164,9 +164,12 @@ export function OutsideReply({
   onTyping,
   onEscapeEmpty,
   touch = false,
+  actions = null,
 }: {
   facts: OutsideFacts;
   onSend: (text: string) => Promise<string | null>;
+  /** The card's other moves, drawn on the row after send, so the card has one bar of buttons. */
+  actions?: ReactNode;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   onTyping?: (typing: boolean) => void;
   onEscapeEmpty?: () => void;
@@ -223,17 +226,18 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : keyFor("chat.send")}
+          title="send it as you, then archive the card"
         >
           {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
         </Button>
-        {error ? (
-          <Meta negative wrap>
-            {error}
-          </Meta>
-        ) : (
-          <Meta wrap>{touch ? "Sends as you, then archives the card." : "sends as you, then archives the card"}</Meta>
-        )}
+        {touch && !error && <Meta wrap>Sends as you, then archives the card.</Meta>}
+        {actions}
       </div>
+      {error && (
+        <Meta negative wrap>
+          {error}
+        </Meta>
+      )}
     </div>
   );
 }
@@ -280,6 +284,37 @@ export function OutsideCard({
 }) {
   const badge = current.unread ? "new" : "";
   const thread = useOutsideThread(current, source);
+  // Hand off, archive and next share the reply's row, so the card has one bar of buttons.
+  const moves = (
+    <>
+      {onHandoff && (
+        <Button
+          size="sm"
+          onClick={onHandoff}
+          disabled={!!facts.disconnected || !!picker}
+          title={
+            facts.disconnected
+              ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+              : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
+          }
+        >
+          hand off
+        </Button>
+      )}
+      <Button
+        size="sm"
+        onClick={archive}
+        title={`done with this thread: it leaves the Inbox and is ${facts.provider === "gmail" ? "archived in Gmail" : "marked read in Slack"}`}
+        kbd={deckKey("inbox.archive", typing)}
+      >
+        archive
+      </Button>
+      <span style={{ flex: 1 }} />
+      <Button size="sm" tone="paper" onClick={next} title="set it aside: the thread stays for your next visit" kbd={deckKey("inbox.next", typing)}>
+        next →
+      </Button>
+    </>
+  );
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div
@@ -313,44 +348,19 @@ export function OutsideCard({
         <OutsideThread facts={facts} state={thread} />
       </div>
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
-      {source && (
-        <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
+      <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
+        {source ? (
           <OutsideReply
             facts={facts}
             onSend={(text) => source.replyOutside(current, text)}
             inputRef={replyRef}
             onTyping={onTyping}
             onEscapeEmpty={onEscapeEmpty}
+            actions={moves}
           />
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
-        {onHandoff && (
-          <Button
-            size="sm"
-            onClick={onHandoff}
-            disabled={!!facts.disconnected || !!picker}
-            title={
-              facts.disconnected
-                ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
-                : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
-            }
-          >
-            hand off
-          </Button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{moves}</div>
         )}
-        <Button
-          size="sm"
-          onClick={archive}
-          title={`done with this thread: it leaves the Inbox and is ${facts.provider === "gmail" ? "archived in Gmail" : "marked read in Slack"}`}
-          kbd={deckKey("inbox.archive", typing)}
-        >
-          archive
-        </Button>
-        <span style={{ flex: 1 }} />
-        <Button size="sm" tone="paper" onClick={next} title="set it aside: the thread stays for your next visit" kbd={deckKey("inbox.next", typing)}>
-          next →
-        </Button>
       </div>
     </div>
   );
