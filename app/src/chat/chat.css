@@ -1578,3 +1578,18 @@ button.loki-label-chip:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* A mail drawn as its sender wrote it (desk/mail-html.tsx): a light page in the card, as tall as its content. */
+.loki-mail-html {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--loki-radius-md);
+  color-scheme: light;
+}
+/* A web address in a plain mail or a Slack message, made a link that opens in the browser. */
+.loki-mail-link {
+  color: var(--loki-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

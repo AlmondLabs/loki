@@ -55,6 +55,7 @@ export class OutsideThreads {
       at: m.at,
       text: account.provider === "gmail" ? withoutQuoted(m.text) : m.text,
       mine: m.mine === true,
+      ...(account.provider === "gmail" && m.html ? { html: m.html } : {}),
     }));
   }
 

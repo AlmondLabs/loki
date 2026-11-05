@@ -432,8 +432,15 @@ describe("reading a whole thread for a hand-off", () => {
     const asked: string[] = [];
     const read = gmailThreadText((accountId) => ({ getThread: (id, format) => (asked.push(`${accountId} ${id} ${format}`), Promise.resolve(thread)) }));
     expect(await read(GMAIL, "t1")).toEqual([
-      { sender: "Grace <grace@navy.mil>", id: "m1", mine: false, at: "2026-11-04T08:00:00.000Z", text: "Can you send the Q3 numbers?" },
-      { sender: "ada@acme.com", id: "m2", mine: true, at: "2026-11-04T08:30:00.000Z", text: "Thanks & regards\n\nAda" },
+      { sender: "Grace <grace@navy.mil>", id: "m1", mine: false, at: "2026-11-04T08:00:00.000Z", text: "Can you send the Q3 numbers?", html: "<p>ignored</p>" },
+      {
+        sender: "ada@acme.com",
+        id: "m2",
+        mine: true,
+        at: "2026-11-04T08:30:00.000Z",
+        text: "Thanks & regards\n\nAda",
+        html: "<div>Thanks &amp; regards</div><br>Ada",
+      },
     ]);
     expect(asked).toEqual([`${GMAIL} t1 full`]);
   });

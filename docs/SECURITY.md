@@ -192,6 +192,11 @@ yourself.
   `account_search`), which only the owner's chats are offered and which check ownership on every call. Either way the
   text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
   tags made inert. The Inbox card itself is drawn in the app and goes to no model.
+- **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts, forms or
+  popups and its own policy allowing only images, styles and fonts (`app/src/desk/mail-html.tsx`); scripts, frames,
+  objects, base and refresh tags are also removed before it is drawn. Remote images load, so a sender can tell the
+  mail was opened and from which address, as in Gmail. A link opens in your browser, and only `http`, `https` and
+  `mailto` links open. The HTML goes to no model: agents read the mail's text.
 - **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,
   `state/account-threads/`) and the ledger of your moves on outside cards (`state/inbox-ledger.jsonl`, plan 069:
   sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or

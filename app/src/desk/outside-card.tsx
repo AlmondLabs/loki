@@ -6,6 +6,7 @@ import { Button, Chip, Meta, TextArea, Title } from "../components";
 import { KEYMAP, chordIds, cmdHeld, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { ago, deckKey } from "./catch-up-parts";
+import { LinkedText, MailHtml } from "./mail-html";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -101,7 +102,7 @@ export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource
   return state;
 }
 
-/** One message: who wrote it (or "you"), when, and its text. */
+/** One message: who wrote it (or "you"), when, and the mail as its sender drew it, else its text with links that open. */
 function MessageRow({ m, touch }: { m: OutsideMessage; touch: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -111,7 +112,13 @@ function MessageRow({ m, touch }: { m: OutsideMessage; touch: boolean }) {
         </span>
         {m.at && <Meta>{ago(m.at)}</Meta>}
       </div>
-      <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>{m.text}</p>
+      {m.html ? (
+        <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
+      ) : (
+        <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+          <LinkedText text={m.text} />
+        </p>
+      )}
     </div>
   );
 }

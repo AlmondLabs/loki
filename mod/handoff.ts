@@ -32,7 +32,15 @@ export interface ThreadMessage {
   mine?: boolean;
   /** The message's own id in its service (Gmail's id, Slack's ts), so the card can key it; absent when unknown. */
   id?: string;
+  /**
+   * A mail's HTML part as its sender wrote it, for the person's own card to draw (it never goes to a model); absent for
+   * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.
+   */
+  html?: string;
 }
+
+/** The largest HTML part, in characters, the card is given to draw; a larger one is shown as its text. */
+export const MAIL_HTML_MAX = 512 * 1024;
 
 /** A chat as the lists know it (this Mac's and the paired Macs'), which a hand-off may go to. */
 export interface HandoffChat {
@@ -305,7 +313,10 @@ function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePa
   return null;
 }
 
-/** A Gmail thread's whole text, read with format full: each message's plain part, else its HTML as text, else its snippet. */
+/**
+ * A Gmail thread's whole text, read with format full: each message's plain part, else its HTML as text, else its
+ * snippet; and its HTML part as written, when it has one, for the person's card to draw.
+ */
 export function gmailThreadText(client: (accountId: string) => Pick<GmailClient, "getThread">): ThreadText {
   return async (accountId, threadId) => {
     const thread = await client(accountId).getThread(threadId, "full");
@@ -315,12 +326,14 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
       const plain = partOf(m.payload, "text/plain")?.body.data;
       const html = partOf(m.payload, "text/html")?.body.data;
       const at = Number(m.internalDate);
+      const markup = html ? decoded(html) : null;
       return {
         sender: from || "someone",
         id: m.id,
         mine: own !== "" && addressOf(from) === own,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
-        text: plain ? tidyMail(decoded(plain)) : html ? htmlToText(decoded(html)) : tidyMail(m.snippet),
+        text: plain ? tidyMail(decoded(plain)) : markup !== null ? htmlToText(markup) : tidyMail(m.snippet),
+        ...(markup !== null && markup.length <= MAIL_HTML_MAX ? { html: markup } : {}),
       };
     });
   };

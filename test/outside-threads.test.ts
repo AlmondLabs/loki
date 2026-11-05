@@ -135,6 +135,11 @@ describe("reading a card's whole thread", () => {
       { id: "at-1", sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.", mine: true },
     ]);
   });
+  test("a mail's HTML reaches the person's card as written; Slack has none", async () => {
+    const thread = [{ sender: "Bob", at: "", text: "Bill", id: "m1", html: '<p>Bill <a href="https://x.test">here</a></p>' }];
+    expect((await threads({ thread }).t.read(MAIL, "t1"))[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
+    expect((await threads({ thread }).t.read(SLACK, "D1"))[0]).not.toHaveProperty("html");
+  });
   test("an account not on this Mac is refused", async () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");
   });
