@@ -277,8 +277,11 @@ function apiBase(url: string): string {
 export class SlackClient {
   private readonly opts: SlackClientOptions;
   private current: SlackSession | null = null;
-  /** Until when Slack asked for no calls (a rate limit), in ms since the epoch. */
-  private holdUntil = 0;
+  /**
+   * Until when Slack asked for no calls of each method (a rate limit), in ms since the epoch. Slack limits each method
+   * on its own, so a busy Activity feed does not keep a thread from being read.
+   */
+  private readonly holdUntil = new Map<SlackMethod, number>();
 
   constructor(opts: SlackClientOptions) {
     this.opts = opts;
@@ -420,7 +423,7 @@ export class SlackClient {
    * desktop app, the account is marked signed out.
    */
   private async call(method: SlackMethod, params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const wait = this.holdUntil - this.now();
+    const wait = (this.holdUntil.get(method) ?? 0) - this.now();
     if (wait > 0) throw new SlackError(`Slack asked loki to wait ${Math.ceil(wait / 1000)} s`, "ratelimited", wait);
     let session = this.current ?? (await this.readSession(false));
     for (let attempt = 0; ; attempt++) {
@@ -480,11 +483,11 @@ export class SlackClient {
     throw new SlackError(`Slack ${method} failed: ${code}`, code);
   }
 
-  /** Hold calls back for as long as Slack asks; the account stays connected. */
+  /** Hold calls of this method back for as long as Slack asks; the account stays connected. */
   private rateLimited(method: SlackMethod, retryAfter: string | null): never {
     const seconds = Number(retryAfter);
     const wait = retryAfter !== null && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RETRY_MS;
-    this.holdUntil = this.now() + wait;
+    this.holdUntil.set(method, this.now() + wait);
     log("slack:rate-limited", { method, wait_ms: wait });
     throw new SlackError(`Slack asked loki to wait ${Math.ceil(wait / 1000)} s`, "ratelimited", wait);
   }

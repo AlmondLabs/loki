@@ -7,7 +7,7 @@ import type { GmailClient } from "./gmail.ts";
 import type { ThreadText } from "./handoff.ts";
 import { log } from "./log.ts";
 import { headerOf, replyAllOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
-import type { SlackClient } from "./slack.ts";
+import { SlackError, type SlackClient } from "./slack.ts";
 
 /**
  * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
@@ -31,7 +31,15 @@ export interface OutsideThreadsOptions {
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
   clientFor: (account: AccountRecord) => SendClient;
+  /** Waiting out a rate limit before reading again; a timer when not given. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/**
+ * The longest rate-limit wait a thread read sits out before trying once more, the card showing it is still reading.
+ * A longer wait is reported, so the card says why it shows only its last lines.
+ */
+const READ_WAIT_MAX_MS = 30_000;
 
 /** The longest reply loki sends: well under Gmail's and Slack's own limits, and far past anything typed on a card. */
 const MAX_REPLY = 30_000;
@@ -47,7 +55,13 @@ export class OutsideThreads {
   /** The whole thread as the card draws it: every message with its sender and time, and mail without the quoted thread under it. */
   async read(accountId: string, threadId: string): Promise<OutsideMessage[]> {
     const account = this.need(accountId);
-    const messages = await this.opts.threadText[account.provider](accountId, threadId);
+    const readThread = () => this.opts.threadText[account.provider](accountId, threadId);
+    const messages = await readThread().catch(async (err: unknown) => {
+      const wait = err instanceof SlackError && err.code === "ratelimited" ? err.retryAfterMs : null;
+      if (wait === null || wait > READ_WAIT_MAX_MS) throw err;
+      await (this.opts.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms))))(wait);
+      return readThread();
+    });
     // A reader that gives no id leaves the message's place in the thread, which is stable since a thread is read whole.
     return messages.map((m, i) => ({
       id: m.id ?? `at-${i}`,

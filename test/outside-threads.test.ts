@@ -14,7 +14,7 @@ import { accountFrames } from "../mod/frames/accounts.ts";
 import type { GmailDraftInput, GmailMessage } from "../mod/gmail.ts";
 import type { ThreadMessage } from "../mod/handoff.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
-import type { SlackDraftInput } from "../mod/slack.ts";
+import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
@@ -142,6 +142,46 @@ describe("reading a card's whole thread", () => {
   });
   test("an account not on this Mac is refused", async () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");
+  });
+
+  /** A Slack thread that Slack refuses once with the given wait, then reads; and every wait the reader sat out. */
+  const limitedOnce = (waitMs: number) => {
+    const waits: number[] = [];
+    let calls = 0;
+    const t = new OutsideThreads({
+      accounts: { get: (id) => (id === SLACK ? account(SLACK) : null) },
+      threads: {
+        archive: () => Promise.resolve(null),
+        markRead: () => Promise.resolve(null),
+        markUnread: () => Promise.resolve(null),
+        markWaiting: () => true,
+      },
+      threadText: {
+        gmail: () => Promise.resolve([]),
+        slack: () =>
+          calls++ === 0
+            ? Promise.reject(new SlackError(`Slack asked loki to wait ${String(waitMs / 1000)} s`, "ratelimited", waitMs))
+            : Promise.resolve([{ sender: "Grace", at: "", text: "anyone with crm access?", id: "1" }]),
+      },
+      clientFor: () => ({ provider: "slack", client: { postReply: () => Promise.resolve({ ts: "1" }) } }),
+      sleep: (ms) => {
+        waits.push(ms);
+        return Promise.resolve();
+      },
+    });
+    return { t, waits };
+  };
+
+  test("a short Slack rate limit is sat out and the thread read once more, so the card shows it", async () => {
+    const { t, waits } = limitedOnce(19_000);
+    expect((await t.read(SLACK, "C1:1.0")).map((m) => m.text)).toEqual(["anyone with crm access?"]);
+    expect(waits).toEqual([19_000]);
+  });
+
+  test("a long one is reported, so the card says why it shows only its last lines", async () => {
+    const { t, waits } = limitedOnce(60_000);
+    await expect(t.read(SLACK, "C1:1.0")).rejects.toThrow("wait 60 s");
+    expect(waits).toEqual([]);
   });
 });
 

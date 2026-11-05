@@ -897,7 +897,10 @@ or messages to decide.
    read from the message's headers and labels, and keeps that beside what you do with it (below).
 2. Slack: a DM or group DM with unread messages, and each unread Activity item: an @mention of you, a reply in a
    thread you are in, an @channel or @here, and a mention of a user group you belong to. Mentions and replies inside
-   threads arrive as Slack's Activity lists them; loki does not search for them.
+   threads arrive as Slack's Activity lists them; loki does not search for them. Slack allows few reads of Activity a
+   minute, so each minute loki reads only its newest page and walks the whole list every 15 minutes: an item read in
+   Slack leaves its card within 15 minutes, and a long list is walked a few pages at a time when Slack asks loki to
+   wait. Opening a card while Slack asks loki to wait half a minute or less shows the thread once the wait is over.
 
 A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
 a thread you archived, as does moving an archived thread back to the inbox in Gmail. A message you wrote yourself

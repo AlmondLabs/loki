@@ -129,6 +129,19 @@ describe("a rate limit", () => {
     expect(sent).toHaveLength(2);
     expect(statuses).toEqual([]);
   });
+
+  test("holds back only the method Slack refused, so a busy Activity feed does not stop a thread being read", async () => {
+    const { c, sent } = client((method) =>
+      method === "activity.feed"
+        ? { status: 429, headers: { "retry-after": "30" }, body: { ok: false, error: "ratelimited" } }
+        : { body: { ok: true, messages: [], has_more: false } },
+    );
+    await expect(c.activityFeed({ unreadOnly: true, types: ["at_user"], limit: 50 })).rejects.toMatchObject({ code: "ratelimited" });
+    await c.conversationsReplies({ channel: "C1", ts: "1.0" });
+    expect(sent.map((s) => s.url.slice(s.url.lastIndexOf("/") + 1))).toEqual(["activity.feed", "conversations.replies"]);
+    await expect(c.activityFeed({ unreadOnly: true, types: ["at_user"], limit: 50 })).rejects.toMatchObject({ code: "ratelimited" });
+    expect(sent).toHaveLength(2);
+  });
 });
 
 describe("marking a DM read", () => {
