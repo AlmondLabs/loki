@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Inbox, useDeck } from "../../app/src/phone/inbox";
+import { Inbox, useDeck, type InboxMoves } from "../../app/src/phone/inbox";
+import type { MoveResult } from "../../core/attention/use-attention.ts";
 import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
 import "../../app/src/phone/phone.css";
 import { DEMO_AGENTS, DemoChats } from "./demo-chats";
@@ -13,7 +14,7 @@ const MIN_SCALE = 0.62;
 
 /**
  * The phone section's live demo: loki's own phone Inbox, in a phone's outline, over its own copy of the made-up
- * chats. Swipe a card right for next and left to archive, or use its buttons; replies and answers stream back as on
+ * chats. Swipe a card right to read and left for later, or use its buttons; replies and answers stream back as on
  * the desktop's deck. The outline is transformed, so the phone's fixed layers stay inside it instead of the page.
  */
 export function PhoneDemo() {
@@ -29,6 +30,25 @@ export function PhoneDemo() {
     listed: true,
     agentsLoaded: true,
     suggestions: { decide: chats.decideSuggestion, retarget: chats.retargetSuggestion },
+  };
+  // The made-up chats' moves: Read marks a chat read, Later leaves it for this visit, Archive archives, and Undo takes
+  // back whichever it was. Nothing rests and nothing is out there, so Later never asks and there are no labels.
+  const [taken] = useState(() => new Map<string, "read" | "later" | "archive">());
+  const moved: MoveResult = { error: null, ask: false, rest: null };
+  const moves: InboxMoves = {
+    read: (item) => (chats.seen(item.id), taken.set(item.id, "read"), Promise.resolve(moved)),
+    later: (item) => (taken.set(item.id, "later"), Promise.resolve(moved)),
+    archive: (item) => (chats.archive(item.id), taken.set(item.id, "archive"), Promise.resolve(null)),
+    undo: (item) => {
+      const was = taken.get(item.id);
+      if (was === "read") chats.unread(item.id);
+      if (was === "archive") chats.unarchive(item.id);
+      taken.delete(item.id);
+      return Promise.resolve(null);
+    },
+    laterAsks: () => false,
+    label: () => Promise.resolve("the demo has no labels"),
+    labelsOf: () => Promise.resolve([]),
   };
   const startOver = () => {
     chats.reset();
@@ -75,9 +95,8 @@ export function PhoneDemo() {
             onOpen={() => {}}
             onConnection={() => {}}
             onApprove={(item, _requestId, behavior) => chats.decide(item.id, behavior !== "deny")}
-            onSeen={(item) => chats.seen(item.id)}
-            onArchive={(item) => chats.archive(item.id)}
-            onUndo={(item, via) => (via === "seen" ? chats.unread(item.id) : chats.unarchive(item.id))}
+            moves={moves}
+            onNote={() => {}}
             card={{
               onSend: (item, text) => chats.reply(item.id, text),
               onAnswer: (item, _requestId, answers) => chats.answer(item.id, answers),

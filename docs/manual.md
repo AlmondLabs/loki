@@ -311,14 +311,20 @@ Search button beside them:
    you like, and the folder, from the folders that agent has worked in on the Mac (its most recent to begin with,
    the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
-   time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
-   **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
-   a chat with nothing new rests a while, longer each time (see "The order"), and once only resting chats are left
-   the Inbox says how many and offers **Go through them**. Open chat opens the conversation full screen, whose actions sheet has
-   **Change folder** and **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
-   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
-   been past every chat it says "You've been through every chat", how many still need you, and **Go through
-   again**.
+   time. The card is the conversation: read the thread, reply, attach an image, answer a question; its head opens
+   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way. Swipe right
+   (or **Read**) to mark it read, in Gmail or Slack too: a chat or an email rests a while, longer each time (see
+   "The order"), and a Slack message is done. Swipe left (or **Later**) to leave it unread and have it back in a day;
+   the second Later in a row asks when, in a sheet: later today, tomorrow, in 3 days, next week or a date of your
+   own, and closing the sheet leaves the card where it was. **Archive** is a button only (a main chat has none). An
+   email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
+   or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
+   back, so nothing goes by accident. Once only resting cards are left the Inbox says how many and offers **Go
+   through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
+   refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
+   in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
+   need you" (or "n chats" when nothing does). Once you have been past every chat it says "You've been through every
+   chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
 4. **More**: the paired Mac, then Agents, Learn, Archived chats, Preferences (appearance) and Usage (what the agents

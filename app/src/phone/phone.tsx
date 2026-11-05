@@ -702,12 +702,9 @@ function Screen({
           catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", "tap"),
           catchUp.approve(item, requestId, behavior)
         )}
-        onSeen={(item, how) => (catchUp.decided(item, "next", how), catchUp.seen(item))}
         onShown={catchUp.shown}
-        onArchive={(item) => void catchUp.archive(item, "tap").then((err) => err && setCardNote(`Archive: ${err}`))}
-        onUndo={(item, via) =>
-          via === "seen" ? (catchUp.undone(item, "next"), catchUp.unread(item)) : void catchUp.unarchive(item).then((err) => err && setCardNote(`Undo: ${err}`))
-        }
+        moves={catchUp}
+        onNote={setCardNote}
       />
       {tab === "agents" && (
         <Agents

@@ -29,8 +29,18 @@ import {
   toFront,
   undoCard,
   visibleQueue,
+  UNDO_MS,
+  dateChoice,
+  makeMove,
+  returnChoices,
+  undoMove,
 } from "../app/src/phone/deck.ts";
 import { dayLabel, unreadBoundary } from "../app/src/shared/thread.ts";
+import { createCardMoves, type CardMovesHost } from "../core/attention/use-attention.ts";
+import { keyOf } from "../core/attention/model.ts";
+import { RETURN_TIMES_DEFAULT, type Rest } from "../core/attention/rest.ts";
+import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 
 /**
  * The phone deck's pure half (app/src/phone/deck.ts): when a drag commits and which way, how the
@@ -67,11 +77,19 @@ const plain = { approval: false };
 const approval = { approval: true };
 
 describe("swipe decision", () => {
-  test("past 40 % of the width, right is seen (Next); a left swipe never commits: archiving has its button alone", () => {
+  test("past 40 % of the width, right is seen (read) and left is later, on every card; archiving has its button alone", () => {
     expect(swipeDecision(W * COMMIT_FRACTION, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBeNull();
+    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBe("later");
     expect(swipeDecision(200, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W, W, 0, plain)).toBeNull();
+    expect(swipeDecision(-W, W, 0, plain)).toBe("later");
+  });
+  test("a left swipe short of the distance springs back", () => {
+    expect(swipeDecision(-(W * COMMIT_FRACTION - 1), W, 0, plain)).toBeNull();
+    expect(swipeDecision(-60, W, 0, plain)).toBeNull();
+  });
+  test("with text in the reply box, a swipe either way springs back, so nothing is sent", () => {
+    expect(swipeDecision(W, W, 3, { approval: false, typed: true })).toBeNull();
+    expect(swipeDecision(-W, W, -3, { approval: false, typed: true })).toBeNull();
   });
   test("short of the distance and slow: springs back", () => {
     expect(swipeDecision(W * COMMIT_FRACTION - 1, W, 0, plain)).toBeNull();
@@ -81,7 +99,8 @@ describe("swipe decision", () => {
   });
   test("a fast flick commits short of the distance, in the drag's own direction", () => {
     expect(swipeDecision(40, W, 0.6, plain)).toBe("seen");
-    expect(swipeDecision(-40, W, -0.6, plain)).toBeNull();
+    expect(swipeDecision(-40, W, -0.6, plain)).toBe("later");
+    expect(swipeDecision(-40, W, 1.5, plain)).toBeNull();
     // fast but the other way (a flick back toward rest): no
     expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
     // a flick that never cleared the slop is a twitch
@@ -154,13 +173,14 @@ describe("pass summary", () => {
     expect(summaryLine(s)).toBe("");
     s = tally(s, "seen");
     s = tally(s, "seen");
+    s = tally(s, "later");
     s = tally(s, "archive");
-    s = tally(s, "approve");
-    expect(s).toEqual({ seen: 2, archived: 1, approved: 1, denied: 0 });
-    expect(summaryLine(s)).toBe("2 moved past · 1 archived · 1 approved");
+    expect(s).toEqual({ seen: 2, later: 1, archived: 1, approved: 0, denied: 0 });
+    expect(summaryLine(s)).toBe("2 read · 1 later · 1 archived");
     expect(passTotal(s)).toBe(4);
+    s = tally(s, "approve");
     s = tally(s, "deny");
-    expect(summaryLine(s)).toBe("2 moved past · 1 archived · 1 approved · 1 denied");
+    expect(summaryLine(s)).toBe("2 read · 1 later · 1 archived · 1 approved · 1 denied");
   });
   test("undo takes one back and never goes below zero", () => {
     let s = tally(EMPTY_PASS, "seen");
@@ -257,10 +277,12 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
     s = undoCard(s, b, "archive");
     expect(deckQueue([a, b, c], s)[0].id).toBe("b");
   });
-  test("an approval refuses Next and Archive: the state does not move", () => {
+  test("an approval refuses Read, Later and Archive: the state does not move", () => {
     const s = EMPTY_DECK;
     expect(canCommit(ask, "archive")).toBe(false);
     expect(canCommit(ask, "seen")).toBe(false);
+    expect(canCommit(ask, "later")).toBe(false);
+    expect(commitCard(s, ask, "later")).toBe(s);
     expect(commitCard(s, ask, "archive")).toBe(s);
     expect(commitCard(s, ask, "seen")).toBe(s);
     expect(deckQueue([ask], s).map((i) => i.id)).toEqual(["q"]);
@@ -352,9 +374,124 @@ describe("what the card says", () => {
     expect(cardNotice({ status: "done", agent_name: "friday" }, "streaming")).toBe("friday is writing");
   });
   test("screen readers hear the outcome and the next card", () => {
-    expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Moved on. Next: Fix the shell.");
+    expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Marked read. Next: Fix the shell.");
+    expect(reviewAnnouncement("later", { id: "b", title: "Fix the shell" }, 2)).toBe("Saved for later. Next: Fix the shell.");
     expect(reviewAnnouncement("archive", { id: "b", title: null }, 1)).toBe("Archived. Next: b.");
     expect(reviewAnnouncement("approve", undefined, 0)).toBe("Approved. You've been through every chat.");
     expect(reviewAnnouncement("deny", { id: "b", title: "b" }, 0)).toBe("Denied. You've been through every chat.");
+  });
+});
+
+/** A fake host for the real card moves (core/attention/use-attention.ts): the write-backs out there, seen marks and rests. */
+function movesHost(refuse: string | null = null) {
+  const rests: Record<string, Rest> = {};
+  const marks: string[] = [];
+  const calls: string[] = [];
+  const change = (move: OutsideWrite): OutsideChange => ({
+    move,
+    messages: [{ message_id: "m1", labels_added: [], labels_removed: [] }],
+    ended: false,
+    was_unread: true,
+  });
+  const write = (move: OutsideWrite) => (card: { id: string }) => {
+    if (refuse) return Promise.resolve({ change: null, error: refuse });
+    calls.push(`${move} ${card.id}`);
+    return Promise.resolve({ change: change(move), error: null });
+  };
+  const h: CardMovesHost = {
+    store: {
+      markReadOutside: write("read"),
+      markUnreadOutside: write("unread"),
+      archiveOutside: write("archive"),
+      labelOutside: write("label"),
+      restoreOutside: (card, c) => (calls.push(`restore ${card.id} ${c.move}`), Promise.resolve(null)),
+      archiveConversation: (id, archived) => (calls.push(`${archived ? "archive" : "unarchive"} chat ${id}`), Promise.resolve(null)),
+    },
+    rests: () => rests,
+    rest: (agentId, conversationId, rest) => {
+      rests[keyOf(agentId, conversationId)] = rest;
+    },
+    markSeen: (_agentId, conversationId) => void marks.push(`seen ${conversationId}`),
+    unmarkSeen: (_agentId, conversationId) => void marks.push(`unseen ${conversationId}`),
+    returnTimes: () => RETURN_TIMES_DEFAULT,
+    now: () => Date.parse("2026-11-05T12:00:00Z"),
+    report: () => {},
+    reportUndone: () => {},
+  };
+  return { moves: createCardMoves(h), rests, marks, calls };
+}
+
+describe("the phone's moves (plan 070, U8)", () => {
+  const mail = outsideItem("Quarterly numbers");
+
+  test("a right swipe on an email card marks it read out there, through the read move", async () => {
+    const t = movesHost();
+    const way = swipeDecision(W, W, 0, plain);
+    expect(way).toBe("seen");
+    if (!way) return;
+    expect(await makeMove(t.moves, mail, way, "swipe")).toEqual({ error: null, ask: false });
+    expect(t.calls).toEqual(["read t1#1"]);
+    expect(t.marks).toEqual(["seen t1#1"]);
+  });
+
+  test("a left swipe leaves it unread out there and rests it until it comes back", async () => {
+    const t = movesHost();
+    expect(await makeMove(t.moves, mail, "later", "swipe")).toEqual({ error: null, ask: false });
+    expect(t.calls).toEqual(["unread t1#1"]);
+    expect(Object.values(t.rests).map((r) => r.kind)).toEqual(["later"]);
+  });
+
+  test("undo within six seconds of a later swipe brings the card back on top, unread", async () => {
+    const t = movesHost();
+    const [a, b] = [mail, item("b")];
+    let s = commitCard(EMPTY_DECK, a, "later");
+    expect(deckQueue([a, b], s).map((i) => i.id)).toEqual(["b"]);
+    expect(s.pass.later).toBe(1);
+    await makeMove(t.moves, a, "later", "swipe");
+    expect(UNDO_MS).toBe(6000);
+    expect(await undoMove(t.moves, a)).toBeNull();
+    s = undoCard(s, a, "later");
+    expect(deckQueue([b, a], s).map((i) => i.id)).toEqual(["t1#1", "b"]);
+    expect(s.pass.later).toBe(0);
+    // The thread is put back as it was, and loki never marked it seen: it is still unread.
+    expect(t.calls).toEqual(["unread t1#1", "restore t1#1 unread"]);
+    expect(t.marks).toEqual([]);
+  });
+
+  test("a failed move says why, in the phone's words", async () => {
+    const t = movesHost("Gmail refused");
+    expect(await makeMove(t.moves, mail, "seen", "tap")).toEqual({ error: "Not marked read: Gmail refused", ask: false });
+    expect(await makeMove(t.moves, mail, "later", "tap")).toEqual({ error: "Not saved for later: Gmail refused", ask: false });
+    expect(await makeMove(t.moves, mail, "archive", "tap")).toEqual({ error: "Not archived: Gmail refused", ask: false });
+  });
+
+  test("an undo after a hand-off says it was handed off; any other refusal says why", async () => {
+    const t = movesHost();
+    expect(await undoMove({ ...t.moves, undo: () => Promise.resolve("handed off") }, mail)).toBe("Handed off, not undone");
+    expect(await undoMove({ ...t.moves, undo: () => Promise.resolve("Gmail refused") }, mail)).toBe("Not undone: Gmail refused");
+  });
+});
+
+describe("when a card put off comes back (R7)", () => {
+  // Thursday 5 November 2026, at noon where the test runs: the choices are counted in local days.
+  const now = new Date(2026, 10, 5, 12, 0);
+  const at = (d: number, h: number) => new Date(2026, 10, d, h, 0).toISOString();
+
+  test("later today, tomorrow morning, in 3 days, next Monday morning", () => {
+    expect(returnChoices(now)).toEqual([
+      { label: "Later today", until: at(5, 15) },
+      { label: "Tomorrow", until: at(6, 8) },
+      { label: "In 3 days", until: at(8, 8) },
+      { label: "Next week", until: at(9, 8) },
+    ]);
+  });
+  test("late in the evening there is no later today", () => {
+    expect(returnChoices(new Date(2026, 10, 5, 22, 0)).map((c) => c.label)).toEqual(["Tomorrow", "In 3 days", "Next week"]);
+  });
+  test("a picked date comes back that morning; today, a past day or nonsense is no pick", () => {
+    expect(dateChoice("2026-11-20", now)).toBe(at(20, 8));
+    expect(dateChoice("2026-11-05", now)).toBeNull();
+    expect(dateChoice("2026-11-01", now)).toBeNull();
+    expect(dateChoice("soon", now)).toBeNull();
   });
 });
