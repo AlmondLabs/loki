@@ -279,6 +279,17 @@ describe("the thread records of an account", () => {
     expect(restored).toEqual(["t1 archive", "t1 read"]);
   });
 
+  test("a card an undo reopened is kept open until a newer message, which clears the mark", async () => {
+    const { threads } = await fixture(fakeSource({}));
+    threads.observe(MAIL, message());
+    expect(threads.get(MAIL, "t1")?.kept_open).toBe(false);
+    const archived = must(await threads.archive(MAIL, "t1"), "the archive's change");
+    await threads.restore(MAIL, "t1", archived);
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", kept_open: true });
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    expect(threads.get(MAIL, "t1")).toMatchObject({ state: "open", newest_message_id: "m2", kept_open: false });
+  });
+
   test("a write on a card that is not open writes nothing and answers null; a refused restore leaves the record", async () => {
     const { threads } = await fixture(fakeSource({ restore: () => Promise.reject(new Error("Gmail is out of reach")) }));
     threads.observe(MAIL, message());

@@ -1,10 +1,36 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
 
+/** How long a word stays on the badge. */
+export const FLASH_MS = 900;
+
 /**
- * What moves a card, and the small state those moves leave behind: the 900ms flash on the badge
+ * The badge's word (`set`), shown for FLASH_MS and then cleared. A newer word cancels the older word's clear, so a
+ * move and its rollback a moment later ("read", then "not read: why") leave the reason up for its full time. `stop`
+ * cancels the pending clear, for when the deck goes.
+ */
+export function createFlash(set: (word: string | null) => void, ms = FLASH_MS): { say: (word: string) => void; stop: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    say(word) {
+      clearTimeout(timer);
+      set(word);
+      timer = setTimeout(() => {
+        timer = undefined;
+        set(null);
+      }, ms);
+    },
+    stop() {
+      clearTimeout(timer);
+      timer = undefined;
+    },
+  };
+}
+
+/**
+ * What moves a card, and the small state those moves leave behind: the flash on the badge
  * ("read", "later", "archived", "labelled", "approved", "sent"), the count of replies this visit, which way the last
  * move went so the next card enters from that side, the picker open on the card, and an outside card's reply box,
  * which the deck holds so its keys can send it (KTD9). The moves themselves are `createDeckMoves`, the same on every
@@ -43,10 +69,10 @@ export function useDeckActions({
   const reply: ReplyBox = box.id === currentId ? box : EMPTY_REPLY;
   const picker = picking?.id === currentId ? picking.kind : null;
 
-  const say = (word: string) => {
-    setFlash(word);
-    setTimeout(() => setFlash(null), 900);
-  };
+  // One flash for the deck's life, made once from the stable setter, and its pending clear cancelled when the deck goes.
+  const [flasher] = useState(() => createFlash(setFlash));
+  useEffect(() => () => flasher.stop(), [flasher]);
+  const say = flasher.say;
   const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY }), ...patch }));
   const deck = createDeckMoves({
     current,

@@ -1,10 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SetStateAction } from "react";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { Decision } from "../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyResult } from "../core/attention/use-attention.ts";
 import type { ReplyThen } from "../core/frame-types.ts";
 import { opensChat } from "../app/src/desk/use-deck-keys.ts";
+import { FLASH_MS, createFlash } from "../app/src/desk/use-deck-actions.ts";
 import { EMPTY_REPLY, createDeckMoves, type PickerKind } from "../app/src/desk/deck-moves.ts";
 import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/return-picker.tsx";
 import { pickableLabels } from "../app/src/desk/label-picker.tsx";
@@ -231,5 +232,27 @@ describe("when a card put off twice comes back", () => {
     expect(dateChoice("2027-01-20", now)).toBeNull();
     expect(dateChoice("", now)).toBeNull();
     expect(LATER_MAX_DAYS).toBeLessThanOrEqual(31);
+  });
+});
+
+describe("the word on the badge", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  test("a second word soon after the first keeps its full time, and stopping clears nothing later", () => {
+    vi.useFakeTimers();
+    const shown: Array<string | null> = [];
+    const flash = createFlash((w) => shown.push(w));
+    flash.say("read");
+    vi.advanceTimersByTime(FLASH_MS - 100);
+    flash.say("not archived: Slack is out of reach");
+    vi.advanceTimersByTime(FLASH_MS - 1);
+    expect(shown).toEqual(["read", "not archived: Slack is out of reach"]);
+    vi.advanceTimersByTime(1);
+    expect(shown.at(-1)).toBeNull();
+    flash.say("later");
+    flash.stop();
+    vi.advanceTimersByTime(FLASH_MS * 2);
+    expect(shown.at(-1)).toBe("later");
   });
 });

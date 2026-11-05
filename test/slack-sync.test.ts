@@ -374,6 +374,24 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
     expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
     expect(slack.sent.filter((s) => s.method === "conversations.mark")).toHaveLength(marks);
   });
+
+  test("a DM read then undone stays through a tick that still sees it read, and ends at a read after a newer message", async () => {
+    const { slack, threads, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "first" });
+    await sync.tick();
+    const change = must(await threads.markRead(ACCOUNT, "D0GRACE"), "the read's change");
+    expect(slack.lastRead("D0GRACE")).toBe(at(20));
+    await threads.restore(ACCOUNT, "D0GRACE", change);
+    await sync.tick();
+    expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
+    slack.post("D0GRACE", { ts: at(40), user: "U0GRACE", text: "second" });
+    await sync.tick();
+    expect(open().map((r) => [r.thread_id, r.lines.at(-1)])).toEqual([["D0GRACE", "second"]]);
+    slack.read("D0GRACE", at(40));
+    await sync.tick();
+    expect(open()).toEqual([]);
+  });
 });
 
 describe("older unread items", () => {

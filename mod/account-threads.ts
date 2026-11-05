@@ -48,6 +48,12 @@ export interface ThreadRecord {
    * message comes. While it is set, Slack's read marker, which the person's own post moves, does not end the card.
    */
   waiting: boolean;
+  /**
+   * An undo reopened this card after its read or archive ended it (plan 070, R14). Slack keeps the DM read, since
+   * nothing there is put back, so its read marker would end the card again at the next poll; while this is set it does
+   * not. A newer message clears it, and from then on the read marker ends the card as usual.
+   */
+  kept_open: boolean;
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -139,6 +145,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     traits: parseMailTraits(r.traits),
     unread_out_there: r.unread_out_there !== false,
     waiting: r.waiting === true,
+    kept_open: r.kept_open === true,
   };
 }
 
@@ -194,6 +201,8 @@ export class AccountThreads {
       unread_out_there: unreadOutThere,
       // A newer message is the other side writing, so the person is no longer waiting on them.
       waiting: false,
+      // The undo kept the card open for the message it showed; a newer one is a card the read marker may end again.
+      kept_open: false,
     });
     this.save(accountId);
     return true;
@@ -270,8 +279,9 @@ export class AccountThreads {
 
   /**
    * Undo one move (plan 070, R14, KTD4): what the move changed out there is put back first, then the record as the move
-   * found it: a card the move ended opens again as the same card, and it shows read or unread as it did before. A
-   * label's undo leaves the record. Throws why when the account refused, and the record stays.
+   * found it: a card the move ended opens again as the same card, kept open until a newer message comes, and it shows
+   * read or unread as it did before. A label's undo leaves the record. Throws why when the account refused, and the
+   * record stays.
    */
   restore(accountId: string, threadId: string, change: OutsideChange): Promise<void> {
     return this.serial(`${accountId} ${threadId}`, async () => {
@@ -280,10 +290,12 @@ export class AccountThreads {
       await this.sourceOf(accountId, "undo").restore(accountId, r, change);
       const now = this.records(accountId).get(threadId);
       if (!now) return;
-      const state = change.ended && now.state === "archived" ? "open" : now.state;
+      const reopened = change.ended && now.state === "archived";
+      const state = reopened ? "open" : now.state;
       const unread = change.move === "label" ? now.unread_out_there : change.was_unread;
-      if (state === now.state && unread === now.unread_out_there) return;
-      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread });
+      const keptOpen = reopened || now.kept_open;
+      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open) return;
+      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread, kept_open: keptOpen });
       this.save(accountId);
     });
   }

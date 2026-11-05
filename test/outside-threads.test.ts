@@ -272,13 +272,13 @@ describe("the reply frames", () => {
       message: "Slack refused it",
     });
   });
-  test("an empty reply or one without its move is refused before it reaches the reader, and without the reader a reply says so", async () => {
+  test("an empty reply or one with a move loki does not know is refused before it reaches the reader, and without the reader a reply says so", async () => {
     const reader = { read: () => Promise.resolve([]), reply: () => Promise.reject(new Error("reached")) };
     expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "  ", then: "read" })).toMatchObject({
       type: "error",
       message: "account_id, thread_id and text required",
     });
-    expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok" })).toMatchObject({
+    expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "snooze" })).toMatchObject({
       type: "error",
       message: "then must be read, later or archive",
     });
@@ -286,6 +286,23 @@ describe("the reply frames", () => {
       type: "error",
       message: "replying is not available in this mod",
     });
+  });
+  test("a reply from an app before plan 070, which sends no move, is sent and then archived, as it was then", async () => {
+    const thens: string[] = [];
+    const send = ask({
+      read: () => Promise.resolve([]),
+      reply: (_a, _t, _text, then) => {
+        thens.push(then);
+        return Promise.resolve({ sent: true as const, then_error: null, change: { move: "archive", messages: [], ended: true, was_unread: true } });
+      },
+    });
+    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok" })).toMatchObject({
+      type: "account_thread_replied",
+      request_id: "r1",
+      sent: true,
+      change: { move: "archive", ended: true },
+    });
+    expect(thens).toEqual(["archive"]);
   });
   test("both go to the Mac the account lives on, and the phone may send them", () => {
     expect(peerMeaning("account_thread_read")).toMatchObject({ route: "home" });

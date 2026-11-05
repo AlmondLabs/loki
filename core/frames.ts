@@ -1281,11 +1281,14 @@ export const FRAMES = {
   ),
   account_thread_reply: request(
     "account_thread_replied",
-    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does; the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
         return "account_id, thread_id and text required";
-      const then = REPLY_THENS.find((t) => t === m.then);
+      // An app or Mac from before plan 070 sends no move, and its reply archived the card then, so it still does. It
+      // waits for the answer by its request_id, which the app's socket and the peer link match on, so the answer's
+      // new name (account_thread_replied, where it awaited account_thread_archived) still reaches it.
+      const then = m.then === undefined ? "archive" : REPLY_THENS.find((t) => t === m.then);
       if (!then) return "then must be read, later or archive";
       return { account_id: m.account_id, thread_id: m.thread_id, text: m.text, then, home: strOr(m.home, null) };
     },
