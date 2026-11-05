@@ -3,6 +3,7 @@ import type { OutsideChange } from "../core/frame-types.ts";
 import type { AccountThreads, ObservedMessage, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { log } from "./log.ts";
+import { slackReach } from "../core/outside-reach.ts";
 import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackClient, type SlackCount, type SlackMessage } from "./slack.ts";
 
 /**
@@ -125,8 +126,10 @@ function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
 export class SlackSync {
   private readonly opts: SlackSyncOptions;
   private readonly accountId: string;
-  /** People's names by user id, so each is asked for once. */
-  private readonly names = new Map<string, string>();
+  /** People's names and photos by user id, so each is asked for once. */
+  private readonly names = new Map<string, { name: string; image: string | null }>();
+  /** Channels' names by id, `#name`, so each is asked for once; null when Slack would not say. */
+  private readonly places = new Map<string, string | null>();
   private toldNoActivityMark = false;
   /** When the next whole walk of the Activity feed is due, in ms since the epoch: at once, at first. */
   private nextFullWalk = 0;
@@ -324,6 +327,12 @@ export class SlackSync {
       sender: await this.sender(newest),
       subject: firstLine(lines.at(-1) ?? ""),
       lines,
+      reach: slackReach(
+        c.dm !== null,
+        c.items.map((i) => i.type),
+      ),
+      place: c.dm ? null : await this.place(c.thread_id.slice(0, c.thread_id.indexOf(":"))),
+      sender_avatar: newest.user ? ((await this.person(newest.user)).image ?? null) : null,
     };
   }
 
@@ -335,12 +344,32 @@ export class SlackSync {
   }
 
   private async name(user: string): Promise<string> {
+    return (await this.person(user)).name;
+  }
+
+  /** A person's name, as Slack shows it, and photo. */
+  private async person(user: string): Promise<{ name: string; image: string | null }> {
     const known = this.names.get(user);
     if (known !== undefined) return known;
     const u = await this.opts.client.usersInfo(user);
-    const name = u.display_name || u.real_name || u.name || user;
-    this.names.set(user, name);
-    return name;
+    const person = { name: u.display_name || u.real_name || u.name || user, image: u.image || null };
+    this.names.set(user, person);
+    return person;
+  }
+
+  /**
+   * A channel's name for a card, `#name`, asked of Slack once. A channel Slack will not describe (gone, or one the
+   * person left) has none, and the card says nothing of where; that never stops the card.
+   */
+  private async place(channel: string): Promise<string | null> {
+    if (this.places.has(channel)) return this.places.get(channel) ?? null;
+    const info = await this.opts.client.conversationsInfo(channel).catch((err: unknown) => {
+      if (err instanceof SlackError && ACCOUNT_ERRORS.includes(err.code)) throw err;
+      return null;
+    });
+    const place = info?.name ? `#${info.name}` : null;
+    this.places.set(channel, place);
+    return place;
   }
 
   /** Slack's message markup as plain text: links by their label, people by name, broadcasts as @channel, entities decoded. */

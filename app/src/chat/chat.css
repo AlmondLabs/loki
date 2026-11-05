@@ -1572,6 +1572,87 @@ button.loki-label-chip:focus-visible {
   outline-offset: 2px;
 }
 /* A chat's purpose line (plan 049) under its name in the header: one quiet line, cut short when it runs long. */
+/* An Inbox card's header (plan 073): a face with the mark of where it came from, who, then where or what and when. */
+.loki-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--loki-border);
+  flex: 0 0 auto;
+}
+.loki-card-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.loki-card-head-who {
+  font-family: var(--loki-font);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--loki-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-card-head-line {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.loki-card-head-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  color: var(--loki-fg);
+}
+.loki-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.loki-card-face {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.loki-card-mark {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--loki-radius-sm);
+  border: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.loki-card-mark--slack {
+  color: var(--loki-mark-slack);
+}
+.loki-card-mark--mail {
+  color: var(--loki-mark-mail);
+}
+/* How directly a card is meant for the person: the top of the scale reads in full ink, the bottom steps back. */
+.loki-reach {
+  white-space: nowrap;
+}
+.loki-reach--direct {
+  color: var(--loki-fg);
+  font-weight: 600;
+}
+.loki-reach--quiet {
+  color: var(--loki-muted);
+}
 .loki-chat-purpose {
   margin-top: 2px;
   font-size: 12px;

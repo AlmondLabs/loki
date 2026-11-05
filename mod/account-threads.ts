@@ -1,8 +1,9 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountLabel, AccountProvider, InboxRow, OutsideChange } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
+import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
 import { keyedQueue } from "../core/serial.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import { writeJsonAtomic } from "./json-file.ts";
@@ -54,6 +55,12 @@ export interface ThreadRecord {
    * not. A newer message clears it, and from then on the read marker ends the card as usual.
    */
   kept_open: boolean;
+  /** How directly a Slack card is meant for the person (plan 073); null for mail, whose traits say it, and from before. */
+  reach: OutsideReach | null;
+  /** Where a Slack message was posted, `#channel`; null for a DM, for mail and from before. */
+  place: string | null;
+  /** The sender's Slack photo; null for mail and from before. */
+  sender_avatar: string | null;
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -72,6 +79,10 @@ export interface ObservedMessage {
   traits?: MailTraits | null;
   /** Whether the thread is unread out there (plan 070); unread when not said, as every Slack card is. */
   unread_out_there?: boolean;
+  /** Slack's facts for the card's header (plan 073); mail has none. */
+  reach?: OutsideReach | null;
+  place?: string | null;
+  sender_avatar?: string | null;
 }
 
 /**
@@ -146,6 +157,9 @@ function parseRecord(v: unknown): ThreadRecord | null {
     unread_out_there: r.unread_out_there !== false,
     waiting: r.waiting === true,
     kept_open: r.kept_open === true,
+    reach: typeof r.reach === "string" && r.reach in REACH_LEVEL ? (r.reach as OutsideReach) : null,
+    place: s("place"),
+    sender_avatar: s("sender_avatar"),
   };
 }
 
@@ -203,6 +217,9 @@ export class AccountThreads {
       waiting: false,
       // The undo kept the card open for the message it showed; a newer one is a card the read marker may end again.
       kept_open: false,
+      reach: m.reach ?? null,
+      place: m.place ?? null,
+      sender_avatar: m.sender_avatar ?? null,
     });
     this.save(accountId);
     return true;
@@ -426,6 +443,10 @@ export class AccountThreads {
         handoff_conversation_id: r.handoff_conversation_id,
         disconnected: account.status === "connected" ? null : account.status.disconnected,
         unread_out_there: r.unread_out_there,
+        reach: r.reach ?? (account.provider === "gmail" ? mailReach(r.traits) : null),
+        place: r.place,
+        sender_avatar: r.sender_avatar,
+        only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,
       },
     };
   }

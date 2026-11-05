@@ -64,6 +64,22 @@ const message = (more: Partial<ObservedMessage> = {}): ObservedMessage => ({
   ...more,
 });
 
+describe("a card's header facts (plan 073)", () => {
+  test("a mail's reach comes from its traits, and a lone mailbox is not named", async () => {
+    const { threads, accounts } = await fixture();
+    threads.observe(MAIL, message({ thread_id: "bill", traits: { to_you: true, list: false, automated: true, category: null } }));
+    threads.observe(MAIL, message({ thread_id: "ask", traits: { to_you: true, list: false, automated: false, category: null } }));
+    const reach = () =>
+      threads
+        .rows()
+        .map((r) => `${r.outside?.thread_id ?? ""} ${r.outside?.reach ?? "none"} ${String(r.outside?.only_account)}`)
+        .sort();
+    expect(reach()).toEqual(["ask to_you true", "bill automated true"]);
+    await accounts.add({ account_id: "gmail:ada@home.example", provider: "gmail", address: "ada@home.example", owner_agent_id: "agent-work" });
+    expect(reach()).toEqual(["ask to_you false", "bill automated false"]);
+  });
+});
+
 describe("the thread records of an account", () => {
   test("a thread seen for the first time is an open card keyed by account and thread, with its owner and what the card shows", async () => {
     const { threads } = await fixture();

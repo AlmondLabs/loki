@@ -2,10 +2,11 @@ import type { AccountDisconnectCause, AccountProvider, OutsideFacts, OutsideMess
 import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
-import { Button, Chip, Meta, TextArea, Title } from "../components";
+import { Button, Chip, Meta, TextArea } from "../components";
 import { KEYMAP, chordIds, cmdHeld, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { ago, deckKey } from "./catch-up-parts";
+import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
 
 /**
@@ -320,31 +321,39 @@ export function OutsideReply({
   );
 }
 
-/** The card's header: what it is about, who wrote, where and when, and the badge or the last move's flash. */
+/**
+ * The card's header (plan 073): the sender's face with the mark of Slack or mail, who wrote, then where (a Slack
+ * channel) or what (a mail's subject) and when; the tag for how directly it is meant for the person, and the badge or
+ * the last move's flash. The account is named only when more than one of its service is connected.
+ */
 function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; badge: string | null; went: string | null; cameBack: boolean }) {
+  const who = senderName(facts.sender);
+  const what = facts.provider === "gmail" ? facts.subject || "no subject" : (facts.place ?? (facts.reach === "dm" ? "direct message" : null));
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        padding: "14px 18px",
-        borderBottom: "1px solid var(--loki-border)",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{outsideTitle(facts)}</Title>
-        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexWrap: "wrap" }}>
-          {facts.provider === "gmail" && <span style={{ fontSize: 12, fontWeight: 600 }}>{senderName(facts.sender)}</span>}
-          <Meta>{outsideWho(facts)}</Meta>
+    <CardHead
+      face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={facts.provider === "gmail" ? "mail" : "slack"} />}
+      who={who}
+      whoHint={facts.sender_address ? `${who} <${facts.sender_address}>` : undefined}
+      line={
+        <>
+          {what && (
+            <span className="loki-card-head-what" title={what}>
+              {what}
+            </span>
+          )}
+          {facts.only_account !== true && <Meta>{facts.account_label}</Meta>}
           <Meta>{ago(facts.newest_at)}</Meta>
           {went && <Meta>{went}</Meta>}
           {cameBack && <Meta>back · new since you moved on</Meta>}
-        </div>
-      </div>
-      {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
-    </div>
+        </>
+      }
+      right={
+        <>
+          {facts.reach && <ReachTag reach={facts.reach} />}
+          {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
+        </>
+      }
+    />
   );
 }
 

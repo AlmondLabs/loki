@@ -162,6 +162,8 @@ export interface SlackUser {
   real_name: string;
   display_name: string;
   is_bot: boolean;
+  /** The profile photo's address, small; absent or empty when there is none. */
+  image?: string;
 }
 
 /** A draft as drafts.list returns it, with its text read out of its blocks. */
@@ -361,6 +363,7 @@ export class SlackClient {
       real_name: str(u.real_name) || str(profile.real_name),
       display_name: str(profile.display_name),
       is_bot: u.is_bot === true,
+      image: str(profile.image_72) || str(profile.image_48),
     };
   }
 

@@ -44,6 +44,9 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   unread_out_there: true,
   waiting: false,
   kept_open: false,
+  reach: null,
+  place: null,
+  sender_avatar: null,
   ...over,
 });
 

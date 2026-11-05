@@ -119,10 +119,19 @@ function fakeWorkspace() {
       }
       case "conversations.info": {
         const k = kinds.get(p.channel ?? "") ?? "channel";
-        return { ok: true, channel: { id: p.channel, is_im: k === "im", is_mpim: k === "mpim", is_channel: k === "channel" } };
+        const names: Partial<Record<string, string>> = { C0GEN: "general", C0ENG: "eng" };
+        return { ok: true, channel: { id: p.channel, name: names[p.channel ?? ""], is_im: k === "im", is_mpim: k === "mpim", is_channel: k === "channel" } };
       }
       case "users.info":
-        return { ok: true, user: { id: p.user, name: "handle", real_name: users[p.user ?? ""] ?? "", profile: { display_name: "" } } };
+        return {
+          ok: true,
+          user: {
+            id: p.user,
+            name: "handle",
+            real_name: users[p.user ?? ""] ?? "",
+            profile: { display_name: "", image_72: `https://avatars.example/${p.user ?? ""}.png` },
+          },
+        };
       case "conversations.mark":
         if (refuse.mark) return { ok: false, error: refuse.mark };
         lastRead.set(p.channel ?? "", p.ts ?? "");
@@ -291,6 +300,28 @@ describe("Activity", () => {
     expect(cards[`C0GEN:${at(10)}`]).toMatchObject({ sender: "Grace Hopper", lines: ["@Ada can you check this"] });
     expect(cards[`C0GEN:${at(20)}`]).toMatchObject({ sender: "Alan Turing", lines: ["@channel deploy at five"] });
     expect(cards[`C0ENG:${at(5)}`]).toMatchObject({ sender: "Alan Turing", newest_message_id: at(40), lines: ["my question", "answered it"] });
+  });
+
+  test("each card knows where it was posted, how directly it is meant for the person, and the sender's photo (plan 073)", async () => {
+    const { slack, sync, open, threads } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(5), user: "U0GRACE", text: "quick one" });
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.post("C0GEN", { ts: at(20), user: "U0ALAN", text: "<!channel> deploy at five" });
+    slack.post("C0ENG", { ts: at(30), user: "U0GRACE", text: "<!subteam^S0OPS> paging ops" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    slack.item({ key: "b", type: "at_channel", channel: "C0GEN", ts: at(20) });
+    slack.item({ key: "c", type: "at_user_group", channel: "C0ENG", ts: at(30) });
+    await sync.tick();
+    const cards = Object.fromEntries(open().map((r) => [r.thread_id, r]));
+    expect(cards.D0GRACE).toMatchObject({ reach: "dm", place: null, sender_avatar: "https://avatars.example/U0GRACE.png" });
+    expect(cards[`C0GEN:${at(10)}`]).toMatchObject({ reach: "mention", place: "#general" });
+    expect(cards[`C0GEN:${at(20)}`]).toMatchObject({ reach: "channel", place: "#general", sender_avatar: "https://avatars.example/U0ALAN.png" });
+    expect(cards[`C0ENG:${at(30)}`]).toMatchObject({ reach: "group", place: "#eng" });
+    // A channel's name is asked for once, however many cards it has.
+    expect(slack.sent.filter((c) => c.method === "conversations.info" && c.params.channel === "C0GEN")).toHaveLength(1);
+    const row = threads.rows().find((r) => r.outside?.thread_id === `C0GEN:${at(20)}`);
+    expect(row?.outside).toMatchObject({ reach: "channel", place: "#general", only_account: true });
   });
 
   test("an item loki cannot place is skipped, and the rest still make cards", async () => {

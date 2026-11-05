@@ -904,9 +904,17 @@ or messages to decide.
 
 A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
 a thread you archived, as does moving an archived thread back to the inbox in Gmail. A message you wrote yourself
-never counts as new, so your own reply does not bring a card back. A mail card is titled by its subject, with its sender beside the account, its service and its
-owner ("ada@acme.com · Gmail · Work"); a Slack card is titled by who wrote. It files under its owner's tab in the
-Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
+never counts as new, so your own reply does not bring a card back. Every card in the Mac's Inbox, a chat's
+too, has the same two-line header: a face (the sender's Slack photo, a mail sender's initial, a chat's agent) with a
+small `#` for Slack or an envelope for mail in its corner; who wrote on the first line; then where or what and when: a
+Slack channel ("#crm-support") or "direct message", a mail's subject, a chat's title. The workspace or mailbox is named
+only when you have more than one of that service connected. A tag at the end says **how directly the card is meant for
+you**, most direct first: **direct** (a Slack DM), **to you** (a mail with you in To or Cc), or a chat that asked you
+or needs approval, marked with the red dot; **mentioned you**; **your thread**, or a chat that finished or failed;
+**your group** (a Slack user group you are in) or **not to you** (a mail you were not addressed in); **@channel** or
+**list**, and **automated** (a mail sent by a machine), both in muted ink. A mail from a machine or a list reads as
+that even when it is addressed to you. The phone keeps its own header for now. A card files under its owner's tab in
+the Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
 first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
 each reply ("On … wrote:"). A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
