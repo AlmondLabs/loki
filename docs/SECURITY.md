@@ -188,6 +188,10 @@ yourself.
   `account_search`), which only the owner's chats are offered and which check ownership on every call. Either way the
   text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
   tags made inert. The Inbox card itself is drawn in the app and goes to no model.
+- **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,
+  `state/account-threads/`) and the ledger of your moves on outside cards (`state/inbox-ledger.jsonl`, plan 069:
+  sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or
+  server. They are under `~/.loki`, which an agent with file tools can read.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. Account

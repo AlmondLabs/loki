@@ -1,6 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, OutsideMove, SuggestionTarget } from "../frame-types.ts";
 import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -43,6 +43,7 @@ export type ChatClient = Pick<
   | "handoffPropose"
   | "readOutside"
   | "replyOutside"
+  | "moveOutside"
   | "handoff"
   | "updateModel"
   | "close"
@@ -251,6 +252,11 @@ export class FrameChatClient {
    */
   async replyOutside(accountId: string, threadId: string, text: string, home: string | null): Promise<void> {
     await this.call("account_thread_reply", { account_id: accountId, thread_id: threadId, text, home }, 30_000);
+  }
+
+  /** Keep one of the person's moves on an outside card in the ledger of the Mac its account lives on (plan 069). */
+  async moveOutside(accountId: string, threadId: string, move: OutsideMove, home: string | null): Promise<void> {
+    await this.call("account_thread_move", { account_id: accountId, thread_id: threadId, ...move, home });
   }
 
   /** What handing an outside card's thread off proposes (plan 067, R15), asked of the Mac its account lives on. */

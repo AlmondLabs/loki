@@ -54,6 +54,7 @@ import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
+import { InboxLedger } from "./inbox-ledger.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
@@ -359,6 +360,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         ? { provider: "gmail", client: gmailClient(account.account_id) }
         : { provider: "slack", client: slackClient(account.account_id) },
   });
+  // The person's moves on outside cards (plan 069), with what each thread was: the data loki learns their preferences from.
+  const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
   // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
   // written with the same clients; a move of the account withdraws the old owner's.
   const replies = new ReplyProposals({
@@ -460,6 +463,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     threads,
     handoff,
     outside,
+    ledger,
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     widgets,
     gestures,

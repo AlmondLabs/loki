@@ -180,6 +180,17 @@ export interface OutsideFacts {
 }
 
 /**
+ * One of the person's moves on an outside card, for the ledger (plan 069): Next, archive, their reply, or a hand-off to
+ * the owning agent; how it was made (a key or a click on the Mac, a swipe or a tap on the phone; null when the box's
+ * own send made it), and how long the card was on top first, when the app knows.
+ */
+export interface OutsideMove {
+  action: "next" | "archive" | "reply" | "handoff";
+  via: "key" | "click" | "swipe" | "tap" | null;
+  dwell_ms: number | null;
+}
+
+/**
  * One message of an outside card's thread as the card draws it (plan 068): who wrote it, when (ISO, "" when unknown), its
  * text as plain text, and whether the account's own person wrote it.
  */

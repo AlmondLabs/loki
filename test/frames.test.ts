@@ -80,6 +80,7 @@ describe("the frame table", () => {
         "account_thread_handoff",
         "account_thread_read",
         "account_thread_reply",
+        "account_thread_move",
         "reply_decide",
       ].sort(),
     );
@@ -569,6 +570,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "account_thread_archive",
       "account_thread_handoff",
       "account_thread_handoff_propose",
+      "account_thread_move",
       "account_thread_read",
       "account_thread_reply",
       "chat_requirements",
