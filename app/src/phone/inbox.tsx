@@ -985,7 +985,7 @@ function OutsideBody({
       {outside && (
         // The card takes a drag for a swipe; a drag or a tap inside the reply is the reply's.
         <div onPointerDown={stopPointer} onPointerMove={stopPointer} onPointerUp={stopPointer}>
-          <OutsideReply facts={facts} touch onSend={(text) => outside.replyOutside(item, text)} />
+          <OutsideReply facts={facts} touch onSend={(text) => outside.replyOutside(item, text, "archive")} />
         </div>
       )}
       {handoff &&

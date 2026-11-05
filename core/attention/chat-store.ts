@@ -20,7 +20,7 @@ import {
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
 import type { ReplyAction, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, OutsideMove, ReplyProposal, Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, ReplyProposal, ReplyThen, Suggestion, SuggestionTarget } from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -831,16 +831,22 @@ export class ChatStore {
   };
 
   /**
-   * Send the person's reply in an outside card's thread (plan 068): on success the card is archived and leaves the
-   * list at once; resolves to the reason when it was not sent, and the card stays with the text still in its box.
+   * Send the person's reply in an outside card's thread (plan 068), then the key's move (`then`, plan 070, R11). Resolves
+   * whether it was sent, the reason for what failed (the send, or the move after it), and what the move changed. A move
+   * that ended the card, an archive or reading a Slack card, takes it off the list at once; after read or later the card
+   * stays. A reply that was sent must not be sent again, so the caller clears its box on `sent` whatever the error.
    */
-  replyOutside = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, text: string): Promise<string | null> => {
+  replyOutside = async (
+    card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
+    text: string,
+    then: ReplyThen,
+  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null }> => {
     const o = card.outside;
-    if (!o) return "this card is not from an account";
-    const err = await this.tried((c) => c.replyOutside(o.account_id, o.thread_id, text, card.home ?? null));
-    if (err) return err;
-    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
-    return null;
+    if (!o) return { sent: false, error: "this card is not from an account", change: null };
+    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null));
+    if (typeof r === "string") return { sent: false, error: r, change: null };
+    if (r.change?.ended) this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+    return { sent: true, error: r.then_error, change: r.change };
   };
 
   /**

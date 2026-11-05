@@ -32,7 +32,20 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const refuse = { outside: null as string | null };
   const handoffs: Array<[string, string, string | null, string | null]> = [];
   const moves: unknown[] = [];
+  const replies: Array<[string, string, string, string, string | null]> = [];
+  /** How the daemon answers a reply: refused before it was sent, or sent with the move's reason. */
+  const replyAnswer = { refused: null as string | null, thenError: null as string | null };
   const client = {
+    replyOutside: (accountId: string, threadId: string, text: string, then: string, home: string | null) => {
+      if (replyAnswer.refused) return Promise.reject(new Error(replyAnswer.refused));
+      replies.push([accountId, threadId, text, then, home]);
+      const ended = then === "archive" && !replyAnswer.thenError;
+      return Promise.resolve({
+        sent: true,
+        then_error: replyAnswer.thenError,
+        change: replyAnswer.thenError ? null : { move: then === "later" ? "unread" : then, messages: [], ended, was_unread: true },
+      });
+    },
     moveOutside: (accountId: string, threadId: string, move: unknown, home: string | null) =>
       refuse.outside ? Promise.reject(new Error(refuse.outside)) : Promise.resolve(void moves.push([accountId, threadId, move, home])),
     handoffPropose: (accountId: string, threadId: string) =>
@@ -70,7 +83,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves };
+  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves, replies, replyAnswer };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -217,6 +230,51 @@ describe("the chat store (plan 052)", () => {
     d.store.moveOutside(card, { action: "next", via: "key", dwell_ms: 1 });
     await flush();
     expect(d.moves).toEqual([["gmail:ada@acme.com", "t1", { action: "archive", via: "key", dwell_ms: 900 }, "mac-mini"]]);
+  });
+
+  test("a reply on an outside card is sent with the key's move; archive ends the card, read and later keep it, a refused send says why", async () => {
+    const card: ConversationInfo & Digest = {
+      ...row("t1#1", "2026-11-04T09:00:00Z"),
+      kind: "outside",
+      agent_id: "account:gmail:ada@acme.com",
+      home: "mac-mini",
+      outside: {
+        account_id: "gmail:ada@acme.com",
+        provider: "gmail",
+        account_label: "ada@acme.com",
+        thread_id: "t1",
+        generation: 1,
+        owner_agent_id: "ada",
+        owner_name: "Ada",
+        sender: "Grace",
+        sender_address: "grace@acme.com",
+        subject: "hi",
+        lines: ["hi"],
+        newest_message_id: "m1",
+        newest_at: "2026-11-04T09:00:00Z",
+        handoff_conversation_id: null,
+        disconnected: null,
+        unread_out_there: true,
+      },
+    };
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    const ids = () => d.store.getSnapshot().conversations.map((c) => c.id);
+    d.replyAnswer.refused = "Gmail is out of reach";
+    expect(await d.store.replyOutside(card, "hello", "archive")).toEqual({ sent: false, error: "Gmail is out of reach", change: null });
+    expect(ids()).toContain("t1#1");
+    d.replyAnswer.refused = null;
+    expect(await d.store.replyOutside(card, "hello", "later")).toMatchObject({ sent: true, error: null, change: { move: "unread" } });
+    expect(await d.store.replyOutside(card, "hello", "read")).toMatchObject({ sent: true, error: null, change: { move: "read" } });
+    expect(ids()).toContain("t1#1");
+    d.replyAnswer.thenError = "Gmail is out of reach";
+    expect(await d.store.replyOutside(card, "hello", "archive")).toEqual({ sent: true, error: "Gmail is out of reach", change: null });
+    expect(ids()).toContain("t1#1");
+    d.replyAnswer.thenError = null;
+    expect(await d.store.replyOutside(card, "hello", "archive")).toMatchObject({ sent: true, error: null, change: { ended: true } });
+    expect(ids()).toEqual(["c1"]);
+    expect(d.replies.map((r) => r[3])).toEqual(["later", "read", "archive", "archive"]);
+    expect(d.replies[0]).toEqual(["gmail:ada@acme.com", "t1", "hello", "later", "mac-mini"]);
   });
 
   test("handing an outside card off asks the Mac its account lives on; done, the card leaves; refused, it stays with the reason", async () => {

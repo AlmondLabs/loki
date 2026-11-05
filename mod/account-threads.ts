@@ -43,6 +43,11 @@ export interface ThreadRecord {
    * is unread. A record from before this was kept reads as unread, so no card goes quiet on the upgrade.
    */
   unread_out_there: boolean;
+  /**
+   * The person replied and is waiting for an answer (plan 070, KTD7): set by a reply with "later", cleared when a newer
+   * message comes. While it is set, Slack's read marker, which the person's own post moves, does not end the card.
+   */
+  waiting: boolean;
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -133,6 +138,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     from_backfill: r.from_backfill === true,
     traits: parseMailTraits(r.traits),
     unread_out_there: r.unread_out_there !== false,
+    waiting: r.waiting === true,
   };
 }
 
@@ -186,6 +192,8 @@ export class AccountThreads {
       from_backfill: prev ? prev.from_backfill && m.from_backfill === true : m.from_backfill === true,
       traits: m.traits ?? null,
       unread_out_there: unreadOutThere,
+      // A newer message is the other side writing, so the person is no longer waiting on them.
+      waiting: false,
     });
     this.save(accountId);
     return true;
@@ -199,6 +207,18 @@ export class AccountThreads {
     const r = this.records(accountId).get(threadId);
     if (r?.state !== "open") return false;
     this.records(accountId).set(threadId, { ...r, state: "archived" });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
+   * The person replied on an open card and waits for an answer (plan 070, KTD7): the record is marked waiting until a
+   * newer message comes. Returns whether it changed; a card that is not open stays as it is.
+   */
+  markWaiting(accountId: string, threadId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (r?.state !== "open" || r.waiting) return false;
+    this.records(accountId).set(threadId, { ...r, waiting: true });
     this.save(accountId);
     return true;
   }

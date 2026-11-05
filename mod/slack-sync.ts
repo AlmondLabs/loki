@@ -172,7 +172,9 @@ export class SlackSync {
     }
 
     for (const r of threads.list(this.accountId)) {
-      if (r.state !== "open" || candidates.has(r.thread_id)) continue;
+      // A card whose reply waits for an answer (plan 070, KTD7) is not ended by the read marker the person's own post
+      // moved; it waits for the other side to write, which clears the wait, or for the person to finish it.
+      if (r.state !== "open" || r.waiting || candidates.has(r.thread_id)) continue;
       if (r.thread_id.includes(":")) {
         if (feed.complete) threads.markGoneOutThere(this.accountId, r.thread_id);
         continue;

@@ -1,5 +1,6 @@
+import { messageOf } from "../core/errors.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
-import type { AccountProvider, OutsideMessage } from "../core/frame-types.ts";
+import type { AccountProvider, OutsideChange, OutsideMessage, OutsideReplied, ReplyThen } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads } from "./account-threads.ts";
 import type { GmailClient } from "./gmail.ts";
@@ -26,7 +27,7 @@ export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: 
 /** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
-  threads: Pick<AccountThreads, "archive">;
+  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting">;
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
   clientFor: (account: AccountRecord) => SendClient;
@@ -58,11 +59,13 @@ export class OutsideThreads {
   }
 
   /**
-   * Send the person's reply in the thread, then archive the card as archive does, so it leaves the Inbox until someone
-   * writes again. Gmail answers the newest message that is not a draft, to everyone on it but the person; Slack posts in
-   * the DM, or in the thread for an Activity card. A send that fails throws its reason and archives nothing.
+   * Send the person's reply in the thread, then make the key's move (plan 070, R11, KTD6): `read` marks the thread read,
+   * `later` leaves it unread on its newest incoming message and marks the record waiting for an answer, and `archive`
+   * archives it. Gmail answers the newest message that is not a draft, to everyone on it but the person; Slack posts in
+   * the DM, or in the thread for an Activity card. A send that fails throws its reason and nothing is marked. Once sent,
+   * the move's failure is answered, not thrown, so the client tries the move again on its own and never sends twice.
    */
-  async reply(accountId: string, threadId: string, text: string): Promise<void> {
+  async reply(accountId: string, threadId: string, text: string, then: ReplyThen): Promise<OutsideReplied> {
     const body = text.trim();
     if (!body) throw new Error("the reply is empty");
     if (body.length > MAX_REPLY) throw new Error("that reply is too long to send");
@@ -89,9 +92,22 @@ export class OutsideThreads {
       const { channel, ts } = slackPlace(threadId);
       await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body });
     }
-    log("outside:replied", { provider: account.provider });
-    // The reply is sent; archiving is the card leaving, and a failure there leaves the card up with the reply already gone.
-    await this.opts.threads.archive(accountId, threadId);
+    log("outside:replied", { provider: account.provider, then });
+    try {
+      return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then) };
+    } catch (err) {
+      return { sent: true, then_error: messageOf(err), change: null };
+    }
+  }
+
+  /** The move after a sent reply, as the card's own move frames write it back. */
+  private follow(accountId: string, threadId: string, then: ReplyThen): Promise<OutsideChange | null> {
+    const { threads } = this.opts;
+    if (then === "archive") return threads.archive(accountId, threadId);
+    if (then === "read") return threads.markRead(accountId, threadId);
+    // The wait is loki's own record and is marked first, so it holds even when Gmail refuses the unread mark.
+    threads.markWaiting(accountId, threadId);
+    return threads.markUnread(accountId, threadId);
   }
 
   private need(accountId: string): AccountRecord {

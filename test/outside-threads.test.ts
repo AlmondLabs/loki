@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { OutsideFacts } from "../core/frame-types.ts";
+import type { OutsideChange, OutsideFacts } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
@@ -51,17 +51,30 @@ const message = (id: string, at: number, headers: Record<string, string>, labelI
 });
 
 /** OutsideThreads with fake clients and readers, recording what was sent and archived. */
-function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; gmail?: GmailMessage[]; sendFails?: string } = {}) {
+function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; gmail?: GmailMessage[]; sendFails?: string; thenFails?: string } = {}) {
   const sentMail: GmailDraftInput[] = [];
   const posted: SlackDraftInput[] = [];
   const archived: string[] = [];
+  /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
+  const moves: string[] = [];
   const accounts = opts.accounts ?? [account(MAIL), account(SLACK)];
+  const write =
+    (move: OutsideChange["move"]) =>
+    (accountId: string, threadId: string): Promise<OutsideChange | null> => {
+      if (opts.thenFails) return Promise.reject(new Error(opts.thenFails));
+      moves.push(`${move} ${accountId}/${threadId}`);
+      if (move === "archive") archived.push(`${accountId}/${threadId}`);
+      return Promise.resolve({ move, messages: [], ended: move === "archive", was_unread: true });
+    };
   const t = new OutsideThreads({
     accounts: { get: (id) => accounts.find((a) => a.account_id === id) ?? null },
     threads: {
-      archive: (accountId, threadId) => {
-        archived.push(`${accountId}/${threadId}`);
-        return Promise.resolve(null);
+      archive: write("archive"),
+      markRead: write("read"),
+      markUnread: write("unread"),
+      markWaiting: (accountId, threadId) => {
+        moves.push(`waiting ${accountId}/${threadId}`);
+        return true;
       },
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },
@@ -90,7 +103,7 @@ function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; g
             },
           },
   });
-  return { t, sentMail, posted, archived };
+  return { t, sentMail, posted, archived, moves };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -143,7 +156,11 @@ describe("the person's reply", () => {
         }),
       ],
     });
-    await t.reply(MAIL, "t1", "  Friday works.  ");
+    expect(await t.reply(MAIL, "t1", "  Friday works.  ", "archive")).toEqual({
+      sent: true,
+      then_error: null,
+      change: { move: "archive", messages: [], ended: true, was_unread: true },
+    });
     expect(sentMail).toEqual([
       {
         threadId: "t1",
@@ -159,26 +176,54 @@ describe("the person's reply", () => {
   });
   test("Slack: in the thread for an Activity card, in the conversation for a DM", async () => {
     const { t, posted, archived } = threads();
-    await t.reply(SLACK, "C1:1.0", "on it");
-    await t.reply(SLACK, "D1", "thanks");
+    await t.reply(SLACK, "C1:1.0", "on it", "archive");
+    await t.reply(SLACK, "D1", "thanks", "archive");
     expect(posted).toEqual([
       { channel: "C1", thread_ts: "1.0", text: "on it" },
       { channel: "D1", text: "thanks" },
     ]);
     expect(archived).toEqual([`${SLACK}/C1:1.0`, `${SLACK}/D1`]);
   });
-  test("nothing is sent or archived for an empty reply, a disconnected account, or a send that fails", async () => {
+  test("nothing is sent, archived or marked for an empty reply, a disconnected account, or a send that fails", async () => {
     const empty = threads();
-    await expect(empty.t.reply(SLACK, "D1", "   ")).rejects.toThrow("the reply is empty");
+    await expect(empty.t.reply(SLACK, "D1", "   ", "archive")).rejects.toThrow("the reply is empty");
     const off = threads({ accounts: [account(SLACK, { status: { disconnected: "slack_signed_out" } })] });
-    await expect(off.t.reply(SLACK, "D1", "hi")).rejects.toThrow("not connected now");
+    await expect(off.t.reply(SLACK, "D1", "hi", "read")).rejects.toThrow("not connected now");
     const failing = threads({ sendFails: "channel_not_found" });
-    await expect(failing.t.reply(SLACK, "D1", "hi")).rejects.toThrow("channel_not_found");
-    expect([...empty.posted, ...off.posted, ...failing.posted, ...failing.archived, ...off.archived]).toEqual([]);
+    await expect(failing.t.reply(SLACK, "D1", "hi", "later")).rejects.toThrow("channel_not_found");
+    expect([...empty.posted, ...off.posted, ...failing.posted, ...failing.moves, ...off.moves, ...empty.moves]).toEqual([]);
+  });
+  const LUNCH = [message("m1", 1, { From: "Bob <bob@acme.com>", To: "ada@acme.com", Subject: "Lunch", "Message-ID": "<m1@acme.com>" })];
+  test("Covers AE3. with later, the reply is sent, the thread is left unread on its newest incoming message and the record waits", async () => {
+    const { t, sentMail, moves } = threads({ gmail: LUNCH });
+    expect(await t.reply(MAIL, "t1", "Can you send the deck by Friday?", "later")).toEqual({
+      sent: true,
+      then_error: null,
+      change: { move: "unread", messages: [], ended: false, was_unread: true },
+    });
+    expect(sentMail.map((m) => m.body)).toEqual(["Can you send the deck by Friday?"]);
+    expect(moves).toEqual([`waiting ${MAIL}/t1`, `unread ${MAIL}/t1`]);
+  });
+  test("Covers AE4. with archive, the reply is sent and the thread archived", async () => {
+    const { t, sentMail, moves } = threads({ gmail: LUNCH });
+    expect(await t.reply(MAIL, "t1", "Here it is.", "archive")).toMatchObject({ sent: true, then_error: null, change: { move: "archive", ended: true } });
+    expect(sentMail).toHaveLength(1);
+    expect(moves).toEqual([`archive ${MAIL}/t1`]);
+  });
+  test("with read, the reply is sent and the thread marked read, and the card does not end", async () => {
+    const { t, sentMail, moves } = threads({ gmail: LUNCH });
+    expect(await t.reply(MAIL, "t1", "Thanks.", "read")).toMatchObject({ sent: true, then_error: null, change: { move: "read", ended: false } });
+    expect(sentMail).toHaveLength(1);
+    expect(moves).toEqual([`read ${MAIL}/t1`]);
+  });
+  test("a sent reply whose archive fails answers sent with the archive's reason, and nothing is sent twice", async () => {
+    const { t, posted } = threads({ thenFails: "Slack is out of reach" });
+    expect(await t.reply(SLACK, "D1", "on it", "archive")).toEqual({ sent: true, then_error: "Slack is out of reach", change: null });
+    expect(posted).toEqual([{ channel: "D1", text: "on it" }]);
   });
   test("a Gmail thread with no one else in it is refused before anything is sent", async () => {
     const { t, sentMail } = threads({ gmail: [message("m1", 1, { From: "ada@acme.com", To: "ada@work.example", Subject: "note" })] });
-    await expect(t.reply(MAIL, "t1", "hi")).rejects.toThrow("no one in that thread to reply to");
+    await expect(t.reply(MAIL, "t1", "hi", "archive")).rejects.toThrow("no one in that thread to reply to");
     expect(sentMail).toEqual([]);
   });
 });
@@ -196,31 +241,48 @@ describe("the reply frames", () => {
     };
   }
 
-  test("a read answers the thread, a reply answers the archived card, and a refusal comes back in words", async () => {
+  test("a read answers the thread, a reply answers it was sent and how its move went, and a refusal comes back in words", async () => {
     const send = ask({
       read: () => Promise.resolve([{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }]),
-      reply: (_a, _t, text) => (text === "boom" ? Promise.reject(new Error("Slack refused it")) : Promise.resolve()),
+      reply: (_a, _t, text, then) =>
+        text === "boom"
+          ? Promise.reject(new Error("Slack refused it"))
+          : Promise.resolve({ sent: true as const, then_error: then === "archive" ? "Slack is out of reach" : null, change: null }),
     });
     expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1" })).toMatchObject({
       type: "account_thread",
       messages: [{ sender: "Bob", text: "hi" }],
     });
-    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok" })).toMatchObject({
-      type: "account_thread_archived",
+    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "later" })).toEqual({
+      type: "account_thread_replied",
+      request_id: "r1",
+      account_id: SLACK,
       thread_id: "D1",
+      sent: true,
+      then_error: null,
+      change: null,
     });
-    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "boom" })).toMatchObject({
+    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "archive" })).toMatchObject({
+      type: "account_thread_replied",
+      sent: true,
+      then_error: "Slack is out of reach",
+    });
+    expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "boom", then: "read" })).toMatchObject({
       type: "error",
       message: "Slack refused it",
     });
   });
-  test("an empty reply is refused before it reaches the reader, and without the reader a reply says so", async () => {
+  test("an empty reply or one without its move is refused before it reaches the reader, and without the reader a reply says so", async () => {
     const reader = { read: () => Promise.resolve([]), reply: () => Promise.reject(new Error("reached")) };
-    expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "  " })).toMatchObject({
+    expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "  ", then: "read" })).toMatchObject({
       type: "error",
       message: "account_id, thread_id and text required",
     });
-    expect(await ask()({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok" })).toMatchObject({
+    expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok" })).toMatchObject({
+      type: "error",
+      message: "then must be read, later or archive",
+    });
+    expect(await ask()({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "archive" })).toMatchObject({
       type: "error",
       message: "replying is not available in this mod",
     });

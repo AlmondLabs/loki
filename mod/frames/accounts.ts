@@ -146,15 +146,13 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
-    account_thread_reply: async ({ account_id: accountId, thread_id: threadId, text }) => {
+    account_thread_reply: async ({ account_id: accountId, thread_id: threadId, text, then }) => {
       if (!deps.outside) return fail("replying is not available in this mod");
       try {
-        await deps.outside.reply(accountId, threadId, text);
+        return reply({ account_id: accountId, thread_id: threadId, ...(await deps.outside.reply(accountId, threadId, text, then)) });
       } catch (err) {
         return fail(errorMessage(err));
       }
-      // A reply's archive is not offered for undo: the reply itself cannot be taken back.
-      return reply({ account_id: accountId, thread_id: threadId, change: null });
     },
     account_thread_move: ({ account_id: accountId, thread_id: threadId, action, via, dwell_ms: dwellMs }) => {
       const kept = deps.ledger?.record(accountId, threadId, { action, via, dwell_ms: dwellMs }) ?? null;

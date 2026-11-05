@@ -217,6 +217,23 @@ export interface OutsideChange {
   was_unread: boolean;
 }
 
+/**
+ * The move that follows a reply the person sent from an outside card (plan 070, R11, KTD6): mark the thread read, leave
+ * it unread and waiting for an answer (`later`), or archive it.
+ */
+export type ReplyThen = "read" | "later" | "archive";
+
+/**
+ * How a reply went (plan 070, KTD6): it was sent, and the move after it is told apart, so a move that failed can be
+ * tried again without sending the reply twice. `then_error` is that move's reason when it failed, and `change` what it
+ * wrote, for an undo, or null when it failed or wrote nothing.
+ */
+export interface OutsideReplied {
+  sent: true;
+  then_error: string | null;
+  change: OutsideChange | null;
+}
+
 /** One of an account's Gmail labels (plan 070, R12): Gmail's own (`system`, as STARRED) or one the person made (`user`). */
 export interface AccountLabel {
   id: string;

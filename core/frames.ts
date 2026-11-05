@@ -19,7 +19,9 @@ import type {
   OutsideMessage,
   OutsideMessageChange,
   OutsideMove,
+  OutsideReplied,
   OutsideWrite,
+  ReplyThen,
   SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
@@ -312,7 +314,7 @@ export interface Replies {
   accounts: { accounts: AccountView[] };
   /**
    * An outside card's thread archived on the Mac its account lives on (plan 067, U3), with what the archive changed out
-   * there for an undo (plan 070, R14); null when nothing was written, as after a reply.
+   * there for an undo (plan 070, R14); null when nothing was written.
    */
   account_thread_archived: { account_id: string; thread_id: string; change: OutsideChange | null };
   /**
@@ -320,6 +322,11 @@ export interface Replies {
    * undo; null when nothing was written (the card was not open) and after an undo itself.
    */
   account_thread_changed: { account_id: string; thread_id: string; change: OutsideChange | null };
+  /**
+   * The person's reply sent in an outside card's thread (plan 070, KTD6), and apart from it how the move after it went:
+   * `then_error` is that move's reason when it failed, and the client tries the move again without the text.
+   */
+  account_thread_replied: { account_id: string; thread_id: string } & OutsideReplied;
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
@@ -535,6 +542,7 @@ const BY_HOME: PeerMeaning = { route: "home" };
 const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["next", "archive", "reply", "handoff"];
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
+const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
 const allStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(str);
 
 /** A change a client kept from a write-back frame and sends back for an undo (plan 070, R14), or null when it is not one. */
@@ -1272,12 +1280,15 @@ export const FRAMES = {
     { ...BY_HOME, timeout_ms: 30_000 },
   ),
   account_thread_reply: request(
-    "account_thread_archived",
-    "send the person's own reply in an outside card's thread, then archive the card (plan 068); only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
-    (m) =>
-      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id && str(m.text) && m.text.trim()
-        ? { account_id: m.account_id, thread_id: m.thread_id, text: m.text, home: strOr(m.home, null) }
-        : "account_id, thread_id and text required",
+    "account_thread_replied",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    (m) => {
+      if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
+        return "account_id, thread_id and text required";
+      const then = REPLY_THENS.find((t) => t === m.then);
+      if (!then) return "then must be read, later or archive";
+      return { account_id: m.account_id, thread_id: m.thread_id, text: m.text, then, home: strOr(m.home, null) };
+    },
     PHONE,
     { route: "home", relists: true, timeout_ms: 30_000 },
   ),

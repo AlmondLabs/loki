@@ -23,7 +23,7 @@ import { focusShares, type FocusEntry } from "./focus.ts";
 import { RETURN_TIMES_DEFAULT, cardKindOf, movesOn, readFirstMs, restAfterNext, restUndone, type Rest, type ReturnTimes } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, ReplyProposal, Suggestion } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, ReplyProposal, ReplyThen, Suggestion } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -136,7 +136,16 @@ export interface HandoffSource {
  */
 export interface OutsideSource {
   readOutside: (item: AttentionItem) => Promise<OutsideMessage[] | string>;
-  replyOutside: (item: AttentionItem, text: string) => Promise<string | null>;
+  replyOutside: (item: AttentionItem, text: string, then: ReplyThen) => Promise<OutsideReplyResult>;
+}
+
+/**
+ * How a reply on an outside card went (plan 070, KTD6): whether it was sent, and the reason for what failed, the send or
+ * the move after it. A sent reply is never sent again, so its box clears on `sent` even when `error` is set.
+ */
+export interface OutsideReplyResult {
+  sent: boolean;
+  error: string | null;
 }
 
 /**
@@ -457,12 +466,15 @@ export function useAttention(opts: UseAttentionOptions) {
     (item: AttentionItem) => (item.outside ? store.archiveOutside(item) : store.archiveConversation(item.id, true, "inbox", item.agent_id)),
     [store],
   );
-  /** The person's reply on an outside card (plan 068); once sent it is an Inbox decision, kept in the ledger (plan 069). */
+  /**
+   * The person's reply on an outside card (plan 068), then the key's move (plan 070, R11); once sent it is an Inbox
+   * decision, kept in the ledger (plan 069), even when the move after it failed.
+   */
   const replyOutside = useCallback(
-    async (item: AttentionItem, text: string) => {
-      const err = await store.replyOutside(item, text);
-      if (!err) decided(item, "reply");
-      return err;
+    async (item: AttentionItem, text: string, then: ReplyThen): Promise<OutsideReplyResult> => {
+      const r = await store.replyOutside(item, text, then);
+      if (r.sent) decided(item, "reply");
+      return { sent: r.sent, error: r.error };
     },
     [store, decided],
   );

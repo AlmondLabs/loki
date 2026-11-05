@@ -1,6 +1,6 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { HandoffProposal, OutsideMessage, OutsideMove, SuggestionTarget } from "../frame-types.ts";
+import type { HandoffProposal, OutsideMessage, OutsideMove, OutsideReplied, ReplyThen, SuggestionTarget } from "../frame-types.ts";
 import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -248,10 +248,12 @@ export class FrameChatClient {
 
   /**
    * Send the person's own reply in an outside card's thread (plan 068), from the Mac its account lives on, which then
-   * archives the card; a refusal throws its reason, and nothing was sent.
+   * makes the key's move (`then`, plan 070, R11). A refusal throws its reason, and nothing was sent; once sent, the
+   * move's own failure comes back in `then_error`.
    */
-  async replyOutside(accountId: string, threadId: string, text: string, home: string | null): Promise<void> {
-    await this.call("account_thread_reply", { account_id: accountId, thread_id: threadId, text, home }, 30_000);
+  async replyOutside(accountId: string, threadId: string, text: string, then: ReplyThen, home: string | null): Promise<OutsideReplied> {
+    const r = await this.call("account_thread_reply", { account_id: accountId, thread_id: threadId, text, then, home }, 30_000);
+    return { sent: r.sent, then_error: r.then_error, change: r.change };
   }
 
   /** Keep one of the person's moves on an outside card in the ledger of the Mac its account lives on (plan 069). */

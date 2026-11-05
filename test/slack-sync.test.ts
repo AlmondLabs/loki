@@ -6,6 +6,7 @@ import { memorySecrets } from "../daemon/credentials.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts, accountIdOf } from "../mod/accounts.ts";
 import { initLog } from "../mod/log.ts";
+import { OutsideThreads } from "../mod/outside-threads.ts";
 import { SlackClient } from "../mod/slack.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
 import { SlackSync } from "../mod/slack-sync.ts";
@@ -60,6 +61,9 @@ function fakeWorkspace() {
   const activity: FakeItem[] = [];
   const users: Partial<Record<string, string>> = { U0GRACE: "Grace Hopper", U0ALAN: "Alan Turing", U0ME: "Ada" };
   const sent: Array<{ method: string; params: Record<string, string> }> = [];
+  /** A Slack error to answer conversations.mark with, when set. */
+  const refuse = { mark: null as string | null };
+  let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
   const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts });
   const toItem = (i: FakeItem) =>
@@ -119,8 +123,17 @@ function fakeWorkspace() {
       case "users.info":
         return { ok: true, user: { id: p.user, name: "handle", real_name: users[p.user ?? ""] ?? "", profile: { display_name: "" } } };
       case "conversations.mark":
+        if (refuse.mark) return { ok: false, error: refuse.mark };
         lastRead.set(p.channel ?? "", p.ts ?? "");
         return { ok: true };
+      case "chat.postMessage": {
+        // The person's own post, which Slack counts as read up to it, as the desktop app does.
+        const channel = p.channel ?? "";
+        const ts = `${String(CONNECTED + 1000 + posts++)}.000100`;
+        messages.set(channel, [...(messages.get(channel) ?? []), { ts, user: "U0ME", text: p.text ?? "", thread_ts: p.thread_ts }]);
+        if (!p.thread_ts) lastRead.set(channel, ts);
+        return { ok: true, ts };
+      }
       default:
         return { ok: false, error: "unknown_method" };
     }
@@ -136,6 +149,7 @@ function fakeWorkspace() {
 
   return {
     sent,
+    refuse,
     fetch: fetchFn,
     dm(id: string, kind: "im" | "mpim" = "im") {
       kinds.set(id, kind);
@@ -172,7 +186,14 @@ async function fixture() {
   const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch });
   const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client });
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
-  return { dir, slack, accounts, threads, sync, open };
+  // The person's reply (plan 070, U5), sent through the same client and records the sync uses.
+  const outside = new OutsideThreads({
+    accounts,
+    threads,
+    threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
+    clientFor: () => ({ provider: "slack", client }),
+  });
+  return { dir, slack, accounts, threads, sync, open, outside };
 }
 
 describe("DMs", () => {
@@ -411,5 +432,54 @@ describe("a channel's read marker", () => {
     await sync.tick();
     for (const r of threads.list(ACCOUNT)) await threads.archive(ACCOUNT, r.thread_id);
     expect(slack.sent.filter((s) => s.method === "conversations.mark").map((s) => s.params.channel)).toEqual(["D0GRACE"]);
+  });
+});
+
+describe("a reply on a Slack card, then the key's move (plan 070, U5)", () => {
+  const posts = (slack: ReturnType<typeof fakeWorkspace>) => slack.sent.filter((s) => s.method === "chat.postMessage");
+
+  test("with later, the card stays through a tick that sees the DM read, and ends at a read after the other side writes", async () => {
+    const { slack, sync, open, outside } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "Can you send the deck?" });
+    await sync.tick();
+    expect(await outside.reply(ACCOUNT, "D0GRACE", "By Friday.", "later")).toMatchObject({ sent: true, then_error: null, change: { ended: false } });
+    await sync.tick();
+    expect(open().map((r) => [r.thread_id, r.waiting])).toEqual([["D0GRACE", true]]);
+    slack.post("D0GRACE", { ts: at(2000), user: "U0GRACE", text: "Thanks" });
+    await sync.tick();
+    expect(open().map((r) => [r.thread_id, r.lines.at(-1), r.waiting])).toEqual([["D0GRACE", "Thanks", false]]);
+    slack.read("D0GRACE", at(2000));
+    await sync.tick();
+    expect(open()).toEqual([]);
+  });
+
+  test("with read or archive, the reply is sent and the card ends", async () => {
+    const { slack, sync, open, outside } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "ping" });
+    slack.dm("D0ALAN");
+    slack.post("D0ALAN", { ts: at(30), user: "U0ALAN", text: "pong" });
+    await sync.tick();
+    expect(await outside.reply(ACCOUNT, "D0GRACE", "here", "read")).toMatchObject({ sent: true, change: { move: "read", ended: true } });
+    expect(await outside.reply(ACCOUNT, "D0ALAN", "here", "archive")).toMatchObject({ sent: true, change: { move: "archive", ended: true } });
+    expect(open()).toEqual([]);
+    expect(posts(slack)).toHaveLength(2);
+  });
+
+  test("a sent reply whose archive fails says so, the card stays, and the archive tried again sends nothing more", async () => {
+    const { slack, threads, sync, open, outside } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "ping" });
+    await sync.tick();
+    slack.refuse.mark = "channel_not_found";
+    const answer = await outside.reply(ACCOUNT, "D0GRACE", "on it", "archive");
+    expect(answer).toMatchObject({ sent: true, change: null });
+    expect(answer.then_error).toEqual(expect.any(String));
+    expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
+    slack.refuse.mark = null;
+    await threads.archive(ACCOUNT, "D0GRACE");
+    expect(open()).toEqual([]);
+    expect(posts(slack)).toHaveLength(1);
   });
 });

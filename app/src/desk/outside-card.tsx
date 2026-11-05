@@ -166,7 +166,8 @@ export function OutsideReply({
   actions = null,
 }: {
   facts: OutsideFacts;
-  onSend: (text: string) => Promise<string | null>;
+  /** Resolves whether the reply was sent and why what failed did; a sent reply clears the box so it is not sent twice. */
+  onSend: (text: string) => Promise<{ sent: boolean; error: string | null }>;
   /** The card's other moves, drawn on the row after send, so the card has one bar of buttons. */
   actions?: ReactNode;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
@@ -183,8 +184,9 @@ export function OutsideReply({
     setBusy(true);
     setError(null);
     try {
-      const err = await onSend(text);
-      if (err) setError(err);
+      const r = await onSend(text);
+      if (r.sent) setText("");
+      if (r.error) setError(r.error);
     } finally {
       setBusy(false);
     }
@@ -375,7 +377,7 @@ export function OutsideCard({
         {source ? (
           <OutsideReply
             facts={facts}
-            onSend={(text) => source.replyOutside(current, text)}
+            onSend={(text) => source.replyOutside(current, text, "archive")}
             inputRef={replyRef}
             onTyping={onTyping}
             onEscapeEmpty={onEscapeEmpty}
