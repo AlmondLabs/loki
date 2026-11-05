@@ -1,3 +1,4 @@
+import { htmlToText, tidyMail } from "../core/mail-text.ts";
 import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget } from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
@@ -282,21 +283,6 @@ export class Handoff {
 /** A base64url body as text. */
 const decoded = (data: string): string => Buffer.from(data, "base64url").toString("utf8");
 
-/** HTML as plain text, roughly: tags gone, breaks kept, the common entities decoded. */
-const htmlText = (html: string): string =>
-  html
-    .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
 /** The first part of a MIME tree of one type, depth first, that has a body. */
 function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePart | null {
   if (!part) return null;
@@ -323,7 +309,7 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
         id: m.id,
         mine: own !== "" && addressOf(from) === own,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
-        text: (plain ? decoded(plain) : html ? htmlText(decoded(html)) : m.snippet).trim(),
+        text: plain ? tidyMail(decoded(plain)) : html ? htmlToText(decoded(html)) : tidyMail(m.snippet),
       };
     });
   };
