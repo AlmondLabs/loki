@@ -120,7 +120,9 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
       className="loki-mail-html"
       title={title}
       // No allow-scripts: nothing in the mail runs. Same origin with scripts off lets loki size the frame and catch clicks.
-      sandbox="allow-same-origin"
+      // allow-popups is for the Mac's webview, which runs no listener of loki's inside a frame without scripts: there a
+      // link asks for a new window (base target _blank), and the shell sends its address to the browser instead.
+      sandbox="allow-same-origin allow-popups"
       srcDoc={doc}
       style={{ height }}
     />

@@ -399,7 +399,22 @@ pub fn run() {
                 .min_inner_size(900.0, 600.0)
                 // It starts on the system theme; the page applies the saved light/dark preference after it loads.
                 .background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff))
-                .initialization_script(&script);
+                .initialization_script(&script)
+                // No page opens a second loki window. A link that asks for one (a mail drawn in its frame, whose
+                // clicks the Mac's webview keeps from loki's own listener) goes to the system browser when it is a
+                // web or mail address, and nowhere otherwise.
+                .on_new_window({
+                    let app = app.handle().clone();
+                    move |url, _features| {
+                        if matches!(url.scheme(), "http" | "https" | "mailto") {
+                            use tauri_plugin_opener::OpenerExt;
+                            if let Err(e) = app.opener().open_url(url.as_str(), None::<&str>) {
+                                eprintln!("loki: open link: {e}");
+                            }
+                        }
+                        tauri::webview::NewWindowResponse::Deny
+                    }
+                });
             // Slack style: no native title bar. The lights float over loki's own top strip (Sidebar.tsx,
             // TITLEBAR_HEIGHT, a drag region) at their standard spot; the title stays set for the Window menu,
             // Mission Control and screen readers, just not drawn.
