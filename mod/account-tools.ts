@@ -1,3 +1,4 @@
+import { htmlToText, tidyMail } from "../core/mail-text.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
 import { messageOf } from "../core/errors.ts";
 import type { AccountThreads } from "./account-threads.ts";
@@ -70,19 +71,14 @@ function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePa
   return null;
 }
 
-/** A message's text: its plain part, else its HTML part without tags, else Gmail's snippet. */
+/** A message's text: its plain part, else its HTML part laid out as text (core/mail-text.ts), else Gmail's snippet. */
 function gmailText(m: GmailMessage): string {
   const decode = (p: GmailMessagePart) => Buffer.from(p.body.data ?? "", "base64url").toString("utf8");
   const plain = partOf(m.payload, "text/plain");
-  if (plain) return decode(plain).trim();
+  if (plain) return tidyMail(decode(plain));
   const html = partOf(m.payload, "text/html");
-  if (html)
-    return decode(html)
-      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/[ \t]+/g, " ")
-      .trim();
-  return m.snippet;
+  if (html) return htmlToText(decode(html));
+  return tidyMail(m.snippet);
 }
 
 /** A Slack ts as ISO time, or the ts itself when it is not one. */
