@@ -144,10 +144,10 @@ export function CaughtUp({
   );
 }
 
-/** "5 moved past · 2 archived · 1 approved · 1 reply". */
+/** "5 moved past · 2 archived · 1 approved · 1 reply". A label keeps its card, so it moves nothing past. */
 export function passSummary(decided: Decision[], replies: number): string {
   return [
-    `${decided.length} moved past`,
+    `${decided.filter((d) => d.action !== "label").length} moved past`,
     ...(["archive", "approve", "deny"] as const)
       .map((k) => [k, decided.filter((d) => d.via === k).length] as const)
       .filter(([, n]) => n > 0)
@@ -217,19 +217,22 @@ export function deckKey(id: string, typing: boolean): string {
 
 /**
  * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
- * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
+ * deny before them): open, archive, later and read. The kbd hints switch grammar: letters when nothing has focus,
+ * ⌘ chords while you type.
  */
 export function CardActions({
   current,
   typing,
-  next,
+  read,
+  later,
   archive,
   onOpenDesk,
   onClose,
 }: {
   current: AttentionItem;
   typing: boolean;
-  next: () => void;
+  read: () => void;
+  later: () => void;
   archive: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;
@@ -257,20 +260,35 @@ export function CardActions({
         archive
       </Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>
-        next →
+      <Button
+        size="sm"
+        onClick={later}
+        title="keep it unread: the chat comes back in a day, or sooner if something new arrives"
+        kbd={deckKey("inbox.later", typing)}
+      >
+        later
+      </Button>
+      <Button size="sm" tone="paper" onClick={read} title="mark it read: the chat rests and comes back later" kbd={deckKey("inbox.next", typing)}>
+        read
       </Button>
     </>
   );
 }
 
-/** The key legend under the deck, in whichever grammar applies right now. */
-export function KeysHint({ typing }: { typing: boolean }) {
+/** The key legend under the deck, in whichever grammar applies right now, for the card on top: a chat, an email or a Slack message. */
+export function KeysHint({ typing, current }: { typing: boolean; current?: AttentionItem }) {
+  const o = current?.outside;
+  const moves = `${deckKey("inbox.next", typing)} read · ${deckKey("inbox.later", typing)} later · ${deckKey("inbox.archive", typing)} archive`;
+  const label = o?.provider === "gmail" ? ` · ${keyFor("inbox.label")} label` : "";
+  const outside = typing
+    ? `enter send, then read · ${moves} (a reply goes first) · esc back to the deck's keys`
+    : `${moves}${label} · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.undo", false)} undo · esc close`;
+  const chat = typing
+    ? `enter send (you stay on the card) · ${moves} · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
+    : `${moves} · ${deckKey("inbox.approve", false)} approve · ${deckKey("inbox.deny", false)} deny · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.open", false)} open · ${deckKey("inbox.undo", false)} undo · esc close`;
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {typing
-        ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.archive")} archive · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
-        : "→ next · E archive · A approve · D deny · R reply · O open · Z undo · esc close"}
+      {o ? outside : chat}
     </div>
   );
 }
@@ -278,5 +296,5 @@ export function KeysHint({ typing }: { typing: boolean }) {
 /** How many chats need you right now, whatever this visit has decided. */
 export const liveWaitingCount = (items: AttentionItem[]) => catchUpQueue(items).length;
 
-/** True when this chat was already moved past in this visit and has come back with something new. */
-export const cameBackIn = (decided: Decision[], current: AttentionItem) => decided.some((d) => idOf(d.item) === idOf(current));
+/** True when this chat was already moved past in this visit and has come back with something new; a label moves nothing past. */
+export const cameBackIn = (decided: Decision[], current: AttentionItem) => decided.some((d) => d.action !== "label" && idOf(d.item) === idOf(current));

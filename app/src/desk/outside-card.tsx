@@ -1,9 +1,10 @@
 import type { AccountDisconnectCause, AccountProvider, OutsideFacts, OutsideMessage } from "../../../core/frame-types.ts";
-import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { Button, Chip, Meta, TextArea, Title } from "../components";
-import { chordIds, keyFor } from "../shell/keymap";
+import { KEYMAP, chordIds, cmdHeld, keyFor, type Platform } from "../shell/keymap";
+import { keyboard } from "./env";
 import { ago, deckKey } from "./catch-up-parts";
 
 /**
@@ -151,14 +152,42 @@ export function replyPlace(o: OutsideFacts): string {
   return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
 }
 
+/** The deck's chords that reach it from inside the reply box (KTD9): read, later and archive, each sending the text first. */
+const DECK_CHORDS = new Set(["inbox.next", "inbox.later", "inbox.archive"]);
+
 /**
- * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them, which then
- * archives the card. Enter sends, as in a chat's box; Esc hands the deck's keys back, or closes the deck when the box is empty. A send that
- * fails keeps the text and says why.
+ * What a key pressed in the reply box is for: the deck (⌘], ⌘[ and ⌘E, which send the text with their move), sending
+ * (Enter, the keymap's chat.send), handing the keys back (Esc), or the text itself (letters, arrows, Shift-Enter's line).
+ */
+export function replyBoxKey(e: KeyboardEvent, os: Platform = keyboard): "deck" | "send" | "escape" | "own" {
+  const ids = chordIds(e, KEYMAP, os);
+  if (cmdHeld(e, os) && ids.some((id) => DECK_CHORDS.has(id))) return "deck";
+  if (!e.isComposing && ids.includes("chat.send")) return "send";
+  return e.key === "Escape" ? "escape" : "own";
+}
+
+/**
+ * The reply box as the deck holds it (KTD9): its text, whether a send is under way, why the last one failed, and the
+ * send, which the deck turns into the reply and its move.
+ */
+export interface ReplyBoxControl {
+  text: string;
+  busy: boolean;
+  error: string | null;
+  onText: (text: string) => void;
+  onSend: () => void;
+}
+
+/**
+ * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
+ * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it with read; the
+ * phone's box keeps its own and sends with `onSend`. Shift-Enter starts a line; Esc hands the deck's keys back, or
+ * closes the deck when the box is empty. A send that fails keeps the text and says why.
  */
 export function OutsideReply({
   facts,
   onSend,
+  box,
   inputRef,
   onTyping,
   onEscapeEmpty,
@@ -166,8 +195,10 @@ export function OutsideReply({
   actions = null,
 }: {
   facts: OutsideFacts;
-  /** Resolves whether the reply was sent and why what failed did; a sent reply clears the box so it is not sent twice. */
-  onSend: (text: string) => Promise<{ sent: boolean; error: string | null }>;
+  /** The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a sent reply clears the box so it is not sent twice. */
+  onSend?: (text: string) => Promise<{ sent: boolean; error: string | null }>;
+  /** The deck's hold on the box; absent, the box keeps its own text. */
+  box?: ReplyBoxControl;
   /** The card's other moves, drawn on the row after send, so the card has one bar of buttons. */
   actions?: ReactNode;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
@@ -175,30 +206,39 @@ export function OutsideReply({
   onEscapeEmpty?: () => void;
   touch?: boolean;
 }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [ownText, setOwnText] = useState("");
+  const [ownBusy, setBusy] = useState(false);
+  const [ownError, setError] = useState<string | null>(null);
+  const text = box ? box.text : ownText;
+  const setText = box ? box.onText : setOwnText;
+  const busy = box ? box.busy : ownBusy;
+  const error = box ? box.error : ownError;
   const off = busy || !!facts.disconnected;
   const send = async () => {
     if (off || !text.trim()) return;
+    if (box) return box.onSend();
+    if (!onSend) return;
     setBusy(true);
     setError(null);
     try {
       const r = await onSend(text);
-      if (r.sent) setText("");
+      if (r.sent) setOwnText("");
       if (r.error) setError(r.error);
     } finally {
       setBusy(false);
     }
   };
-  const keys = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const keys = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    const key = replyBoxKey(e.nativeEvent);
+    // ⌘], ⌘[ and ⌘E go on to the deck, which sends the text with their move (KTD9).
+    if (key === "deck") return;
     // The deck's single keys are its own outside the box; inside, letters are the reply's.
     e.stopPropagation();
     // Enter sends and Shift-Enter starts a line, as in a chat's box (the keymap's chat.send and chat.newline).
-    if (!e.nativeEvent.isComposing && chordIds(e.nativeEvent).includes("chat.send")) {
+    if (key === "send") {
       e.preventDefault();
       void send();
-    } else if (e.key === "Escape") {
+    } else if (key === "escape") {
       e.preventDefault();
       if (!text && onEscapeEmpty) onEscapeEmpty();
       else e.currentTarget.blur();
@@ -227,7 +267,7 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : keyFor("chat.send")}
-          title="send it as you, then archive the card"
+          title={touch ? "send it as you, then archive the card" : "send it as you, and the card is read"}
         >
           {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
         </Button>
@@ -271,22 +311,29 @@ function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; 
   );
 }
 
-/** Hand off, archive and next: they share the reply's row, so the card has one bar of buttons. */
+/** The deck's moves on an outside card: read (⌘]), later (⌘[), archive (⌘E) and, on an email card, label (L). */
+export interface OutsideMoveHandlers {
+  read: () => void;
+  later: () => void;
+  archive: () => void;
+  label: () => void;
+}
+
+/** Hand off, label, archive, later and read: they share the reply's row, so the card has one bar of buttons. */
 function OutsideMoves({
   facts,
   typing,
-  next,
-  archive,
+  moves,
   onHandoff,
   picking,
 }: {
   facts: OutsideFacts;
   typing: boolean;
-  next: () => void;
-  archive: () => void;
+  moves: OutsideMoveHandlers;
   onHandoff?: () => void;
   picking: boolean;
 }) {
+  const gmail = facts.provider === "gmail";
   return (
     <>
       {onHandoff && (
@@ -303,17 +350,42 @@ function OutsideMoves({
           hand off
         </Button>
       )}
+      {gmail && (
+        <Button
+          size="sm"
+          onClick={moves.label}
+          disabled={!!facts.disconnected || picking}
+          title="add a Gmail label to the thread; the card stays"
+          kbd={typing ? undefined : keyFor("inbox.label")}
+        >
+          label
+        </Button>
+      )}
       <Button
         size="sm"
-        onClick={archive}
-        title={`done with this thread: it leaves the Inbox and is ${facts.provider === "gmail" ? "archived in Gmail" : "marked read in Slack"}`}
+        onClick={moves.archive}
+        title={`done with this thread: it leaves the Inbox and is ${gmail ? "archived in Gmail" : "marked read in Slack"}`}
         kbd={deckKey("inbox.archive", typing)}
       >
         archive
       </Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" tone="paper" onClick={next} title="set it aside: the thread stays for your next visit" kbd={deckKey("inbox.next", typing)}>
-        next →
+      <Button
+        size="sm"
+        onClick={moves.later}
+        title={`keep it unread${gmail ? " in Gmail" : " in Slack"}: the card comes back in a day, or sooner if something new arrives`}
+        kbd={deckKey("inbox.later", typing)}
+      >
+        later
+      </Button>
+      <Button
+        size="sm"
+        tone="paper"
+        onClick={moves.read}
+        title={gmail ? "mark it read in Gmail: the card rests and comes back later" : "mark it read in Slack: the card ends until someone writes again"}
+        kbd={deckKey("inbox.next", typing)}
+      >
+        read
       </Button>
     </>
   );
@@ -321,8 +393,9 @@ function OutsideMoves({
 
 /**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
- * the reply box, and the deck's moves. Archive here archives the thread in its account; Next sets it aside; hand off
- * opens `picker`, where the thread goes to its account's agent (U8), and is off while the account is disconnected.
+ * the reply box, and the deck's moves. Read marks the thread read out there, later keeps it unread and brings it back,
+ * archive archives it in its account, label adds a Gmail label; hand off opens `picker`, where the thread goes to its
+ * account's agent (U8), and is off while the account is disconnected. The return-time and label pickers open there too.
  */
 export function OutsideCard({
   current,
@@ -330,12 +403,12 @@ export function OutsideCard({
   flash,
   cameBack,
   typing,
-  next,
-  archive,
+  moves,
   went = null,
   onHandoff,
   picker = null,
   source = null,
+  box,
   replyRef,
   onTyping,
   onEscapeEmpty,
@@ -345,22 +418,23 @@ export function OutsideCard({
   flash: string | null;
   cameBack: boolean;
   typing: boolean;
-  next: () => void;
-  archive: () => void;
+  moves: OutsideMoveHandlers;
   /** The chat the thread went to before, in words (`wentTo`). */
   went?: string | null;
   /** Open the hand-off picker; absent, the card has no hand off. */
   onHandoff?: () => void;
-  /** The hand-off picker while it is open. */
+  /** The picker open on the card, the hand-off's, the return time's or the labels'. */
   picker?: ReactNode;
-  /** Reading the thread and sending the reply; absent, the card shows its last lines and no reply box. */
-  source?: OutsideSource | null;
+  /** Reading the thread; absent, the card shows its last lines. */
+  source?: Pick<OutsideSource, "readOutside"> | null;
+  /** The reply box, as the deck holds it; absent, the card has no reply box. */
+  box?: ReplyBoxControl;
   replyRef?: RefObject<HTMLTextAreaElement | null>;
   onTyping?: (typing: boolean) => void;
   onEscapeEmpty?: () => void;
 }) {
   const thread = useOutsideThread(current, source);
-  const moves = <OutsideMoves facts={facts} typing={typing} next={next} archive={archive} onHandoff={onHandoff} picking={!!picker} />;
+  const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
@@ -374,17 +448,10 @@ export function OutsideCard({
       </div>
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
       <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
-        {source ? (
-          <OutsideReply
-            facts={facts}
-            onSend={(text) => source.replyOutside(current, text, "archive")}
-            inputRef={replyRef}
-            onTyping={onTyping}
-            onEscapeEmpty={onEscapeEmpty}
-            actions={moves}
-          />
+        {box ? (
+          <OutsideReply facts={facts} box={box} inputRef={replyRef} onTyping={onTyping} onEscapeEmpty={onEscapeEmpty} actions={row} />
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{moves}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>
         )}
       </div>
     </div>

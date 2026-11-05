@@ -19,8 +19,10 @@ export function useDeckKeys({
   current,
   decided,
   replyRef,
-  next,
+  read,
+  later,
   archive,
+  label,
   approve,
   undo,
   onOpenDesk,
@@ -30,21 +32,27 @@ export function useDeckKeys({
   current: AttentionItem | undefined;
   decided: Decision[];
   replyRef: RefObject<HTMLTextAreaElement | null>;
-  next: () => void;
+  read: () => void;
+  later: () => void;
   archive: () => void;
+  label: () => void;
   approve: (behavior: "allow" | "deny" | "always") => void;
   undo: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;
 }) {
   // The deck's actions, by keymap id (the shell's key handler and the menu dispatch to them). The keymap
-  // decides which keys reach here while the reply box has focus: ⌘] ⌘E ⌘↵ ⌘⇧D ⌘O do, plain letters do not.
-  const act = useEffectEvent((action: "next" | "archive" | "approve" | "deny" | "reply" | "open" | "undo") => {
+  // decides which keys reach here while the reply box has focus: ⌘] ⌘[ ⌘E ⌘↵ ⌘⇧D ⌘O do, plain letters do not.
+  const act = useEffectEvent((action: "read" | "later" | "archive" | "label" | "approve" | "deny" | "reply" | "open" | "undo") => {
     switch (action) {
-      case "next":
-        return next();
+      case "read":
+        return read();
+      case "later":
+        return later();
       case "archive":
         return archive();
+      case "label":
+        return label();
       case "approve":
       case "deny":
         if (current?.pendingApproval) approve(action === "approve" ? "allow" : "deny");
@@ -62,8 +70,10 @@ export function useDeckKeys({
   });
   useEffect(() => {
     return registerActions({
-      "inbox.next": () => act("next"),
+      "inbox.next": () => act("read"),
+      "inbox.later": () => act("later"),
       "inbox.archive": () => act("archive"),
+      "inbox.label": () => act("label"),
       "inbox.approve": () => act("approve"),
       "inbox.deny": () => act("deny"),
       "inbox.reply": () => act("reply"),
@@ -75,7 +85,7 @@ export function useDeckKeys({
   const close = useEffectEvent(() => onClose());
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // A layer over the inbox (search, a dialog) owns Esc while it is up: it closes, the inbox stays.
+      // A layer over the inbox (search, a dialog, a picker on the card) owns Esc while it is up: it closes, the inbox stays.
       if (e.key === "Escape" && !typing && !document.querySelector('[role="dialog"]')) close();
     };
     window.addEventListener("keydown", onKey);

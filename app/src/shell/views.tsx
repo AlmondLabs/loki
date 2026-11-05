@@ -82,10 +82,16 @@ export function InboxView({
       onPass={onPass}
       items={catchUp.items}
       labelList={catchUp.labels.list}
-      onSeen={(item, moved) => (moved === "next" && catchUp.decided(item, "next", via()), catchUp.seen(item))}
-      onUnread={(item) => (catchUp.undone(item, "next"), catchUp.unread(item))}
+      onRead={(item) => catchUp.read(item, via())}
+      onLater={(item, until) => catchUp.later(item, via(), until)}
+      laterAsks={catchUp.laterAsks}
       onArchive={(item) => catchUp.archive(item, via())}
-      onUnarchive={(item) => void catchUp.unarchive(item)}
+      onLabel={(item, labelIds) => catchUp.label(item, labelIds, via())}
+      labelsOf={catchUp.labelsOf}
+      onUndo={catchUp.undo}
+      // An approval moves its card past: seen, and an undo of that only takes the mark back (the answer stays given).
+      onSeen={(item) => catchUp.seen(item)}
+      onUnread={(item) => catchUp.unread(item)}
       onApprove={(item, requestId, behavior) => (
         catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", via()),
         catchUp.approve(item, requestId, behavior)

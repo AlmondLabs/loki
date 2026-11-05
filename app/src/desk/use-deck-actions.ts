@@ -1,83 +1,69 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
-import { popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { idOf, type Decision } from "../../../core/attention/queue.ts";
+import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
 
 /**
  * What moves a card, and the small state those moves leave behind: the 900ms flash on the badge
- * ("approved", "denied", "sent", "archived"), the count of replies this visit, and which way the last move
- * went so the next card enters from that side. Two ways past a card: Next marks the chat read and moves on
- * (the chat stays in the Inbox for your next visit), Archive is done (the chat leaves the Inbox). The reply
- * box itself is the Conversation's. The queue and the decisions are the deck's (useDeckQueue); this hook only
- * writes to them. Every move pops the head and re-orders the rest by score at that moment (popHead), the way
- * a scheduler picks its next process when one leaves the CPU.
+ * ("read", "later", "archived", "labelled", "approved", "sent"), the count of replies this visit, which way the last
+ * move went so the next card enters from that side, the picker open on the card, and an outside card's reply box,
+ * which the deck holds so its keys can send it (KTD9). The moves themselves are `createDeckMoves`, the same on every
+ * card: read (⌘]) marks it read and it rests, later (⌘[) keeps it unread and brings it back, archive (⌘E) is done. The
+ * queue and the decisions are the deck's (useDeckQueue); this hook only writes to them. Every move pops the head and
+ * re-orders the rest by score at that moment (popHead), the way a scheduler picks its next process when one leaves
+ * the CPU.
  */
 export function useDeckActions({
   current,
   decided,
   setDecided,
   setQueue,
-  onSeen,
-  onUnread,
-  onArchive,
-  onUnarchive,
-  onApprove,
+  moves,
   agent = null,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
-  /** Marked read on the way past; `via` says what moved it (an approval moves the card too, and is logged as one). */
-  onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
-  onUnread: (item: AttentionItem) => void;
-  /** Archive the chat (done); resolves to an error or null. */
-  onArchive: (item: AttentionItem) => Promise<string | null>;
-  onUnarchive: (item: AttentionItem) => void;
-  onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
+  moves: DeckMoveApi;
   /** The agent pill on, if one is: undo takes back that agent's last decision, the one you can see. */
   agent?: string | null;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
-  /** Replies and answers sent this visit. A reply keeps you on the card; only next/archive/approve/deny move it. */
+  /** Replies and answers sent this visit. A reply on a chat keeps you on the card; the deck's keys move it. */
   const [replies, setReplies] = useState(0);
   /** Which way the last move went; the next card enters from that side. */
   const [dir, setDir] = useState<"next" | "back">("next");
+  /** The picker open, and on which card; another card on top closes it. */
+  const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
+  /** The reply box of one outside card; another card on top starts with an empty one. */
+  const [box, setBox] = useState<{ id: string } & ReplyBox>({ id: "", ...EMPTY_REPLY });
+
+  const currentId = current ? idOf(current) : "";
+  const reply: ReplyBox = box.id === currentId ? box : EMPTY_REPLY;
+  const picker = picking?.id === currentId ? picking.kind : null;
 
   const say = (word: string) => {
     setFlash(word);
     setTimeout(() => setFlash(null), 900);
   };
-  const decide = (item: AttentionItem, action: Decision["action"], via: NonNullable<Decision["via"]>) => {
-    setDir("next");
-    setDecided((d) => [...d, { item, action, via, stamp: stampOf(item) }]);
-    setQueue(popHead);
-  };
-  /** Next: read, move on; the chat comes back on a later visit, or in this one if it moves on. */
-  const next = (via: "next" | "approve" | "deny" = "next") => {
-    if (!current) return;
-    onSeen(current, via);
-    decide(current, "seen", via);
-  };
+  const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY }), ...patch }));
+  const deck = createDeckMoves({
+    current,
+    decided,
+    agent,
+    reply,
+    setReply,
+    setDecided,
+    setQueue,
+    say,
+    setDir,
+    pick: (kind) => setPicking(kind && currentId ? { id: currentId, kind } : null),
+    sent: () => setReplies((n) => n + 1),
+    moves,
+  });
   /**
-   * Archive: done with the chat. A main chat cannot be archived; the card stays and says so. An outside card's thread
-   * is archived in its account (plan 067), and a refusal there brings the card back the same way.
-   */
-  const archive = () => {
-    const item = current;
-    if (!item) return;
-    if (!item.outside && item.id === "default") return say("main chats stay");
-    decide(item, "archived", "archive");
-    void onArchive(item).then((err) => {
-      if (!err) return;
-      // The daemon or the account refused: the card is still open, so it comes back on top with the reason.
-      setDecided((d) => d.filter((x) => !(x.item === item && x.action === "archived")));
-      setQueue((q) => [item, ...q]);
-      say(`not archived: ${err}`);
-    });
-    say("archived");
-  };
-  /**
-   * A reply or an answer went out: the card stays — you may want to watch the answer arrive, and a
+   * A reply or an answer went out on a chat: the card stays — you may want to watch the answer arrive, and a
    * follow-up typed while it streams in lands while the conversation's prompt is still cached. Moving on
    * is yours (⌘]); if you do, the answer brings the card back by score, new and in focus, behind whatever
    * you are reading then. Sending already marks the conversation seen.
@@ -86,24 +72,15 @@ export function useDeckActions({
     setReplies((n) => n + 1);
     say("sent");
   };
-  const undo = () => {
-    let at = decided.length - 1;
-    while (at >= 0 && agent && ownerAgentOf(decided[at].item) !== agent) at--;
-    const last = at >= 0 ? decided[at] : undefined;
-    if (!last) return;
-    // An outside card's archive has reached Gmail or Slack: loki does not take it back.
-    if (last.action === "archived" && last.item.outside) return say("archived out there: not undone");
-    if (last.action === "seen") onUnread(last.item);
-    else onUnarchive(last.item);
-    setDir("back");
-    setDecided((d) => d.filter((_, i) => i !== at));
-    setQueue((q) => [last.item, ...q]);
+  return {
+    flash,
+    replies,
+    dir,
+    picker,
+    reply,
+    setText: (text: string) => setReply(currentId, { text }),
+    openPicker: (kind: PickerKind | null) => setPicking(kind && currentId ? { id: currentId, kind } : null),
+    ...deck,
+    sent,
   };
-  const approve = (behavior: "allow" | "deny" | "always") => {
-    if (!current?.pendingApproval) return;
-    onApprove(current, current.pendingApproval.requestId, behavior);
-    say(behavior !== "deny" ? "approved" : "denied");
-    next(behavior !== "deny" ? "approve" : "deny");
-  };
-  return { flash, replies, dir, next, archive, undo, approve, sent };
 }
