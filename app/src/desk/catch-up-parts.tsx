@@ -181,44 +181,54 @@ export interface CardHeaderProps {
  * the header stays two lines. The mode and model chips sit in the card's last row.
  */
 export function CardHeader({ current, cameBack, flash, labelList = null, suggestions = 0, onSuggestions }: CardHeaderProps) {
-  const badge = BADGE[current.status];
-  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
-  const reason = REASON_LABEL[current.reason];
   const agent = current.agent_name ?? "agent";
-  const title = current.title ?? current.id;
   return (
     <CardHead
       face={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
       who={agent}
-      line={
-        <>
-          <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
-            {title}
-          </span>
-          <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
-          {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
-          {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
-          {current.has_draft && <Meta>draft</Meta>}
-          {suggestions > 0 && (
-            <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
-              {chipText(suggestions, false)}
-            </Chip>
-          )}
-          <LabelChips labels={current.labels} list={labelList} />
-        </>
-      }
-      right={
-        needsYou(current.status) ? (
-          <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
-            <Dot color={badge.color} />
-            {flash ?? badge.label}
-          </Chip>
-        ) : (flash ?? badge.label) ? (
-          <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
-        ) : null
-      }
+      line={<ChatCardLine current={current} cameBack={cameBack} labelList={labelList} suggestions={suggestions} onSuggestions={onSuggestions} />}
+      right={<StatusBadge status={current.status} flash={flash} />}
     />
   );
+}
+
+/** A chat card's second line: the chat's title (its purpose on hover), when, why it ranks here, and its marks. */
+function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions }: Omit<CardHeaderProps, "flash">) {
+  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
+  const reason = REASON_LABEL[current.reason];
+  const title = current.title ?? current.id;
+  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
+  return (
+    <>
+      <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
+        {title}
+      </span>
+      <Meta>{when}</Meta>
+      {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
+      {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
+      {current.has_draft && <Meta>draft</Meta>}
+      {(suggestions ?? 0) > 0 && (
+        <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
+          {chipText(suggestions ?? 0, false)}
+        </Chip>
+      )}
+      <LabelChips labels={current.labels} list={labelList ?? null} />
+    </>
+  );
+}
+
+/** A chat's status as its card's tag: a dot in full ink when it waits on the person, a toned chip otherwise. */
+function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string | null }) {
+  const badge = BADGE[status];
+  const label = flash ?? badge.label;
+  if (needsYou(status))
+    return (
+      <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
+        <Dot color={badge.color} />
+        {label}
+      </Chip>
+    );
+  return label ? <Chip tone={badge.color}>{label}</Chip> : null;
 }
 
 /** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */
