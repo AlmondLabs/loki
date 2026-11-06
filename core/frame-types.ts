@@ -283,6 +283,16 @@ export interface OutsideMessage {
    * Slack, for mail with only a plain part, and from a Mac on a loki older than this field.
    */
   html?: string;
+  /** The sender's Slack photo (plan 074); absent for mail, for a sender with none, and from an older loki. */
+  avatar?: string;
+  /** A reply under the card's thread's first message, drawn indented as an open thread (plan 074). */
+  in_thread?: boolean;
+  /** Not yet read by the person in Slack, so the card draws the New line before the first such message (plan 074). */
+  unread?: boolean;
+  /** How many replies a channel message around the card has in its own thread, which the card does not open. */
+  replies?: number;
+  /** The channel has more messages after this one than the card shows (plan 074). */
+  more_after?: boolean;
 }
 
 /** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */

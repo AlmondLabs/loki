@@ -919,7 +919,11 @@ first, with who wrote it and when, and yours marked **you**; mail loses the earl
 each reply ("On … wrote:"). A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
 you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
-text, with its web addresses made into links. In a mail thread, each mail before the newest starts folded to its
+text, with its web addresses made into links. **A Slack card reads like its channel**: the 5 messages before the
+thread, the thread with its replies indented under its first message, and the 5 messages after it, drawn as a chat
+draws messages, with faces, day pills, @channel marked, and Slack's red **New** line before the first message you have
+not read; the card opens on that line. A channel with more since than loki reads says so at the end. A DM card shows
+its latest messages the same way. A hand-off still sends the thread alone. In a mail thread, each mail before the newest starts folded to its
 sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what came in the last 3 days,
 and each time that account has no unread cards left in the Inbox (read cards, resting or not, do not hold it back),
 the next older batch arrives, a week back, then two, then a month, then a month more each time, until nothing older is

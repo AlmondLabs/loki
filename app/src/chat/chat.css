@@ -1721,3 +1721,57 @@ button.loki-label-chip:focus-visible {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* A Slack card's body (plan 074): the chat's own message rows, the card's thread indented under its first message
+   as an open thread, a day pill on a hairline, @channel marked as Slack marks it. */
+.loki-slack-thread {
+  display: flex;
+  flex-direction: column;
+}
+.loki-slack-reply {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 2px solid var(--loki-border);
+}
+.loki-slack-reply .loki-msg {
+  margin-left: -12px;
+  padding-left: 12px;
+}
+/* The pill stays in its place: the card has no day blocks to push one off the next, so a sticky pill would sit over
+   the messages under it. */
+.loki-slack-day.loki-msg-day-pill-wrap {
+  position: relative;
+  margin: 12px 0 4px;
+}
+.loki-slack-day.loki-msg-day-pill-wrap::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--loki-border);
+}
+.loki-slack-day .loki-msg-day-pill {
+  position: relative;
+}
+.loki-slack-text {
+  white-space: pre-wrap;
+}
+.loki-mention {
+  padding: 0 2px;
+  border-radius: var(--loki-radius-sm);
+  background: var(--loki-brass-soft);
+  font-weight: 600;
+}
+.loki-slack-replies {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--loki-accent);
+}
+.loki-slack-more {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--loki-muted);
+  text-align: center;
+}

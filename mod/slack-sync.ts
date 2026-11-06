@@ -66,11 +66,12 @@ interface RefillState {
  * A Slack ts as a string that sorts in time order: seconds padded, then the six-digit fraction. Comparing ts as numbers
  * loses the last digits of the fraction, which is what tells two messages in one second apart.
  */
-const tsKey = (ts: string): string => {
+export const tsKey = (ts: string): string => {
   const [s = "", f = ""] = ts.split(".");
   return `${s.padStart(12, "0")}.${f.padEnd(6, "0")}`;
 };
-const tsAfter = (a: string, b: string): boolean => tsKey(a) > tsKey(b);
+/** Whether Slack ts `a` is later than `b`. */
+export const tsAfter = (a: string, b: string): boolean => tsKey(a) > tsKey(b);
 
 /** A ts as ISO time, or null when it is not one. */
 function tsIso(ts: string): string | null {
