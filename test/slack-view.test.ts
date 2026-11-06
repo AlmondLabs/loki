@@ -15,7 +15,7 @@ function msg(ts: string, user: string, text: string, extra: Partial<SlackMessage
 }
 
 /** A channel's history and one thread, answering as Slack does: history newest first, a limit, and pages by cursor. */
-function fakeSlack(opts: { history: SlackMessage[]; thread: SlackMessage[]; last_read?: string | null }) {
+function fakeSlack(opts: { history: SlackMessage[]; thread: SlackMessage[]; last_read?: string | null; emoji?: Record<string, string> }) {
   const calls: string[] = [];
   const newestFirst = [...opts.history].sort((a, b) => Number(b.ts) - Number(a.ts));
   const client = {
@@ -43,6 +43,7 @@ function fakeSlack(opts: { history: SlackMessage[]; thread: SlackMessage[]; last
         user: null,
         last_read: opts.last_read ?? null,
       }),
+    emojiList: (): Promise<Record<string, string>> => Promise.resolve(opts.emoji ?? {}),
     usersInfo: (user: string): Promise<SlackUser> =>
       Promise.resolve({
         id: user,
@@ -95,6 +96,23 @@ describe("reading a Slack card as its channel shows it", () => {
     expect(asked).toBe(1);
   });
 
+  test("messages come read as Slack draws them, and the workspace's emoji are asked for once per account", async () => {
+    const { client } = fakeSlack({
+      history: [],
+      thread: [msg("1.000000", "U1", ":shipit: <https://x.test|the doc>", { raw: { attachments: [{ title: "PR", title_link: "https://x.test/pr" }] } })],
+      emoji: { shipit: "https://emoji.example.test/shipit.png" },
+    });
+    let asked = 0;
+    const counted = { ...client, emojiList: () => (asked++, client.emojiList()) };
+    const view = slackChannelView(() => counted);
+    const [m] = await view(ACCOUNT, "C1:1.000000");
+    await view(ACCOUNT, "C1:1.000000");
+    expect(asked).toBe(1);
+    expect(m.body?.[0].spans[0]).toEqual({ kind: "emoji", text: ":shipit:", image: "https://emoji.example.test/shipit.png" });
+    expect(m.attachments?.[0].title).toEqual([{ kind: "link", text: "PR", url: "https://x.test/pr" }]);
+    expect(m.text).toBe(":shipit: the doc (https://x.test)\nPR (https://x.test/pr)");
+  });
+
   test("the person's own messages are never unread", async () => {
     const { client } = fakeSlack({ history: [], thread: [msg("5.000000", "UME", "mine")], last_read: "1.000000" });
     const out = await slackChannelView(() => client)(ACCOUNT, "C1:5.000000");
@@ -127,6 +145,53 @@ describe("drawing a Slack card's body", () => {
     expect(plan.map((p) => p.first)).toEqual([true, false, true, true, true, true]);
     expect(plan.map((p) => p.divider)).toEqual([false, false, false, false, true, false]);
     expect(plan[0].day).toBe("Today");
+  });
+
+  test("day pills come from the channel's messages only; a reply on a later day shows that day by its time", () => {
+    const day = (d: number, h: number) => new Date(Date.UTC(2026, 10, d, h)).toISOString();
+    const rows: OutsideMessage[] = [
+      { id: "a", sender: "Ravi", at: day(3, 9), text: "a", mine: false },
+      { id: "b", sender: "Neha", at: day(4, 9), text: "b", mine: false, in_thread: true },
+      { id: "c", sender: "Neha", at: day(5, 9), text: "c", mine: false, in_thread: true },
+      { id: "d", sender: "Ravi", at: day(3, 10), text: "d", mine: false },
+    ];
+    const plan = planSlackRows(rows, Date.UTC(2026, 10, 6, 12));
+    expect(plan.map((p) => p.day)).toEqual(["Tuesday", null, null, null]);
+    expect(plan.map((p) => p.dayNote)).toEqual([null, "Wednesday", "Yesterday", "Tuesday"]);
+    expect(plan.every((p) => p.first)).toBe(true);
+  });
+
+  test("a message's blocks are drawn: links, bold, quotes, code, emoji images and an app's attachment", () => {
+    const html = renderToStaticMarkup(
+      createElement(SlackThread, {
+        messages: [
+          m("a", "Shipyard", 0, {
+            body: [
+              {
+                kind: "text",
+                spans: [
+                  { kind: "text", text: "done", bold: true },
+                  { kind: "link", text: "PR", url: "https://x.test/pr" },
+                  { kind: "link", text: "app", url: "slack://open" },
+                  { kind: "emoji", text: ":shipit:", image: "https://emoji.example.test/shipit.png" },
+                ],
+              },
+              { kind: "quote", spans: [{ kind: "text", text: "quoted" }] },
+              { kind: "code", spans: [{ kind: "text", text: "npm test", code: true }] },
+            ],
+            attachments: [{ title: [{ kind: "text", text: "Build", bold: true }], color: "#2eb886" }],
+          }),
+        ],
+        newest: "a",
+      }),
+    );
+    expect(html).toContain("<strong>done</strong>");
+    expect(html).toContain('href="https://x.test/pr"');
+    expect(html).not.toContain("slack://open");
+    expect(html).toContain('<img class="loki-emoji" src="https://emoji.example.test/shipit.png"');
+    expect(html).toContain('<blockquote class="loki-slack-quote">quoted</blockquote>');
+    expect(html).toContain('<pre class="loki-slack-pre">npm test</pre>');
+    expect(html).toContain('style="border-left-color:#2eb886"');
   });
 
   test("@channel is marked, replies are indented, and a message's thread says how many replies it has", () => {

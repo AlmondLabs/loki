@@ -1,6 +1,6 @@
 import { messageOf } from "../core/errors.ts";
 import { htmlToText, tidyMail } from "../core/mail-text.ts";
-import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget } from "../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget, SlackAttachment, SlackBlock } from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
@@ -8,6 +8,7 @@ import type { GmailClient, GmailMessagePart } from "./gmail.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
+import { readSlackMessage } from "./slack-markup.ts";
 import type { CallOutcome, ChatCall } from "./suggestions.ts";
 
 /**
@@ -38,6 +39,9 @@ export interface ThreadMessage {
   unread?: boolean;
   replies?: number;
   more_after?: boolean;
+  /** A Slack message read the way Slack draws it, and what an app attached to it (plan 075). */
+  body?: SlackBlock[];
+  attachments?: SlackAttachment[];
   /**
    * A mail's HTML part as its sender wrote it, for the person's own card to draw (it never goes to a model); absent for
    * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.
@@ -381,7 +385,13 @@ export function slackThreadText(client: (accountId: string) => Pick<SlackClient,
     const me = accountId.split(":").at(2) ?? "";
     const out: ThreadMessage[] = [];
     for (const m of messages)
-      out.push({ sender: await senderOf(m, name), at: tsIso(m.ts), text: await slackPlain(m.text, name), mine: me !== "" && m.user === me, id: m.ts });
+      out.push({
+        sender: await senderOf(m, name),
+        at: tsIso(m.ts),
+        text: (await readSlackMessage(m, { person: name })).text,
+        mine: me !== "" && m.user === me,
+        id: m.ts,
+      });
     return out;
   };
 }
@@ -397,24 +407,4 @@ export async function senderOf(m: SlackMessage, name: (user: string) => Promise<
 export function tsIso(ts: string): string {
   const ms = Number(ts) * 1000;
   return Number.isFinite(ms) && ms > 0 ? new Date(Math.floor(ms)).toISOString() : "";
-}
-
-/** Slack's message markup as plain text: links by their label, people by name, entities decoded; lines kept. */
-export async function slackPlain(text: string, name: (user: string) => Promise<string>): Promise<string> {
-  const parts: string[] = [];
-  let last = 0;
-  for (const match of text.matchAll(/<([^>]*)>/g)) {
-    parts.push(text.slice(last, match.index));
-    last = match.index + match[0].length;
-    const inner = match[1];
-    const bar = inner.indexOf("|");
-    const target = bar < 0 ? inner : inner.slice(0, bar);
-    const label = bar < 0 ? null : inner.slice(bar + 1);
-    if (target.startsWith("@")) parts.push(`@${label ?? (await name(target.slice(1)))}`);
-    else if (target.startsWith("#")) parts.push(`#${label ?? target.slice(1)}`);
-    else if (target.startsWith("!")) parts.push(label ?? `@${target.slice(1).replace(/^subteam\^.*/, "group")}`);
-    else parts.push(label ?? target);
-  }
-  parts.push(text.slice(last));
-  return parts.join("").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").trim();
 }

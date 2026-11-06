@@ -293,6 +293,38 @@ export interface OutsideMessage {
   replies?: number;
   /** The channel has more messages after this one than the card shows (plan 074). */
   more_after?: boolean;
+  /** A Slack message read the way Slack draws it (plan 075); absent for mail and from an older loki, which draw `text`. */
+  body?: SlackBlock[];
+  /** What a Slack app attached under its message (plan 075). */
+  attachments?: SlackAttachment[];
+}
+
+/**
+ * A run of a Slack message's words as the card draws it (plan 075): text in its styles, a link with its address, a
+ * mention of a person, channel or group, or an emoji, which is the character itself, else the workspace's own image.
+ */
+export type SlackSpan =
+  | { kind: "text"; text: string; bold?: true; italic?: true; strike?: true; code?: true }
+  | { kind: "link"; text: string; url: string }
+  | { kind: "mention"; text: string }
+  | { kind: "emoji"; text: string; image?: string };
+
+/** A paragraph of a Slack message (plan 075): ordinary lines, a `>` quote, or a code block. */
+export interface SlackBlock {
+  kind: "text" | "quote" | "code";
+  spans: SlackSpan[];
+}
+
+/**
+ * What a Slack app attached to a message (plan 075): a lead line above it, a title that may link somewhere, its text
+ * and fields, and the bar colour the app chose (`#rrggbb`), all optional as Slack's are.
+ */
+export interface SlackAttachment {
+  pretext?: SlackBlock[];
+  title?: SlackSpan[];
+  body?: SlackBlock[];
+  fields?: Array<{ title: string; value: SlackBlock[] }>;
+  color?: string;
 }
 
 /** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */

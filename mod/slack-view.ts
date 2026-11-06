@@ -1,5 +1,6 @@
-import { senderOf, slackPlain, tsIso, type ThreadMessage, type ThreadText } from "./handoff.ts";
+import { senderOf, tsIso, type ThreadMessage, type ThreadText } from "./handoff.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
+import { readSlackMessage, type SlackNames } from "./slack-markup.ts";
 import { tsAfter, tsKey } from "./slack-sync.ts";
 
 /** The channel messages a card shows before its thread's first message (plan 074). */
@@ -21,21 +22,35 @@ interface Person {
   image: string | null;
 }
 
-type ViewClient = Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "conversationsInfo" | "usersInfo">;
+type ViewClient = Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "conversationsInfo" | "usersInfo" | "emojiList">;
 
 /**
  * A Slack card's body as the channel shows it (plan 074): for a thread (`<channel>:<ts>`), the channel's messages
  * before its first message, that message with its replies, and the channel's messages after it; for a DM, its
  * latest messages. Each message carries its sender's photo and whether the person has read it, from the thread's own
- * read marker for replies and the channel's for the rest. People are remembered across reads of one account, so
- * opening another card asks Slack only about people not seen yet.
+ * read marker for replies and the channel's for the rest, and its words read as Slack draws them (plan 075). People,
+ * channels and the workspace's own emoji are remembered across reads of one account, so opening another card asks Slack
+ * only about what it has not seen yet; the emoji are read once per account while loki runs.
  */
 export function slackChannelView(client: (accountId: string) => ViewClient): ThreadText {
   const people = new Map<string, Map<string, Promise<Person>>>();
+  const channels = new Map<string, Map<string, Promise<string | null>>>();
+  const emoji = new Map<string, Promise<Record<string, string>>>();
   return async (accountId, threadId) => {
     const slack = client(accountId);
     const seen = people.get(accountId) ?? new Map<string, Promise<Person>>();
     people.set(accountId, seen);
+    const named = channels.get(accountId) ?? new Map<string, Promise<string | null>>();
+    channels.set(accountId, named);
+    // A workspace whose emoji cannot be read shows its own by name; the read is tried again on the next card.
+    let own = emoji.get(accountId);
+    if (!own) {
+      own = slack.emojiList().catch(() => {
+        emoji.delete(accountId);
+        return {};
+      });
+      emoji.set(accountId, own);
+    }
     // The lookup itself is remembered, so messages drawn at once by one person ask Slack about them once.
     const person = (user: string): Promise<Person> => {
       const had = seen.get(user);
@@ -48,17 +63,33 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Thr
       return p;
     };
     const name = async (user: string) => (await person(user)).name;
+    const channelName = (id: string): Promise<string | null> => {
+      const had = named.get(id);
+      if (had) return had;
+      const p = slack
+        .conversationsInfo(id)
+        .then((c) => c.name)
+        .catch(() => null);
+      named.set(id, p);
+      return p;
+    };
+    // The workspace's emoji are read beside the messages (below), and messages are drawn once both are in.
+    let ownEmoji: Record<string, string> = {};
+    const names: SlackNames = { person: name, channel: channelName, emoji: (n) => ownEmoji[n] ?? null };
     // The account is the workspace and the person it calls as (`slack:<team>:<user>`), so a message by that user is theirs.
     const me = accountId.split(":").at(2) ?? "";
     const draw = async (m: SlackMessage, read: string | null, extra: Partial<ThreadMessage> = {}): Promise<ThreadMessage> => {
       const mine = me !== "" && m.user === me;
       const image = m.user ? (await person(m.user)).image : null;
+      const words = await readSlackMessage(m, names);
       return {
         id: m.ts,
         sender: await senderOf(m, name),
         at: tsIso(m.ts),
-        text: await slackPlain(m.text, name),
+        text: words.text,
         mine,
+        body: words.body,
+        ...(words.attachments.length ? { attachments: words.attachments } : {}),
         ...(image ? { avatar: image } : {}),
         ...(!mine && read !== null && tsAfter(m.ts, read) ? { unread: true } : {}),
         ...extra,
@@ -66,21 +97,25 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Thr
     };
     const at = threadId.indexOf(":");
     if (at < 0) {
-      const [page, info] = await Promise.all([
+      const [page, info, emojiRead] = await Promise.all([
         slack.conversationsHistory({ channel: threadId, limit: VIEW_DM }),
         slack.conversationsInfo(threadId).catch(() => null),
+        own,
       ]);
+      ownEmoji = emojiRead;
       const read = info?.last_read ?? null;
       return Promise.all(byTime(page.messages).map((m) => draw(m, read)));
     }
     const channel = threadId.slice(0, at);
     const ts = threadId.slice(at + 1);
-    const [thread, before, later, info] = await Promise.all([
+    const [thread, before, later, info, emojiRead] = await Promise.all([
       slack.conversationsReplies({ channel, ts, limit: 200 }),
       slack.conversationsHistory({ channel, latest: ts, inclusive: false, limit: VIEW_BEFORE }),
       afterThread(slack, channel, ts),
       slack.conversationsInfo(channel).catch(() => null),
+      own,
     ]);
+    ownEmoji = emojiRead;
     const channelRead = info?.last_read ?? null;
     const messages = byTime(thread.messages);
     const first = messages.find((m) => m.ts === ts) ?? messages.at(0);
