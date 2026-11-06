@@ -31,16 +31,19 @@ type ViewClient = Pick<SlackClient, "conversationsReplies" | "conversationsHisto
  * opening another card asks Slack only about people not seen yet.
  */
 export function slackChannelView(client: (accountId: string) => ViewClient): ThreadText {
-  const people = new Map<string, Map<string, Person>>();
+  const people = new Map<string, Map<string, Promise<Person>>>();
   return async (accountId, threadId) => {
     const slack = client(accountId);
-    const seen = people.get(accountId) ?? new Map<string, Person>();
+    const seen = people.get(accountId) ?? new Map<string, Promise<Person>>();
     people.set(accountId, seen);
-    const person = async (user: string): Promise<Person> => {
+    // The lookup itself is remembered, so messages drawn at once by one person ask Slack about them once.
+    const person = (user: string): Promise<Person> => {
       const had = seen.get(user);
       if (had) return had;
-      const u = await slack.usersInfo(user).catch(() => null);
-      const p = { name: u ? u.display_name || u.real_name || u.name || user : user, image: u?.image || null };
+      const p = slack
+        .usersInfo(user)
+        .catch(() => null)
+        .then((u) => ({ name: u ? u.display_name || u.real_name || u.name || user : user, image: u?.image || null }));
       seen.set(user, p);
       return p;
     };
@@ -68,9 +71,7 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Thr
         slack.conversationsInfo(threadId).catch(() => null),
       ]);
       const read = info?.last_read ?? null;
-      const out: ThreadMessage[] = [];
-      for (const m of byTime(page.messages)) out.push(await draw(m, read));
-      return out;
+      return Promise.all(byTime(page.messages).map((m) => draw(m, read)));
     }
     const channel = threadId.slice(0, at);
     const ts = threadId.slice(at + 1);
@@ -85,10 +86,12 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Thr
     const first = messages.find((m) => m.ts === ts) ?? messages.at(0);
     const lastRead = first?.raw.last_read;
     const threadRead = typeof lastRead === "string" && lastRead ? lastRead : channelRead;
-    const out: ThreadMessage[] = [];
-    for (const m of byTime(before.messages)) out.push(await draw(m, channelRead, withReplies(m)));
-    for (const m of messages) out.push(await draw(m, m === first ? channelRead : threadRead, m === first ? {} : { in_thread: true }));
-    for (const m of later.messages) out.push(await draw(m, channelRead, withReplies(m)));
+    // Each message is drawn on its own; the people they name are asked about once (above), in parallel.
+    const out = await Promise.all([
+      ...byTime(before.messages).map((m) => draw(m, channelRead, withReplies(m))),
+      ...messages.map((m) => draw(m, m === first ? channelRead : threadRead, m === first ? {} : { in_thread: true })),
+      ...later.messages.map((m) => draw(m, channelRead, withReplies(m))),
+    ]);
     const last = out.at(-1);
     if (later.more && last) last.more_after = true;
     return out;

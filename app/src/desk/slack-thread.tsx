@@ -37,15 +37,19 @@ const BROADCAST = /(@(?:channel|here|everyone))\b/;
 
 /** A message's text with its links made links and @channel, @here and @everyone marked, as Slack marks them. */
 function SlackText({ text }: { text: string }): ReactNode {
-  return text.split(BROADCAST).map((part, i) =>
-    i % 2 === 1 ? (
-      <span key={i} className="loki-mention">
+  // Each part is keyed by its kind and where it starts in the text: an empty text part and the mention after it share a start.
+  let at = 0;
+  return text.split(BROADCAST).map((part, i) => {
+    const key = at;
+    at += part.length;
+    return i % 2 === 1 ? (
+      <span key={`mention-${key}`} className="loki-mention">
         {part}
       </span>
     ) : (
-      <LinkedText key={i} text={part} />
-    ),
-  );
+      <LinkedText key={`text-${key}`} text={part} />
+    );
+  });
 }
 
 /** One message as the chat draws one: a face and name on the first of a run, its time beside the name. */
