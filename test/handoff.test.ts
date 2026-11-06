@@ -466,7 +466,8 @@ describe("reading a whole thread for a hand-off", () => {
     // The account calls as U2, so Ada's message is the person's own (plan 068).
     expect(await read("slack:T01:U2", "C9:1762243200.000100")).toEqual([
       { sender: "Grace", at: "2025-11-04T08:00:00.000Z", text: "hi @Ada Lovelace", mine: false, id: "1762243200.000100" },
-      { sender: "Ada Lovelace", at: "2025-11-04T08:01:00.000Z", text: "the doc & more", mine: true, id: "1762243260.000200" },
+      // A labelled link keeps its address, so an agent handed the thread can follow it (plan 075).
+      { sender: "Ada Lovelace", at: "2025-11-04T08:01:00.000Z", text: "the doc (https://x.test) & more", mine: true, id: "1762243260.000200" },
     ]);
     expect((await read("slack:T01:U2", "D7")).map((m) => m.text)).toEqual(["first", "second"]);
     expect(calls).toEqual(["replies C9 1762243200.000100", "history D7"]);

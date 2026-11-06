@@ -78,6 +78,8 @@ export class OutsideThreads {
       ...(m.unread ? { unread: true } : {}),
       ...(m.replies ? { replies: m.replies } : {}),
       ...(m.more_after ? { more_after: true } : {}),
+      ...(m.body ? { body: m.body } : {}),
+      ...(m.attachments?.length ? { attachments: m.attachments } : {}),
     }));
   }
 

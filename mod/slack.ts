@@ -35,6 +35,7 @@ export const SLACK_METHODS = [
   "conversations.replies",
   "conversations.info",
   "users.info",
+  "emoji.list",
   "conversations.mark",
   "drafts.list",
   "drafts.create",
@@ -351,6 +352,17 @@ export class SlackClient {
       user: strOrNull(c.user),
       last_read: strOrNull(c.last_read),
     };
+  }
+
+  /**
+   * The workspace's own emoji (plan 075), by name: an image's address, or `alias:<name>` for a name that stands for
+   * another emoji, the workspace's or a standard one.
+   */
+  async emojiList(): Promise<Record<string, string>> {
+    const emoji = rec((await this.call("emoji.list", {})).emoji);
+    const out: Record<string, string> = {};
+    for (const [name, value] of Object.entries(emoji)) if (typeof value === "string") out[name] = value;
+    return out;
   }
 
   /** A person in the workspace. */

@@ -1763,6 +1763,59 @@ button.loki-label-chip:focus-visible {
   background: var(--loki-brass-soft);
   font-weight: 600;
 }
+/* A Slack message's words as Slack draws them (plan 075): code in the one mono, a quote behind a bar, a workspace's
+   own emoji at the height of a line, and an app's attachment behind a bar in the colour it chose. */
+.loki-slack-code {
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  background: var(--loki-code);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.loki-slack-pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  background: var(--loki-well);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+}
+.loki-slack-quote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 4px solid var(--loki-border);
+}
+/* Above the body's own image rule, which would let an emoji take its picture's height. */
+.loki-slack-text img.loki-emoji {
+  display: inline-block;
+  width: 1.375em;
+  height: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
+.loki-slack-attachment {
+  margin-top: 4px;
+  padding: 2px 0 2px 12px;
+  border-left: 4px solid var(--loki-border);
+}
+.loki-slack-attachment-title {
+  font-weight: 600;
+}
+.loki-slack-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 4px 16px;
+  margin: 4px 0 0;
+}
+.loki-slack-fields dt {
+  font-weight: 600;
+}
+.loki-slack-fields dd {
+  margin: 0;
+}
 .loki-slack-replies {
   margin-top: 2px;
   font-size: 12px;
