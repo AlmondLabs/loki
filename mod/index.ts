@@ -56,6 +56,7 @@ import { SlackSync } from "./slack-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
+import { slackChannelView } from "./slack-view.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -355,6 +356,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     accounts,
     threads,
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
+    cardView: { slack: slackChannelView(slackClient) },
     clientFor: (account) =>
       account.provider === "gmail"
         ? { provider: "gmail", client: gmailClient(account.account_id) }

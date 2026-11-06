@@ -30,6 +30,8 @@ export interface OutsideThreadsOptions {
   threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting">;
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
+  /** A card's own reader where it shows more than the thread: Slack's channel around it (plan 074). */
+  cardView?: Partial<Record<AccountProvider, ThreadText>>;
   clientFor: (account: AccountRecord) => SendClient;
   /** Waiting out a rate limit before reading again; a timer when not given. */
   sleep?: (ms: number) => Promise<void>;
@@ -55,7 +57,8 @@ export class OutsideThreads {
   /** The whole thread as the card draws it: every message with its sender and time, and mail without the quoted thread under it. */
   async read(accountId: string, threadId: string): Promise<OutsideMessage[]> {
     const account = this.need(accountId);
-    const readThread = () => this.opts.threadText[account.provider](accountId, threadId);
+    const reader = this.opts.cardView?.[account.provider] ?? this.opts.threadText[account.provider];
+    const readThread = () => reader(accountId, threadId);
     const messages = await readThread().catch(async (err: unknown) => {
       const wait = err instanceof SlackError && err.code === "ratelimited" ? err.retryAfterMs : null;
       if (wait === null || wait > READ_WAIT_MAX_MS) throw err;
@@ -70,6 +73,11 @@ export class OutsideThreads {
       text: account.provider === "gmail" ? withoutQuoted(m.text) : m.text,
       mine: m.mine === true,
       ...(account.provider === "gmail" && m.html ? { html: m.html } : {}),
+      ...(m.avatar ? { avatar: m.avatar } : {}),
+      ...(m.in_thread ? { in_thread: true } : {}),
+      ...(m.unread ? { unread: true } : {}),
+      ...(m.replies ? { replies: m.replies } : {}),
+      ...(m.more_after ? { more_after: true } : {}),
     }));
   }
 

@@ -32,6 +32,12 @@ export interface ThreadMessage {
   mine?: boolean;
   /** The message's own id in its service (Gmail's id, Slack's ts), so the card can key it; absent when unknown. */
   id?: string;
+  /** The rest of what a card draws of a Slack message (plan 074); a hand-off's reader leaves them out. */
+  avatar?: string;
+  in_thread?: boolean;
+  unread?: boolean;
+  replies?: number;
+  more_after?: boolean;
   /**
    * A mail's HTML part as its sender wrote it, for the person's own card to draw (it never goes to a model); absent for
    * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.
@@ -380,20 +386,21 @@ export function slackThreadText(client: (accountId: string) => Pick<SlackClient,
   };
 }
 
-async function senderOf(m: SlackMessage, name: (user: string) => Promise<string>): Promise<string> {
+/** Who wrote a Slack message: a person by the name Slack shows, else the app that posted it. */
+export async function senderOf(m: SlackMessage, name: (user: string) => Promise<string>): Promise<string> {
   if (m.user) return name(m.user);
   const username = m.raw.username;
   return typeof username === "string" && username ? username : "a Slack app";
 }
 
 /** A Slack ts as ISO time, or "" when it is not one. */
-function tsIso(ts: string): string {
+export function tsIso(ts: string): string {
   const ms = Number(ts) * 1000;
   return Number.isFinite(ms) && ms > 0 ? new Date(Math.floor(ms)).toISOString() : "";
 }
 
 /** Slack's message markup as plain text: links by their label, people by name, entities decoded; lines kept. */
-async function slackPlain(text: string, name: (user: string) => Promise<string>): Promise<string> {
+export async function slackPlain(text: string, name: (user: string) => Promise<string>): Promise<string> {
   const parts: string[] = [];
   let last = 0;
   for (const match of text.matchAll(/<([^>]*)>/g)) {

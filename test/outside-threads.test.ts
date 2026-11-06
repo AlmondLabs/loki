@@ -51,7 +51,9 @@ const message = (id: string, at: number, headers: Record<string, string>, labelI
 });
 
 /** OutsideThreads with fake clients and readers, recording what was sent and archived. */
-function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; gmail?: GmailMessage[]; sendFails?: string; thenFails?: string } = {}) {
+function threads(
+  opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; view?: ThreadMessage[]; gmail?: GmailMessage[]; sendFails?: string; thenFails?: string } = {},
+) {
   const sentMail: GmailDraftInput[] = [];
   const posted: SlackDraftInput[] = [];
   const archived: string[] = [];
@@ -78,6 +80,7 @@ function threads(opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; g
       },
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },
+    ...(opts.view ? { cardView: { slack: () => Promise.resolve(opts.view ?? []) } } : {}),
     clientFor: (a) =>
       a.provider === "gmail"
         ? {
@@ -139,6 +142,20 @@ describe("reading a card's whole thread", () => {
     const thread = [{ sender: "Bob", at: "", text: "Bill", id: "m1", html: '<p>Bill <a href="https://x.test">here</a></p>' }];
     expect((await threads({ thread }).t.read(MAIL, "t1"))[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
     expect((await threads({ thread }).t.read(SLACK, "D1"))[0]).not.toHaveProperty("html");
+  });
+  test("a Slack card reads its channel view when there is one, with each message's photo, place and read state", async () => {
+    const thread = [{ sender: "Bob", at: "", text: "only the thread", id: "1" }];
+    const view = [
+      { sender: "Ann", at: "", text: "before", id: "0", avatar: "https://example.test/a.png", replies: 2 },
+      { sender: "Bob", at: "", text: "the card", id: "1", unread: true, more_after: true },
+      { sender: "Ann", at: "", text: "a reply", id: "2", in_thread: true },
+    ];
+    const read = await threads({ thread, view }).t.read(SLACK, "C1:1");
+    expect(read.map((m) => m.text)).toEqual(["before", "the card", "a reply"]);
+    expect(read[0]).toMatchObject({ avatar: "https://example.test/a.png", replies: 2 });
+    expect(read[1]).toMatchObject({ unread: true, more_after: true });
+    expect(read[2]).toMatchObject({ in_thread: true });
+    expect((await threads({ thread, view }).t.read(MAIL, "t1")).map((m) => m.text)).toEqual(["only the thread"]);
   });
   test("an account not on this Mac is refused", async () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");

@@ -8,6 +8,7 @@ import { keyboard } from "./env";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
+import { SlackThread } from "./slack-thread";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -174,6 +175,7 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
         <OutsideLines facts={facts} touch={touch} />
       </div>
     );
+  if (facts.provider === "slack" && !touch) return <SlackThread messages={state.messages} newest={facts.newest_message_id} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
       {state.messages.map((m, i) => (
@@ -484,7 +486,7 @@ export function OutsideCard({
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
-      <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "16px 18px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>
             {disconnectedText(facts.disconnected, facts.provider)}
