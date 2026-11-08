@@ -3,7 +3,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MailCompose, OutsideFacts, OutsideMessage } from "../core/frame-types.ts";
 import { MailThread, fileSize, mailWhen, sentToLine } from "../app/src/desk/mail-thread.tsx";
-import { OutsideReply, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
+import { OutsideCard, OutsideReply, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
+import type { AttentionItem } from "../core/attention/model.ts";
 import { gmailThreadText } from "../mod/handoff.ts";
 import type { GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 
@@ -118,6 +119,25 @@ describe("the reply box", () => {
     expect(html).toContain("loki-mail-compose");
     expect(html).toContain("discard");
     expect(html).not.toContain("the moves");
+  });
+
+  test("the header says the mailbox as where the mail came in, after when, so it never reads as the sender's", () => {
+    const noop = () => {};
+    const card = (only: boolean) =>
+      renderToStaticMarkup(
+        createElement(OutsideCard, {
+          current: { id: "o1", outside: facts } as unknown as AttentionItem,
+          facts: { ...facts, only_account: only },
+          flash: null,
+          cameBack: false,
+          typing: false,
+          moves: { read: noop, later: noop, archive: noop, label: noop },
+        }),
+      );
+    const html = card(false);
+    expect(html.indexOf("in sam@acme.test")).toBeGreaterThan(html.indexOf("Asha Rao"));
+    expect(html).toContain("in sam@acme.test");
+    expect(card(true)).not.toContain("sam@acme.test");
   });
 
   test("on the phone the box keeps its moves on the send row", () => {
