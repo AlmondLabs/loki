@@ -925,8 +925,8 @@ into your Inbox, with 5 messages before and 5 after, drawn as a chat draws messa
 marked, and Slack's red **New** line before the first new one; the card opens on that line. What brought it, a mention,
 an @channel, a group mention or a reply in a thread you follow, has Slack's yellow mention look; a DM's unread messages
 have the New line alone. When everything new is a reply in one thread, the card shows that thread alone, its first
-message pinned on top; otherwise it shows the channel or DM, and a post with new replies says how many, which opens
-them, with a way back. **load earlier** and **load later** each bring 20 more; in a thread they say how many replies
+message pinned on top; otherwise it shows the channel or DM, where a post's replies (saying how many are new, when some are) open its
+whole thread, every reply in it, with a way back. **load earlier** and **load later** each bring 20 more; in a thread they say how many replies
 are left. New means new since you last dealt with the card in loki (archived it, read it, replied from it or handed it
 off; later does not count), so a mention you already handled shows as an ordinary message when it comes back, even
 though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
