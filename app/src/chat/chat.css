@@ -2038,8 +2038,13 @@ button.loki-label-chip:focus-visible {
 }
 .loki-mail-compose-extra {
   padding: 0 10px 8px;
+  font-size: 12px;
 }
 .loki-mail-compose-foot {
   padding: 6px 10px;
   border-top: 1px solid var(--loki-border);
+}
+/* The framed box's head draws the line under its last recipients row. */
+.loki-mail-compose-head .loki-mail-row:last-child {
+  border-bottom: none;
 }

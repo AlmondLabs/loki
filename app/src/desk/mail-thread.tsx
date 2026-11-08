@@ -35,6 +35,11 @@ export function firstLine(text: string): string {
   );
 }
 
+/** A folded mail's line, as Gmail's snippet reads: its words run together, so a greeting alone never fills it. */
+export function snippet(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 /** The bare address in a From header, lower case; "" when it has none. */
 function addressIn(sender: string): string {
   return headerPeople(sender).at(0)?.address ?? "";
@@ -107,7 +112,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
       <button type="button" className="loki-mail-msg loki-mail-msg--folded" onClick={() => setOpened(true)} aria-expanded={false}>
         {face}
         <span className="loki-mail-msg-name">{name}</span>
-        <span className="loki-mail-fold-line">{firstLine(m.text)}</span>
+        <span className="loki-mail-fold-line">{snippet(m.text)}</span>
         {when && <Meta style={{ flex: "none" }}>{when}</Meta>}
       </button>
     );
