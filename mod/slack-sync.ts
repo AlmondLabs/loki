@@ -289,7 +289,18 @@ export class SlackSync {
   /** Read a candidate's messages and show its newest on its card; one that cannot be read is skipped, not the tick. */
   private async observe(c: Candidate, fromBackfill: boolean): Promise<void> {
     const r = this.opts.threads.get(this.accountId, c.thread_id);
-    if (r && !tsAfter(c.ts, r.newest_message_id)) return;
+    if (r && !tsAfter(c.ts, r.newest_message_id)) {
+      // A card from before its header knew where it is (plan 073) learns it now, though no newer message came.
+      if (r.reach === null || (r.place === null && !c.dm)) {
+        const reach = slackReach(
+          c.dm !== null,
+          c.items.map((i) => i.type),
+        );
+        const place = c.dm ? null : await this.place(c.thread_id.slice(0, c.thread_id.indexOf(":")));
+        this.opts.threads.describe(this.accountId, c.thread_id, { reach, place });
+      }
+      return;
+    }
     try {
       const m = await this.message(c);
       if (m) this.opts.threads.observe(this.accountId, { ...m, from_backfill: fromBackfill });

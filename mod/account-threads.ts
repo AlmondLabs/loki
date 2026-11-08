@@ -272,6 +272,22 @@ export class AccountThreads {
   }
 
   /**
+   * Where a card is and how directly it is meant for the person (plan 073), for a record from before they were kept:
+   * fills only what it lacks, so the header names its channel and shows its tag without waiting for a newer message.
+   * Returns whether it changed.
+   */
+  describe(accountId: string, threadId: string, about: { reach: OutsideReach | null; place: string | null }): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    const reach = r.reach ?? about.reach;
+    const place = r.place ?? about.place;
+    if (reach === r.reach && place === r.place) return false;
+    this.records(accountId).set(threadId, { ...r, reach, place });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
    * The person sent a reply from the card (plan 077, R5): what came before it is dealt with, whatever move follows.
    * Returns whether it changed.
    */

@@ -73,7 +73,11 @@ function fakeSlack(opts: { history: SlackMessage[]; threads?: Record<string, Sla
   return { client, calls };
 }
 
-const facts = (brought: string[] = [], dealt: string | null = null): CardFacts => ({ dealt_message_id: dealt, brought_ids: brought });
+const facts = (brought: string[] = [], dealt: string | null = null, newest: string | null = null): CardFacts => ({
+  dealt_message_id: dealt,
+  brought_ids: brought,
+  newest_message_id: newest,
+});
 const ids = (w: CardWindow) => w.messages.map((m) => m.id);
 const flagged = (w: CardWindow, flag: "unread" | "brought") => w.messages.filter((m) => m[flag]).map((m) => m.id);
 
@@ -106,6 +110,14 @@ describe("a thread card opens on its window (plan 077)", () => {
     const later = await view(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1012)]), { direction: "after", from: ts(1017) });
     expect(ids(later)).toEqual(run(1018, 1037).map((m) => m.ts));
     expect(later.window.more_after).toBe(3);
+  });
+
+  test("a thread the person opens comes whole: every reply, nothing hidden either side", async () => {
+    const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: forty() } });
+    const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1022)]), { view: "thread", thread_ts: ts(1000) });
+    expect(ids(w)).toEqual([ts(1000), ...run(1001, 1040).map((m) => m.ts)]);
+    expect(flagged(w, "brought")).toEqual([ts(1022)]);
+    expect(w.window).toEqual({ view: "thread", thread_ts: ts(1000), more_before: 0, more_after: 0 });
   });
 
   test("a thread longer than loki reads stops after five pages and says more came", async () => {
@@ -179,6 +191,22 @@ describe("a channel post and a DM open on their window (plan 077)", () => {
     const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(106)}`, facts(), {});
     expect(w.window.view).toBe("channel");
     expect(flagged(w, "unread")[0]).toBe(ts(106));
+  });
+
+  test("a card from before plan 077 whose newest message is a reply opens on that reply in its thread, with the mention look", async () => {
+    const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: forty() } });
+    const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(1000)}`, facts([], null, ts(1040)), {});
+    expect(w.window).toMatchObject({ view: "thread", thread_ts: ts(1000), more_after: 0 });
+    expect(ids(w).at(-1)).toBe(ts(1040));
+    expect(flagged(w, "brought")).toEqual([ts(1040)]);
+  });
+
+  test("a card from before plan 077 whose newest message is its own post opens on the post in the channel", async () => {
+    const post = msg(ts(106), "U1", "hello");
+    const { client } = fakeSlack({ history: [...run(100, 105), post, ...run(107, 110)], threads: { [ts(106)]: [post] }, last_read: ts(105) });
+    const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(106)}`, facts([], null, ts(106)), {});
+    expect(w.window.view).toBe("channel");
+    expect(flagged(w, "brought")).toEqual([ts(106)]);
   });
 
   test("what brought the card before the person last dealt with it is plain, as after a reply sent with later", async () => {
@@ -357,6 +385,14 @@ describe("drawing a Slack card's body", () => {
     expect(html).not.toContain("back to the conversation");
     const back = draw([m("p", "Ravi", 0)], { view: "thread", thread_ts: "p", more_before: 0, more_after: 0 }, { back: () => {} });
     expect(back).toContain("back to the conversation");
+  });
+
+  test("a post whose replies are all read still opens its thread; without a way to open it, it only counts them", () => {
+    const html = draw([m("p", "Ravi", 0, { replies: 4 })], { view: "channel", thread_ts: null, more_before: false, more_after: false });
+    expect(html).toMatch(/<button[^>]*loki-slack-open[^>]*>4 replies<\/button>/);
+    const old = renderToStaticMarkup(createElement(SlackThread, { messages: [m("p", "Ravi", 0, { replies: 4 })], newest: "p" }));
+    expect(old).toContain("4 replies");
+    expect(old).not.toContain("loki-slack-open");
   });
 
   test("a load in flight says so on its button and holds both", () => {

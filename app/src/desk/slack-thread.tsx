@@ -186,10 +186,17 @@ function SlackHead({ m, first, dayNote }: { m: OutsideMessage; first: boolean; d
   );
 }
 
-/** Under a post: its new replies as a button that opens its thread (plan 077, R11), else how many replies it has. */
+/**
+ * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are (plan 077,
+ * R11); without a way to open it (a Mac on an older loki), how many replies it has.
+ */
 function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
-  if (m.new_replies && onOpen) {
-    const count = m.new_replies === true ? "new replies" : `${String(m.new_replies)} new ${m.new_replies === 1 ? "reply" : "replies"}`;
+  if ((m.new_replies || m.replies) && onOpen) {
+    const count = !m.new_replies
+      ? `${String(m.replies)} ${m.replies === 1 ? "reply" : "replies"}`
+      : m.new_replies === true
+        ? "new replies"
+        : `${String(m.new_replies)} new ${m.new_replies === 1 ? "reply" : "replies"}`;
     return (
       <button type="button" className="loki-slack-replies loki-slack-open" onClick={onOpen}>
         {count}
@@ -351,7 +358,12 @@ export function SlackThread({
         <Fragment key={m.id}>
           <RowMarks p={plan[i]} />
           <div ref={i === focusAt ? focus : undefined} className={rowClass(m)}>
-            <SlackRow m={m} first={plan[i].first} dayNote={plan[i].dayNote} onOpen={controls && m.new_replies ? () => controls.openThread(m.id) : undefined} />
+            <SlackRow
+              m={m}
+              first={plan[i].first}
+              dayNote={plan[i].dayNote}
+              onOpen={controls && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
+            />
           </div>
         </Fragment>
       ))}

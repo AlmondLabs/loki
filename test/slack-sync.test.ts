@@ -573,6 +573,26 @@ describe("a reply on a Slack card, then the key's move (plan 070, U5)", () => {
   });
 });
 
+describe("an old card's header", () => {
+  test("a card from before plan 073 learns its channel and tag on the next tick, though no newer message came", async () => {
+    const { slack, sync, threads } = await fixture();
+    slack.post("C0GEN", { ts: at(10), user: "U0GRACE", text: "<@U0ME> can you check this" });
+    slack.item({ key: "a", type: "at_user", channel: "C0GEN", ts: at(10) });
+    const id = `C0GEN:${at(10)}`;
+    threads.observe(ACCOUNT, {
+      thread_id: id,
+      message_id: at(10),
+      at: new Date(Number(at(10)) * 1000).toISOString(),
+      sender: "Grace Hopper",
+      subject: "x",
+      lines: ["x"],
+    });
+    expect(threads.get(ACCOUNT, id)).toMatchObject({ reach: null, place: null });
+    await sync.tick();
+    expect(threads.get(ACCOUNT, id)).toMatchObject({ reach: "mention", place: "#general", newest_message_id: at(10) });
+  });
+});
+
 describe("what brought a card (plan 077, KTD2)", () => {
   test("two mentions in one thread bring the card, not the replies between them", async () => {
     const { slack, sync, threads } = await fixture();

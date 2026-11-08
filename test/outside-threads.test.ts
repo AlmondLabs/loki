@@ -97,7 +97,7 @@ function threads(
         moves.push(`dealt ${accountId}/${threadId}`);
         return true;
       },
-      get: () => (opts.record ? { dealt_message_id: null, brought_ids: [], ...opts.record } : null),
+      get: () => (opts.record ? { dealt_message_id: null, brought_ids: [], newest_message_id: "3", ...opts.record } : null),
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },
     ...(opts.view
@@ -199,7 +199,7 @@ describe("reading a card's whole thread", () => {
     const view = [{ sender: "Ann", at: "", text: "the mention", id: "2", brought: true, unread: true, new_replies: 3 }];
     const { t, viewed } = threads({ view, record: { dealt_message_id: "1", brought_ids: ["2"] } });
     const read = await t.read(SLACK, "C1:1", { direction: "before", from: "2" });
-    expect(viewed).toEqual([{ facts: { dealt_message_id: "1", brought_ids: ["2"] }, ask: { direction: "before", from: "2" } }]);
+    expect(viewed).toEqual([{ facts: { dealt_message_id: "1", brought_ids: ["2"], newest_message_id: "3" }, ask: { direction: "before", from: "2" } }]);
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });

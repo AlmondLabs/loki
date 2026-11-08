@@ -45,7 +45,7 @@ export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
   threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt"> & {
     /** A card's record, for what its window is built around (plan 077). */
-    get: (accountId: string, threadId: string) => Pick<ThreadRecord, "dealt_message_id" | "brought_ids"> | null;
+    get: (accountId: string, threadId: string) => Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> | null;
   };
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
@@ -128,7 +128,11 @@ export class OutsideThreads {
     const account = this.need(accountId);
     const view = this.opts.cardView?.[account.provider];
     const record = this.opts.threads.get(accountId, threadId);
-    const facts = { dealt_message_id: record?.dealt_message_id ?? null, brought_ids: record?.brought_ids ?? [] };
+    const facts = {
+      dealt_message_id: record?.dealt_message_id ?? null,
+      brought_ids: record?.brought_ids ?? [],
+      newest_message_id: record?.newest_message_id ?? null,
+    };
     const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"] }> =>
       view ? view(accountId, threadId, facts, ask) : { messages: await this.opts.threadText[account.provider](accountId, threadId), window: null };
     const read = await readThread().catch(async (err: unknown) => {
