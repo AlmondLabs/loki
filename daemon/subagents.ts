@@ -4,11 +4,12 @@ import { ChatDoc } from "./kernel/index.ts";
 import { withKind } from "./tool-kinds.ts";
 
 /**
- * Subagents (plan 017, U10, KTD12): the Agent tool hands a self-contained task to a helper that runs in a child
+ * Subagents (plan 017, U10, KTD12): the `subagent` tool hands a self-contained task to a helper that runs in a child
  * conversation the call owns, with the parent's model, tools and folder, and returns the helper's final answer.
  * Aborting the call aborts the helper; a rerun after a crash finds the same child (the call is replay-safe). The child
- * carries the parent chat's identity and permission mode, so its approvals ask in the chat you are looking at and its
- * tools act on that chat's canvas. A helper cannot start helpers of its own.
+ * carries the parent chat's id, so its approvals ask in the chat you are looking at and its tools act on that chat's
+ * canvas, and it asks under the parent chat's permission mode as it is at each call. A helper cannot start helpers of
+ * its own.
  */
 export function subagentExtension(): Extension {
   const extension: Extension = defineExtension({
@@ -35,8 +36,10 @@ export function subagentExtension(): Extension {
               if (existing) return existing.id;
               const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
               await configure(tx, created.id, { extensions: { remove: [extension] } });
+              // The chat's id and a pointer to its conversation, never a copy of its settings: a copy would keep the mode
+              // the chat had when the helper started, and the approvals read it from the parent instead.
               const info = await tx.doc(ChatDoc, created.id);
-              if (parentInfo) Object.assign(info, { ...parentInfo, hidden: true });
+              Object.assign(info, { id: parentInfo?.id ?? "", hidden: true, helper_for: api.conversationId });
               return created.id;
             }, context);
             await api.details({ conversationId: child }, context); // lets a client attach to the child

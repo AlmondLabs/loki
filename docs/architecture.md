@@ -125,7 +125,8 @@ every chat gets, the chats, then the mods.
    skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
    own.
 7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
-   with the parent's model, tools, folder and permission mode. Aborting the call aborts the helper. Helpers are not
+   with the parent's model, tools and folder; it asks under the parent chat's permission mode as that mode is at each
+   call. Aborting the call aborts the helper. Helpers are not
    agent records, so they never appear in the Agents list.
 8. **Background and scheduled tasks (`daemon/background.ts`, `daemon/schedule.ts`).** A background bash command
    keeps running after its turn; the agent reads its output, writes to it, waits on it or stops it, and its chat

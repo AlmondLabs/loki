@@ -9,6 +9,7 @@ import { createRegistry, defineExtension, defineTool, MemoryStorage } from "@ear
 import { Approvals, asks, type PermissionMode } from "../daemon/approvals.ts";
 import { askExtension } from "../daemon/ask.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
+import { subagentExtension } from "../daemon/subagents.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -38,18 +39,25 @@ describe("the permission modes", () => {
   });
 });
 
-/** A store whose chats run through the gate, with a command tool and an edit tool that record their runs. */
-async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
+/**
+ * A store whose chats run through the gate, with a command tool and an edit tool that record their runs; `helpers`
+ * adds the subagent tool, kinded as the daemon kinds it, and a folder for the chat.
+ */
+async function setup(mode: PermissionMode, opts: { alwaysPath?: string; helpers?: boolean } = {}) {
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);
-  const approvals = new Approvals(opts.alwaysPath ? { alwaysPath: opts.alwaysPath } : {});
+  const approvals = new Approvals({
+    ...(opts.alwaysPath ? { alwaysPath: opts.alwaysPath } : {}),
+    ...(opts.helpers ? { kindOfTool: (name: string) => (name === "subagent" ? "read" : name === "write" ? "edit" : "command") } : {}),
+  });
   const pushed: ChatEvent[] = [];
   approvals.attach((_a, _c, events) => pushed.push(...events));
   const ran: string[] = [];
   const registry = createRegistry();
   registry.install(approvals.extension());
   registry.install(askExtension(approvals));
+  if (opts.helpers) registry.install(subagentExtension());
   registry.install(
     defineExtension({
       name: "tools",
@@ -57,7 +65,7 @@ async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
         defineTool({
           name,
           description: name,
-          parameters: { type: "object", properties: { x: { type: "string" } } } as never,
+          parameters: { type: "object", properties: { x: { type: "string" }, path: { type: "string" } } } as never,
           execute: (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), Promise.resolve({ output: [{ type: "text", text: "ok" }] })),
         }),
       ),
@@ -65,7 +73,8 @@ async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
   );
   const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
   await store.setAgent({ id: "agent-local-a", name: "Ada" }, ctx);
-  const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+  const model = { provider: faux.provider.id, modelId: faux.getModel().id };
+  const chat = await store.createChat("c", { agent: opts.helpers ? { model, cwd: join(tmpdir(), "work") } : { model } }, ctx);
   await store.updateChat("c", { mode }, ctx);
   const sent: string[] = [];
   const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (sent.push(JSON.stringify(c.messages)), m);
@@ -141,6 +150,54 @@ describe("approvals in a chat", () => {
       await (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
       expect(s.ran).toEqual(["bash:1", "bash:2"]);
       expect(approvalIds(s.pushed)).toEqual(["approval-t1"]);
+    } finally {
+      await s.store.close(ctx);
+    }
+  });
+
+  test("a helper's call asks in the chat it works for", async () => {
+    const s = await setup("standard", { helpers: true });
+    try {
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("subagent", { prompt: "count" }, { id: "p1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "h1" }, { id: "h1" }), { stopReason: "toolUse" })), // the helper
+        s.reply(fauxAssistantMessage("counted")),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      expect(s.ran).toEqual([]);
+      expect(s.approvals.waitingIn("agent-local-a", "c")).toEqual([{ kind: "approval", request_id: "approval-h1", tool_name: "bash", input: { x: "h1" } }]);
+      s.approvals.decide("approval-h1", true);
+      await run;
+      expect(s.ran).toEqual(["bash:h1"]);
+    } finally {
+      await s.store.close(ctx);
+    }
+  });
+
+  test("a mode made stricter while a helper runs holds for the helper's next call", async () => {
+    const s = await setup("acceptEdits", { helpers: true });
+    try {
+      const inside = join(tmpdir(), "work", "a.ts");
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("subagent", { prompt: "fix it" }, { id: "p1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "h1" }, { id: "h1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("write", { x: "h2", path: inside }, { id: "h2" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("fixed")),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      // An edit inside the folder runs freely in acceptEdits; strict asks for it.
+      await s.store.updateChat("c", { mode: "strict" }, ctx);
+      s.approvals.decide("approval-h1", true);
+      await until(() => approvalIds(s.pushed).length === 2);
+      expect(s.ran).toEqual(["bash:h1"]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-h1", "approval-h2"]);
+      s.approvals.decide("approval-h2", true);
+      await run;
+      expect(s.ran).toEqual(["bash:h1", "write:h2"]);
     } finally {
       await s.store.close(ctx);
     }
