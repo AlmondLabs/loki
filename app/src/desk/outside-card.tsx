@@ -248,6 +248,9 @@ function MessageRow({ m, touch, folded }: { m: OutsideMessage; touch: boolean; f
   );
 }
 
+/** No addresses of the person's: one array, so a card given none keeps the same one from draw to draw. */
+const NO_ADDRESSES: readonly string[] = [];
+
 /**
  * The thread on the card: every message, oldest first, scrolled to the newest. While it is read, or when it could not
  * be, the card's own last lines stand in, with a line saying so.
@@ -256,7 +259,7 @@ export function OutsideThread({
   facts,
   state,
   touch = false,
-  own = [],
+  own = NO_ADDRESSES,
 }: {
   facts: OutsideFacts;
   state: ThreadState;
