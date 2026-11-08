@@ -8,7 +8,7 @@ import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-
 import { must } from "./fixtures/must.ts";
 import { SlackThread, planSlackRows } from "../app/src/desk/slack-thread.tsx";
 
-/** A Slack card's body as a window around what is new (plan 076), and as Slack draws it (plan 074, plan 075). */
+/** A Slack card's body as a window around what is new (plan 077), and as Slack draws it (plan 074, plan 075). */
 
 const ACCOUNT = "slack:T1:UME";
 
@@ -80,7 +80,7 @@ const flagged = (w: CardWindow, flag: "unread" | "brought") => w.messages.filter
 /** A thread of 40 replies, 1001..1040, under the post 1000. */
 const forty = () => [msg(ts(1000), "U1", "the plan", { reply_count: 40 }), ...run(1001, 1040)];
 
-describe("a thread card opens on its window (plan 076)", () => {
+describe("a thread card opens on its window (plan 077)", () => {
   test("covers AE1: the first message, then 5 replies either side of the one that brought it, with what is hidden counted", async () => {
     const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: forty() } });
     const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1022)]), {});
@@ -125,7 +125,7 @@ describe("a thread card opens on its window (plan 076)", () => {
   });
 });
 
-describe("a channel post and a DM open on their window (plan 076)", () => {
+describe("a channel post and a DM open on their window (plan 077)", () => {
   test("covers AE3: a post that brought the card opens in the channel, with its new replies counted under it", async () => {
     const post = msg(ts(106), "U1", "@channel anyone with crm access?", { reply_count: 3 });
     const history = [...run(100, 105), post, ...run(107, 115)];
@@ -173,7 +173,7 @@ describe("a channel post and a DM open on their window (plan 076)", () => {
     expect(calls.filter((c) => c.startsWith("history after"))).toHaveLength(2);
   });
 
-  test("a card from before plan 076 remembers nothing that brought it, so it opens on the channel with Slack's read marker", async () => {
+  test("a card from before plan 077 remembers nothing that brought it, so it opens on the channel with Slack's read marker", async () => {
     const post = msg(ts(106), "U1", "hello");
     const { client } = fakeSlack({ history: [...run(100, 105), post, ...run(107, 110)], threads: { [ts(106)]: [post] }, last_read: ts(105) });
     const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(106)}`, facts(), {});

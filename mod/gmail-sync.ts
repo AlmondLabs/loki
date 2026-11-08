@@ -7,6 +7,7 @@ import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { GmailError, type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
 import { log } from "./log.ts";
+import { headerPeople, type MailPeople } from "./mail-people.ts";
 
 /**
  * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11, KTD13; plan 070, KTD2, KTD5). Every thread in the inbox,
@@ -28,6 +29,8 @@ export interface GmailSyncOptions {
   threads: Pick<AccountThreads, "observe" | "markGoneOutThere" | "reopen" | "get" | "list">;
   account: AccountRecord;
   client: GmailSyncClient;
+  /** Told of the people on each message the watcher reads, for the recipients line's suggestions (plan 076). */
+  people?: Pick<MailPeople, "saw">;
   now?: () => Date;
 }
 
@@ -334,6 +337,15 @@ export class GmailSync implements AccountSync {
 
   /** Bring a thread's record in step with its messages, as syncThread says. */
   private apply(threadId: string, messages: GmailMessage[], own: string[], fromBackfill: boolean): { observed: boolean; unread: boolean } {
+    const people = this.opts.people;
+    if (people)
+      for (const m of messages)
+        people.saw(
+          this.accountId,
+          ["From", "To", "Cc"].flatMap((h) => headerPeople(headerOf(m, h))),
+          timeOf(m),
+          own,
+        );
     const inbox = messages.filter(isInInbox);
     if (inbox.length === 0) {
       this.opts.threads.markGoneOutThere(this.accountId, threadId);

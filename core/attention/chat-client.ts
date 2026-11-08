@@ -3,6 +3,8 @@ import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, Suggest
 import type {
   AccountLabel,
   HandoffProposal,
+  MailAddressing,
+  MailCompose,
   OutsideChange,
   OutsideMove,
   OutsideRead,
@@ -58,6 +60,8 @@ export type ChatClient = Pick<
   | "handoffPropose"
   | "readOutside"
   | "replyOutside"
+  | "composeOutside"
+  | "unsendOutside"
   | "moveOutside"
   | "handoff"
   | "updateModel"
@@ -300,9 +304,41 @@ export class FrameChatClient {
    * makes the key's move (`then`, plan 070, R11). A refusal throws its reason, and nothing was sent; once sent, the
    * move's own failure comes back in `then_error`.
    */
-  async replyOutside(accountId: string, threadId: string, text: string, then: ReplyThen, home: string | null): Promise<OutsideReplied> {
-    const r = await this.call("account_thread_reply", { account_id: accountId, thread_id: threadId, text, then, home }, 30_000);
-    return { sent: r.sent, then_error: r.then_error, change: r.change };
+  async replyOutside(
+    accountId: string,
+    threadId: string,
+    text: string,
+    then: ReplyThen,
+    home: string | null,
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+  ): Promise<OutsideReplied> {
+    const r = await this.call(
+      "account_thread_reply",
+      {
+        account_id: accountId,
+        thread_id: threadId,
+        text,
+        then,
+        home,
+        ...(extra.mail ? { mail: extra.mail } : {}),
+        ...(extra.outbox_id ? { outbox_id: extra.outbox_id } : {}),
+      },
+      // A held mail reply answers once its undo time is over and it went (plan 076).
+      60_000,
+    );
+    return r.sent ? { sent: true, then_error: r.then_error, change: r.change } : { sent: false, undone: true };
+  }
+
+  /** What a mail card's recipients line starts from (plan 076), read on the Mac its account lives on. */
+  async composeOutside(accountId: string, threadId: string, home: string | null): Promise<MailCompose> {
+    const r = await this.call("account_thread_compose", { account_id: accountId, thread_id: threadId, home }, 30_000);
+    return { modes: r.modes, from: r.from, default_from: r.default_from, subject: r.subject, people: r.people };
+  }
+
+  /** Stop a held mail reply before it goes (plan 076); false when it already went. */
+  async unsendOutside(accountId: string, outboxId: string, home: string | null): Promise<boolean> {
+    const r = await this.call("account_thread_unsend", { account_id: accountId, outbox_id: outboxId, home });
+    return r.undone;
   }
 
   /** Keep one of the person's moves on an outside card in the ledger of the Mac its account lives on (plan 069). */

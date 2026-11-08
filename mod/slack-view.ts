@@ -5,9 +5,9 @@ import { readSlackMessage, type SlackNames } from "./slack-markup.ts";
 import { SlackError } from "./slack.ts";
 import { tsAfter, tsKey } from "./slack-sync.ts";
 
-/** The messages a card shows on each side of what is new when it opens (plan 076, R1). */
+/** The messages a card shows on each side of what is new when it opens (plan 077, R1). */
 export const VIEW_AROUND = 5;
-/** The messages one press of "load earlier" or "load later" adds (plan 076, R3). */
+/** The messages one press of "load earlier" or "load later" adds (plan 077, R3). */
 export const VIEW_LOAD = 20;
 /** The most unread DM messages a card opens on; a longer run says more came after. */
 const DM_RUN = 50;
@@ -18,7 +18,7 @@ const DM_RUN = 50;
 const AFTER_PAGES = 3;
 const PAGE = 100;
 /**
- * Pages of 200 read of one thread, which is read whole and cut to the window (plan 076, KTD4). A thread longer than
+ * Pages of 200 read of one thread, which is read whole and cut to the window (plan 077, KTD4). A thread longer than
  * this shows its first 1,000 replies and says more came.
  */
 const THREAD_PAGES = 5;
@@ -32,13 +32,13 @@ interface Person {
 
 type ViewClient = Pick<SlackClient, "conversationsReplies" | "conversationsHistory" | "conversationsInfo" | "usersInfo" | "emojiList">;
 
-/** What the card's record says about it (plan 076, KTD1, KTD2): the dealt-with mark and the messages that brought it. */
+/** What the card's record says about it (plan 077, KTD1, KTD2): the dealt-with mark and the messages that brought it. */
 export interface CardFacts {
   dealt_message_id: string | null;
   brought_ids: readonly string[];
 }
 
-/** A Slack card's window: its messages, oldest first, and what more there is (plan 076). */
+/** A Slack card's window: its messages, oldest first, and what more there is (plan 077). */
 export interface CardWindow {
   messages: ThreadMessage[];
   window: OutsideWindow;
@@ -48,7 +48,7 @@ export interface CardWindow {
 export type CardView = (accountId: string, threadId: string, facts: CardFacts, ask: OutsideWindowAsk) => Promise<CardWindow>;
 
 /**
- * A Slack card's body as a window around what is new (plan 076): the messages that brought the card, with 5 messages
+ * A Slack card's body as a window around what is new (plan 077): the messages that brought the card, with 5 messages
  * either side, in the thread alone when every new message is a reply in it (R10), else in the channel or DM around it;
  * and 20 more before or after a message when the card asks. Each message carries its sender's photo, whether it is new,
  * whether it brought the card, and its words read as Slack draws them (plan 075). People, channels and the workspace's
@@ -132,7 +132,7 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Car
     const brought = new Set(broughtIds);
     // A DM is new from the later of loki's mark and Slack's own read marker, so reading on in Slack is not new here (R7).
     const later = (a: string | null, b: string | null) => (a && b ? (tsAfter(a, b) ? a : b) : (a ?? b));
-    // What is new (plan 076, R2, R6): in a DM, the person's unread messages after the dealt-with mark, else after
+    // What is new (plan 077, R2, R6): in a DM, the person's unread messages after the dealt-with mark, else after
     // Slack's read marker; on a channel or thread card, the messages that brought it. A card from before this change
     // brought nothing it remembers, so its new messages are those after Slack's read markers, as before.
     const isNew = (m: SlackMessage, slackRead: string | null): boolean => {
@@ -173,7 +173,7 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Car
       };
     }
 
-    // A post's new replies (plan 076, R11, KTD6): on a channel card, its own post's replies that brought it, counted
+    // A post's new replies (plan 077, R11, KTD6): on a channel card, its own post's replies that brought it, counted
     // from the record; in a DM, each post whose latest reply is after the mark has its thread read and counted.
     const ownReplies = cardTs ? broughtIds.filter((id) => id !== cardTs).length : 0;
     const repliesOf = async (m: SlackMessage): Promise<Partial<ThreadMessage>> => {
@@ -265,7 +265,7 @@ function cut(ids: readonly string[], fresh: readonly boolean[], ask: OutsideWind
   return [Math.max(0, first - VIEW_AROUND), Math.min(ids.length, last + 1 + VIEW_AROUND)];
 }
 
-/** A thread read whole, its first message first, and whether it is longer than loki reads (plan 076, KTD4). */
+/** A thread read whole, its first message first, and whether it is longer than loki reads (plan 077, KTD4). */
 async function wholeThread(slack: ViewClient, channel: string, ts: string): Promise<{ messages: SlackMessage[]; more: boolean }> {
   const found: SlackMessage[] = [];
   let page = await slack.conversationsReplies({ channel, ts, limit: THREAD_PAGE });

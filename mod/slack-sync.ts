@@ -307,7 +307,7 @@ export class SlackSync {
       const page = await client.conversationsHistory({ channel: c.dm.id, oldest: c.dm.last_read ?? undefined, limit: DM_MESSAGES });
       for (const m of page.messages) if (!c.dm.last_read || tsAfter(m.ts, c.dm.last_read)) found.set(m.ts, m);
     }
-    // What brought the card (plan 076, KTD2): kept from before when still after the person's dealt-with mark, then each
+    // What brought the card (plan 077, KTD2): kept from before when still after the person's dealt-with mark, then each
     // item's own message. A DM brings none, since its unread run is marked by the New line alone (R13).
     const record = this.opts.threads.get(this.accountId, c.thread_id);
     const mark = record?.dealt_message_id ?? null;

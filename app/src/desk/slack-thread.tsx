@@ -213,7 +213,7 @@ function SlackRow({ m, first, dayNote, onOpen }: { m: OutsideMessage; first: boo
   );
 }
 
-/** What a load button says: a thread's count of replies on that side, else "load earlier" or "load later" (plan 076, R3). */
+/** What a load button says: a thread's count of replies on that side, else "load earlier" or "load later" (plan 077, R3). */
 export function loadLabel(direction: "before" | "after", more: number | boolean, busy: boolean): string {
   if (busy) return "loading…";
   if (typeof more === "number") return `${String(more)} ${direction === "before" ? "earlier" : "later"} ${more === 1 ? "reply" : "replies"}`;
@@ -224,7 +224,7 @@ export function loadLabel(direction: "before" | "after", more: number | boolean,
 const hasMore = (more: number | boolean) => (typeof more === "number" ? more > 0 : more);
 
 /**
- * A Slack card's body as Slack shows it: the window around what brought the card (plan 076), in the thread alone with
+ * A Slack card's body as Slack shows it: the window around what brought the card (plan 077), in the thread alone with
  * its first message pinned on top, or in the channel or DM with a post's threads indented under it (plan 074), with
  * Slack's day pills, its red New line before the first new message, and the mention look on the messages that brought
  * the card. Buttons load more on either side and open a post's new replies. The card opens on the New line, else on the

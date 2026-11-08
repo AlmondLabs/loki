@@ -92,7 +92,17 @@ export interface GmailProfile {
   historyId: string;
 }
 
-/** A reply to keep as a draft in the thread it answers; loki writes it, the person sends it from Gmail. */
+/** A file carried by a forwarded mail (plan 076): its name, type and bytes. */
+export interface GmailAttachment {
+  filename: string;
+  mimeType: string;
+  data: Buffer;
+}
+
+/**
+ * A reply to keep as a draft in the thread it answers (loki writes it, the person sends it from Gmail), or the person's
+ * own to send. `body` is plain text; with `html` the message carries both (plan 076), as Gmail's own replies do.
+ */
 export interface GmailDraftInput {
   threadId: string;
   /** The Message-ID header of the message replied to. */
@@ -103,6 +113,19 @@ export interface GmailDraftInput {
   cc: string[];
   subject: string;
   body: string;
+  /** The From header, as `"Name" <address>` or a bare address; Gmail's default when left out. */
+  from?: string;
+  bcc?: string[];
+  html?: string;
+  attachments?: GmailAttachment[];
+}
+
+/** One address the person sends from (Gmail's send-as), with the name it shows and its signature as Gmail keeps it, in HTML. */
+export interface GmailSendAs {
+  address: string;
+  name: string;
+  signature: string;
+  isDefault: boolean;
 }
 
 /** A Gmail call that failed: the HTTP status and Google's reason, for callers that treat some failures as answers. */
@@ -192,31 +215,74 @@ const oneLine = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
 /** A header in RFC 2047's encoded form when it is not plain ASCII, as a subject in another language needs. */
 const encodedWord = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 
-/** The reply as an RFC 2822 message: plain text in UTF-8, threaded by In-Reply-To and References. */
-function rfc2822(d: GmailDraftInput): string {
+/** Bytes as base64 in lines of 76, as MIME wants them. */
+const base64Lines = (data: Buffer): string => (data.toString("base64").match(/.{1,76}/g) ?? []).join("\r\n");
+/** Text as a base64 MIME body, its lines ended the way mail ends them. */
+const textBody = (text: string): string => base64Lines(Buffer.from(text.replace(/\r?\n/g, "\r\n"), "utf8"));
+/** A MIME part: its headers, then its body. */
+const part = (headers: string[], body: string): string => `${headers.join("\r\n")}\r\n\r\n${body}`;
+/** Parts under one boundary, closed. */
+const multipart = (boundary: string, parts: string[]): string => `${parts.map((p) => `--${boundary}\r\n${p}`).join("\r\n")}\r\n--${boundary}--`;
+/** A file name as a MIME parameter, in RFC 2231's form so a name in any language survives. */
+const fileParam = (name: string): string => `filename*=UTF-8''${encodeURIComponent(oneLine(name) || "attachment")}`;
+
+/**
+ * The reply as an RFC 2822 message, threaded by In-Reply-To and References: plain text alone, as drafts were before
+ * plan 076, or plain text and HTML together, with any forwarded files after them.
+ */
+export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
   const references = [...d.references, d.inReplyTo].map(oneLine).filter(Boolean);
+  const bcc = d.bcc ?? [];
   const headers = [
+    d.from ? `From: ${oneLine(d.from)}` : "",
     d.to.length ? `To: ${d.to.map(oneLine).join(", ")}` : "",
     d.cc.length ? `Cc: ${d.cc.map(oneLine).join(", ")}` : "",
+    // Gmail takes Bcc from the message it sends and leaves it off what the others get.
+    bcc.length ? `Bcc: ${bcc.map(oneLine).join(", ")}` : "",
     `Subject: ${encodedWord(oneLine(d.subject))}`,
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
     references.length ? `References: ${[...new Set(references)].join(" ")}` : "",
     "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
-    "Content-Transfer-Encoding: base64",
   ].filter(Boolean);
-  const body = (
-    Buffer.from(d.body.replace(/\r?\n/g, "\r\n"), "utf8")
-      .toString("base64")
-      .match(/.{1,76}/g) ?? []
-  ).join("\r\n");
-  return `${headers.join("\r\n")}\r\n\r\n${body}\r\n`;
+  const plain = part(["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.body));
+  const text =
+    d.html === undefined
+      ? plain
+      : part(
+          [`Content-Type: multipart/alternative; boundary="${boundary}-alt"`],
+          multipart(`${boundary}-alt`, [plain, part(["Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.html))]),
+        );
+  const files = d.attachments ?? [];
+  const whole =
+    files.length === 0
+      ? text
+      : part(
+          [`Content-Type: multipart/mixed; boundary="${boundary}-mix"`],
+          multipart(`${boundary}-mix`, [
+            text,
+            ...files.map((f) =>
+              part(
+                [
+                  `Content-Type: ${oneLine(f.mimeType) || "application/octet-stream"}`,
+                  `Content-Disposition: attachment; ${fileParam(f.filename)}`,
+                  "Content-Transfer-Encoding: base64",
+                ],
+                base64Lines(f.data),
+              ),
+            ),
+          ]),
+        );
+  return `${headers.join("\r\n")}\r\n${whole}\r\n`;
 }
+
+/** How long the send-as settings are kept before they are read again: a signature changed in Gmail shows within this. */
+const SEND_AS_KEEP_MS = 10 * 60 * 1000;
 
 /** One connected Gmail account's calls. */
 export class GmailClient {
   private readonly opts: GmailClientOptions;
   private secret: GmailSecret | null = null;
+  private sendAsKept: { at: number; list: GmailSendAs[] } | null = null;
 
   constructor(opts: GmailClientOptions) {
     this.opts = opts;
@@ -233,16 +299,37 @@ export class GmailClient {
    * cannot be read gives its own address alone.
    */
   async sendAsAddresses(): Promise<string[]> {
+    return (await this.sendAs()).map((s) => s.address);
+  }
+
+  /**
+   * The addresses the person writes from, each with its name and signature (plan 076), kept for SEND_AS_KEEP_MS. A
+   * mailbox whose settings cannot be read gives its own address alone, with no name or signature.
+   */
+  async sendAs(): Promise<GmailSendAs[]> {
+    const kept = this.sendAsKept;
+    if (kept && this.now() - kept.at < SEND_AS_KEEP_MS) return kept.list;
+    let found: GmailSendAs[] = [];
     try {
       const r = rec(await this.call("GET", "/settings/sendAs"));
-      const addresses = list(r.sendAs)
-        .map((s) => str(rec(s).sendAsEmail))
-        .filter(Boolean);
-      if (addresses.length) return addresses;
+      found = list(r.sendAs)
+        .map((v) => {
+          const s = rec(v);
+          return { address: str(s.sendAsEmail), name: str(s.displayName), signature: str(s.signature), isDefault: s.isDefault === true };
+        })
+        .filter((s) => s.address);
     } catch (error) {
       if (!(error instanceof GmailError) || error.status !== 403 || isAdminBlock(error.reason ? [error.reason] : [])) throw error;
     }
-    return [(await this.profile()).emailAddress];
+    if (!found.length) found = [{ address: (await this.profile()).emailAddress, name: "", signature: "", isDefault: true }];
+    this.sendAsKept = { at: this.now(), list: found };
+    return found;
+  }
+
+  /** One attachment's bytes, by the message it is on and Gmail's id for it, for a forward (plan 076). */
+  async attachment(messageId: string, attachmentId: string): Promise<Buffer> {
+    const r = rec(await this.call("GET", `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`));
+    return Buffer.from(str(r.data), "base64url");
   }
 
   /** Every change since a history id, following every page; Gmail's 404 means that history is gone. */

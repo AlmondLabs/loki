@@ -25,6 +25,8 @@ export function useDeckKeys({
   label,
   approve,
   undo,
+  replySender = () => {},
+  forward = () => {},
   onOpenDesk,
   onClose,
 }: {
@@ -38,9 +40,14 @@ export function useDeckKeys({
   label: () => void;
   approve: (behavior: "allow" | "deny" | "always") => void;
   undo: () => void;
+  /** ⇧R on a mail card: reply to the sender alone (plan 076). */
+  replySender?: () => void;
+  /** F on a mail card: forward it (plan 076). */
+  forward?: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;
 }) {
+  const mailKey = useEffectEvent((mode: "reply" | "forward") => (mode === "reply" ? replySender() : forward()));
   // The deck's actions, by keymap id (the shell's key handler and the menu dispatch to them). The keymap
   // decides which keys reach here while the reply box has focus: ⌘] ⌘[ ⌘E ⌘↵ ⌘⇧D ⌘O do, plain letters do not.
   const act = useEffectEvent((action: "read" | "later" | "archive" | "label" | "approve" | "deny" | "reply" | "open" | "undo") => {
@@ -79,6 +86,8 @@ export function useDeckKeys({
       "inbox.reply": () => act("reply"),
       "inbox.open": () => act("open"),
       "inbox.undo": () => act("undo"),
+      "inbox.reply_sender": () => mailKey("reply"),
+      "inbox.forward": () => mailKey("forward"),
     });
   }, [typing, current, decided]);
   // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).

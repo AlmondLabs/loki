@@ -321,7 +321,8 @@ Search button beside them:
    own, and closing the sheet leaves the card where it was. **Archive** is a button only (a main chat has none). An
    email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
    or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
-   back, so nothing goes by accident. Once only resting cards are left the Inbox says how many and offers **Go
+   back, so nothing goes by accident. A mail card's box has its recipients line, where you can add someone to To or
+   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left the Inbox says how many and offers **Go
    through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
    refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
    in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
@@ -965,12 +966,12 @@ channel's other messages unread. Two gaps are known:
 2. Undo cannot mark a Slack DM unread again in Slack. The card comes back in loki, and Slack keeps the DM read.
 
 **Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
-chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and Enter or
-**send** sends it (Shift-Enter starts a new line) as you: in Gmail a reply to all in the thread, never to your own addresses; in Slack in the DM, or in
-the thread for an Activity item. The key you press with text in the box sends it first, then makes its own move, and
-the moves work from inside the box:
+chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
+you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
+Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. The key you
+press with text in the box sends it first, then makes its own move, and the moves work from inside the box:
 
-1. Enter, **send** or ⌘] sends the reply and the card rests as read.
+1. Enter on Slack, ⌘Enter on email, **send** or ⌘] sends the reply and the card rests as read.
 2. ⌘[ sends it and keeps the card: it comes back when they answer, or after the later time if they stay quiet. A
    Slack card waits the same way, whatever Slack's own read mark says meanwhile.
 3. ⌘E sends it and archives the thread (on Slack, marks it read), and the card ends.
@@ -979,6 +980,30 @@ The box clears once the reply is sent. If the move after it fails, the card says
 when you press the key once more. A send that fails keeps your text, moves nothing, and says why. Undo after a reply
 takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
 this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+
+**Replying to mail as Gmail does.** An email card's reply works like Gmail's:
+
+1. **Who it goes to.** A line above the box says it: "to Pinku Kumar, cc 2 others". Press it, or ⌘⇧C in the box,
+   to open To, Cc and Bcc. Type a name or an address to add someone. Suggestions come from the people in that
+   mailbox's mail that loki has read, and the people you send to come first after that. Press a chip to take that
+   person off. A whole address typed by hand works too, even for someone loki has never seen.
+2. **Reply, reply all or forward.** The menu at the start of the line chooses. Reply all is where it starts. Reply
+   goes to the sender alone, or to the address the mail asks replies to go to. Forward starts with nobody, puts
+   "Fwd:" before the subject, and carries the mail's files. ⇧R (reply to the sender) and F (forward) switch the card
+   on top. Switching keeps what you typed.
+3. **From.** When you send from more than one address in Gmail, the open line has a From menu. It starts on the
+   address the mail came to.
+4. **Your signature.** It comes from Gmail's settings for the address you send from, shows greyed under the box,
+   and **remove** leaves it off this one reply.
+5. **The earlier mail.** The mail you answer goes quoted under your reply ("On … wrote:"), in plain text and in
+   HTML, so Gmail folds it into "•••" for the people reading. A forward sets it out under its headers instead.
+   **•••** under the box shows it.
+6. **Undo send.** A mail reply waits 10 seconds before it goes. The card moves on at once and says
+   "sending · z undo". Z (or ⌘Z) in that time stops it, and the card comes back with your words and recipients.
+   After that, Z takes back the key's move as usual. The waiting reply is kept in `~/.loki/state/outbox.json` on the
+   account's Mac, so if loki stops meanwhile it goes when loki starts again. If it fails, the card comes back with
+   your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
+   recipients line has To and Cc. The mode, From and Bcc are on the Mac.
 
 **What loki keeps of your moves.** Each read, later, archive, label, reply, hand-off and undo on an outside card is
 written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:

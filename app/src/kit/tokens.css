@@ -34,7 +34,7 @@
   /* Where an Inbox card came from (plan 073): the mark on a Slack sender's face and on a mail sender's. */
   --loki-mark-slack: #d4a0e0;
   --loki-mark-mail: #f28b82;
-  /* A Slack message that brought its card in (plan 076): Slack's mention wash and the bar at its left edge. */
+  /* A Slack message that brought its card in (plan 077): Slack's mention wash and the bar at its left edge. */
   --loki-mention: #2e2a1f;
   --loki-mention-bar: #e8a33a;
   --loki-grid: #2c2f34;

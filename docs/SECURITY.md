@@ -201,7 +201,14 @@ yourself.
 - **What loki keeps on disk.** Each thread's record (its sender, subject and last few lines,
   `state/account-threads/`) and the ledger of your moves on outside cards (`state/inbox-ledger.jsonl`, plan 069:
   sender, subject, the kind of mail and what you did) stay on the account's Mac, mode 0600, and go to no model or
-  server. They are under `~/.loki`, which an agent with file tools can read.
+  server. So do the people each mailbox has mail with (`state/mail-people.json`, plan 076: names and addresses from
+  the From, To and Cc headers loki already reads, for the recipients line's suggestions, forgotten when the account is
+  disconnected) and a mail reply waiting out its 10-second undo (`state/outbox.json`, mode 0600, which holds it only
+  until it is sent). They are under `~/.loki`, which an agent with file tools can read.
+- **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
+  The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
+  as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more
+  than 17 MB. Agents get none of this: an approved agent draft still goes to the thread's own people.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
@@ -264,8 +271,9 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
   [architecture.md](architecture.md) lists every path. Store backups made before a migration (`stores/backup-…/`) hold whole copies of your chats; delete them once
   you are happy.
 - The Inbox's accounts: their records and owners (`state/accounts.json`), the last few messages of each waiting
-  thread as plain text, for its card (`state/account-threads/`), hand-offs under way (`state/handoffs.json`) and your
-  agents' reply proposals (`state/reply-proposals.json`). No token or session is among them.
+  thread as plain text, for its card (`state/account-threads/`), hand-offs under way (`state/handoffs.json`), your
+  agents' reply proposals (`state/reply-proposals.json`), the names and addresses each mailbox has mail with
+  (`state/mail-people.json`) and a mail reply during its undo (`state/outbox.json`). No token or session is among them.
 - Outside it: the global skills in `~/.agents/skills`, and provider, MCP and account secrets in the keychain.
 - Nothing is uploaded, logged remotely, or telemetered. The daemon keeps a local usage log
   (`~/.loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only this machine reads:

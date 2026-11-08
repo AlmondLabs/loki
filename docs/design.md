@@ -32,7 +32,7 @@ AA on every working surface. The roles:
   surface (approve, done).
 - `--loki-positive` / `--loki-negative` — status inks (a pass, a failure, a destructive action).
 - `--loki-mention` / `--loki-mention-bar` — Slack's mention wash and the bar at its left edge, on a Slack message that
-  brought its card into the Inbox (plan 076). Only behind a message, never a control.
+  brought its card into the Inbox (plan 077). Only behind a message, never a control.
 - Inputs, agent speech, user speech and inline code each have their own surface token (`--loki-well`,
   `--loki-bubble`, `--loki-user-bubble`, `--loki-code`) instead of borrowing selection or accent.
 - `--loki-label-0` … `--loki-label-7` — the eight chat-label colours, each a mark that reads at 3:1 or more on

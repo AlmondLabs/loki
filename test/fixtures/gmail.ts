@@ -91,6 +91,8 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
       return typeof state.sendAs === "number"
         ? json(state.sendAs, { error: { code: state.sendAs, message: "Insufficient Permission", errors: [{ reason: "insufficientPermissions" }] } })
         : json(200, { sendAs: state.sendAs.map((a) => ({ sendAsEmail: a })) });
+    const attachment = /^\/messages\/([^/]+)\/attachments\/([^/]+)$/.exec(path);
+    if (attachment) return json(200, { data: Buffer.from(`file ${attachment[1]}/${attachment[2]}`).toString("base64url") });
     if (path === "/history") {
       if (Number(q.get("startHistoryId")) < state.oldestHistoryId) return json(404, { error: { code: 404, message: "Requested entity was not found." } });
       const from = Number(q.get("pageToken") ?? "0");

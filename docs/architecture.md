@@ -401,8 +401,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     (`recent-models.json`), each agent's switched-off MCP servers (`mcp-agents.json`), reflection's settings from
     before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
     (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
-    account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`), and
-    each chat's reply proposals (`reply-proposals.json`).
+    account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
+    each chat's reply proposals (`reply-proposals.json`), the people each mailbox has mail with (`mail-people.json`,
+    plan 076), and mail replies held for their undo (`outbox.json`).
 11. `mods/`: mods of your own, loaded after loki's.
 12. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
    (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
@@ -468,7 +469,10 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    the same card when it is back in the Gmail inbox, by undo or by hand in Gmail; `handoff.ts` gives a thread to its
    owner's chat, then ends it out there through `AccountThreads.archiveHandedOff`; `outside-threads.ts` reads a card's
    whole thread and sends the person's own reply, then the move of the key that sent it (plans 068 and 070), the only
-   caller of the clients' send calls; `inbox-ledger.ts` keeps the person's moves on outside cards with what each
+   caller of the clients' send calls; for mail it also answers what the recipients line starts from (`compose`) and
+   writes the reply as Gmail does (plan 076), with `mail-compose.ts` (the body: signature, quote, forward),
+   `mail-outbox.ts` (the 10-second hold for undo send) and `mail-people.ts` (the people each mailbox has mail with, fed
+   by `gmail-sync.ts` and by what the person sends); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
    thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),

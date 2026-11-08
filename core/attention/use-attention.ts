@@ -37,6 +37,8 @@ import type { PayloadOf } from "../frames.ts";
 import type {
   AccountLabel,
   HandoffProposal,
+  MailAddressing,
+  MailCompose,
   OutsideChange,
   OutsideMove,
   OutsideRead,
@@ -160,7 +162,18 @@ export interface HandoffSource {
  */
 export interface OutsideSource {
   readOutside: (item: AttentionItem, ask?: OutsideWindowAsk) => Promise<OutsideRead | string>;
-  replyOutside: (item: AttentionItem, text: string, then: ReplyThen) => Promise<OutsideReplyResult>;
+  /** A mail reply may carry its addressing and the id its undo is by (plan 076). */
+  replyOutside: (item: AttentionItem, text: string, then: ReplyThen, extra?: OutsideReplyExtra) => Promise<OutsideReplyResult>;
+  /** What a mail card's recipients line starts from (plan 076), or why it could not be read. */
+  composeOutside?: (item: AttentionItem) => Promise<MailCompose | string>;
+  /** Stop a held mail reply before it goes (plan 076): true when it was stopped. */
+  unsendOutside?: (item: AttentionItem, outboxId: string) => Promise<boolean>;
+}
+
+/** What a mail reply carries beside its text (plan 076): how it is addressed (null for reply all) and the id its hold is undone by. */
+export interface OutsideReplyExtra {
+  mail?: MailAddressing | null;
+  outbox_id?: string | null;
 }
 
 /**
@@ -170,6 +183,8 @@ export interface OutsideSource {
 export interface OutsideReplyResult {
   sent: boolean;
   error: string | null;
+  /** A held mail reply was stopped before it went (plan 076): nothing was sent and nothing moved. */
+  undone?: true;
 }
 
 /**
@@ -803,8 +818,9 @@ export function useAttention(opts: UseAttentionOptions) {
    * its key would and is what an undo takes back; the reply stays sent.
    */
   const replyOutside = useCallback(
-    async (item: AttentionItem, text: string, then: ReplyThen): Promise<OutsideReplyResult> => {
-      const r = await store.replyOutside(item, text, then);
+    async (item: AttentionItem, text: string, then: ReplyThen, extra?: OutsideReplyExtra): Promise<OutsideReplyResult> => {
+      const r = await store.replyOutside(item, text, then, extra);
+      if (r.undone) return { sent: false, error: null, undone: true };
       if (r.sent && !r.error) moves.replied(item, then, r.change);
       else if (r.sent) decided(item, "reply");
       return { sent: r.sent, error: r.error };
@@ -892,6 +908,8 @@ export function useAttention(opts: UseAttentionOptions) {
     handoffPropose: store.handoffPropose,
     handoff: handoffOutside,
     readOutside: store.readOutside,
+    composeOutside: store.composeOutside,
+    unsendOutside: store.unsendOutside,
     replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,

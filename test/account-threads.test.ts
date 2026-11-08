@@ -347,7 +347,7 @@ describe("the thread records of an account", () => {
   });
 });
 
-describe("what the person dealt with (plan 076, R5, KTD1)", () => {
+describe("what the person dealt with (plan 077, R5, KTD1)", () => {
   test("archive and read mark the card dealt with at its newest message; later leaves the mark", async () => {
     const { threads } = await fixture(fakeSource());
     threads.observe(MAIL, message());

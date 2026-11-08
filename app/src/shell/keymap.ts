@@ -129,6 +129,8 @@ export const KEYMAP: Binding[] = [
   { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Inbox/decide" },
   { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Inbox/go" },
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
+  { id: "inbox.reply_sender", keys: ["shift+r"], where: "inbox", label: "reply to the sender only (mail)" },
+  { id: "inbox.forward", keys: ["f"], where: "inbox", label: "forward (mail)" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
 
   // --- learn: one card at a time; the two answers only once the answer shows -------------------------
