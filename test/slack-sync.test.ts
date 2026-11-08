@@ -383,6 +383,13 @@ describe("walking the Activity feed", () => {
     expect(feedCalls(slack)).toEqual(["0", "50", "100", "0", "0", "50", "100"]);
   });
 
+  test("a walk reads past 1,000 items, so the oldest unread mention is seen (plan 078)", async () => {
+    const { slack, sync } = await fixture();
+    for (let i = 1; i <= 1100; i++) slack.item({ key: `k${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(i) });
+    await sync.tick();
+    expect(feedCalls(slack)).toHaveLength(22);
+  });
+
   test("a walk a rate limit stops goes on from where it stopped, and the tick keeps what it read", async () => {
     const { slack, sync, open, clock } = await fixture();
     busy(slack);
@@ -466,7 +473,7 @@ describe("read, unread, labels and undo on a Slack card (plan 070, U3)", () => {
 });
 
 describe("older unread items", () => {
-  test("arrive in batches of the last few days first, then older, each when the account's cards are cleared", async () => {
+  test("fill the workspace up to 20 open cards, newest first across windows; new items come past it (plan 078)", async () => {
     const { slack, accounts, threads, sync, open } = await fixture();
     const mention = (key: string, seconds: number) => {
       slack.post("C0GEN", { ts: at(seconds), user: "U0GRACE", text: `<@U0ME> ${key}` });
@@ -488,26 +495,19 @@ describe("older unread items", () => {
     mention("live", 60);
     await sync.tick();
     expect(open()).toHaveLength(21);
+    // Closing all makes room for everything left, from every window back, in one tick.
     await clear();
     await sync.tick();
     expect(
       open()
         .map((r) => r.subject_or_first_line)
         .sort(),
-    ).toEqual(["@Ada recent-0", "@Ada recent-1", "@Ada recent-2", "@Ada recent-3", "@Ada recent-4"]);
-
-    await clear();
-    await sync.tick();
-    expect(open().map((r) => r.subject_or_first_line)).toEqual(["@Ada last-week"]);
-
-    await clear();
-    await sync.tick();
-    expect(open().map((r) => [r.thread_id, r.from_backfill])).toEqual([["D0OLD", true]]);
+    ).toEqual(["@Ada last-week", "@Ada recent-0", "@Ada recent-1", "@Ada recent-2", "@Ada recent-3", "@Ada recent-4", "from long ago"]);
+    expect(must(accounts.get(ACCOUNT)).backfill).toMatchObject({ exhausted: true });
 
     await clear();
     await sync.tick();
     expect(open()).toEqual([]);
-    expect(must(accounts.get(ACCOUNT)).backfill).toMatchObject({ exhausted: true });
   });
 });
 

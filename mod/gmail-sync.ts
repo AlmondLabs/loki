@@ -17,8 +17,8 @@ import type { MailPeople } from "./mail-people.ts";
  * nothing did), turns new mail in the inbox into cards, follows mail read or marked unread in Gmail, and takes away the
  * cards of threads the person archived there, and brings a card back when its mail is moved back into the inbox
  * (plan 070, KTD4). When Gmail no longer keeps history that far back, the account is read
- * again from a bounded search; the thread records keep archived and handed-off threads from coming back. When the
- * account has no unread cards, the next older batch comes (core/account-refill.ts).
+ * again from a bounded search; the thread records keep archived and handed-off threads from coming back. While the
+ * account has fewer than 20 open cards, older inbox threads fill it up to 20 (core/account-refill.ts, plan 078).
  */
 
 /** The calls a Gmail sync makes; GmailClient has them. */
@@ -45,13 +45,12 @@ interface GmailCursor {
 
 /** Failed ticks in a row before the account says it is failing for now (R22). */
 const FAILURES_BEFORE_STATUS = 3;
-/** Windows one tick reads at most while they bring nothing, so a mailbox full of old newsletters spreads over ticks. */
+/** Windows one tick reads at most while the account has room, so a long backlog spreads over ticks. */
 const REFILL_STEPS_PER_TICK = 4;
 /** How far back a rebuild after lost history reads; mail older than this was there before and was read then. */
 const REBUILD_DAYS = 30;
 const DAY = 24 * 3600 * 1000;
 const IN_INBOX = "in:inbox";
-const UNREAD_IN_INBOX = "is:unread in:inbox";
 /**
  * The cursor's version now. Version 2 (plan 070): every inbox thread is a card, so the threads the rule before archived
  * only for being read are checked once against the inbox.
@@ -388,53 +387,48 @@ export class GmailSync implements AccountSync {
     return this.opts.accounts.get(this.accountId)?.status === "connected";
   }
 
-  /** Bring the next batch of older threads when the account has no unread cards (KTD13; plan 070, KTD5). */
+  /** Fill the account up to PAST_CAP open cards with older inbox threads, read or unread (KTD13; plan 078). */
   private async refill(own: string[]): Promise<void> {
     for (let step = 0; step < REFILL_STEPS_PER_TICK; step++) {
       const cursor = this.cursor();
       if (!cursor) return;
-      const unreadOpen = this.opts.threads.list(this.accountId).filter((r) => r.state === "open" && r.unread_out_there).length;
-      const window = refillWindow(cursor.refill, unreadOpen);
+      const open = this.opts.threads.list(this.accountId).filter((r) => r.state === "open").length;
+      const window = refillWindow(cursor.refill, open);
       if (!window) return;
-      const { result, taken } = await this.readWindow(window, own);
+      const result = await this.readWindow(window, own);
       this.save({ ...cursor, refill: advanceRefill(cursor.refill, window, result) });
-      if (taken > 0) return;
     }
   }
 
   /**
-   * Read one window into cards, newest first (KTD5): every unread thread in it, then read ones until the window's
-   * limit. Threads already recorded are passed over.
+   * Read one window into cards (plan 078): its inbox threads, read or unread, newest first, until the window's limit;
+   * a full window stops at the oldest thread it took, so the next read goes on from there and skips nothing newer.
+   * Threads already recorded are passed over.
    */
-  private async readWindow(window: RefillWindow, own: string[]): Promise<{ result: RefillResult; taken: number }> {
+  private async readWindow(window: RefillWindow, own: string[]): Promise<RefillResult> {
     const span = `after:${String(seconds(window.after, Math.floor))} before:${String(seconds(window.before, Math.ceil))}`;
     const passed = new Set<string>();
     let any = false;
     let taken = 0;
-    let read = 0;
-    for (const q of [`${UNREAD_IN_INBOX} ${span}`, `${IN_INBOX} ${span}`]) {
-      let pageToken: string | undefined;
-      do {
-        const page = await this.opts.client.listMessages(q, pageToken);
-        for (const listed of page.messages) {
-          any = true;
-          if (passed.has(listed.threadId) || this.opts.threads.get(this.accountId, listed.threadId)) continue;
-          passed.add(listed.threadId);
-          const synced = await this.syncThread(listed.threadId, own, true);
-          if (!synced?.observed) continue;
-          taken++;
-          if (synced.unread) continue;
-          read++;
-          if (window.limit !== null && read >= window.limit) {
-            const at = synced.messages.find((m) => m.id === listed.id);
-            return { result: { kind: "full", oldest_at: new Date(at ? timeOf(at) : Date.parse(window.after)).toISOString() }, taken };
-          }
+    let pageToken: string | undefined;
+    do {
+      const page = await this.opts.client.listMessages(`${IN_INBOX} ${span}`, pageToken);
+      for (const listed of page.messages) {
+        any = true;
+        if (passed.has(listed.threadId) || this.opts.threads.get(this.accountId, listed.threadId)) continue;
+        passed.add(listed.threadId);
+        const synced = await this.syncThread(listed.threadId, own, true);
+        if (!synced?.observed) continue;
+        taken++;
+        if (window.limit !== null && taken >= window.limit) {
+          const at = synced.messages.find((m) => m.id === listed.id);
+          return { kind: "full", oldest_at: new Date(at ? timeOf(at) : Date.parse(window.after)).toISOString() };
         }
-        pageToken = page.nextPageToken;
-      } while (pageToken);
-    }
-    if (any) return { result: { kind: "done" }, taken };
-    return { result: { kind: "empty", newest_older_at: await this.newestBefore(window.after) }, taken };
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    if (any) return { kind: "done" };
+    return { kind: "empty", newest_older_at: await this.newestBefore(window.after) };
   }
 
   /** When the newest mail in the inbox older than a time came, or null when there is none. */

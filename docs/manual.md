@@ -933,10 +933,12 @@ though Slack still lists it unread. What you loaded is gone when you leave the c
 @mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
 reply from a later day shows that day beside its time. A hand-off still sends the thread alone, now with each link's
 address and what apps attached. In a mail thread, each mail before the newest starts folded to its
-sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what came in the last 3 days,
-and each time that account has no unread cards left in the Inbox (read cards, resting or not, do not hold it back),
-the next older batch arrives, a week back, then two, then a month, then a month more each time, until nothing older is
-left. Each batch brings every unread thread of its time and at most 20 read ones.
+sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past fills each account up to 20 cards**: connecting brings what came in the last 3 days,
+and while a Gmail account or Slack workspace has fewer than 20 open cards (read, unread or resting), older mail and
+Slack fill it up to 20, newest first, a week back, then two, then a month, then a month more each time, until nothing
+older is left. Closing cards makes room for more, so the whole backlog comes in time, however old. Mail counts every
+thread still in the inbox, read or not; Slack counts DMs and what its Activity lists. Anything new comes at once,
+even past 20.
 
 **Ranking, read, later and archive.** An outside card ranks like a chat with something new, and gains focus as you
 work with that thread, or for mail that sender; an agent waiting on you still comes first. An email card already read

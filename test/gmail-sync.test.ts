@@ -129,32 +129,31 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
     expect(threads.get(id(), "t1")).toMatchObject({ newest_message_id: theirs, sender: "Grace Hopper", unread_out_there: true });
   });
 
-  test("with 300 unread direct threads only the last 3 days come; each clearing brings every unread thread of the next window (AE3)", async () => {
+  test("with 300 unread threads the last 3 days come whole, then the past tops the account up to 20; closing cards makes room (plan 078)", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
-    // One direct thread every 6 hours, newest first: 12 in the last 3 days, 16 more back to 7 days, 28 more to 14.
-    for (let i = 0; i < 300; i++) box.deliver({ thread: `t${String(i).padStart(3, "0")}`, at: ago(i * 6 * HOUR + HOUR), from: GRACE, to: "ada@acme.com" });
+    // One direct thread every 6 hours, newest first: 12 in the last 3 days, then older ones.
+    const t = (i: number) => `t${String(i).padStart(3, "0")}`;
+    for (let i = 0; i < 300; i++) box.deliver({ thread: t(i), at: ago(i * 6 * HOUR + HOUR), from: GRACE, to: "ada@acme.com" });
     const s = sync();
     await s.tick();
-    const first = cards();
-    expect(first).toHaveLength(12);
-    expect(first.at(-1)).toBe("t011");
-    // Nothing more while a card is open.
+    expect(cards()).toEqual(Array.from({ length: 20 }, (_, i) => t(i)));
+    // At the cap, nothing more of the past comes, but new mail still does.
     await s.tick();
-    expect(cards()).toEqual(first);
-    const clear = async () => {
-      for (const t of cards()) await threads.archive(id(), t);
-    };
-    await clear();
+    expect(cards()).toHaveLength(20);
+    box.deliver({ thread: "t-new", at: ago(60_000), from: GRACE, to: "ada@acme.com" });
     await s.tick();
-    const second = cards();
-    expect(second).toEqual(Array.from({ length: 16 }, (_, i) => `t${String(12 + i).padStart(3, "0")}`));
-    // Unread threads are not capped: the whole of the next window comes at once.
-    await clear();
+    expect(cards()).toContain("t-new");
+    await threads.archive(id(), "t-new");
+    // Closing five makes room for the next five; closing all brings the next twenty.
+    for (const c of cards().slice(0, 5)) await threads.archive(id(), c);
     await s.tick();
-    expect(cards()).toEqual(Array.from({ length: 28 }, (_, i) => `t${String(28 + i).padStart(3, "0")}`));
+    expect(cards()).toEqual(Array.from({ length: 20 }, (_, i) => t(i + 5)));
+    for (const c of cards()) await threads.archive(id(), c);
+    await s.tick();
+    expect(cards()).toEqual(Array.from({ length: 20 }, (_, i) => t(i + 25)));
   });
 
-  test("a window of 30 read threads and 5 unread ones brings all 5 unread and the 20 newest read (KTD5)", async () => {
+  test("the past takes inbox threads read or unread alike, newest first, and read cards count toward the cap (plan 078)", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     const read = Array.from({ length: 30 }, (_, i) => `r${String(i).padStart(2, "0")}`);
     const unread = Array.from({ length: 5 }, (_, i) => `u${String(i)}`);
@@ -163,33 +162,13 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
     unread.forEach((t, i) => box.deliver({ thread: t, at: ago(6 * DAY + i * HOUR), from: GRACE, to: "ada@acme.com" }));
     const s = sync();
     await s.tick();
-    expect(cards()).toEqual([...read.slice(0, 20), ...unread].sort());
-    expect(threads.list(id()).filter((r) => r.unread_out_there)).toHaveLength(5);
-    // The unread cards hold the rest back until they are read; the read cards never do.
+    expect(cards()).toEqual(read.slice(0, 20));
     await s.tick();
-    expect(cards()).toHaveLength(25);
-    for (const t of unread) box.removeLabels(t, ["UNREAD"]);
+    expect(cards()).toEqual(read.slice(0, 20));
+    for (const c of read.slice(0, 15)) await threads.archive(id(), c);
     await s.tick();
-    expect(cards()).toEqual([...read, ...unread].sort());
-    expect(threads.get(id(), read[29])?.state).toBe("open");
-  });
-
-  test("only an unread card holds the next batch back; read cards, resting or not, do not", async () => {
-    const { box, sync, cards, ago } = await setup();
-    for (const t of ["t-a", "t-b", "t-c"]) box.deliver({ thread: t, at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
-    box.deliver({ thread: "t-old", at: ago(5 * DAY), from: GRACE, to: "ada@acme.com" });
-    box.deliver({ thread: "t-older", at: ago(10 * DAY), from: GRACE, to: "ada@acme.com" });
-    const s = sync();
-    await s.tick();
-    expect(cards()).toEqual(["t-a", "t-b", "t-c"]);
-    // Three read cards and no unread one: the next older batch comes, and its unread card holds the one after.
-    await s.tick();
-    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old"]);
-    await s.tick();
-    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old"]);
-    box.removeLabels("t-old", ["UNREAD"]);
-    await s.tick();
-    expect(cards()).toEqual(["t-a", "t-b", "t-c", "t-old", "t-older"]);
+    expect(cards()).toEqual([...read.slice(15), ...unread].sort());
+    expect(threads.get(id(), "u4")?.state).toBe("open");
   });
 });
 

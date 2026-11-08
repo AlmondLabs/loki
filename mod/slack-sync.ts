@@ -1,3 +1,4 @@
+import { PAST_CAP } from "../core/account-refill.ts";
 import { messageOf } from "../core/errors.ts";
 import type { OutsideChange } from "../core/frame-types.ts";
 import type { AccountThreads, ObservedMessage, OutsideSource, ThreadRecord } from "./account-threads.ts";
@@ -16,8 +17,9 @@ import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackCli
  * Archive marks a DM read up to the card's last message and never later; it never moves a channel's read marker (R12).
  * No endpoint for marking one Activity item read is verified yet, so archiving an Activity card closes it in loki only.
  *
- * Items from before the account was connected arrive in batches (R8): up to 20 at a time, each time the account has no
- * open outside cards, stepping back through 3, 7, 14 and 30 days and then older, until none remain.
+ * Items from before the account was connected fill it up to 20 open cards (R8, plan 078): while it has fewer, the
+ * newest older items take the room left, stepping back through 3, 7, 14 and 30 days and then older, until none remain.
+ * New items come whatever the count.
  */
 
 /** What SlackSync is built from: the account it watches, its client, and where cards are kept. */
@@ -30,19 +32,21 @@ export interface SlackSyncOptions {
   now?: () => Date;
 }
 
-/** How many unread DM messages one read fetches, and how many Activity pages one walk of the feed reads at most. */
+/**
+ * How many unread DM messages one read fetches, and how many Activity pages one walk of the feed reads at most: 10,000
+ * items, far past any real feed, so the whole past is seen (plan 078) while a feed that never ends cannot loop forever.
+ */
 const DM_MESSAGES = 20;
 const FEED_PAGE = 50;
-const FEED_PAGES = 20;
+const FEED_PAGES = 200;
 /**
  * How often the whole unread Activity feed is walked. Slack allows few `activity.feed` calls a minute, and walking every
  * page each minute kept it refusing (2026-11-05); between walks a tick reads only the newest page, which is where a new
  * mention arrives. What the walk alone finds, an older item or one read in Slack, waits for the next walk.
  */
 const FULL_WALK_MS = 15 * 60_000;
-/** The refill rule (KTD13): the windows back from the connection, in days, then everything older; and a batch's size. */
+/** The refill rule (KTD13): the windows back from the connection, in days, then everything older. */
 const REFILL_DAYS = [3, 7, 14, 30];
-const REFILL_BATCH = 20;
 const DAY_MS = 86_400_000;
 /** Slack errors that are the whole account's, not one item's: the watcher backs off on them. */
 const ACCOUNT_ERRORS = ["signed_out", "ratelimited"];
@@ -157,7 +161,7 @@ export class SlackSync {
 
   /**
    * One poll: new unread items since the connection become or update cards, cards Slack no longer shows unread leave,
-   * and when the account has no open cards, the next batch of older items arrives.
+   * and while the account has fewer than 20 open cards, older items fill it up to 20 (plan 078).
    */
   async tick(): Promise<void> {
     const { client, threads } = this.opts;
@@ -201,7 +205,8 @@ export class SlackSync {
         threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
-    if (!threads.list(this.accountId).some((r) => r.state === "open")) await this.refill(older, feed.complete);
+    const open = threads.list(this.accountId).filter((r) => r.state === "open").length;
+    if (open < PAST_CAP) await this.refill(older, feed.complete, PAST_CAP - open);
   }
 
   /** Write an archive back to Slack (R12): a DM is marked read up to the card's last message; nothing else is marked. */
@@ -253,11 +258,12 @@ export class SlackSync {
   }
 
   /**
-   * The next batch of older items (KTD13): the newest up to 20 unread items not already shown, within the current
-   * window back from the connection; an empty window steps back to the next, and nothing left anywhere ends the refill.
-   * The end is recorded only when the whole feed was read, so items past a cut-short walk still come later.
+   * Older items into the room left (KTD13, plan 078): the newest unread items not already shown, within the current
+   * window back from the connection, then the next window back, until `room` cards came or nothing is left anywhere,
+   * which ends the refill. The end is recorded only when the whole feed was read, so items past a cut-short walk still
+   * come later.
    */
-  private async refill(older: Candidate[], complete: boolean): Promise<void> {
+  private async refill(older: Candidate[], complete: boolean, room: number): Promise<void> {
     const raw = this.opts.accounts.get(this.accountId)?.backfill ?? {};
     const state: RefillState = { step: typeof raw.step === "number" ? raw.step : 0, exhausted: raw.exhausted === true };
     if (state.exhausted) return;
@@ -269,14 +275,16 @@ export class SlackSync {
       })
       .sort((a, b) => tsKey(b.ts).localeCompare(tsKey(a.ts)));
     const start = { ...state };
+    const taken = new Set<string>();
     for (;;) {
       const days = REFILL_DAYS.at(state.step);
       const cutoff = days === undefined ? "" : new Date(connected - days * DAY_MS).toISOString();
-      const batch = unseen.filter((c) => (tsIso(c.ts) ?? "") >= cutoff).slice(0, REFILL_BATCH);
-      if (batch.length) {
-        for (const c of batch) await this.observe(c, true);
-        break;
+      const batch = unseen.filter((c) => !taken.has(c.thread_id) && (tsIso(c.ts) ?? "") >= cutoff).slice(0, room - taken.size);
+      for (const c of batch) {
+        await this.observe(c, true);
+        taken.add(c.thread_id);
       }
+      if (taken.size >= room) break;
       if (days !== undefined) state.step++;
       else {
         state.exhausted = complete;
