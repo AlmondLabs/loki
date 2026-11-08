@@ -195,7 +195,9 @@ async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
   const now = () => new Date(clock.t);
   const client = new SlackClient({ session: () => Promise.resolve(SESSION), setStatus: () => {}, fetch: slack.fetch, now });
-  const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client, now });
+  // The cards resting in the Inbox, by thread, which the past's cap leaves out (plan 078).
+  const resting = new Set<string>();
+  const sync = new SlackSync({ accounts, threads, account: must(accounts.get(ACCOUNT)), client, now, resting: (r) => resting.has(r.thread_id) });
   const open = () => threads.list(ACCOUNT).filter((r) => r.state === "open");
   // The person's reply (plan 070, U5), sent through the same client and records the sync uses.
   const outside = new OutsideThreads({
@@ -204,7 +206,7 @@ async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
     threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
     clientFor: () => ({ provider: "slack", client }),
   });
-  return { dir, slack, accounts, threads, sync, open, outside, clock };
+  return { dir, slack, accounts, threads, sync, open, outside, clock, resting };
 }
 
 describe("DMs", () => {
@@ -508,6 +510,21 @@ describe("older unread items", () => {
     await clear();
     await sync.tick();
     expect(open()).toEqual([]);
+  });
+});
+
+describe("resting cards and the past's cap (plan 078)", () => {
+  test("a resting card leaves the count, so older items take its room", async () => {
+    const { slack, sync, open, resting } = await fixture();
+    for (let i = 0; i < 25; i++) {
+      slack.post("C0GEN", { ts: at(-DAY + i), user: "U0GRACE", text: `<@U0ME> m-${String(i)}` });
+      slack.item({ key: `m-${String(i)}`, type: "at_user", channel: "C0GEN", ts: at(-DAY + i) });
+    }
+    await sync.tick();
+    expect(open()).toHaveLength(20);
+    for (const r of open().slice(0, 3)) resting.add(r.thread_id);
+    await sync.tick();
+    expect(open()).toHaveLength(23);
   });
 });
 

@@ -3,6 +3,7 @@
  * days. After that the past tops the account up to PAST_CAP open cards: while it has fewer, the next older threads
  * come, read or unread, newest first, as many as there is room for, stepping back through windows 7, 14 and 30 days
  * before the first sync, then 30 days more each time, until nothing older is left. New mail is not held to the cap.
+ * A card resting in the Inbox (read or put off for later) does not count, since it waits on nothing from the person now.
  * The cursor lives on the account (Accounts.setBackfill), so a restart goes on where it stood.
  */
 

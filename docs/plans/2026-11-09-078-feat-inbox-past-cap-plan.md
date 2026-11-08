@@ -19,6 +19,11 @@ and the Slack walk of the Activity feed stops at 1,000 items, so anything older 
 4. **Slack: DMs and Activity, as now**, with no age limit and no item cap. Unread channel messages that do not name
    the person stay out.
 
+5. **Resting cards don't count** (decided 2026-11-09, after the first version). A card resting after read or later
+   waits on nothing from the person, so it no longer holds the past back. The mod reads each card's rest from the
+   rests every device keeps (`mod/seen.ts`) and leaves a resting card out of the count; when its rest ends it counts
+   again, and the source may sit above 20 until cards close.
+
 ## How
 
 1. `core/account-refill.ts`: `PAST_CAP = 20` replaces `REFILL_BATCH`. `refillWindow(cursor, open)` gives a window while
