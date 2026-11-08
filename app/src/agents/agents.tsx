@@ -1,4 +1,5 @@
 import type { McpApi } from "../settings/mcp";
+import type { AccountsApi } from "../settings/accounts";
 import { useEffect, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
@@ -49,6 +50,7 @@ export function Agents({
   listModels,
   onShowDesks,
   mcp,
+  accounts,
   macs,
   columnOutside = false,
   selection = agentsSelection,
@@ -72,6 +74,8 @@ export function Agents({
   onShowDesks: () => void;
   /** The MCP servers, to switch on and off for the agent (Profile). */
   mcp?: Pick<McpApi, "get" | "agent">;
+  /** The Inbox accounts, so deleting an agent that owns some offers to move or disconnect each (plan 067, R4). */
+  accounts?: AccountsApi;
   /** This Mac first, then the Macs paired with it (plan 023): where an agent may live. */
   macs?: MacIdentity[];
   /** The Shell's list column holds AgentsColumn (plan 013 U10): draw only the pane. Otherwise the column sits inside, at the left. */
@@ -198,6 +202,7 @@ export function Agents({
         d={d}
         selected={selected}
         mcp={mcp}
+        accounts={accounts ? { api: accounts, agents } : undefined}
         macs={macs}
         avatar={avatar(selected)}
         models={models}

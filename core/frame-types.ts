@@ -135,6 +135,291 @@ export interface InboxRow extends LocalDigest, ChatHome {
   draft_text?: string | null;
   /** The folder the chat works in; null when it has none of its own. */
   cwd?: string | null;
+  /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9): the card is blocked. */
+  reply_proposals?: ReplyProposal[];
+  /**
+   * An outside card (plan 067, KTD1): a Gmail or Slack thread, not a chat. Its `agent_id` is `account:<account_id>` and
+   * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a
+   * hand-off starts clean. Absent on a chat's row.
+   */
+  kind?: "outside";
+  /** What an outside card shows and acts on; present exactly when `kind` is `outside`. */
+  outside?: OutsideFacts;
+}
+
+/**
+ * An outside card's own facts (plan 067, R10): the account and its owner, who wrote last and about what, the thread's
+ * last few messages as plain text, and the chat a hand-off took it to. Message text stays on this Mac's clients and
+ * paired Macs; it reaches a model only through a hand-off or the owner's tools (R23).
+ */
+export interface OutsideFacts {
+  account_id: string;
+  provider: AccountProvider;
+  /** The account as the card names it: the mailbox's address, or the workspace's name. */
+  account_label: string;
+  thread_id: string;
+  /** Rises with each hand-off, so a new message after one is a new card (R19). */
+  generation: number;
+  owner_agent_id: string;
+  /** The owner's name; null when its record gives none. */
+  owner_name: string | null;
+  /** Who wrote the newest message, as the card shows it. */
+  sender: string;
+  /** The sender's email address, which email focus is learned by (R9); null for Slack. */
+  sender_address: string | null;
+  /** The subject, or a Slack message's first line. */
+  subject: string;
+  /** The last few messages as plain text, oldest first. */
+  lines: string[];
+  newest_message_id: string;
+  newest_at: string;
+  /** The chat the thread was handed to before; null when it never was. */
+  handoff_conversation_id: string | null;
+  /** Why the account is not watched now (R22); null while it is connected. */
+  disconnected: AccountDisconnectCause | null;
+  /**
+   * Whether the thread is unread in its service (plan 070, KTD2). For email it is Gmail's own read state, which the
+   * card's unread follows, since reading a mail in Gmail keeps its card; a Slack card is always unread until it ends.
+   * A paired Mac on a loki older than plan 070 sends no value, which reads as unread, as the mod reads its own records.
+   */
+  unread_out_there?: boolean;
+  /** How directly the newest message is meant for the person (plan 073); absent from an older loki. */
+  reach?: OutsideReach | null;
+  /** Where a Slack message was posted, as `#channel`; null for a DM and for mail (plan 073). */
+  place?: string | null;
+  /** The sender's photo: a Slack profile image's address; null for mail (plan 073). */
+  sender_avatar?: string | null;
+  /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
+  only_account?: boolean;
+}
+
+/**
+ * How directly a card's newest message is meant for the person (plan 073): a Slack DM or a mail to them, a mention of
+ * them, a reply in their thread, a mention of a user group they are in or a mail not addressed to them, @channel or a
+ * mailing list, a mail sent by a machine. `core/outside-reach.ts` orders them.
+ */
+export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "group" | "not_to_you" | "channel" | "list" | "automated";
+
+/**
+ * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,
+ * label, their reply, a hand-off to the owning agent, or an undo of the last of those; how it was made (a key or a
+ * click on the Mac, a swipe or a tap on the phone; null when the box's own send made it), and how long the card was on
+ * top first, when the app knows. `next` is what ⌘] was called before plan 070, kept so older clients still reach the
+ * ledger; clients send `read` now.
+ */
+export interface OutsideMove {
+  action: "read" | "later" | "archive" | "label" | "reply" | "handoff" | "undo" | "next";
+  via: "key" | "click" | "swipe" | "tap" | null;
+  dwell_ms: number | null;
+  /** ISO time the move's rest brings the card back (read and later, and a reply followed by either); null when none. */
+  return_at?: string | null;
+  /** The Gmail label ids a label move put on; null for every other move. */
+  labels?: string[] | null;
+  /** Whether the person chose the return time themselves, at the second ⌘[ (R7). */
+  picked?: boolean;
+  /** For a reply, the key that followed it (R11); null for every other move. */
+  after_reply?: ReplyThen | null;
+}
+
+/** A move loki writes back to an outside card's service (plan 070, KTD3). */
+export type OutsideWrite = "archive" | "read" | "unread" | "label";
+
+/** What one write-back did to one message: the Gmail labels it put on and took off, so an undo takes back just those. */
+export interface OutsideMessageChange {
+  message_id: string;
+  labels_added: string[];
+  labels_removed: string[];
+}
+
+/**
+ * What a write-back changed (plan 070, KTD3), kept by the client so an undo (R14) puts back exactly that. `messages`
+ * lists only the messages whose labels changed; a Slack write has none, since Slack has no labels. `ended` says the
+ * move ended the card in loki (an archive, or reading a Slack card), and `was_unread` how loki showed the thread before.
+ */
+export interface OutsideChange {
+  move: OutsideWrite;
+  messages: OutsideMessageChange[];
+  ended: boolean;
+  was_unread: boolean;
+}
+
+/**
+ * The move that follows a reply the person sent from an outside card (plan 070, R11, KTD6): mark the thread read, leave
+ * it unread and waiting for an answer (`later`), or archive it.
+ */
+export type ReplyThen = "read" | "later" | "archive";
+
+/**
+ * How a reply went (plan 070, KTD6): it was sent, and the move after it is told apart, so a move that failed can be
+ * tried again without sending the reply twice. `then_error` is that move's reason when it failed, and `change` what it
+ * wrote, for an undo, or null when it failed or wrote nothing.
+ */
+export type OutsideReplied = { sent: true; then_error: string | null; change: OutsideChange | null } | { sent: false; undone: true };
+
+/** How a mail reply is addressed (plan 076): to the sender, to everyone on the newest message, or forwarded to no one yet. */
+export type MailMode = "reply" | "reply_all" | "forward";
+
+/**
+ * What the person chose on a mail card's recipients line (plan 076): the mode, who it goes to, the address it is sent
+ * from (null for the one the mail came to), and whether their Gmail signature goes under it. A reply sent without it
+ * goes to all, from that address, with the signature, as a reply from before plan 076 did, plus the signature.
+ */
+export interface MailAddressing {
+  mode: MailMode;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  from: string | null;
+  signature: boolean;
+}
+
+/** One address the person sends from in Gmail (plan 076): the address, the name it shows, and its signature as plain text. */
+export interface MailSender {
+  address: string;
+  name: string;
+  signature: string;
+}
+
+/** Someone the account has mail with (plan 076), for the recipients line's suggestions: the name they show, if any, and their address. */
+export interface MailPerson {
+  name: string;
+  address: string;
+}
+
+/**
+ * What a mail card's recipients line starts from (plan 076), read on the Mac the account lives on: who reply and reply
+ * all go to, the addresses the person sends from with the default for this thread, the subject, and the people the
+ * account has mail with, most often and most lately first.
+ */
+export interface MailCompose {
+  modes: Record<"reply" | "reply_all", { to: string[]; cc: string[] }>;
+  from: MailSender[];
+  default_from: string;
+  subject: string;
+  people: MailPerson[];
+}
+
+/** One of an account's Gmail labels (plan 070, R12): Gmail's own (`system`, as STARRED) or one the person made (`user`). */
+export interface AccountLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
+}
+
+/**
+ * One message of an outside card's thread as the card draws it (plan 068): who wrote it, when (ISO, "" when unknown), its
+ * text as plain text, and whether the account's own person wrote it.
+ */
+export interface OutsideMessage {
+  /** The message's id in its service (Gmail's id, Slack's ts); unique within its thread. */
+  id: string;
+  sender: string;
+  at: string;
+  text: string;
+  mine: boolean;
+  /**
+   * A mail's HTML as its sender wrote it, which the card draws in a frame where no script or form runs; absent for
+   * Slack, for mail with only a plain part, and from a Mac on a loki older than this field.
+   */
+  html?: string;
+  /** The sender's Slack photo (plan 074); absent for mail, for a sender with none, and from an older loki. */
+  avatar?: string;
+  /** A reply under the card's thread's first message, drawn indented as an open thread (plan 074). */
+  in_thread?: boolean;
+  /** Not yet read by the person in Slack, so the card draws the New line before the first such message (plan 074). */
+  unread?: boolean;
+  /** How many replies a channel message around the card has in its own thread, which the card does not open. */
+  replies?: number;
+  /** The channel has more messages after this one than the card shows (plan 074). */
+  more_after?: boolean;
+  /** A Slack message read the way Slack draws it (plan 075); absent for mail and from an older loki, which draw `text`. */
+  body?: SlackBlock[];
+  /** What a Slack app attached under its message (plan 075). */
+  attachments?: SlackAttachment[];
+  /** One of the messages that brought the card into the Inbox (plan 077, R12), drawn with Slack's mention look. */
+  brought?: boolean;
+  /**
+   * New replies in this channel message's own thread (plan 077, R11): how many, or true when there are some but they
+   * could not be counted. The card offers to open that thread.
+   */
+  new_replies?: number | true;
+}
+
+/** An outside card's thread as its account's Mac read it: the messages, and for a Slack card its window (plan 077). */
+export interface OutsideRead {
+  messages: OutsideMessage[];
+  /** Null for mail, and from a Mac on a loki older than plan 077, which reads the whole view at once. */
+  window: OutsideWindow | null;
+}
+
+/** Which of a Slack card's two views a window is (plan 077, R10): one thread alone, or the channel or DM around it. */
+export type SlackCardView = "thread" | "channel";
+
+/**
+ * What a Slack card asks for beyond its opening window (plan 077, R3, R11): a view and its thread, and 20 more messages
+ * before or after the message `from`. Asking nothing gets what the card opens on.
+ */
+export interface OutsideWindowAsk {
+  view?: SlackCardView;
+  /** The thread a thread view shows, by its first message's ts. */
+  thread_ts?: string;
+  direction?: "before" | "after";
+  from?: string;
+}
+
+/**
+ * The window a Slack card was given (plan 077): its view, the thread it shows, and what more there is on each side,
+ * as a count when Slack tells loki, else whether there is any.
+ */
+export interface OutsideWindow {
+  view: SlackCardView;
+  thread_ts: string | null;
+  more_before: number | boolean;
+  more_after: number | boolean;
+}
+
+/**
+ * A run of a Slack message's words as the card draws it (plan 075): text in its styles, a link with its address, a
+ * mention of a person, channel or group, or an emoji, which is the character itself, else the workspace's own image.
+ */
+export type SlackSpan =
+  | { kind: "text"; text: string; bold?: true; italic?: true; strike?: true; code?: true }
+  | { kind: "link"; text: string; url: string; bold?: true; italic?: true; strike?: true }
+  | { kind: "mention"; text: string }
+  | { kind: "emoji"; text: string; image?: string };
+
+/** A paragraph of a Slack message (plan 075): ordinary lines, a `>` quote, or a code block. */
+export interface SlackBlock {
+  kind: "text" | "quote" | "code";
+  spans: SlackSpan[];
+}
+
+/**
+ * What a Slack app attached to a message (plan 075): a lead line above it, a title that may link somewhere, its text
+ * and fields, and the bar colour the app chose (`#rrggbb`), all optional as Slack's are.
+ */
+export interface SlackAttachment {
+  pretext?: SlackBlock[];
+  title?: SlackSpan[];
+  body?: SlackBlock[];
+  fields?: Array<{ title: string; value: SlackBlock[] }>;
+  color?: string;
+}
+
+/** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */
+export type HandoffTarget = { kind: "existing"; conversation_id: string; title: string } | { kind: "new"; title: string };
+
+/**
+ * What handing an outside card's thread off proposes (plan 067, R15): the chat loki picked and the owner's other open
+ * chats to pick from instead, newest first. `note` says why the chat the thread went to before is not proposed.
+ */
+export interface HandoffProposal {
+  account_id: string;
+  thread_id: string;
+  owner_agent_id: string;
+  proposed: HandoffTarget;
+  choices: Array<{ conversation_id: string; title: string }>;
+  note: string | null;
 }
 
 /**
@@ -167,6 +452,43 @@ export type Suggestion = {
   /** The chat made for a new-chat target, kept once made so a retry never makes a second one. */
   made_conversation_id?: string | null;
 };
+
+/**
+ * Where a reply proposal stands (plan 067, KTD9): waiting on the person, its draft being written, or settled by a
+ * draft written out there, the person rejecting it, or its agent (or a move of the account) taking it back.
+ */
+export type ReplyProposalStatus = "pending" | "drafting" | "drafted" | "rejected" | "withdrawn";
+
+/**
+ * A reply an agent proposes in a thread handed to its chat (plan 067, R18, KTD9), kept on that chat until the person
+ * acts. Approved, loki writes it as a draft in the same thread for the person to send; loki never sends it. The
+ * people it goes to come from the thread, never from the agent: Gmail's reply-all to the newest message, or Slack's
+ * same conversation and thread (`place`).
+ */
+export interface ReplyProposal {
+  id: string;
+  account_id: string;
+  provider: AccountProvider;
+  /** The account as a card names it: the mailbox's address, or the workspace's name. */
+  account_label: string;
+  thread_id: string;
+  /** The thread's subject, or a Slack thread's first line. */
+  subject: string;
+  /** Gmail: who the draft is addressed to and copied to, as the newest message names them; empty for Slack. */
+  to: string[];
+  cc: string[];
+  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); null for Gmail. */
+  place: string | null;
+  text: string;
+  status: ReplyProposalStatus;
+  /** Why an action was refused or failed, shown on the card; null when nothing went wrong. */
+  reason: string | null;
+  created_at: string;
+  decided_by?: string | null;
+  decided_at?: string | null;
+  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack or before. */
+  draft_url?: string | null;
+}
 
 /**
  * A suggestion saved as a draft (plan 049, KTD7), kept on the chat it is for until that chat sends or the person
@@ -370,4 +692,38 @@ export interface McpView {
   /** Entries in mcp.json that could not be read, one line each. */
   problems: string[];
   config_path: string;
+}
+
+/** The services an Inbox account connects (plan 067): a Gmail mailbox or a Slack workspace. */
+export type AccountProvider = "gmail" | "slack";
+/**
+ * Why an account stopped working, as an id the app turns into words and a way back (plan 067, R22): Google wants a new
+ * sign-in, a workspace admin blocks the app, the Slack desktop app signed out, or the service keeps failing for now.
+ */
+export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_signed_out" | "temporarily_failing";
+/** Whether an account is watched: connected, or disconnected with its cause. */
+export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
+
+/**
+ * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, or
+ * a Slack workspace's name), and the one agent that owns it. It never carries a token.
+ */
+export interface AccountView {
+  /** The provider and its stable id: `gmail:<address>` or `slack:<team_id>:<user_id>` (mod/accounts.ts accountIdOf). */
+  account_id: string;
+  provider: AccountProvider;
+  address: string;
+  owner_agent_id: string;
+  status: AccountStatus;
+  connected_at: string;
+}
+
+/** A workspace signed in to the Slack desktop app on this Mac, as the person picks one to connect (plan 067, R21). */
+export interface SlackWorkspaceView {
+  team_id: string;
+  team_name: string;
+  /** The workspace's address, `https://<domain>.slack.com/`. */
+  url: string;
+  /** The person in that workspace, when the desktop app records it. */
+  user_id: string | null;
 }

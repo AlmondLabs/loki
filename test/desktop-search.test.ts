@@ -5,6 +5,7 @@ import { createRecents } from "../app/src/shared/recents.ts";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 
 /**
  * The desktop's ⌘K search (app/src/shell/search-model.ts, plan 013 U9): desks by title and agent, agents,
@@ -71,6 +72,10 @@ describe("desktop search: what it finds (AE5)", () => {
     expect(titles("shared")).toEqual([]);
     expect(titles("running")).toEqual([]);
     expect(titles("appearance")).toEqual([["pages", ["Appearance"]]]);
+  });
+  test("an email or Slack thread waiting in the Inbox is not a chat, so search does not offer to open it as one", () => {
+    const withThread: SearchSources = { ...src, items: [...src.items, outsideItem("Quarterly numbers")] };
+    expect(search(buildIndex(withThread), "quarterly numbers")).toEqual([]);
   });
   test("an agent's name finds its desks too, by the secondary field; the main chat reads as Main chat", () => {
     const g = search(buildIndex(src), "friday");

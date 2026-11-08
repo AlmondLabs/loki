@@ -217,8 +217,10 @@ export function buildIndex(src: SearchSources): SearchIndex {
       out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: timeOf(d.last_active) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   for (const l of src.labels ?? []) out.push({ hit: labelHit(l), fields: [l.name, `label:${l.name}`], recency: 0 });
-  // What needs you: the waiting group; every chat is findable by its title among the chats above.
+  // What needs you: the waiting group; every chat is findable by its title among the chats above. A waiting hit
+  // opens its chat, so an email or Slack thread (plan 067), which is no chat, is left to the Inbox.
   for (const i of catchUpQueue(src.items)) {
+    if (i.outside) continue;
     const n = name(i.agent_id, i.agent_name);
     out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: timeOf(i.last_message_at) });
   }

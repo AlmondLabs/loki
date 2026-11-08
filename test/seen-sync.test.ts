@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { decayed } from "../core/attention/focus.ts";
 import { LabelColors } from "../daemon/labels.ts";
 import { SeenStore } from "../mod/seen.ts";
+import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -62,6 +63,36 @@ describe("Inbox marks on two Macs", () => {
       // An earlier rest arriving late changes nothing; a Mac from before rests sends none.
       expect(book.store.rest("agent-ira", "c1", first)).toBe(false);
       const { rests: _, ...old } = mini.store.snapshot();
+      expect(book.store.applyRemote(MINI, old)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("later rests and return times on two Macs (plan 070, U4)", () => {
+  test("a later rest three weeks out syncs to a paired Mac and outlives its cleanup; the return times set later win", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const mini = marks(dir, "mini");
+      const book = marks(dir, "book");
+      const far = { n: 2, until: "2026-12-08T10:00:00.000Z", stamp: "s", at: mini.clock.at, kind: "later" as const };
+      mini.store.rest("agent-ira", "c1", far);
+      expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
+      book.clock.at = "2026-11-18T10:00:00.000Z"; // a month on; the rest ends in three weeks
+      book.store.rest("agent-ira", "c2", { n: 1, until: "2026-11-18T11:00:00.000Z", stamp: "s", at: book.clock.at });
+      expect(book.store.restsAll()["agent-ira/c1"]).toEqual(far);
+
+      const times = { ...RETURN_TIMES_DEFAULT, read_first: { chat: "3h" as const, email: "10m" as const } };
+      book.store.setReturnTimes(times);
+      expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(true);
+      expect(mini.store.returnTimes()).toEqual(times);
+      mini.clock.at = "2026-11-18T09:00:00.000Z"; // set earlier than the MacBook's: it loses there
+      mini.store.setReturnTimes(RETURN_TIMES_DEFAULT);
+      expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(false);
+      expect(book.store.returnTimes()).toEqual(times);
+      // A Mac from before return times sends none, and nothing moves.
+      const { return_times: _, ...old } = mini.store.snapshot();
       expect(book.store.applyRemote(MINI, old)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });

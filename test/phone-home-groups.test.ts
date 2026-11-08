@@ -50,7 +50,7 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
       title: "b1",
       last_message_at: "2026-09-25T12:00:00Z",
     } as unknown as AttentionItem;
-    const attention = [{ item, desk: desks[2] }];
+    const attention = [{ item, desk: desks[2], opens: "chat" as const }];
     const groups = homeDeskSections(desks, [item], attention, "", agents);
     expect(groups.map((g) => g.id)).toEqual(["pinned", "agent:ira"]);
   });

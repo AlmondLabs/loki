@@ -19,6 +19,8 @@ import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
 import { ChatImages } from "./chat-images.ts";
 import { Approvals, kindOf } from "./approvals.ts";
+import { randomUUID } from "node:crypto";
+import { parseLinkAnswer } from "../core/chat-links.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
@@ -228,6 +230,8 @@ const acp = new AcpChats({
   agents: () => readAcpAgents(acpFile),
   systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
   homeDir: homedir(),
+  // Mod prompt sections and message transforms reach ACP chats as they reach loki's own (plan 067).
+  mods,
   // A session gets loki's tools and the MCP servers its agent has on, which it connects to and signs in to itself.
   mcpServers: async (agentId, conversationId) => {
     const own = lokiTools.serverFor(agentId, conversationId);
@@ -334,6 +338,16 @@ const loadCore = (): Promise<LoadResult> =>
           write: async (agentId, id, suggestions) => {
             if (!(await (await stores.get(agentId)).updateChat(id, { suggestions }, context))) throw new Error(`no chat ${id}`);
           },
+        },
+        // The link card (plan 067): shown in the chat whose agent asks, as a question card the first client answers.
+        askLink: async (agentId, conversationId, link, signal) => {
+          const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
+            agentId,
+            conversationId,
+            { kind: "question", request_id: `link-${randomUUID()}`, input: { link } },
+            signal,
+          );
+          return parseLinkAnswer(reply.answers.answers);
         },
         // A restart due after a checkout's daemon code changed, and restarting when the person asks (plan 024).
         daemon: devReload,

@@ -6,11 +6,28 @@ import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { Grade } from "./recall/fsrs.ts";
 import { isRecallId, type CardWithSchedule, type RecallReply } from "./recall/model.ts";
 import type { UsageReply } from "./usage.ts";
+import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
-import { isRest, type Rest } from "./attention/rest.ts";
+import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
+  AccountLabel,
+  AccountView,
+  HandoffProposal,
+  OutsideChange,
+  OutsideMessage,
+  OutsideWindow,
+  OutsideWindowAsk,
+  OutsideMessageChange,
+  OutsideMove,
+  OutsideReplied,
+  OutsideWrite,
+  MailAddressing,
+  MailCompose,
+  MailMode,
+  ReplyThen,
+  SlackWorkspaceView,
   DeskStatus,
   DeskSummary,
   DeviceSummary,
@@ -32,6 +49,7 @@ import type {
   RecentFolders,
   ReflectionState,
   RefreshOutcome,
+  ReplyProposal,
   SavedDraft,
   Suggestion,
   SuggestionTarget,
@@ -168,6 +186,18 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
   if (typeof c === "string") return c;
   return str(m.suggestion_id) && m.suggestion_id ? { ...c, suggestion_id: m.suggestion_id } : "suggestion_id required";
 };
+/** What the person does with a reply an agent proposed (plan 067, KTD9): approve it, so loki drafts it, or reject it. */
+export type ReplyAction = "approve" | "reject";
+const REPLY_ACTIONS: readonly string[] = ["approve", "reject"] satisfies ReplyAction[];
+/** One end of a link as a frame names it: a chat, with its name. */
+const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title: string | null } | null => {
+  const e = typeof v === "object" && v !== null ? (v as Raw) : {};
+  return isAgentId(e.agent_id) && str(e.conversation_id) && e.conversation_id
+    ? { agent_id: e.agent_id, conversation_id: e.conversation_id, title: strOr(e.title, null) }
+    : null;
+};
+/** A permission mode as a chat message's cap names it; anything else is no cap known, which the receiver treats as strict. */
+const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
@@ -260,7 +290,15 @@ export interface Replies {
   /** Whether a Mac took the chat the asking Mac offered it (plan 023, addendum A1), or `busy` while a turn runs there. */
   peer_chat_taken: { moved: boolean; busy: boolean };
   /** A Mac's own chats for another Mac's lists (plan 023, U4): its desks and its Inbox rows, none of another Mac's. */
-  peer_chats: { desks: DeskSummary[]; inbox: InboxRow[] };
+  peer_chats: {
+    desks: DeskSummary[];
+    inbox: InboxRow[];
+    /**
+     * Its outside cards (plan 067, R14), apart from `inbox` so a Mac on a loki from before them, which reads only
+     * `inbox`, shows none of them.
+     */
+    outside?: InboxRow[];
+  };
   /** Another Mac's answer to `peer_ping` on its peer link: who it is and which peer protocol it speaks. */
   peer_pong: MacIdentity & { build: string | null; protocol: number };
   chat_mcp_secret: { ref: string };
@@ -272,6 +310,51 @@ export interface Replies {
   suggestion_decided: { suggestion: Suggestion; done: boolean; message: string | null };
   /** A suggestion just made in the chat a frame named, pending (plan 049, U7). */
   suggestion_added: { suggestion: Suggestion };
+  /**
+   * A reply proposal as it stands after an action (plan 067, KTD9): `done` when it took, else `message` says why not;
+   * `replace` asks the person whether to replace a draft already waiting in that place.
+   */
+  reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
+  /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
+  accounts: { accounts: AccountView[] };
+  /**
+   * An outside card's thread archived on the Mac its account lives on (plan 067, U3), with what the archive changed out
+   * there for an undo (plan 070, R14); null when nothing was written.
+   */
+  account_thread_archived: { account_id: string; thread_id: string; change: OutsideChange | null };
+  /**
+   * A move written back to an outside card's account (plan 070, KTD3): what it changed, for the client to keep for an
+   * undo; null when nothing was written (the card was not open) and after an undo itself.
+   */
+  account_thread_changed: { account_id: string; thread_id: string; change: OutsideChange | null };
+  /**
+   * The person's reply sent in an outside card's thread (plan 070, KTD6), and apart from it how the move after it went:
+   * `then_error` is that move's reason when it failed, and the client tries the move again without the text.
+   */
+  account_thread_replied: { account_id: string; thread_id: string } & OutsideReplied;
+  /** What a mail card's recipients line starts from (plan 076), read on the Mac the account lives on. */
+  account_compose: { account_id: string; thread_id: string } & MailCompose;
+  /** Whether a held mail reply was stopped before it went (plan 076); false when it had already gone or was never held. */
+  account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
+  /** An account's Gmail labels, for the label picker (plan 070, R12). */
+  account_labels: { account_id: string; labels: AccountLabel[] };
+  /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow };
+  /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
+  account_move_kept: { account_id: string; thread_id: string; kept: boolean };
+  /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
+  account_thread_handoff_proposal: HandoffProposal;
+  /** An outside card's thread sent to its owner's chat (plan 067, R16): the chat it went to. */
+  account_thread_handed_off: { account_id: string; thread_id: string; agent_id: string; conversation_id: string };
+  /** Google's page to open for connecting a Gmail account (plan 067, U5); the account is kept when the browser comes back. */
+  account_signin: { url: string };
+  /**
+   * The workspaces signed in to the Slack desktop app here (plan 067, R21) when listing them, with `account` null; after
+   * connecting one, the account connected, and no workspaces.
+   */
+  slack_workspaces: { workspaces: SlackWorkspaceView[]; account: AccountView | null };
+  /** The live links of a Mac's chats, and the duration the link card starts on (plan 067). */
+  chat_links: { links: ChatLink[]; default_duration: LinkDuration };
 }
 /** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
@@ -291,6 +374,10 @@ export interface ChatState {
   engine?: ChatEngineView | null;
   /** The suggestions made in the chat that wait on the person or are being sent (plan 049); absent from a mod that predates them. */
   suggestions?: Suggestion[];
+  /** The replies proposed in the chat that wait on the person or are being drafted (plan 067); absent from a mod that predates them. */
+  reply_proposals?: ReplyProposal[];
+  /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
+  links?: ChatLink[];
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
@@ -322,8 +409,17 @@ export interface Pushes {
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
-  /** `viewed`, `focus` and `rests` are missing from older mods. */
-  seen: { seen: Record<string, string>; viewed?: Record<string, string>; focus?: Record<string, FocusEntry>; rests?: Record<string, Rest> };
+  /**
+   * `viewed`, `focus`, `rests` and `return_times` are missing from older mods; `return_times` is null while the person
+   * has set none (plan 070), and the Mac then moves its own old first-rest choice there.
+   */
+  seen: {
+    seen: Record<string, string>;
+    viewed?: Record<string, string>;
+    focus?: Record<string, FocusEntry>;
+    rests?: Record<string, Rest>;
+    return_times?: ReturnTimes | null;
+  };
   /** One chat's marks as they now stand, after a change to that chat alone (plan 055); null where it has none. */
   seen_chat: { key: string; seen: string | null; viewed: string | null; focus: FocusEntry | null; rest: Rest | null };
   models_recent: { recent: string[] };
@@ -370,6 +466,8 @@ export interface Pushes {
   group_changed: NoPayload;
   /** This Mac let a chat go to the paired Mac `to` (plan 023, addendum B3): other Macs send its frames there now. */
   chat_left: { agent_id: string | null; conversation_id: string; to: string };
+  /** An account here was connected, moved, disconnected or changed status (plan 067): clients and paired Macs ask again. */
+  accounts_changed: NoPayload;
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
@@ -450,10 +548,60 @@ const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
 const BY_SCOPE: PeerMeaning = { route: "scope" };
 /** A frame about the Mac a new chat will live on, routed by its `home`. */
 const BY_HOME: PeerMeaning = { route: "home" };
+const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "archive", "label", "reply", "handoff", "undo", "next"];
+const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
+const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
+const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
+const MAIL_MODES: readonly MailMode[] = ["reply", "reply_all", "forward"];
+/** The most people a mail reply may go to: past Gmail's own limit nobody types on a card. */
+const MAX_RECIPIENTS = 100;
+/** An address as the recipients line sends it: one line, an @ in it, no longer than a header holds. */
+const addressLike = (v: unknown): v is string => typeof v === "string" && v.includes("@") && v.length <= 320 && !/[\r\n]/.test(v);
+
+/** The addressing a mail reply carries (plan 076), or the reason it cannot be read; absent stays absent. */
+function parseMailAddressing(v: unknown): MailAddressing | null | string {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "object") return "mail must be an object";
+  const m = v as Record<string, unknown>;
+  const mode = MAIL_MODES.find((x) => x === m.mode);
+  if (!mode) return "mail.mode must be reply, reply_all or forward";
+  const lists: Record<"to" | "cc" | "bcc", string[]> = { to: [], cc: [], bcc: [] };
+  for (const k of ["to", "cc", "bcc"] as const) {
+    const l = m[k] ?? [];
+    if (!Array.isArray(l) || !l.every(addressLike)) return `mail.${k} must be a list of addresses`;
+    lists[k] = l;
+  }
+  if (lists.to.length + lists.cc.length + lists.bcc.length > MAX_RECIPIENTS) return "that reply goes to too many people";
+  if (m.from !== undefined && m.from !== null && !addressLike(m.from)) return "mail.from must be an address";
+  return { mode, ...lists, from: addressLike(m.from) ? m.from : null, signature: m.signature !== false };
+}
+const allStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(str);
+
+/** A change a client kept from a write-back frame and sends back for an undo (plan 070, R14), or null when it is not one. */
+function parseOutsideChange(v: unknown): OutsideChange | null {
+  if (typeof v !== "object" || v === null) return null;
+  const c = v as Record<string, unknown>;
+  const move = OUTSIDE_WRITES.find((w) => w === c.move);
+  if (!move || !Array.isArray(c.messages) || typeof c.ended !== "boolean" || typeof c.was_unread !== "boolean") return null;
+  const messages: OutsideMessageChange[] = [];
+  for (const m of c.messages as unknown[]) {
+    if (typeof m !== "object" || m === null) return null;
+    const { message_id: id, labels_added: added, labels_removed: removed } = m as Record<string, unknown>;
+    if (typeof id !== "string" || !id || !allStrings(added) || !allStrings(removed)) return null;
+    messages.push({ message_id: id, labels_added: added, labels_removed: removed });
+  }
+  return { move, messages, ended: c.ended, was_unread: c.was_unread };
+}
+
+/** A frame naming one outside card's thread, sent to the Mac its account lives on by `home`. */
+const threadRef = (m: Raw) =>
+  str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+    ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+    : "account_id and thread_id required";
 /** A frame only paired Macs send each other, answered where it lands. */
 const BETWEEN_MACS: PeerMeaning = {};
 /** The chat events that change how a chat is listed: running or idle, waiting on you, failed, its folder. */
-const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device"];
+const LISTED_EVENTS: ReadonlyArray<ChatEvent["kind"]> = ["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"];
 
 /** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
@@ -520,6 +668,11 @@ export const FRAMES = {
       return isRest(m.rest) ? { ...c, rest: m.rest } : "rest must be { n, until, stamp, at }";
     },
     { phone: PHONE, causes: ["seen_chat"] },
+  ),
+  return_times_set: send(
+    "how long ⌘] and ⌘[ rest each kind of card (core/attention/rest.ts ReturnTimes, plan 070)",
+    (m) => (isReturnTimes(m.return_times) ? { return_times: m.return_times } : "return_times must be { read_first, later } of known choices"),
+    { phone: PHONE, causes: ["seen"] },
   ),
 
   // Analytics
@@ -648,6 +801,20 @@ export const FRAMES = {
     PHONE,
     BY_CHAT,
   ),
+  // Reply proposals (plan 067, KTD9), carried out by the Mac the chat lives on, which holds the account.
+  reply_decide: request(
+    "reply_decided",
+    "approve a reply its agent proposed in this chat, so loki writes it as a draft in its thread (`text` as edited; `replace` a draft already there), or reject it; the first action wins",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      if (!str(m.proposal_id) || !m.proposal_id) return "proposal_id required";
+      if (!str(m.action) || !REPLY_ACTIONS.includes(m.action)) return "action must be approve or reject";
+      return { ...c, proposal_id: m.proposal_id, action: m.action as ReplyAction, text: str(m.text) ? m.text : null, replace: m.replace === true };
+    },
+    PHONE,
+    BY_CHAT,
+  ),
   // Only the move of Tasks into suggestions sends it (mod/task-migration.ts), to the Mac a task's source chat lives
   // on; an agent's own suggestions are made where its chat runs, and the phone never makes one.
   suggestion_add: request(
@@ -664,6 +831,48 @@ export const FRAMES = {
     },
     false,
     BY_CHAT,
+  ),
+  // Chat links (plan 067): a chat's leave to message another, kept and checked by the Mac each chat lives on.
+  chat_message: request(
+    "chat_accepted",
+    "a message from another chat's agent along a link: delivered only when a live link on this Mac allows it",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      const from = linkEnd(m.from);
+      if (!from || !str(m.text) || !str(m.send_id) || !m.send_id) return "from, text and send_id required";
+      return { ...c, from, text: m.text, send_id: m.send_id, cap: lokiMode(m.cap) };
+    },
+    false,
+    BY_CHAT,
+  ),
+  chat_link_put: request(
+    "chat_accepted",
+    "keep a link one of this Mac's chats has, opened on the other chat's Mac",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      const link = parseLink(m.link);
+      return link ? { ...c, link } : "link required";
+    },
+    false,
+    BY_CHAT,
+  ),
+  chat_link_close: request(
+    "chat_accepted",
+    "close a link of this chat, here and on the other chat's Mac",
+    (m) => {
+      const c = chatRef(m);
+      if (typeof c === "string") return c;
+      return str(m.link_id) && m.link_id ? { ...c, link_id: m.link_id } : "link_id required";
+    },
+    PHONE,
+    BY_CHAT,
+  ),
+  // Preferences › Chat › Chat links, on the Mac only: the phone closes a link from the chat's header.
+  chat_links_get: request("chat_links", "the live links of this Mac's chats, and the duration the link card starts on", nothing),
+  chat_links_default: request("chat_links", "the duration the link card starts on: hour, day or always", (m) =>
+    isLinkDuration(m.duration) ? { duration: m.duration } : "duration must be hour, day or always",
   ),
   chat_update: request(
     "chat_done",
@@ -1020,6 +1229,213 @@ export const FRAMES = {
     BETWEEN_MACS,
   ),
   peer_chat_take: request("peer_chat_taken", "take one chat over from the asking Mac, which it lives on (addendum A1)", chatRef, false, BETWEEN_MACS),
+  peer_accounts_get: request(
+    "accounts",
+    "the accounts connected on this Mac, so another Mac refuses to connect one twice (plan 067, KTD14)",
+    nothing,
+    false,
+    BETWEEN_MACS,
+  ),
+
+  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace on this Mac and the agent that owns it.
+  account_list: request("accounts", "the accounts connected on this Mac and the agent that owns each", nothing),
+  account_move: request("accounts", "give an account to another agent, which gets its hand-offs and its tools from now on", (m) =>
+    str(m.account_id) && m.account_id && isAgentId(m.owner_agent_id)
+      ? { account_id: m.account_id, owner_agent_id: m.owner_agent_id }
+      : "account_id and owner_agent_id required",
+  ),
+  account_disconnect: request("accounts", "disconnect an account: loki forgets it and its sign-in", (m) =>
+    str(m.account_id) && m.account_id ? { account_id: m.account_id } : "account_id required",
+  ),
+  account_thread_archive: request(
+    "account_thread_archived",
+    "archive an outside card: the thread is archived in Gmail or marked read in Slack, then leaves the Inbox (plan 067, R12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_mark_read: request(
+    "account_thread_changed",
+    "mark an outside card read: in Gmail up to the card's newest message, and the card stays; in Slack the DM is marked read and the card ends (plan 070, R5); sent to the Mac the account lives on by `home`",
+    threadRef,
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_mark_unread: request(
+    "account_thread_changed",
+    "leave an outside card unread: in Gmail its newest incoming message is marked unread; Slack is left as it is (plan 070, R6); sent to the Mac the account lives on by `home`",
+    threadRef,
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_thread_label: request(
+    "account_thread_changed",
+    "put Gmail labels, by id, on an outside card's thread; the card stays (plan 070, R12); sent to the Mac the account lives on by `home`",
+    (m) => {
+      const ref = threadRef(m);
+      if (typeof ref === "string") return ref;
+      return allStrings(m.labels) && m.labels.length > 0 && m.labels.every(Boolean) ? { ...ref, labels: m.labels } : "labels required: one label id or more";
+    },
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_restore: request(
+    "account_thread_changed",
+    "undo a move on an outside card: put back what `change`, as a write-back frame answered it, changed out there, and the card as it was (plan 070, R14); sent to the Mac the account lives on by `home`",
+    (m) => {
+      const ref = threadRef(m);
+      if (typeof ref === "string") return ref;
+      const change = parseOutsideChange(m.change);
+      return change ? { ...ref, change } : "change required, as a write-back answered it";
+    },
+    PHONE,
+    { route: "home", relists: true },
+  ),
+  account_labels_list: request(
+    "account_labels",
+    "an account's Gmail labels, for the label picker (plan 070, R12); sent to the Mac the account lives on by `home`",
+    (m) => (str(m.account_id) && m.account_id ? { account_id: m.account_id, home: strOr(m.home, null) } : "account_id required"),
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_read: request(
+    "account_thread",
+    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one, and with `view` and `thread_ts` one thread alone (plan 077); sent to the Mac the account lives on by `home`",
+    (m) => {
+      if (!(str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id)) return "account_id and thread_id required";
+      const ask: OutsideWindowAsk = {};
+      if (m.view === "thread" || m.view === "channel") ask.view = m.view;
+      else if (m.view !== undefined) return "view must be thread or channel";
+      if (str(m.thread_ts) && m.thread_ts) ask.thread_ts = m.thread_ts;
+      if (m.direction === "before" || m.direction === "after") ask.direction = m.direction;
+      else if (m.direction !== undefined) return "direction must be before or after";
+      if (str(m.from) && m.from) ask.from = m.from;
+      if (ask.direction && !ask.from) return "from required with direction";
+      return { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null), ...ask };
+    },
+    PHONE,
+    { ...BY_HOME, timeout_ms: 30_000 },
+  ),
+  account_thread_reply: request(
+    "account_thread_replied",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does; the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    (m) => {
+      if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
+        return "account_id, thread_id and text required";
+      // An app or Mac from before plan 070 sends no move, and its reply archived the card then, so it still does. It
+      // waits for the answer by its request_id, which the app's socket and the peer link match on, so the answer's
+      // new name (account_thread_replied, where it awaited account_thread_archived) still reaches it.
+      const then = m.then === undefined ? "archive" : REPLY_THENS.find((t) => t === m.then);
+      if (!then) return "then must be read, later or archive";
+      // Plan 076: how a mail reply is addressed, and the id its hold is undone by; both may be left out.
+      const mail = parseMailAddressing(m.mail);
+      if (typeof mail === "string") return mail;
+      if (m.outbox_id !== undefined && (!str(m.outbox_id) || !/^[\w-]{8,64}$/.test(m.outbox_id))) return "outbox_id must be a short id";
+      return {
+        account_id: m.account_id,
+        thread_id: m.thread_id,
+        text: m.text,
+        then,
+        mail,
+        outbox_id: str(m.outbox_id) ? m.outbox_id : null,
+        home: strOr(m.home, null),
+      };
+    },
+    PHONE,
+    // A mail reply is held for its undo (plan 076) before it goes, so its answer comes that much later.
+    { route: "home", relists: true, timeout_ms: 60_000 },
+  ),
+  account_thread_compose: request(
+    "account_compose",
+    "what a mail card's recipients line starts from (plan 076): who reply and reply all go to, the addresses the person sends from and their signatures, the subject, the message a reply quotes, and the people the account has mail with; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { ...BY_HOME, timeout_ms: 30_000 },
+  ),
+  account_thread_unsend: request(
+    "account_thread_unsent",
+    "stop a held mail reply before it goes (plan 076), by the `outbox_id` its reply frame carried; the reply frame then answers that it was undone; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.outbox_id) && m.outbox_id
+        ? { account_id: m.account_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }
+        : "account_id and outbox_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_move: request(
+    "account_move_kept",
+    "one of the person's moves on an outside card (read, later, archive, label, their reply, a hand-off, an undo), with its return time, labels, pick and the key after a reply, kept in the ledger of the Mac the account lives on so its preferences can be learned (plans 069 and 070); sent there by `home`",
+    (m) => {
+      if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id) return "account_id and thread_id required";
+      const action = OUTSIDE_MOVES.find((a) => a === m.action);
+      if (!action) return "action must be read, later, archive, label, reply, handoff, undo or next";
+      const via = MOVE_VIAS.find((v) => v === m.via) ?? null;
+      const dwell = typeof m.dwell_ms === "number" && Number.isFinite(m.dwell_ms) && m.dwell_ms >= 0 ? Math.round(m.dwell_ms) : null;
+      // The facts a move from before plan 070 lacks, or that cannot be read, are left out rather than refused: the ledger is data, not a gate.
+      const move: OutsideMove = {
+        action,
+        via,
+        dwell_ms: dwell,
+        return_at: str(m.return_at) && !Number.isNaN(Date.parse(m.return_at)) ? m.return_at : null,
+        labels: allStrings(m.labels) ? m.labels : null,
+        picked: m.picked === true,
+        after_reply: REPLY_THENS.find((t) => t === m.after_reply) ?? null,
+      };
+      return { account_id: m.account_id, thread_id: m.thread_id, ...move, home: strOr(m.home, null) };
+    },
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_handoff_propose: request(
+    "account_thread_handoff_proposal",
+    "what handing an outside card's thread to its account's agent proposes: the chat it went to before, else a new chat, and the agent's other chats (plan 067, KTD12); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_handoff: request(
+    "account_thread_handed_off",
+    "hand an outside card's thread to its account's agent: to `conversation_id`, one of its chats, else to a new chat; the whole thread goes there and the card leaves (plan 067, R15, R16); sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? {
+            account_id: m.account_id,
+            thread_id: m.thread_id,
+            conversation_id: str(m.conversation_id) && m.conversation_id ? m.conversation_id : null,
+            home: strOr(m.home, null),
+          }
+        : "account_id and thread_id required",
+    PHONE,
+    // A hand-off may wait on reading a long thread and on the owner's Mac making a chat.
+    { route: "home", relists: true, timeout_ms: 60_000 },
+  ),
+  account_connect_gmail: request(
+    "account_signin",
+    "start connecting a Gmail account the given agent will own: Google's page to open, with the person's own Google app when `own_app` names one",
+    (m) => {
+      if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
+      if (m.own_app === undefined || m.own_app === null) return { owner_agent_id: m.owner_agent_id, own_app: null };
+      const app = typeof m.own_app === "object" ? (m.own_app as Raw) : {};
+      return str(app.client_id) && str(app.client_secret)
+        ? { owner_agent_id: m.owner_agent_id, own_app: { client_id: app.client_id, client_secret: app.client_secret } }
+        : "own_app needs client_id and client_secret";
+    },
+  ),
+  account_connect_slack: request(
+    "slack_workspaces",
+    "the workspaces signed in to the Slack desktop app on this Mac; with `team_id`, connect that workspace for the given agent, or connect it again after it signed out",
+    (m) =>
+      isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
+  ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),
@@ -1056,6 +1472,7 @@ export const FRAMES = {
   restart_due: push("a checkout's code changed, so an update is due (a page build, a restart); the window offers it (plans 024 and 041)"),
   group_changed: push("the Macs this one is paired with changed; sent to paired Macs, which join any they lack (addendum D1)"),
   chat_left: push("this Mac let a chat go to another paired Mac; sent to paired Macs (plan 023, addendum B3)", { lists: true }),
+  accounts_changed: push("an account on this Mac was connected, moved, disconnected or changed status; sent to paired Macs too (plan 067)"),
 } as const;
 
 type Table = typeof FRAMES;

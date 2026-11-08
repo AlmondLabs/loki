@@ -206,6 +206,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     engage: attention.engage,
     rests: attention.rests,
     rest: attention.rest,
+    // The person's return times (Preferences › Inbox), kept on the daemon, so a swipe rests a card as the Mac would.
+    returnTimes: attention.returnTimes,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     loadLocalHistory: attention.loadHistory,
@@ -590,6 +592,7 @@ function ConversationPage({
       onNotDone={catchUp.unread}
       onViewed={attention.markViewed}
       suggestions={{ source: catchUp, blocked: macAway(catchUp) }}
+      onCloseLink={(rt, id) => void catchUp.links.close(rt, id)}
     />
   );
 }
@@ -674,6 +677,7 @@ function Screen({
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
         homes={homesOf(desk.macs.view, catchUp.agents)}
         labelList={catchUp.labels.list}
+        onTopCard={deck.hold}
       />
       <Inbox
         hidden={tab !== "inbox"}
@@ -700,16 +704,9 @@ function Screen({
           catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", "tap"),
           catchUp.approve(item, requestId, behavior)
         )}
-        onSeen={(item, how) => (catchUp.decided(item, "next", how), catchUp.seen(item))}
         onShown={catchUp.shown}
-        onArchive={(item) => {
-          catchUp.decided(item, "archive", "tap");
-          void catchUp.archive(item).then((err) => err && setCardNote(`Archive: ${err}`));
-        }}
-        onUndo={(item, via) => (
-          catchUp.undone(item, via === "seen" ? "next" : "archive"),
-          via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item).then((err) => err && setCardNote(`Undo: ${err}`))
-        )}
+        moves={catchUp}
+        onNote={setCardNote}
       />
       {tab === "agents" && (
         <Agents

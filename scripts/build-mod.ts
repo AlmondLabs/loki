@@ -13,6 +13,21 @@ mkdirSync(`${out}/mod`, { recursive: true });
 
 const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string };
 
+// loki's Slack session reader and client (mod/slack-session.ts, mod/slack-leveldb.ts, mod/slack.ts) are ported from
+// agent-slack, whose MIT license asks that its notice go with every copy. `legalComments` keeps only `/*!` and
+// `@license` comments, which the ported files' line comments are not, and the installer copies loki-mod.mjs alone, so
+// the notice rides in the bundle itself.
+const agentSlackNotice = `/*!
+ * loki's Slack session reader and client are ported from agent-slack (https://github.com/stablyai/agent-slack).
+ *
+ * MIT License. Copyright (c) 2026 Stably. Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions: The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+ */`;
+
 await build({
   entryPoints: [here("../mod/index.ts")],
   // The bundle knows its version (analytics stamps it on every event); a checkout reads package.json instead.
@@ -27,6 +42,7 @@ await build({
   // esbuild's shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle,
   // and the mod never activates.
   banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
+  footer: { js: agentSlackNotice },
   legalComments: "none",
   logLevel: "warning",
 });

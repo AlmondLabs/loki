@@ -29,6 +29,10 @@
   --loki-on-attention: #ffffff;
   --loki-affirm: #007a5a;
   --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #d4a0e0;
+  --loki-mark-mail: #f28b82;
+  --loki-mention: #2e2a1f;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #2c2f34;
   --loki-well: #222529;
   --loki-bubble: #222529;
@@ -136,6 +140,10 @@
   --loki-on-attention: #ffffff;
   --loki-affirm: #007a5a;
   --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #611f69;
+  --loki-mark-mail: #c5221f;
+  --loki-mention: #fdf5e0;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #ebebeb;
   --loki-well: #f8f8f8;
   --loki-bubble: #f8f8f8;
@@ -1523,7 +1531,8 @@ span.loki-phone-section-btn {
   font-size: var(--phone-text-body);
   font-weight: var(--phone-weight-strong);
 }
-.loki-phone-reveal-read {
+.loki-phone-reveal-read,
+.loki-phone-reveal-later {
   display: inline-flex;
   align-items: center;
   gap: var(--phone-space-2);
@@ -1531,7 +1540,10 @@ span.loki-phone-section-btn {
 .loki-phone-reveal-read {
   color: var(--loki-positive);
 }
-/* Archive and Next (or Deny and Approve): two big buttons under the card, clear of the home indicator
+.loki-phone-reveal-later {
+  color: var(--loki-muted);
+}
+/* Read, Later and Archive (and Label on an email card), or Deny and Approve: big buttons under the card, clear of the home indicator
    (the navigation is hidden while a card is up, so this row owns the bottom inset). */
 .loki-phone-decide {
   flex: none;
@@ -1540,6 +1552,11 @@ span.loki-phone-section-btn {
   gap: var(--phone-space-2);
   padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-3) + var(--phone-safe-bottom))
     calc(var(--phone-space-3) + var(--phone-safe-left));
+}
+.loki-phone-decide--moves {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
 }
 .loki-phone-decide-btn {
   min-height: 52px;
@@ -2871,7 +2888,8 @@ span.loki-phone-section-btn {
 }
 
 /* Inbox: past the commit distance the word under the card pops, so you know letting go will do it. */
-.loki-phone-reveal-read {
+.loki-phone-reveal-read,
+.loki-phone-reveal-later {
   transition: scale var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 .loki-phone-reveal [data-armed] {
@@ -3200,4 +3218,10 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
 /* Quick replies (plan 066) under the message text, past the 36px face and the row's gap. */
 .loki-phone .loki-quick-replies--column {
   margin-left: calc(36px + var(--phone-space-2));
+}
+
+/* A chat's links to other chats (plan 067), a strip under the header with the time each has left. */
+.loki-phone-links {
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
+  flex: 0 0 auto;
 }

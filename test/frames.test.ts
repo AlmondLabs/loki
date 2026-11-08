@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { frameModules, type ModuleDeps } from "../mod/frames/index.ts";
 import type { FrameHandlers } from "../mod/frames/context.ts";
 import { SeenStore } from "../mod/seen.ts";
+import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 import { RecallStore } from "../mod/recall.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
@@ -27,9 +28,10 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, and the decisions on a suggestion", () => {
+  test("a paired phone may send exactly the frames it could before the table, the daemon's chat frames, the usage page's read, the labels' list, the decisions on a suggestion, and closing a chat link", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
+        "chat_link_close",
         "chat_open",
         "chat_approve",
         "chat_answer",
@@ -71,9 +73,24 @@ describe("the frame table", () => {
         "models_recent_add",
         "focus_add",
         "card_rest",
+        "return_times_set",
         "desk_get",
         "suggestion_decide",
         "suggestion_retarget",
+        "account_thread_archive",
+        "account_thread_mark_read",
+        "account_thread_mark_unread",
+        "account_thread_label",
+        "account_thread_restore",
+        "account_labels_list",
+        "account_thread_handoff_propose",
+        "account_thread_handoff",
+        "account_thread_read",
+        "account_thread_reply",
+        "account_thread_compose",
+        "account_thread_unsend",
+        "account_thread_move",
+        "reply_decide",
       ].sort(),
     );
   });
@@ -311,6 +328,7 @@ describe("every frame in the table, through the real router", () => {
     viewed_mark: { conversation_id: "conv-1" },
     focus_add: { conversation_id: "conv-1", action: "answer" },
     card_rest: { conversation_id: "conv-1", rest: { n: 1, until: "2026-10-20T09:10:00Z", stamp: "s", at: "2026-10-20T09:00:00Z" } },
+    return_times_set: { return_times: RETURN_TIMES_DEFAULT },
     capture: { event: "frames_walked" },
     history_get: { conversation_id: "conv-1" },
     recall_grade: { id: "k", grade: 3 },
@@ -332,6 +350,7 @@ describe("every frame in the table, through the real router", () => {
     peer_pair_join: { host: "mini.tail1234.ts.net", code: "K9HF6D" },
     peer_forget: { mac_id: "mac-2" },
     suggestion_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", action: "reject" },
+    reply_decide: { agent_id: "agent-local-a", conversation_id: "conv-1", proposal_id: "reply-1", action: "reject" },
     suggestion_retarget: { agent_id: "agent-local-a", conversation_id: "conv-1", suggestion_id: "sugg-1", target: { agent_id: "agent-local-a", folder: "/w" } },
     suggestion_add: { agent_id: "agent-local-a", conversation_id: "conv-1", title: "t", text: "x", target: { agent_id: "agent-local-a", folder: "/w" } },
   };
@@ -425,6 +444,25 @@ describe("frames: suggestions (plan 049)", () => {
     expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "draft" })).toEqual({ ...chat, suggestion_id: "sugg-1", action: "draft" });
     expect(parse("suggestion_decide", { ...chat, suggestion_id: "sugg-1", action: "archive" })).toBe("action must be send, draft or reject");
     expect(parse("suggestion_decide", { ...chat, action: "send" })).toBe("suggestion_id required");
+  });
+
+  test("a reply decision (plan 067) is approve, with the text as edited and whether to replace, or reject", () => {
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "approve", text: "edited", replace: true })).toEqual({
+      ...chat,
+      proposal_id: "reply-1",
+      action: "approve",
+      text: "edited",
+      replace: true,
+    });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "reject" })).toEqual({
+      ...chat,
+      proposal_id: "reply-1",
+      action: "reject",
+      text: null,
+      replace: false,
+    });
+    expect(parse("reply_decide", { ...chat, proposal_id: "reply-1", action: "send" })).toBe("action must be approve or reject");
+    expect(parse("reply_decide", { ...chat, action: "approve" })).toBe("proposal_id required");
   });
 
   test("a re-point names an existing chat, or an agent and a folder for a new one", () => {
@@ -522,6 +560,9 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_answer",
       "chat_approve",
       "chat_folder",
+      "chat_link_close",
+      "chat_link_put",
+      "chat_message",
       "chat_model",
       "chat_move",
       "chat_open",
@@ -529,12 +570,31 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_update",
       "history_get",
       "history_step_get",
+      "reply_decide",
       "suggestion_add",
       "suggestion_decide",
       "suggestion_retarget",
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
-    expect(by("home")).toEqual(["chat_requirements", "folder_check", "folder_complete", "folders_get"]);
+    expect(by("home")).toEqual([
+      "account_labels_list",
+      "account_thread_archive",
+      "account_thread_compose",
+      "account_thread_handoff",
+      "account_thread_handoff_propose",
+      "account_thread_label",
+      "account_thread_mark_read",
+      "account_thread_mark_unread",
+      "account_thread_move",
+      "account_thread_read",
+      "account_thread_reply",
+      "account_thread_restore",
+      "account_thread_unsend",
+      "chat_requirements",
+      "folder_check",
+      "folder_complete",
+      "folders_get",
+    ]);
     expect(by("new-chat")).toEqual(["chat_create"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "chat")).toEqual(["chat_event"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["desk", "state", "widget_change", "widgets"]);
@@ -556,7 +616,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
 
   test("the pushes that change how chats are listed, and the chat events that do", () => {
     expect(names.filter((n) => pushMeaning(n)?.lists === true).sort()).toEqual(["agents_changed", "chat_changed", "chat_left", "desks"]);
-    expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device"]);
+    expect(pushMeaning("chat_event")?.lists).toEqual(["loop", "turn_end", "approval", "question", "error", "device", "reply_proposals"]);
     expect(peerMeaning("chat_move")).toMatchObject({ relists: true, timeout_ms: 180_000 });
     expect(peerMeaning("peers_get")).toBeNull();
     expect(peerMeaning("nonsense")).toBeNull();

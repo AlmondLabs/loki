@@ -1,13 +1,14 @@
-import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
+import { ownerAgentOf, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { chipText } from "../chat/suggestion-card";
-import { ConversationHeader } from "../chat/conversation";
+import { CardFace, CardHead } from "./card-head";
+import { avatarUrl } from "./env";
 import { keyboard } from "./env";
-import { keyFor } from "../shell/keymap";
+import { formatKeys, keyFor } from "../shell/keymap";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -53,13 +54,19 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
   );
 }
 
-/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many chats. */
+/** That agent's name as its pill says it. */
+const pillNameOf = (i: AttentionItem): string => (i.outside ? i.outside.owner_name : i.agent_name) ?? "agent";
+
+/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many cards, its accounts' included. */
 export function agentPills(items: AttentionItem[]): Array<{ agentId: string; name: string; count: number }> {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
   for (const i of inboxQueue(items)) {
-    const p = by.get(i.agent_id) ?? { agentId: i.agent_id, name: i.agent_name ?? "agent", count: 0 };
+    const id = ownerAgentOf(i);
+    const p = by.get(id) ?? { agentId: id, name: pillNameOf(i), count: 0 };
+    // A chat names its agent better than a card from one of its accounts does.
+    if (!i.outside && i.agent_name) p.name = i.agent_name;
     p.count++;
-    by.set(i.agent_id, p);
+    by.set(id, p);
   }
   return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
@@ -71,8 +78,10 @@ export function agentPills(items: AttentionItem[]): Array<{ agentId: string; nam
  */
 export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
   const pills = agentPills(items);
-  if (agent && !pills.some((p) => p.agentId === agent))
-    pills.push({ agentId: agent, name: items.find((i) => i.agent_id === agent)?.agent_name ?? "agent", count: 0 });
+  if (agent && !pills.some((p) => p.agentId === agent)) {
+    const one = items.find((i) => ownerAgentOf(i) === agent);
+    pills.push({ agentId: agent, name: one ? pillNameOf(one) : "agent", count: 0 });
+  }
   if (pills.length < 2 && !agent) return null;
   const all = pills.reduce((n, p) => n + p.count, 0);
   return (
@@ -136,10 +145,10 @@ export function CaughtUp({
   );
 }
 
-/** "5 moved past · 2 archived · 1 approved · 1 reply". */
+/** "5 moved past · 2 archived · 1 approved · 1 reply". A label keeps its card, so it moves nothing past. */
 export function passSummary(decided: Decision[], replies: number): string {
   return [
-    `${decided.length} moved past`,
+    `${decided.filter((d) => d.action !== "label").length} moved past`,
     ...(["archive", "approve", "deny"] as const)
       .map((k) => [k, decided.filter((d) => d.via === k).length] as const)
       .filter(([, n]) => n > 0)
@@ -166,40 +175,60 @@ export interface CardHeaderProps {
   onSuggestions?: () => void;
 }
 
-/** Title, who and when, why it ranks here, and the status badge. The mode and model chips sit in the card's last row. */
+/**
+ * The chat card's header in the Inbox's one shape (plan 073): the agent's face, its name, then the chat's title and
+ * when, why it ranks here and the rest; the status badge is the tag. The chat's purpose shows on the title's hover, so
+ * the header stays two lines. The mode and model chips sit in the card's last row.
+ */
 export function CardHeader({ current, cameBack, flash, labelList = null, suggestions = 0, onSuggestions }: CardHeaderProps) {
-  const badge = BADGE[current.status];
+  const agent = current.agent_name ?? "agent";
+  return (
+    <CardHead
+      face={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
+      who={agent}
+      line={<ChatCardLine current={current} cameBack={cameBack} labelList={labelList} suggestions={suggestions} onSuggestions={onSuggestions} />}
+      right={<StatusBadge status={current.status} flash={flash} />}
+    />
+  );
+}
+
+/** A chat card's second line: the chat's title (its purpose on hover), when, why it ranks here, and its marks. */
+function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions }: Omit<CardHeaderProps, "flash">) {
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
+  const title = current.title ?? current.id;
+  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
   return (
-    <ConversationHeader
-      title={current.title ?? current.id}
-      purpose={current.purpose}
-      agentName={current.agent_name}
-      agentId={current.agent_id}
-      right={
-        needsYou(current.status) ? (
-          <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
-            <Dot color={badge.color} />
-            {flash ?? badge.label}
-          </Chip>
-        ) : (flash ?? badge.label) ? (
-          <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
-        ) : null
-      }
-    >
-      <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
+    <>
+      <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
+        {title}
+      </span>
+      <Meta>{when}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
       {current.has_draft && <Meta>draft</Meta>}
-      {suggestions > 0 && (
+      {(suggestions ?? 0) > 0 && (
         <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
-          {chipText(suggestions, false)}
+          {chipText(suggestions ?? 0, false)}
         </Chip>
       )}
-      <LabelChips labels={current.labels} list={labelList} />
-    </ConversationHeader>
+      <LabelChips labels={current.labels} list={labelList ?? null} />
+    </>
   );
+}
+
+/** A chat's status as its card's tag: a dot in full ink when it waits on the person, a toned chip otherwise. */
+function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string | null }) {
+  const badge = BADGE[status];
+  const label = flash ?? badge.label;
+  if (needsYou(status))
+    return (
+      <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
+        <Dot color={badge.color} />
+        {label}
+      </Chip>
+    );
+  return label ? <Chip tone={badge.color}>{label}</Chip> : null;
 }
 
 /** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */
@@ -209,19 +238,22 @@ export function deckKey(id: string, typing: boolean): string {
 
 /**
  * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
- * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
+ * deny before them): open, archive, later and read. The kbd hints switch grammar: letters when nothing has focus,
+ * ⌘ chords while you type.
  */
 export function CardActions({
   current,
   typing,
-  next,
+  read,
+  later,
   archive,
   onOpenDesk,
   onClose,
 }: {
   current: AttentionItem;
   typing: boolean;
-  next: () => void;
+  read: () => void;
+  later: () => void;
   archive: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;
@@ -249,20 +281,37 @@ export function CardActions({
         archive
       </Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>
-        next →
+      <Button
+        size="sm"
+        onClick={later}
+        title="keep it unread: the chat comes back in a day, or sooner if something new arrives"
+        kbd={deckKey("inbox.later", typing)}
+      >
+        later
+      </Button>
+      <Button size="sm" tone="paper" onClick={read} title="mark it read: the chat rests and comes back later" kbd={deckKey("inbox.next", typing)}>
+        read
       </Button>
     </>
   );
 }
 
-/** The key legend under the deck, in whichever grammar applies right now. */
-export function KeysHint({ typing }: { typing: boolean }) {
+/** The key legend under the deck, in whichever grammar applies right now, for the card on top: a chat, an email or a Slack message. */
+export function KeysHint({ typing, current }: { typing: boolean; current?: AttentionItem }) {
+  const o = current?.outside;
+  const moves = `${deckKey("inbox.next", typing)} read · ${deckKey("inbox.later", typing)} later · ${deckKey("inbox.archive", typing)} archive`;
+  const mail = o?.provider === "gmail";
+  const label = mail ? ` · ${keyFor("inbox.label")} label` : "";
+  // A mail sends on ⌘Enter and is held for its undo (plan 076); ⇧R and F switch it to the sender alone or to a forward.
+  const outside = typing
+    ? `${mail ? `${formatKeys("cmd+enter")} send, then read · ${formatKeys("cmd+shift+c")} recipients` : "enter send, then read"} · ${moves} (a reply goes first) · esc back to the deck's keys`
+    : `${moves}${label} · ${keyFor("inbox.reply")} reply${mail ? ` · ${keyFor("inbox.reply_sender")} reply to sender · ${keyFor("inbox.forward")} forward` : ""} · ${deckKey("inbox.undo", false)} undo · esc close`;
+  const chat = typing
+    ? `enter send (you stay on the card) · ${moves} · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
+    : `${moves} · ${deckKey("inbox.approve", false)} approve · ${deckKey("inbox.deny", false)} deny · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.open", false)} open · ${deckKey("inbox.undo", false)} undo · esc close`;
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {typing
-        ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.archive")} archive · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
-        : "→ next · E archive · A approve · D deny · R reply · O open · Z undo · esc close"}
+      {o ? outside : chat}
     </div>
   );
 }
@@ -270,5 +319,5 @@ export function KeysHint({ typing }: { typing: boolean }) {
 /** How many chats need you right now, whatever this visit has decided. */
 export const liveWaitingCount = (items: AttentionItem[]) => catchUpQueue(items).length;
 
-/** True when this chat was already moved past in this visit and has come back with something new. */
-export const cameBackIn = (decided: Decision[], current: AttentionItem) => decided.some((d) => idOf(d.item) === idOf(current));
+/** True when this chat was already moved past in this visit and has come back with something new; a label moves nothing past. */
+export const cameBackIn = (decided: Decision[], current: AttentionItem) => decided.some((d) => d.action !== "label" && idOf(d.item) === idOf(current));

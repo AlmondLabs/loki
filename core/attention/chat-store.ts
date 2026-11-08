@@ -1,3 +1,4 @@
+import { linkAnswerWords, linkAskOf, parseLinkAnswer, type ChatLink, type LinkDuration } from "../chat-links.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { LabelView } from "../labels.ts";
 import { scopeFor } from "../desk-core.ts";
@@ -18,8 +19,21 @@ import {
   type Live,
 } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime } from "./protocol.ts";
-import type { SuggestionAction } from "../frames.ts";
-import type { Suggestion, SuggestionTarget } from "../frame-types.ts";
+import type { ReplyAction, SuggestionAction } from "../frames.ts";
+import type {
+  AccountLabel,
+  HandoffProposal,
+  OutsideChange,
+  OutsideMove,
+  OutsideRead,
+  OutsideWindowAsk,
+  ReplyProposal,
+  ReplyThen,
+  MailAddressing,
+  MailCompose,
+  Suggestion,
+  SuggestionTarget,
+} from "../frame-types.ts";
 import { commandInput, type SlashCommand } from "./commands.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
@@ -41,6 +55,18 @@ export type SendOrigin = "desk" | "inbox" | "lesson";
 
 /** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
 export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
+
+/** An outside card as a write-back names it: which card it is in the list, its account and thread, and its home Mac. */
+export type OutsideCardRef = Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">;
+
+/**
+ * How a write-back on an outside card went (plan 070, KTD3): what it changed out there, kept for an undo (null when
+ * nothing was written), or the reason in words when it failed, and the card is left as it was.
+ */
+export interface OutsideWritten {
+  change: OutsideChange | null;
+  error: string | null;
+}
 
 /** A page of a chat's thread, as the mod reads it from the daemon's store (plan 041). */
 export interface HistoryPage {
@@ -87,6 +113,17 @@ export interface SuggestionOutcome {
   suggestion: Suggestion | null;
 }
 
+/**
+ * What a person's action on a reply proposal came to (plan 067): whether it took, why not, whether to ask about
+ * replacing a draft already there, and the proposal as it then stands, when known.
+ */
+export interface ReplyOutcome {
+  done: boolean;
+  message: string | null;
+  replace: boolean;
+  proposal: ReplyProposal | null;
+}
+
 /** An agent as the lists show it. */
 export interface AgentEntry {
   id: string;
@@ -125,6 +162,8 @@ export const HISTORY_PAGE = 400;
 const FOLDER_MOVE_MS = 8000;
 /** What every call says while the mod's socket is down. */
 const NOT_CONNECTED = "not connected to loki's daemon";
+/** Why an outside move on a chat card is refused. */
+const NOT_OUTSIDE = "this card is not from an account";
 
 /** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
 const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
@@ -193,6 +232,11 @@ export class ChatStore {
   /** Conversations the list knows; an event from another means the list is stale. */
   private known = new Set<string>();
   private lastReload = 0;
+  /**
+   * A card was taken off the list here before the daemon's list said so: the next answer is drawn even when it matches
+   * the last one, or a card put back by an undo before any poll would stay missing.
+   */
+  private droppedHere = false;
   /** The link dropped since it was last open: when it reopens, commands left running are settled. */
   private linkDropped = false;
   /** Whether the page is shown: the list poll skips while it is not (plan 047). */
@@ -300,7 +344,8 @@ export class ChatStore {
       if (stopped()) return;
       this.lastReload = this.now();
       // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
-      const same = keepSame(lastRows, rows) === lastRows;
+      const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
+      this.droppedHere = false;
       lastRows = rows;
       const convs: ConversationInfo[] = rows
         .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
@@ -316,7 +361,8 @@ export class ChatStore {
       }
       this.set({ listed: true });
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
-      for (const c of convs.slice(0, this.host().subscribeLimit ?? 30)) {
+      // An outside card (plan 067) is no chat on the daemon: there is nothing to open.
+      for (const c of convs.filter((x) => !x.outside).slice(0, this.host().subscribeLimit ?? 30)) {
         const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
         // A conversation that cannot be reached still lists; it just has no live half. One at a time, newest first, on
         // purpose: the daemon opens each chat in turn rather than up to 30 at once, and a disconnect stops the rest.
@@ -507,9 +553,13 @@ export class ChatStore {
     const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
     if (!l || !was) return;
     l.pendingAsk = null;
-    const summary = Object.values(answers)
-      .map((a) => (Array.isArray(a) ? a.join(", ") : a))
-      .join(" · ");
+    // A link card (plan 067) says what was allowed in words, not the card's values.
+    const link = linkAskOf(was.input);
+    const summary = link
+      ? linkAnswerWords(link, parseLinkAnswer(answers))
+      : Object.values(answers)
+          .map((a) => (Array.isArray(a) ? a.join(", ") : a))
+          .join(" · ");
     if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date(this.now()).toISOString() });
     const host = this.host();
     host.markSeen(rt.agent_id, rt.conversation_id);
@@ -579,6 +629,24 @@ export class ChatStore {
   /** Point a suggestion at another chat, or at a new chat with an agent in a folder, before acting on it (R4). */
   retargetSuggestion = (rt: Runtime, suggestionId: string, target: SuggestionTarget): Promise<SuggestionOutcome> =>
     this.outcome((c) => c.suggestions.retarget(rt, suggestionId, target));
+
+  /**
+   * The person's action on a reply its agent proposed (plan 067, KTD9), carried out by the Mac the chat lives on. The
+   * new state reaches every client as the chat's `reply_proposals` event, as a suggestion's does.
+   */
+  decideReply = async (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}): Promise<ReplyOutcome> => {
+    const out = await this.attempt((c) => c.replies.decide(rt, proposalId, action, opts));
+    return typeof out === "string" ? { done: false, message: out, replace: false, proposal: null } : out;
+  };
+  /** Close a link of a chat (plan 067), on its Mac and the other chat's: null, or why not. */
+  closeLink = (rt: Runtime, linkId: string): Promise<string | null> => this.tried((c) => c.links.close(rt, linkId));
+
+  /** The live links of this Mac's chats and the link card's default duration (plan 067), or why they did not come. */
+  listLinks = (): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> => this.attempt((c) => c.links.list());
+
+  /** The duration the link card starts on (plan 067); the list as it then stands, or why not. */
+  setLinkDefault = (duration: LinkDuration): Promise<{ links: ChatLink[]; default_duration: LinkDuration } | string> =>
+    this.attempt((c) => c.links.setDefault(duration));
 
   /** The chat holds no saved draft any more (plan 049, KTD7): its Inbox mark goes without waiting for the list. */
   noDraft = (agentId: string, conversationId: string): void => {
@@ -772,6 +840,146 @@ export class ChatStore {
       });
     if (archived) this.set({ conversations: this.snap.conversations.filter((x) => x.id !== conversationId) });
     else this.reload();
+    return null;
+  };
+
+  /**
+   * Archive an outside card (plan 067, R12): its thread is archived in Gmail or marked read in Slack by the Mac its
+   * account lives on, then the card leaves the list. Resolves to what the archive changed, kept for an undo (plan 070,
+   * R14), or the reason when it failed, and the card stays.
+   */
+  archiveOutside = async (card: OutsideCardRef): Promise<OutsideWritten> => {
+    const r = await this.writeOutside(card, (c, o, home) => c.archiveOutside(o.account_id, o.thread_id, home));
+    if (!r.error) this.dropCard(card);
+    return r;
+  };
+
+  /**
+   * Mark an outside card read out there (plan 070, R5): Gmail marks the thread read and the card stays; reading a Slack
+   * card ends it, and it leaves the list. Resolves to what changed, for an undo, or the reason it failed.
+   */
+  markReadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.markReadOutside(o.account_id, o.thread_id, home));
+
+  /** Leave an outside card unread out there (plan 070, R6); the card stays. Resolves to what changed, or the reason. */
+  markUnreadOutside = (card: OutsideCardRef): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.markUnreadOutside(o.account_id, o.thread_id, home));
+
+  /** Put Gmail labels, by id, on an outside card's thread (plan 070, R12); the card stays. Resolves to what changed, or the reason. */
+  labelOutside = (card: OutsideCardRef, labels: string[]): Promise<OutsideWritten> =>
+    this.writeOutside(card, (c, o, home) => c.labelOutside(o.account_id, o.thread_id, labels, home));
+
+  /**
+   * Take back a move on an outside card (plan 070, R14): what `change` changed out there is put back, and a card that
+   * move ended is listed again. Resolves to the reason when it could not be, or null.
+   */
+  restoreOutside = async (card: OutsideCardRef, change: OutsideChange): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return NOT_OUTSIDE;
+    const err = await this.tried((c) => c.restoreOutside(o.account_id, o.thread_id, change, card.home ?? null));
+    if (!err && change.ended) this.reload();
+    return err;
+  };
+
+  /** An outside card's account's Gmail labels, for the label picker (plan 070, R12), or why they could not be had. */
+  labelsOf = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<AccountLabel[] | string> => {
+    const o = card.outside;
+    if (!o) return NOT_OUTSIDE;
+    return this.attempt((c) => c.labelsOutside(o.account_id, card.home ?? null));
+  };
+
+  /** One write-back on an outside card; a change that ended the card takes it off the list at once. */
+  private async writeOutside(
+    card: OutsideCardRef,
+    work: (client: ChatClient, outside: NonNullable<ConversationInfo["outside"]>, home: string | null) => Promise<OutsideChange | null>,
+  ): Promise<OutsideWritten> {
+    const o = card.outside;
+    if (!o) return { change: null, error: NOT_OUTSIDE };
+    const r = await this.attempt((c) => work(c, o, card.home ?? null));
+    if (typeof r === "string") return { change: null, error: r };
+    if (r?.ended) this.dropCard(card);
+    return { change: r, error: null };
+  }
+
+  /** Take one card off the list at once, before the next listing says so. */
+  private dropCard(card: Pick<ConversationInfo, "agent_id" | "id">): void {
+    this.droppedHere = true;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
+  }
+
+  /** An outside card's whole thread (plan 068), from the Mac its account lives on, or why it could not be read. */
+  readOutside = async (card: Pick<ConversationInfo, "outside" | "home">, ask: OutsideWindowAsk = {}): Promise<OutsideRead | string> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null, ask));
+  };
+
+  /**
+   * Send the person's reply in an outside card's thread (plan 068), then the key's move (`then`, plan 070, R11). Resolves
+   * whether it was sent, the reason for what failed (the send, or the move after it), and what the move changed. A move
+   * that ended the card, an archive or reading a Slack card, takes it off the list at once; after read or later the card
+   * stays. A reply that was sent must not be sent again, so the caller clears its box on `sent` whatever the error.
+   */
+  replyOutside = async (
+    card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
+    text: string,
+    then: ReplyThen,
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
+    const o = card.outside;
+    if (!o) return { sent: false, error: "this card is not from an account", change: null };
+    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, extra));
+    if (typeof r === "string") return { sent: false, error: r, change: null };
+    if (!r.sent) return { sent: false, error: null, change: null, undone: true };
+    if (r.change?.ended) this.dropCard(card);
+    return { sent: true, error: r.then_error, change: r.change };
+  };
+
+  /** What a mail card's recipients line starts from (plan 076), or why it could not be read. */
+  composeOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<MailCompose | string> => {
+    const o = card.outside;
+    if (o?.provider !== "gmail") return "this card is not a mail";
+    return this.attempt((c) => c.composeOutside(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */
+  unsendOutside = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string): Promise<boolean> => {
+    const o = card.outside;
+    if (!o) return false;
+    const r = await this.attempt((c) => c.unsendOutside(o.account_id, outboxId, card.home ?? null));
+    return r === true;
+  };
+
+  /**
+   * Keep one of the person's moves on an outside card in its account's ledger (plan 069), on the Mac the account lives
+   * on. A move that does not reach the ledger is only data lost, so nothing waits on it and no refusal is shown.
+   */
+  moveOutside = (card: Pick<ConversationInfo, "outside" | "home">, move: OutsideMove): void => {
+    const o = card.outside;
+    if (o) void this.tried((c) => c.moveOutside(o.account_id, o.thread_id, move, card.home ?? null));
+  };
+
+  /**
+   * What handing an outside card off proposes (plan 067, R15), from the Mac its account lives on; resolves to the
+   * proposal, or the reason in words when it could not be had.
+   */
+  handoffPropose = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<HandoffProposal | string> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    return this.attempt((c) => c.handoffPropose(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /**
+   * Hand an outside card's thread to its account's agent (plan 067, R16): to `conversationId`, one of its chats, or a
+   * new chat when null. On success the card leaves the list at once (the Mac's change push brings the new chat);
+   * resolves to the reason when it did not go, and the card stays.
+   */
+  handoff = async (card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">, conversationId: string | null): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return "this card is not from an account";
+    const err = await this.tried((c) => c.handoff(o.account_id, o.thread_id, conversationId, card.home ?? null));
+    if (err) return err;
+    this.set({ conversations: this.snap.conversations.filter((x) => !(x.agent_id === card.agent_id && x.id === card.id)) });
     return null;
   };
 

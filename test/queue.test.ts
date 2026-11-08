@@ -71,3 +71,32 @@ describe("catch up queue merge", () => {
     expect(mergeQueue(q, [a], [])).toBe(q);
   });
 });
+
+describe("an outside card in a visit (plan 067)", () => {
+  const facts = (message: string, text: string) => ({
+    account_id: "slack:T01:U02",
+    provider: "slack" as const,
+    account_label: "Acme",
+    thread_id: "D1",
+    generation: 1,
+    owner_agent_id: "agent-work",
+    owner_name: "Work",
+    sender: "Grace",
+    sender_address: null,
+    subject: "lunch?",
+    lines: [text],
+    newest_message_id: message,
+    newest_at: "2026-11-04T09:00:00Z",
+    handoff_conversation_id: null,
+    disconnected: null,
+    unread_out_there: true,
+  });
+  const card = (message: string, text = "lunch?") =>
+    item("D1#1", { kind: "outside", agent_id: "account:slack:T01:U02", lastAssistantText: text, outside: facts(message, text) });
+
+  test("moved past, it comes back only with a newer message, not when its text reads differently", () => {
+    const decided = [{ item: card("m1"), action: "seen" as const, stamp: stampOf(card("m1")) }];
+    expect(mergeQueue([], [card("m1", "lunch? (edited)")], decided)).toEqual([]);
+    expect(mergeQueue([], [card("m2")], decided).map((i) => i.id)).toEqual(["D1#1"]);
+  });
+});

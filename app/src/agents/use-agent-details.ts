@@ -66,8 +66,9 @@ export function useAgentDetails({
     if (!selected || !d) return;
     const name = d.agent.name;
     const err = await write.deleteAgent(selected);
-    setConfirmDelete(false);
+    // A refused delete keeps the confirm open, where the accounts the agent still owns can be moved or disconnected (plan 067, R4).
     if (err) return flash(err);
+    setConfirmDelete(false);
     setDetails((x) => ({ ...x, [selected]: undefined }));
     onDeleted();
     flash(`${name} deleted`);

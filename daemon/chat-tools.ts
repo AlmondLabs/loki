@@ -33,6 +33,8 @@ export interface ChatTool {
   /** JSON Schema for the arguments, an object schema. */
   parameters: object;
   kind: ToolKind;
+  /** Whether a chat of this agent is offered the tool (a mod's `forAgent`, plan 067); absent, every agent's. */
+  forAgent?: (agentId: string) => boolean;
   run(args: Record<string, unknown>, call: ChatCall, context: Context): Promise<ChatToolResult>;
 }
 

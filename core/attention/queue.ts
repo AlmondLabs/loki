@@ -1,3 +1,4 @@
+import type { MailAddressing } from "../frame-types.ts";
 import type { AttentionItem, AttentionStatus } from "./model.ts";
 import { byScore } from "./priority.ts";
 
@@ -12,10 +13,14 @@ export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
  * anything new to read, and would bounce a decided card straight back. Nor on
  * turns counted live: rests keep the stamp on the Mac for every device, and a
  * count each client starts at 0 ended a rest made on another, or before a reload.
- * A turn that leaves the last words as they were is not something new.
+ * A turn that leaves the last words as they were is not something new. An outside card's stamp is its newest
+ * message's id.
  */
 export const stampOf = (i: AttentionItem) =>
-  `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
+  // An outside card's content is its newest message (plan 067, R11): a new one ends its rest, its text alone never does.
+  i.outside
+    ? `outside|${i.outside.newest_message_id}`
+    : `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
 
 /**
  * What needs you now: the count on the Inbox's badge, Home's "Needs your attention", Search's waiting group.
@@ -43,12 +48,20 @@ export function restingCount(items: AttentionItem[]): number {
 /** What you did with one card on an Inbox visit, kept so the visit can summarise itself and bring a card back when its chat moves on. */
 export interface Decision {
   item: AttentionItem;
-  /** Next marks the chat read and moves on; Archive is done, and the chat leaves the Inbox. */
-  action: "seen" | "archived";
+  /**
+   * Next (⌘]) marks the card read and moves on; Archive is done, and the card leaves the Inbox; Later (⌘[) leaves it
+   * unread and puts it off (plan 070, R6); Label put Gmail labels on an email card, which stays for the next key (R12).
+   */
+  action: "seen" | "archived" | "later" | "label";
   /** How the card went, for the visit's summary. */
-  via?: "next" | "archive" | "approve" | "deny";
+  via?: "next" | "later" | "archive" | "label" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
+  /**
+   * A mail reply still held for its undo (plan 076): the id it is stopped by, and the words and addressing that come
+   * back to the box when it is. Gone once the reply went, so undo then takes back the move as usual.
+   */
+  held?: { outbox_id: string; text: string; mail: MailAddressing | null };
 }
 
 /** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */

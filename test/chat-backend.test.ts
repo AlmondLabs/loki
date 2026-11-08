@@ -259,6 +259,33 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("another chat's message holds the turn to the sender's power until the person messages the chat while it is idle (plan 067)", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      await s.chats.open(agent.id, conversationId);
+      const store = await s.stores.get(agent.id);
+      const info = async () => store.chatInfo(must(await store.chat(conversationId, ctx), "the chat").id, ctx);
+      expect(await s.chats.power(agent.id, conversationId)).toBe("unrestricted");
+      s.faux.setResponses([s.reply("one"), s.reply("two"), s.reply("three")]);
+      const held = { agent_id: agent.id, conversation_id: conversationId, text: "from another chat", images: [], send_id: "m1", context: null };
+      expect(await s.chats.sendHeld(held, "standard")).toBeNull();
+      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 1);
+      expect((await info())?.turn_cap).toBe("standard");
+      // The chat passes the hold on: a message it sends now gives no more than standard.
+      expect(await s.chats.power(agent.id, conversationId)).toBe("standard");
+      // A second message with less power holds it lower still; one with no power known holds it to strict.
+      expect(await s.chats.sendHeld({ ...held, send_id: "m2" }, null)).toBeNull();
+      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 2);
+      expect((await info())?.turn_cap).toBe("strict");
+      await s.chats.send({ ...held, text: "from the person", send_id: "p1" });
+      expect((await info())?.turn_cap).toBeNull();
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a message sent with steer while a tool runs joins that turn, read before the agent goes on", async () => {
     let typed = async () => {};
     const s = await setup({

@@ -71,8 +71,8 @@ export const KEYMAP: Binding[] = [
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
   // --- desk ----------------------------------------------------------
-  // ⌘[ and ⌘] step through what a section is made of: desks here, cards in the inbox, views in Learn,
-  // agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
+  // ⌘[ and ⌘] step through what a section is made of: desks here, views in Learn, agents in Agents, pages in
+  // Settings; in the Inbox they are later and read. Never "the next desk" from somewhere else.
   { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Chat", typing: true, menu: "Go/step" },
   { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Chat", typing: true, menu: "Go/step" },
   // Read is the Inbox's clear (seen); opening a chat only views it, and only archiving is done. The header menu offers it too, and Mark as Unread.
@@ -120,12 +120,17 @@ export const KEYMAP: Binding[] = [
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
   // --- inbox (the reply box usually has focus: chords) -------------------
-  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Next", typing: true, menu: "Inbox" },
-  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive the Chat", typing: true, menu: "Inbox" },
+  // The same moves on every card, a chat, an email or a Slack message (plan 070): ⌘] read, ⌘[ later, ⌘E archive.
+  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Mark as Read", typing: true, menu: "Inbox" },
+  { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later", typing: true, menu: "Inbox" },
+  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive", typing: true, menu: "Inbox" },
+  { id: "inbox.label", keys: ["l"], where: "inbox", label: "Add a Label", menu: "Inbox", menuAccel: false },
   { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Inbox/decide" },
   { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Inbox/decide" },
   { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Inbox/go" },
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
+  { id: "inbox.reply_sender", keys: ["shift+r"], where: "inbox", label: "reply to the sender only (mail)" },
+  { id: "inbox.forward", keys: ["f"], where: "inbox", label: "forward (mail)" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
 
   // --- learn: one card at a time; the two answers only once the answer shows -------------------------
@@ -229,7 +234,7 @@ export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platf
 
 /**
  * Every binding whose chord this event is, whatever its scope: what the native menu bar might also fire for
- * the same keystroke. ⌘] is both "next card" (inbox) and "next desk" (anywhere); the key handler runs the
+ * the same keystroke. ⌘] is both "read the card" (inbox) and "next desk" (anywhere); the key handler runs the
  * one for the showing segment, and the menu's echo — which carries the *other* id — must be dropped too.
  */
 export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform = keyboard): string[] {
@@ -307,7 +312,7 @@ export const TEXT_CHORDS = new Set([
 
 /**
  * The binding an event triggers in the current context, or null. View bindings win over "anywhere"
- * so ⌘] can mean "next card" in the inbox and "next desk" on the desk. Bindings with a `note`
+ * so ⌘] can mean "read the card" in the inbox and "next desk" on the desk. Bindings with a `note`
  * are documentation only.
  */
 export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {

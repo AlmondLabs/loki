@@ -224,9 +224,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      2. **Phone**: the switch that lets phones reach this Mac, the route (Tailscale or this Wi‑Fi), pairing a phone
         (its QR and code) and the paired phones. Mac only for now.
   4. **Inbox and Learn**
-     1. **Inbox**: what Next, Archive and a reply do; **Next rests a card for** 10 min, 30 min, 1 hour (the default)
-        or 3 hours, on this device (see "Next sets a chat down"); and, under "How the order works", what each card's
-        score is made of (see "The order").
+     1. **Inbox**: **Accounts**, each Gmail mailbox and Slack workspace connected on this Mac with its service,
+        owner and state, **move to** and **disconnect** on each, and **reconnect gmail** or **reconnect slack** when
+        it needs it; **Connect an account**, where you choose the owner, then **connect gmail** or **connect slack**,
+        with **Use your own Google app** folded below it (see "Email and Slack"); what read, later, archive, label and
+        a reply do; **Read rests a card for**, for chats and for email, and **Later brings a card back after**, for
+        chats, email and Slack, on every device (see "Return times"); and, under "How the order works", what each
+        card's score is made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
         something new, at once), and the last run.
@@ -253,8 +257,9 @@ in a message box opens it too. ⌘K used to open the chats tree; the sidebar hol
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Preferences › Keyboard shortcuts says so); `?` or
-Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox,
-views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
+Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox
+(where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
@@ -308,14 +313,21 @@ Search button beside them:
    you like, and the folder, from the folders that agent has worked in on the Mac (its most recent to begin with,
    the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
-   time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
-   **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
-   a chat with nothing new rests a while, longer each time (see "The order"), and once only resting chats are left
-   the Inbox says how many and offers **Go through them**. Open chat opens the conversation full screen, whose actions sheet has
-   **Change folder** and **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
-   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
-   been past every chat it says "You've been through every chat", how many still need you, and **Go through
-   again**.
+   time. The card is the conversation: read the thread, reply, attach an image, answer a question; its head opens
+   the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way. Swipe right
+   (or **Read**) to mark it read, in Gmail or Slack too: a chat or an email rests a while, longer each time (see
+   "The order"), and a Slack message is done. Swipe left (or **Later**) to leave it unread and have it back in a day;
+   the second Later in a row asks when, in a sheet: later today, tomorrow, in 3 days, next week or a date of your
+   own, and closing the sheet leaves the card where it was. **Archive** is a button only (a main chat has none). An
+   email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
+   or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
+   back, so nothing goes by accident. A mail card's box has its recipients line, where you can add someone to To or
+   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left the Inbox says how many and offers **Go
+   through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
+   refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
+   in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
+   need you" (or "n chats" when nothing does). Once you have been past every chat it says "You've been through every
+   chat", what this visit did ("2 read · 1 later · 1 archived"), how many still need you, and **Go through again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
 4. **More**: the paired Mac, then Agents, Learn, Archived chats, Preferences (appearance) and Usage (what the agents
@@ -660,9 +672,36 @@ recognition is available, so treat it like any other cloud dictation.
 ## Inbox (Catch Up)
 
 A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
-is mid-turn, where there is nothing to do yet. The inbox icon on the rail counts what needs you; click it, press
+is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you are cards in it too, once
+you connect those accounts (see "Email and Slack" below). The inbox icon on the
+rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and sets it down: it comes back in an hour, a card with nothing new rests longer each time (see "Next sets a chat down" below), and either comes back at once if the agent says something new. Once only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox; if loki refuses, the card comes back on top and says why. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
+tool calls as muted markers), highest score first (see "The order" below).
+
+Every card, a chat, an email or a Slack message, stays until it is done, and the same keys move each of them:
+
+1. **Read**, → or ⌘] (the card's **read**), marks the card read: a chat is seen, an email is marked read in Gmail,
+   a Slack message is marked read in Slack. A chat or an email then rests and comes back in an hour, longer each time
+   while nothing new comes (see "Read sets a card down" below), and at once if something new arrives. A Slack message
+   is done once read.
+2. **Later**, ← or ⌘[ (the card's **later**), keeps the card unread, in loki and in Gmail, and brings it back in a
+   day, or sooner if something new arrives. From the second later in a row on the same card, loki asks when it should come back:
+   later today, tomorrow, in 3 days, next week, or a date up to about a month on; Esc closes the question with nothing
+   scheduled. Once the thread gets something new, or you read the card, the next later counts as a first one again.
+3. **Archive**, E or ⌘E (the card's **archive**), is done for a chat or an email: the chat is archived, the thread is
+   archived in Gmail, and either leaves the Inbox. On a Slack card archive marks the message read, which is its end
+   too. A main chat cannot be archived, so it always stays, and the card springs back saying "main chats stay".
+4. **Label**, L, on an email card only, opens the account's Gmail labels; the one you pick is added to the thread and
+   the card stays for your next key, so "label and archive" is two moves.
+5. **Undo**, Z or ⌘Z, takes back the last move on any card, a rest, a chat's read mark or archive, or what a move did
+   in Gmail (the thread comes back unread or in the inbox, as it was). The ⌘ forms work while you type a reply.
+
+A move that loki or Gmail refuses brings the card back on top with the reason. Approval and question cards never
+rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. Once
+only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. A or ⌘↵
+approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
+Esc returns to Chats. Preferences › Inbox lists these keys and sets the return times for each kind of card (see
+"Return times" below).
 The header reads "n need you" and "m chats". Once two agents have something waiting, filter pills sit over the
 deck: **All**, then each agent with cards, busiest first, each with its count; a pill shows only that agent's cards
 this visit. Once you have been past every chat the deck says "You've been through
@@ -746,7 +785,7 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 ### The order
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
-is in it, except one whose agent is mid-turn and one Next has rested (below). The score is
+is in it, with the mail and Slack cards, except one whose agent is mid-turn and one read or later has rested (below). The score is
 `blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer; a reply that only reads like
 a question, ending in "?" or "let me know", counts until you have looked at it) `+ new ? 10 : 0` (the
 agent said something since you last looked) `+ 15 × focus`
@@ -765,19 +804,35 @@ park. After a quiet week every share is near 0 and cards rank by age alone. The 
 scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
 weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
 
-**Next sets a chat down.** Next rests a card for an hour, so the chat you set aside stays aside while you finish
-the one in front of you, instead of coming back half-loaded. Preferences › Inbox › **Next rests a card for** changes
-that first rest on this computer (10 min, 30 min, 1 hour or 3 hours); the phone rests for an hour. A card with nothing new
-(no new message, no approval, no question) climbs: each further Next on it rests it three times longer, 1 hour, 3, 9,
-1d3h, 3d9h, up to a week, and a chat that has already been quiet longer rests at least that long again, so a chat
-quiet for two days stays away two more. A card with something new rests the first rest and does not climb, and so
-does a Next straight after replying on the same card: when the answer lands, the card is back. An approval or a
-question never rests. Anything new in the chat ends the rest and starts the ladder over: the agent's next message,
-question or approval (an idle agent speaks up only when a background task finishes or a schedule fires), and so
-whatever you send into the chat (from the card, the chat or the phone), which starts a turn. Opening or reading a
-chat does not: a card you read and set aside keeps resting. Undo puts the card back at once, on the rung it had. Once only resting cards are left, the Inbox says how many and offers to go through them. The
-Mac's loki process keeps the rests beside the focus weights (`rests` in `state/attention.json`), and paired Macs
-share them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
+**Read sets a card down.** Read (⌘] or →, a right swipe on the phone) rests a chat or an email card for an hour, so
+the card you set aside stays aside while you finish the one in front of you, instead of coming back half-loaded. A
+card with nothing new (no new message, no approval, no question) climbs: each further read on it rests it three times
+longer, 1 hour, 3, 9, 1d3h, 3d9h, up to a week. A chat that has already been quiet longer rests at least that long
+again, so a chat quiet for two days stays away two more; an email starts at the first rest however old it is. A card
+with something new rests the first rest and does not climb, and so does a read straight after replying to a chat on
+the same card: when the answer lands, the card is back. A Slack message does not rest: read is its end. An approval
+or a question never rests. Anything new in the thread ends the rest and starts the ladder over: the agent's next
+message, question or approval (an idle agent speaks up only when a background task finishes or a schedule fires),
+whatever you send into the chat (from the card, the chat or the phone), which starts a turn, or new mail in an email
+thread. Opening a chat, or reading the mail in Gmail, does not: a card you read and set aside keeps resting.
+
+**Later puts a card off.** Later (⌘[ or ←, a left swipe on the phone) keeps the card unread and rests it for a day,
+whatever rung it was on; anything new in the thread brings it back sooner. From the second press in a row on the same
+card, later asks when the card should come back instead (see "Inbox (Catch Up)" above). A read, or anything new in the
+thread, starts that count over.
+
+**Return times.** Preferences › Inbox sets them for each kind of card, on every device, the phone included:
+
+1. **Read rests a card for**: the first rest after read, for chats and for email apart: 10 min, 30 min, 1 hour (the
+   default) or 3 hours. The ladder above climbs from it.
+2. **Later brings a card back after**: the later return, for chats, email and Slack apart: 3 hours, 1 day (the
+   default), 2 days or 1 week.
+
+A rest keeps the time it was given, so a change counts from the next press on. How fast the ladder climbs, and the
+question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
+resting cards are left, the Inbox says how many and offers to go through them. The Mac's loki process keeps the rests
+and the return times beside the focus weights (`rests` and `return_times` in `state/attention.json`), and paired Macs and the phone share
+them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
 
 Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
 badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
@@ -794,15 +849,211 @@ and every decision on it (`inbox_card_decided`: what you did and how — a key, 
 chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
 how long the card was on top, counting only the time loki's window was visible and focused). `npm run analytics`
 reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
-archive it — a Next straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
+archive it — a read straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
 rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
-shown at, how many Nexts and Archives you took back, and how long a finished turn waits for you. The weights
+shown at, how many moves you took back, and how long a finished turn waits for you. The weights
 above are the starting point.
 
-**A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
+**A reply on a chat card keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
-its chat's focus — behind whatever you are reading then.
+its chat's focus — behind whatever you are reading then. A reply on an email or Slack card goes with a key instead
+(see "Reply from the card" below).
+
+### Email and Slack
+
+Mail and Slack messages addressed to you arrive in the same deck as your chats, one card per thread, so you need not
+open Gmail or Slack to find what waits on you. Connect them in Preferences › Accounts. A Gmail mailbox or a Slack
+workspace is an **account**, and you can connect as many as you like.
+
+**Each account belongs to one agent.** Under **Connect an account**, press **connect gmail** or **connect slack**; the
+account goes to the agent under **Goes to**, which starts on your first agent: the agent that gets the account's
+hand-offs and is the only agent with tools for it. No account is ever connected without one. The owner picker on an
+account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
+…** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave the Inbox.
+Deleting an agent that owns accounts lists them on its Agents page and asks you to move each to another agent or
+disconnect it first. An account lives on the Mac it was connected on: only that Mac watches it, a paired Mac refuses
+to connect it a second time, and its cards reach the phone and your paired Macs the way that Mac's chat cards do.
+
+**Connecting Gmail.** **connect gmail** opens Google's sign-in in your browser; sign in and allow, and the mailbox
+shows on the page once Google sends you back. loki signs in with one shared Google app it ships, so there is nothing
+to set up in Google Cloud. That app is not verified by Google, which has two effects: Google shows a warning screen
+first ("Google hasn't verified this app"; choose Advanced, then go on to loki), and the shared app can sign in at most
+100 people over its whole life. A Google Workspace admin may also block unverified apps or the Gmail API for their
+people. In either case, fold open **Use your own Google app**, fill in the client id and secret of an OAuth client of
+your own in Google Cloud (a desktop app), and **connect gmail** signs in with it instead; its id and secret are kept
+in the keychain with the account. loki asks Google to read mail, change its labels, write drafts and send; it sends
+only a reply you write yourself on a card.
+
+**Connecting Slack.** **connect slack** reads the workspaces signed in to the Slack desktop app on this Mac and lists
+them; **connect** on one connects it, and each workspace is its own account. There is no Slack app to create and no
+admin to ask. The first time, macOS asks whether loki may use "Slack Safe Storage", the key Slack keeps its sign-in
+under; allow it. loki calls Slack as you, through that session, and keeps the session in memory only. Slack is Mac
+only for now, since the desktop app keeps its session differently on Windows and Linux. Some workspaces' rules forbid
+using the desktop session this way, and Enterprise Grid may notice it; check yours before connecting.
+
+**What becomes a card.** loki watches each account itself, once a minute, with fixed rules; no model reads your mail
+or messages to decide.
+
+1. Gmail: every thread in your inbox becomes a card, read or unread, newsletters, receipts and notifications
+   included, so loki's Inbox and the Gmail inbox hold the same threads. The card follows Gmail's read state: read the
+   mail in Gmail and the card stays, as read; archive it there and the card ends at the next check. loki notes what kind of mail each one is (to you or not, a list, sent by a machine, and Gmail's tab),
+   read from the message's headers and labels, and keeps that beside what you do with it (below).
+2. Slack: a DM or group DM with unread messages, and each unread Activity item: an @mention of you, a reply in a
+   thread you are in, an @channel or @here, and a mention of a user group you belong to. Mentions and replies inside
+   threads arrive as Slack's Activity lists them; loki does not search for them. Slack allows few reads of Activity a
+   minute, so each minute loki reads only its newest page and walks the whole list every 15 minutes: an item read in
+   Slack leaves its card within 15 minutes, and a long list is walked a few pages at a time when Slack asks loki to
+   wait. Opening a card while Slack asks loki to wait half a minute or less shows the thread once the wait is over.
+
+A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
+a thread you archived, as does moving an archived thread back to the inbox in Gmail. A message you wrote yourself
+never counts as new, so your own reply does not bring a card back. Every card in the Mac's Inbox, a chat's
+too, has the same two-line header: a face (the sender's Slack photo, a mail sender's initial, a chat's agent) with a
+small `#` for Slack or an envelope for mail in its corner; who wrote on the first line; then where or what and when: a
+Slack channel ("#crm-support") or "direct message", a mail's subject, a chat's title. The workspace or mailbox is named
+only when you have more than one of that service connected. A tag at the end says **how directly the card is meant for
+you**, most direct first: **direct** (a Slack DM), **to you** (a mail with you in To or Cc), or a chat that asked you
+or needs approval, marked with the red dot; **mentioned you**; **your thread**, or a chat that finished or failed;
+**your group** (a Slack user group you are in) or **not to you** (a mail you were not addressed in); **@channel** or
+**list**, and **automated** (a mail sent by a machine), both in muted ink. A mail from a machine or a list reads as
+that even when it is addressed to you. The phone keeps its own header for now. A card files under its owner's tab in
+the Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
+first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
+each reply ("On … wrote:"). A mail with an HTML part is drawn as its sender designed it, on a light page: its
+layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
+you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
+text, with its web addresses made into links. **A Slack card opens on what brought it**: the messages that brought it
+into your Inbox, with 5 messages before and 5 after, drawn as a chat draws messages, with faces, day pills, @channel
+marked, and Slack's red **New** line before the first new one; the card opens on that line. What brought it, a mention,
+an @channel, a group mention or a reply in a thread you follow, has Slack's yellow mention look; a DM's unread messages
+have the New line alone. When everything new is a reply in one thread, the card shows that thread alone, its first
+message pinned on top; otherwise it shows the channel or DM, where a post's replies (saying how many are new, when some are) open its
+whole thread, every reply in it, with a way back. **load earlier** and **load later** each bring 20 more; in a thread they say how many replies
+are left. New means new since you last dealt with the card in loki (archived it, read it, replied from it or handed it
+off; later does not count), so a mention you already handled shows as an ordinary message when it comes back, even
+though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
+@mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
+reply from a later day shows that day beside its time. A hand-off still sends the thread alone, now with each link's
+address and what apps attached. In a mail thread, each mail before the newest starts folded to its
+sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past comes in batches**: connecting brings what came in the last 3 days,
+and each time that account has no unread cards left in the Inbox (read cards, resting or not, do not hold it back),
+the next older batch arrives, a week back, then two, then a month, then a month more each time, until nothing older is
+left. Each batch brings every unread thread of its time and at most 20 read ones.
+
+**Ranking, read, later and archive.** An outside card ranks like a chat with something new, and gains focus as you
+work with that thread, or for mail that sender; an agent waiting on you still comes first. An email card already read
+in Gmail has nothing new, so it ranks below unread mail and the badges do not count it; a read backlog never buries new
+mail.
+Every move writes back to Gmail or Slack, and touches messages up to the card's newest only, so mail that came since
+loki last looked stays unread:
+
+1. Read (⌘]): Gmail marks the thread read and the card rests on the same ladder as a chat card, from the first rest
+   for email (see "Read sets a card down"). Slack marks a DM or group DM read up to the card's last message, and the
+   card is done.
+2. Later (⌘[): Gmail marks the thread's newest incoming message unread, and the card comes back after email's later
+   time. Slack is left as it is, still unread, and the card comes back after Slack's later time.
+3. Archive (⌘E): Gmail archives the thread and the card is done. On Slack, archive marks the message read, as read
+   does.
+4. Label (L, email only): Gmail adds the label to the thread, and leaves it in the inbox and as read or unread as it
+   was.
+5. Undo (⌘Z): the card comes back, and Gmail puts back exactly the labels the move changed, so the thread is unread or
+   in the inbox again as it was.
+
+The other way round works too: archive a thread in Gmail, or read a Slack message in Slack, and its card ends at the
+next check. loki never moves a Slack channel's read marker, so reading a mention in a busy channel leaves that
+channel's other messages unread. Two gaps are known:
+
+1. A Slack Activity item (a mention or a thread reply) cannot be marked read in Slack yet. Read or archive ends its
+   card in loki, and Slack still shows the item unread.
+2. Undo cannot mark a Slack DM unread again in Slack. The card comes back in loki, and Slack keeps the DM read.
+
+**Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
+chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
+you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
+Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. The key you
+press with text in the box sends it first, then makes its own move, and the moves work from inside the box:
+
+1. Enter on Slack, ⌘Enter on email, **send** or ⌘] sends the reply and the card rests as read.
+2. ⌘[ sends it and keeps the card: it comes back when they answer, or after the later time if they stay quiet. A
+   Slack card waits the same way, whatever Slack's own read mark says meanwhile.
+3. ⌘E sends it and archives the thread (on Slack, marks it read), and the card ends.
+
+The box clears once the reply is sent. If the move after it fails, the card says so and the reply is not sent again
+when you press the key once more. A send that fails keeps your text, moves nothing, and says why. Undo after a reply
+takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
+this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+
+**Replying to mail as Gmail does.** An email card's reply works like Gmail's:
+
+1. **Who it goes to.** A line above the box says it: "to Pinku Kumar, cc 2 others". Press it, or ⌘⇧C in the box,
+   to open To, Cc and Bcc. Type a name or an address to add someone. Suggestions come from the people in that
+   mailbox's mail that loki has read, and the people you send to come first after that. Press a chip to take that
+   person off. A whole address typed by hand works too, even for someone loki has never seen.
+2. **Reply, reply all or forward.** The menu at the start of the line chooses. Reply all is where it starts. Reply
+   goes to the sender alone, or to the address the mail asks replies to go to. Forward starts with nobody, puts
+   "Fwd:" before the subject, and carries the mail's files. ⇧R (reply to the sender) and F (forward) switch the card
+   on top. Switching keeps what you typed.
+3. **From.** When you send from more than one address in Gmail, the open line has a From menu. It starts on the
+   address the mail came to.
+4. **Your signature.** It comes from Gmail's settings for the address you send from, shows greyed under the box,
+   and **remove** leaves it off this one reply.
+5. **The earlier mail.** The mail you answer goes quoted under your reply ("On … wrote:"), in plain text and in
+   HTML, so Gmail folds it into "•••" for the people reading. A forward sets it out under its headers instead.
+   **•••** under the box shows it.
+6. **Undo send.** A mail reply waits 10 seconds before it goes. The card moves on at once and says
+   "sending · z undo". Z (or ⌘Z) in that time stops it, and the card comes back with your words and recipients.
+   After that, Z takes back the key's move as usual. The waiting reply is kept in `~/.loki/state/outbox.json` on the
+   account's Mac, so if loki stops meanwhile it goes when loki starts again. If it fails, the card comes back with
+   your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
+   recipients line has To and Cc. The mode, From and Bcc are on the Mac.
+
+**What loki keeps of your moves.** Each read, later, archive, label, reply, hand-off and undo on an outside card is
+written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:
+
+1. the move, and whether you made it by key, click, swipe or tap;
+2. when its rest brings the card back, the labels it added, the time you picked when later asked, or, after a reply,
+   which key followed it;
+3. how long the card was on top first;
+4. who wrote the thread and its subject;
+5. for mail, what kind it was; for Slack, whether it was a DM or a thread.
+
+Nothing reads the ledger yet. It is what loki will learn your preferences from (which senders and kinds of mail you
+archive unread, which you answer) and, later, act on for you. It never leaves that Mac. The analytics events stay free
+of senders and subjects.
+
+**Hand-off.** **hand off** on a card gives the whole thread to the account's owner. loki proposes a chat: the one the
+thread went to before ("went here before"), or else a new chat with the owner titled by the subject ("new chat"); pick
+it or another of the owner's chats. The chat receives the whole thread as one message, each message marked as content
+from its sender rather than instructions, and the card is done: the thread is archived in Gmail, or marked read in
+Slack, up to the message handed. If a newer message came while the hand-off ran, the thread is left as it is and the
+card stays open for it. If Gmail or Slack refuses, the chat still has the thread and the card still ends; the refusal
+goes to the log. A hand-off cannot be undone. When someone writes in that thread again, it comes back as a new card
+that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
+while the account is disconnected.
+
+**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts, all reads:
+`account_list` (its accounts and the threads waiting in each, with no message text), `account_read` (a whole thread)
+and `account_search` (a mailbox, in Gmail's search syntax; Slack cannot be searched yet). No other agent has them,
+and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
+even if you ask it to.
+
+**Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
+one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
+The reply always asks you first, in every permission
+mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
+draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
+When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
+
+**When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
+
+1. "Gmail wants a new sign-in": the sign-in expired or was revoked; **reconnect gmail** signs in again.
+2. "a workspace admin blocks loki in Gmail" (or Slack): ask the admin, or use your own Google app, then connect again.
+3. "the Slack app signed out": sign in to that workspace in the Slack desktop app, then **reconnect slack**.
+4. "… keeps failing for now": loki tries again on its own; nothing to do.
+
+**What reaches your model provider.** Only what you hand off and what the owner reads with its tools. Showing a card,
+ranking it and archiving it send nothing to any model.
 
 ## Scheduled tasks
 
@@ -854,7 +1105,7 @@ Inbox, so it has a screen to show in.
    waits under it and shows once the box is empty. The chat's Inbox card says **draft** (on the phone, **Draft**). The
    next message sent from that chat, or emptying its box, clears the draft. A chat holds one saved draft at a time: a
    second is refused until the first is sent, or goes to another chat. A new chat holding only a draft is listed in
-   the Inbox and rests under Next like any other card.
+   the Inbox and rests after read like any other card.
 3. **change chat** points the suggestion somewhere else before you send or save it: type to find a chat or an agent,
    and pick an agent for a new chat with it, then give the new chat's folder.
 4. **reject** drops it.
@@ -891,6 +1142,54 @@ one that cannot move yet, because `bd` is missing or its chat's Mac is out of re
 and when a paired Mac comes into reach, and one that names no chat it was filed from stays where it is; the daemon's
 log names each. loki only reads the beads store (`~/.loki/tasks`) for this and leaves it on disk as it was; `bd` is
 needed for nothing else. Old chats that used Tasks still read cleanly.
+
+## Chat links
+
+An agent can message another open chat's agent with `chat_message`, to work on something together: ask it a
+question, hand it a piece of the work and hear back. It goes only along a link you opened, and only for as long as you
+said.
+
+**The link card.** The first time an agent messages a chat this chat has no link to, its turn stops on a card where a
+question card would be, in the chat and on its Inbox card, on the Mac and the phone. It names the other chat (with its
+agent, and its Mac when that is another) and shows the message. You pick:
+
+1. **direction**: **one way**, so this chat may message that one, or **both ways**, so each may message the other;
+2. **for**: **1 hour**, **1 day** or **until I close it**, starting on the default you set in Preferences › Chat ›
+   Chat links (1 hour until you change it);
+3. **allow** opens the link and sends the message; **deny** sends nothing, and the agent is told you refused.
+
+The card asks in every permission mode, unrestricted included, and **always allow** never covers `chat_message`: a
+link is opened only on this card. While a link is open, messages along it go without asking.
+
+**What the other chat gets.** The message lands as a row of its own, **from** the chat that sent it, with a link back;
+never as your message. It starts a turn there, or waits for the running one to end, as a message you typed would. That
+agent is told the message comes from another agent, that it may decline, and whether it may answer: along a link that
+runs both ways it answers with `chat_message`, and along a one-way link it cannot. The sending chat shows the call as
+a step, with its text.
+
+**No borrowed power.** A turn another chat's message starts runs in the stricter of the two chats' permission modes: a
+chat in standard mode cannot get an unrestricted chat to run what it would have had to ask you for. The hold stays on
+the chat until you next message it while it is idle, so the rest of that turn and anything queued behind it keep it,
+and a message the held chat sends on passes the hold along. A chat on Claude Code or another ACP agent keeps its own
+mode, which loki cannot lower for one turn, so a message to one whose mode has more power than the sender's is refused
+with the reason.
+
+**A cap.** A link carries at most 20 messages an hour into each of its chats. Past that, `chat_message` is refused and
+the agent is told to wait or tell you, so two agents answering each other cannot run on without end.
+
+**Seeing and closing links.** A chat with a live link shows it under its name in the header: an arrow for the way
+messages go (→ out, ← in, ⇄ both), the other chat's name and the time left, and **×** to close it at once. The phone
+shows the same strip under the chat's header. Preferences › Chat › Chat links lists the live links of this Mac's chats
+with their direction and time left, each with **close**, and sets the duration the card starts on. A closed or ended
+link asks again on the next message.
+
+**Chats on two Macs.** A link may join chats on two paired Macs. Each chat's Mac keeps the link, and the Mac a message
+lands on checks its own copy before it delivers: a Mac with no link for it refuses the message whatever the sending Mac
+says. Closing a link on either Mac closes it on both.
+
+`chat_list` names the calling chat's links and which way each goes. Reflection, Learn and the memory review cannot
+message chats: a background pass has no chat screen for the card. For work you should weigh yourself, or for a new
+chat, agents still make a [suggestion](#suggestions).
 
 ## MCP servers
 

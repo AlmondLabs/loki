@@ -1,6 +1,19 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
-import type { InputOf, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { SuggestionTarget } from "../frame-types.ts";
+import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
+import type {
+  AccountLabel,
+  HandoffProposal,
+  MailAddressing,
+  MailCompose,
+  OutsideChange,
+  OutsideMove,
+  OutsideRead,
+  OutsideReplied,
+  OutsideWindowAsk,
+  ReplyThen,
+  SuggestionTarget,
+} from "../frame-types.ts";
+import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
 import type { ConnectProvider, PassSettings, PassSettingsChange, Runtime, ServerEvent } from "./protocol.ts";
@@ -22,6 +35,8 @@ export type ChatClient = Pick<
   | "deleteAgent"
   | "labels"
   | "suggestions"
+  | "replies"
+  | "links"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -36,6 +51,19 @@ export type ChatClient = Pick<
   | "setPassSettings"
   | "updateAgent"
   | "updateConversation"
+  | "archiveOutside"
+  | "markReadOutside"
+  | "markUnreadOutside"
+  | "labelOutside"
+  | "restoreOutside"
+  | "labelsOutside"
+  | "handoffPropose"
+  | "readOutside"
+  | "replyOutside"
+  | "composeOutside"
+  | "unsendOutside"
+  | "moveOutside"
+  | "handoff"
   | "updateModel"
   | "close"
   | "onChat"
@@ -182,6 +210,10 @@ export class FrameChatClient {
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
       // The suggestions waiting in it (plan 049): a client opening late sees them as one that was listening does.
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
+      // And the replies its agent proposed (plan 067), which keep its card blocked.
+      ...(state.reply_proposals ? [{ kind: "reply_proposals" as const, proposals: state.reply_proposals }] : []),
+      // Its links to other chats (plan 067), for the header.
+      ...(state.links ? [{ kind: "links" as const, links: state.links }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -217,6 +249,122 @@ export class FrameChatClient {
 
   async changeFolder(rt: Runtime, cwd: string): Promise<void> {
     await this.call("chat_folder", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, cwd });
+  }
+
+  /**
+   * Archive an outside card's thread (plan 067, R12) on the Mac its account lives on (`home`, null for this one): the
+   * account is written back first, and a refusal throws its reason. Resolves to what the archive changed out there, for
+   * an undo (plan 070, R14), or null when nothing was written.
+   */
+  async archiveOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_archive", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /**
+   * Mark an outside card's thread read out there (plan 070, R5): in Gmail up to the card's newest message, in Slack the
+   * DM's read mark, which ends the card. Resolves to what it changed, for an undo; a refusal throws its reason.
+   */
+  async markReadOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_mark_read", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /** Leave an outside card's thread unread out there (plan 070, R6); resolves to what it changed, and a refusal throws. */
+  async markUnreadOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_mark_unread", { account_id: accountId, thread_id: threadId, home });
+    return r.change;
+  }
+
+  /** Put Gmail labels, by id, on an outside card's thread (plan 070, R12); resolves to what it changed, and a refusal throws. */
+  async labelOutside(accountId: string, threadId: string, labels: string[], home: string | null): Promise<OutsideChange | null> {
+    const r = await this.call("account_thread_label", { account_id: accountId, thread_id: threadId, labels, home });
+    return r.change;
+  }
+
+  /** Take back a write-back on an outside card (plan 070, R14), `change` as the write-back answered it; a refusal throws. */
+  async restoreOutside(accountId: string, threadId: string, change: OutsideChange, home: string | null): Promise<void> {
+    await this.call("account_thread_restore", { account_id: accountId, thread_id: threadId, change, home });
+  }
+
+  /** An account's Gmail labels, for the label picker (plan 070, R12), from the Mac the account lives on. */
+  async labelsOutside(accountId: string, home: string | null): Promise<AccountLabel[]> {
+    const r = await this.call("account_labels_list", { account_id: accountId, home });
+    return r.labels;
+  }
+
+  /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */
+  async readOutside(accountId: string, threadId: string, home: string | null, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
+    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home, ...ask }, 30_000);
+    return { messages: r.messages, window: r.window ?? null };
+  }
+
+  /**
+   * Send the person's own reply in an outside card's thread (plan 068), from the Mac its account lives on, which then
+   * makes the key's move (`then`, plan 070, R11). A refusal throws its reason, and nothing was sent; once sent, the
+   * move's own failure comes back in `then_error`.
+   */
+  async replyOutside(
+    accountId: string,
+    threadId: string,
+    text: string,
+    then: ReplyThen,
+    home: string | null,
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+  ): Promise<OutsideReplied> {
+    const r = await this.call(
+      "account_thread_reply",
+      {
+        account_id: accountId,
+        thread_id: threadId,
+        text,
+        then,
+        home,
+        ...(extra.mail ? { mail: extra.mail } : {}),
+        ...(extra.outbox_id ? { outbox_id: extra.outbox_id } : {}),
+      },
+      // A held mail reply answers once its undo time is over and it went (plan 076).
+      60_000,
+    );
+    return r.sent ? { sent: true, then_error: r.then_error, change: r.change } : { sent: false, undone: true };
+  }
+
+  /** What a mail card's recipients line starts from (plan 076), read on the Mac its account lives on. */
+  async composeOutside(accountId: string, threadId: string, home: string | null): Promise<MailCompose> {
+    const r = await this.call("account_thread_compose", { account_id: accountId, thread_id: threadId, home }, 30_000);
+    return { modes: r.modes, from: r.from, default_from: r.default_from, subject: r.subject, people: r.people };
+  }
+
+  /** Stop a held mail reply before it goes (plan 076); false when it already went. */
+  async unsendOutside(accountId: string, outboxId: string, home: string | null): Promise<boolean> {
+    const r = await this.call("account_thread_unsend", { account_id: accountId, outbox_id: outboxId, home });
+    return r.undone;
+  }
+
+  /** Keep one of the person's moves on an outside card in the ledger of the Mac its account lives on (plan 069). */
+  async moveOutside(accountId: string, threadId: string, move: OutsideMove, home: string | null): Promise<void> {
+    await this.call("account_thread_move", { account_id: accountId, thread_id: threadId, ...move, home });
+  }
+
+  /** What handing an outside card's thread off proposes (plan 067, R15), asked of the Mac its account lives on. */
+  async handoffPropose(accountId: string, threadId: string, home: string | null): Promise<HandoffProposal> {
+    const r = await this.call("account_thread_handoff_propose", { account_id: accountId, thread_id: threadId, home });
+    return { account_id: r.account_id, thread_id: r.thread_id, owner_agent_id: r.owner_agent_id, proposed: r.proposed, choices: r.choices, note: r.note };
+  }
+
+  /**
+   * Hand an outside card's thread to its account's agent (plan 067, R16): to one of its chats, or a new chat when
+   * `conversationId` is null. Resolves to the chat it went to; a refusal throws its reason. Reading a long thread and
+   * making the chat on the agent's Mac may take a while, so it waits longer than a plain call.
+   */
+  async handoff(
+    accountId: string,
+    threadId: string,
+    conversationId: string | null,
+    home: string | null,
+  ): Promise<{ agent_id: string; conversation_id: string }> {
+    const r = await this.call("account_thread_handoff", { account_id: accountId, thread_id: threadId, conversation_id: conversationId, home }, 60_000);
+    return { agent_id: r.agent_id, conversation_id: r.conversation_id };
   }
 
   /** `agentId` names the chat's agent when the caller knows it, so a chat this client has not met still resolves. */
@@ -351,6 +499,32 @@ export class FrameChatClient {
       this.call("suggestion_decide", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, action }),
     retarget: (rt: Runtime, suggestionId: string, target: SuggestionTarget) =>
       this.call("suggestion_retarget", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, suggestion_id: suggestionId, target }),
+  };
+
+  /**
+   * The person's action on a reply an agent proposed in a chat (plan 067, KTD9), carried out by the Mac that chat lives
+   * on: approve with the text as edited (and `replace`, to replace a Slack draft already there), or reject.
+   */
+  readonly replies = {
+    decide: (rt: Runtime, proposalId: string, action: ReplyAction, opts: { text?: string | null; replace?: boolean } = {}) =>
+      this.call("reply_decide", {
+        agent_id: rt.agent_id,
+        conversation_id: rt.conversation_id,
+        proposal_id: proposalId,
+        action,
+        ...(opts.text ? { text: opts.text } : {}),
+        replace: opts.replace === true,
+      }),
+  };
+
+  /**
+   * Chat links (plan 067): this Mac's live links with the card's default duration, closing one from either of its
+   * chats (routed to that chat's Mac, which closes it on the other's too), and the default duration.
+   */
+  readonly links = {
+    list: () => this.call("chat_links_get", {}),
+    close: (rt: Runtime, linkId: string) => this.call("chat_link_close", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, link_id: linkId }),
+    setDefault: (duration: LinkDuration) => this.call("chat_links_default", { duration }),
   };
 
   /** A slash command, shown in the thread as it runs and when it answers. */

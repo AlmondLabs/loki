@@ -24,6 +24,14 @@ const changesList = (frame: Record<string, unknown>): boolean => {
   return frame.events.some((e) => typeof e === "object" && e !== null && lists.some((kind) => kind === (e as { kind?: unknown }).kind));
 };
 
+/**
+ * This Mac's own chats as `peer_chats` carries them to another Mac: the outside cards (plan 067, R14) apart from the
+ * chats, in `outside`, which only a Mac that knows them reads, so one on an older loki shows none.
+ */
+export function peerChatsReply(desks: DeskSummary[], inbox: InboxRow[]): { desks: DeskSummary[]; inbox: InboxRow[]; outside: InboxRow[] } {
+  return { desks, inbox: inbox.filter((r) => r.kind !== "outside"), outside: inbox.filter((r) => r.kind === "outside") };
+}
+
 /** What RemoteChats is built from; the debounce is shortened in tests. */
 export interface RemoteChatsOptions {
   link: (macId: string) => PeerLink | null;
@@ -100,7 +108,7 @@ export class RemoteChats {
     // awaits, and end the daemon.
     const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v.filter((x: unknown) => typeof x === "object" && x !== null) : []);
     const desks = (rows(reply.desks) as DeskSummary[]).filter((d) => d.scope !== SHARED_SCOPE && !!d.conversation_id && d.status !== "deleted");
-    const inbox = rows(reply.inbox) as InboxRow[];
+    const inbox = [...(rows(reply.inbox) as InboxRow[]), ...(rows(reply.outside) as InboxRow[])];
     this.macs.set(macId, { desks, inbox, reachable: true });
     this.opts.onListed?.(
       macId,

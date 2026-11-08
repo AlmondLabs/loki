@@ -31,6 +31,12 @@
   --loki-on-attention: #ffffff;
   --loki-affirm: #007a5a;
   --loki-on-affirm: #ffffff;
+  /* Where an Inbox card came from (plan 073): the mark on a Slack sender's face and on a mail sender's. */
+  --loki-mark-slack: #d4a0e0;
+  --loki-mark-mail: #f28b82;
+  /* A Slack message that brought its card in (plan 077): Slack's mention wash and the bar at its left edge. */
+  --loki-mention: #2e2a1f;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #2c2f34;
   /* Wells, speech, inline code, veils and glows are the few surfaces outside the main elevation ramp. */
   --loki-well: #222529;
@@ -112,6 +118,10 @@
   --loki-on-attention: #ffffff;
   --loki-affirm: #007a5a;
   --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #611f69;
+  --loki-mark-mail: #c5221f;
+  --loki-mention: #fdf5e0;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #ebebeb;
   --loki-well: #ffffff;
   --loki-bubble: #f8f8f8;
@@ -160,6 +170,10 @@
   --loki-on-attention: #1a1b26;
   --loki-affirm: #9ece6a;
   --loki-on-affirm: #1a1b26;
+  --loki-mark-slack: #d4a0e0;
+  --loki-mark-mail: #f28b82;
+  --loki-mention: oklch(28% 0.03 85);
+  --loki-mention-bar: oklch(78% 0.13 80);
   --loki-grid: #24283b;
   --loki-well: #16161e;
   --loki-bubble: #1f2335;
@@ -202,6 +216,10 @@
   --loki-on-attention: #ffffff;
   --loki-affirm: #587539;
   --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #611f69;
+  --loki-mark-mail: #c5221f;
+  --loki-mention: oklch(96% 0.03 85);
+  --loki-mention-bar: oklch(70% 0.14 75);
   --loki-grid: #d0d5e3;
   --loki-well: oklch(98% 0.004 270);
   --loki-bubble: oklch(93.5% 0.008 270);

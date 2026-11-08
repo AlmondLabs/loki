@@ -1,0 +1,87 @@
+import { describe, expect, test } from "vitest";
+import { addressesIn, isDirectMail, mailTraits, parseMailTraits } from "../core/mail-filter.ts";
+
+const OWN = ["ada@acme.com", "ada@example.org"];
+const h = (headers: Record<string, string>) => Object.entries(headers).map(([name, value]) => ({ name, value }));
+const colleague = { From: "Grace Hopper <grace@acme.com>", To: "Team <team@acme.com>", Subject: "Budget" };
+
+describe("whether a mail is to the person, from a person (R5, KTD6)", () => {
+  test("a colleague's mail with the person in Cc is direct (AE1)", () => {
+    expect(isDirectMail(h({ ...colleague, Cc: "Bob <bob@acme.com>, Ada Lovelace <ADA@acme.com>" }), OWN)).toBe(true);
+  });
+
+  test("the person in To is direct; in neither To nor Cc it is not", () => {
+    expect(isDirectMail(h({ ...colleague, To: "ada@acme.com" }), OWN)).toBe(true);
+    expect(isDirectMail(h(colleague), OWN)).toBe(false);
+  });
+
+  test("a mail to one of the person's send-as aliases counts as to them", () => {
+    expect(isDirectMail(h({ ...colleague, To: '"Ada" <ada@example.org>' }), OWN)).toBe(true);
+  });
+
+  test("an address inside a quoted display name is not the recipient", () => {
+    expect(isDirectMail(h({ ...colleague, To: '"ada@acme.com, via the list" <list@acme.com>' }), OWN)).toBe(false);
+  });
+
+  test("mailing lists, newsletters and automated mail are not direct, even with the person in To (AE1)", () => {
+    const toAda = { ...colleague, To: "ada@acme.com" };
+    expect(isDirectMail(h({ ...toAda, "List-Unsubscribe": "<mailto:unsub@news.example>" }), OWN)).toBe(false);
+    expect(isDirectMail(h({ ...toAda, "List-Id": "eng.acme.com" }), OWN)).toBe(false);
+    expect(isDirectMail(h({ ...toAda, "Auto-Submitted": "auto-generated" }), OWN)).toBe(false);
+    expect(isDirectMail(h({ ...toAda, "X-Auto-Response-Suppress": "All" }), OWN)).toBe(false);
+    for (const p of ["bulk", "List", "junk"]) expect(isDirectMail(h({ ...toAda, Precedence: p }), OWN)).toBe(false);
+  });
+
+  test("Auto-Submitted: no is a person's mail", () => {
+    expect(isDirectMail(h({ ...colleague, To: "ada@acme.com", "auto-submitted": " No " }), OWN)).toBe(true);
+  });
+
+  test("a no-reply sender is not a person", () => {
+    for (const from of ["GitHub <noreply@github.com>", "no-reply@accounts.example", "DoNotReply@bank.example", "MAILER-DAEMON@acme.com", "no_reply-42@x.io"])
+      expect([from, isDirectMail(h({ ...colleague, From: from, To: "ada@acme.com" }), OWN)]).toEqual([from, false]);
+    // A name that merely starts like one is a person.
+    expect(isDirectMail(h({ ...colleague, From: "Noreen <noreen@acme.com>", To: "ada@acme.com" }), OWN)).toBe(true);
+  });
+});
+
+describe("the addresses in a header", () => {
+  test("bare, bracketed and quoted names with commas, in lower case", () => {
+    expect(addressesIn('"Lovelace, Ada" <Ada@Acme.com>, bob@acme.com; Grace <grace@acme.com>')).toEqual(["ada@acme.com", "bob@acme.com", "grace@acme.com"]);
+  });
+});
+
+describe("what kind of mail a message is (plan 069)", () => {
+  test("to you, a list, a machine, and Gmail's tab, each on its own", () => {
+    expect(mailTraits(h({ ...colleague, Cc: "ada@acme.com" }), OWN, ["INBOX", "CATEGORY_PERSONAL"])).toEqual({
+      to_you: true,
+      list: false,
+      automated: false,
+      category: "primary",
+    });
+    expect(mailTraits(h({ ...colleague, "List-Id": "eng.acme.com", Precedence: "list" }), OWN, ["CATEGORY_FORUMS"])).toEqual({
+      to_you: false,
+      list: true,
+      automated: false,
+      category: "forums",
+    });
+    expect(mailTraits(h({ From: "Bank <no-reply@bank.example>", To: "ada@acme.com" }), OWN, ["CATEGORY_UPDATES"])).toEqual({
+      to_you: true,
+      list: false,
+      automated: true,
+      category: "updates",
+    });
+    // A mailbox without tabs has no category; a mail with no From is no person's.
+    expect(mailTraits(h({ To: "ada@acme.com" }), OWN)).toEqual({ to_you: true, list: false, automated: true, category: null });
+  });
+
+  test("traits read back from a file, and a record from before them has none", () => {
+    expect(parseMailTraits({ to_you: true, list: false, automated: true, category: "social" })).toEqual({
+      to_you: true,
+      list: false,
+      automated: true,
+      category: "social",
+    });
+    expect(parseMailTraits({ to_you: true, list: false, automated: false, category: "elsewhere" })?.category).toBeNull();
+    expect([parseMailTraits(undefined), parseMailTraits({ to_you: "yes" })]).toEqual([null, null]);
+  });
+});

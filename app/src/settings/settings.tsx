@@ -1,6 +1,8 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
+import { ChatLinks, type ChatLinksApi } from "./chat-links";
 import { Engines, type EnginesApi } from "./engines";
 import { Labels, type LabelsApi } from "./labels";
+import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
@@ -20,8 +22,13 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
-import { REST_GROWTH, type RestFirst } from "../../../core/attention/rest.ts";
-import { useRestFirst } from "../shared/rest-first";
+import { REST_GROWTH, type CardKind, type RestFirst, type RestLater, type ReturnTimes } from "../../../core/attention/rest.ts";
+
+/** Preferences › Inbox's return times, kept by the mod (plan 070): what they are now, and new ones. */
+export interface ReturnTimesApi {
+  times: ReturnTimes;
+  set: (times: ReturnTimes) => void;
+}
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
@@ -85,12 +92,16 @@ export function Settings({
   macs,
   globalSkills,
   mcp,
+  accounts,
+  agents,
   engines,
+  links,
   labels,
   update,
   shortcut,
   recall,
   usage,
+  returnTimes,
   onClose,
 }: {
   chatLink: ChatLink;
@@ -115,8 +126,14 @@ export function Settings({
   globalSkills: GlobalSkillsApi;
   /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
+  /** Preferences › Accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067). */
+  accounts: AccountsApi;
+  /** Every agent by name, to choose an account's owner from. */
+  agents: readonly AgentName[];
   /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
   engines: EnginesApi;
+  /** Preferences › Chat › Chat links (plan 067); left out, the block says the daemon is not linked. */
+  links?: ChatLinksApi;
   /** Preferences › Labels: the labels on chats, renamed, recoloured or deleted everywhere (plan 022). */
   labels: LabelsApi;
   /** Newer loki releases, from GitHub (Preferences › About). */
@@ -127,6 +144,8 @@ export function Settings({
   recall: RecallModel;
   /** What the agents spent, and their names (Preferences › Usage). */
   usage: UsageApi;
+  /** How long ⌘] and ⌘[ rest each kind of card (Preferences › Inbox). */
+  returnTimes: ReturnTimesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
@@ -147,7 +166,9 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage />,
+    inbox: () => <InboxPage returnTimes={returnTimes} />,
+    accounts: () =>
+      chatLink === "open" ? <Accounts api={accounts} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     providers: () => (
       <ProvidersPage
         chatLink={chatLink}
@@ -172,6 +193,7 @@ export function Settings({
         chatPlacement={chatPlacement}
         onChatPlacement={onChatPlacement}
         approvals={chatLink === "open" ? mcp.approvals : null}
+        links={chatLink === "open" ? (links ?? null) : null}
       />
     ),
     labels: () => <LabelsPage labels={labels} chatLink={chatLink} />,
@@ -468,12 +490,14 @@ function ChatPage({
   chatPlacement,
   onChatPlacement,
   approvals,
+  links,
 }: {
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
   onChatPlacement: (p: ChatPlacement) => void;
   approvals: McpApi["approvals"] | null;
+  links: ChatLinksApi | null;
 }) {
   return (
     <>
@@ -487,6 +511,9 @@ function ChatPage({
       </Block>
       <Block title="Always allowed" help="tools that run without asking, in every chat and every mode but strict.">
         {approvals ? <AlwaysAllowed api={approvals} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
+      </Block>
+      <Block title="Chat links" help="which chats may message each other, opened on the card an agent shows when it first asks.">
+        {links ? <ChatLinks api={links} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
       </Block>
     </>
   );
@@ -504,28 +531,72 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
   return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-/** Preferences › Inbox: what Next, Archive and a reply do, and how the deck orders its cards behind a fold. */
-function InboxPage() {
-  const [restFirst, setRestFirst] = useRestFirst();
+/**
+ * Preferences › Inbox: what read, later, archive, label and a reply do, how long read and later set each kind of card
+ * aside, and how the deck orders its cards behind a fold. The accounts whose mail and messages become cards have their
+ * own page, Preferences › Accounts (plan 068). Exported for its test.
+ */
+export function InboxPage({ returnTimes }: { returnTimes: ReturnTimesApi }) {
+  const { times, set } = returnTimes;
   return (
     <>
-      <Block help="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived. The card in front of you never moves until you act on it.">
+      <Block help="every chat you have not archived, every thread in your Gmail inbox and every unread Slack message. A card stays until it is done: a chat or an email when you archive it, a Slack message when you read it. The card in front of you never moves until you act on it.">
         <Setting
-          label="Next"
-          help={`Reads the card and sets the chat down for a while, then ${REST_GROWTH} times longer each Next in a row while nothing new comes, up to a week; anything new from the agent brings it back at once.`}
+          label="Read"
+          help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message is done once read.`}
         >
           <Kbd>{keyFor("inbox.next")}</Kbd>
         </Setting>
-        <Setting
-          label="Next rests a card for"
-          help="The first rest, on this device. Long enough to finish the chat in front of you before the one you set aside comes back."
-        >
-          <Segmented label="next rests a card for" options={REST_FIRST_KEYS} value={restFirst} onPick={setRestFirst} labels={REST_FIRST_LABELS} />
+        <Setting label="Read rests a card for" help="The first rest after read, on every device.">
+          <div style={KIND_GRID}>
+            {READ_KINDS.map((kind) => [
+              <span key={`${kind}-name`} className="loki-meta">
+                {KIND_NAME[kind]}
+              </span>,
+              <Segmented
+                key={kind}
+                label={`read rests ${KIND_NAME[kind]} for`}
+                options={REST_FIRST_KEYS}
+                value={times.read_first[kind]}
+                onPick={(first) => set({ ...times, read_first: { ...times.read_first, [kind]: first } })}
+                labels={REST_FIRST_LABELS}
+              />,
+            ])}
+          </div>
         </Setting>
-        <Setting label="Archive" help="Done: the chat leaves the Inbox. Undo brings it back.">
+        <Setting
+          label="Later"
+          help="Keeps the card unread, here and in Gmail or Slack, and brings it back after the time below, or sooner if something new comes. The second later in a row asks when."
+        >
+          <Kbd>{keyFor("inbox.later")}</Kbd>
+        </Setting>
+        <Setting label="Later brings a card back after" help="On every device. A new time counts from the next later; a card already set aside keeps its own.">
+          <div style={KIND_GRID}>
+            {LATER_KINDS.map((kind) => [
+              <span key={`${kind}-name`} className="loki-meta">
+                {KIND_NAME[kind]}
+              </span>,
+              <Segmented
+                key={kind}
+                label={`later brings ${KIND_NAME[kind]} back after`}
+                options={REST_LATER_KEYS}
+                value={times.later[kind]}
+                onPick={(later) => set({ ...times, later: { ...times.later, [kind]: later } })}
+                labels={REST_LATER_LABELS}
+              />,
+            ])}
+          </div>
+        </Setting>
+        <Setting label="Archive" help="Done: a chat is archived, an email thread is archived in Gmail, a Slack message is marked read. Undo brings it back.">
           <Kbd>{keyFor("inbox.archive")}</Kbd>
         </Setting>
-        <Setting label="A reply" help="Keeps the card, so the answer streams in where you are; Next moves on, and the answer then brings the card back." />
+        <Setting label="Label" help="On an email card: adds Gmail labels, and the card stays for your next key.">
+          <Kbd>{keyFor("inbox.label")}</Kbd>
+        </Setting>
+        <Setting
+          label="A reply"
+          help="On a chat card, the message goes to the agent and the card stays, so the answer streams in where you are. On an email or Slack card, the key you press sends what you typed, then does its own move."
+        />
       </Block>
       <Fold title="How the order works">
         <Setting label="Blocked" help="An approval or a question: an agent is stopped until you answer.">
@@ -548,10 +619,22 @@ function InboxPage() {
   );
 }
 
+/** Per-kind choices on a row: each kind's name beside its control, the controls lined up on the right. */
+const KIND_GRID: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto auto", alignItems: "center", justifyItems: "end", gap: 8 };
+/** The kinds of card read rests; a Slack message is done once read, so it has no rest. */
+const READ_KINDS = ["chat", "email"] as const;
+/** The kinds of card later brings back. */
+const LATER_KINDS = ["chat", "email", "slack"] as const;
+/** Each kind of card as the Inbox page names it. */
+const KIND_NAME: Record<CardKind, string> = { chat: "chats", email: "email", slack: "Slack" };
 /** The first rests on offer, shortest first. */
 const REST_FIRST_KEYS: readonly RestFirst[] = ["10m", "30m", "1h", "3h"];
 /** Each first rest as the setting says it. */
 const REST_FIRST_LABELS: Record<RestFirst, string> = { "10m": "10 min", "30m": "30 min", "1h": "1 hour", "3h": "3 hours" };
+/** The later returns on offer, soonest first. */
+const REST_LATER_KEYS: readonly RestLater[] = ["3h", "1d", "2d", "1w"];
+/** Each later return as the setting says it. */
+const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 hours", "1d": "1 day", "2d": "2 days", "1w": "1 week" };
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {

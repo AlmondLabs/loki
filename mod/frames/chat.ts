@@ -1,3 +1,4 @@
+import type { LokiMode } from "../../core/chat-links.ts";
 import type { MovedChat } from "../../daemon/chat-move.ts";
 import { missingFor } from "../requirements.ts";
 import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
@@ -20,6 +21,14 @@ export interface ChatBackend {
   /** `home`: the Mac the person picked for it, which places it when its agent lives elsewhere (plan 023, addendum A2). */
   create(agentId: string, cwd: string | null, title: string | null, home?: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
+  /** The power a chat has now, as loki's mode (plan 067): what a message it sends may give the turn it starts. */
+  power(agentId: string, conversationId: string): Promise<LokiMode | null>;
+  /**
+   * Another chat's message (plan 067), its turn held to `cap`: the chat runs with no more power than that until the
+   * person next messages it while it is idle. Why it cannot take a message so held (an ACP agent's mode, which loki
+   * cannot lower, has more power), or null when it took it.
+   */
+  sendHeld(p: PayloadOf<"chat_send">, cap: LokiMode | null): Promise<string | null>;
   abort(agentId: string, conversationId: string): Promise<void>;
   /** Its reply names the saved draft's suggestion when it saved one. */
   update(p: PayloadOf<"chat_update">): Promise<Replies["chat_done"]>;
@@ -78,7 +87,10 @@ export interface ChatBackend {
 /** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
-  /** Why an agent may not be deleted now (a paired Mac out of reach would keep its chats), or null (plan 023). */
+  /**
+   * Why an agent may not be deleted now, or null: a paired Mac out of reach would keep its chats (plan 023), or it owns
+   * Inbox accounts, here or on another Mac, that must be moved or disconnected first (plan 067, R4).
+   */
   agentDeleteBlocked?: (agentId: string) => string | null;
   /** Why a chat takes no message now (it is moving to another Mac), or null (plan 023, U9). */
   chatBlocked?: (agentId: string, conversationId: string) => string | null;

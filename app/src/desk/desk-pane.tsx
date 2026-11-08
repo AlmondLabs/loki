@@ -1,3 +1,4 @@
+import { LinkHeader } from "../chat/link-header";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
@@ -157,6 +158,8 @@ export function DeskPane(props: DeskPaneProps) {
                 </button>
               </span>
             )}
+            {/* The chat's links to other chats (plan 067): which way each goes, the time left, and close. */}
+            {view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null}
           </span>
         }
         actions={tab === "desk" ? <DeskActions /> : undefined}

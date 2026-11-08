@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { AgentFace } from "../desk/agent-chip";
 import { Button, Field, Row, Switch } from "../components";
 import type { McpApi } from "../settings/mcp";
+import { OwnedAccounts, type AccountsApi, type AgentName } from "../settings/accounts";
 import type { McpView } from "../../../core/frame-types.ts";
 
 import { ago } from "../shared/ago";
@@ -24,6 +25,7 @@ export function ProfilePage({
   onOpenDesk,
   onShowDesks,
   mcp,
+  accounts,
   macs,
   confirmDelete,
   setConfirmDelete,
@@ -39,6 +41,8 @@ export function ProfilePage({
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onShowDesks: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
+  /** The Inbox accounts and every agent, so a delete first moves or disconnects the accounts this agent owns (plan 067, R4). */
+  accounts?: { api: AccountsApi; agents: readonly AgentName[] };
   /** This Mac first, then the Macs paired with it (plan 023); with more than one, the agent's home can be changed. */
   macs?: MacIdentity[];
   confirmDelete: boolean;
@@ -54,7 +58,7 @@ export function ProfilePage({
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
         <div style={{ paddingTop: 8 }}>
           {confirmDelete ? (
-            <ConfirmDelete d={d} myDesks={myDesks} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
+            <ConfirmDelete d={d} myDesks={myDesks} accounts={accounts} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} />
           ) : (
             <Button tone="negative" onClick={() => setConfirmDelete(true)}>
               delete this agent…
@@ -99,8 +103,29 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   );
 }
 
-/** The last step before deleting: what closes (live desks). */
-function ConfirmDelete({ d, myDesks, onRemove, onKeep }: { d: AgentDetails; myDesks: DeskSummary[]; onRemove: () => Promise<void>; onKeep: () => void }) {
+/**
+ * The last step before deleting: what closes (live desks), and the accounts the agent owns, each to move or disconnect
+ * before it can go (plan 067, R4). A refused delete asks for the accounts again, so one connected meanwhile shows too.
+ */
+function ConfirmDelete({
+  d,
+  myDesks,
+  accounts,
+  onRemove,
+  onKeep,
+}: {
+  d: AgentDetails;
+  myDesks: DeskSummary[];
+  accounts?: { api: AccountsApi; agents: readonly AgentName[] };
+  onRemove: () => Promise<void>;
+  onKeep: () => void;
+}) {
+  const [asked, setAsked] = useState(0);
+  const [owned, setOwned] = useState(0);
+  const remove = async () => {
+    await onRemove();
+    setAsked((n) => n + 1);
+  };
   return (
     <div
       role="alertdialog"
@@ -125,8 +150,9 @@ function ConfirmDelete({ d, myDesks, onRemove, onKeep }: { d: AgentDetails; myDe
               .join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.`
           : ""}
       </span>
+      {accounts && <OwnedAccounts api={accounts.api} agentId={d.agent.id} agents={accounts.agents} asked={asked} onOwned={setOwned} />}
       <div style={{ display: "flex", gap: 8 }}>
-        <Button tone="negative" onClick={() => void onRemove()}>
+        <Button tone="negative" disabled={owned > 0} onClick={() => void remove()}>
           delete {d.agent.name}
         </Button>
         <Button onClick={onKeep}>keep</Button>

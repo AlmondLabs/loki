@@ -1001,6 +1001,52 @@ button.loki-file-chip {
   color: var(--loki-accent);
   margin-bottom: 8px;
 }
+/* The link card (plan 067, link-card.tsx): a question card holding the message and two rows of choices. */
+.loki-link-choices {
+  display: grid;
+  gap: 6px;
+}
+.loki-link-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* The chat's links in its header (link-header.tsx): the other chat's name and the time left, a click closes one. */
+.loki-chat-links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+/* Several links fold into one chip; its list hangs below it, right-aligned to the header's edge. */
+.loki-chat-links--folded {
+  position: relative;
+  flex-wrap: nowrap;
+}
+.loki-chat-link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.loki-chat-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--loki-radius-sm);
+}
+.loki-chat-link-row .loki-chat-link-name {
+  flex: 1;
+  max-width: none;
+}
+.loki-chat-link-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .loki-question-kicker {
   color: var(--loki-accent);
   font-size: 12px;
@@ -1526,6 +1572,87 @@ button.loki-label-chip:focus-visible {
   outline-offset: 2px;
 }
 /* A chat's purpose line (plan 049) under its name in the header: one quiet line, cut short when it runs long. */
+/* An Inbox card's header (plan 073): a face with the mark of where it came from, who, then where or what and when. */
+.loki-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--loki-border);
+  flex: 0 0 auto;
+}
+.loki-card-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.loki-card-head-who {
+  font-family: var(--loki-font);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--loki-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-card-head-line {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.loki-card-head-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  color: var(--loki-fg);
+}
+.loki-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.loki-card-face {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.loki-card-mark {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--loki-radius-sm);
+  border: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.loki-card-mark--slack {
+  color: var(--loki-mark-slack);
+}
+.loki-card-mark--mail {
+  color: var(--loki-mark-mail);
+}
+/* How directly a card is meant for the person: the top of the scale reads in full ink, the bottom steps back. */
+.loki-reach {
+  white-space: nowrap;
+}
+.loki-reach--direct {
+  color: var(--loki-fg);
+  font-weight: 600;
+}
+.loki-reach--quiet {
+  color: var(--loki-muted);
+}
 .loki-chat-purpose {
   margin-top: 2px;
   font-size: 12px;
@@ -1552,4 +1679,292 @@ button.loki-label-chip:focus-visible {
 .loki-quick-reply-text {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A mail drawn as its sender wrote it (desk/mail-html.tsx): a light page in the card, as tall as its content. */
+.loki-mail-html {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--loki-radius-md);
+  color-scheme: light;
+}
+/* A mail before the newest in its thread, folded to one line; a press opens it. */
+.loki-mail-fold {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-mail-fold:hover {
+  background: var(--loki-hover);
+}
+.loki-mail-fold-line {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--loki-muted);
+}
+/* A mail card's recipients line (plan 076): the mode, from and whom it goes to, collapsed to one line or opened into rows. */
+.loki-mail-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.loki-mail-line-who {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.loki-mail-line-who:hover:not(:disabled) {
+  color: var(--loki-accent);
+}
+.loki-mail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-mail-row-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 0;
+}
+.loki-mail-suggest {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  max-width: 100%;
+  padding: 4px;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-lg);
+  box-shadow: var(--loki-shadow-float);
+}
+.loki-mail-suggest-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-mail-suggest-row[aria-selected="true"],
+.loki-mail-suggest-row:hover {
+  background: var(--loki-hover);
+}
+/* The quote a mail reply carries, folded to "•••" as Gmail folds it, and opened under the box to read. */
+.loki-mail-quote-toggle {
+  align-self: flex-start;
+  padding: 0 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+.loki-mail-quote-toggle:hover {
+  background: var(--loki-hover);
+}
+.loki-mail-quote {
+  max-height: 160px;
+  overflow: auto;
+  padding-left: 8px;
+  border-left: 2px solid var(--loki-border);
+  color: var(--loki-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A web address in a plain mail or a Slack message, made a link that opens in the browser. */
+.loki-mail-link {
+  color: var(--loki-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* A Slack card's body (plan 074): the chat's own message rows, the card's thread indented under its first message
+   as an open thread, a day pill on a hairline, @channel marked as Slack marks it. */
+.loki-slack-thread {
+  display: flex;
+  flex-direction: column;
+}
+.loki-slack-reply {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 2px solid var(--loki-border);
+}
+.loki-slack-reply .loki-msg {
+  margin-left: -12px;
+  padding-left: 12px;
+}
+/* The pill stays in its place: the card has no day blocks to push one off the next, so a sticky pill would sit over
+   the messages under it. */
+.loki-slack-day.loki-msg-day-pill-wrap {
+  position: relative;
+  margin: 12px 0 4px;
+}
+.loki-slack-day.loki-msg-day-pill-wrap::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--loki-border);
+}
+.loki-slack-day .loki-msg-day-pill {
+  position: relative;
+}
+.loki-slack-text {
+  white-space: pre-wrap;
+}
+.loki-mention {
+  padding: 0 2px;
+  border-radius: var(--loki-radius-sm);
+  background: var(--loki-brass-soft);
+  font-weight: 600;
+}
+/* A Slack message's words as Slack draws them (plan 075): code in the one mono, a quote behind a bar, a workspace's
+   own emoji at the height of a line, and an app's attachment behind a bar in the colour it chose. */
+.loki-slack-code {
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  background: var(--loki-code);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.loki-slack-pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  background: var(--loki-well);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+}
+.loki-slack-quote {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 4px solid var(--loki-border);
+}
+/* Above the body's own image rule, which would let an emoji take its picture's height. */
+.loki-slack-text img.loki-emoji {
+  display: inline-block;
+  width: 1.375em;
+  height: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
+.loki-slack-attachment {
+  margin-top: 4px;
+  padding: 2px 0 2px 12px;
+  border-left: 4px solid var(--loki-border);
+}
+.loki-slack-attachment-title {
+  font-weight: 600;
+}
+.loki-slack-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 4px 16px;
+  margin: 4px 0 0;
+}
+.loki-slack-fields dt {
+  font-weight: 600;
+}
+.loki-slack-fields dd {
+  margin: 0;
+}
+.loki-slack-replies {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--loki-accent);
+}
+.loki-slack-more {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--loki-muted);
+  text-align: center;
+}
+/* A message that brought the card in (plan 077, R12): Slack's mention wash with a bar at its left edge. */
+.loki-slack-brought {
+  margin: 0 -8px;
+  padding: 0 8px 0 6px;
+  border-left: 2px solid var(--loki-mention-bar);
+  border-radius: 0 var(--loki-radius-sm) var(--loki-radius-sm) 0;
+  background: var(--loki-mention);
+}
+/* A reply that brought the card keeps its place under the thread; the mention bar takes the thread line's place. */
+.loki-slack-reply.loki-slack-brought {
+  margin-left: 22px;
+  padding-left: 12px;
+}
+/* Load more on one side of the window, a post's new replies, and the way back from a thread (plan 077, R3, R11). */
+.loki-slack-load {
+  display: block;
+  margin: 8px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: none;
+  color: var(--loki-accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.loki-slack-load:disabled {
+  color: var(--loki-muted);
+  cursor: default;
+}
+.loki-slack-back {
+  margin-top: 0;
+}
+.loki-slack-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
 }

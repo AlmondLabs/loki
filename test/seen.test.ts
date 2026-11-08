@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
+import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
 /** The attention file as the store wrote it. */
 const written = (path: string) =>
@@ -122,4 +123,38 @@ describe("a mark that changes nothing, and the coalesced write", () => {
       expect(written(path).seen).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
       expect(new SeenStore(path).all()).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
     }));
+});
+
+describe("return times (plan 070, U4)", () => {
+  test("none stored until set; set ones are kept beside the rests, across a restart, and leave the rests alone", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const path = join(dir, "attention.json");
+      const store = new SeenStore(path, { debounceMs: 0, now: () => "2026-11-05T10:00:00.000Z" });
+      const rest = { n: 1, until: "2026-11-06T10:00:00.000Z", stamp: "s", at: "2026-11-05T09:00:00.000Z", kind: "later" as const };
+      store.rest("a", "c1", rest);
+      expect(store.returnTimes()).toBeNull();
+      const times = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, email: "2d" as const } };
+      expect(store.setReturnTimes(times)).toBe(true);
+      expect(store.setReturnTimes(times)).toBe(false); // the same again moves nothing
+      expect(store.restsAll()).toEqual({ "a/c1": rest });
+      store.flush();
+      const again = new SeenStore(path);
+      expect(again.returnTimes()).toEqual(times);
+      expect(again.restsAll()).toEqual({ "a/c1": rest });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a stored value that is not a set of return times reads as none", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const path = join(dir, "attention.json");
+      writeFileSync(path, JSON.stringify({ seen: {}, return_times: { times: { read_first: "1h" }, at: "2026-11-05T10:00:00.000Z" } }));
+      expect(new SeenStore(path).returnTimes()).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

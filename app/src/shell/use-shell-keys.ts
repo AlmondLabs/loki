@@ -112,7 +112,7 @@ export function useShellKeys(
   // The native menu bar is built from the same keymap. Its clicks arrive as loki:menu with the binding id;
   // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
   // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
-  // and "next card" in the inbox; the key handler already ran the right one).
+  // and "read the card" in the inbox; the key handler already ran the right one).
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;

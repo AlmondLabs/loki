@@ -102,6 +102,12 @@ sheet, saying what the chat is for. It shows under the chat's name in its header
 `chat_list` to pick the chat a piece of work fits; only the person writes it. _Avoid_: description (an agent's own),
 topic.
 
+**Chat link** (`mod/chat-links.ts`, `core/chat-links.ts`, plan 067): the person's leave for one chat to message
+another with `chat_message`, one way or both ways, for an hour, a day or until closed. Opened only on the **link card**,
+a question card the sending chat shows when its agent first messages a chat it has no link to; kept and checked by each
+chat's Mac. A message along it lands as a row of its own and holds the receiving chat's turn to the sender's power (a
+**turn hold**, `ChatInfo.turn_cap`). _Avoid_: channel, permission (a tool approval), grant.
+
 **Suggestion** (`mod/suggestions.ts`, plan 049): a message an agent writes for another chat, an open one of any agent
 or a new one for an agent in a folder, made with `suggestion_create` whenever another chat fits the work better. It
 is kept on the record of the chat it was made in, on that chat's home, and shows in that chat's screen, outside the
@@ -120,16 +126,67 @@ a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a c
 component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
 code's desk is the chat).
 
-**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats that wait on you, one card at a time,
-highest score first (`core/attention/priority.ts`). Next reads a card and moves on (it rests, see Rest); archive is
-done.
+**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats, mail and Slack messages that wait on you,
+one card at a time, highest score first (`core/attention/priority.ts`). The same moves work on every card
+(`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see Later) and archive (⌘E). A
+card stays until it is done.
+
+**Done** (a card's terminal state, plan 070): the move after which a card is gone from the Inbox for good, until its
+thread gets something new. A chat is done when it is archived, an email when its thread leaves the Gmail inbox
+(archived from loki, from Gmail or by a hand-off), and a Slack message when it is read (in loki, in Slack, by archive
+or by a hand-off). Reading a chat or an email is not done: it rests. _Avoid_: cleared, finished (for a card that only
+rests).
 
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
 list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
 
-**Rest** (`core/attention/rest.ts`, plans 026 and 065): how long an Inbox card stays out after Next, an hour unless
-Preferences › Inbox says otherwise. A card with nothing new rests longer each Next in a row (its **rung**), a card with
-something new the first rest only; anything new in the chat ends it. _Avoid_: snooze, later (the removed key that did this by hand).
+**Rest** (`core/attention/rest.ts`, plans 026, 065 and 070): how long an Inbox card stays out after read (⌘], once
+called Next) or later. A read rest is an hour unless Preferences › Inbox says otherwise, set for chats and for email
+apart; a card with nothing new rests longer each read in a row (its **rung**), a card with something new the first rest
+only. A later rest is the Later below. Anything new in the thread ends either. A rest is kept on the daemon
+(`rests` in `state/attention.json`) with its kind, `read` or `later`, so every device shares it. _Avoid_: snooze.
+
+**Later** (⌘[ or ←; a left swipe on the phone; plan 070): a rest that keeps the card unread, in loki and in Gmail, and
+brings it back after the card kind's later time (a day unless Preferences › Inbox says otherwise), or sooner if
+something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
+once the thread gets something new or the card is read. _Avoid_: snooze, park.
+
+**Account** (`mod/accounts.ts`, plan 067): a Gmail mailbox or a Slack workspace connected on this Mac, whose threads
+addressed to the person become outside cards. Its id is `gmail:<address>` or `slack:<team>:<user>`; its record lives in
+`state/accounts.json` and what it signs in with only in the keychain. An account lives on one Mac. _Avoid_:
+integration, connector, source (a Source is where a thread's steps come from).
+
+**Owner** (`owner_agent_id` on an account): the one agent an account belongs to. It receives the account's hand-offs
+and is the only agent with its tools (`account_list`, `account_read`, `account_search`, `reply_propose`); moving the
+account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
+disconnected.
+
+**Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): an Inbox card for one thread in
+an account rather than a chat: every thread in the Gmail inbox, read or unread, and every unread Slack DM or Activity
+item. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
+plan 070): read marks the thread read, later leaves it unread, archive archives the email in Gmail or marks a Slack DM
+read, label adds Gmail labels, and undo puts the thread back as it was. It shows the whole thread, read from its
+account when it comes up, and takes the person's own reply, which the key they press sends before its own move
+(`mod/outside-threads.ts`, plans 068 and 070); it files under its owner's tab. The thread's record (open, archived or
+handed off, read or unread in Gmail, and its newest message) is kept in `state/account-threads/<account id>.json`.
+_Avoid_: notification, email card (for an outside card in general; a Gmail one is an email card).
+
+**Inbox ledger** (`mod/inbox-ledger.ts`, plans 069 and 070): one line for each of the person's moves on an outside
+card (read, later, archive, label, reply, hand-off and undo, with the return a rest scheduled, the labels added and
+the pick from the second later), with how it was made, how long the card was on top, the thread's sender and subject, and
+the mail's traits (`MailTraits`: to you, a list, automated, Gmail's tab). It is kept in `state/inbox-ledger.jsonl` on
+the account's Mac, as the data for learning the person's preferences. _Avoid_: history, activity log.
+
+**Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki
+proposes (the one it went to before, or a new one) or another of the owner's chats. The chat gets the whole thread,
+fenced as content from its senders, and the card is done: the thread is archived in Gmail or marked read in Slack, up
+to the message handed, unless a newer one came meanwhile (`AccountThreads.archiveHandedOff`, plan 070). Not the
+Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
+
+**Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
+thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
+perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. loki
+never sends. _Avoid_: sent reply, outgoing message.
 
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
 and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;
