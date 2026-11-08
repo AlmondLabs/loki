@@ -34,7 +34,17 @@ import {
 } from "./rest.ts";
 import { allCommands } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
-import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, ReplyProposal, ReplyThen, Suggestion } from "../frame-types.ts";
+import type {
+  AccountLabel,
+  HandoffProposal,
+  OutsideChange,
+  OutsideMove,
+  OutsideRead,
+  OutsideWindowAsk,
+  ReplyProposal,
+  ReplyThen,
+  Suggestion,
+} from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
@@ -149,7 +159,7 @@ export interface HandoffSource {
  * the card. Both resolve to the reason in words when refused.
  */
 export interface OutsideSource {
-  readOutside: (item: AttentionItem) => Promise<OutsideMessage[] | string>;
+  readOutside: (item: AttentionItem, ask?: OutsideWindowAsk) => Promise<OutsideRead | string>;
   replyOutside: (item: AttentionItem, text: string, then: ReplyThen) => Promise<OutsideReplyResult>;
 }
 

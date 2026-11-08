@@ -1,4 +1,4 @@
-import type { AccountDisconnectCause, AccountProvider, OutsideFacts, OutsideMessage } from "../../../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, OutsideFacts, OutsideMessage, OutsideWindow, OutsideWindowAsk } from "../../../core/frame-types.ts";
 import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -79,30 +79,104 @@ export function outsideTitle(o: OutsideFacts): string {
   return o.provider === "gmail" ? o.subject || "no subject" : senderName(o.sender);
 }
 
+/** What a Slack card's window can do next (plan 076): load more on a side, open a post's thread, go back to the channel. */
+export interface ThreadControls {
+  load: (direction: "before" | "after") => void;
+  openThread: (threadTs: string) => void;
+  /** Back to the channel or DM view, when the person opened this thread from it (R11); absent otherwise. */
+  back?: () => void;
+  /** The side a load is reading now. */
+  busy: "before" | "after" | null;
+}
+
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
-export type ThreadState = { kind: "loading" } | { kind: "read"; messages: OutsideMessage[] } | { kind: "failed"; message: string };
+export type ThreadState =
+  | { kind: "loading" }
+  | { kind: "read"; messages: OutsideMessage[]; window?: OutsideWindow | null; controls?: ThreadControls }
+  | { kind: "failed"; message: string };
+
+/** What the card is showing: for which card and view, and what came back, with any load in flight. */
+interface Shown {
+  /** The card and view it was read for, and the read itself, which a newer message makes again. */
+  view: string;
+  tag: string;
+  messages: OutsideMessage[];
+  window: OutsideWindow | null;
+  busy: "before" | "after" | null;
+  failed: string | null;
+}
+
+/** The first message after a thread's pinned first message, which "load earlier" loads before. */
+const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
+  (w.view === "thread" ? messages.find((m) => m.id !== w.thread_ts) : messages[0])?.id ?? null;
 
 /**
- * The card's whole thread (plan 068), read from its account when the card comes up and again when a new message
- * arrives in it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines.
+ * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
+ * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
+ * window (plan 076) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
+ * its newest message changes (R15).
  */
 export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource, "readOutside"> | null): ThreadState {
-  const [state, setState] = useState<ThreadState>({ kind: "loading" });
   const o = item.outside;
   const key = o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
+  // The thread the person opened from the channel view, for this card only; another card starts on its own view.
+  const [opened, setOpened] = useState<{ key: string; threadTs: string } | null>(null);
+  const threadTs = opened?.key === key ? opened.threadTs : null;
+  const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
+  const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
+  const tag = `${key}/${threadTs ?? ""}`;
+  const [shown, setShown] = useState<Shown | null>(null);
   // The item changes identity on every list update; the thread is read again only when its newest message does.
-  const read = useEffectEvent(() => source?.readOutside(item) ?? null);
+  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
   useEffect(() => {
     if (!key) return;
     let live = true;
-    void read()?.then((out) => {
-      if (live) setState(typeof out === "string" ? { kind: "failed", message: out } : { kind: "read", messages: out });
+    void read({})?.then((out) => {
+      if (!live) return;
+      setShown(
+        typeof out === "string"
+          ? { view, tag, messages: [], window: null, busy: null, failed: out }
+          : { view, tag, messages: out.messages, window: out.window, busy: null, failed: null },
+      );
     });
     return () => {
       live = false;
     };
-  }, [key]);
-  return state;
+  }, [key, tag, view]);
+  // A newer message reads the thread again; meanwhile the card keeps what it shows.
+  if (!key || shown?.view !== view) return { kind: "loading" };
+  if (shown.failed !== null) return { kind: "failed", message: shown.failed };
+  const w = shown.window;
+  if (!w) return { kind: "read", messages: shown.messages };
+  const load = (direction: "before" | "after") => {
+    if (shown.busy) return;
+    const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
+    if (!from) return;
+    setShown({ ...shown, busy: direction });
+    void source?.readOutside(item, { ...ask, direction, from }).then((out) =>
+      setShown((now) => {
+        if (now?.tag !== tag) return now;
+        if (typeof out === "string") return { ...now, busy: null };
+        const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
+        const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
+        const body = rest.filter((m) => !pinned.includes(m));
+        const more = out.window ?? w;
+        return {
+          ...now,
+          busy: null,
+          messages: direction === "before" ? [...pinned, ...out.messages, ...body] : [...rest, ...out.messages],
+          window: direction === "before" ? { ...w, more_before: more.more_before } : { ...w, more_after: more.more_after },
+        };
+      }),
+    );
+  };
+  const controls: ThreadControls = {
+    load,
+    openThread: (ts) => setOpened({ key, threadTs: ts }),
+    ...(threadTs ? { back: () => setOpened(null) } : {}),
+    busy: shown.busy,
+  };
+  return { kind: "read", messages: shown.messages, window: w, controls };
 }
 
 /** One message: who wrote it (or "you"), when, and the mail as its sender drew it, else its text with links that open. */
@@ -180,7 +254,8 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
         <OutsideLines facts={facts} touch={touch} />
       </div>
     );
-  if (facts.provider === "slack" && !touch) return <SlackThread messages={state.messages} newest={facts.newest_message_id} />;
+  if (facts.provider === "slack" && !touch)
+    return <SlackThread messages={state.messages} newest={facts.newest_message_id} window={state.window ?? null} controls={state.controls ?? null} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
       {state.messages.map((m, i) => (

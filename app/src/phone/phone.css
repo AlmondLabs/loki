@@ -31,6 +31,8 @@
   --loki-on-affirm: #ffffff;
   --loki-mark-slack: #d4a0e0;
   --loki-mark-mail: #f28b82;
+  --loki-mention: #2e2a1f;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #2c2f34;
   --loki-well: #222529;
   --loki-bubble: #222529;
@@ -140,6 +142,8 @@
   --loki-on-affirm: #ffffff;
   --loki-mark-slack: #611f69;
   --loki-mark-mail: #c5221f;
+  --loki-mention: #fdf5e0;
+  --loki-mention-bar: #e8a33a;
   --loki-grid: #ebebeb;
   --loki-well: #f8f8f8;
   --loki-bubble: #f8f8f8;

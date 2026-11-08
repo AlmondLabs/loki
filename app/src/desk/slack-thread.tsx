@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useRef, type ReactNode } from "react";
-import type { OutsideMessage, SlackAttachment, SlackBlock, SlackSpan } from "../../../core/frame-types.ts";
+import { Fragment, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import type { OutsideMessage, OutsideWindow, SlackAttachment, SlackBlock, SlackSpan } from "../../../core/frame-types.ts";
 import { clockLabel, dayLabel, dayPills } from "../shared/thread";
 import { scrollWithin } from "../shared/scroll-within";
 import { AgentFace } from "./agent-chip";
 import { openExternal } from "./env";
 import { LinkedText, openableHref } from "./mail-html";
+import type { ThreadControls } from "./outside-card";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -168,7 +169,7 @@ function SlackText({ text }: { text: string }): ReactNode {
 }
 
 /** One message as the chat draws one: a face and name on the first of a run, its time (and day, when it moved on) beside the name. */
-function SlackRow({ m, first, dayNote }: { m: OutsideMessage; first: boolean; dayNote: string | null }) {
+function SlackRow({ m, first, dayNote, onOpen }: { m: OutsideMessage; first: boolean; dayNote: string | null; onOpen?: () => void }) {
   const clock = clockLabel(m.at);
   const time = clock && dayNote ? `${dayNote} at ${clock}` : clock;
   const name = m.mine ? "you" : m.sender;
@@ -198,7 +199,11 @@ function SlackRow({ m, first, dayNote }: { m: OutsideMessage; first: boolean; da
             ))}
           </div>
         )}
-        {m.replies ? (
+        {m.new_replies && onOpen ? (
+          <button type="button" className="loki-slack-replies loki-slack-open" onClick={onOpen}>
+            {m.new_replies === true ? "new replies" : `${String(m.new_replies)} new ${m.new_replies === 1 ? "reply" : "replies"}`}
+          </button>
+        ) : m.replies ? (
           <div className="loki-slack-replies">
             {m.replies} {m.replies === 1 ? "reply" : "replies"}
           </div>
@@ -208,27 +213,88 @@ function SlackRow({ m, first, dayNote }: { m: OutsideMessage; first: boolean; da
   );
 }
 
+/** What a load button says: a thread's count of replies on that side, else "load earlier" or "load later" (plan 076, R3). */
+export function loadLabel(direction: "before" | "after", more: number | boolean, busy: boolean): string {
+  if (busy) return "loading…";
+  if (typeof more === "number") return `${String(more)} ${direction === "before" ? "earlier" : "later"} ${more === 1 ? "reply" : "replies"}`;
+  return direction === "before" ? "load earlier" : "load later";
+}
+
+/** Whether there is more on a side to load (R4). */
+const hasMore = (more: number | boolean) => (typeof more === "number" ? more > 0 : more);
+
 /**
- * A Slack card's body as the channel shows it (plan 074): the messages before the card's thread, the thread with its
- * replies indented under its first message, and the messages after it, with Slack's day pills and its red New line
- * before the first unread message. The card opens on that line, else on the message the card is about (`newest`).
+ * A Slack card's body as Slack shows it: the window around what brought the card (plan 076), in the thread alone with
+ * its first message pinned on top, or in the channel or DM with a post's threads indented under it (plan 074), with
+ * Slack's day pills, its red New line before the first new message, and the mention look on the messages that brought
+ * the card. Buttons load more on either side and open a post's new replies. The card opens on the New line, else on the
+ * message the card is about (`newest`); a load keeps what the person is reading where it is.
  */
-export function SlackThread({ messages, newest }: { messages: readonly OutsideMessage[]; newest: string }) {
-  const plan = planSlackRows(messages);
+export function SlackThread({
+  messages,
+  newest,
+  window = null,
+  controls = null,
+}: {
+  messages: readonly OutsideMessage[];
+  newest: string;
+  window?: OutsideWindow | null;
+  controls?: ThreadControls | null;
+}) {
+  const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;
+  const rows = pinned ? messages.slice(1) : messages;
+  const plan = planSlackRows(rows);
   const focus = useRef<HTMLDivElement>(null);
+  const top = useRef<HTMLDivElement>(null);
   const newAt = plan.findIndex((p) => p.divider);
-  const focusAt = newAt >= 0 ? newAt : messages.findIndex((m) => m.id === newest);
-  const count = messages.length;
+  const focusAt = newAt >= 0 ? newAt : rows.findIndex((m) => m.id === newest);
+  const opening = `${window?.view ?? ""}/${window?.thread_ts ?? ""}`;
   useEffect(() => {
-    const el = focus.current;
+    const el = focus.current ?? top.current;
     const box = el?.closest<HTMLElement>("[data-thread-scroll]");
-    if (count && el && box) scrollWithin(box, el, "center");
-  }, [count]);
-  const more = messages.at(-1)?.more_after === true;
+    if (el && box) scrollWithin(box, el, "center");
+  }, [opening]);
+  // Loading earlier messages puts them above what is being read; the box moves down by what they added, from wherever
+  // the person has scrolled meanwhile, so it stays. A load that brings nothing leaves the box alone.
+  const kept = useRef<{ box: HTMLElement; height: number } | null>(null);
+  const firstId = rows[0]?.id ?? "";
+  const busy = controls?.busy ?? null;
+  useLayoutEffect(() => {
+    const k = kept.current;
+    kept.current = null;
+    if (k) k.box.scrollTop += k.box.scrollHeight - k.height;
+  }, [firstId]);
+  useLayoutEffect(() => {
+    if (busy === null) kept.current = null;
+  }, [busy]);
+  const loadEarlier = () => {
+    const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
+    if (box) kept.current = { box, height: box.scrollHeight };
+    controls?.load("before");
+  };
+  const oldMore = messages.at(-1)?.more_after === true;
+  const earlier =
+    window && controls && hasMore(window.more_before) ? (
+      <button type="button" className="loki-slack-load" disabled={busy !== null} onClick={loadEarlier}>
+        {loadLabel("before", window.more_before, busy === "before")}
+      </button>
+    ) : null;
   return (
-    <div className="loki-slack-thread">
-      {messages.map((m, i) => {
+    <div className="loki-slack-thread" ref={top}>
+      {controls?.back && (
+        <button type="button" className="loki-slack-load loki-slack-back" onClick={controls.back}>
+          back to the conversation
+        </button>
+      )}
+      {pinned && (
+        <div className={pinned.brought ? "loki-slack-brought" : undefined}>
+          <SlackRow m={pinned} first dayNote={null} />
+        </div>
+      )}
+      {earlier}
+      {rows.map((m, i) => {
         const p = plan[i];
+        const cls = [m.in_thread ? "loki-slack-reply" : "", m.brought ? "loki-slack-brought" : ""].filter(Boolean).join(" ");
         return (
           <Fragment key={m.id}>
             {p.day && !p.divider && (
@@ -243,13 +309,18 @@ export function SlackThread({ messages, newest }: { messages: readonly OutsideMe
                 <span className="loki-msg-divider-new">New</span>
               </div>
             )}
-            <div ref={i === focusAt ? focus : undefined} className={m.in_thread ? "loki-slack-reply" : undefined}>
-              <SlackRow m={m} first={p.first} dayNote={p.dayNote} />
+            <div ref={i === focusAt ? focus : undefined} className={cls || undefined}>
+              <SlackRow m={m} first={p.first} dayNote={p.dayNote} onOpen={controls && m.new_replies ? () => controls.openThread(m.id) : undefined} />
             </div>
           </Fragment>
         );
       })}
-      {more && <div className="loki-slack-more">more messages in the channel since</div>}
+      {window && controls && hasMore(window.more_after) && (
+        <button type="button" className="loki-slack-load" disabled={busy !== null} onClick={() => controls.load("after")}>
+          {loadLabel("after", window.more_after, busy === "after")}
+        </button>
+      )}
+      {oldMore && <div className="loki-slack-more">more messages in the channel since</div>}
     </div>
   );
 }

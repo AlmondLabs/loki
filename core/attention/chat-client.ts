@@ -1,6 +1,16 @@
 import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
-import type { AccountLabel, HandoffProposal, OutsideChange, OutsideMessage, OutsideMove, OutsideReplied, ReplyThen, SuggestionTarget } from "../frame-types.ts";
+import type {
+  AccountLabel,
+  HandoffProposal,
+  OutsideChange,
+  OutsideMove,
+  OutsideRead,
+  OutsideReplied,
+  OutsideWindowAsk,
+  ReplyThen,
+  SuggestionTarget,
+} from "../frame-types.ts";
 import type { LinkDuration } from "../chat-links.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
@@ -280,9 +290,9 @@ export class FrameChatClient {
   }
 
   /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */
-  async readOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideMessage[]> {
-    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home }, 30_000);
-    return r.messages;
+  async readOutside(accountId: string, threadId: string, home: string | null, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
+    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home, ...ask }, 30_000);
+    return { messages: r.messages, window: r.window ?? null };
   }
 
   /**

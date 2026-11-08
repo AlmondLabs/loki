@@ -307,6 +307,13 @@ export class SlackSync {
       const page = await client.conversationsHistory({ channel: c.dm.id, oldest: c.dm.last_read ?? undefined, limit: DM_MESSAGES });
       for (const m of page.messages) if (!c.dm.last_read || tsAfter(m.ts, c.dm.last_read)) found.set(m.ts, m);
     }
+    // What brought the card (plan 076, KTD2): kept from before when still after the person's dealt-with mark, then each
+    // item's own message. A DM brings none, since its unread run is marked by the New line alone (R13).
+    const record = this.opts.threads.get(this.accountId, c.thread_id);
+    const mark = record?.dealt_message_id ?? null;
+    const isNew = (ts: string, from: string | null) => !from || tsAfter(ts, from);
+    const brought = new Set((record?.brought_ids ?? []).filter((id) => isNew(id, mark)));
+    const me = this.accountId.split(":").at(2) ?? "";
     for (const item of c.items) {
       const { channel, ts } = item;
       if (!channel || !ts) continue;
@@ -314,6 +321,16 @@ export class SlackSync {
         ? await client.conversationsReplies({ channel, ts: item.thread_ts, limit: 200 })
         : await client.conversationsHistory({ channel, latest: ts, inclusive: true, limit: 1 });
       for (const m of page.messages) if (m.ts && !tsAfter(m.ts, ts)) found.set(m.ts, m);
+      if (c.dm) continue;
+      if (item.type !== "thread_v2" || !item.thread_ts) {
+        if (isNew(ts, mark)) brought.add(ts);
+        continue;
+      }
+      // A followed thread's item names only its newest reply, so every reply by someone else since the mark, or since
+      // the person last read the thread in Slack, brought the card.
+      const root = page.messages.find((m) => m.ts === item.thread_ts);
+      const read = mark ?? (typeof root?.raw.last_read === "string" && root.raw.last_read ? root.raw.last_read : null);
+      for (const m of page.messages) if (m.ts !== item.thread_ts && m.user !== me && !tsAfter(m.ts, ts) && isNew(m.ts, read)) brought.add(m.ts);
     }
     const list = [...found.values()].filter((m) => tsIso(m.ts)).sort((a, b) => tsKey(a.ts).localeCompare(tsKey(b.ts)));
     const newest = list.at(-1);
@@ -334,6 +351,7 @@ export class SlackSync {
       ),
       place: c.dm ? null : await this.place(c.thread_id.slice(0, c.thread_id.indexOf(":"))),
       sender_avatar: newest.user ? ((await this.person(newest.user)).image ?? null) : null,
+      brought_ids: [...brought].sort((x, y) => tsKey(x).localeCompare(tsKey(y))),
     };
   }
 

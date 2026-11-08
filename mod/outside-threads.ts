@@ -1,10 +1,11 @@
 import { messageOf } from "../core/errors.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
-import type { AccountProvider, OutsideChange, OutsideMessage, OutsideReplied, ReplyThen } from "../core/frame-types.ts";
+import type { AccountProvider, OutsideChange, OutsideRead, OutsideReplied, OutsideWindowAsk, ReplyThen } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
-import type { AccountThreads } from "./account-threads.ts";
+import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import type { GmailClient } from "./gmail.ts";
-import type { ThreadText } from "./handoff.ts";
+import type { ThreadMessage, ThreadText } from "./handoff.ts";
+import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { headerOf, replyAllOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
@@ -27,11 +28,14 @@ export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: 
 /** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
-  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting">;
+  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt"> & {
+    /** A card's record, for what its window is built around (plan 076). */
+    get: (accountId: string, threadId: string) => Pick<ThreadRecord, "dealt_message_id" | "brought_ids"> | null;
+  };
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
-  /** A card's own reader where it shows more than the thread: Slack's channel around it (plan 074). */
-  cardView?: Partial<Record<AccountProvider, ThreadText>>;
+  /** A card's own reader where it shows a window of more than the thread: Slack's (plan 074, plan 076). */
+  cardView?: Partial<Record<AccountProvider, CardView>>;
   clientFor: (account: AccountRecord) => SendClient;
   /** Waiting out a rate limit before reading again; a timer when not given. */
   sleep?: (ms: number) => Promise<void>;
@@ -54,19 +58,25 @@ export class OutsideThreads {
     this.opts = opts;
   }
 
-  /** The whole thread as the card draws it: every message with its sender and time, and mail without the quoted thread under it. */
-  async read(accountId: string, threadId: string): Promise<OutsideMessage[]> {
+  /**
+   * The thread as the card draws it: every message with its sender and time, and mail without the quoted thread under
+   * it; for a Slack card, the window around what is new, or what `ask` asks for (plan 076), from the card's record.
+   */
+  async read(accountId: string, threadId: string, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
     const account = this.need(accountId);
-    const reader = this.opts.cardView?.[account.provider] ?? this.opts.threadText[account.provider];
-    const readThread = () => reader(accountId, threadId);
-    const messages = await readThread().catch(async (err: unknown) => {
+    const view = this.opts.cardView?.[account.provider];
+    const record = this.opts.threads.get(accountId, threadId);
+    const facts = { dealt_message_id: record?.dealt_message_id ?? null, brought_ids: record?.brought_ids ?? [] };
+    const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"] }> =>
+      view ? view(accountId, threadId, facts, ask) : { messages: await this.opts.threadText[account.provider](accountId, threadId), window: null };
+    const read = await readThread().catch(async (err: unknown) => {
       const wait = err instanceof SlackError && err.code === "ratelimited" ? err.retryAfterMs : null;
       if (wait === null || wait > READ_WAIT_MAX_MS) throw err;
       await (this.opts.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms))))(wait);
       return readThread();
     });
     // A reader that gives no id leaves the message's place in the thread, which is stable since a thread is read whole.
-    return messages.map((m, i) => ({
+    const messages = read.messages.map((m, i) => ({
       id: m.id ?? `at-${i}`,
       sender: m.sender,
       at: m.at,
@@ -80,7 +90,10 @@ export class OutsideThreads {
       ...(m.more_after ? { more_after: true } : {}),
       ...(m.body ? { body: m.body } : {}),
       ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+      ...(m.brought ? { brought: true } : {}),
+      ...(m.new_replies ? { new_replies: m.new_replies } : {}),
     }));
+    return { messages, window: read.window };
   }
 
   /**
@@ -118,6 +131,8 @@ export class OutsideThreads {
       await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body });
     }
     log("outside:replied", { provider: account.provider, then });
+    // Replying is dealing with what came before, whichever key follows (plan 076, R5).
+    this.opts.threads.markDealt(accountId, threadId);
     try {
       return { sent: true, then_error: null, change: await this.follow(accountId, threadId, then) };
     } catch (err) {
