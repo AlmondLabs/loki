@@ -223,11 +223,13 @@ export class Approvals {
 
   /** null when the mode lets the call run without asking. */
   private async decideCall(name: string, args: Record<string, unknown>, callId: string, api: HookApi, context: Context): Promise<Decision | null> {
-    const [chat, agent, settings] = await Promise.all([
+    const [own, agent, settings] = await Promise.all([
       api.snapshot(ChatDoc, api.conversationId, context),
       api.snapshot(AgentInfoDoc, context),
       api.snapshot(PiAgentDoc, api.conversationId, context),
     ]);
+    // A helper asks as the chat it works for, in that chat's mode as it is now (daemon/subagents.ts).
+    const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     // A turn another chat's message started runs with no more power than that chat has (plan 067).
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;

@@ -83,6 +83,11 @@ export type ChatInfo = {
    * cleared. `files_left`: files attached before the move, which stayed on the Mac it came from.
    */
   moved?: { from: string; to: string; files_left: number } | null;
+  /**
+   * A helper's conversation (daemon/subagents.ts): the pi-durable conversation of the chat it works for. The chat's
+   * mode is read from there on every call, so a mode changed while the helper runs holds for the helper too.
+   */
+  helper_for?: ConversationId;
 };
 
 /**
