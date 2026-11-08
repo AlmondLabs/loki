@@ -46,12 +46,21 @@ function stylesOf(html: string): string {
 }
 
 /**
+ * A mail's styles with their dark-mode rules turned off. The frame is a light page, as Gmail draws mail, but the Mac's
+ * webview answers `prefers-color-scheme: dark` inside it when the Mac is dark, so a mail that brings its own dark rules
+ * (Google Calendar's invites do) drew pale text on its white page. An unknown value makes the query match nothing.
+ */
+export function darkRulesOff(css: string): string {
+  return css.replace(/prefers-color-scheme\s*:\s*dark/gi, "prefers-color-scheme: loki-light-page");
+}
+
+/**
  * The frame's document for a mail: its head's styles and its body, with scripts, embedded frames and objects, base
  * and refresh tags taken out, under MAIL_POLICY, opening links in a new window. The sandbox already stops scripts;
  * taking them out keeps their text from showing and keeps the document small.
  */
 export function mailDocument(html: string): string {
-  let body = bodyOf(html);
+  let body = darkRulesOff(bodyOf(html));
   for (const tag of DROPPED) {
     const name = tag.replace(/\[.*$/, "");
     body = body.replace(new RegExp(`<${name}\\b[\\s\\S]*?(?:<\\/${name}\\s*>|\\/>|$)`, "gi"), "");
@@ -62,7 +71,7 @@ export function mailDocument(html: string): string {
     `<meta http-equiv="Content-Security-Policy" content="${MAIL_POLICY}">`,
     '<meta charset="utf-8"><base target="_blank">',
     `<style>${MAIL_STYLE}</style>`,
-    stylesOf(html).replace(/<\/?script\b[^>]*>/gi, ""),
+    darkRulesOff(stylesOf(html)).replace(/<\/?script\b[^>]*>/gi, ""),
     "</head><body>",
     body,
     "</body></html>",
@@ -118,7 +127,8 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
     <iframe
       ref={frame}
       className="loki-mail-html"
-      title={title}
+      // Named for screen readers by aria-label rather than title, which the Mac shows as a tooltip over the whole mail.
+      aria-label={title}
       // No allow-scripts: nothing in the mail runs. Same origin with scripts off lets loki size the frame and catch clicks.
       // allow-popups is for the Mac's webview, which runs no listener of loki's inside a frame without scripts: there a
       // link asks for a new window (base target _blank), and the shell sends its address to the browser instead.

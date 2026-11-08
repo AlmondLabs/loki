@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { MAIL_POLICY, linkParts, mailDocument, openableHref } from "../app/src/desk/mail-html.tsx";
+import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref } from "../app/src/desk/mail-html.tsx";
 import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
@@ -73,6 +73,19 @@ const FACTS: OutsideFacts = {
   disconnected: null,
 };
 
+describe("a mail's own dark rules", () => {
+  test("are turned off, so a mail that brings them keeps dark text on its light page", () => {
+    const invite = [
+      "<html><head><style>.name{color:#3c4043}@media (prefers-color-scheme: dark){.name{color:#e8eaed}}</style></head>",
+      '<body><style>@media screen and (PREFERS-COLOR-SCHEME:dark){a{color:#fff}}</style><a class="name">Ada</a></body></html>',
+    ].join("");
+    const doc = mailDocument(invite);
+    expect(doc).not.toMatch(/prefers-color-scheme\s*:\s*dark/i);
+    expect(doc).toContain(".name{color:#3c4043}");
+    expect(darkRulesOff("@media (prefers-color-scheme: light){a{color:red}}")).toBe("@media (prefers-color-scheme: light){a{color:red}}");
+  });
+});
+
 describe("the card", () => {
   test("a mail with HTML is drawn in a frame that runs no script", () => {
     const html = renderToStaticMarkup(
@@ -88,6 +101,9 @@ describe("the card", () => {
       }),
     );
     expect(html).toContain("<iframe");
+    // Named for screen readers without a title, which the Mac shows as a tooltip over the whole mail.
+    expect(html).toMatch(/<iframe[^>]*aria-label="mail from DOBIGCLOUD"/);
+    expect(html).not.toMatch(/<iframe[^>]*title=/);
     // Popups only so the Mac's webview can hand a clicked link to the shell, which sends it to the browser.
     expect(html).toContain('sandbox="allow-same-origin allow-popups"');
     expect(html).not.toContain("allow-scripts");
