@@ -305,7 +305,7 @@ export interface OutsideMessage {
  */
 export type SlackSpan =
   | { kind: "text"; text: string; bold?: true; italic?: true; strike?: true; code?: true }
-  | { kind: "link"; text: string; url: string }
+  | { kind: "link"; text: string; url: string; bold?: true; italic?: true; strike?: true }
   | { kind: "mention"; text: string }
   | { kind: "emoji"; text: string; image?: string };
 

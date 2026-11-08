@@ -171,7 +171,7 @@ describe("drawing a Slack card's body", () => {
                 kind: "text",
                 spans: [
                   { kind: "text", text: "done", bold: true },
-                  { kind: "link", text: "PR", url: "https://x.test/pr" },
+                  { kind: "link", text: "PR", url: "https://x.test/pr", bold: true },
                   { kind: "link", text: "app", url: "slack://open" },
                   { kind: "emoji", text: ":shipit:", image: "https://emoji.example.test/shipit.png" },
                 ],
@@ -186,7 +186,7 @@ describe("drawing a Slack card's body", () => {
       }),
     );
     expect(html).toContain("<strong>done</strong>");
-    expect(html).toContain('href="https://x.test/pr"');
+    expect(html).toContain('<strong><a class="loki-mail-link" href="https://x.test/pr"');
     expect(html).not.toContain("slack://open");
     expect(html).toContain('<img class="loki-emoji" src="https://emoji.example.test/shipit.png"');
     expect(html).toContain('<blockquote class="loki-slack-quote">quoted</blockquote>');

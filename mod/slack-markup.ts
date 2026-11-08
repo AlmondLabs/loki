@@ -89,7 +89,23 @@ async function entitySpan(inner: string, names: SlackNames, style: Style): Promi
   if (target.startsWith("!date^")) return { kind: "text", text: label, ...style };
   if (target.startsWith("!")) return { kind: "mention", text: `@${target.slice(1)}` };
   const url = decode(target);
-  return { kind: "link", text: label || url.replace(/^mailto:/, ""), url };
+  const { text, style: own } = labelStyle(label);
+  return { kind: "link", text: text || url.replace(/^mailto:/, ""), url, ...style, ...own };
+}
+
+/**
+ * A link label's own styles: apps such as Sentry write `<url|*TypeError*>`, which Slack draws as a bold link, so markers
+ * around the whole label become the link's style rather than its words.
+ */
+function labelStyle(label: string): { text: string; style: Style } {
+  const style: Style = {};
+  const marks = { "*": "bold", _: "italic", "~": "strike" } as const;
+  let text = label;
+  for (let m = /^([*_~])(\S(?:.*\S)?)\1$/s.exec(text); m; m = /^([*_~])(\S(?:.*\S)?)\1$/s.exec(text)) {
+    style[marks[m[1] as keyof typeof marks]] = true;
+    text = m[2];
+  }
+  return { text, style };
 }
 
 /** Slack's markup as the card draws it: code blocks, `>` quotes and ordinary lines, each read for its spans. */

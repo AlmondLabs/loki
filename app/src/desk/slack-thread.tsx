@@ -70,10 +70,12 @@ function keyed<T>(items: readonly T[], length: (item: T) => number): Array<[stri
 function Span({ s }: { s: SlackSpan }): ReactNode {
   if (s.kind === "mention") return <span className="loki-mention">{s.text}</span>;
   if (s.kind === "emoji") return s.image ? <img className="loki-emoji" src={s.image} alt={s.text} title={s.text} /> : <span title={s.text}>{s.text}</span>;
+  let out: ReactNode;
   if (s.kind === "link") {
     // Only a web or mail address opens; anything else (a slack:// link) is shown as its words.
-    if (!openableHref(s.url)) return s.text;
-    return (
+    out = !openableHref(s.url) ? (
+      s.text
+    ) : (
       <a
         className="loki-mail-link"
         href={s.url}
@@ -86,8 +88,7 @@ function Span({ s }: { s: SlackSpan }): ReactNode {
         {s.text}
       </a>
     );
-  }
-  let out: ReactNode = s.code ? <code className="loki-slack-code">{s.text}</code> : <LinkedText text={s.text} />;
+  } else out = s.code ? <code className="loki-slack-code">{s.text}</code> : <LinkedText text={s.text} />;
   if (s.strike) out = <s>{out}</s>;
   if (s.italic) out = <em>{out}</em>;
   if (s.bold) out = <strong>{out}</strong>;
