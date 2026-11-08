@@ -75,7 +75,7 @@ export function shownStep(step: Step): Step {
 /** The entry kinds a thread shows as messages; prompt changes and resets are the model's, not the person's. */
 const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
 
-/** A compaction's summary (plan 065): shown as one row where it was written, never as the message the model reads it as. */
+/** A compaction's summary (plan 078): shown as one row where it was written, never as the message the model reads it as. */
 const COMPACTION = "pi.compaction";
 
 /** The words inside pi's `<summary>` wrapper, else the message's whole text; null when it says nothing. */

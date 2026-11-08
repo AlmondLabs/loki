@@ -1,6 +1,6 @@
 ---
 title: A marker where a chat was compacted
-date: 2026-11-03
+date: 2026-11-09
 status: active
 ---
 

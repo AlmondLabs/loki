@@ -59,7 +59,7 @@ export class ChatEventConverter {
   private blocks = new Map<number, string>();
   /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
   private turnId: string | null = null;
-  /** The compactions running that hold the turn up, by task: the ones the thread shows while they run (plan 065). */
+  /** The compactions running that hold the turn up, by task: the ones the thread shows while they run (plan 078). */
   private readonly blocking = new Set<string>();
   private readonly agentId: string;
   /** Keeps the person's pictures as files a window loads (plan 029); without it they stay "[image]" lines. */
@@ -138,7 +138,7 @@ export class ChatEventConverter {
           },
         ];
       }
-      // A compaction that holds the turn up shows while it runs (plan 065): the turn waits on it, saying nothing else.
+      // A compaction that holds the turn up shows while it runs (plan 078): the turn waits on it, saying nothing else.
       case "compaction_start":
         if (!ev.blocking) return [];
         this.blocking.add(String(ev.taskId));

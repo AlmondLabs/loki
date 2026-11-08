@@ -27,7 +27,7 @@ export type Step =
   /** A model call that ended in an error with nothing said (plan 037): the provider's message, from history and live alike. */
   | { kind: "failed"; message: string; at: string | null }
   /**
-   * A compaction (plan 065): one that holds the turn up is `running`; its summary written is `done`, with the summary as
+   * A compaction (plan 078): one that holds the turn up is `running`; its summary written is `done`, with the summary as
    * `detail`; it `failed`, with the error as `detail`; or it `ended` with neither, a summary that went unused.
    */
   | { kind: "compaction"; state: "running" | "done" | "failed" | "ended"; detail: string | null; at: string | null };
@@ -47,7 +47,7 @@ export function commandIdOf(input: string): string {
 
 const RUNNING = "running…";
 
-/** The row a compaction leaves where its summary was written (plan 065): above it, the agent has only the summary. */
+/** The row a compaction leaves where its summary was written (plan 078): above it, the agent has only the summary. */
 export const COMPACTED_TEXT = "chat compacted";
 /** A compaction that holds the turn up, while it runs, and what it says beside it. */
 const COMPACTING_TEXT = "compacting the chat";
@@ -217,7 +217,7 @@ export class ThreadModel {
   }
 
   /**
-   * A compaction (plan 065): one quiet row. While one holds the turn up it reads "compacting the chat"; its summary
+   * A compaction (plan 078): one quiet row. While one holds the turn up it reads "compacting the chat"; its summary
    * turns that row into "chat compacted", the summary behind it, and a failure into "compaction failed", the error
    * behind it. A compaction that ends with neither takes its running row away. A start while one runs is the same one.
    */
