@@ -564,7 +564,7 @@ describe("a reply on a Slack card, then the key's move (plan 070, U5)", () => {
     slack.refuse.mark = "channel_not_found";
     const answer = await outside.reply(ACCOUNT, "D0GRACE", "on it", "archive");
     expect(answer).toMatchObject({ sent: true, change: null });
-    expect(answer.then_error).toEqual(expect.any(String));
+    expect(answer.sent && answer.then_error).toEqual(expect.any(String));
     expect(open().map((r) => r.thread_id)).toEqual(["D0GRACE"]);
     slack.refuse.mark = null;
     await threads.archive(ACCOUNT, "D0GRACE");

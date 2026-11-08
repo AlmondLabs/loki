@@ -143,14 +143,32 @@ function people(header: string): Array<{ text: string; address: string }> {
  * person's own addresses and nobody twice. A message the person wrote themselves is answered to whom it went.
  */
 export function replyAllOf(message: GmailMessage | undefined, own: readonly string[]): { to: string[]; cc: string[] } {
-  const mine = new Set(own.map((a) => a.toLowerCase()));
-  const from = people(headerOf(message, "From"));
-  const fromMe = from.length > 0 && from.every((p) => mine.has(p.address));
+  const { mine, fromMe, sender } = whoWrote(message, own);
   const seen = new Set<string>();
   const keep = (list: Array<{ text: string; address: string }>) =>
     list.filter((p) => !mine.has(p.address) && !seen.has(p.address) && seen.add(p.address)).map((p) => p.text);
-  const to = keep([...(fromMe ? [] : from), ...people(headerOf(message, "To"))]);
+  const to = keep([...(fromMe ? [] : sender), ...people(headerOf(message, "To"))]);
   return { to, cc: keep(people(headerOf(message, "Cc"))) };
+}
+
+/**
+ * Who a reply to the sender alone goes to (plan 076): whom the message asks replies to go to (Reply-To), else its
+ * sender; a message the person wrote themselves is answered to whom it went, as Gmail does.
+ */
+export function replyOf(message: GmailMessage | undefined, own: readonly string[]): { to: string[]; cc: string[] } {
+  const { mine, fromMe, sender } = whoWrote(message, own);
+  const seen = new Set<string>();
+  const to = (fromMe ? people(headerOf(message, "To")) : sender).filter((p) => !mine.has(p.address) && !seen.has(p.address) && seen.add(p.address));
+  return { to: to.map((p) => p.text), cc: [] };
+}
+
+/** The person's addresses, whether they wrote the message, and whom a reply to its writer goes to: its Reply-To, else its From. */
+function whoWrote(message: GmailMessage | undefined, own: readonly string[]) {
+  const mine = new Set(own.map((a) => a.toLowerCase()));
+  const from = people(headerOf(message, "From"));
+  const fromMe = from.length > 0 && from.every((p) => mine.has(p.address));
+  const replyTo = people(headerOf(message, "Reply-To"));
+  return { mine, fromMe, sender: replyTo.length ? replyTo : from };
 }
 
 /** People as the agent is told of them: bare addresses, since a display name is the sender's own writing. */

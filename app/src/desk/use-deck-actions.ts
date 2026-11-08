@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
 
@@ -105,6 +106,8 @@ export function useDeckActions({
     picker,
     reply,
     setText: (text: string) => setReply(currentId, { text }),
+    /** How the mail reply on top is addressed (plan 076). */
+    setMail: (mail: MailAddressing) => setReply(currentId, { mail }),
     openPicker: (kind: PickerKind | null) => setPicking(kind && currentId ? { id: currentId, kind } : null),
     ...deck,
     sent,

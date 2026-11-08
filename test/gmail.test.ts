@@ -153,10 +153,20 @@ describe("a Gmail call that never answers", () => {
 
 describe("the Gmail client's calls", () => {
   test("send-as lists every address, and a mailbox whose settings are refused gives its own address", async () => {
-    const { client, google } = await connected();
+    const { client, google, advance } = await connected();
     expect(await client.sendAsAddresses()).toEqual(["ada@acme.com", "ada@example.org"]);
     google.state.sendAs = 403;
+    // Kept for ten minutes (plan 076): a reply and the recipients line do not each read the settings again.
+    expect(await client.sendAsAddresses()).toEqual(["ada@acme.com", "ada@example.org"]);
+    advance(10 * 60 * 1000);
     expect(await client.sendAsAddresses()).toEqual(["ada@acme.com"]);
+  });
+
+  test("send-as carries each address's name and signature, and an attachment comes as its bytes (plan 076)", async () => {
+    const { client, google } = await connected();
+    google.state.sendAs = ["ada@acme.com"];
+    expect(await client.sendAs()).toEqual([{ address: "ada@acme.com", name: "", signature: "", isDefault: false }]);
+    expect((await client.attachment("m1", "a1")).toString("utf8")).toBe("file m1/a1");
   });
 
   test("history follows every page, and history Gmail no longer keeps reads as expired", async () => {
@@ -283,8 +293,8 @@ describe("only the person's own reply sends from Gmail (plan 068)", () => {
 
   test("sendReply is the client's only send call, and nothing else it does reaches a send endpoint", async () => {
     const names = Object.getOwnPropertyNames(GmailClient.prototype);
-    // sendAsAddresses reads the addresses the person writes from; it sends nothing.
-    expect(names.filter((n) => /send/i.test(n)).sort()).toEqual(["sendAsAddresses", "sendReply"]);
+    // sendAs and sendAsAddresses read the addresses the person writes from; they send nothing.
+    expect(names.filter((n) => /send/i.test(n)).sort()).toEqual(["sendAs", "sendAsAddresses", "sendReply"]);
 
     const { client, google, advance } = await connected();
     advance(HOUR + 1);

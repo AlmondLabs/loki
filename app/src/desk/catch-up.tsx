@@ -17,7 +17,8 @@ import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysH
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
-import { OutsideCard, wentTo } from "./outside-card";
+import { OutsideCard, useMailCompose, wentTo } from "./outside-card";
+import { addressingFor } from "./mail-address";
 import { HandoffPicker } from "./handoff-picker";
 import { ReturnPicker } from "./return-picker";
 import { LabelPicker } from "./label-picker";
@@ -141,8 +142,10 @@ function CatchUpDeck(props: DeckProps) {
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
-  const { readOutside, replyOutside } = props.chats;
+  const { readOutside, replyOutside, composeOutside, unsendOutside } = props.chats;
   const outsideSource = readOutside ? { readOutside } : null;
+  // What the recipients line of the mail card on top starts from (plan 076); the keys that switch its mode need it too.
+  const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
 
@@ -170,8 +173,14 @@ function CatchUpDeck(props: DeckProps) {
     agent,
     setDecided,
     setQueue,
-    moves: deckMoveApi(props, replyOutside),
+    moves: deckMoveApi(props, replyOutside, unsendOutside),
   });
+  /** ⇧R and F on a mail card (plan 076): the reply goes to the sender alone, or is forwarded, and the box takes focus. */
+  const mailMode = (mode: "reply" | "forward") => {
+    if (current?.outside?.provider !== "gmail" || !compose || !replyOutside) return;
+    actions.setMail(addressingFor(compose, mode, actions.reply.mail));
+    replyRef.current?.focus();
+  };
   useDeckKeys({
     typing,
     current,
@@ -183,6 +192,8 @@ function CatchUpDeck(props: DeckProps) {
     label: props.labelsOf ? actions.label : () => {},
     approve: actions.approve,
     undo: actions.undo,
+    replySender: () => mailMode("reply"),
+    forward: () => mailMode("forward"),
     // An outside card has no chat to open until it is handed off.
     onOpenDesk: (agentId, conversationId) => {
       if (!current?.outside) onOpenDesk(agentId, conversationId);
@@ -294,9 +305,18 @@ function CatchUpDeck(props: DeckProps) {
               source={outsideSource}
               box={
                 replyOutside
-                  ? { text: actions.reply.text, busy: actions.reply.busy, error: actions.reply.error, onText: actions.setText, onSend: actions.sendReply }
+                  ? {
+                      text: actions.reply.text,
+                      mail: actions.reply.mail,
+                      busy: actions.reply.busy,
+                      error: actions.reply.error,
+                      onText: actions.setText,
+                      onMail: actions.setMail,
+                      onSend: actions.sendReply,
+                    }
                   : undefined
               }
+              compose={compose}
               replyRef={replyRef}
               onTyping={setTyping}
               onEscapeEmpty={onClose}
@@ -450,7 +470,11 @@ function Card({
  * The deck's moves as the app makes them (useAttention's, plan 070 U6), from the deck's props: read, later, archive,
  * label and undo, an approval's seen and its undo, and an outside card's reply when the app can send one.
  */
-function deckMoveApi(props: DeckProps, replyOutside: OutsideSource["replyOutside"] | undefined): DeckMoveApi {
+function deckMoveApi(
+  props: DeckProps,
+  replyOutside: OutsideSource["replyOutside"] | undefined,
+  unsendOutside: OutsideSource["unsendOutside"] | undefined,
+): DeckMoveApi {
   return {
     read: props.onRead,
     later: props.onLater,
@@ -459,6 +483,7 @@ function deckMoveApi(props: DeckProps, replyOutside: OutsideSource["replyOutside
     label: props.onLabel,
     undo: props.onUndo,
     replyOutside,
+    unsendOutside,
     seen: props.onSeen,
     unread: props.onUnread,
     approve: props.onApprove,

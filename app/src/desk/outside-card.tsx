@@ -1,14 +1,15 @@
-import type { AccountDisconnectCause, AccountProvider, OutsideFacts, OutsideMessage } from "../../../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, MailAddressing, MailCompose, OutsideFacts, OutsideMessage } from "../../../core/frame-types.ts";
 import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { Button, Chip, Meta, TextArea } from "../components";
-import { KEYMAP, chordIds, cmdHeld, keyFor, type Platform } from "../shell/keymap";
+import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
+import { MailAddressLine, startAddressing } from "./mail-address";
 import { SlackThread } from "./slack-thread";
 
 /**
@@ -105,7 +106,34 @@ export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource
   return state;
 }
 
-/** One message: who wrote it (or "you"), when, and the mail as its sender drew it, else its text with links that open. */
+/**
+ * What a mail card's recipients line starts from (plan 076), read from its account when the card comes up and again
+ * when a new message arrives; null while it is read, when it could not be (the line then says the reply goes to all),
+ * and for a Slack card.
+ */
+export function useMailCompose(item: AttentionItem | undefined, source: Pick<OutsideSource, "composeOutside"> | null): MailCompose | null {
+  const [state, setState] = useState<{ key: string; compose: MailCompose | null }>({ key: "", compose: null });
+  const o = item?.outside;
+  const key = o?.provider === "gmail" ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
+  const read = useEffectEvent(() => (item ? (source?.composeOutside?.(item) ?? null) : null));
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    void read()?.then((out) => {
+      if (live) setState({ key, compose: typeof out === "string" ? null : out });
+    });
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  // What was read for another card is not this one's.
+  return state.key === key ? state.compose : null;
+}
+
+/** The text a mail reply quotes, as the card shows it behind "•••": the newest mail's, once the thread is read. */
+export const quoteOf = (facts: OutsideFacts, state: ThreadState): string | null =>
+  facts.provider === "gmail" && state.kind === "read" ? (state.messages.at(-1)?.text ?? null) : null;
+
 /**
  * One message of the thread. A mail before the newest starts folded to its sender, time and first line, as a mail
  * client shows a thread, so a run of near-identical mails (a bill sent again) does not draw the same page three times;
@@ -201,25 +229,32 @@ export function replyPlace(o: OutsideFacts): string {
 const DECK_CHORDS = new Set(["inbox.next", "inbox.later", "inbox.archive"]);
 
 /**
- * What a key pressed in the reply box is for: the deck (⌘], ⌘[ and ⌘E, which send the text with their move), sending
- * (Enter, the keymap's chat.send), handing the keys back (Esc), or the text itself (letters, arrows, Shift-Enter's line).
+ * What a key pressed in the reply box is for: the deck (⌘], ⌘[ and ⌘E, which send the text with their move), sending,
+ * opening the recipients line (⌘⇧C, mail only), handing the keys back (Esc), or the text itself (letters, arrows, a
+ * new line). A chat or Slack box sends on Enter (the keymap's chat.send); a mail box sends on ⌘Enter and Enter starts a
+ * line, as in Gmail (plan 076), since a mail is often more than one line.
  */
-export function replyBoxKey(e: KeyboardEvent, os: Platform = keyboard): "deck" | "send" | "escape" | "own" {
+export function replyBoxKey(e: KeyboardEvent, os: Platform = keyboard, mail = false): "deck" | "send" | "recipients" | "escape" | "own" {
   const ids = chordIds(e, KEYMAP, os);
   if (cmdHeld(e, os) && ids.some((id) => DECK_CHORDS.has(id))) return "deck";
-  if (!e.isComposing && ids.includes("chat.send")) return "send";
+  if (mail) {
+    if (!e.isComposing && e.key === "Enter" && cmdHeld(e, os) && !e.shiftKey && !e.altKey) return "send";
+    if (cmdHeld(e, os) && e.shiftKey && e.key.toLowerCase() === "c") return "recipients";
+  } else if (!e.isComposing && ids.includes("chat.send")) return "send";
   return e.key === "Escape" ? "escape" : "own";
 }
 
 /**
- * The reply box as the deck holds it (KTD9): its text, whether a send is under way, why the last one failed, and the
- * send, which the deck turns into the reply and its move.
+ * The reply box as the deck holds it (KTD9): its text, how a mail reply is addressed (null when unchanged, plan 076),
+ * whether a send is under way, why the last one failed, and the send, which the deck turns into the reply and its move.
  */
 export interface ReplyBoxControl {
   text: string;
+  mail: MailAddressing | null;
   busy: boolean;
   error: string | null;
   onText: (text: string) => void;
+  onMail: (mail: MailAddressing) => void;
   onSend: () => void;
 }
 
@@ -238,10 +273,22 @@ export function OutsideReply({
   onEscapeEmpty,
   touch = false,
   actions = null,
+  compose = null,
+  quote = null,
+  onUndo,
 }: {
   facts: OutsideFacts;
-  /** The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a sent reply clears the box so it is not sent twice. */
-  onSend?: (text: string) => Promise<{ sent: boolean; error: string | null }>;
+  /**
+   * The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a
+   * sent reply clears the box so it is not sent twice, and an undone one keeps it.
+   */
+  onSend?: (text: string, mail: MailAddressing | null) => Promise<{ sent: boolean; error: string | null; undone?: true }>;
+  /** What a mail card's recipients line starts from (plan 076); null while it is read, or for Slack. */
+  compose?: MailCompose | null;
+  /** The newest mail's text, which goes quoted under the reply, shown behind "•••". */
+  quote?: string | null;
+  /** Stop the held reply while the box's own send waits (the phone's undo, plan 076); absent, no undo is offered. */
+  onUndo?: () => void;
   /** The deck's hold on the box; absent, the box keeps its own text. */
   box?: ReplyBoxControl;
   /** The card's other moves, drawn on the row after send, so the card has one bar of buttons. */
@@ -252,71 +299,163 @@ export function OutsideReply({
   touch?: boolean;
 }) {
   const [ownText, setOwnText] = useState("");
+  const [ownMail, setOwnMail] = useState<MailAddressing | null>(null);
   const [ownBusy, setBusy] = useState(false);
   const [ownError, setError] = useState<string | null>(null);
+  const [lineOpen, setLineOpen] = useState(false);
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const text = box ? box.text : ownText;
   const setText = box ? box.onText : setOwnText;
+  const mail = box ? box.mail : ownMail;
+  const setMail = box ? box.onMail : setOwnMail;
   const busy = box ? box.busy : ownBusy;
   const error = box ? box.error : ownError;
   const off = busy || !!facts.disconnected;
+  const isMail = facts.provider === "gmail";
+  const shown = compose ? (mail ?? startAddressing(compose)) : null;
+  const nobody = !!shown && shown.to.length + shown.cc.length + shown.bcc.length === 0;
   const send = async () => {
     if (off || !text.trim()) return;
+    if (nobody) {
+      setLineOpen(true);
+      return;
+    }
     if (box) return box.onSend();
     if (!onSend) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await onSend(text);
-      if (r.sent) setOwnText("");
+      const r = await onSend(text, mail);
+      if (r.sent) {
+        setOwnText("");
+        setOwnMail(null);
+      }
       if (r.error) setError(r.error);
     } finally {
       setBusy(false);
     }
   };
   const keys = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    const key = replyBoxKey(e.nativeEvent);
+    const key = replyBoxKey(e.nativeEvent, keyboard, isMail);
     // ⌘], ⌘[ and ⌘E go on to the deck, which sends the text with their move (KTD9).
     if (key === "deck") return;
     // The deck's single keys are its own outside the box; inside, letters are the reply's.
     e.stopPropagation();
-    // Enter sends and Shift-Enter starts a line, as in a chat's box (the keymap's chat.send and chat.newline).
+    // A chat's or Slack's box sends on Enter, a mail's on ⌘Enter (plan 076); the other Enter starts a line.
     if (key === "send") {
       e.preventDefault();
       void send();
+    } else if (key === "recipients") {
+      e.preventDefault();
+      setLineOpen(true);
     } else if (key === "escape") {
       e.preventDefault();
       if (!text && onEscapeEmpty) onEscapeEmpty();
       else e.currentTarget.blur();
     }
   };
-  const place = replyPlace(facts);
+  // The recipients line says who a mail goes to, so the box says only what is written in it.
+  const hint = !isMail ? replyPlace(facts) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
+  const sendKey = isMail ? "cmd+enter" : undefined;
+  const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
+  const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
+  const size = touch ? "var(--phone-text-body)" : 12;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}>
+      {isMail && (
+        <MailAddressLine
+          compose={compose}
+          value={mail}
+          onChange={setMail}
+          open={lineOpen}
+          onOpen={setLineOpen}
+          onTyping={onTyping}
+          touch={touch}
+          disabled={off}
+          full={!touch}
+        />
+      )}
       <TextArea
         ref={inputRef}
         size={touch ? "touch" : "sm"}
         value={text}
         rows={touch ? 4 : 3}
         disabled={off}
-        placeholder={touch ? `${place[0].toUpperCase()}${place.slice(1)}` : place}
-        aria-label={place}
+        placeholder={touch ? `${hint[0].toUpperCase()}${hint.slice(1)}` : hint}
+        aria-label={hint}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={keys}
         onFocus={() => onTyping?.(true)}
         onBlur={() => onTyping?.(false)}
       />
+      {isMail && compose && (hasSignature || quote) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {hasSignature && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+              {signature ? (
+                <span style={{ fontSize: size, color: "var(--loki-muted)", whiteSpace: "pre-wrap", overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>
+                  {`-- \n${signature}`}
+                </span>
+              ) : (
+                <Meta style={{ flex: 1 }}>{touch ? "No signature" : "no signature"}</Meta>
+              )}
+              <button
+                type="button"
+                className="loki-mail-line-who"
+                style={{ flex: "none" }}
+                disabled={off}
+                onClick={() => shown && setMail({ ...shown, signature: !signature })}
+              >
+                {signature ? (touch ? "Remove" : "remove") : touch ? "Add signature" : "add signature"}
+              </button>
+            </div>
+          )}
+          {quote && (
+            <>
+              <button
+                type="button"
+                className="loki-mail-quote-toggle"
+                aria-expanded={quoteOpen}
+                aria-label={touch ? "Show the quoted mail" : "show the quoted mail"}
+                title={
+                  touch
+                    ? undefined
+                    : shown?.mode === "forward"
+                      ? "the mail goes under your note, with its files"
+                      : "the mail you answer goes quoted under your reply"
+                }
+                onClick={() => setQuoteOpen(!quoteOpen)}
+              >
+                •••
+              </button>
+              {quoteOpen && (
+                <div className="loki-mail-quote" style={{ fontSize: size }}>
+                  {quote}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
           size={touch ? "touch" : "sm"}
           tone="positive"
           disabled={off || !text.trim()}
           onClick={() => void send()}
-          kbd={touch ? undefined : keyFor("chat.send")}
-          title={touch ? "send it as you, then archive the card" : "send it as you, and the card is read"}
+          kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
+          title={touch ? "send it as you, then archive the card" : nobody ? "add someone to send it to first" : "send it as you, and the card is read"}
         >
           {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
         </Button>
-        {touch && !error && <Meta wrap>Sends as you, then archives the card.</Meta>}
+        {touch && busy && onUndo && (
+          <Button size="touch" onClick={onUndo}>
+            Undo
+          </Button>
+        )}
+        {touch && !error && !busy && (
+          <Meta wrap>{isMail ? "Waits 10 seconds so you can undo, then archives the card." : "Sends as you, then archives the card."}</Meta>
+        )}
         {actions}
       </div>
       {error && (
@@ -465,6 +604,7 @@ export function OutsideCard({
   replyRef,
   onTyping,
   onEscapeEmpty,
+  compose = null,
 }: {
   current: AttentionItem;
   facts: OutsideFacts;
@@ -485,6 +625,8 @@ export function OutsideCard({
   replyRef?: RefObject<HTMLTextAreaElement | null>;
   onTyping?: (typing: boolean) => void;
   onEscapeEmpty?: () => void;
+  /** What a mail card's recipients line starts from (plan 076), as the deck read it. */
+  compose?: MailCompose | null;
 }) {
   const thread = useOutsideThread(current, source);
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
@@ -502,7 +644,16 @@ export function OutsideCard({
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
       <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
         {box ? (
-          <OutsideReply facts={facts} box={box} inputRef={replyRef} onTyping={onTyping} onEscapeEmpty={onEscapeEmpty} actions={row} />
+          <OutsideReply
+            facts={facts}
+            box={box}
+            inputRef={replyRef}
+            onTyping={onTyping}
+            onEscapeEmpty={onEscapeEmpty}
+            actions={row}
+            compose={compose}
+            quote={quoteOf(facts, thread)}
+          />
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>
         )}

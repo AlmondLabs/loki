@@ -55,6 +55,7 @@ import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
+import { MailPeople } from "./mail-people.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
 import { serialQueue } from "../core/serial.ts";
@@ -314,11 +315,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     slackClients.delete(change.account_id);
   });
   threads.register("gmail", gmailOutsideSource(gmailClient));
+  // The people each mailbox has mail with (plan 076), from the headers the watcher reads, for the recipients line.
+  const mailPeople = new MailPeople({ file: join(paths.state, "mail-people.json") });
+  accounts.onChange((change) => {
+    if (change.kind === "disconnected") mailPeople.forget(change.account_id);
+  });
   // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
     factories: {
-      gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id) }),
+      gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople }),
       slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id) }),
     },
     report: log,
@@ -352,9 +358,12 @@ export default function activate(api: ModApi, host: Host): () => void {
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
   });
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
+  // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
   const outside = new OutsideThreads({
     accounts,
     threads,
+    outbox: { file: join(paths.state, "outbox.json") },
+    people: mailPeople,
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
     cardView: { slack: slackChannelView(slackClient) },
     clientFor: (account) =>
@@ -362,6 +371,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         ? { provider: "gmail", client: gmailClient(account.account_id) }
         : { provider: "slack", client: slackClient(account.account_id) },
   });
+  // A mail reply held when the daemon last stopped goes now, or when its time comes.
+  outside.resume();
   // The person's moves on outside cards (plan 069), with what each thread was: the data loki learns their preferences from.
   const ledger = new InboxLedger({ path: join(paths.state, "inbox-ledger.jsonl"), accounts, threads });
   // Reply proposals (plan 067, U10): an owner's reply waits on the person's approve, then becomes a draft in its thread,
