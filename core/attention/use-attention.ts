@@ -40,8 +40,9 @@ import type {
   MailAddressing,
   MailCompose,
   OutsideChange,
-  OutsideMessage,
   OutsideMove,
+  OutsideRead,
+  OutsideWindowAsk,
   ReplyProposal,
   ReplyThen,
   Suggestion,
@@ -160,7 +161,7 @@ export interface HandoffSource {
  * the card. Both resolve to the reason in words when refused.
  */
 export interface OutsideSource {
-  readOutside: (item: AttentionItem) => Promise<OutsideMessage[] | string>;
+  readOutside: (item: AttentionItem, ask?: OutsideWindowAsk) => Promise<OutsideRead | string>;
   /** A mail reply may carry its addressing and the id its undo is by (plan 076). */
   replyOutside: (item: AttentionItem, text: string, then: ReplyThen, extra?: OutsideReplyExtra) => Promise<OutsideReplyResult>;
   /** What a mail card's recipients line starts from (plan 076), or why it could not be read. */

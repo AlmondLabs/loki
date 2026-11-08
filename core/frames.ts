@@ -17,6 +17,8 @@ import type {
   HandoffProposal,
   OutsideChange,
   OutsideMessage,
+  OutsideWindow,
+  OutsideWindowAsk,
   OutsideMessageChange,
   OutsideMove,
   OutsideReplied,
@@ -337,7 +339,7 @@ export interface Replies {
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
-  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[] };
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
   account_move_kept: { account_id: string; thread_id: string; kept: boolean };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
@@ -1301,11 +1303,19 @@ export const FRAMES = {
   ),
   account_thread_read: request(
     "account_thread",
-    "an outside card's whole thread, every message with its sender and time, read from its account (plan 068); sent to the Mac the account lives on by `home`",
-    (m) =>
-      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
-        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
-        : "account_id and thread_id required",
+    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one, and with `view` and `thread_ts` one thread alone (plan 077); sent to the Mac the account lives on by `home`",
+    (m) => {
+      if (!(str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id)) return "account_id and thread_id required";
+      const ask: OutsideWindowAsk = {};
+      if (m.view === "thread" || m.view === "channel") ask.view = m.view;
+      else if (m.view !== undefined) return "view must be thread or channel";
+      if (str(m.thread_ts) && m.thread_ts) ask.thread_ts = m.thread_ts;
+      if (m.direction === "before" || m.direction === "after") ask.direction = m.direction;
+      else if (m.direction !== undefined) return "direction must be before or after";
+      if (str(m.from) && m.from) ask.from = m.from;
+      if (ask.direction && !ask.from) return "from required with direction";
+      return { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null), ...ask };
+    },
     PHONE,
     { ...BY_HOME, timeout_ms: 30_000 },
   ),

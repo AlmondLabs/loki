@@ -336,6 +336,46 @@ export interface OutsideMessage {
   body?: SlackBlock[];
   /** What a Slack app attached under its message (plan 075). */
   attachments?: SlackAttachment[];
+  /** One of the messages that brought the card into the Inbox (plan 077, R12), drawn with Slack's mention look. */
+  brought?: boolean;
+  /**
+   * New replies in this channel message's own thread (plan 077, R11): how many, or true when there are some but they
+   * could not be counted. The card offers to open that thread.
+   */
+  new_replies?: number | true;
+}
+
+/** An outside card's thread as its account's Mac read it: the messages, and for a Slack card its window (plan 077). */
+export interface OutsideRead {
+  messages: OutsideMessage[];
+  /** Null for mail, and from a Mac on a loki older than plan 077, which reads the whole view at once. */
+  window: OutsideWindow | null;
+}
+
+/** Which of a Slack card's two views a window is (plan 077, R10): one thread alone, or the channel or DM around it. */
+export type SlackCardView = "thread" | "channel";
+
+/**
+ * What a Slack card asks for beyond its opening window (plan 077, R3, R11): a view and its thread, and 20 more messages
+ * before or after the message `from`. Asking nothing gets what the card opens on.
+ */
+export interface OutsideWindowAsk {
+  view?: SlackCardView;
+  /** The thread a thread view shows, by its first message's ts. */
+  thread_ts?: string;
+  direction?: "before" | "after";
+  from?: string;
+}
+
+/**
+ * The window a Slack card was given (plan 077): its view, the thread it shows, and what more there is on each side,
+ * as a count when Slack tells loki, else whether there is any.
+ */
+export interface OutsideWindow {
+  view: SlackCardView;
+  thread_ts: string | null;
+  more_before: number | boolean;
+  more_after: number | boolean;
 }
 
 /**

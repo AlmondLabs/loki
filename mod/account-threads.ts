@@ -61,6 +61,15 @@ export interface ThreadRecord {
   place: string | null;
   /** The sender's Slack photo; null for mail and from before. */
   sender_avatar: string | null;
+  /**
+   * The newest message when the person last dealt with the card (plan 077, KTD1): archived it, marked it read, replied
+   * from it or handed it off. Only what came after it is new on the card; null until the person first acts.
+   */
+  dealt_message_id: string | null;
+  /** The mark before the last move set it, so an undo of that move puts it back. */
+  dealt_was: string | null;
+  /** The Slack messages that brought the card into the Inbox (plan 077, KTD2), oldest first; empty for mail. */
+  brought_ids: string[];
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -83,6 +92,8 @@ export interface ObservedMessage {
   reach?: OutsideReach | null;
   place?: string | null;
   sender_avatar?: string | null;
+  /** The Slack messages that brought the card, oldest first (plan 077); left as they were when not said. */
+  brought_ids?: string[];
 }
 
 /**
@@ -118,6 +129,8 @@ export interface AccountThreadsOptions {
 
 /** How many messages a card shows, and how much of each. */
 const LINES = 3;
+/** How many of the messages that brought a card it remembers; the newest are kept. */
+const BROUGHT_MAX = 50;
 const LINE_MAX = 280;
 const STATES: readonly ThreadState[] = ["open", "archived", "handed_off"];
 
@@ -160,8 +173,14 @@ function parseRecord(v: unknown): ThreadRecord | null {
     reach: typeof r.reach === "string" && r.reach in REACH_LEVEL ? (r.reach as OutsideReach) : null,
     place: s("place"),
     sender_avatar: s("sender_avatar"),
+    dealt_message_id: s("dealt_message_id"),
+    dealt_was: s("dealt_was"),
+    brought_ids: Array.isArray(r.brought_ids) ? r.brought_ids.filter((l): l is string => typeof l === "string") : [],
   };
 }
+
+/** A record marked as dealt with at its newest message (plan 077, KTD1), keeping the mark it had for an undo. */
+const dealt = (r: ThreadRecord): ThreadRecord => ({ ...r, dealt_message_id: r.newest_message_id, dealt_was: r.dealt_message_id });
 
 /** The thread records of every account on this Mac, and the outside cards they make. */
 export class AccountThreads {
@@ -220,6 +239,9 @@ export class AccountThreads {
       reach: m.reach ?? null,
       place: m.place ?? null,
       sender_avatar: m.sender_avatar ?? null,
+      dealt_message_id: prev?.dealt_message_id ?? null,
+      dealt_was: prev?.dealt_was ?? null,
+      brought_ids: (m.brought_ids ?? prev?.brought_ids ?? []).slice(-BROUGHT_MAX),
     });
     this.save(accountId);
     return true;
@@ -245,6 +267,18 @@ export class AccountThreads {
     const r = this.records(accountId).get(threadId);
     if (r?.state !== "open" || r.waiting) return false;
     this.records(accountId).set(threadId, { ...r, waiting: true });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
+   * The person sent a reply from the card (plan 077, R5): what came before it is dealt with, whatever move follows.
+   * Returns whether it changed.
+   */
+  markDealt(accountId: string, threadId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r || r.dealt_message_id === r.newest_message_id) return false;
+    this.records(accountId).set(threadId, dealt(r));
     this.save(accountId);
     return true;
   }
@@ -311,8 +345,10 @@ export class AccountThreads {
       const state = reopened ? "open" : now.state;
       const unread = change.move === "label" ? now.unread_out_there : change.was_unread;
       const keptOpen = reopened || now.kept_open;
-      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open) return;
-      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread, kept_open: keptOpen });
+      // The move being undone set the dealt-with mark; it goes back to what it was, so the card's new messages stay new.
+      const mark = reopened ? now.dealt_was : now.dealt_message_id;
+      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open && mark === now.dealt_message_id) return;
+      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread, kept_open: keptOpen, dealt_message_id: mark });
       this.save(accountId);
     });
   }
@@ -335,7 +371,7 @@ export class AccountThreads {
       const now = this.records(accountId).get(threadId);
       if (now?.state !== "open" || now.newest_message_id !== r.newest_message_id) return change;
       const next = change.ended
-        ? { ...now, state: "archived" as const }
+        ? { ...dealt(now), state: "archived" as const }
         : change.move === "read" || change.move === "unread"
           ? { ...now, unread_out_there: change.move === "unread" }
           : now;
@@ -369,7 +405,7 @@ export class AccountThreads {
       threadId,
       missed
         ? { ...r, state: "open", generation: r.generation + 1, handoff_conversation_id: conversationId }
-        : { ...r, state: "handed_off", handoff_conversation_id: conversationId },
+        : { ...dealt(r), state: "handed_off", handoff_conversation_id: conversationId },
     );
     this.save(accountId);
     return true;

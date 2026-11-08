@@ -103,7 +103,14 @@ function mail(opts: { outbox?: string; now?: () => Date; after?: (fn: () => void
     };
   const t = new OutsideThreads({
     accounts: { get: (id) => (id === MAIL ? account : null) },
-    threads: { archive: write("archive"), markRead: write("read"), markUnread: write("unread"), markWaiting: () => true },
+    threads: {
+      archive: write("archive"),
+      markRead: write("read"),
+      markUnread: write("unread"),
+      markWaiting: () => true,
+      markDealt: () => true,
+      get: () => null,
+    },
     threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
     clientFor: () => ({
       provider: "gmail",

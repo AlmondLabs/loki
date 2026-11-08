@@ -1927,3 +1927,44 @@ button.loki-label-chip:focus-visible {
   color: var(--loki-muted);
   text-align: center;
 }
+/* A message that brought the card in (plan 077, R12): Slack's mention wash with a bar at its left edge. */
+.loki-slack-brought {
+  margin: 0 -8px;
+  padding: 0 8px 0 6px;
+  border-left: 2px solid var(--loki-mention-bar);
+  border-radius: 0 var(--loki-radius-sm) var(--loki-radius-sm) 0;
+  background: var(--loki-mention);
+}
+/* A reply that brought the card keeps its place under the thread; the mention bar takes the thread line's place. */
+.loki-slack-reply.loki-slack-brought {
+  margin-left: 22px;
+  padding-left: 12px;
+}
+/* Load more on one side of the window, a post's new replies, and the way back from a thread (plan 077, R3, R11). */
+.loki-slack-load {
+  display: block;
+  margin: 8px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: none;
+  color: var(--loki-accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.loki-slack-load:disabled {
+  color: var(--loki-muted);
+  cursor: default;
+}
+.loki-slack-back {
+  margin-top: 0;
+}
+.loki-slack-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}

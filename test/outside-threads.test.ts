@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { OutsideChange, OutsideFacts } from "../core/frame-types.ts";
+import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
@@ -14,6 +14,7 @@ import { accountFrames } from "../mod/frames/accounts.ts";
 import type { GmailDraftInput, GmailMessage, GmailSendAs } from "../mod/gmail.ts";
 import type { ThreadMessage } from "../mod/handoff.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
+import type { CardFacts } from "../mod/slack-view.ts";
 import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
@@ -22,6 +23,8 @@ import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
+/** The window a fake card view answers with. */
+const WINDOW: OutsideWindow = { view: "thread", thread_ts: "1", more_before: 3, more_after: false };
 
 const account = (accountId: string, over: Partial<AccountRecord> = {}): AccountRecord => ({
   account_id: accountId,
@@ -56,6 +59,7 @@ function threads(
     accounts?: AccountRecord[];
     thread?: ThreadMessage[];
     view?: ThreadMessage[];
+    record?: { dealt_message_id?: string | null; brought_ids?: string[] };
     gmail?: GmailMessage[];
     sendFails?: string;
     thenFails?: string;
@@ -63,6 +67,8 @@ function threads(
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
   } = {},
 ) {
+  /** What each card-view read was given: the record's facts and the ask. */
+  const viewed: Array<{ facts: CardFacts; ask: OutsideWindowAsk }> = [];
   const sentMail: GmailDraftInput[] = [];
   const posted: SlackDraftInput[] = [];
   const archived: string[] = [];
@@ -87,9 +93,23 @@ function threads(
         moves.push(`waiting ${accountId}/${threadId}`);
         return true;
       },
+      markDealt: (accountId, threadId) => {
+        moves.push(`dealt ${accountId}/${threadId}`);
+        return true;
+      },
+      get: () => (opts.record ? { dealt_message_id: null, brought_ids: [], ...opts.record } : null),
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },
-    ...(opts.view ? { cardView: { slack: () => Promise.resolve(opts.view ?? []) } } : {}),
+    ...(opts.view
+      ? {
+          cardView: {
+            slack: (_a: string, _t: string, facts: CardFacts, ask: OutsideWindowAsk) => {
+              viewed.push({ facts, ask });
+              return Promise.resolve({ messages: opts.view ?? [], window: WINDOW });
+            },
+          },
+        }
+      : {}),
     clientFor: (a) =>
       a.provider === "gmail"
         ? {
@@ -123,7 +143,7 @@ function threads(
           },
     ...opts.extra,
   });
-  return { t, sentMail, posted, archived, moves };
+  return { t, sentMail, posted, archived, moves, viewed };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -150,15 +170,15 @@ describe("reading a card's whole thread", () => {
         { sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.\n\nOn Tue, Bob wrote:\n> Lunch?", mine: true },
       ],
     });
-    expect(await t.read(MAIL, "t1")).toEqual([
+    expect((await t.read(MAIL, "t1")).messages).toEqual([
       { id: "m1", sender: "Bob <bob@acme.com>", at: "2026-11-04T10:00:00.000Z", text: "Lunch?", mine: false },
       { id: "at-1", sender: "Ada <ada@acme.com>", at: "2026-11-04T10:05:00.000Z", text: "Friday.", mine: true },
     ]);
   });
   test("a mail's HTML reaches the person's card as written; Slack has none", async () => {
     const thread = [{ sender: "Bob", at: "", text: "Bill", id: "m1", html: '<p>Bill <a href="https://x.test">here</a></p>' }];
-    expect((await threads({ thread }).t.read(MAIL, "t1"))[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
-    expect((await threads({ thread }).t.read(SLACK, "D1"))[0]).not.toHaveProperty("html");
+    expect((await threads({ thread }).t.read(MAIL, "t1")).messages[0]).toMatchObject({ text: "Bill", html: '<p>Bill <a href="https://x.test">here</a></p>' });
+    expect((await threads({ thread }).t.read(SLACK, "D1")).messages[0]).not.toHaveProperty("html");
   });
   test("a Slack card reads its channel view when there is one, with each message's photo, place and read state", async () => {
     const thread = [{ sender: "Bob", at: "", text: "only the thread", id: "1" }];
@@ -167,12 +187,21 @@ describe("reading a card's whole thread", () => {
       { sender: "Bob", at: "", text: "the card", id: "1", unread: true, more_after: true },
       { sender: "Ann", at: "", text: "a reply", id: "2", in_thread: true },
     ];
-    const read = await threads({ thread, view }).t.read(SLACK, "C1:1");
-    expect(read.map((m) => m.text)).toEqual(["before", "the card", "a reply"]);
-    expect(read[0]).toMatchObject({ avatar: "https://example.test/a.png", replies: 2 });
-    expect(read[1]).toMatchObject({ unread: true, more_after: true });
-    expect(read[2]).toMatchObject({ in_thread: true });
-    expect((await threads({ thread, view }).t.read(MAIL, "t1")).map((m) => m.text)).toEqual(["only the thread"]);
+    const { messages } = await threads({ thread, view }).t.read(SLACK, "C1:1");
+    expect(messages.map((m) => m.text)).toEqual(["before", "the card", "a reply"]);
+    expect(messages[0]).toMatchObject({ avatar: "https://example.test/a.png", replies: 2 });
+    expect(messages[1]).toMatchObject({ unread: true, more_after: true });
+    expect(messages[2]).toMatchObject({ in_thread: true });
+    const mail = await threads({ thread, view }).t.read(MAIL, "t1");
+    expect([mail.messages.map((m) => m.text), mail.window]).toEqual([["only the thread"], null]);
+  });
+  test("a Slack card's window is built from its record, and a load's ask reaches the reader; what it marks comes back (plan 077)", async () => {
+    const view = [{ sender: "Ann", at: "", text: "the mention", id: "2", brought: true, unread: true, new_replies: 3 }];
+    const { t, viewed } = threads({ view, record: { dealt_message_id: "1", brought_ids: ["2"] } });
+    const read = await t.read(SLACK, "C1:1", { direction: "before", from: "2" });
+    expect(viewed).toEqual([{ facts: { dealt_message_id: "1", brought_ids: ["2"] }, ask: { direction: "before", from: "2" } }]);
+    expect(read.window).toEqual(WINDOW);
+    expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
   test("an account not on this Mac is refused", async () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");
@@ -189,6 +218,8 @@ describe("reading a card's whole thread", () => {
         markRead: () => Promise.resolve(null),
         markUnread: () => Promise.resolve(null),
         markWaiting: () => true,
+        markDealt: () => true,
+        get: () => null,
       },
       threadText: {
         gmail: () => Promise.resolve([]),
@@ -208,7 +239,7 @@ describe("reading a card's whole thread", () => {
 
   test("a short Slack rate limit is sat out and the thread read once more, so the card shows it", async () => {
     const { t, waits } = limitedOnce(19_000);
-    expect((await t.read(SLACK, "C1:1.0")).map((m) => m.text)).toEqual(["anyone with crm access?"]);
+    expect((await t.read(SLACK, "C1:1.0")).messages.map((m) => m.text)).toEqual(["anyone with crm access?"]);
     expect(waits).toEqual([19_000]);
   });
 
@@ -285,19 +316,19 @@ describe("the person's reply", () => {
       change: { move: "unread", messages: [], ended: false, was_unread: true },
     });
     expect(sentMail.map((m) => m.body.split("\n")[0])).toEqual(["Can you send the deck by Friday?"]);
-    expect(moves).toEqual([`waiting ${MAIL}/t1`, `unread ${MAIL}/t1`]);
+    expect(moves).toEqual([`dealt ${MAIL}/t1`, `waiting ${MAIL}/t1`, `unread ${MAIL}/t1`]);
   });
   test("Covers AE4. with archive, the reply is sent and the thread archived", async () => {
     const { t, sentMail, moves } = threads({ gmail: LUNCH });
     expect(await t.reply(MAIL, "t1", "Here it is.", "archive")).toMatchObject({ sent: true, then_error: null, change: { move: "archive", ended: true } });
     expect(sentMail).toHaveLength(1);
-    expect(moves).toEqual([`archive ${MAIL}/t1`]);
+    expect(moves).toEqual([`dealt ${MAIL}/t1`, `archive ${MAIL}/t1`]);
   });
   test("with read, the reply is sent and the thread marked read, and the card does not end", async () => {
     const { t, sentMail, moves } = threads({ gmail: LUNCH });
     expect(await t.reply(MAIL, "t1", "Thanks.", "read")).toMatchObject({ sent: true, then_error: null, change: { move: "read", ended: false } });
     expect(sentMail).toHaveLength(1);
-    expect(moves).toEqual([`read ${MAIL}/t1`]);
+    expect(moves).toEqual([`dealt ${MAIL}/t1`, `read ${MAIL}/t1`]);
   });
   test("a sent reply whose archive fails answers sent with the archive's reason, and nothing is sent twice", async () => {
     const { t, posted } = threads({ thenFails: "Slack is out of reach" });
@@ -328,9 +359,13 @@ describe("the reply frames", () => {
   }
 
   test("a read answers the thread, a reply answers it was sent and how its move went, and a refusal comes back in words", async () => {
+    const asked: OutsideWindowAsk[] = [];
     const send = ask({
       ...NO_MAIL,
-      read: () => Promise.resolve([{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }]),
+      read: (_a, _t, more) => {
+        asked.push(more ?? {});
+        return Promise.resolve({ messages: [{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }], window: WINDOW });
+      },
       reply: (_a, _t, text, then) =>
         text === "boom"
           ? Promise.reject(new Error("Slack refused it"))
@@ -339,6 +374,17 @@ describe("the reply frames", () => {
     expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "D1" })).toMatchObject({
       type: "account_thread",
       messages: [{ sender: "Bob", text: "hi" }],
+      window: WINDOW,
+    });
+    await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", view: "thread", thread_ts: "1", direction: "after", from: "5" });
+    expect(asked).toEqual([{}, { view: "thread", thread_ts: "1", direction: "after", from: "5" }]);
+    expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", direction: "sideways", from: "5" })).toMatchObject({
+      type: "error",
+      message: "direction must be before or after",
+    });
+    expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", direction: "after" })).toMatchObject({
+      type: "error",
+      message: "from required with direction",
     });
     expect(await send({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "later" })).toEqual({
       type: "account_thread_replied",
@@ -360,7 +406,7 @@ describe("the reply frames", () => {
     });
   });
   test("an empty reply or one with a move loki does not know is refused before it reaches the reader, and without the reader a reply says so", async () => {
-    const reader = { ...NO_MAIL, read: () => Promise.resolve([]), reply: () => Promise.reject(new Error("reached")) };
+    const reader = { ...NO_MAIL, read: () => Promise.resolve({ messages: [], window: null }), reply: () => Promise.reject(new Error("reached")) };
     expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "  ", then: "read" })).toMatchObject({
       type: "error",
       message: "account_id, thread_id and text required",
@@ -378,7 +424,7 @@ describe("the reply frames", () => {
     const thens: string[] = [];
     const send = ask({
       ...NO_MAIL,
-      read: () => Promise.resolve([]),
+      read: () => Promise.resolve({ messages: [], window: null }),
       reply: (_a, _t, _text, then) => {
         thens.push(then);
         return Promise.resolve({ sent: true as const, then_error: null, change: { move: "archive", messages: [], ended: true, was_unread: true } });

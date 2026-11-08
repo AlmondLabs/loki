@@ -141,10 +141,12 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
-    account_thread_read: async ({ account_id: accountId, thread_id: threadId }) => {
+    account_thread_read: async ({ account_id: accountId, thread_id: threadId, view, thread_ts: threadTs, direction, from }) => {
       if (!deps.outside) return fail("reading threads is not available in this mod");
       try {
-        return reply({ account_id: accountId, thread_id: threadId, messages: await deps.outside.read(accountId, threadId) });
+        const ask = { ...(view ? { view } : {}), ...(threadTs ? { thread_ts: threadTs } : {}), ...(direction ? { direction } : {}), ...(from ? { from } : {}) };
+        const read = await deps.outside.read(accountId, threadId, ask);
+        return reply({ account_id: accountId, thread_id: threadId, messages: read.messages, ...(read.window ? { window: read.window } : {}) });
       } catch (err) {
         return fail(errorMessage(err));
       }

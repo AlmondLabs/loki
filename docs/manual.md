@@ -920,11 +920,16 @@ first, with who wrote it and when, and yours marked **you**; mail loses the earl
 each reply ("On … wrote:"). A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
 you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
-text, with its web addresses made into links. **A Slack card reads like its channel**: the 5 messages before the
-thread, the thread with its replies indented under its first message, and the 5 messages after it, drawn as a chat
-draws messages, with faces, day pills, @channel marked, and Slack's red **New** line before the first message you have
-not read; the card opens on that line. A channel with more since than loki reads says so at the end. A DM card shows
-its latest messages the same way. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
+text, with its web addresses made into links. **A Slack card opens on what brought it**: the messages that brought it
+into your Inbox, with 5 messages before and 5 after, drawn as a chat draws messages, with faces, day pills, @channel
+marked, and Slack's red **New** line before the first new one; the card opens on that line. What brought it, a mention,
+an @channel, a group mention or a reply in a thread you follow, has Slack's yellow mention look; a DM's unread messages
+have the New line alone. When everything new is a reply in one thread, the card shows that thread alone, its first
+message pinned on top; otherwise it shows the channel or DM, and a post with new replies says how many, which opens
+them, with a way back. **load earlier** and **load later** each bring 20 more; in a thread they say how many replies
+are left. New means new since you last dealt with the card in loki (archived it, read it, replied from it or handed it
+off; later does not count), so a mention you already handled shows as an ordinary message when it comes back, even
+though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
 @mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
 reply from a later day shows that day beside its time. A hand-off still sends the thread alone, now with each link's
 address and what apps attached. In a mail thread, each mail before the newest starts folded to its

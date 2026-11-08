@@ -42,6 +42,9 @@ export interface ThreadMessage {
   /** A Slack message read the way Slack draws it, and what an app attached to it (plan 075). */
   body?: SlackBlock[];
   attachments?: SlackAttachment[];
+  /** What a Slack card's window marks on a message (plan 077). */
+  brought?: boolean;
+  new_replies?: number | true;
   /**
    * A mail's HTML part as its sender wrote it, for the person's own card to draw (it never goes to a model); absent for
    * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.

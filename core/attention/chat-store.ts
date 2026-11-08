@@ -24,8 +24,9 @@ import type {
   AccountLabel,
   HandoffProposal,
   OutsideChange,
-  OutsideMessage,
   OutsideMove,
+  OutsideRead,
+  OutsideWindowAsk,
   ReplyProposal,
   ReplyThen,
   MailAddressing,
@@ -907,10 +908,10 @@ export class ChatStore {
   }
 
   /** An outside card's whole thread (plan 068), from the Mac its account lives on, or why it could not be read. */
-  readOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<OutsideMessage[] | string> => {
+  readOutside = async (card: Pick<ConversationInfo, "outside" | "home">, ask: OutsideWindowAsk = {}): Promise<OutsideRead | string> => {
     const o = card.outside;
     if (!o) return "this card is not from an account";
-    return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null));
+    return this.attempt((c) => c.readOutside(o.account_id, o.thread_id, card.home ?? null, ask));
   };
 
   /**

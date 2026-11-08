@@ -346,3 +346,72 @@ describe("the thread records of an account", () => {
     expect(next.list(MAIL).map((r) => r.thread_id)).toEqual(["t2"]);
   });
 });
+
+describe("what the person dealt with (plan 077, R5, KTD1)", () => {
+  test("archive and read mark the card dealt with at its newest message; later leaves the mark", async () => {
+    const { threads } = await fixture(fakeSource());
+    threads.observe(MAIL, message());
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBeNull();
+    await threads.markUnread(MAIL, "t1");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBeNull();
+    await threads.markRead(MAIL, "t1");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBeNull();
+    await threads.archive(MAIL, "t1");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBe("m1");
+  });
+
+  test("a read that ends the card marks it, as a Slack read does", async () => {
+    const { threads } = await fixture(fakeSource({ markRead: (_a, r) => Promise.resolve(changeOf("read", true, r)) }));
+    threads.observe(MAIL, message());
+    await threads.markRead(MAIL, "t1");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBe("m1");
+  });
+
+  test("a newer message keeps the mark and the messages that brought it; a reply marks the new newest", async () => {
+    const { threads } = await fixture(fakeSource());
+    threads.observe(MAIL, message({ brought_ids: ["m1"] }));
+    await threads.archive(MAIL, "t1");
+    threads.observe(MAIL, message({ message_id: "m3", at: "2026-11-04T10:00:00.000Z", brought_ids: ["m1", "m3"] }));
+    const r = must(threads.get(MAIL, "t1"));
+    expect([r.state, r.dealt_message_id, r.brought_ids]).toEqual(["open", "m1", ["m1", "m3"]]);
+    threads.observe(MAIL, message({ message_id: "m4", at: "2026-11-04T11:00:00.000Z" }));
+    expect(threads.get(MAIL, "t1")?.brought_ids).toEqual(["m1", "m3"]);
+    expect(threads.markDealt(MAIL, "t1")).toBe(true);
+    expect(threads.markDealt(MAIL, "t1")).toBe(false);
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBe("m4");
+  });
+
+  test("a hand-off marks the card; one that missed a newer message does not", async () => {
+    const { threads } = await fixture();
+    threads.observe(MAIL, message());
+    threads.handedOff(MAIL, "t1", "conv-1", "m1");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBe("m1");
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    threads.observe(MAIL, message({ message_id: "m3", at: "2026-11-04T11:00:00.000Z" }));
+    threads.handedOff(MAIL, "t1", "conv-2", "m2");
+    expect(threads.get(MAIL, "t1")?.dealt_message_id).toBe("m1");
+  });
+
+  test("undoing an archive puts the mark back as it was", async () => {
+    const { threads } = await fixture(fakeSource());
+    threads.observe(MAIL, message());
+    const change = must(await threads.archive(MAIL, "t1"));
+    await threads.restore(MAIL, "t1", change);
+    const r = must(threads.get(MAIL, "t1"));
+    expect([r.state, r.dealt_message_id]).toEqual(["open", null]);
+  });
+
+  test("a record from before the mark was kept has none and nothing that brought it", async () => {
+    const { dir, threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const folder = join(dir, "account-threads");
+    const [name] = readdirSync(folder);
+    const file = JSON.parse(readFileSync(join(folder, name), "utf8")) as { threads: Array<Record<string, unknown>> };
+    delete file.threads[0].dealt_message_id;
+    delete file.threads[0].dealt_was;
+    delete file.threads[0].brought_ids;
+    writeFileSync(join(folder, name), JSON.stringify(file), { mode: 0o600 });
+    const r = must(again().get(MAIL, "t1"));
+    expect([r.dealt_message_id, r.dealt_was, r.brought_ids]).toEqual([null, null, []]);
+  });
+});

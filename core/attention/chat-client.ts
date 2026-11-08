@@ -6,9 +6,10 @@ import type {
   MailAddressing,
   MailCompose,
   OutsideChange,
-  OutsideMessage,
   OutsideMove,
+  OutsideRead,
   OutsideReplied,
+  OutsideWindowAsk,
   ReplyThen,
   SuggestionTarget,
 } from "../frame-types.ts";
@@ -293,9 +294,9 @@ export class FrameChatClient {
   }
 
   /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */
-  async readOutside(accountId: string, threadId: string, home: string | null): Promise<OutsideMessage[]> {
-    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home }, 30_000);
-    return r.messages;
+  async readOutside(accountId: string, threadId: string, home: string | null, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
+    const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home, ...ask }, 30_000);
+    return { messages: r.messages, window: r.window ?? null };
   }
 
   /**

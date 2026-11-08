@@ -572,3 +572,54 @@ describe("a reply on a Slack card, then the key's move (plan 070, U5)", () => {
     expect(posts(slack)).toHaveLength(1);
   });
 });
+
+describe("what brought a card (plan 077, KTD2)", () => {
+  test("two mentions in one thread bring the card, not the replies between them", async () => {
+    const { slack, sync, threads } = await fixture();
+    slack.post("C0ENG", { ts: at(5), user: "U0GRACE", text: "the plan" });
+    slack.post("C0ENG", { ts: at(10), user: "U0ALAN", text: "<@U0ME> look", thread_ts: at(5) });
+    slack.post("C0ENG", { ts: at(20), user: "U0GRACE", text: "agreed", thread_ts: at(5) });
+    slack.post("C0ENG", { ts: at(30), user: "U0ALAN", text: "<@U0ME> and this", thread_ts: at(5) });
+    slack.item({ key: "a", type: "at_user", channel: "C0ENG", ts: at(10), thread_ts: at(5) });
+    slack.item({ key: "b", type: "at_user", channel: "C0ENG", ts: at(30), thread_ts: at(5) });
+    await sync.tick();
+    expect(threads.get(ACCOUNT, `C0ENG:${at(5)}`)?.brought_ids).toEqual([at(10), at(30)]);
+  });
+
+  test("a followed thread brings every reply by someone else, and none of the person's own", async () => {
+    const { slack, sync, threads } = await fixture();
+    slack.post("C0ENG", { ts: at(5), user: "U0ME", text: "my question" });
+    slack.post("C0ENG", { ts: at(10), user: "U0ALAN", text: "one idea", thread_ts: at(5) });
+    slack.post("C0ENG", { ts: at(20), user: "U0ME", text: "thanks", thread_ts: at(5) });
+    slack.post("C0ENG", { ts: at(30), user: "U0GRACE", text: "another", thread_ts: at(5) });
+    slack.item({ key: "d", type: "thread_v2", channel: "C0ENG", ts: at(30), thread_ts: at(5) });
+    await sync.tick();
+    expect(threads.get(ACCOUNT, `C0ENG:${at(5)}`)?.brought_ids).toEqual([at(10), at(30)]);
+  });
+
+  test("a DM brings nothing; its New line marks it", async () => {
+    const { slack, sync, threads } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(10), user: "U0GRACE", text: "Are you around?" });
+    slack.item({ key: "k", type: "at_user", channel: "D0GRACE", ts: at(10) });
+    await sync.tick();
+    expect(threads.get(ACCOUNT, "D0GRACE")?.brought_ids).toEqual([]);
+  });
+
+  test("covers AE2: after the person dealt with the card, only a newer mention brings it back", async () => {
+    const { slack, sync, threads, clock } = await fixture();
+    slack.post("C0ENG", { ts: at(5), user: "U0GRACE", text: "the plan" });
+    slack.post("C0ENG", { ts: at(8), user: "U0ALAN", text: "<@U0ME> look", thread_ts: at(5) });
+    slack.post("C0ENG", { ts: at(12), user: "U0ALAN", text: "<@U0ME> again", thread_ts: at(5) });
+    slack.item({ key: "a", type: "at_user", channel: "C0ENG", ts: at(8), thread_ts: at(5) });
+    slack.item({ key: "b", type: "at_user", channel: "C0ENG", ts: at(12), thread_ts: at(5) });
+    await sync.tick();
+    const id = `C0ENG:${at(5)}`;
+    expect(threads.markDealt(ACCOUNT, id)).toBe(true);
+    slack.post("C0ENG", { ts: at(30), user: "U0GRACE", text: "<@U0ME> now this", thread_ts: at(5) });
+    slack.item({ key: "c", type: "at_user", channel: "C0ENG", ts: at(30), thread_ts: at(5) });
+    clock.t += 20 * 60_000;
+    await sync.tick();
+    expect(threads.get(ACCOUNT, id)?.brought_ids).toEqual([at(30)]);
+  });
+});
