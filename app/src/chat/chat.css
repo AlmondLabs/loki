@@ -1968,3 +1968,78 @@ button.loki-label-chip:focus-visible {
   font-family: inherit;
   cursor: pointer;
 }
+/* A desktop mail card's thread (plan 078), as Gmail lays one out: each mail under its own header line, the ones before
+   the newest folded to a line, files as chips, and the reply as one framed box at the end, indented with the mails. */
+.loki-mail-thread {
+  display: flex;
+  flex-direction: column;
+}
+.loki-mail-msg {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--loki-border);
+}
+.loki-mail-msg:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.loki-mail-msg--folded {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-mail-msg--folded:hover {
+    background: var(--loki-hover);
+  }
+}
+.loki-mail-msg-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.loki-mail-msg-name {
+  flex: none;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.loki-mail-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.loki-mail-compose {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-well);
+}
+.loki-mail-compose-head {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-mail-compose-text {
+  padding: 8px 10px;
+}
+.loki-mail-compose-extra {
+  padding: 0 10px 8px;
+}
+.loki-mail-compose-foot {
+  padding: 6px 10px;
+  border-top: 1px solid var(--loki-border);
+}

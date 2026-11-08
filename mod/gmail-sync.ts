@@ -7,7 +7,8 @@ import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { GmailError, type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
 import { log } from "./log.ts";
-import { headerPeople, type MailPeople } from "./mail-people.ts";
+import { headerPeople } from "../core/mail-header.ts";
+import type { MailPeople } from "./mail-people.ts";
 
 /**
  * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11, KTD13; plan 070, KTD2, KTD5). Every thread in the inbox,

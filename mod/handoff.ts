@@ -1,6 +1,15 @@
 import { messageOf } from "../core/errors.ts";
 import { htmlToText, tidyMail } from "../core/mail-text.ts";
-import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget, SlackAttachment, SlackBlock } from "../core/frame-types.ts";
+import type {
+  AccountDisconnectCause,
+  AccountProvider,
+  DeskStatus,
+  HandoffProposal,
+  HandoffTarget,
+  MailFile,
+  SlackAttachment,
+  SlackBlock,
+} from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
@@ -50,6 +59,10 @@ export interface ThreadMessage {
    * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.
    */
   html?: string;
+  /** A mail's To and Cc headers and its files (plan 078), for the person's card; a hand-off's text leaves them out. */
+  to?: string;
+  cc?: string;
+  files?: MailFile[];
 }
 
 /** The largest HTML part, in characters, the card is given to draw; a larger one is shown as its text. */
@@ -335,9 +348,13 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
     const thread = await client(accountId).getThread(threadId, "full");
     const own = accountId.startsWith("gmail:") ? accountId.slice("gmail:".length) : "";
     return thread.messages.map((m) => {
-      const from = m.payload?.headers.find((h) => h.name.toLowerCase() === "from")?.value ?? "";
+      const header = (name: string) => m.payload?.headers.find((h) => h.name.toLowerCase() === name)?.value ?? "";
+      const from = header("from");
       const at = Number(m.internalDate);
       const { text, html } = mailParts(m);
+      const to = header("to");
+      const cc = header("cc");
+      const files = mailAttachments(m).map((f) => ({ name: f.filename, size: f.size }));
       return {
         sender: from || "someone",
         id: m.id,
@@ -345,6 +362,9 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
         text,
         ...(html !== null && html.length <= MAIL_HTML_MAX ? { html } : {}),
+        ...(to ? { to } : {}),
+        ...(cc ? { cc } : {}),
+        ...(files.length ? { files } : {}),
       };
     });
   };
