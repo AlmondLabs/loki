@@ -8,7 +8,7 @@ import { chipText } from "../chat/suggestion-card";
 import { CardFace, CardHead } from "./card-head";
 import { avatarUrl } from "./env";
 import { keyboard } from "./env";
-import { keyFor } from "../shell/keymap";
+import { formatKeys, keyFor } from "../shell/keymap";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -300,10 +300,12 @@ export function CardActions({
 export function KeysHint({ typing, current }: { typing: boolean; current?: AttentionItem }) {
   const o = current?.outside;
   const moves = `${deckKey("inbox.next", typing)} read · ${deckKey("inbox.later", typing)} later · ${deckKey("inbox.archive", typing)} archive`;
-  const label = o?.provider === "gmail" ? ` · ${keyFor("inbox.label")} label` : "";
+  const mail = o?.provider === "gmail";
+  const label = mail ? ` · ${keyFor("inbox.label")} label` : "";
+  // A mail sends on ⌘Enter and is held for its undo (plan 076); ⇧R and F switch it to the sender alone or to a forward.
   const outside = typing
-    ? `enter send, then read · ${moves} (a reply goes first) · esc back to the deck's keys`
-    : `${moves}${label} · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.undo", false)} undo · esc close`;
+    ? `${mail ? `${formatKeys("cmd+enter")} send, then read · ${formatKeys("cmd+shift+c")} recipients` : "enter send, then read"} · ${moves} (a reply goes first) · esc back to the deck's keys`
+    : `${moves}${label} · ${keyFor("inbox.reply")} reply${mail ? ` · ${keyFor("inbox.reply_sender")} reply to sender · ${keyFor("inbox.forward")} forward` : ""} · ${deckKey("inbox.undo", false)} undo · esc close`;
   const chat = typing
     ? `enter send (you stay on the card) · ${moves} · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
     : `${moves} · ${deckKey("inbox.approve", false)} approve · ${deckKey("inbox.deny", false)} deny · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.open", false)} open · ${deckKey("inbox.undo", false)} undo · esc close`;

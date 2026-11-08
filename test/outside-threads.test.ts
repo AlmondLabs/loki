@@ -11,7 +11,7 @@ import { OutsideThread, outsideTitle, replyPlace, senderName } from "../app/src/
 import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
 import { accountFrames } from "../mod/frames/accounts.ts";
-import type { GmailDraftInput, GmailMessage } from "../mod/gmail.ts";
+import type { GmailDraftInput, GmailMessage, GmailSendAs } from "../mod/gmail.ts";
 import type { ThreadMessage } from "../mod/handoff.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
 import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
@@ -52,7 +52,16 @@ const message = (id: string, at: number, headers: Record<string, string>, labelI
 
 /** OutsideThreads with fake clients and readers, recording what was sent and archived. */
 function threads(
-  opts: { accounts?: AccountRecord[]; thread?: ThreadMessage[]; view?: ThreadMessage[]; gmail?: GmailMessage[]; sendFails?: string; thenFails?: string } = {},
+  opts: {
+    accounts?: AccountRecord[];
+    thread?: ThreadMessage[];
+    view?: ThreadMessage[];
+    gmail?: GmailMessage[];
+    sendFails?: string;
+    thenFails?: string;
+    sendAs?: GmailSendAs[];
+    extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
+  } = {},
 ) {
   const sentMail: GmailDraftInput[] = [];
   const posted: SlackDraftInput[] = [];
@@ -87,7 +96,14 @@ function threads(
             provider: "gmail",
             client: {
               getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: opts.gmail ?? [] }),
-              sendAsAddresses: () => Promise.resolve(["ada@work.example"]),
+              sendAs: () =>
+                Promise.resolve(
+                  opts.sendAs ?? [
+                    { address: "ada@acme.com", name: "Ada", signature: "", isDefault: true },
+                    { address: "ada@work.example", name: "Ada", signature: "", isDefault: false },
+                  ],
+                ),
+              attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
               sendReply: (r) => {
                 if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
                 sentMail.push(r);
@@ -105,6 +121,7 @@ function threads(
               },
             },
           },
+    ...opts.extra,
   });
   return { t, sentMail, posted, archived, moves };
 }
@@ -228,10 +245,14 @@ describe("the person's reply", () => {
         threadId: "t1",
         inReplyTo: "<m3@acme.com>",
         references: ["<m1@acme.com>"],
+        // The mail came to the person's work address, so the answer goes from it (plan 076).
+        from: '"Ada" <ada@work.example>',
         to: ["Cy <cy@acme.com>", "bob@acme.com"],
         cc: [],
+        bcc: [],
         subject: "Re: Lunch",
         body: "Friday works.",
+        html: '<div dir="ltr">Friday works.</div>',
       },
     ]);
     expect(archived).toEqual([`${MAIL}/t1`]);
@@ -263,7 +284,7 @@ describe("the person's reply", () => {
       then_error: null,
       change: { move: "unread", messages: [], ended: false, was_unread: true },
     });
-    expect(sentMail.map((m) => m.body)).toEqual(["Can you send the deck by Friday?"]);
+    expect(sentMail.map((m) => m.body.split("\n")[0])).toEqual(["Can you send the deck by Friday?"]);
     expect(moves).toEqual([`waiting ${MAIL}/t1`, `unread ${MAIL}/t1`]);
   });
   test("Covers AE4. with archive, the reply is sent and the thread archived", async () => {
@@ -290,6 +311,9 @@ describe("the person's reply", () => {
   });
 });
 
+/** The mail parts of the reply frames' fake, for tests about something else. */
+const NO_MAIL = { compose: () => Promise.reject(new Error("not a mail")), unsend: () => false };
+
 describe("the reply frames", () => {
   /** The account frames on a bridge, with a fake reader; each frame's last answer. */
   function ask(outside?: Parameters<typeof accountFrames>[0]["outside"]) {
@@ -305,6 +329,7 @@ describe("the reply frames", () => {
 
   test("a read answers the thread, a reply answers it was sent and how its move went, and a refusal comes back in words", async () => {
     const send = ask({
+      ...NO_MAIL,
       read: () => Promise.resolve([{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }]),
       reply: (_a, _t, text, then) =>
         text === "boom"
@@ -335,7 +360,7 @@ describe("the reply frames", () => {
     });
   });
   test("an empty reply or one with a move loki does not know is refused before it reaches the reader, and without the reader a reply says so", async () => {
-    const reader = { read: () => Promise.resolve([]), reply: () => Promise.reject(new Error("reached")) };
+    const reader = { ...NO_MAIL, read: () => Promise.resolve([]), reply: () => Promise.reject(new Error("reached")) };
     expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "  ", then: "read" })).toMatchObject({
       type: "error",
       message: "account_id, thread_id and text required",
@@ -352,6 +377,7 @@ describe("the reply frames", () => {
   test("a reply from an app before plan 070, which sends no move, is sent and then archived, as it was then", async () => {
     const thens: string[] = [];
     const send = ask({
+      ...NO_MAIL,
       read: () => Promise.resolve([]),
       reply: (_a, _t, _text, then) => {
         thens.push(then);

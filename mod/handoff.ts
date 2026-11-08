@@ -4,7 +4,7 @@ import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffPropos
 import { keyedQueue } from "../core/serial.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
-import type { GmailClient, GmailMessagePart } from "./gmail.ts";
+import type { GmailClient, GmailMessage, GmailMessagePart } from "./gmail.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
@@ -333,20 +333,39 @@ export function gmailThreadText(client: (accountId: string) => Pick<GmailClient,
     const own = accountId.startsWith("gmail:") ? accountId.slice("gmail:".length) : "";
     return thread.messages.map((m) => {
       const from = m.payload?.headers.find((h) => h.name.toLowerCase() === "from")?.value ?? "";
-      const plain = partOf(m.payload, "text/plain")?.body.data;
-      const html = partOf(m.payload, "text/html")?.body.data;
       const at = Number(m.internalDate);
-      const markup = html ? decoded(html) : null;
+      const { text, html } = mailParts(m);
       return {
         sender: from || "someone",
         id: m.id,
         mine: own !== "" && addressOf(from) === own,
         at: Number.isFinite(at) && at > 0 ? new Date(at).toISOString() : "",
-        text: plain ? tidyMail(decoded(plain)) : markup !== null ? htmlToText(markup) : tidyMail(m.snippet),
-        ...(markup !== null && markup.length <= MAIL_HTML_MAX ? { html: markup } : {}),
+        text,
+        ...(html !== null && html.length <= MAIL_HTML_MAX ? { html } : {}),
       };
     });
   };
+}
+
+/** A message read with format full as text (its plain part, else its HTML as text, else its snippet) and its HTML part as written, or null. */
+export function mailParts(m: GmailMessage): { text: string; html: string | null } {
+  const plain = partOf(m.payload, "text/plain")?.body.data;
+  const html = partOf(m.payload, "text/html")?.body.data;
+  const markup = html ? decoded(html) : null;
+  return { text: plain ? tidyMail(decoded(plain)) : markup !== null ? htmlToText(markup) : tidyMail(m.snippet), html: markup };
+}
+
+/** A message's attachments, read with format full: each file part's name, type and Gmail's id for its bytes. */
+export function mailAttachments(m: GmailMessage): Array<{ filename: string; mimeType: string; attachmentId: string; size: number }> {
+  const out: Array<{ filename: string; mimeType: string; attachmentId: string; size: number }> = [];
+  const walk = (part: GmailMessagePart | null) => {
+    if (!part) return;
+    if (part.filename && part.body.attachmentId)
+      out.push({ filename: part.filename, mimeType: part.mimeType, attachmentId: part.body.attachmentId, size: part.body.size });
+    part.parts.forEach(walk);
+  };
+  walk(m.payload);
+  return out;
 }
 
 /** The address in a From header ("Ada <ada@acme.com>" or a bare address), lowercased; "" when it has none. */

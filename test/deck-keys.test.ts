@@ -32,7 +32,17 @@ const DONE: MoveResult = { error: null, ask: false, rest: null };
 const settle = () => new Promise<void>((r) => setImmediate(r));
 
 /** A deck with `queue` up, recording every call its moves make. */
-function deck(queue: AttentionItem[], over: { asks?: boolean; text?: string; reply?: OutsideReplyResult; read?: MoveResult } = {}) {
+function deck(
+  queue: AttentionItem[],
+  over: {
+    asks?: boolean;
+    text?: string;
+    reply?: OutsideReplyResult | Promise<OutsideReplyResult>;
+    read?: MoveResult;
+    /** Mail replies are held for their undo (plan 076): what stopping one answers. */
+    unsend?: (outboxId: string) => boolean;
+  } = {},
+) {
   const calls: Array<[string, ...unknown[]]> = [];
   const state = {
     queue,
@@ -55,6 +65,7 @@ function deck(queue: AttentionItem[], over: { asks?: boolean; text?: string; rep
       setDir: () => {},
       pick: (k) => (state.picker = k),
       sent: () => calls.push(["sent"]),
+      newId: () => "o1",
       moves: {
         read: (item) => (calls.push(["read", item.id]), Promise.resolve(over.read ?? DONE)),
         later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(DONE)),
@@ -62,10 +73,18 @@ function deck(queue: AttentionItem[], over: { asks?: boolean; text?: string; rep
         archive: (item) => (calls.push(["archive", item.id]), Promise.resolve(null)),
         label: (item, ids) => (calls.push(["label", item.id, ids]), Promise.resolve(null)),
         undo: (item) => (calls.push(["undo", item.id]), Promise.resolve(null)),
-        replyOutside: (item, text: string, then: ReplyThen) => (
-          calls.push(["reply", item.id, text, then]),
+        replyOutside: (item, text: string, then: ReplyThen, extra) => (
+          calls.push(extra?.outbox_id ? ["reply", item.id, text, then, extra] : ["reply", item.id, text, then]),
           Promise.resolve(over.reply ?? { sent: true, error: null })
         ),
+        ...(over.unsend
+          ? {
+              unsendOutside: (item: AttentionItem, outboxId: string) => {
+                calls.push(["unsend", item.id, outboxId]);
+                return Promise.resolve(over.unsend?.(outboxId) ?? false);
+              },
+            }
+          : {}),
         seen: () => {},
         unread: () => {},
         approve: () => {},
@@ -104,7 +123,7 @@ describe("⌘] and ⌘[ on a card", () => {
     const d = deck([outsideItem("Lunch")], { text: "Thursday works", reply: { sent: true, error: "could not mark it read" } });
     d.moves().later();
     await settle();
-    expect(d.state.box).toEqual({ text: "", busy: false, error: "could not mark it read" });
+    expect(d.state.box).toEqual({ text: "", mail: null, busy: false, error: "could not mark it read" });
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1"]);
     d.moves().later();
     await settle();
@@ -133,6 +152,77 @@ describe("⌘] and ⌘[ on a card", () => {
     expect(d.calls).toEqual([["later", "t1#1", tomorrow.at.toISOString()]]);
     expect(d.state.picker).toBeNull();
     expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+  });
+});
+
+describe("a mail reply held for its undo (plan 076)", () => {
+  /** A reply that answers when the test says. */
+  const later = () => {
+    let answer: (r: OutsideReplyResult) => void = () => {};
+    const reply = new Promise<OutsideReplyResult>((r) => (answer = r));
+    return { reply, answer: (r: OutsideReplyResult) => answer(r) };
+  };
+  test("⌘] moves the card on at once, empties the box, and holds the reply with its addressing and id", async () => {
+    const r = later();
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "Thursday works", reply: r.reply, unsend: () => true });
+    d.state.box = { ...d.state.box, mail: { mode: "reply", to: ["grace@acme.com"], cc: [], bcc: [], from: null, signature: true } };
+    d.moves().read();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+    expect(d.state.box.text).toBe("");
+    expect(d.state.flash).toEqual(["sending · z undo"]);
+    expect(d.state.decided.map((x) => x.held?.outbox_id)).toEqual(["o1"]);
+    expect(d.calls[0]).toEqual([
+      "reply",
+      "t1#1",
+      "Thursday works",
+      "read",
+      { mail: { mode: "reply", to: ["grace@acme.com"], cc: [], bcc: [], from: null, signature: true }, outbox_id: "o1" },
+    ]);
+    r.answer({ sent: true, error: null });
+    await settle();
+    // Sent: the decision is an ordinary one now, so Z takes back the read and not the reply.
+    expect(d.state.decided.map((x) => x.held)).toEqual([undefined]);
+    expect(d.state.flash).toEqual(["sending · z undo", "sent"]);
+  });
+  test("Z while it is held stops it, and the card comes back with the words and addressing in its box", async () => {
+    const r = later();
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "Thursday works", reply: r.reply, unsend: () => true });
+    d.moves().read();
+    d.moves().undo();
+    await settle();
+    r.answer({ sent: false, error: null, undone: true });
+    await settle();
+    expect(d.calls.filter((c) => c[0] === "unsend")).toEqual([["unsend", "t1#1", "o1"]]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.box).toMatchObject({ text: "Thursday works", mail: null, error: null });
+    expect(d.state.flash.at(-1)).toBe("not sent");
+  });
+  test("Z after it went says so and leaves the card where it is", async () => {
+    const r = later();
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "ok", reply: r.reply, unsend: () => false });
+    d.moves().read();
+    d.moves().undo();
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+    expect(d.state.flash.at(-1)).toBe("already sent");
+  });
+  test("a send that fails brings the card back on top with the words and the reason", async () => {
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "ok", reply: { sent: false, error: "Gmail refused it" }, unsend: () => true });
+    d.moves().archive();
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.box).toMatchObject({ text: "ok", error: "Gmail refused it" });
+    expect(d.state.flash.at(-1)).toBe("not sent");
+  });
+  test("a Slack card's reply is never held: it goes at once, as before", async () => {
+    const slack = outsideItem("Lunch");
+    const item = { ...slack, outside: slack.outside && { ...slack.outside, provider: "slack" as const } };
+    const d = deck([item], { text: "ok", unsend: () => true });
+    d.moves().read();
+    await settle();
+    expect(d.calls[0]).toEqual(["reply", "t1#1", "ok", "read"]);
   });
 });
 
@@ -212,6 +302,12 @@ describe("the reply box's keys", () => {
     expect(replyBoxKey(key("Enter"), "macos")).toBe("send");
     expect(replyBoxKey(key("Enter", { shift: true }), "macos")).toBe("own");
     expect(replyBoxKey(key("Escape"), "macos")).toBe("escape");
+  });
+  test("in a mail's box Enter starts a line, ⌘Enter sends and ⌘⇧C opens the recipients, as in Gmail (plan 076)", () => {
+    expect(replyBoxKey(key("Enter"), "macos", true)).toBe("own");
+    expect(replyBoxKey(key("Enter", { meta: true }), "macos", true)).toBe("send");
+    expect(replyBoxKey(key("C", { meta: true, shift: true }), "macos", true)).toBe("recipients");
+    expect(replyBoxKey(key("]", { meta: true }), "macos", true)).toBe("deck");
   });
 });
 

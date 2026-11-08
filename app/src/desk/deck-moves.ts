@@ -1,8 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
-import type { MoveResult, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
-import type { ReplyThen } from "../../../core/frame-types.ts";
+import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
+import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
 
 /** The picker a card has open in its picker slot: where the thread goes, when the card comes back, or its labels. */
 export type PickerKind = "handoff" | "later" | "label";
@@ -10,12 +10,14 @@ export type PickerKind = "handoff" | "later" | "label";
 /** The reply box of an outside card, held by the deck (KTD9) so ⌘], ⌘[ and ⌘E can send what is in it. */
 export interface ReplyBox {
   text: string;
+  /** How a mail reply is addressed (plan 076); null while the person has not changed it, which sends to all. */
+  mail: MailAddressing | null;
   busy: boolean;
   error: string | null;
 }
 
 /** An empty reply box: what a card starts with, and what a sent reply leaves. */
-export const EMPTY_REPLY: ReplyBox = { text: "", busy: false, error: null };
+export const EMPTY_REPLY: ReplyBox = { text: "", mail: null, busy: false, error: null };
 
 /**
  * The moves the deck asks of the app (useAttention's, plan 070 U6), with how the press came already filled in. Read,
@@ -30,7 +32,9 @@ export interface DeckMoveApi {
   label: (item: AttentionItem, labelIds: string[]) => Promise<string | null>;
   undo: (item: AttentionItem) => Promise<string | null>;
   /** An outside card's reply, sent before the key's own move; absent, outside cards have no reply box. */
-  replyOutside?: (item: AttentionItem, text: string, then: ReplyThen) => Promise<OutsideReplyResult>;
+  replyOutside?: (item: AttentionItem, text: string, then: ReplyThen, extra?: OutsideReplyExtra) => Promise<OutsideReplyResult>;
+  /** Stop a held mail reply before it goes (plan 076); absent, a mail reply goes at once, as a Slack one does. */
+  unsendOutside?: (item: AttentionItem, outboxId: string) => Promise<boolean>;
   seen: (item: AttentionItem, via: "approve" | "deny") => void;
   unread: (item: AttentionItem) => void;
   approve: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
@@ -54,6 +58,8 @@ export interface DeckMovesHost {
   /** A reply went out this visit. */
   sent: () => void;
   moves: DeckMoveApi;
+  /** A new id for a held mail reply (plan 076); a random one when left out, so a test can name its own. */
+  newId?: () => string;
 }
 
 /** The decision each key leaves behind, and how it reads in the visit's summary. */
@@ -93,20 +99,58 @@ export function createDeckMoves(host: DeckMovesHost) {
   /** Text waits in an outside card's box: the key sends it, then makes its move. */
   const hasReply = (item: AttentionItem) => !!item.outside && !!moves.replyOutside && host.reply.text.trim() !== "";
 
+  /**
+   * A mail reply (plan 076): the card moves on at once and the reply is held for its undo, which Z takes back while it
+   * waits (`held` on its decision). A send that fails brings the card back on top with the words and the reason; a move
+   * after it that fails brings it back with the reason, the reply sent.
+   */
+  const sendHeld = async (item: AttentionItem, then: ReplyThen, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
+    const id = idOf(item);
+    const { text, mail } = host.reply;
+    const outbox = host.newId?.() ?? crypto.randomUUID();
+    const { action, via } = DECISION[then];
+    const mine = (d: Decision) => d.held?.outbox_id === outbox;
+    host.setReply(id, { text: "", mail: null, error: null });
+    host.setDir("next");
+    host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item), held: { outbox_id: outbox, text, mail } }]);
+    host.setQueue(popHead);
+    host.say("sending · z undo");
+    const r = await send(item, text, then, { mail, outbox_id: outbox });
+    // Undo stopped it and already put the card and the words back.
+    if (r.undone) return;
+    if (r.sent) host.sent();
+    if (r.sent && !r.error) {
+      // Sent: from here undo takes back the key's move, as for any card.
+      host.setDecided((d) => d.map((x) => (mine(x) ? { item: x.item, action: x.action, via: x.via, stamp: x.stamp } : x)));
+      host.say("sent");
+      return;
+    }
+    host.setDecided((d) => d.filter((x) => !mine(x)));
+    host.setQueue((q) => [item, ...q.filter((i) => idOf(i) !== id)]);
+    if (r.sent) {
+      host.setReply(id, { error: r.error });
+      host.say(`sent, ${REFUSED[then]}`);
+    } else {
+      host.setReply(id, { text, mail, error: r.error });
+      host.say("not sent");
+    }
+  };
+
   /** Send the box's text, then the key's move; the card moves on only when both went, and keeps the error when not. */
   const sendThen = async (item: AttentionItem, then: ReplyThen): Promise<void> => {
     const send = moves.replyOutside;
     const id = idOf(item);
     if (!send || host.reply.busy) return;
+    if (item.outside?.provider === "gmail" && moves.unsendOutside) return sendHeld(item, then, send);
     host.setReply(id, { busy: true, error: null });
     let r: OutsideReplyResult;
     try {
-      r = await send(item, host.reply.text, then);
+      r = await send(item, host.reply.text, then, { mail: host.reply.mail });
     } finally {
       host.setReply(id, { busy: false });
     }
     if (r.sent) {
-      host.setReply(id, { text: "" });
+      host.setReply(id, { text: "", mail: null });
       host.sent();
     }
     if (r.error) {
@@ -216,6 +260,17 @@ export function createDeckMoves(host: DeckMovesHost) {
     while (at >= 0 && host.agent && ownerAgentOf(host.decided[at].item) !== host.agent) at--;
     const last = at >= 0 ? host.decided[at] : undefined;
     if (!last) return;
+    // A mail reply still held (plan 076): stopped before it goes, and the card comes back with the words in its box.
+    const held = last.held;
+    if (held && moves.unsendOutside) {
+      void moves.unsendOutside(last.item, held.outbox_id).then((stopped) => {
+        if (!stopped) return host.say("already sent");
+        back(last);
+        host.setReply(idOf(last.item), { text: held.text, mail: held.mail, error: null });
+        host.say("not sent");
+      });
+      return;
+    }
     // An approval's move only marked the chat seen; the answer itself stays given.
     if (last.via === "approve" || last.via === "deny") {
       moves.unread(last.item);

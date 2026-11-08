@@ -254,10 +254,49 @@ export type ReplyThen = "read" | "later" | "archive";
  * tried again without sending the reply twice. `then_error` is that move's reason when it failed, and `change` what it
  * wrote, for an undo, or null when it failed or wrote nothing.
  */
-export interface OutsideReplied {
-  sent: true;
-  then_error: string | null;
-  change: OutsideChange | null;
+export type OutsideReplied = { sent: true; then_error: string | null; change: OutsideChange | null } | { sent: false; undone: true };
+
+/** How a mail reply is addressed (plan 076): to the sender, to everyone on the newest message, or forwarded to no one yet. */
+export type MailMode = "reply" | "reply_all" | "forward";
+
+/**
+ * What the person chose on a mail card's recipients line (plan 076): the mode, who it goes to, the address it is sent
+ * from (null for the one the mail came to), and whether their Gmail signature goes under it. A reply sent without it
+ * goes to all, from that address, with the signature, as a reply from before plan 076 did, plus the signature.
+ */
+export interface MailAddressing {
+  mode: MailMode;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  from: string | null;
+  signature: boolean;
+}
+
+/** One address the person sends from in Gmail (plan 076): the address, the name it shows, and its signature as plain text. */
+export interface MailSender {
+  address: string;
+  name: string;
+  signature: string;
+}
+
+/** Someone the account has mail with (plan 076), for the recipients line's suggestions: the name they show, if any, and their address. */
+export interface MailPerson {
+  name: string;
+  address: string;
+}
+
+/**
+ * What a mail card's recipients line starts from (plan 076), read on the Mac the account lives on: who reply and reply
+ * all go to, the addresses the person sends from with the default for this thread, the subject, and the people the
+ * account has mail with, most often and most lately first.
+ */
+export interface MailCompose {
+  modes: Record<"reply" | "reply_all", { to: string[]; cc: string[] }>;
+  from: MailSender[];
+  default_from: string;
+  subject: string;
+  people: MailPerson[];
 }
 
 /** One of an account's Gmail labels (plan 070, R12): Gmail's own (`system`, as STARRED) or one the person made (`user`). */

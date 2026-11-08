@@ -1,3 +1,4 @@
+import type { MailAddressing } from "../frame-types.ts";
 import type { AttentionItem, AttentionStatus } from "./model.ts";
 import { byScore } from "./priority.ts";
 
@@ -56,6 +57,11 @@ export interface Decision {
   via?: "next" | "later" | "archive" | "label" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
+  /**
+   * A mail reply still held for its undo (plan 076): the id it is stopped by, and the words and addressing that come
+   * back to the box when it is. Gone once the reply went, so undo then takes back the move as usual.
+   */
+  held?: { outbox_id: string; text: string; mail: MailAddressing | null };
 }
 
 /** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */

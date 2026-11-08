@@ -28,6 +28,8 @@ import type {
   OutsideMove,
   ReplyProposal,
   ReplyThen,
+  MailAddressing,
+  MailCompose,
   Suggestion,
   SuggestionTarget,
 } from "../frame-types.ts";
@@ -921,13 +923,30 @@ export class ChatStore {
     card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
     text: string,
     then: ReplyThen,
-  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null }> => {
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+  ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
     const o = card.outside;
     if (!o) return { sent: false, error: "this card is not from an account", change: null };
-    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null));
+    const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, extra));
     if (typeof r === "string") return { sent: false, error: r, change: null };
+    if (!r.sent) return { sent: false, error: null, change: null, undone: true };
     if (r.change?.ended) this.dropCard(card);
     return { sent: true, error: r.then_error, change: r.change };
+  };
+
+  /** What a mail card's recipients line starts from (plan 076), or why it could not be read. */
+  composeOutside = async (card: Pick<ConversationInfo, "outside" | "home">): Promise<MailCompose | string> => {
+    const o = card.outside;
+    if (o?.provider !== "gmail") return "this card is not a mail";
+    return this.attempt((c) => c.composeOutside(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */
+  unsendOutside = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string): Promise<boolean> => {
+    const o = card.outside;
+    if (!o) return false;
+    const r = await this.attempt((c) => c.unsendOutside(o.account_id, outboxId, card.home ?? null));
+    return r === true;
   };
 
   /**

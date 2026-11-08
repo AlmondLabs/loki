@@ -21,6 +21,9 @@ import type {
   OutsideMove,
   OutsideReplied,
   OutsideWrite,
+  MailAddressing,
+  MailCompose,
+  MailMode,
   ReplyThen,
   SlackWorkspaceView,
   DeskStatus,
@@ -327,6 +330,10 @@ export interface Replies {
    * `then_error` is that move's reason when it failed, and the client tries the move again without the text.
    */
   account_thread_replied: { account_id: string; thread_id: string } & OutsideReplied;
+  /** What a mail card's recipients line starts from (plan 076), read on the Mac the account lives on. */
+  account_compose: { account_id: string; thread_id: string } & MailCompose;
+  /** Whether a held mail reply was stopped before it went (plan 076); false when it had already gone or was never held. */
+  account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
@@ -543,6 +550,29 @@ const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "a
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
 const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
+const MAIL_MODES: readonly MailMode[] = ["reply", "reply_all", "forward"];
+/** The most people a mail reply may go to: past Gmail's own limit nobody types on a card. */
+const MAX_RECIPIENTS = 100;
+/** An address as the recipients line sends it: one line, an @ in it, no longer than a header holds. */
+const addressLike = (v: unknown): v is string => typeof v === "string" && v.includes("@") && v.length <= 320 && !/[\r\n]/.test(v);
+
+/** The addressing a mail reply carries (plan 076), or the reason it cannot be read; absent stays absent. */
+function parseMailAddressing(v: unknown): MailAddressing | null | string {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "object") return "mail must be an object";
+  const m = v as Record<string, unknown>;
+  const mode = MAIL_MODES.find((x) => x === m.mode);
+  if (!mode) return "mail.mode must be reply, reply_all or forward";
+  const lists: Record<"to" | "cc" | "bcc", string[]> = { to: [], cc: [], bcc: [] };
+  for (const k of ["to", "cc", "bcc"] as const) {
+    const l = m[k] ?? [];
+    if (!Array.isArray(l) || !l.every(addressLike)) return `mail.${k} must be a list of addresses`;
+    lists[k] = l;
+  }
+  if (lists.to.length + lists.cc.length + lists.bcc.length > MAX_RECIPIENTS) return "that reply goes to too many people";
+  if (m.from !== undefined && m.from !== null && !addressLike(m.from)) return "mail.from must be an address";
+  return { mode, ...lists, from: addressLike(m.from) ? m.from : null, signature: m.signature !== false };
+}
 const allStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(str);
 
 /** A change a client kept from a write-back frame and sends back for an undo (plan 070, R14), or null when it is not one. */
@@ -1290,10 +1320,43 @@ export const FRAMES = {
       // new name (account_thread_replied, where it awaited account_thread_archived) still reaches it.
       const then = m.then === undefined ? "archive" : REPLY_THENS.find((t) => t === m.then);
       if (!then) return "then must be read, later or archive";
-      return { account_id: m.account_id, thread_id: m.thread_id, text: m.text, then, home: strOr(m.home, null) };
+      // Plan 076: how a mail reply is addressed, and the id its hold is undone by; both may be left out.
+      const mail = parseMailAddressing(m.mail);
+      if (typeof mail === "string") return mail;
+      if (m.outbox_id !== undefined && (!str(m.outbox_id) || !/^[\w-]{8,64}$/.test(m.outbox_id))) return "outbox_id must be a short id";
+      return {
+        account_id: m.account_id,
+        thread_id: m.thread_id,
+        text: m.text,
+        then,
+        mail,
+        outbox_id: str(m.outbox_id) ? m.outbox_id : null,
+        home: strOr(m.home, null),
+      };
     },
     PHONE,
-    { route: "home", relists: true, timeout_ms: 30_000 },
+    // A mail reply is held for its undo (plan 076) before it goes, so its answer comes that much later.
+    { route: "home", relists: true, timeout_ms: 60_000 },
+  ),
+  account_thread_compose: request(
+    "account_compose",
+    "what a mail card's recipients line starts from (plan 076): who reply and reply all go to, the addresses the person sends from and their signatures, the subject, the message a reply quotes, and the people the account has mail with; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id
+        ? { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null) }
+        : "account_id and thread_id required",
+    PHONE,
+    { ...BY_HOME, timeout_ms: 30_000 },
+  ),
+  account_thread_unsend: request(
+    "account_thread_unsent",
+    "stop a held mail reply before it goes (plan 076), by the `outbox_id` its reply frame carried; the reply frame then answers that it was undone; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.outbox_id) && m.outbox_id
+        ? { account_id: m.account_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }
+        : "account_id and outbox_id required",
+    PHONE,
+    BY_HOME,
   ),
   account_thread_move: request(
     "account_move_kept",

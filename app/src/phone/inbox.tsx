@@ -31,7 +31,18 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
-import { OutsideReply, OutsideThread, disconnectedText, outsideTitle, outsideWho, senderName, useOutsideThread, wentTo } from "../desk/outside-card";
+import {
+  OutsideReply,
+  OutsideThread,
+  disconnectedText,
+  outsideTitle,
+  outsideWho,
+  quoteOf,
+  senderName,
+  useMailCompose,
+  useOutsideThread,
+  wentTo,
+} from "../desk/outside-card";
 import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";
@@ -907,7 +918,16 @@ function Stack({
               banner={banner}
               went={wentTo(item.outside, items)}
               handoff={chats.handoffPropose && chats.handoff ? { handoffPropose: chats.handoffPropose, handoff: chats.handoff } : null}
-              outside={chats.readOutside && chats.replyOutside ? { readOutside: chats.readOutside, replyOutside: chats.replyOutside } : null}
+              outside={
+                chats.readOutside && chats.replyOutside
+                  ? {
+                      readOutside: chats.readOutside,
+                      replyOutside: chats.replyOutside,
+                      composeOutside: chats.composeOutside,
+                      unsendOutside: chats.unsendOutside,
+                    }
+                  : null
+              }
               onTyped={(has) => onTyped(item, has)}
               onSending={(on) => onSending(item, on)}
               onReplied={() => onReplied(item)}
@@ -1145,8 +1165,12 @@ function OutsideBody({
 }) {
   const [picking, setPicking] = useState(false);
   const thread = useOutsideThread(item, outside);
+  // A mail's recipients line (plan 076), and the id of the reply held for its undo while it waits.
+  const compose = useMailCompose(item, outside);
+  const held = useRef<string | null>(null);
   const facts = item.outside;
   if (!facts) return null;
+  const unsend = outside?.unsendOutside;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
       {banner}
@@ -1165,15 +1189,27 @@ function OutsideBody({
           <OutsideReply
             facts={facts}
             touch
-            onSend={async (text) => {
+            compose={compose}
+            quote={quoteOf(facts, thread)}
+            onUndo={
+              facts.provider === "gmail" && unsend
+                ? () => {
+                    if (held.current) void unsend(item, held.current);
+                  }
+                : undefined
+            }
+            onSend={async (text, mail) => {
               onSending?.(true);
+              const outboxId = facts.provider === "gmail" && unsend ? crypto.randomUUID() : null;
+              held.current = outboxId;
               try {
-                const r = await outside.replyOutside(item, text, "read");
+                const r = await outside.replyOutside(item, text, "read", { mail, outbox_id: outboxId });
                 // A sent reply clears the box, which fires no input: the swipes come back here.
                 if (r.sent) onTyped?.(false);
                 if (r.sent && !r.error) onReplied?.();
                 return r;
               } finally {
+                held.current = null;
                 onSending?.(false);
               }
             }}
