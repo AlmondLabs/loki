@@ -5,6 +5,7 @@ import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { Button, Chip, Meta, TextArea } from "../components";
 import { KEYMAP, chordIds, cmdHeld, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
+import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
@@ -163,7 +164,11 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
   const end = useRef<HTMLDivElement>(null);
   const count = state.kind === "read" ? state.messages.length : 0;
   useEffect(() => {
-    if (count) end.current?.scrollIntoView({ block: "end" });
+    const el = end.current;
+    if (!count || !el) return;
+    const box = el.closest<HTMLElement>("[data-thread-scroll]");
+    if (box) scrollWithin(box, el, "end");
+    else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [count]);
   const gap = touch ? "var(--phone-space-4)" : 16;
   if (state.kind !== "read" || state.messages.length === 0)
@@ -486,7 +491,7 @@ export function OutsideCard({
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
-      <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
+      <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>
             {disconnectedText(facts.disconnected, facts.provider)}
