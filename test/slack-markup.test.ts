@@ -55,7 +55,20 @@ describe("reading Slack's markup", () => {
       { kind: "text", text: " " },
       { kind: "text", text: "a_b", code: true },
       { kind: "text", text: " snake_case_name " },
-      { kind: "link", text: "the doc", url: "https://x.test/a_b" },
+      { kind: "link", text: "the doc", url: "https://x.test/a_b", bold: true },
+    ]);
+  });
+
+  test("markers around a link's whole label style the link, as Sentry writes them; markers inside it stay", async () => {
+    const [b] = await slackBlocks(":red_circle: <https://sentry.test/1|*TypeError*> <https://x.test|_*both*_> <https://x.test|a*b>", names);
+    expect(b.spans).toEqual([
+      { kind: "emoji", text: "\u{1F534}" },
+      { kind: "text", text: " " },
+      { kind: "link", text: "TypeError", url: "https://sentry.test/1", bold: true },
+      { kind: "text", text: " " },
+      { kind: "link", text: "both", url: "https://x.test", bold: true, italic: true },
+      { kind: "text", text: " " },
+      { kind: "link", text: "a*b", url: "https://x.test" },
     ]);
   });
 
