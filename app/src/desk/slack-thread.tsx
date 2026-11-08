@@ -186,28 +186,32 @@ function SlackHead({ m, first, dayNote }: { m: OutsideMessage; first: boolean; d
   );
 }
 
+/** "1 reply", "3 replies", and so on. */
+const replies = (n: number, word = "") => `${String(n)} ${word}${n === 1 ? "reply" : "replies"}`;
+
 /**
- * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are (plan 077,
- * R11); without a way to open it (a Mac on an older loki), how many replies it has.
+ * What a post says of its thread: how many replies are new when some are and the thread can be opened (plan 077,
+ * R11), else how many replies it has; null for a post with none.
+ */
+function repliesLabel(m: OutsideMessage, canOpen: boolean): string | null {
+  const fresh = canOpen ? m.new_replies : undefined;
+  if (fresh === true) return "new replies";
+  if (fresh) return replies(fresh, "new ");
+  return m.replies ? replies(m.replies) : null;
+}
+
+/**
+ * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are; without
+ * a way to open it (a Mac on an older loki), how many replies it has.
  */
 function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
-  if ((m.new_replies || m.replies) && onOpen) {
-    const count = !m.new_replies
-      ? `${String(m.replies)} ${m.replies === 1 ? "reply" : "replies"}`
-      : m.new_replies === true
-        ? "new replies"
-        : `${String(m.new_replies)} new ${m.new_replies === 1 ? "reply" : "replies"}`;
-    return (
-      <button type="button" className="loki-slack-replies loki-slack-open" onClick={onOpen}>
-        {count}
-      </button>
-    );
-  }
-  if (!m.replies) return null;
+  const label = repliesLabel(m, onOpen !== undefined);
+  if (!label) return null;
+  if (!onOpen) return <div className="loki-slack-replies">{label}</div>;
   return (
-    <div className="loki-slack-replies">
-      {m.replies} {m.replies === 1 ? "reply" : "replies"}
-    </div>
+    <button type="button" className="loki-slack-replies loki-slack-open" onClick={onOpen}>
+      {label}
+    </button>
   );
 }
 
