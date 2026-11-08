@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REFILL_BATCH, advanceRefill, firstRefill, refillWindow, type RefillCursor } from "../core/account-refill.ts";
+import { PAST_CAP, advanceRefill, firstRefill, refillWindow, type RefillCursor } from "../core/account-refill.ts";
 import { must } from "./fixtures/must.ts";
 
 const DAY = 24 * 3600 * 1000;
@@ -18,7 +18,7 @@ function walk(steps: number): Array<{ after: string; before: string }> {
   return out;
 }
 
-describe("the batches of older unread mail (R8, KTD13)", () => {
+describe("the past fills an account up to its cap (R8, KTD13, plan 078)", () => {
   test("the first window is the last 3 days, all of it; then 7, 14 and 30 days back, then 30 days more each time", () => {
     const first = must(refillWindow(firstRefill(new Date(ANCHOR)), 0), "the first window");
     expect(first).toEqual({ after: daysBack(3), before: ANCHOR, limit: null });
@@ -33,16 +33,17 @@ describe("the batches of older unread mail (R8, KTD13)", () => {
     ]);
   });
 
-  test("a later batch holds at most 20 threads", () => {
+  test("a later window takes the room left under 20 open cards, and none comes at 20", () => {
     const cursor = advanceRefill(firstRefill(new Date(ANCHOR)), must(refillWindow(firstRefill(new Date(ANCHOR)), 0), "w"), { kind: "done" });
-    expect(must(refillWindow(cursor, 0), "the second window").limit).toBe(REFILL_BATCH);
-    expect(REFILL_BATCH).toBe(20);
+    expect(PAST_CAP).toBe(20);
+    expect(must(refillWindow(cursor, 0), "an empty account").limit).toBe(20);
+    expect(must(refillWindow(cursor, 13), "13 open").limit).toBe(7);
+    expect(refillWindow(cursor, 20)).toBeNull();
+    expect(refillWindow(cursor, 25)).toBeNull();
   });
 
-  test("no batch comes while the account has an open card, resting ones included", () => {
-    const cursor = advanceRefill(firstRefill(new Date(ANCHOR)), must(refillWindow(firstRefill(new Date(ANCHOR)), 0), "w"), { kind: "done" });
-    expect(refillWindow(cursor, 1)).toBeNull();
-    expect(refillWindow(cursor, 0)).not.toBeNull();
+  test("the first window comes whole, however many cards are open", () => {
+    expect(must(refillWindow(firstRefill(new Date(ANCHOR)), 30), "the first window").limit).toBeNull();
   });
 
   test("a full batch stops at its oldest thread, and the next batch goes on from there in the same window", () => {

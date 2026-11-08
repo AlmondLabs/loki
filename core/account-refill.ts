@@ -1,8 +1,8 @@
 /**
- * How the past arrives in batches (plan 067, R8, KTD13; plan 070, KTD5). The first sync brings every item of the last 3
- * days. After that, each time the account has no unread cards in the Inbox (read cards, resting or not, do not hold
- * it back), the next older batch comes: every unread thread of its window and at most 20 read ones, stepping back
- * through windows 7, 14 and 30 days before the first sync, then 30 days more each time, until nothing older is left.
+ * How the past arrives (plan 067, R8, KTD13; plan 070, KTD5; plan 078). The first sync brings every item of the last 3
+ * days. After that the past tops the account up to PAST_CAP open cards: while it has fewer, the next older threads
+ * come, read or unread, newest first, as many as there is room for, stepping back through windows 7, 14 and 30 days
+ * before the first sync, then 30 days more each time, until nothing older is left. New mail is not held to the cap.
  * The cursor lives on the account (Accounts.setBackfill), so a restart goes on where it stood.
  */
 
@@ -19,8 +19,8 @@ export interface RefillCursor {
 }
 
 /**
- * One window to read: items at or after `after` and before `before`. Every unread thread in it comes, and up to `limit`
- * new read ones (null: all).
+ * One window to read: items at or after `after` and before `before`, newest first, at most `limit` new threads (null:
+ * all).
  */
 export interface RefillWindow {
   after: string;
@@ -29,14 +29,17 @@ export interface RefillWindow {
 }
 
 /**
- * How reading a window went: `full` stopped at its limit, at the oldest read thread it took; `done` read the whole
+ * How reading a window went: `full` stopped at its limit, at the oldest thread it took; `done` read the whole
  * window; `empty` found no mail in it at all, and says when the newest item older than the window came (null when
  * there is none, and the past is all in).
  */
 export type RefillResult = { kind: "full"; oldest_at: string } | { kind: "done" } | { kind: "empty"; newest_older_at: string | null };
 
-/** The most read threads one later batch brings; its unread ones all come. */
-export const REFILL_BATCH = 20;
+/**
+ * The open cards the past fills each account up to (plan 078): enough to work through in a sitting. Closing cards makes
+ * room, and older items fill it; new items come whatever the count.
+ */
+export const PAST_CAP = 20;
 /** The windows' reach before the anchor, in days; past the last, each window reaches STEP_DAYS further. */
 const WINDOW_DAYS = [3, 7, 14, 30];
 const STEP_DAYS = 30;
@@ -53,13 +56,13 @@ export function firstRefill(now: Date): RefillCursor {
 }
 
 /**
- * The window to read next, or null when none is due: the past is all in, or the account still has `unreadOpen`
- * unread cards in the Inbox. The first window (the last 3 days) is read whole whatever the count, since it is the
- * connection itself.
+ * The window to read next, or null when none is due: the past is all in, or the account already has PAST_CAP `open`
+ * cards. Its limit is the room left. The first window (the last 3 days) is read whole whatever the count, since it is
+ * the connection itself.
  */
-export function refillWindow(cursor: RefillCursor, unreadOpen: number): RefillWindow | null {
-  if (cursor.exhausted || (cursor.days > 0 && unreadOpen > 0)) return null;
-  return { after: back(cursor.anchor, nextDays(cursor.days)), before: cursor.before, limit: cursor.days === 0 ? null : REFILL_BATCH };
+export function refillWindow(cursor: RefillCursor, open: number): RefillWindow | null {
+  if (cursor.exhausted || (cursor.days > 0 && open >= PAST_CAP)) return null;
+  return { after: back(cursor.anchor, nextDays(cursor.days)), before: cursor.before, limit: cursor.days === 0 ? null : PAST_CAP - open };
 }
 
 /** The cursor after reading the window `span`. */
