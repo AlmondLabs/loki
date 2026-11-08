@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import type { OutsideMessage, SlackAttachment, SlackBlock, SlackSpan } from "../../../core/frame-types.ts";
 import { clockLabel, dayLabel, dayPills } from "../shared/thread";
+import { scrollWithin } from "../shared/scroll-within";
 import { AgentFace } from "./agent-chip";
 import { openExternal } from "./env";
 import { LinkedText, openableHref } from "./mail-html";
@@ -219,7 +220,9 @@ export function SlackThread({ messages, newest }: { messages: readonly OutsideMe
   const focusAt = newAt >= 0 ? newAt : messages.findIndex((m) => m.id === newest);
   const count = messages.length;
   useEffect(() => {
-    if (count) focus.current?.scrollIntoView({ block: "center" });
+    const el = focus.current;
+    const box = el?.closest<HTMLElement>("[data-thread-scroll]");
+    if (count && el && box) scrollWithin(box, el, "center");
   }, [count]);
   const more = messages.at(-1)?.more_after === true;
   return (
