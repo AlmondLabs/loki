@@ -153,7 +153,7 @@ function RecipientRow({
       <div className="loki-mail-row-chips">
         {list.map((entry, i) => (
           <Chip
-            key={`${entry}-${i}`}
+            key={addressOf(entry)}
             touch={touch}
             title={addressOf(entry)}
             onClick={() => onChange(list.filter((_, j) => j !== i))}

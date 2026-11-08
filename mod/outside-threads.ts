@@ -270,7 +270,5 @@ function defaultFrom(message: GmailMessage, sendAs: readonly GmailSendAs[], acco
 async function forwarded(client: Pick<SendGmail, "attachment">, message: GmailMessage): Promise<GmailAttachment[]> {
   const files = mailAttachments(message);
   if (files.reduce((n, f) => n + f.size, 0) > MAX_FORWARD_BYTES) throw new Error("its files are too big to forward from loki: forward it from Gmail");
-  const out: GmailAttachment[] = [];
-  for (const f of files) out.push({ filename: f.filename, mimeType: f.mimeType, data: await client.attachment(message.id, f.attachmentId) });
-  return out;
+  return Promise.all(files.map(async (f) => ({ filename: f.filename, mimeType: f.mimeType, data: await client.attachment(message.id, f.attachmentId) })));
 }

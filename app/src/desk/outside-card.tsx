@@ -416,6 +416,7 @@ export function OutsideReply({
                 type="button"
                 className="loki-mail-quote-toggle"
                 aria-expanded={quoteOpen}
+                aria-label={touch ? "Show the quoted mail" : "show the quoted mail"}
                 title={
                   touch
                     ? undefined
