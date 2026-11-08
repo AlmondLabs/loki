@@ -473,7 +473,8 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    caller of the clients' send calls; for mail it also answers what the recipients line starts from (`compose`) and
    writes the reply as Gmail does (plan 076), with `mail-compose.ts` (the body: signature, quote, forward),
    `mail-outbox.ts` (the 10-second hold for undo send) and `mail-people.ts` (the people each mailbox has mail with, fed
-   by `gmail-sync.ts` and by what the person sends); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
+   by `gmail-sync.ts` and by what the person sends, its address headers read by `core/mail-header.ts`, which the card's
+   thread in `app/src/desk/mail-thread.tsx` reads too, plan 078); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
    thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),

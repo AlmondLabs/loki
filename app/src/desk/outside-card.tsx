@@ -19,6 +19,7 @@ import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, startAddressing } from "./mail-address";
+import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
 
 /**
@@ -72,16 +73,6 @@ export function wentTo(o: OutsideFacts, items: readonly AttentionItem[]): string
   if (!o.handoff_conversation_id) return null;
   const chat = items.find((i) => !i.outside && i.agent_id === o.owner_agent_id && i.id === o.handoff_conversation_id);
   return chat?.title ? `went to ${chat.title}` : "went to a chat before";
-}
-
-/** A sender as the card names them: a mail address's display name ("Ada" from "Ada <ada@acme.com>"), else as given. */
-export function senderName(sender: string): string {
-  const name = sender
-    .replace(/<[^>]*>/g, "")
-    .replace(/^"|"$/g, "")
-    .replace(/"/g, "")
-    .trim();
-  return name || sender.replace(/[<>]/g, "").trim() || "someone";
 }
 
 /** The card's title: a mail's subject, or for Slack, who wrote, since a Slack message has no subject of its own. */
@@ -257,21 +248,25 @@ function MessageRow({ m, touch, folded }: { m: OutsideMessage; touch: boolean; f
   );
 }
 
-/** A message's first line with words in it, for a folded mail. */
-export function firstLine(text: string): string {
-  return (
-    text
-      .split("\n")
-      .find((l) => l.trim() !== "")
-      ?.trim() ?? ""
-  );
-}
+/** No addresses of the person's: one array, so a card given none keeps the same one from draw to draw. */
+const NO_ADDRESSES: readonly string[] = [];
 
 /**
  * The thread on the card: every message, oldest first, scrolled to the newest. While it is read, or when it could not
  * be, the card's own last lines stand in, with a line saying so.
  */
-export function OutsideThread({ facts, state, touch = false }: { facts: OutsideFacts; state: ThreadState; touch?: boolean }) {
+export function OutsideThread({
+  facts,
+  state,
+  touch = false,
+  own = NO_ADDRESSES,
+}: {
+  facts: OutsideFacts;
+  state: ThreadState;
+  touch?: boolean;
+  /** The person's own addresses, which a mail's header line says as "you" (plan 078). */
+  own?: readonly string[];
+}) {
   const end = useRef<HTMLDivElement>(null);
   const count = state.kind === "read" ? state.messages.length : 0;
   useEffect(() => {
@@ -293,6 +288,13 @@ export function OutsideThread({ facts, state, touch = false }: { facts: OutsideF
     );
   if (facts.provider === "slack" && !touch)
     return <SlackThread messages={state.messages} newest={facts.newest_message_id} window={state.window ?? null} controls={state.controls ?? null} />;
+  if (facts.provider === "gmail" && !touch)
+    return (
+      <>
+        <MailThread messages={state.messages} own={own} />
+        <div ref={end} />
+      </>
+    );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
       {state.messages.map((m, i) => (
@@ -375,7 +377,7 @@ export function OutsideReply({
   onUndo?: () => void;
   /** The deck's hold on the box; absent, the box keeps its own text. */
   box?: ReplyBoxControl;
-  /** The card's other moves, drawn on the row after send, so the card has one bar of buttons. */
+  /** The card's other moves, drawn on the row after send, so the card has one bar of buttons; a desktop mail box, framed at the thread's end, leaves them to the card. */
   actions?: ReactNode;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   onTyping?: (typing: boolean) => void;
@@ -444,24 +446,38 @@ export function OutsideReply({
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
   const size = touch ? "var(--phone-text-body)" : 12;
+  // On the desktop a mail's reply is one framed box at the end of the thread, as Gmail's is (plan 078).
+  const framed = isMail && !touch;
+  const discard = () => {
+    setText("");
+    if (compose) setMail(startAddressing(compose));
+    setLineOpen(false);
+  };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}>
+    <div
+      className={framed ? "loki-mail-compose" : undefined}
+      style={framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
+    >
       {isMail && (
-        <MailAddressLine
-          compose={compose}
-          value={mail}
-          onChange={setMail}
-          open={lineOpen}
-          onOpen={setLineOpen}
-          onTyping={onTyping}
-          touch={touch}
-          disabled={off}
-          full={!touch}
-        />
+        <div className={framed ? "loki-mail-compose-head" : undefined}>
+          <MailAddressLine
+            compose={compose}
+            value={mail}
+            onChange={setMail}
+            open={lineOpen}
+            onOpen={setLineOpen}
+            onTyping={onTyping}
+            touch={touch}
+            disabled={off}
+            full={!touch}
+          />
+        </div>
       )}
       <TextArea
         ref={inputRef}
         size={touch ? "touch" : "sm"}
+        bare={framed}
+        className={framed ? "loki-mail-compose-text" : undefined}
         value={text}
         rows={touch ? 4 : 3}
         disabled={off}
@@ -473,7 +489,7 @@ export function OutsideReply({
         onBlur={() => onTyping?.(false)}
       />
       {isMail && compose && (hasSignature || quote) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className={framed ? "loki-mail-compose-extra" : undefined} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {hasSignature && (
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
               {signature ? (
@@ -521,7 +537,7 @@ export function OutsideReply({
           )}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className={framed ? "loki-mail-compose-foot" : undefined} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
           size={touch ? "touch" : "sm"}
           tone="positive"
@@ -540,9 +556,27 @@ export function OutsideReply({
         {touch && !error && !busy && (
           <Meta wrap>{isMail ? "Waits 10 seconds so you can undo, then archives the card." : "Sends as you, then archives the card."}</Meta>
         )}
-        {actions}
+        {framed && error && (
+          <Meta negative wrap style={{ flex: 1 }}>
+            {error}
+          </Meta>
+        )}
+        {framed ? (
+          <Button
+            size="sm"
+            bare
+            disabled={off || (!text && mail === null)}
+            onClick={discard}
+            style={{ marginLeft: "auto" }}
+            title="clear the reply and its recipients"
+          >
+            discard
+          </Button>
+        ) : (
+          actions
+        )}
       </div>
-      {error && (
+      {!framed && error && (
         <Meta negative wrap>
           {error}
         </Meta>
@@ -558,11 +592,13 @@ export function OutsideReply({
  */
 function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; badge: string | null; went: string | null; cameBack: boolean }) {
   const who = senderName(facts.sender);
-  const what = facts.provider === "gmail" ? facts.subject || "no subject" : (facts.place ?? (facts.reach === "dm" ? "direct message" : null));
+  const mail = facts.provider === "gmail";
+  // A mail card is titled by its subject, as Gmail's thread view is (plan 078); each mail then names who wrote it.
+  const what = mail ? who : (facts.place ?? (facts.reach === "dm" ? "direct message" : null));
   return (
     <CardHead
-      face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={facts.provider === "gmail" ? "mail" : "slack"} />}
-      who={who}
+      face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={mail ? "mail" : "slack"} />}
+      who={mail ? facts.subject || "no subject" : who}
       whoHint={facts.sender_address ? `${who} <${facts.sender_address}>` : undefined}
       line={
         <>
@@ -714,6 +750,21 @@ export function OutsideCard({
 }) {
   const thread = useOutsideThread(current, source);
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
+  // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
+  const mailBox = facts.provider === "gmail" && !!box;
+  const own = facts.provider === "gmail" ? [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])] : [];
+  const reply = box ? (
+    <OutsideReply
+      facts={facts}
+      box={box}
+      inputRef={replyRef}
+      onTyping={onTyping}
+      onEscapeEmpty={onEscapeEmpty}
+      actions={row}
+      compose={compose}
+      quote={quoteOf(facts, thread)}
+    />
+  ) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
@@ -723,24 +774,12 @@ export function OutsideCard({
             {disconnectedText(facts.disconnected, facts.provider)}
           </Meta>
         )}
-        <OutsideThread facts={facts} state={thread} />
+        <OutsideThread facts={facts} state={thread} own={own} />
+        {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
       <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
-        {box ? (
-          <OutsideReply
-            facts={facts}
-            box={box}
-            inputRef={replyRef}
-            onTyping={onTyping}
-            onEscapeEmpty={onEscapeEmpty}
-            actions={row}
-            compose={compose}
-            quote={quoteOf(facts, thread)}
-          />
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>
-        )}
+        {reply && !mailBox ? reply : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>}
       </div>
     </div>
   );

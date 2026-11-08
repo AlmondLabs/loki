@@ -38,11 +38,11 @@ import {
   outsideTitle,
   outsideWho,
   quoteOf,
-  senderName,
   useMailCompose,
   useOutsideThread,
   wentTo,
 } from "../desk/outside-card";
+import { senderName } from "../desk/mail-thread";
 import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
 import { useLeave } from "../kit/leave";

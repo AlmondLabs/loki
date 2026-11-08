@@ -981,6 +981,14 @@ when you press the key once more. A send that fails keeps your text, moves nothi
 takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
 this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
 
+**How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
+the card's title. Each mail has its own header line with the sender's face, name and address, whom it went to ("to
+you, cc Dev Patel") and when it came. The mails before the newest fold to one line each, and a press opens one. A
+mail's files show as chips with their size under it; open them from Gmail. The reply box sits at the end of the thread,
+under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and
+**discard**, which clears the text and puts the recipients back. The card's moves (hand off, label, archive, later,
+read) stay in the row at the bottom. The phone keeps its own layout.
+
 **Replying to mail as Gmail does.** An email card's reply works like Gmail's:
 
 1. **Who it goes to.** A line above the box says it: "to Pinku Kumar, cc 2 others". Press it, or ⌘⇧C in the box,

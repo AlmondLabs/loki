@@ -7,7 +7,8 @@ import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } fro
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
-import { OutsideThread, outsideTitle, replyPlace, senderName } from "../app/src/desk/outside-card.tsx";
+import { OutsideThread, outsideTitle, replyPlace } from "../app/src/desk/outside-card.tsx";
+import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
 import { accountFrames } from "../mod/frames/accounts.ts";

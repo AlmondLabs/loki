@@ -18,7 +18,8 @@ import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
 import { MailOutbox, type HeldReply, type MailOutboxOptions } from "./mail-outbox.ts";
-import { headerPeople, type MailPeople } from "./mail-people.ts";
+import { headerPeople } from "../core/mail-header.ts";
+import type { MailPeople } from "./mail-people.ts";
 import { headerOf, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 
@@ -149,6 +150,9 @@ export class OutsideThreads {
       text: account.provider === "gmail" ? withoutQuoted(m.text) : m.text,
       mine: m.mine === true,
       ...(account.provider === "gmail" && m.html ? { html: m.html } : {}),
+      ...(account.provider === "gmail" && m.to ? { to: m.to } : {}),
+      ...(account.provider === "gmail" && m.cc ? { cc: m.cc } : {}),
+      ...(account.provider === "gmail" && m.files?.length ? { files: m.files } : {}),
       ...(m.avatar ? { avatar: m.avatar } : {}),
       ...(m.in_thread ? { in_thread: true } : {}),
       ...(m.unread ? { unread: true } : {}),

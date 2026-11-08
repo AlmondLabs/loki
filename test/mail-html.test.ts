@@ -3,7 +3,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
 import { MAIL_POLICY, linkParts, mailDocument, openableHref } from "../app/src/desk/mail-html.tsx";
-import { OutsideThread, firstLine } from "../app/src/desk/outside-card.tsx";
+import { OutsideThread } from "../app/src/desk/outside-card.tsx";
+import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
 /** A mail drawn as its sender wrote it, in a frame where nothing runs, its links opened in the browser. */
 
@@ -108,7 +109,7 @@ describe("the card", () => {
       }),
     );
     expect(html.match(/<iframe/g)).toHaveLength(1);
-    expect(html.match(/class="loki-mail-fold"/g)).toHaveLength(2);
+    expect(html.match(/class="loki-mail-msg loki-mail-msg--folded"/g)).toHaveLength(2);
     expect(html).toContain("Your bill is ready");
   });
 

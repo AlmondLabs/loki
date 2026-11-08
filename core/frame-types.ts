@@ -343,6 +343,17 @@ export interface OutsideMessage {
    * could not be counted. The card offers to open that thread.
    */
   new_replies?: number | true;
+  /** A mail's To and Cc headers as written (plan 078), for its header line; absent for Slack and from an older loki. */
+  to?: string;
+  cc?: string;
+  /** The files a mail carries, by name and size in bytes (plan 078), shown as chips; absent when it has none. */
+  files?: MailFile[];
+}
+
+/** A file a mail carries, as its card lists it (plan 078): its name and its size in bytes. */
+export interface MailFile {
+  name: string;
+  size: number;
 }
 
 /** An outside card's thread as its account's Mac read it: the messages, and for a Slack card its window (plan 077). */
