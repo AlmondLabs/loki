@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref } from "../app/src/desk/mail-html.tsx";
+import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref, ownPartShows } from "../app/src/desk/mail-html.tsx";
 import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
@@ -36,6 +36,21 @@ describe("the frame's document for a mail", () => {
 
   test("a mail that is a bare fragment, with no head or body, is drawn whole", () => {
     expect(mailDocument("<p>hi</p>")).toContain("<body><p>hi</p></body>");
+  });
+
+  test("hides the quoted thread under a reply, but shows a forward with nothing typed above it", () => {
+    expect(mailDocument(BILL)).toContain(".gmail_quote,blockquote[type=cite],.yahoo_quoted{display:none}");
+    const forward =
+      '<div dir="ltr"><br></div><div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br></div><p>Terms</p></div>';
+    expect(mailDocument(forward)).not.toContain("{display:none}");
+    expect(mailDocument(forward)).toContain("<p>Terms</p>");
+  });
+
+  test("a body's own part shows when it has text or an image before its quote", () => {
+    expect(ownPartShows('<p>Thanks</p><div class="gmail_quote">old</div>')).toBe(true);
+    expect(ownPartShows('<p><img src="cid:a"></p><blockquote type="cite">old</blockquote>')).toBe(true);
+    expect(ownPartShows('<div>&nbsp;<br></div><div class="yahoo_quoted">old</div>')).toBe(false);
+    expect(ownPartShows("<p>no quote at all</p>")).toBe(true);
   });
 
   test("only web and mail links leave for the browser", () => {
