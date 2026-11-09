@@ -600,20 +600,7 @@ function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; 
       face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={mail ? "mail" : "slack"} />}
       who={mail ? facts.subject || "no subject" : who}
       whoHint={facts.sender_address ? `${who} <${facts.sender_address}>` : undefined}
-      line={
-        <>
-          {what && (
-            <span className="loki-card-head-what" title={what}>
-              {what}
-            </span>
-          )}
-          <Meta>{ago(facts.newest_at)}</Meta>
-          {/* Said as where it came in, so a mailbox's address never reads as the sender's (plan 078). */}
-          {facts.only_account !== true && <Meta title={mail ? "the mailbox it came to" : "the workspace it came from"}>in {facts.account_label}</Meta>}
-          {went && <Meta>{went}</Meta>}
-          {cameBack && <Meta>back · new since you moved on</Meta>}
-        </>
-      }
+      line={<OutsideHeadLine facts={facts} what={what} went={went} cameBack={cameBack} />}
       right={
         <>
           {facts.reach && <ReachTag reach={facts.reach} />}
@@ -621,6 +608,25 @@ function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; 
         </>
       }
     />
+  );
+}
+
+/** The header's second line: where or who, when, the account when more than one is connected, and the last move. */
+function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts; what: string | null; went: string | null; cameBack: boolean }) {
+  const mail = facts.provider === "gmail";
+  return (
+    <>
+      {what && (
+        <span className="loki-card-head-what" title={what}>
+          {what}
+        </span>
+      )}
+      <Meta>{ago(facts.newest_at)}</Meta>
+      {/* Said as where it came in, so a mailbox's address never reads as the sender's (plan 078). */}
+      {facts.only_account !== true && <Meta title={mail ? "the mailbox it came to" : "the workspace it came from"}>in {facts.account_label}</Meta>}
+      {went && <Meta>{went}</Meta>}
+      {cameBack && <Meta>back · new since you moved on</Meta>}
+    </>
   );
 }
 
