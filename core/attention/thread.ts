@@ -25,7 +25,12 @@ export type Step =
   /** What came back from the call with this id. */
   | { kind: "result"; id: string; output: unknown; failed: boolean }
   /** A model call that ended in an error with nothing said (plan 037): the provider's message, from history and live alike. */
-  | { kind: "failed"; message: string; at: string | null };
+  | { kind: "failed"; message: string; at: string | null }
+  /**
+   * A compaction (plan 078): one that holds the turn up is `running`; its summary written is `done`, with the summary as
+   * `detail`; it `failed`, with the error as `detail`; or it `ended` with neither, a summary that went unused.
+   */
+  | { kind: "compaction"; state: "running" | "done" | "failed" | "ended"; detail: string | null; at: string | null };
 
 /** A row as a history page carries it (the mod's history_get, from the daemon's projection): times may be null. */
 export type HistoryRow = Omit<TranscriptRow, "at"> & { at?: string | null };
@@ -42,14 +47,21 @@ export function commandIdOf(input: string): string {
 
 const RUNNING = "running…";
 
+/** The row a compaction leaves where its summary was written (plan 078): above it, the agent has only the summary. */
+export const COMPACTED_TEXT = "chat compacted";
+/** A compaction that holds the turn up, while it runs, and what it says beside it. */
+const COMPACTING_TEXT = "compacting the chat";
+const COMPACTING = "summarising earlier turns…";
+const COMPACTION_FAILED_TEXT = "compaction failed";
+
 /** The image markers a message's text carries for its pictures ("[image]" lines): not part of what was typed. */
 const withoutImageMarks = (text: string) => text.replace(/(^|\n)\[image\](?=\n|$)/g, "").trim();
 
 /** How a live row is known in a history page: role and text, a user message's picture lines left out (the page has them). */
 const pairKey = (r: TranscriptRow) => `${r.role}\u0000${r.role === "user" ? withoutImageMarks(r.text) : r.text}`;
 
-/** Still on its way: a message waiting for the turn to end, or a slash command waiting for its answer. */
-const pending = (r: TranscriptRow) => r.queued === true || (r.role === "event" && r.summary === RUNNING);
+/** Still on its way: a message waiting for the turn to end, a slash command waiting for its answer, or a compaction. */
+const pending = (r: TranscriptRow) => r.queued === true || (r.role === "event" && (r.summary === RUNNING || r.summary === COMPACTING));
 
 const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.role === b.role &&
@@ -199,7 +211,37 @@ export class ThreadModel {
         return { changed: this.result(step.id, step.output, step.failed), spoke: null };
       case "failed":
         return this.modelFailed(step.message, step.at);
+      case "compaction":
+        return { changed: this.compaction(step.state, step.detail, step.at), spoke: null };
     }
+  }
+
+  /**
+   * A compaction (plan 078): one quiet row. While one holds the turn up it reads "compacting the chat"; its summary
+   * turns that row into "chat compacted", the summary behind it, and a failure into "compaction failed", the error
+   * behind it. A compaction that ends with neither takes its running row away. A start while one runs is the same one.
+   */
+  private compaction(state: "running" | "done" | "failed" | "ended", detail: string | null, at: string | null): boolean {
+    let i = this.tail.length - 1;
+    while (i >= 0 && !(this.tail[i].role === "event" && this.tail[i].summary === COMPACTING)) i--;
+    if (state === "running") {
+      if (i >= 0) return false;
+      this.push({ role: "event", text: COMPACTING_TEXT, summary: COMPACTING, ...rowAt(at) });
+      return true;
+    }
+    if (state === "ended") {
+      if (i < 0) return false;
+      this.tail.splice(i, 1);
+      this.touch();
+      return true;
+    }
+    const row: TranscriptRow = { role: "event", text: state === "done" ? COMPACTED_TEXT : COMPACTION_FAILED_TEXT, summary: null, detail, ...rowAt(at) };
+    if (i < 0) this.push(row);
+    else {
+      this.tail[i] = row;
+      this.touch();
+    }
+    return true;
   }
 
   /**

@@ -72,8 +72,24 @@ export function shownStep(step: Step): Step {
   return step;
 }
 
-/** The entry kinds a thread shows; prompt changes, resets and compaction summaries are the model's, not the person's. */
+/** The entry kinds a thread shows as messages; prompt changes and resets are the model's, not the person's. */
 const SHOWN = new Set(["pi.user", "pi.assistant", "pi.tool-result"]);
+
+/** A compaction's summary (plan 078): shown as one row where it was written, never as the message the model reads it as. */
+const COMPACTION = "pi.compaction";
+
+/** The words inside pi's `<summary>` wrapper, else the message's whole text; null when it says nothing. */
+function summaryOf(m: PiMessage): string | null {
+  const text = contentText(m.content);
+  const inner = /<summary>\n?([\s\S]*?)\n?<\/summary>/.exec(text)?.[1] ?? text;
+  return inner.trim() || null;
+}
+
+/** A compaction entry's message as its step: the summary written, `at` when nobody knows. */
+export function compactionSteps(entry: PiEntry, at: string | null = null): Step[] {
+  const m = entry.kind === COMPACTION ? entry.model?.[0] : undefined;
+  return m ? [{ kind: "compaction", state: "done", detail: summaryOf(m), at: messageAt(m) ?? at }] : [];
+}
 
 /** A message off the chat's main path (`loki.branch`, the mark a chat move leaves): shown, never sent to the model. */
 const BRANCH = "loki.branch";
@@ -84,6 +100,7 @@ export function entrySteps(entry: PiEntry, nameImage?: ImageNamer): Step[] {
     const message = (entry.data as { message?: PiMessage } | undefined)?.message;
     return message ? messageSteps(message, messageAt(message), nameImage) : [];
   }
+  if (entry.kind === COMPACTION) return compactionSteps(entry);
   if (!SHOWN.has(entry.kind)) return [];
   return (entry.model ?? []).flatMap((m) => messageSteps(m, messageAt(m), nameImage));
 }

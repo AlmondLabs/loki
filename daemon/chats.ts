@@ -62,7 +62,7 @@ function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMe
 }
 
 function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">, nameImage?: ImageNamer): Kept {
-  if (entry.kind === "pi.compaction") return { steps: [], role: null, text: "", at: null, compaction: true };
+  if (entry.kind === "pi.compaction") return { steps: entrySteps(entry), role: null, text: "", at: null, compaction: true };
   const steps = entrySteps(entry, nameImage);
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
