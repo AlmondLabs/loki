@@ -13,6 +13,7 @@ import {
   cardKindOf,
   isRest,
   isResting,
+  outsideResting,
   isReturnTimes,
   laterMs,
   readFirstMs,
@@ -284,5 +285,23 @@ describe("the mod keeps the rests", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("an outside card's rest as the mod judges it (plan 078)", () => {
+  test("agrees with the Inbox: resting while its rest holds for its newest message, not after it ends or a newer one comes", () => {
+    const item = outsideItem("Budget");
+    const now = Date.parse("2026-11-09T10:00:00.000Z");
+    const rest: Rest = { n: 0, until: "2026-11-09T11:00:00.000Z", stamp: "outside|m1", at: "2026-11-09T09:00:00.000Z", kind: "read" };
+    for (const [r, at, newest] of [
+      [rest, now, "m1"],
+      [rest, Date.parse(rest.until) + 1, "m1"],
+      [rest, now, "m2"],
+      [undefined, now, "m1"],
+    ] as const) {
+      const shown = { ...item, outside: { ...must(item.outside, "outside"), newest_message_id: newest } };
+      expect(outsideResting(r, newest, at)).toBe(isResting(shown, r, at));
+    }
+    expect(outsideResting(rest, "m1", now)).toBe(true);
   });
 });

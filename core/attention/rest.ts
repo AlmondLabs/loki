@@ -25,7 +25,7 @@
  */
 import type { AttentionItem } from "./model.ts";
 import { isBlocked } from "./priority.ts";
-import { stampOf } from "./queue.ts";
+import { outsideStamp, stampOf } from "./queue.ts";
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -194,6 +194,14 @@ export function restUndone(prev: Rest | undefined, now = Date.now()): Rest {
 export function isResting(item: AttentionItem, rest: Rest | undefined, now = Date.now()): boolean {
   if (!rest || isBlocked(item)) return false;
   return rest.stamp === stampOf(item) && Date.parse(rest.until) > now;
+}
+
+/**
+ * Whether an outside card rests at `now`, judged from its newest message alone, as the mod knows it: the same test as
+ * isResting, which an outside card meets the same way, since it never waits on an approval or a question.
+ */
+export function outsideResting(rest: Rest | undefined, newestMessageId: string, now: number): boolean {
+  return !!rest && rest.stamp === outsideStamp(newestMessageId) && Date.parse(rest.until) > now;
 }
 
 /**

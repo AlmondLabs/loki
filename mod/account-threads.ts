@@ -20,6 +20,11 @@ import { log } from "./log.ts";
 /** Where a thread stands: a card in the Inbox, archived (here or out there), or handed to its owner's chat. */
 export type ThreadState = "open" | "archived" | "handed_off";
 
+/** A thread's card id in the Inbox: its thread and generation, so a handed-off thread's new card starts clean. */
+export function outsideCardId(r: Pick<ThreadRecord, "thread_id" | "generation">): string {
+  return `${r.thread_id}#${String(r.generation)}`;
+}
+
 /** One thread as its account's file keeps it. */
 export interface ThreadRecord {
   thread_id: string;
@@ -469,7 +474,7 @@ export class AccountThreads {
     const label = accountLabel(account);
     return {
       kind: "outside",
-      id: `${r.thread_id}#${String(r.generation)}`,
+      id: outsideCardId(r),
       agent_id: `account:${account.account_id}`,
       agent_name: label,
       title: r.subject_or_first_line,

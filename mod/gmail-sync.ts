@@ -32,6 +32,8 @@ export interface GmailSyncOptions {
   client: GmailSyncClient;
   /** Told of the people on each message the watcher reads, for the recipients line's suggestions (plan 076). */
   people?: Pick<MailPeople, "saw">;
+  /** Whether a card rests in the Inbox now, so the past's cap leaves it out (plan 078); none rest when not given. */
+  resting?: (record: ThreadRecord) => boolean;
   now?: () => Date;
 }
 
@@ -392,7 +394,7 @@ export class GmailSync implements AccountSync {
     for (let step = 0; step < REFILL_STEPS_PER_TICK; step++) {
       const cursor = this.cursor();
       if (!cursor) return;
-      const open = this.opts.threads.list(this.accountId).filter((r) => r.state === "open").length;
+      const open = this.opts.threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
       const window = refillWindow(cursor.refill, open);
       if (!window) return;
       const result = await this.readWindow(window, own);
