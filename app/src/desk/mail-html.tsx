@@ -20,7 +20,7 @@ export const MAIL_POLICY = "default-src 'none'; img-src https: http: data: cid:;
 
 /**
  * The frame's own look: a light page as mail is designed for, in the system's light page colours (loki's tokens do not
- * reach inside the frame), and the quoted thread under a reply hidden as the text view does.
+ * reach inside the frame).
  */
 const MAIL_STYLE = [
   "html{color-scheme:light}",
@@ -28,8 +28,29 @@ const MAIL_STYLE = [
   "img{max-width:100%;height:auto}",
   "table{max-width:100%}",
   "a{color:LinkText}",
-  ".gmail_quote,blockquote[type=cite],.yahoo_quoted{display:none}",
 ].join("");
+
+/** Hides the quoted thread under a reply, as the text view does; added only when the mail has its own part above it. */
+const QUOTE_HIDDEN = ".gmail_quote,blockquote[type=cite],.yahoo_quoted{display:none}";
+
+/** Where a quoted thread or forwarded mail starts in a body: Gmail's and Yahoo's classes, Apple Mail's cite. */
+const QUOTE_START = /<[a-z]+\b[^>]*(?:class\s*=\s*["'][^"']*\b(?:gmail_quote|yahoo_quoted)\b|type\s*=\s*["']?cite\b)/i;
+
+/**
+ * Whether a body has anything of its own before its quote: text or an image. Gmail wraps a forwarded mail in the same
+ * class as a reply's history, so a forward with nothing typed above it is all quote; hiding that drew an empty page.
+ * The text view keeps a message's whole text in that case too (`withoutQuoted`), so nothing a person sent disappears.
+ */
+export function ownPartShows(body: string): boolean {
+  const at = body.search(QUOTE_START);
+  const own = at < 0 ? body : body.slice(0, at);
+  if (/<img\b/i.test(own)) return true;
+  const text = own
+    .replace(/<(style|title)\b[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(?:nbsp|zwnj);|&#(?:x?a0|0*160|x?200b|0*8203);/gi, "");
+  return text.trim() !== "";
+}
 
 /** The text between `<body…>` and `</body>`, or the whole of it when the mail has no body element. */
 function bodyOf(html: string): string {
@@ -70,7 +91,7 @@ export function mailDocument(html: string): string {
     "<!doctype html><html><head>",
     `<meta http-equiv="Content-Security-Policy" content="${MAIL_POLICY}">`,
     '<meta charset="utf-8"><base target="_blank">',
-    `<style>${MAIL_STYLE}</style>`,
+    `<style>${MAIL_STYLE}${ownPartShows(body) ? QUOTE_HIDDEN : ""}</style>`,
     darkRulesOff(stylesOf(html)).replace(/<\/?script\b[^>]*>/gi, ""),
     "</head><body>",
     body,
