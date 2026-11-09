@@ -984,7 +984,8 @@ takes back the move only; the reply stays sent. On the phone, **Send** is Enter'
 this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
 
 **How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
-the card's title. Each mail has its own header line with the sender's face, name and address, whom it went to ("to
+the card's title. With more than one mailbox connected, the header ends with the one it came to ("in
+you@work.example"). Each mail has its own header line with the sender's face, name and address, whom it went to ("to
 you, cc Dev Patel") and when it came. The mails before the newest fold to one line each, and a press opens one. A
 mail's files show as chips with their size under it; open them from Gmail. The reply box sits at the end of the thread,
 under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and
