@@ -95,11 +95,13 @@ Plan 023 lets your Macs running loki share their agents. Nothing reaches any hos
 server or account is involved.
 
 - **Tailnet only.** Pairing (`/peer/pair`), a Mac's hello and unpairing, and a paired Mac's socket on `/ws` are
-  answered only for requests that arrive over Tailscale (a `100.64.0.0/10` peer, or `tailscale serve`); over the
-  Wi‑Fi they get 403. They use the phone listener's port, which stays up while any Mac is paired even with the
+  answered only for requests that arrive over Tailscale (a `100.64.0.0/10` peer that reached this Mac's own tailnet
+  address, or `tailscale serve`); over the Wi‑Fi they get 403, also on a Wi‑Fi that hands out `100.x` addresses of
+  its own. They use the phone listener's port, which stays up while any Mac is paired even with the
   phone switch off; the phone's routes and the canvas then answer 404 and no phone's cookie opens anything.
 - **Pairing is mutual and needs a code.** A Mac shows a six-character code that lives ten minutes, separate from the
-  phone's codes, with the same wrong-code limit. Each Mac mints a 32-byte token for the other: it keeps only the
+  phone's codes, with the same wrong-code limit, and pairs one Mac: its first use spends it, since a paired Mac
+  receives this Mac's mods and MCP servers. Each Mac mints a 32-byte token for the other: it keeps only the
   token's SHA-256 (`~/.loki/state/peers.json`, mode 0600) and keeps the token the other Mac minted for it in the
   keychain. Forgetting a Mac on either side tells the other when it can, and a Mac whose token is refused checks and
   forgets too.
@@ -172,7 +174,8 @@ yourself.
   later adds UNREAD to the thread's newest incoming message, archive and a hand-off remove INBOX and UNREAD, label
   adds a label of yours that you pick, and undo puts back exactly the labels the move changed. Each touches messages
   up to the card's newest only. loki lists the account's labels for the picker and never creates, renames or deletes
-  one; nothing deletes or moves mail to the trash.
+  one; nothing deletes or moves mail to the trash. A label move or an undo that names TRASH, SPAM, SENT, DRAFT or
+  CHAT leaves that label alone, whichever device sent it.
 - **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret
   ship in the source (`mod/google-app.ts`), as Google intends for a desktop client: they identify the app, not you, and
   grant nothing without your sign-in. You may use a Google app of your own instead; its id and secret are kept in the
@@ -204,7 +207,10 @@ yourself.
   server. So do the people each mailbox has mail with (`state/mail-people.json`, plan 076: names and addresses from
   the From, To and Cc headers loki already reads, for the recipients line's suggestions, forgotten when the account is
   disconnected) and a mail reply waiting out its 10-second undo (`state/outbox.json`, mode 0600, which holds it only
-  until it is sent). They are under `~/.loki`, which an agent with file tools can read.
+  until it is sent). They are under `~/.loki`, which an agent with file tools can read and write. So each held reply
+  carries a seal made with a key kept in the keychain (`outbox-key`), and a restart sends only replies whose seal
+  holds: an entry written into the file by anything else is dropped unsent, and without a keychain no held reply is
+  sent after a restart.
 - **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
   The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
   as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more

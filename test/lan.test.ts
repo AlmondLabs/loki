@@ -570,6 +570,13 @@ describe("LAN listener", () => {
     expect(requestVia(req("127.0.0.1"))).toBe("lan");
     // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
     expect(requestVia(req("100.1.2.3"))).toBe("lan");
+    // A Wi‑Fi may hand out 100.x addresses too: with this Mac's tailnet address known, only a caller that reached it counts.
+    const at = (remoteAddress: string, localAddress: string) => ({ headers: {}, socket: { remoteAddress, localAddress } });
+    expect(requestVia(at("100.74.177.93", "100.90.1.2"), "100.90.1.2")).toBe("tailscale");
+    expect(requestVia(at("::ffff:100.74.177.93", "::ffff:100.90.1.2"), "100.90.1.2")).toBe("tailscale");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), "100.90.1.2")).toBe("lan");
+    expect(requestVia(at("100.74.177.93", "100.80.0.5"), null)).toBe("lan");
+    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }), null)).toBe("tailscale");
     expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan"); // a header alone proves nothing
     expect(isTailnetAddress("100.64.0.1")).toBe(true);
     expect(isTailnetAddress("100.127.255.254")).toBe(true);

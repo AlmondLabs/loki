@@ -34,6 +34,16 @@ describe("the frame's document for a mail", () => {
       expect(doc).not.toContain(gone);
   });
 
+  test("what the mail loads carries no referrer, whatever rule the mail brings of its own", () => {
+    const doc = mailDocument(
+      `<html><body><meta name="referrer" content="unsafe-url"><META content=unsafe-url NAME=referrer><img referrerpolicy="unsafe-url" src="https://x.example/a.png"><a href="https://x.example" ReferrerPolicy=unsafe-url>go</a></body></html>`,
+    );
+    expect(doc).toContain('<meta name="referrer" content="no-referrer">');
+    // The word appears twice in loki's own tag (its name and its value) and nowhere else.
+    expect(doc.match(/referrer/gi)).toHaveLength(2);
+    expect(doc).toContain('<img src="https://x.example/a.png">');
+    expect(doc).toContain('<a href="https://x.example">go</a>');
+  });
   test("a mail that is a bare fragment, with no head or body, is drawn whole", () => {
     expect(mailDocument("<p>hi</p>")).toContain("<body><p>hi</p></body>");
   });

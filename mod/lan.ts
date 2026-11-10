@@ -356,7 +356,9 @@ export class LanListener {
   };
 
   private via(req: IncomingMessage): DeviceVia {
-    return (this.opts.via ?? requestVia)(req);
+    if (this.opts.via) return this.opts.via(req);
+    // With a tailnet reader, a 100.x caller counts only when it reached this Mac's own tailnet address.
+    return requestVia(req, this.tailscale ? this.tailscale.cached().ip : undefined);
   }
 
   // --- http -----------------------------------------------------------------------------------
@@ -579,10 +581,20 @@ export class Attempts {
  * Which way a request reached the listener, so Settings can say "via Tailscale" next to a phone. A peer
  * on the tailnet arrives from a 100.64.0.0/10 address; behind `tailscale serve` the proxy connects from
  * loopback and names the peer in X-Forwarded-For (and the tailnet in Host). Everything else is the Wi‑Fi.
+ *
+ * The 100.x range is not Tailscale's alone: a carrier or a Wi‑Fi may hand out the same addresses. So when the caller
+ * knows this Mac's tailnet address (`tailnetIp`; null for "not on a tailnet"), a 100.x peer counts only if it reached
+ * that address, which only the tailnet's interface has. Left out, the peer's address alone decides.
  */
-export function requestVia(req: Pick<IncomingMessage, "headers"> & { socket?: { remoteAddress?: string | null } }): DeviceVia {
+export function requestVia(
+  req: Pick<IncomingMessage, "headers"> & { socket?: { remoteAddress?: string | null; localAddress?: string | null } },
+  tailnetIp?: string | null,
+): DeviceVia {
   const remote = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
-  if (isTailnetAddress(remote)) return "tailscale";
+  if (isTailnetAddress(remote)) {
+    if (tailnetIp === undefined) return "tailscale";
+    return tailnetIp !== null && (req.socket?.localAddress ?? "").replace(/^::ffff:/i, "") === tailnetIp ? "tailscale" : "lan";
+  }
   const forwarded = req.headers["x-forwarded-for"];
   const peer = (Array.isArray(forwarded) ? forwarded[0] : (forwarded ?? "")).split(",")[0]?.trim() ?? "";
   if (isLoopback(remote) && isTailnetAddress(peer)) return "tailscale";
