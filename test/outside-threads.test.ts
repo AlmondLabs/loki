@@ -119,6 +119,7 @@ function threads(
         moves.push(`dealt ${accountId}/${threadId}`);
         return true;
       },
+      clearSeeds: () => false,
       get: () => (opts.record ? { dealt_message_id: null, brought_ids: [], newest_message_id: "3", ...opts.record } : null),
     },
     threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []), jira: () => Promise.resolve([]) },
@@ -262,6 +263,7 @@ describe("reading a card's whole thread", () => {
           markUnread: () => Promise.resolve(null),
           markWaiting: () => true,
           markDealt: () => true,
+          clearSeeds: () => false,
           get: () => ({ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }),
         },
         cardView: {
@@ -312,6 +314,7 @@ describe("reading a card's whole thread", () => {
         markUnread: () => Promise.resolve(null),
         markWaiting: () => true,
         markDealt: () => true,
+        clearSeeds: () => false,
         get: () => null,
       },
       threadText: {
@@ -552,6 +555,18 @@ describe("a comment from the card reaches the ticket and leaves the card as it w
     s.advance(60_000);
     await s.sync.tick();
     expect(s.records.get(ID, ticket)).toEqual(before);
+  });
+
+  test("sending the comment takes the approved comments off the card's record (plan 2026-11-10-1451, U8)", async () => {
+    const s = await site();
+    const ticket = s.jira.addTicket({ key: "OPS-7", summary: "Rotate the keys", at: s.at(0.5) });
+    s.jira.comment("OPS-7", { at: s.at(0.5), author: JIRA_ADA, text: "Can you look at the rotation?" });
+    s.advance(60_000);
+    await s.sync.tick();
+    s.records.seed(ID, ticket, { id: "reply-1", text: "Rotating tonight.", at: s.at(1).toISOString() });
+    await s.t.reply(ID, ticket, "Rotating tonight.", "stay");
+    expect(s.jira.posted).toHaveLength(1);
+    expect(s.records.get(ID, ticket)?.seeds).toEqual([]);
   });
 
   test("a post that times out is reported and never sent again", async () => {

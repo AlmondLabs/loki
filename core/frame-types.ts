@@ -191,6 +191,25 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
+  /**
+   * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
+   * first, waiting for the card's comment box until the person sends one or the agent takes it back. Absent when there
+   * are none, and on every other kind of card.
+   */
+  seeds?: OutsideSeed[];
+}
+
+/**
+ * An approved comment waiting for a Jira card's comment box (plan 2026-11-10-1451, KTD18): the proposal it came from,
+ * its text, and when it was approved, which is what makes a card that had been read come up again. Nothing is posted
+ * until the person sends it from the box.
+ */
+export interface OutsideSeed {
+  /** The reply proposal's id, so a box adds the same seed once. */
+  id: string;
+  text: string;
+  /** ISO time of the approval. */
+  at: string;
 }
 
 /**
@@ -543,7 +562,7 @@ export interface ReplyProposal {
   /** Gmail: who the draft is addressed to and copied to, as the newest message names them; empty for Slack. */
   to: string[];
   cc: string[];
-  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); null for Gmail. */
+  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); Jira: the ticket's key; null for Gmail. */
   place: string | null;
   text: string;
   status: ReplyProposalStatus;
@@ -552,7 +571,7 @@ export interface ReplyProposal {
   created_at: string;
   decided_by?: string | null;
   decided_at?: string | null;
-  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack or before. */
+  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack, for Jira (the card's box) or before. */
   draft_url?: string | null;
 }
 

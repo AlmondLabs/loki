@@ -522,15 +522,17 @@ export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: 
  * Whether an outside card is unread (plan 067, KTD1): never blocked, it scores like a chat with a new reply (R9). An
  * email card is unread exactly while Gmail says so (plan 070, KTD2): a mail read there keeps its card, one marked unread
  * there comes back, and a read in loki reaches Gmail through its write-back. A Slack card is new until its own mark is
- * newer than its newest message, and so is a Jira card, since Jira keeps no read state for a ticket.
+ * newer than its newest message, and so is a Jira card, since Jira keeps no read state for a ticket; a comment the
+ * person approved since they last read it counts as new too, so its card comes up with the comment in its box (KTD18).
  */
 function outsideUnread(o: OutsideFacts, seenAt: string | null): boolean {
   switch (o.provider) {
     case "gmail":
       return o.unread_out_there !== false;
     case "slack":
-    case "jira":
       return !seenAt || seenAt < o.newest_at;
+    case "jira":
+      return !seenAt || seenAt < o.newest_at || (o.seeds ?? []).some((s) => seenAt < s.at);
   }
 }
 

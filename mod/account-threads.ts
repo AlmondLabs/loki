@@ -1,6 +1,6 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
@@ -75,6 +75,12 @@ export interface ThreadRecord {
   dealt_was: string | null;
   /** The Slack messages that brought the card into the Inbox (plan 077, KTD2), oldest first; empty for mail. */
   brought_ids: string[];
+  /**
+   * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
+   * first: they wait for the card's comment box until the person sends a comment or the agent takes one back. Empty for
+   * every other kind of card and for records from before.
+   */
+  seeds: OutsideSeed[];
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -150,6 +156,16 @@ const newer = (m: { at: string; message_id: string }, r: ThreadRecord): boolean 
 
 const trimLines = (lines: string[]): string[] => lines.slice(-LINES).map((l) => (l.length > LINE_MAX ? `${l.slice(0, LINE_MAX - 1)}…` : l));
 
+/** The approved comments a file keeps on a record; anything that is not one is left out. */
+function parseSeeds(v: unknown): OutsideSeed[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x: unknown): OutsideSeed[] => {
+    if (typeof x !== "object" || x === null) return [];
+    const r = x as Record<string, unknown>;
+    return typeof r.id === "string" && typeof r.text === "string" && typeof r.at === "string" ? [{ id: r.id, text: r.text, at: r.at }] : [];
+  });
+}
+
 /** A record as a file gives it, or null when it is not one. */
 function parseRecord(v: unknown): ThreadRecord | null {
   if (typeof v !== "object" || v === null) return null;
@@ -181,6 +197,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     dealt_message_id: s("dealt_message_id"),
     dealt_was: s("dealt_was"),
     brought_ids: Array.isArray(r.brought_ids) ? r.brought_ids.filter((l): l is string => typeof l === "string") : [],
+    seeds: parseSeeds(r.seeds),
   };
 }
 
@@ -269,6 +286,8 @@ export class AccountThreads {
       dealt_message_id: prev?.dealt_message_id ?? null,
       dealt_was: prev?.dealt_was ?? null,
       brought_ids: (m.brought_ids ?? prev?.brought_ids ?? []).slice(-BROUGHT_MAX),
+      // An approved comment waits for the person whatever happens on the ticket meanwhile (KTD18).
+      seeds: prev?.seeds ?? [],
     });
     this.save(accountId);
     return true;
@@ -335,6 +354,38 @@ export class AccountThreads {
     const r = this.records(accountId).get(threadId);
     if (r?.state !== "archived") return false;
     this.records(accountId).set(threadId, { ...r, state: "open" });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
+   * An approved comment for a Jira ticket's card (plan 2026-11-10-1451, KTD18): it waits on the record for the card's
+   * comment box, and a card that had ended opens again as the same card, so the person finds it there. Nothing is
+   * written out there. Returns whether there was a record to put it on; a ticket that never had a card has none (R28).
+   */
+  seed(accountId: string, threadId: string, seed: OutsideSeed): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    const seeds = [...r.seeds.filter((s) => s.id !== seed.id), seed];
+    this.records(accountId).set(threadId, { ...r, state: r.state === "archived" ? "open" : r.state, seeds });
+    this.save(accountId);
+    return true;
+  }
+
+  /** The agent took back an approved comment (reply_withdraw): it leaves the record. Returns whether it was there. */
+  dropSeed(accountId: string, threadId: string, seedId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r?.seeds.some((s) => s.id === seedId)) return false;
+    this.records(accountId).set(threadId, { ...r, seeds: r.seeds.filter((s) => s.id !== seedId) });
+    this.save(accountId);
+    return true;
+  }
+
+  /** The person sent a comment from the card: every approved comment waiting on it is done with. Returns whether any was. */
+  clearSeeds(accountId: string, threadId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r?.seeds.length) return false;
+    this.records(accountId).set(threadId, { ...r, seeds: [] });
     this.save(accountId);
     return true;
   }
@@ -540,6 +591,7 @@ export class AccountThreads {
         place: r.place,
         sender_avatar: r.sender_avatar,
         only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,
+        ...(r.seeds.length > 0 ? { seeds: r.seeds.map((s) => ({ ...s })) } : {}),
       },
     };
   }

@@ -10,7 +10,9 @@ import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
-import { outsideItem } from "./fixtures/outside-item.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
+import { OutsideReply, freshSeeds, withSeeds } from "../app/src/desk/outside-card.tsx";
+import { must } from "./fixtures/must.ts";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
@@ -206,5 +208,26 @@ describe("a Jira card on the phone (plan 2026-11-10-1451, U5, R21)", () => {
     expect(html).toContain("Ada Lovelace");
     expect(html).not.toContain("watching");
     expect(html).not.toContain("loki-reach");
+  });
+});
+
+describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KTD18)", () => {
+  const SEED = { id: "reply-1", text: "Rotating tonight.", at: "2026-11-10T12:00:00.000Z" };
+  const OTHER = { id: "reply-2", text: "And the backups.", at: "2026-11-10T12:05:00.000Z" };
+
+  test("the box shows the seed; text already typed keeps it, after a blank line; the same seed is not added twice", () => {
+    expect(withSeeds("", freshSeeds([SEED], []))).toBe("Rotating tonight.");
+    expect(withSeeds("Thanks Ada.\n", freshSeeds([SEED], []))).toBe("Thanks Ada.\n\nRotating tonight.");
+    expect(freshSeeds([SEED], ["reply-1"])).toEqual([]);
+    expect(freshSeeds([SEED, OTHER], ["reply-1"])).toEqual([OTHER]);
+    expect(withSeeds("Rotating tonight.", freshSeeds([SEED, OTHER], ["reply-1"]))).toBe("Rotating tonight.\n\nAnd the backups.");
+    expect(freshSeeds(undefined, [])).toEqual([]);
+  });
+
+  test("the phone's comment box opens with the approved comment in it", () => {
+    const item = jiraItem();
+    const facts = { ...must(item.outside, "facts"), seeds: [SEED] };
+    const html = inPage(createElement(OutsideReply, { facts, touch: true, onSend: () => Promise.resolve({ sent: false, error: null }) }));
+    expect(html).toContain(">Rotating tonight.</textarea>");
   });
 });

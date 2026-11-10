@@ -73,8 +73,8 @@ import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
-import { registerAccountTools } from "./account-tools.ts";
-import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
+import { registerAccountTools, type AccountReader } from "./account-tools.ts";
+import { ReplyProposals, registerReplyTools, withRepliesOnOpen, type ReplyClient } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -349,7 +349,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // A card resting in the Inbox, by the rest every device sets here: the past's cap of 20 leaves it out (plan 078).
   const restingIn = (accountId: string) => (r: ThreadRecord) =>
-    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now());
+    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now(), r.seeds);
   // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
@@ -432,10 +432,17 @@ export default function activate(api: ModApi, host: Host): () => void {
     file: join(paths.state, "reply-proposals.json"),
     accounts,
     threads,
-    clientFor: (account) =>
-      account.provider === "gmail"
-        ? { provider: "gmail", client: gmailClient(account.account_id) }
-        : { provider: "slack", client: slackClient(account.account_id) },
+    // A Jira site has no drafts: an approved comment waits on its card, so its proposals get no client (KTD18).
+    clientFor: (account): ReplyClient => {
+      switch (account.provider) {
+        case "gmail":
+          return { provider: "gmail", client: gmailClient(account.account_id) };
+        case "slack":
+          return { provider: "slack", client: slackClient(account.account_id) };
+        case "jira":
+          return { provider: "jira" };
+      }
+    },
     push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
     changed: () => broadcast({ type: "chat_changed" }),
   });
@@ -765,10 +772,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     ...registerAccountTools(api, {
       accounts,
       threads,
-      clientFor: (account) =>
-        account.provider === "gmail"
-          ? { provider: "gmail", client: gmailClient(account.account_id) }
-          : { provider: "slack", client: slackClient(account.account_id) },
+      clientFor: (account): AccountReader => {
+        switch (account.provider) {
+          case "gmail":
+            return { provider: "gmail", client: gmailClient(account.account_id) };
+          case "slack":
+            return { provider: "slack", client: slackClient(account.account_id) };
+          case "jira":
+            return { provider: "jira", client: jiraClients.of(account.account_id) };
+        }
+      },
     }),
     ...registerReplyTools(api, { accounts, replies }),
   );

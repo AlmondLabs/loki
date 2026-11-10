@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReplyProposalCards } from "../app/src/desk/reply-proposal-card.tsx";
 import type { ReplyProposal } from "../core/frame-types.ts";
-import { buildItems, type ConversationInfo } from "../core/attention/model.ts";
+import { buildItems, keyOf, type ConversationInfo } from "../core/attention/model.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { asks } from "../daemon/approvals.ts";
@@ -15,9 +15,12 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { GmailClient } from "../mod/gmail.ts";
+import type { JiraSecret } from "../mod/jira.ts";
+import { jiraOutsideSource } from "../mod/jira-sync.ts";
 import { DRAFT_THERE, ReplyProposals, registerReplyTools, type ReplySlack } from "../mod/reply-proposals.ts";
 import type { SlackDraft, SlackDraftInput } from "../mod/slack.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
+import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
 
 const WORK = "agent-local-work";
@@ -510,6 +513,167 @@ describe("reply proposals (plan 067, U10)", () => {
   });
 });
 
+describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () => {
+  const SITE = `jira:acme.atlassian.net:${JIRA_ME.account_id}`;
+  const SEEN = "2026-11-10T10:00:00.000Z";
+  const APPROVED = "2026-11-10T12:00:00.000Z";
+
+  /**
+   * The work agent owns a Jira site with two tickets that had cards: OPS-7 open, OPS-8 ended. The proposals reach no
+   * Jira client at all; the fake site is there to show nothing called it.
+   */
+  async function site() {
+    const dir = mkdtempSync(join(tmpdir(), "loki-jira-replies-"));
+    dirs.push(dir);
+    const now = () => new Date(APPROVED);
+    const jira = fakeJira({ now });
+    const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), agentExists: () => true, now });
+    const secret: JiraSecret = { site: jira.host, email: jira.state.email, token: jira.state.token };
+    await accounts.add({ account_id: SITE, provider: "jira", address: jira.host, owner_agent_id: WORK }, JSON.stringify(secret));
+    const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
+    threads.register("jira", jiraOutsideSource());
+    for (const [id, key, at] of [
+      ["10001", "OPS-7", "2026-11-10T09:00:00.000Z"],
+      ["10002", "OPS-8", "2026-11-10T08:00:00.000Z"],
+    ] as const)
+      threads.observe(SITE, {
+        thread_id: id,
+        message_id: `${at}:c000000030001`,
+        at,
+        sender: "Ada Lovelace",
+        subject: `Ticket ${key}`,
+        lines: ["x"],
+        place: key,
+      });
+    await threads.markRead(SITE, "10002");
+    const pushed: ChatEvent[][] = [];
+    const open = () =>
+      new ReplyProposals({
+        file: join(dir, "reply-proposals.json"),
+        accounts,
+        threads,
+        clientFor: () => ({ provider: "jira" }),
+        push: (_agent, _conversation, events) => pushed.push(events),
+        now,
+      });
+    const replies = open();
+    const tools = new Map<string, ModTool>();
+    const transforms: Array<(m: OutgoingMessage) => OutgoingMessage["content"] | undefined> = [];
+    const mods = new ModRegistry(() => {});
+    await mods.load({
+      name: "replies",
+      apiVersion: 1,
+      activate: (api: ModApi) =>
+        registerReplyTools(
+          {
+            ...api,
+            tools: { register: (t) => (tools.set(t.name, t), api.tools.register(t)) },
+            message: { transform: (h) => (transforms.push(h), api.message.transform(h)) },
+          },
+          { accounts, replies },
+        ),
+    });
+    const call = async (name: string, args: Record<string, unknown>): Promise<string> => {
+      try {
+        const out = await must(tools.get(name), name).execute(args, {
+          chatId: CHAT,
+          agentId: WORK,
+          agentName: WORK,
+          signal: new AbortController().signal,
+          output: () => {},
+        });
+        return typeof out === "string" ? out : JSON.stringify(out);
+      } catch (err) {
+        return `refused: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    };
+    const nextMessage = (): string => {
+      let content: OutgoingMessage["content"] = "hello";
+      for (const t of transforms) content = t({ chatId: CHAT, agentId: WORK, agentName: WORK, content, typed: true }) ?? content;
+      return typeof content === "string" ? content : JSON.stringify(content);
+    };
+    const chat = { agent_id: WORK, conversation_id: CHAT };
+    const only = () => must(replies.list(chat).at(-1), "a proposal");
+    /** The ticket's card as the Inbox builds it, read before the approval. */
+    const card = (id: string) => {
+      const row = must(
+        threads.rows().find((r) => r.outside?.thread_id === id),
+        `the card of ${id}`,
+      );
+      return must(buildItems([row], new Map(), new Map(), { [keyOf(row.agent_id, row.id)]: SEEN }, Date.parse(APPROVED))[0], "the item");
+    };
+    return { jira, accounts, threads, replies, open, call, nextMessage, chat, only, card };
+  }
+
+  test("Covers AE7. an approved comment waits on the card's record, nothing reaches Jira, and the agent hears it waits on the card", async () => {
+    const s = await site();
+    expect(await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." })).toMatch(/waits for the person's approval/);
+    const p = s.only();
+    expect(p).toMatchObject({ provider: "jira", thread_id: "10001", place: "OPS-7", subject: "Ticket OPS-7", to: [], cc: [] });
+    const out = await s.replies.decide(s.chat, p.id, "approve", "desktop", { text: "Rotating tonight, 9pm." });
+    expect(out).toMatchObject({ done: true, proposal: { status: "drafted", draft_url: null } });
+    expect(s.threads.get(SITE, "10001")?.seeds).toEqual([{ id: p.id, text: "Rotating tonight, 9pm.", at: APPROVED }]);
+    expect(s.jira.requests).toEqual([]);
+    expect(s.jira.posted).toEqual([]);
+    const told = s.nextMessage();
+    expect(told).toMatch(/waiting on the card for the person to send/);
+    expect(told).toMatch(/Nothing was posted/);
+    expect(told).toContain("Rotating tonight, 9pm.");
+    expect(await s.call("reply_list", {})).toMatch(/on OPS-7/);
+  });
+
+  test("Covers AE9. approving a comment for an ended card opens it again, unread, with the comment waiting", async () => {
+    const s = await site();
+    expect(s.threads.get(SITE, "10002")?.state).toBe("archived");
+    await s.call("reply_propose", { account: SITE, thread: "10002", text: "Closing this out." });
+    await s.replies.decide(s.chat, s.only().id, "approve", "phone");
+    const r = must(s.threads.get(SITE, "10002"), "the record");
+    expect([r.state, r.seeds.map((x) => x.text)]).toEqual(["open", ["Closing this out."]]);
+    expect(s.card("10002")).toMatchObject({ unread: true, outside: { seeds: [{ text: "Closing this out." }] } });
+    // Without a comment waiting, the same mark would read the open card as read.
+    expect(s.card("10001").unread).toBe(false);
+  });
+
+  test("a comment for a ticket that never had a card is refused with the reason", async () => {
+    const s = await site();
+    expect(await s.call("reply_propose", { account: SITE, thread: "OPS-99", text: "Hello." })).toMatch(/^refused: OPS-99 has never had a card in the Inbox/);
+    expect(s.replies.list(s.chat)).toEqual([]);
+  });
+
+  test("a comment approved while the site is disconnected is refused with the cause, and nothing waits on the card", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Hi." });
+    s.accounts.setStatus(SITE, { disconnected: "sign_in_again" });
+    const out = await s.replies.decide(s.chat, s.only().id, "approve", "desktop");
+    expect(out).toMatchObject({ done: false, message: "Jira wants a new API token: Preferences › Accounts", proposal: { status: "pending" } });
+    expect(s.threads.get(SITE, "10001")?.seeds).toEqual([]);
+  });
+
+  test("withdrawing an approved comment takes it off the card; one the person sent cannot be withdrawn", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Maybe." });
+    const id = s.only().id;
+    await s.replies.decide(s.chat, id, "approve", "desktop");
+    expect(await s.call("reply_withdraw", { id })).toBe(`Withdrew ${id}.`);
+    expect(s.only().status).toBe("withdrawn");
+    expect(s.threads.get(SITE, "10001")?.seeds).toEqual([]);
+
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Sent already." });
+    const sent = s.only().id;
+    await s.replies.decide(s.chat, sent, "approve", "desktop");
+    // The person sent it from the card, which takes it off the record.
+    s.threads.clearSeeds(SITE, "10001");
+    expect(await s.call("reply_withdraw", { id: sent })).toBe("refused: already drafted from the desktop");
+  });
+
+  test("a stored Jira proposal survives a restart", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Later." });
+    const p = s.only();
+    expect(s.open().list(s.chat)).toMatchObject([{ id: p.id, provider: "jira", thread_id: "10001", place: "OPS-7", text: "Later.", status: "pending" }]);
+  });
+});
+
 describe("the reply card (plan 067, U10)", () => {
   const proposal: ReplyProposal = {
     id: "reply-1",
@@ -548,6 +712,15 @@ describe("the reply card (plan 067, U10)", () => {
     expect(phone).toContain(">Reject<");
     const slack = html({ source: source([{ ...proposal, provider: "slack", to: [], cc: [], place: "the thread in #ops" }]), rt });
     expect(slack).toContain("in the thread in #ops");
+  });
+
+  test("a Jira comment says it goes on the ticket and waits in the card's box for the person to post", () => {
+    const jira = { ...proposal, provider: "jira" as const, to: [], cc: [], place: "OPS-7", subject: "Rotate the keys" };
+    const desk = html({ source: source([jira]), rt });
+    expect(desk).toContain("on OPS-7");
+    expect(desk).toContain(">comment<");
+    expect(desk).toContain("goes in the ticket&#x27;s comment box in the Inbox; you post it from there");
+    expect(html({ source: source([{ ...jira, status: "drafting" }]), rt })).toContain("putting the comment on the card");
   });
 
   test("shows nothing without replies waiting, or on a host whose source has no way to decide them", () => {

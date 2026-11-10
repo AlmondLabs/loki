@@ -110,6 +110,7 @@ function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; af
       markUnread: write("unread"),
       markWaiting: () => true,
       markDealt: () => true,
+      clearSeeds: () => false,
       get: () => null,
     },
     threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]), jira: () => Promise.resolve([]) },

@@ -322,11 +322,12 @@ describe("the only thing the client writes is the person's comment", () => {
     await c.searchWatched({ sinceMinutes: 10 });
     await c.comments("OPS-1");
     await c.history("OPS-1");
+    await c.ticket("OPS-1");
     expect(jira.writes()).toEqual([]);
     await c.postComment("OPS-1", "hello");
     expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([["POST", "/rest/api/3/issue/OPS-1/comment"]]);
     const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment"].includes(n));
     // Every public method was exercised above; a new one must be added here, where its requests are checked.
-    expect(called.filter((n) => !["myself", "serverInfo", "searchWatched", "comments", "history"].includes(n) && !PRIVATE.includes(n))).toEqual([]);
+    expect(called.filter((n) => !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket"].includes(n) && !PRIVATE.includes(n))).toEqual([]);
   });
 });

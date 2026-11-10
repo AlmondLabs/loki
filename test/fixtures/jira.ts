@@ -166,6 +166,18 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     if (path === "/rest/api/3/search") return json(410, { errorMessages: ["The requested API has been removed. Please migrate to /rest/api/3/search/jql."] });
     if (path === "/rest/api/3/search/jql" && req.method === "GET") return search(q);
 
+    const one = /^\/rest\/api\/3\/issue\/([^/]+)$/.exec(path);
+    if (one && req.method === "GET") {
+      const ticket = find(decodeURIComponent(one[1]));
+      if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
+      const fields = (q.get("fields") ?? "").split(",").filter(Boolean);
+      const all: Record<string, unknown> = {
+        summary: ticket.summary,
+        updated: stamp(ticket.updated),
+        assignee: ticket.assignee ? person(ticket.assignee) : null,
+      };
+      return json(200, { id: ticket.id, key: ticket.key, fields: Object.fromEntries(fields.filter((f) => f in all).map((f) => [f, all[f]])) });
+    }
     const issue = /^\/rest\/api\/3\/issue\/([^/]+)\/(comment|changelog)$/.exec(path);
     if (issue) {
       const ticket = find(decodeURIComponent(issue[1]));

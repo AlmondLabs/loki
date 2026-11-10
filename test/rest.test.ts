@@ -305,4 +305,17 @@ describe("an outside card's rest as the mod judges it (plan 078)", () => {
     }
     expect(outsideResting(rest, "m1", now)).toBe(true);
   });
+
+  test("a Jira comment approved after the rest was set ends it, as the Inbox judges it (plan 2026-11-10-1451, U8)", () => {
+    const now = Date.parse("2026-11-09T10:00:00.000Z");
+    const rest: Rest = { n: 1, until: "2026-11-09T11:00:00.000Z", stamp: "outside|m1", at: "2026-11-09T09:00:00.000Z", kind: "later" };
+    const item = outsideItem("Budget");
+    for (const at of ["2026-11-09T08:00:00.000Z", "2026-11-09T09:30:00.000Z"]) {
+      const seeds = [{ id: "reply-1", text: "Rotating tonight.", at }];
+      const shown = { ...item, outside: { ...must(item.outside, "outside"), provider: "jira" as const, seeds } };
+      expect(outsideResting(rest, "m1", now, seeds)).toBe(isResting(shown, rest, now));
+    }
+    expect(outsideResting(rest, "m1", now, [{ id: "reply-1", text: "x", at: "2026-11-09T08:00:00.000Z" }])).toBe(true);
+    expect(outsideResting(rest, "m1", now, [{ id: "reply-1", text: "x", at: "2026-11-09T09:30:00.000Z" }])).toBe(false);
+  });
 });

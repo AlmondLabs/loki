@@ -7,7 +7,7 @@ import { splitMailboxes } from "../core/mail-header.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
 import { ownedAccount } from "./account-tools.ts";
-import type { AccountThreads } from "./account-threads.ts";
+import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { GmailError, type GmailClient, type GmailMessage } from "./gmail.ts";
@@ -26,6 +26,10 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * person, a Slack draft sits in the same conversation and thread, so a stranger's mail that asks the agent to send
  * something elsewhere can at most yield a reply to the thread's own people.
  *
+ * Jira has no drafts (plan 2026-11-10-1451, KTD18): an approved comment waits on the ticket's thread record instead,
+ * and the card puts it in its comment box for the person to send from there. Only a ticket that has had a card can take
+ * one (R28), and nothing here reaches Jira at all.
+ *
  * Each chat's proposals live in `state/reply-proposals.json`, beside the notices its agent has yet to read. A proposal
  * moves from pending to drafting to drafted, rejected or withdrawn in one step under its chat's lock, so the first action
  * wins and a second is told what already happened, as a suggestion's are (mod/suggestions.ts).
@@ -35,15 +39,18 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses" | "createDraft">;
 /** What a Slack draft needs of the workspace's client: the drafts there, a conversation's name, and the draft calls. */
 export type ReplySlack = Pick<SlackClient, "draftsList" | "draftsCreate" | "draftsDelete" | "conversationsInfo">;
-/** An account's client for drafts, by its provider. */
-export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack };
+/**
+ * An account's client for drafts, by its provider. A Jira site has none: an approved comment waits on the card's record,
+ * so approving cannot reach Jira (KTD18).
+ */
+export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack } | { provider: "jira" };
 
 /** What the proposals are built from. `now` and `newId` exist for tests. */
 export interface ReplyProposalsOptions {
   /** `state/reply-proposals.json`. */
   file: string;
   accounts: Pick<Accounts, "get" | "onChange">;
-  threads: Pick<AccountThreads, "get">;
+  threads: Pick<AccountThreads, "get" | "list" | "seed" | "dropSeed">;
   clientFor(account: AccountRecord): ReplyClient;
   /** Tell every client following a chat what its open proposals now are. */
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
@@ -189,7 +196,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
     thread = s("thread_id"),
     text = s("text");
   const status = STATUSES.find((x) => x === r.status);
-  const provider = r.provider === "gmail" || r.provider === "slack" ? r.provider : null;
+  const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
   if (!id || !account || !thread || text === null || !status || !provider) return null;
   const strings = (k: string) => (Array.isArray(r[k]) ? r[k].filter((x): x is string => typeof x === "string") : []);
   return {
@@ -262,15 +269,17 @@ export class ReplyProposals {
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
     // Any thread of the agent's own account will do (plan 071): the person's approval on the card is the gate. A thread
-    // found by search has no record here, so its subject comes from the thread itself.
-    const record = this.opts.threads.get(input.account_id, input.thread_id);
-    const where = await this.where(account, input.thread_id, record?.subject_or_first_line ?? "");
+    // found by search has no record here, so its subject comes from the thread itself. A Jira comment waits on its
+    // ticket's card, so the ticket must have one, named by its id or its key (R28, KTD7).
+    const record = account.provider === "jira" ? this.ticketRecord(account, input.thread_id) : this.opts.threads.get(input.account_id, input.thread_id);
+    const threadId = record?.thread_id ?? input.thread_id;
+    const where = await this.where(account, threadId, record?.subject_or_first_line ?? "");
     const proposal: ReplyProposal = {
       id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
       account_id: account.account_id,
       provider: account.provider,
       account_label: accountLabel(account),
-      thread_id: input.thread_id,
+      thread_id: threadId,
       subject: where.subject,
       to: where.to,
       cc: where.cc,
@@ -298,9 +307,17 @@ export class ReplyProposals {
     return this.list(chat).filter(isOpen);
   }
 
-  /** The agent takes back a reply the person has not acted on (reply_withdraw). Nothing is written. */
+  /**
+   * The agent takes back a reply the person has not acted on (reply_withdraw). Nothing is written. An approved Jira
+   * comment the person has not sent yet can be taken back too: it leaves the card's record, and whatever the card's box
+   * already holds stays as the person has it.
+   */
   withdraw(chat: ChatKey, id: string): Promise<ReplyDecided> {
-    return this.settle(chat, id, "withdrawn", "agent", null);
+    return this.change(chat, id, (p) => {
+      const waiting = p.provider === "jira" && p.status === "drafted" && this.opts.threads.dropSeed(p.account_id, p.thread_id, p.id);
+      if (p.status !== "pending" && !waiting) return { done: false, message: settledWords(p) };
+      return { done: true, message: null, next: { ...p, status: "withdrawn", reason: null, decided_by: "agent", decided_at: this.now() } };
+    });
   }
 
   /**
@@ -377,6 +394,12 @@ export class ReplyProposals {
     const account = this.opts.accounts.get(p.account_id);
     if (!account) return { ok: false, message: "that account is not connected on this Mac" };
     const reader = this.opts.clientFor(account);
+    if (reader.provider === "jira") {
+      // Jira has no drafts: the comment waits on the ticket's card, which opens again if it had ended, for the person
+      // to send from its box (KTD18). Nothing reaches Jira.
+      const seeded = this.opts.threads.seed(p.account_id, p.thread_id, { id: p.id, text: p.text, at: this.now() });
+      return seeded ? { ok: true, drafted: {}, url: null } : { ok: false, message: "loki has no card for that ticket now" };
+    }
     if (reader.provider === "gmail") {
       const thread = await reader.client.getThread(p.thread_id, "metadata");
       const newest = replyTarget(thread.messages);
@@ -406,13 +429,17 @@ export class ReplyProposals {
     return { ok: true, drafted: {}, url: null };
   }
 
-  /** Who the card says a reply goes to, read from the thread: Gmail's reply-all, or Slack's conversation and thread. */
+  /**
+   * Who the card says a reply goes to, read from the thread: Gmail's reply-all, or Slack's conversation and thread; a
+   * Jira comment goes on the ticket, named by its key from its card's record.
+   */
   private async where(
     account: AccountRecord,
     threadId: string,
     subject: string,
   ): Promise<{ subject: string; to: string[]; cc: string[]; place: string | null }> {
     const reader = this.opts.clientFor(account);
+    if (reader.provider === "jira") return { subject, to: [], cc: [], place: this.opts.threads.get(account.account_id, threadId)?.place ?? null };
     if (reader.provider === "gmail") {
       const thread = await reader.client.getThread(threadId, "metadata").catch((err: unknown) => {
         if (err instanceof GmailError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
@@ -427,6 +454,21 @@ export class ReplyProposals {
     const sender = this.opts.threads.get(account.account_id, threadId)?.sender || "them";
     const conversation = info?.is_im ? `your DM with ${sender}` : info?.name ? `#${info.name}` : "that conversation";
     return { subject, to: [], cc: [], place: ts ? `the thread in ${conversation}` : conversation };
+  }
+
+  /**
+   * The card's record of a Jira ticket named by its id or its key, in any case (KTD7); throws why when the ticket never
+   * had a card, since an approved comment waits in the card's box and there would be none (R28).
+   */
+  private ticketRecord(account: AccountRecord, ticket: string): ThreadRecord {
+    const wanted = ticket.trim().toLowerCase();
+    const found =
+      this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
+    if (!found)
+      throw new Error(
+        `${ticket} has never had a card in the Inbox, so there is no comment box for a comment to wait in: comment on a ticket from account_list`,
+      );
+    return found;
   }
 
   /**
@@ -501,9 +543,27 @@ export class ReplyProposals {
   }
 }
 
+/** Where a reply goes, as the agent is told it: Gmail's people, Slack's place, or the Jira ticket. */
+function whoWords(p: ReplyProposal): string {
+  switch (p.provider) {
+    case "gmail":
+      return `to ${addresses([...p.to, ...p.cc]) || "no one"}`;
+    case "slack":
+      return `in ${inert(p.place ?? "that conversation")}`;
+    case "jira":
+      return `on ${inert(p.place ?? "that ticket")}`;
+  }
+}
+
 /** What the agent is told once its reply is a draft: where, to whom, and what it says, and that nothing was sent. */
 function draftedNotice(p: ReplyProposal): string {
-  const who = p.provider === "gmail" ? `to ${addresses([...p.to, ...p.cc])}` : `in ${inert(p.place ?? "that conversation")}`;
+  if (p.provider === "jira")
+    return [
+      `The person approved your comment ${whoWords(p)} in ${p.account_label}, and loki put it in the comment box of the ticket's card in the Inbox, waiting on the card for the person to send.`,
+      "Nothing was posted: only the person posts it, from the card. The comment says:",
+      inert(p.text),
+    ].join("\n");
+  const who = whoWords(p);
   return [
     `The person approved your reply in ${p.account_label}, thread ${p.thread_id}, and loki saved it as a ${SERVICE[p.provider]} draft ${who}${p.draft_url ? ` (${p.draft_url})` : ""}.`,
     `Nothing was sent: the person sends it from ${SERVICE[p.provider]}. The draft says:`,
@@ -514,7 +574,7 @@ function draftedNotice(p: ReplyProposal): string {
 
 /** A proposal as a tool result lists it: one line, with its id, where it goes and how it stands. */
 function proposalLine(p: ReplyProposal): string {
-  const who = p.provider === "gmail" ? `to ${addresses([...p.to, ...p.cc]) || "no one"}` : `in ${inert(p.place ?? "that conversation")}`;
+  const who = whoWords(p);
   return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, p.status, p.reason && inert(p.reason)].filter(Boolean).join(" · ");
 }
 
@@ -537,12 +597,14 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "account_search or read with account_read. The person sees it as a card, may edit it, and on " +
       "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
       "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
-      "conversation and thread), so there is no recipient to choose. You hear what became of it with the next message.",
+      "conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a ticket that has " +
+      "had a card in the Inbox (by key or id): approved, it waits in that card's comment box for the person to post. " +
+      "You hear what became of it with the next message.",
     parameters: {
       type: "object",
       properties: {
         account: { type: "string", description: "The account's id or name, from account_list, account_search or the hand-off." },
-        thread: { type: "string", description: "The thread id, from the hand-off, account_search or account_read." },
+        thread: { type: "string", description: "The thread id, from the hand-off, account_search or account_read; for Jira, the ticket's key or id." },
         text: { type: "string", description: "The reply, as plain text." },
       },
       required: ["account", "thread", "text"],
@@ -579,7 +641,9 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
   const withdraw: LokiTool = {
     name: "reply_withdraw",
     forAgent,
-    description: "Take back a reply you proposed in this chat that the person has not acted on yet. Nothing is written.",
+    description:
+      "Take back a reply you proposed in this chat that the person has not acted on yet, or a Jira comment they approved " +
+      "that still waits in the card's box unsent. Nothing is written.",
     parameters: {
       type: "object",
       properties: { id: { type: "string", description: "The reply's id, from reply_propose or reply_list." } },
@@ -607,7 +671,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there. Never send mail or Slack messages any other way."
+        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

@@ -270,6 +270,14 @@ export class JiraClient {
     return { tickets: list(r.issues).map(parseTicket), next_page_token: strOrNull(r.nextPageToken) };
   }
 
+  /**
+   * One ticket by its id or its key, as the search gives it: the owner's tools name a ticket either way, and both lead
+   * to the numeric id a card keeps (KTD7). A ticket the person may not see is not found.
+   */
+  async ticket(idOrKey: string): Promise<JiraTicket> {
+    return parseTicket(await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields: SEARCH_FIELDS }));
+  }
+
   /** A page of a ticket's comments, read from the newest back; the ticket is named by its id or its key. */
   async comments(ticket: string, opts: JiraEventPageOptions = {}): Promise<JiraEventPage> {
     return this.page(`/rest/api/3/issue/${encodeURIComponent(ticket)}/comment`, opts, (r) => list(r.comments).map(parseComment));

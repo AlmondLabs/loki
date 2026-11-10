@@ -438,3 +438,78 @@ describe("what the person dealt with (plan 077, R5, KTD1)", () => {
     expect([r.dealt_message_id, r.dealt_was, r.brought_ids]).toEqual([null, null, []]);
   });
 });
+
+describe("an approved Jira comment waits on the record (plan 2026-11-10-1451, U8, KTD18)", () => {
+  const SITE = "jira:acme.atlassian.net:acc-me";
+  const event = (more: Partial<ObservedMessage> = {}): ObservedMessage => ({
+    thread_id: "10001",
+    message_id: "2026-11-10T09:00:00.000Z:c000000030001",
+    at: "2026-11-10T09:00:00.000Z",
+    sender: "Ada Lovelace",
+    subject: "Rotate the keys",
+    lines: ["Can you look at the rotation?"],
+    place: "OPS-7",
+    ...more,
+  });
+  const SEED = { id: "reply-1", text: "Rotating tonight.", at: "2026-11-10T10:00:00.000Z" };
+
+  async function site() {
+    const f = await fixture();
+    await f.accounts.add({ account_id: SITE, provider: "jira", address: "acme.atlassian.net", owner_agent_id: "agent-work" });
+    return f;
+  }
+
+  test("a seed is kept, shown on the card's facts, and outlives a restart", async () => {
+    const { threads, again } = await site();
+    threads.observe(SITE, event());
+    expect(threads.rows()[0]?.outside?.seeds).toBeUndefined();
+    expect(threads.seed(SITE, "10001", SEED)).toBe(true);
+    expect(threads.get(SITE, "10001")?.seeds).toEqual([SEED]);
+    expect(threads.rows()[0]?.outside?.seeds).toEqual([SEED]);
+    expect(again().get(SITE, "10001")?.seeds).toEqual([SEED]);
+  });
+
+  test("Covers AE9. a seed on an ended ticket opens its card again; a ticket with no record takes none", async () => {
+    const { threads } = await site();
+    threads.observe(SITE, event());
+    threads.markGoneOutThere(SITE, "10001");
+    expect(threads.rows()).toEqual([]);
+    threads.seed(SITE, "10001", SEED);
+    expect(threads.get(SITE, "10001")?.state).toBe("open");
+    expect(threads.rows().map((r) => r.outside?.thread_id)).toEqual(["10001"]);
+    expect(threads.seed(SITE, "10002", SEED)).toBe(false);
+  });
+
+  test("a new event on the ticket after approval keeps the seed", async () => {
+    const { threads } = await site();
+    threads.observe(SITE, event());
+    threads.seed(SITE, "10001", SEED);
+    threads.observe(SITE, event({ message_id: "2026-11-10T11:00:00.000Z:c000000030002", at: "2026-11-10T11:00:00.000Z", sender: "Bob Stone" }));
+    const r = must(threads.get(SITE, "10001"));
+    expect([r.sender, r.seeds]).toEqual(["Bob Stone", [SEED]]);
+  });
+
+  test("a seed goes on its own or with the rest; a record from before seeds has none", async () => {
+    const { dir, threads, again } = await site();
+    threads.observe(SITE, event());
+    threads.seed(SITE, "10001", SEED);
+    threads.seed(SITE, "10001", { ...SEED, id: "reply-2", text: "And the backups." });
+    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(true);
+    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(false);
+    expect(threads.get(SITE, "10001")?.seeds.map((s) => s.id)).toEqual(["reply-2"]);
+    expect(threads.clearSeeds(SITE, "10001")).toBe(true);
+    expect(threads.get(SITE, "10001")?.seeds).toEqual([]);
+    expect(threads.rows()[0]?.outside?.seeds).toBeUndefined();
+
+    threads.observe(MAIL, message());
+    const folder = join(dir, "account-threads");
+    const name = must(
+      readdirSync(folder).find((n) => n.startsWith("gmail")),
+      "the mailbox's file",
+    );
+    const file = JSON.parse(readFileSync(join(folder, name), "utf8")) as { threads: Array<Record<string, unknown>> };
+    delete file.threads[0].seeds;
+    writeFileSync(join(folder, name), JSON.stringify(file), { mode: 0o600 });
+    expect(again().get(MAIL, "t1")?.seeds).toEqual([]);
+  });
+});

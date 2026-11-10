@@ -3,6 +3,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
+import { freshSeeds, withSeeds } from "./outside-card";
 
 /** How long a word stays on the badge. */
 export const FLASH_MS = 900;
@@ -38,7 +39,8 @@ export function createFlash(set: (word: string | null) => void, ms = FLASH_MS): 
  * card: read (⌘]) marks it read and it rests, later (⌘[) keeps it unread and brings it back, archive (⌘E) is done. The
  * queue and the decisions are the deck's (useDeckQueue); this hook only writes to them. Every move pops the head and
  * re-orders the rest by score at that moment (popHead), the way a scheduler picks its next process when one leaves
- * the CPU.
+ * the CPU. A Jira comment the person approved for the agent goes into the box of its card once, when the card is on top,
+ * after whatever is typed there, and waits for them to send it (plan 2026-11-10-1451, KTD18).
  */
 export function useDeckActions({
   current,
@@ -63,10 +65,19 @@ export function useDeckActions({
   const [dir, setDir] = useState<"next" | "back">("next");
   /** The picker open, and on which card; another card on top closes it. */
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
-  /** The reply box of one outside card; another card on top starts with an empty one. */
-  const [box, setBox] = useState<{ id: string } & ReplyBox>({ id: "", ...EMPTY_REPLY });
+  /**
+   * The reply box of one outside card, and the approved comments it took in by proposal id; another card on top starts
+   * with an empty one, which takes the comments still waiting on that card again.
+   */
+  const [box, setBox] = useState<{ id: string; seeded: readonly string[] } & ReplyBox>({ id: "", seeded: [], ...EMPTY_REPLY });
 
   const currentId = current ? idOf(current) : "";
+  const own = box.id === currentId ? box : { id: currentId, seeded: [], ...EMPTY_REPLY };
+  const fresh = currentId ? freshSeeds(current?.outside?.seeds, own.seeded) : [];
+  if (fresh.length > 0) {
+    // Taken in as the deck renders, the way React adjusts state to new props: no effect copies them in a frame later.
+    setBox({ ...own, text: withSeeds(own.text, fresh), seeded: [...own.seeded, ...fresh.map((s) => s.id)] });
+  }
   const reply: ReplyBox = box.id === currentId ? box : EMPTY_REPLY;
   const picker = picking?.id === currentId ? picking.kind : null;
 
@@ -74,7 +85,7 @@ export function useDeckActions({
   const [flasher] = useState(() => createFlash(setFlash));
   useEffect(() => () => flasher.stop(), [flasher]);
   const say = flasher.say;
-  const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY }), ...patch }));
+  const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY }), ...patch }));
   const deck = createDeckMoves({
     current,
     decided,

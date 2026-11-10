@@ -7,6 +7,7 @@ import type {
   MailCompose,
   OutsideFacts,
   OutsideMessage,
+  OutsideSeed,
   OutsideWindow,
   OutsideWindowAsk,
 } from "../../../core/frame-types.ts";
@@ -413,6 +414,19 @@ export function replyPlace(o: OutsideFacts): string {
   }
 }
 
+/**
+ * The comments the person approved for a Jira card that its box has not taken in yet (plan 2026-11-10-1451, KTD18): a
+ * box takes each seed once, by its proposal's id, so one already there is never added again.
+ */
+export function freshSeeds(seeds: readonly OutsideSeed[] | undefined, taken: readonly string[]): OutsideSeed[] {
+  return (seeds ?? []).filter((s) => !taken.includes(s.id));
+}
+
+/** The box's text with approved comments added after whatever is already there, each after a blank line. */
+export function withSeeds(text: string, seeds: readonly OutsideSeed[]): string {
+  return [text.trimEnd(), ...seeds.map((s) => s.text)].filter(Boolean).join("\n\n");
+}
+
 /** The deck's chords that reach it from inside the reply box (KTD9): read, later and archive, each sending the text first. */
 const DECK_CHORDS = new Set(["inbox.next", "inbox.later", "inbox.archive"]);
 
@@ -463,7 +477,8 @@ const SEND_NOTE: Record<AccountProvider, string> = {
 /**
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
  * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it alone (plan 083); the
- * phone's box keeps its own and sends with `onSend`. Shift-Enter starts a line; Esc hands the deck's keys back, or
+ * phone's box keeps its own and sends with `onSend`. A Jira comment the person approved for the agent is added to
+ * either box once, after what is there, and goes nowhere until they send it (KTD18). Shift-Enter starts a line; Esc hands the deck's keys back, or
  * closes the deck when the box is empty. A send that fails keeps the text and says why.
  */
 export function OutsideReply({
@@ -504,11 +519,19 @@ export function OutsideReply({
   touch?: boolean;
 }) {
   const [ownText, setOwnText] = useState("");
+  // The approved comments this box took in (KTD18), so each is added once even after the person edits it away.
+  const [ownSeeded, setOwnSeeded] = useState<readonly string[]>([]);
   const [ownMail, setOwnMail] = useState<MailAddressing | null>(null);
   const [ownBusy, setBusy] = useState(false);
   const [ownError, setError] = useState<string | null>(null);
   const [lineOpen, setLineOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const fresh = box ? [] : freshSeeds(facts.seeds, ownSeeded);
+  if (fresh.length > 0) {
+    // Taken in as the card renders, the way React adjusts state to new props: no effect copies them in a frame later.
+    setOwnSeeded([...ownSeeded, ...fresh.map((s) => s.id)]);
+    setOwnText(withSeeds(ownText, fresh));
+  }
   const text = box ? box.text : ownText;
   const setText = box ? box.onText : setOwnText;
   const mail = box ? box.mail : ownMail;

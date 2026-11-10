@@ -52,7 +52,7 @@ export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: 
 /** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
-  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt"> & {
+  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt" | "clearSeeds"> & {
     /** A card's record, for what its window is built around (plan 077). */
     get: (
       accountId: string,
@@ -282,6 +282,8 @@ export class OutsideThreads {
         // comment twice (plan 2026-11-10-1451, KTD11). The thread id is the ticket's own id.
         await sender.client.postComment(threadId, body);
         deals = false;
+        // The box held any comment the person approved, so what they sent is it, as they left it (KTD18).
+        this.opts.threads.clearSeeds(accountId, threadId);
         break;
     }
     log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null });
