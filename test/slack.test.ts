@@ -330,6 +330,16 @@ describe("the workspace's people and mentions in a reply (plan 082)", () => {
   });
 });
 
+describe("the person's most-used emoji (plan 084)", () => {
+  test("read from Slack's own counts, most used first; none when Slack keeps none or garbles them", async () => {
+    const counts = (use: unknown) => client(() => ({ body: { ok: true, prefs: { emoji_use: use } } })).c.frequentEmoji();
+    expect(await counts(JSON.stringify({ eyes: 3, "100": 9, "+1::skin-tone-2": 5, broken: "x", zero: 0 }))).toEqual(["100", "+1::skin-tone-2", "eyes"]);
+    expect(await counts({ pray: 2 })).toEqual(["pray"]);
+    expect(await counts(undefined)).toEqual([]);
+    expect(await counts("{not json")).toEqual([]);
+  });
+});
+
 describe("the person's reactions (plan 079)", () => {
   test("a reaction is added or taken back on its message; one already there, or already gone, is what was asked", async () => {
     const { c, sent } = client((method) => (method === "reactions.add" ? { body: { ok: false, error: "already_reacted" } } : { body: { ok: true } }));

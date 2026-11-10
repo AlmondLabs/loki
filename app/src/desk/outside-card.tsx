@@ -7,6 +7,7 @@ import type {
   MailCompose,
   OutsideFacts,
   OutsideMessage,
+  OutsideRead,
   OutsideWindow,
   OutsideWindowAsk,
 } from "../../../core/frame-types.ts";
@@ -24,7 +25,7 @@ import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } fro
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
-import { toggleReaction } from "./slack-reactions";
+import { toggleReaction, useQuickEmoji } from "./slack-reactions";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -99,6 +100,8 @@ export interface ThreadControls {
   react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
   /** The emoji the account can react with whose names hold `query`; empty when they could not be read. */
   searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
+  /** The person's quick reactions (plan 084): their most used in Slack, five, for the hover bar and the picker's keys. */
+  quick?: EmojiChoice[];
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
@@ -140,6 +143,47 @@ interface Shown {
 const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
   (w.view === "thread" ? messages.find((m) => m.id !== w.thread_ts) : messages[0])?.id ?? null;
 
+/** What a load adds to the card (plan 077): the messages it read, before or after what is there, and what more there is. */
+function withLoaded(now: Shown, out: OutsideRead, w: OutsideWindow, direction: "before" | "after"): Shown {
+  const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
+  const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
+  const body = rest.filter((m) => !pinned.includes(m));
+  const more = out.window ?? w;
+  return {
+    ...now,
+    busy: null,
+    messages: direction === "before" ? [...pinned, ...out.messages, ...body] : [...rest, ...out.messages],
+    window: direction === "before" ? { ...w, more_before: more.more_before } : { ...w, more_after: more.more_after },
+  };
+}
+
+/**
+ * What a Slack card's thread reacts with (plans 079, 084): reacting, which shows at once on what the card holds and
+ * goes back if Slack refuses; the emoji search; and the person's quick reactions. Empty where the source cannot react.
+ */
+function useReactControls(
+  item: AttentionItem,
+  source: OutsideThreadSource | null,
+  setShown: (change: (now: Shown | null) => Shown | null) => void,
+  tag: string,
+): Pick<ThreadControls, "react" | "quick" | "searchEmoji"> {
+  const o = item.outside;
+  const search = source?.searchEmoji;
+  const searchEmoji = search ? (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) : null;
+  const reactOutside = source?.reactOutside;
+  const quick = useQuickEmoji(o?.provider === "slack" && reactOutside ? o.account_id : null, searchEmoji);
+  const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
+    setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
+  const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
+    if (!reactOutside) return;
+    setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
+    void reactOutside(item, messageId, choice.name, on).then((refused) => {
+      if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+    });
+  };
+  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}) };
+}
+
 /**
  * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
  * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
@@ -173,6 +217,7 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
       live = false;
     };
   }, [key, tag, view]);
+  const reacting = useReactControls(item, source, setShown, tag);
   // A newer message reads the thread again; meanwhile the card keeps what it shows.
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
@@ -183,42 +228,16 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
     const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
     if (!from) return;
     setShown({ ...shown, busy: direction });
-    void source?.readOutside(item, { ...ask, direction, from }).then((out) =>
-      setShown((now) => {
-        if (now?.tag !== tag) return now;
-        if (typeof out === "string") return { ...now, busy: null };
-        const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
-        const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
-        const body = rest.filter((m) => !pinned.includes(m));
-        const more = out.window ?? w;
-        return {
-          ...now,
-          busy: null,
-          messages: direction === "before" ? [...pinned, ...out.messages, ...body] : [...rest, ...out.messages],
-          window: direction === "before" ? { ...w, more_before: more.more_before } : { ...w, more_after: more.more_after },
-        };
-      }),
-    );
+    void source
+      ?.readOutside(item, { ...ask, direction, from })
+      .then((out) => setShown((now) => (now?.tag !== tag ? now : typeof out === "string" ? { ...now, busy: null } : withLoaded(now, out, w, direction))));
   };
-  // A reaction shows at once on what the card holds; a refusal puts the message's pills back as they were.
-  const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
-    setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
-  const reactOutside = source?.reactOutside;
-  const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
-    if (!reactOutside) return;
-    setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
-    void reactOutside(item, messageId, choice.name, on).then((refused) => {
-      if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
-    });
-  };
-  const search = source?.searchEmoji;
   const controls: ThreadControls = {
     load,
     openThread: (ts) => setOpened({ key, threadTs: ts }),
     ...(threadTs ? { back: () => setOpened(null) } : {}),
     busy: shown.busy,
-    ...(reactOutside ? { react } : {}),
-    ...(search ? { searchEmoji: (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) } : {}),
+    ...reacting,
   };
   return { kind: "read", messages: shown.messages, window: w, controls };
 }

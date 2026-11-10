@@ -37,6 +37,7 @@ export const SLACK_METHODS = [
   "conversations.info",
   "users.info",
   "users.list",
+  "users.prefs.get",
   "emoji.list",
   "conversations.mark",
   "drafts.list",
@@ -370,6 +371,25 @@ export class SlackClient {
     const out: Record<string, string> = {};
     for (const [name, value] of Object.entries(emoji)) if (typeof value === "string") out[name] = value;
     return out;
+  }
+
+  /**
+   * The emoji the person reacts with most in Slack, most used first (plan 084): the counts Slack keeps in their own
+   * settings (`emoji_use`) for its quick reactions. Empty when Slack keeps none or in a shape loki does not know.
+   */
+  async frequentEmoji(): Promise<string[]> {
+    const raw = rec((await this.call("users.prefs.get", {})).prefs).emoji_use;
+    let use: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        use = JSON.parse(raw);
+      } catch {
+        return [];
+      }
+    }
+    const counts: Array<[string, number]> = [];
+    for (const [name, n] of Object.entries(rec(use))) if (typeof n === "number" && n > 0) counts.push([name, n]);
+    return counts.sort((a, b) => b[1] - a[1]).map(([name]) => name);
   }
 
   /** A person in the workspace. */
