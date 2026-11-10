@@ -257,6 +257,7 @@ export function SettingsView({
         recall={recall}
         usage={{ ...desk.usage, agents: catchUp.agents }}
         returnTimes={{ times: desk.attention.returnTimes, set: desk.attention.setReturnTimes }}
+        lanes={{ lanes: desk.attention.lanes, set: desk.attention.setLanes }}
       />
     </Suspense>
   );

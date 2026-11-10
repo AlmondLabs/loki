@@ -2,6 +2,7 @@ import { AlwaysAllowed, Mcp, type McpApi } from "./mcp";
 import { ChatLinks, type ChatLinksApi } from "./chat-links";
 import { Engines, type EnginesApi } from "./engines";
 import { Labels, type LabelsApi } from "./labels";
+import { Lanes, type LaneAccountsApi, type LanesApi, type LanesProps } from "./lanes";
 import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
@@ -102,6 +103,7 @@ export function Settings({
   recall,
   usage,
   returnTimes,
+  lanes,
   onClose,
 }: {
   chatLink: ChatLink;
@@ -126,8 +128,8 @@ export function Settings({
   globalSkills: GlobalSkillsApi;
   /** Preferences › MCP servers, and Preferences › Chat's always-allowed tools (daemon/mcp/, daemon/approvals.ts). */
   mcp: McpApi;
-  /** Preferences › Accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067). */
-  accounts: AccountsApi;
+  /** Preferences › Accounts: the Gmail mailboxes and Slack workspaces on this Mac and their owners (plan 067); every Mac's for lanes. */
+  accounts: AccountsApi & LaneAccountsApi;
   /** Every agent by name, to choose an account's owner from. */
   agents: readonly AgentName[];
   /** Preferences › Engines: the ACP agents a chat can run on (daemon/acp/, plan 020). */
@@ -146,6 +148,8 @@ export function Settings({
   usage: UsageApi;
   /** How long ⌘] and ⌘[ rest each kind of card (Preferences › Inbox). */
   returnTimes: ReturnTimesApi;
+  /** The lanes the person made (Preferences › Flow, plan 082), kept by the mod and shared with every device. */
+  lanes: LanesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
@@ -166,7 +170,7 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage returnTimes={returnTimes} />,
+    inbox: () => <InboxPage returnTimes={returnTimes} lanes={{ lanes, accounts, agents }} />,
     accounts: () =>
       chatLink === "open" ? <Accounts api={accounts} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     providers: () => (
@@ -532,14 +536,16 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
 }
 
 /**
- * Preferences › Inbox: what read, later, archive, label and a reply do, how long read and later set each kind of card
- * aside, and how the deck orders its cards behind a fold. The accounts whose mail and messages become cards have their
+ * Preferences › Inbox (Flow on screen): the lane editor when given its lanes (plan 082), then what read, later,
+ * archive, label and a reply do, how long read and later set each kind of card aside, and how the deck orders its cards
+ * behind a fold. The accounts whose mail and messages become cards have their
  * own page, Preferences › Accounts (plan 068). Exported for its test.
  */
-export function InboxPage({ returnTimes }: { returnTimes: ReturnTimesApi }) {
+export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi; lanes?: LanesProps }) {
   const { times, set } = returnTimes;
   return (
     <>
+      {lanes && <Lanes {...lanes} />}
       <Block help="every chat you have not archived, every thread in your Gmail inbox and every unread Slack message. A card stays until it is done: a chat or an email when you archive it, a Slack message when you read it. The card in front of you never moves until you act on it.">
         <Setting
           label="Read"

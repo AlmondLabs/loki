@@ -49,7 +49,7 @@ export const pageTitle = (p: SettingsPage): string => TITLES[p];
 export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
-  inbox: ["inbox", "order", "score", "focus", "archive"],
+  inbox: ["inbox", "order", "score", "focus", "archive", "lane", "lanes"],
   accounts: ["gmail", "email", "mail", "slack", "connect", "google"],
   providers: ["models", "api key", "openai", "anthropic"],
   engines: ["claude code", "acp", "agents"],
