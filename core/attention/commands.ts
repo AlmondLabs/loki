@@ -59,7 +59,7 @@ export function engineCommands(engine: ChatEngineView): SlashCommand[] {
 
 const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;
 
-/** Old names a command still answers to, never listed in the palette: Flow was the Inbox (plan 085, KTD12). */
+/** Old names a command still answers to, never listed in the palette: Flow was the Inbox (plan 087, KTD12). */
 const ALIASES: Record<string, string> = { inbox: "flow" };
 
 /**

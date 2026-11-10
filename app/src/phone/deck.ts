@@ -281,7 +281,7 @@ export function holdCard(s: DeckState, item: AttentionItem): DeckState {
 
 /**
  * After the live list changes: forget dismissals it has outgrown, pin whatever is now on top. The same object when
- * nothing moved. `items` are the active lane's cards and `all` every card (plan 085, KTD6): a dismissal is weighed
+ * nothing moved. `items` are the active lane's cards and `all` every card (plan 087, KTD6): a dismissal is weighed
  * against every card, so a card passed over in one lane stays passed over through a switch and back, and the card on
  * top stays on top when the new lane holds it.
  */
@@ -295,7 +295,7 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[], all: Attenti
   return topId === next.topId ? next : { ...next, topId };
 }
 
-// ---- Lanes (plan 085) ------------------------------------------------------------------------------
+// ---- Lanes (plan 087) ------------------------------------------------------------------------------
 
 /** One entry in the lane sheet: the lane's id ("" is Everything) and its name as the lane has it. */
 export interface LaneChoice {

@@ -108,7 +108,7 @@ export interface Peering {
   agentDeleteBlocked(agentId: string): string | null;
   /** The name of the paired Mac that holds an account, as it last said, or null (plan 067, KTD14). */
   accountHeldBy(accountId: string): string | null;
-  /** Every paired Mac's accounts as each last said, marked with its Mac, for Flow's lanes (plan 085, KTD9). */
+  /** Every paired Mac's accounts as each last said, marked with its Mac, for Flow's lanes (plan 087, KTD9). */
   accountsElsewhere(): MacAccountView[];
   /** A picture not here, from whichever paired Mac in reach holds it (plan 029). */
   chatImage(name: string): Promise<Buffer | null>;

@@ -51,7 +51,7 @@ export function RecallView({
 /** How the Inbox's last move was made, for analytics: the last input was a key or a click. */
 const via = () => (lastInput() === "key" ? "key" : "click");
 
-/** "new lane…" in Flow's title: Preferences opens on its Flow page, where lanes are made (plan 085, R8). */
+/** "new lane…" in Flow's title: Preferences opens on its Flow page, where lanes are made (plan 087, R8). */
 function openFlowPreferences() {
   try {
     sessionStorage.setItem(SETTINGS_PAGE_KEY, "inbox");

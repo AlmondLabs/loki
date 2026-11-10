@@ -1017,9 +1017,10 @@ channel's other messages unread. Two gaps are known:
 chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
 you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
 Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. Either way the
-reply goes alone: the card stays where it is until you make the next move yourself, and on email Z stops the reply
-while it waits its 10 seconds. A move key pressed with text in the box sends it first, then makes its own move, and
-the moves work from inside the box:
+reply goes alone: the card stays where it is until you make the next move yourself, your reply shows at the end of
+the thread at once, and on email Z stops the reply while it waits its 10 seconds and takes it back out of the thread.
+A move key pressed with text in the box sends it first, then makes its own move, and the moves work from inside the
+box:
 
 1. ⌘] sends the reply and the card rests as read.
 2. ⌘[ sends it and keeps the card: it comes back when they answer, or after the later time if they stay quiet. A

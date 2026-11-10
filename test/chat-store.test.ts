@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ChatClient } from "../core/attention/chat-client.ts";
 import { ChatStore, type ChatStoreHost } from "../core/attention/chat-store.ts";
+import { sentKey } from "../core/attention/sent-replies.ts";
 import type { ChatEvent, ConversationInfo, Digest } from "../core/attention/model.ts";
 import type { Runtime } from "../core/attention/protocol.ts";
 import type { ChatEngineView } from "../core/models.ts";
@@ -373,6 +374,23 @@ describe("the chat store (plan 052)", () => {
     expect(ids()).toEqual(["c1"]);
     expect(d.replies.map((r) => r[3])).toEqual(["later", "read", "archive", "archive"]);
     expect(d.replies[0]).toEqual(["gmail:ada@acme.com", "t1", "hello", "later", "mac-mini"]);
+    // A reply with a move leaves with its card, so its thread keeps none of them (plan 086).
+    const key = sentKey("gmail:ada@acme.com", "t1");
+    expect(d.store.sent.get(key).replies).toEqual([]);
+    // A reply sent alone shows on its card from the press, and is marked gone once it went.
+    const going = d.store.replyOutside(card, " see you ", "stay");
+    expect(d.store.sent.get(key).replies).toMatchObject([{ text: "see you", gone: false }]);
+    await going;
+    expect(d.store.sent.get(key)).toMatchObject({ went: 1, replies: [{ text: "see you", gone: true }] });
+    // One that is refused goes from the thread as its words go back to the box.
+    d.replyAnswer.refused = "Gmail is out of reach";
+    await d.store.replyOutside(card, "again", "stay");
+    expect(d.store.sent.get(key)).toMatchObject({ went: 1, replies: [{ text: "see you" }] });
+    // One sent into a post's thread opened on the card shows in that thread, not the card's own view (plan 085).
+    d.replyAnswer.refused = null;
+    await d.store.replyOutside(card, "in there", "stay", { thread_ts: "1731.2" });
+    expect(d.store.sent.get(sentKey("gmail:ada@acme.com", "t1", "1731.2")).replies).toMatchObject([{ text: "in there" }]);
+    expect(d.store.sent.get(key).replies).toHaveLength(1);
   });
 
   test("read, unread and label are written back on the card's home Mac with what they changed; a read that ends the card drops it; restore brings it back", async () => {

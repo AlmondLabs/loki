@@ -42,6 +42,7 @@ import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
 import { coalesce } from "../timers.ts";
 import { Listeners } from "../listeners.ts";
 import { messageOf } from "../errors.ts";
+import { createSentReplies, sentKey } from "./sent-replies.ts";
 
 /**
  * Every chat this client follows, outside React (plan 052): the list and its digests, the agents, the live half of
@@ -252,6 +253,8 @@ export class ChatStore {
 
   private current: ChatStoreHost;
   private readonly now: () => number;
+  /** The replies sent alone from outside cards, which their threads show until read again (plan 086). */
+  readonly sent = createSentReplies();
 
   /** `now` is the clock; the host may change, as the app builds it afresh on every render (setHost). */
   constructor(host: ChatStoreHost, now: () => number = Date.now) {
@@ -969,7 +972,14 @@ export class ChatStore {
   ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
     const o = card.outside;
     if (!o) return { sent: false, error: "this card is not from an account", change: null };
+    // A reply sent alone stays on its card, whose thread shows it at once (plan 086); one with a move leaves with the card.
+    const place = sentKey(o.account_id, o.thread_id, extra.thread_ts ?? null);
+    const shown = then === "stay" ? this.sent.add(place, text.trim(), new Date(this.now()).toISOString()) : null;
     const r = await this.attempt((c) => c.replyOutside(o.account_id, o.thread_id, text, then, card.home ?? null, extra));
+    if (shown) {
+      if (typeof r === "string" || !r.sent) this.sent.drop(shown);
+      else this.sent.went(shown);
+    }
     if (typeof r === "string") return { sent: false, error: r, change: null };
     if (!r.sent) return { sent: false, error: null, change: null, undone: true };
     if (r.change?.ended) this.dropCard(card);

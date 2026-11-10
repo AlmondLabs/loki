@@ -24,7 +24,7 @@ describe("slash commands", () => {
     expect(matchCommands("", allCommands()).length).toBe(LOKI_COMMANDS.length + HARNESS_COMMANDS.length);
     expect(matchCommands("zzz", allCommands())).toEqual([]);
   });
-  test("/flow opens Flow, and /inbox, its old name, still does without being listed (plan 085, KTD12)", () => {
+  test("/flow opens Flow, and /inbox, its old name, still does without being listed (plan 087, KTD12)", () => {
     const flow = LOKI_COMMANDS.find((c) => c.id === "flow");
     expect(flow?.action).toBe("segment.inbox");
     expect(parseSlash("/flow")).toEqual({ id: "flow", args: "" });

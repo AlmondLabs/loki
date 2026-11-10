@@ -5,7 +5,7 @@ import { attentionItem } from "./fixtures/attention.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-/** Lanes (plan 085, U2): which cards a lane holds, the quiet count of the others, and the agents' built-in lanes. */
+/** Lanes (plan 087, U2): which cards a lane holds, the quiet count of the others, and the agents' built-in lanes. */
 
 const GMAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";

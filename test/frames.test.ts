@@ -530,7 +530,7 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
   });
 
-  test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 085, U3)", () => {
+  test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 087, U3)", () => {
     expect(PHONE_FRAMES.has("lanes_set")).toBe(false);
     expect(
       parse("lanes_set", {

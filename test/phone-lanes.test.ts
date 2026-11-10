@@ -1,4 +1,4 @@
-// The phone's Flow in a lane (plan 085, U7): the title names the lane and opens the sheet, the deck and its counts
+// The phone's Flow in a lane (plan 087, U7): the title names the lane and opens the sheet, the deck and its counts
 // follow the lane, the quiet line counts the rest, and an emptied lane offers the way back to Everything.
 import { describe, expect, test } from "vitest";
 import { createElement, type ReactElement } from "react";

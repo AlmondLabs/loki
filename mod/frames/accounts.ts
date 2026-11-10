@@ -39,7 +39,7 @@ export interface AccountsDeps {
   /** The ledger of the person's moves on outside cards (mod/inbox-ledger.ts, plan 069). */
   ledger?: Pick<InboxLedger, "record">;
   connect?: AccountConnectDeps;
-  /** The paired Macs' accounts as each last said (PeerAccounts.everywhere), for picking them in a lane (plan 085, KTD9). */
+  /** The paired Macs' accounts as each last said (PeerAccounts.everywhere), for picking them in a lane (plan 087, KTD9). */
   otherMacs?: () => MacAccountView[];
 }
 
@@ -49,7 +49,7 @@ const NO_THREADS = "Flow accounts are not available in this mod";
 /**
  * Preferences › Accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
  * a Gmail account (a sign-in) or a Slack workspace (the desktop app's session), moving one to another agent, and
- * disconnecting one, with the paired Macs' accounts beside them for Flow's lanes (plan 085, KTD9); and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
+ * disconnecting one, with the paired Macs' accounts beside them for Flow's lanes (plan 087, KTD9); and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
  * now stands, without secrets or the watcher's cursor; the host tells every client when it changed. Archiving an
  * outside card (U3) writes back to its account here, on the Mac the account lives on, and answers with the reason when
  * that failed, so the card comes back. Handing a card off (U8) is proposed and carried out on that Mac too.

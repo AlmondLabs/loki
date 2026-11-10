@@ -5,7 +5,7 @@ import { catchUpQueue } from "../core/attention/queue.ts";
 import { LANE_KEYS, createActiveLaneStore, resolveLane } from "../app/src/shared/active-lane.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The active lane per device (plan 085, U5): what is kept, how it reads, and what the badges then count. */
+/** The active lane per device (plan 087, U5): what is kept, how it reads, and what the badges then count. */
 
 const work: Lane = { id: "work", name: "Work", chats: ["ada"], accounts: [] };
 const home: Lane = { id: "home", name: "Home", chats: ["bo"], accounts: [] };

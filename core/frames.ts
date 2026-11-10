@@ -203,7 +203,7 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
 const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
-/** An account connected on a paired Mac, marked with that Mac, so Flow's lanes can pick it (plan 085, KTD9). */
+/** An account connected on a paired Mac, marked with that Mac, so Flow's lanes can pick it (plan 087, KTD9). */
 export interface MacAccountView extends AccountView {
   mac_id: string;
   /** The Mac's name as this Mac shows it. */
@@ -327,7 +327,7 @@ export interface Replies {
   reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
   /**
    * The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. A list
-   * also carries each paired Mac's accounts as it last said (plan 085, KTD9); a mod from before that leaves them out.
+   * also carries each paired Mac's accounts as it last said (plan 087, KTD9); a mod from before that leaves them out.
    */
   accounts: { accounts: AccountView[]; other_macs?: MacAccountView[] };
   /**
@@ -428,7 +428,7 @@ export interface Pushes {
   /**
    * `viewed`, `focus`, `rests` and `return_times` are missing from older mods; `return_times` is null while the person
    * has set none (plan 070), and the Mac then moves its own old first-rest choice there. `lanes` is missing from a mod
-   * from before plan 085, and the client then keeps what it has.
+   * from before plan 087, and the client then keeps what it has.
    */
   seen: {
     seen: Record<string, string>;
@@ -694,9 +694,9 @@ export const FRAMES = {
     (m) => (isReturnTimes(m.return_times) ? { return_times: m.return_times } : "return_times must be { read_first, later } of known choices"),
     { phone: PHONE, causes: ["seen"] },
   ),
-  // Not for the phone: lanes are made and edited on a Mac (plan 085, R8); the phone only reads them from the push.
+  // Not for the phone: lanes are made and edited on a Mac (plan 087, R8); the phone only reads them from the push.
   lanes_set: send(
-    "the person's whole list of lanes, replacing the one kept (core/attention/lanes.ts, plan 085)",
+    "the person's whole list of lanes, replacing the one kept (core/attention/lanes.ts, plan 087)",
     (m) => (Array.isArray(m.lanes) ? { lanes: parseLanes(m.lanes) } : "lanes must be a list of lanes"),
     { causes: ["seen"] },
   ),

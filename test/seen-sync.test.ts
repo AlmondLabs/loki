@@ -103,7 +103,7 @@ describe("later rests and return times on two Macs (plan 070, U4)", () => {
   });
 });
 
-describe("lanes on two Macs (plan 085, U3)", () => {
+describe("lanes on two Macs (plan 087, U3)", () => {
   const work: Lane = { id: "l-work", name: "Work", chats: ["agent-ira"], accounts: ["gmail:me@work.example"] };
   const home: Lane = { id: "l-home", name: "Home", chats: [], accounts: "all" };
 

@@ -67,7 +67,7 @@ export function useDeckActions({
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
   /**
    * The reply box of one outside card; another card on top starts with an empty one, but for the words the person left
-   * unsent in that card's box, which are kept for the session (plan 085, KTD7) so a lane switch does not lose them.
+   * unsent in that card's box, which are kept for the session (plan 087, KTD7) so a lane switch does not lose them.
    */
   const [box, setBox] = useState<{ id: string } & ReplyBox>({ id: "", ...EMPTY_REPLY });
 

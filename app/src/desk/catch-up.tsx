@@ -53,7 +53,7 @@ interface CatchUpProps {
   labelList?: readonly LabelView[] | null;
   /** Every card in Flow, whatever the lane: the deck reads the lane's, the quiet count and the menu all of them (KTD3). */
   items: AttentionItem[];
-  /** This device's active lane, null for Everything (plan 085). */
+  /** This device's active lane, null for Everything (plan 087). */
   lane: ResolvedLane | null;
   /** The lanes the person made, for the title's menu; null until they first come. */
   lanes: Lane[] | null;

@@ -136,7 +136,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
     ]);
   });
 
-  test("Preferences › Accounts lists only this Mac's accounts given a reply with both lists; the editor's call gets both (plan 085, U4)", async () => {
+  test("Preferences › Accounts lists only this Mac's accounts given a reply with both lists; the editor's call gets both (plan 087, U4)", async () => {
     const other = { ...SLACK, account_id: "slack:T09:U07", address: "Studio", mac_id: "mac-mini", mac_name: "Mac mini" };
     const { request } = fakeRequest({ account_list: { accounts: [MAIL], other_macs: [other] } });
     const calls = daemonCalls(request).accounts;

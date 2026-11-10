@@ -4,7 +4,7 @@ import { inLane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { inboxQueue, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
 
 /**
- * The queue after a lane switch (plan 085, KTD6): the card on top stays on top when the new lane holds it; otherwise
+ * The queue after a lane switch (plan 087, KTD6): the card on top stays on top when the new lane holds it; otherwise
  * the queue is built afresh from the new lane's cards and the card is left as it was, with nothing recorded on it.
  * Cards moved past this visit stay out, in any lane, until something new comes, since the visit carries across.
  */

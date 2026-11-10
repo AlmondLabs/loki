@@ -12,7 +12,7 @@ import { switchLane } from "../app/src/desk/use-deck-queue.ts";
 import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The desktop Flow's lanes (plan 085, U6): the title switcher, the deck's lane, the quiet count and undo across switches. */
+/** The desktop Flow's lanes (plan 087, U6): the title switcher, the deck's lane, the quiet count and undo across switches. */
 
 const WORK: Lane = { id: "w", name: "Work", chats: ["ag-work"], accounts: [] };
 const HOME: Lane = { id: "h", name: "Home", chats: ["ag-home"], accounts: [] };

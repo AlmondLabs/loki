@@ -79,7 +79,7 @@ export function DeckHeader({ needYou, chats, others, ...lane }: LaneSwitchProps 
   );
 }
 
-/** Flow's title as a menu button (R11, plan 085 U6): it names the lane, and opens the menu that switches it. */
+/** Flow's title as a menu button (R11, plan 087 U6): it names the lane, and opens the menu that switches it. */
 function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);

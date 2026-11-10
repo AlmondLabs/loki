@@ -63,7 +63,7 @@ describe("what the mod's pushes leave in a tab (plan 058)", () => {
     expect(cleared.focusMap).toBe(s.focusMap);
   });
 
-  test("lanes are null until a push carries them; a push without them keeps them (plan 085, U3)", () => {
+  test("lanes are null until a push carries them; a push without them keeps them (plan 087, U3)", () => {
     const seen = { type: "seen", seen: {}, viewed: {}, focus: {}, rests: {} } as const;
     expect(fold([seen]).lanes).toBeNull();
     const lanes = [{ id: "l-work", name: "Work", chats: "all" as const, accounts: [] }];

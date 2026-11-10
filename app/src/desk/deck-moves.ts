@@ -75,7 +75,7 @@ export interface DeckMovesHost {
   current: AttentionItem | undefined;
   /** Every decision this visit, across lane switches; `lane` narrows which one undo takes back. */
   decided: Decision[];
-  /** The lane Flow is in on this device, null for Everything (plan 085, KTD6). */
+  /** The lane Flow is in on this device, null for Everything (plan 087, KTD6). */
   lane: ResolvedLane | null;
   /** The reply box of the card on top. */
   reply: ReplyBox;

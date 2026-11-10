@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { windowTitle } from "../app/src/shell/use-window-chrome.ts";
 
-/** The window title (plan 085, KTD10): Flow names its lane, so the person can tell which lane the dock badge counts. */
+/** The window title (plan 087, KTD10): Flow names its lane, so the person can tell which lane the dock badge counts. */
 
 const desk = { title: "notes", status: "live", scope: "ira/notes", agentName: "ira" } as const;
 

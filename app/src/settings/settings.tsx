@@ -148,7 +148,7 @@ export function Settings({
   usage: UsageApi;
   /** How long ⌘] and ⌘[ rest each kind of card (Preferences › Inbox). */
   returnTimes: ReturnTimesApi;
-  /** The lanes the person made (Preferences › Flow, plan 085), kept by the mod and shared with every device. */
+  /** The lanes the person made (Preferences › Flow, plan 087), kept by the mod and shared with every device. */
   lanes: LanesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
@@ -536,7 +536,7 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
 }
 
 /**
- * Preferences › Inbox (Flow on screen): the lane editor when given its lanes (plan 085), then what read, later,
+ * Preferences › Inbox (Flow on screen): the lane editor when given its lanes (plan 087), then what read, later,
  * archive, label and a reply do, how long read and later set each kind of card aside, and how the deck orders its cards
  * behind a fold. The accounts whose mail and messages become cards have their
  * own page, Preferences › Accounts (plan 068). Exported for its test.

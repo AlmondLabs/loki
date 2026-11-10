@@ -348,7 +348,7 @@ export function useDesk() {
     /** How long ⌘] and ⌘[ rest each kind of card (the mod's, plan 070), the defaults while none are set, and new ones. */
     returnTimes: returnTimes ?? RETURN_TIMES_DEFAULT,
     setReturnTimes: (times: ReturnTimes) => send({ type: "return_times_set", return_times: times }),
-    /** The lanes the person made (the mod's, plan 085), null until the mod says; and a new whole list, from a Mac only. */
+    /** The lanes the person made (the mod's, plan 087), null until the mod says; and a new whole list, from a Mac only. */
     lanes,
     setLanes: (next: Lane[]) => send({ type: "lanes_set", lanes: next }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),

@@ -146,7 +146,7 @@ export interface Deck {
 
 /**
  * The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight: over the active
- * lane's cards (`items`), with every card (`all`) beside them so the visit carries across a lane switch (plan 085, KTD6).
+ * lane's cards (`items`), with every card (`all`) beside them so the visit carries across a lane switch (plan 087, KTD6).
  */
 export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): Deck {
   const [state, setState] = useState<DeckState>(EMPTY_DECK);
@@ -450,7 +450,7 @@ export interface CardModel {
 
 /**
  * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
- * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 085, U7) the title names
+ * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 087, U7) the title names
  * it and opens the lane sheet; the deck, its counts and the caught-up state are the lane's, and a quiet line counts
  * what waits in other lanes.
  */
@@ -938,6 +938,7 @@ function Stack({
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
                       searchPeople: chats.searchPeople,
+                      sentReplies: chats.sentReplies,
                     }
                   : null
               }

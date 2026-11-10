@@ -73,7 +73,7 @@ export function Shell() {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  // This Mac's lane (plan 085): Flow, the rail, the window title, the dock and the tray count only its cards.
+  // This Mac's lane (plan 087): Flow, the rail, the window title, the dock and the tray count only its cards.
   const [laneId, setLaneId] = useActiveLaneId("desktop");
   const catchUp = useAttention({
     lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveLane },
