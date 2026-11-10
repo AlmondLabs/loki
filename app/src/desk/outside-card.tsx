@@ -28,7 +28,6 @@ import { Button, Chip, Meta, TextArea } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
-import { useOutsideReply } from "../shared/outside-replies";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { openExternal } from "./env";
@@ -39,6 +38,7 @@ import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { NewLine, SlackThread, loadLabel } from "./slack-thread";
 import { toggleReaction, useQuickEmoji } from "./slack-reactions";
 import { cardKey, type OpenedThread } from "./deck-moves";
+import { useSeededReply } from "./use-seeded-reply";
 import {
   ARCHIVE_TITLE,
   CAME_FROM,
@@ -49,11 +49,9 @@ import {
   SEND_NOTE,
   SEND_TITLE,
   disconnectedText,
-  freshSeeds,
   headWhat,
   replyPlace,
   ticketAddress,
-  withSeeds,
 } from "./outside-words";
 
 /**
@@ -410,7 +408,6 @@ export function OutsideThread({
     if (box) scrollWithin(box, el, "end");
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [newest]);
-  const gap = touch ? "var(--phone-space-4)" : 16;
   if (state.kind !== "read" || state.messages.length === 0)
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
@@ -429,15 +426,32 @@ export function OutsideThread({
         <div ref={end} />
       </>
     );
-  // A Jira card draws the New line before its first unread event, and loads earlier events (KTD14); the phone's Slack
-  // and mail cards keep the plain list they had.
+  return <ThreadList facts={facts} state={state} touch={touch} endRef={end} />;
+}
+
+/**
+ * The thread as a plain list, oldest first, with the mark `OutsideThread` scrolls to at its end. A Jira card draws the
+ * New line before its first unread event, and loads earlier events (KTD14); the phone's Slack and mail cards keep the
+ * plain list they had.
+ */
+function ThreadList({
+  facts,
+  state,
+  touch,
+  endRef,
+}: {
+  facts: OutsideFacts;
+  state: Extract<ThreadState, { kind: "read" }>;
+  touch: boolean;
+  endRef: RefObject<HTMLDivElement | null>;
+}) {
   const jira = facts.provider === "jira";
   const newAt = jira ? state.messages.findIndex((m) => m.unread === true) : -1;
   const { window: w, controls } = state;
   const earlier = jira && w && controls && w.more_before !== false && w.more_before !== 0 ? controls : null;
   const earlierLabel = earlier ? loadLabel("before", true, earlier.busy === "before") : "";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-4)" : 16 }}>
       {earlier && (
         <Button size={touch ? "touch" : "sm"} bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} style={{ alignSelf: "center" }}>
           {touch ? `${earlierLabel[0].toUpperCase()}${earlierLabel.slice(1)}` : earlierLabel}
@@ -449,7 +463,7 @@ export function OutsideThread({
           <MessageRow m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
         </Fragment>
       ))}
-      <div ref={end} />
+      <div ref={endRef} />
     </div>
   );
 }
@@ -542,30 +556,9 @@ export function OutsideReply({
   onEscapeEmpty?: () => void;
   touch?: boolean;
 }) {
-  const [localText, setLocalText] = useState("");
-  // The phone's box keeps its own text; with `keep` it outlives the box. The desktop deck keeps its box's text itself.
-  const [keptText, setKeptText] = useOutsideReply(keep ?? null);
-  // The approved comments this box took in (KTD18), by proposal id, so each is added once even after the person edits
-  // it away, and the text they made until the person next edits it. Taken in as the box renders, the way React adjusts
-  // state to new props, so the box shows them from its first paint; one whose words the text already holds was taken in
-  // before the box last left the screen.
-  const [seeded, setSeeded] = useState<readonly string[]>([]);
-  const [seededText, setSeededText] = useState<string | null>(null);
-  const ownText = seededText ?? (keep ? keptText : localText);
-  const setOwnText = (next: string) => {
-    setSeededText(null);
-    (keep ? setKeptText : setLocalText)(next);
-  };
-  const fresh = box ? [] : freshSeeds(facts.seeds, seeded);
-  if (fresh.length > 0) {
-    setSeeded([...seeded, ...fresh.map((s) => s.id)]);
-    const missing = fresh.filter((s) => !ownText.includes(s.text));
-    if (missing.length > 0) setSeededText(withSeeds(ownText, missing));
-  }
-  // Kept text lives in a store outside React, which learns the comments once the box is on screen.
-  useEffect(() => {
-    if (keep && seededText !== null) setKeptText(seededText);
-  }, [keep, seededText, setKeptText]);
+  // The phone's box keeps its own text, with the approved Jira comments added (KTD18); with `keep` it outlives the box.
+  // The desktop deck keeps its box's text itself.
+  const [ownText, setOwnText] = useSeededReply(facts.seeds, keep ?? null, !!box);
   const [ownMail, setOwnMail] = useState<MailAddressing | null>(null);
   const [ownBusy, setBusy] = useState(false);
   const [ownError, setError] = useState<string | null>(null);

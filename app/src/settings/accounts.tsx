@@ -4,6 +4,9 @@ import { Button, Dot, Field } from "../components";
 import { disconnectedText } from "../desk/outside-words";
 import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
+import { JiraConnectForm, JiraConnectSetting, type JiraConnect, type JiraForm } from "./jira-connect";
+
+/** The Jira form's shapes and its check, which live with the form; named here too, beside the rest of the page's. */
 
 /**
  * Preferences › Accounts (plan 067, U11): the Gmail mailboxes, Slack workspaces and Jira sites whose mail, messages
@@ -22,23 +25,6 @@ export interface AccountsApi {
   connectSlack: (ownerAgentId: string, teamId?: string) => Promise<{ workspaces: SlackWorkspaceView[]; account: AccountView | null } | string>;
   /** A Jira site connected with the person's API token, or connected again when `account_id` names one; answers with the accounts as they now stand. */
   connectJira: (input: JiraConnect) => Promise<AccountView[] | string>;
-}
-
-/** What connecting a Jira site sends: its owner, what the person typed, and the account being reconnected, if one is. */
-export interface JiraConnect {
-  owner_agent_id: string;
-  site: string;
-  email: string;
-  token: string;
-  account_id: string | null;
-}
-
-/** The Jira form as the person fills it in. `reconnecting` names the account a row's reconnect opened it for, and its owner. */
-export interface JiraForm {
-  reconnecting: { account_id: string; owner_agent_id: string } | null;
-  site: string;
-  email: string;
-  token: string;
 }
 
 /** The person's own Google app, used in place of loki's shared one (R20). */
@@ -125,16 +111,6 @@ export function reconnectVia(r: Reconnect, ways: ReconnectWays): void {
     case "jira":
       return ways.jira({ reconnecting: { account_id: r.account_id, owner_agent_id: r.owner_agent_id }, site: r.site, email: "", token: "" });
   }
-}
-
-/**
- * The Jira form as connecting takes it: all three fields filled in, trimmed, for the agent a new account goes to, or
- * for the account's own agent on a reconnect; otherwise null, and there is nothing to send yet.
- */
-export function jiraConnectOf(form: JiraForm, owner: string | null): JiraConnect | null {
-  const [site, email, token] = [form.site.trim(), form.email.trim(), form.token.trim()];
-  const ownerId = form.reconnecting?.owner_agent_id ?? owner;
-  return ownerId && site && email && token ? { owner_agent_id: ownerId, site, email, token, account_id: form.reconnecting?.account_id ?? null } : null;
 }
 
 /** The accounts as rows: the owner by name, the state in words, and a reconnect wherever the person can bring it back. */
@@ -267,23 +243,8 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     }
     setWorkspaces({ owner: ownerId, list: r.workspaces });
   };
-  const jiraInput = jiraForm && jiraConnectOf(jiraForm, owner);
   // A connect on its way: a second press would connect the site again and end in "already connected" under a success.
   const [connecting, setConnecting] = useState(false);
-  const jira = async (input: JiraConnect) => {
-    if (connecting) return;
-    setConnecting(true);
-    try {
-      const r = await api.connectJira(input);
-      // The list is asked again every few seconds and clears the error line above it, so the reason stays in the notice.
-      if (typeof r === "string") return setNotice(r);
-      setJiraForm(null);
-      setNotice(null);
-      apply(r);
-    } finally {
-      setConnecting(false);
-    }
-  };
   const reconnect = (r: Reconnect) =>
     reconnectVia(r, { gmail: (ownerId) => void gmail(ownerId), slack: (ownerId, teamId) => void slack(ownerId, teamId), jira: setJiraForm });
 
@@ -291,7 +252,6 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   const connectedTeams = new Set((accounts ?? []).filter((a) => a.status === "connected").map((a) => teamOf(a.account_id)));
   const gmailState = connectState("gmail", owner, os);
   const slackState = connectState("slack", owner, os);
-  const jiraState = connectState("jira", owner, os);
   return (
     <>
       <Block
@@ -316,55 +276,21 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
             connect slack
           </Button>
         </Setting>
-        <Setting label="Jira" help={jiraState.reason ?? "Asks for your site's address, your Atlassian email and an API token."}>
-          <Button tone="positive" disabled={!jiraState.ready || connecting} onClick={() => setJiraForm({ reconnecting: null, site: "", email: "", token: "" })}>
-            connect jira
-          </Button>
-        </Setting>
+        <JiraConnectSetting state={connectState("jira", owner, os)} connecting={connecting} onOpen={setJiraForm} />
         <Setting label="Goes to" help="The agent that gets a new account's hand-offs, and the only one with tools for it.">
           <AgentPicker agents={agents} value={owner} onPick={setOwner} label="the agent a new account goes to" placeholder="choose an agent" />
         </Setting>
         {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
-        {jiraForm && (
-          <>
-            <Setting
-              label={jiraForm.reconnecting ? `A new API token for ${jiraForm.site}` : "Jira site, email and API token"}
-              help="The site's address as in acme.atlassian.net, the email of your Atlassian account, and an API token made in that account's security settings. loki keeps the token in the keychain."
-            />
-            <Field
-              value={jiraForm.site}
-              onChange={(e) => setJiraForm({ ...jiraForm, site: e.target.value })}
-              aria-label="jira site address"
-              placeholder="site address"
-              mono
-            />
-            <Field
-              value={jiraForm.email}
-              onChange={(e) => setJiraForm({ ...jiraForm, email: e.target.value })}
-              aria-label="atlassian email"
-              placeholder="email"
-              mono
-              style={{ marginTop: 8 }}
-            />
-            <Field
-              value={jiraForm.token}
-              onChange={(e) => setJiraForm({ ...jiraForm, token: e.target.value })}
-              aria-label="jira api token"
-              placeholder="api token"
-              type="password"
-              mono
-              style={{ marginTop: 8 }}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0" }}>
-              <Button tone="positive" disabled={!jiraInput || connecting} onClick={() => jiraInput && void jira(jiraInput)}>
-                {jiraForm.reconnecting ? "reconnect jira" : "connect"}
-              </Button>
-              <Button disabled={connecting} onClick={() => setJiraForm(null)}>
-                cancel
-              </Button>
-            </div>
-          </>
-        )}
+        <JiraConnectForm
+          api={api}
+          owner={owner}
+          form={jiraForm}
+          onForm={setJiraForm}
+          connecting={connecting}
+          onConnecting={setConnecting}
+          onNotice={setNotice}
+          apply={apply}
+        />
         {workspaces?.list.length === 0 && <Setting label="No workspaces" help="Sign in to a workspace in the Slack desktop app, then connect slack again." />}
         {workspaces?.list.map((w) => (
           <Setting key={w.team_id} label={w.team_name} help={w.url} mono>

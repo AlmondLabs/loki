@@ -3,7 +3,8 @@ import type { FrameRequest } from "../core/attention/chat-client.ts";
 import { daemonCalls } from "../core/daemon-calls.ts";
 import type { AccountView } from "../core/frame-types.ts";
 import type { RequestResult } from "../core/frames.ts";
-import { accountRows, connectState, deleteBlockers, jiraConnectOf, moveTargets, ownAppOf, reconnectVia } from "../app/src/settings/accounts.tsx";
+import { accountRows, connectState, deleteBlockers, moveTargets, ownAppOf, reconnectVia } from "../app/src/settings/accounts.tsx";
+import { jiraConnectOf } from "../app/src/settings/jira-connect.tsx";
 import { must } from "./fixtures/must.ts";
 
 /** A mod socket that records each request and answers from `replies` by its type; a type with none is refused. */

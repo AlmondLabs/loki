@@ -260,8 +260,12 @@ export class JiraSync implements AccountSync {
       } while (before !== null);
       return out;
     };
-    const comments = await back((opts) => this.opts.client.comments(ticketId, opts));
-    const history = await back((opts) => this.opts.client.history(ticketId, opts));
+    // The two lists are read together: the client holds every call while Jira limits the rate, so this stays bounded,
+    // and either failing still fails the ticket.
+    const [comments, history] = await Promise.all([
+      back((opts) => this.opts.client.comments(ticketId, opts)),
+      back((opts) => this.opts.client.history(ticketId, opts)),
+    ]);
     return [...comments, ...history].filter((e) => e.author.account_id !== this.me).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
