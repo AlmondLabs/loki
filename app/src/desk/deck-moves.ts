@@ -3,6 +3,7 @@ import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.
 import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
+import { newId } from "../shared/new-id";
 
 /** The picker a card has open in its picker slot: where the thread goes, when the card comes back, or its labels. */
 export type PickerKind = "handoff" | "later" | "label";
@@ -107,7 +108,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   const sendHeld = async (item: AttentionItem, then: ReplyThen, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
     const { text, mail } = host.reply;
-    const outbox = host.newId?.() ?? crypto.randomUUID();
+    const outbox = host.newId?.() ?? newId();
     const { action, via } = DECISION[then];
     const mine = (d: Decision) => d.held?.outbox_id === outbox;
     host.setReply(id, { text: "", mail: null, error: null });

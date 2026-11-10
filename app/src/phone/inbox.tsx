@@ -87,6 +87,7 @@ import type { CardVia } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 import { ReturnTimeSheet } from "./return-time-sheet";
 import { MailLabelsSheet } from "./mail-labels-sheet";
+import { newId } from "../shared/new-id";
 
 /**
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
@@ -1200,7 +1201,7 @@ function OutsideBody({
             }
             onSend={async (text, mail) => {
               onSending?.(true);
-              const outboxId = facts.provider === "gmail" && unsend ? crypto.randomUUID() : null;
+              const outboxId = facts.provider === "gmail" && unsend ? newId() : null;
               held.current = outboxId;
               try {
                 const r = await outside.replyOutside(item, text, "read", { mail, outbox_id: outboxId });

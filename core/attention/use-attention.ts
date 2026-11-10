@@ -93,7 +93,8 @@ export interface UseAttentionOptions {
   /** What a page left out of a lean row (plans 041 and 043), from the Mac the chat lives on; null when it did not come. */
   loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<WholeRow | null>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
-  listConversations: () => Promise<Array<ConversationInfo & Digest>>;
+  /** The Inbox's list, or null when the mod did not answer. */
+  listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
   /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
   subscribeLimit?: number;
   /** Analytics (core/analytics.ts): an event this model carried out for the user. */

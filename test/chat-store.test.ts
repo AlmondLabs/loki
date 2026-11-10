@@ -25,9 +25,12 @@ const row = (id: string, at: string): ConversationInfo & Digest => ({
 /** The daemon as the store meets it: what was sent and started recorded, events pushed by the test, answers as set. */
 function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T10:00:00Z")]) {
   let hear: (rt: Runtime, events: ChatEvent[]) => void = () => {};
+  /** The socket came back after a drop and the followed chats are open again. */
+  let reopened: () => void = () => {};
   const sent: string[] = [];
   const started: string[] = [];
-  const answers = { approval: true };
+  /** `fails`: every call to the daemon rejects with it, as when the socket closed under the request. `noList`: the list gets no answer. */
+  const answers = { approval: true, fails: null as string | null, noList: false };
   const updates: Array<[string, Record<string, unknown>, string | undefined]> = [];
   const outside: Array<[string, string, string | null]> = [];
   const refuse = { outside: null as string | null };
@@ -83,6 +86,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     onStatus: () => () => {},
     onChat: (fn: typeof hear) => ((hear = fn), () => {}),
     onListsStale: () => () => {},
+    onReopened: (fn: () => void) => ((reopened = fn), () => {}),
     serverInfo: () => Promise.resolve({ version: "1", protocol: 1, commands: [] }),
     listAgents: () =>
       Promise.resolve([
@@ -91,8 +95,8 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
       ]),
     isSubscribed: (rt: Runtime) => started.includes(rt.conversation_id),
     runtimeStart: (rt: Runtime) => Promise.resolve(void started.push(rt.conversation_id)),
-    sendUserMessage: (_rt: Runtime, text: string) => Promise.resolve(void sent.push(text)),
-    respondApproval: () => Promise.resolve(answers.approval),
+    sendUserMessage: (_rt: Runtime, text: string) => (answers.fails ? Promise.reject(new Error(answers.fails)) : Promise.resolve(void sent.push(text))),
+    respondApproval: () => (answers.fails ? Promise.reject(new Error(answers.fails)) : Promise.resolve(answers.approval)),
     changeFolder: () => Promise.resolve(),
     labels: { get: () => Promise.resolve({ labels: [] }) },
     close: () => {},
@@ -100,13 +104,32 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   const captured: string[] = [];
   const host: ChatStoreHost = {
     markSeen: () => {},
-    listConversations: () => Promise.resolve(rows),
+    listConversations: () => Promise.resolve(answers.noList ? null : rows),
     capture: (event) => captured.push(event),
   };
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
   const events = (...e: ChatEvent[]) => hear(ADA, e);
-  return { store, stop, events, sent, started, answers, captured, updates, outside, refuse, handoffs, moves, replies, replyAnswer, writes, readEnds };
+  return {
+    store,
+    stop,
+    events,
+    reopen: () => reopened(),
+    host,
+    sent,
+    started,
+    answers,
+    captured,
+    updates,
+    outside,
+    refuse,
+    handoffs,
+    moves,
+    replies,
+    replyAnswer,
+    writes,
+    readEnds,
+  };
 }
 
 /** Let the store's awaits and its 150 ms flush run. */
@@ -161,6 +184,58 @@ describe("the chat store (plan 052)", () => {
     expect(d.store.getSnapshot().live.get("ada/c1")?.pending).toBeNull();
     await flush();
     expect(face()).toBe("r1");
+  });
+
+  test("a decision whose request fails puts the card back: the agent still waits on it", async () => {
+    const d = daemon();
+    await flush();
+    d.events({ kind: "approval", request_id: "r1", tool_name: "bash", input: {} });
+    await flush();
+    d.answers.fails = "the link to loki closed before it answered";
+    d.store.decide(ADA, "r1", "allow");
+    expect(d.store.getSnapshot().live.get("ada/c1")?.pending).toBeNull();
+    await flush();
+    expect(d.store.getSnapshot().live.get("ada/c1")?.pending?.requestId).toBe("r1");
+  });
+
+  test("a message whose send fails says so in its chat", async () => {
+    const d = daemon();
+    await flush();
+    d.answers.fails = "no answer from the mod";
+    d.store.send(ADA, "hello", []);
+    await flush();
+    expect(d.sent).toEqual([]);
+    expect(d.store.getSnapshot().live.get("ada/c1")?.error).toBe("this message may not have been sent: no answer from the mod");
+  });
+
+  test("a list that gets no answer leaves the Inbox as it was, and is asked for again in a few seconds", async () => {
+    const d = daemon();
+    await flush();
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
+    d.answers.noList = true;
+    d.store.reload();
+    await flush();
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
+    expect(d.store.getSnapshot().listed).toBe(true);
+    d.answers.noList = false;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  test("after the socket comes back, a thread that was read is read again: what settled meanwhile shows without leaving the chat", async () => {
+    const d = daemon();
+    const pages: Array<Array<{ role: "user" | "assistant"; text: string; at: string }>> = [[{ role: "user", text: "hello", at: "2026-10-29T10:00:00Z" }]];
+    let asked = 0;
+    d.host.loadLocalHistory = () => Promise.resolve({ rows: pages[Math.min(asked++, pages.length - 1)] ?? [], start: 0, more: false });
+    await flush();
+    await d.store.loadThread(ADA);
+    expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello"]);
+    // The Mac slept through the agent's answer; the socket is back.
+    pages.push([...(pages[0] ?? []), { role: "assistant", text: "hi, Ada here", at: "2026-10-29T10:00:05Z" }]);
+    d.reopen();
+    await flush();
+    expect(asked).toBe(2);
+    expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello", "hi, Ada here"]);
   });
 
   test("a call's input growing tells the threads on screen without moving the snapshot", async () => {

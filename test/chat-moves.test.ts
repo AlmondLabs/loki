@@ -163,6 +163,27 @@ describe("taking an agent's chats over on first pairing", () => {
   });
 });
 
+describe("a message that arrives while a chat's log is being copied out", () => {
+  test("is refused from the moment the copy starts; a chat that turns out busy or gone takes messages again", async () => {
+    const busy = new Set<string>();
+    const m = macs(busy);
+    try {
+      // Read before the copy's answer comes: the hold is already on.
+      const copying = m.book.export(MINI, "agent-ira", "conv-1");
+      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving to the Mac its agent lives on/);
+      await copying;
+      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving/);
+      busy.add("conv-2");
+      await m.book.export(MINI, "agent-ira", "conv-2");
+      expect(m.book.blocked("agent-ira", "conv-2")).toBeNull();
+      await m.book.export(MINI, "agent-ira", "no-such-chat");
+      expect(m.book.blocked("agent-ira", "no-such-chat")).toBeNull();
+    } finally {
+      m.cleanup();
+    }
+  });
+});
+
 describe("an agent's home set to this Mac after pairing", () => {
   test("brings its chats over even though the first hand-over already ran", async () => {
     const m = macs();

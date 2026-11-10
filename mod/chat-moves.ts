@@ -128,9 +128,23 @@ export class ChatMoves implements PeerMoves {
 
   /** The side a chat leaves: copy it out for `macId`, with its canvas files, and hold it meanwhile. */
   async export(macId: string, agentId: string, conversationId: string): Promise<Replies["peer_chat"]> {
-    const out = await this.opts.chat.exportChat(agentId, conversationId);
-    if (!out.chat) return { ...out, widgets: {} };
-    this.moving.set(`${agentId}/${conversationId}`, this.now() + MOVE_TIMEOUT_MS);
+    // Held before the copy starts, not after: a message that arrived while the log was being copied would start a turn
+    // the copy missed, and the chat would then be hidden here with that message in it.
+    const key = `${agentId}/${conversationId}`;
+    const held = this.moving.has(key);
+    this.moving.set(key, this.now() + MOVE_TIMEOUT_MS);
+    let out: Awaited<ReturnType<ChatBackend["exportChat"]>>;
+    try {
+      out = await this.opts.chat.exportChat(agentId, conversationId);
+    } catch (err) {
+      if (!held) this.moving.delete(key);
+      throw err;
+    }
+    if (!out.chat) {
+      // Busy, or not here: nothing moves, so the chat takes messages again (unless an earlier hand-over still holds it).
+      if (!held) this.moving.delete(key);
+      return { ...out, widgets: {} };
+    }
     return { ...out, widgets: readWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId))) };
   }
 

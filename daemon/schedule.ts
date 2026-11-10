@@ -224,6 +224,16 @@ export class Schedules {
     return true;
   }
 
+  /** Cancel every task of an agent that is gone, so none fires into a chat that no longer exists; how many there were. */
+  cancelAgent(agentId: string): number {
+    const tasks = this.list();
+    const mine = tasks.filter((t) => t.agent_id === agentId && t.status === "active");
+    if (mine.length === 0) return 0;
+    for (const t of mine) t.status = "cancelled";
+    this.save(tasks);
+    return mine.length;
+  }
+
   /**
    * Fire every active task with a slot due since it last fired (or was made), once each. A firing is written down before
    * its prompt goes out, against the list as it is then, so a task made or cancelled while another fires is kept. A tick

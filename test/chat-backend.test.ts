@@ -11,6 +11,7 @@ import { modelRef } from "../daemon/loki-engine.ts";
 import { Approvals } from "../daemon/approvals.ts";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
 import { Providers } from "../daemon/providers.ts";
+import { Schedules } from "../daemon/schedule.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
@@ -28,6 +29,8 @@ async function setup(
     /** What the `slow` tool answers with; "slow done" when absent. */
     toolText?: string;
     passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"];
+    schedules?: ConstructorParameters<typeof DaemonChats>[0]["schedules"];
+    background?: ConstructorParameters<typeof DaemonChats>[0]["background"];
     macId?: string;
   } = {},
 ) {
@@ -74,6 +77,8 @@ async function setup(
     backendDir: join(dir, "backend"),
     context: ctx,
     ...(opts.passes ? { passes: opts.passes } : {}),
+    ...(opts.schedules ? { schedules: opts.schedules } : {}),
+    ...(opts.background ? { background: opts.background } : {}),
     ...(opts.macId ? { macId: opts.macId } : {}),
   });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
@@ -339,6 +344,24 @@ describe("the daemon's chats", () => {
       expect(existsSync(join(s.dir, "backend", "memfs", agent.id))).toBe(false);
     } finally {
       await s.cleanup();
+    }
+  });
+
+  test("deleting an agent stops what would still act for it: its schedules and its background tasks", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
+    const schedules = new Schedules(join(dir, "crons.json"), () => Promise.resolve(null));
+    const stopped: string[] = [];
+    const s = await setup({ schedules, background: { stopAgent: (id) => stopped.push(id) } });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const base = { conversation_id: "c", description: null, recurring: true, prompt: "p", cron: "0 9 * * *", timezone: "UTC" };
+      schedules.create({ ...base, agent_id: agent.id, name: "daily" });
+      await s.chats.deleteAgent(agent.id);
+      expect(schedules.list().map((t) => t.status)).toEqual(["cancelled"]);
+      expect(stopped).toEqual([agent.id]);
+    } finally {
+      await s.cleanup();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

@@ -9,6 +9,7 @@ import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.
 import { Listeners } from "../../../core/listeners.ts";
 import { parseWidgetEntry } from "./widget-rows";
 import { EMPTY_DESK_SOCKET, PHONE_DEMO, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "./desk-pushes";
+import { RequestWaiters } from "./request-waiters";
 
 /** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
 const STALE_AFTER_HIDDEN_MS = 5_000;
@@ -65,7 +66,7 @@ export function useDeskSocket() {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
   }, [staleListeners]);
   /** Pending request/reply exchanges with the mod, by request_id. */
-  const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
+  const [waiters] = useState(() => new RequestWaiters<WebSocket>());
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastInteractionRef = useRef(0);
@@ -118,9 +119,7 @@ export function useDeskSocket() {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
         // A request's answer (its reply, or `error`), by request_id: it goes to whoever asked, nowhere else.
         if (typeof raw.request_id === "string") {
-          const w = waiters.current.get(raw.request_id);
-          waiters.current.delete(raw.request_id);
-          w?.(raw); // none: its request already timed out, and the answer has no one left to tell
+          waiters.answer(raw.request_id, raw); // no one waiting: its request already timed out
           return;
         }
         // Everything else is a push (core/frames.ts Pushes). What it leaves in the tab is desk-pushes.ts's to fold in; what
@@ -169,6 +168,8 @@ export function useDeskSocket() {
         }
       };
       ws.onclose = () => {
+        // What was asked on this socket can no longer be answered: say so now, not when each request's time runs out.
+        waiters.closed(ws);
         setConnection("closed");
         if (!disposed) {
           dropped = true;
@@ -184,7 +185,7 @@ export function useDeskSocket() {
       if (retry) clearTimeout(retry); // a reconnect scheduled for the old desk must not open a socket after the switch
       wsRef.current?.close();
     };
-  }, [scope, switchDesk, listsStale, chatListeners, reconnectListeners]);
+  }, [scope, switchDesk, listsStale, chatListeners, reconnectListeners, waiters]);
 
   // Back from the background (a phone's home-screen app, a hidden tab): what changed meanwhile was never polled.
   useEffect(() => {
@@ -201,12 +202,17 @@ export function useDeskSocket() {
   }, [listsStale]);
 
   /** Any frame as it is: `request()`'s, which carry a request_id. False while the socket is not open. */
-  const sendRaw = useCallback((msg: object): boolean => {
-    const ws = wsRef.current;
-    if (ws?.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify(msg));
-    return true;
-  }, []);
+  const sendRaw = useCallback(
+    (msg: object): boolean => {
+      const ws = wsRef.current;
+      if (ws?.readyState !== WebSocket.OPEN) return false;
+      ws.send(JSON.stringify(msg));
+      const id = (msg as { request_id?: unknown }).request_id;
+      if (typeof id === "string") waiters.sent(id, ws);
+      return true;
+    },
+    [waiters],
+  );
   /** A send (core/frames.ts), typed by its name. False while the socket is not open. */
   const send = useCallback(<N extends SendName>(frame: { type: N } & InputOf<N>): boolean => sendRaw(frame), [sendRaw]);
 

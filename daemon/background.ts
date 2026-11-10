@@ -163,6 +163,30 @@ export class BackgroundTasks {
     this.kill(this.get(id, agentId));
   }
 
+  /** Stop every running task of an agent that is gone. */
+  stopAgent(agentId: string): void {
+    for (const task of this.tasks.values()) if (task.agentId === agentId) this.kill(task);
+  }
+
+  /**
+   * End every running task at once, as the daemon exits: no grace, since nothing is left to wait for it, and nothing
+   * asynchronous, since an exiting process runs no timers. A task that ignored the stop's SIGTERM, or one still running
+   * when the daemon dies of an error, would otherwise live on holding its port.
+   */
+  killAll(): void {
+    for (const task of this.tasks.values()) {
+      const pid = task.child.pid;
+      if (task.exit || pid === undefined) continue;
+      task.stopping ??= "SIGKILL";
+      try {
+        if (process.platform === "win32") task.child.kill();
+        else process.kill(-pid, "SIGKILL");
+      } catch {
+        // Already gone.
+      }
+    }
+  }
+
   /**
    * End a task and everything its shell started: its process group, or on Windows its process tree. Signalled again
    * shortly after, because a process the shell was forking as the first signal landed misses it and lives on holding
