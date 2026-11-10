@@ -129,27 +129,33 @@ describe("the limits of a socket", () => {
 
   test("a socket with too much waiting unsent is ended rather than fed more", async () => {
     const s = await startServer({ port: 0 });
+    let fed = 0;
     const bridge = attachWs(
       s.server,
       token,
       {
-        onConnect: (c) => {
-          // Far more than the socket takes at once: most of it waits in memory, past the limit, when the next goes.
-          c.send({ type: "hello", fill: "x".repeat(8 * 1024 * 1024) });
-          c.send({ type: "one more" });
+        onConnect: (c) => c.send({ type: "hello" }),
+        // Far more than any system keeps for a socket nobody reads: once its buffers are full the rest waits in the
+        // daemon's memory, and the frame after the limit is passed ends the socket.
+        onMessage: (c) => {
+          const fill = "x".repeat(1024 * 1024);
+          for (let i = 0; i < 64 && bridge.clientCount() > 0; i++, fed++) c.send({ type: "push", fill });
         },
-        onMessage: () => {},
       },
       { maxBufferedBytes: 64 * 1024 },
     );
     try {
       const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
       ws.on("error", () => {});
-      const types: string[] = [];
-      ws.on("message", (raw) => types.push((JSON.parse(Buffer.isBuffer(raw) ? raw.toString("utf8") : "{}") as { type: string }).type));
-      await closed(ws);
-      expect(types).not.toContain("one more");
+      await hello(ws);
+      // A device that stopped reading, as a phone gone from the Wi-Fi has: how much its system buffers is not the
+      // test's to guess, so it reads nothing at all.
+      ws.pause();
+      ws.send(JSON.stringify({ type: "go" }));
+      await until(() => bridge.clientCount() === 0);
       expect(bridge.clientCount()).toBe(0);
+      expect(fed).toBeLessThan(64);
+      ws.terminate();
     } finally {
       bridge.close();
       await s.close();
