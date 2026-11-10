@@ -102,9 +102,9 @@ export const DESTINATIONS: readonly Page[] = [
     key: "page:inbox",
     target: { kind: "section", segment: "inbox" },
     icon: "inbox",
-    label: "Inbox",
+    label: "Flow",
     line: "What waits on you",
-    keywords: ["catch up", "waiting", "approvals"],
+    keywords: ["inbox", "catch up", "waiting", "approvals"],
   },
   {
     key: "page:agents",

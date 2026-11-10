@@ -170,9 +170,10 @@ export function screenOf(r: Route): string {
   return r.kind === "tab" ? r.tab : r.kind;
 }
 
-/** How a Back control names where it goes: "back to inbox". */
+/** How a Back control names where it goes: "back to flow". The inbox tab is called Flow on screen (plan 082). */
 export function labelOf(r: Route): string {
-  return screenOf(r);
+  const screen = screenOf(r);
+  return screen === "inbox" ? "flow" : screen;
 }
 
 // ---- History entries ------------------------------------------------------------------------------

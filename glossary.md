@@ -82,7 +82,7 @@ before plan 018).
 **Pass chat**: a pass's hidden chat for one agent, cleared before each run: `reflection-<agent>` or `recall-<agent>`
 (Learn's writer), and `doctor-<agent>` for a memory review. On an ACP agent (plan 061) it is the same id with `-acp`
 after it (`ACP_PASS_SUFFIX`, `daemon/memory.ts`), so the prefix still names the job. It stays out of the chat list,
-the inbox and the passes themselves.
+Flow and the passes themselves.
 
 **Agent store** (`daemon/kernel/`): one agent's chats in one pi-durable Harness over one SQLite file,
 `~/.loki/stores/<agentId>.sqlite`. Only `daemon/kernel/` opens the Harness and the stores; other daemon modules use
@@ -126,28 +126,28 @@ a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a c
 component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
 code's desk is the chat).
 
-**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats, mail and Slack messages that wait on you,
-one card at a time, highest score first (`core/attention/priority.ts`). The same moves work on every card
-(`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see Later) and archive (⌘E). A
-card stays until it is done.
+**Flow** (`app/src/desk/catch-up.tsx`; Inbox in older code and words, Catch Up before that): the chats, mail and Slack
+messages that wait on you, one card at a time, highest score first (`core/attention/priority.ts`). The same moves work
+on every card (`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see Later) and
+archive (⌘E). A card stays until it is done. The code, frames, stored files and analytics keep the name `inbox`.
 
-**Done** (a card's terminal state, plan 070): the move after which a card is gone from the Inbox for good, until its
+**Done** (a card's terminal state, plan 070): the move after which a card is gone from Flow for good, until its
 thread gets something new. A chat is done when it is archived, an email when its thread leaves the Gmail inbox
 (archived from loki, from Gmail or by a hand-off), and a Slack message when it is read (in loki, in Slack, by archive
 or by a hand-off). Reading a chat or an email is not done: it rests. _Avoid_: cleared, finished (for a card that only
 rests).
 
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
-list and the inbox, and builds each row. _Avoid_: a second filter over the chats anywhere else.
+list and Flow, and builds each row. _Avoid_: a second filter over the chats anywhere else.
 
-**Rest** (`core/attention/rest.ts`, plans 026, 065 and 070): how long an Inbox card stays out after read (⌘], once
-called Next) or later. A read rest is an hour unless Preferences › Inbox says otherwise, set for chats and for email
+**Rest** (`core/attention/rest.ts`, plans 026, 065 and 070): how long a card in Flow stays out after read (⌘], once
+called Next) or later. A read rest is an hour unless Preferences › Flow says otherwise, set for chats and for email
 apart; a card with nothing new rests longer each read in a row (its **rung**), a card with something new the first rest
 only. A later rest is the Later below. Anything new in the thread ends either. A rest is kept on the daemon
 (`rests` in `state/attention.json`) with its kind, `read` or `later`, so every device shares it. _Avoid_: snooze.
 
 **Later** (⌘[ or ←; a left swipe on the phone; plan 070): a rest that keeps the card unread, in loki and in Gmail, and
-brings it back after the card kind's later time (a day unless Preferences › Inbox says otherwise), or sooner if
+brings it back after the card kind's later time (a day unless Preferences › Flow says otherwise), or sooner if
 something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
 once the thread gets something new or the card is read. _Avoid_: snooze, park.
 
@@ -161,7 +161,7 @@ and is the only agent with its tools (`account_list`, `account_read`, `account_s
 account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
 disconnected.
 
-**Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): an Inbox card for one thread in
+**Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
 an account rather than a chat: every thread in the Gmail inbox, read or unread, and every unread Slack DM or Activity
 item. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
 plan 070): read marks the thread read, later leaves it unread, archive archives the email in Gmail or marks a Slack DM
@@ -184,7 +184,7 @@ to the message handed, unless a newer one came meanwhile (`AccountThreads.archiv
 Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
 
 **Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
-thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
+thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as a card in Flow, in every permission mode; approved,
 perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. loki
 never sends. _Avoid_: sent reply, outgoing message.
 

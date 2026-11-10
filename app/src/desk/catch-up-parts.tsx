@@ -43,7 +43,7 @@ export function ago(iso: string | null): string {
 export function DeckHeader({ needYou, chats }: { needYou: number; chats: number }) {
   return (
     <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-      <span>Inbox</span>
+      <span>Flow</span>
       <span>
         <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
         <span style={{ marginLeft: 14 }}>
@@ -118,7 +118,7 @@ export function CaughtUp({
 }) {
   const running = items.filter((i) => i.status === "running").length;
   return (
-    <Empty card title={resting > 0 ? "You're caught up." : decided.length ? "You've been through every chat." : "Nothing in the Inbox."}>
+    <Empty card title={resting > 0 ? "You're caught up." : decided.length ? "You've been through every chat." : "Nothing in Flow."}>
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>
         {running > 0 ? `${running} still running` : "no agent is working right now"}
       </div>
@@ -275,7 +275,7 @@ export function CardActions({
         size="sm"
         onClick={archive}
         disabled={main}
-        title={main ? "a main chat cannot be archived" : "done with this chat: it leaves the Inbox"}
+        title={main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow"}
         kbd={deckKey("inbox.archive", typing)}
       >
         archive

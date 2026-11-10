@@ -32,7 +32,7 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },
   { id: "mode", description: "choose the permission mode for this conversation", where: "loki", action: "chat.mode" },
   { id: "suggestions", description: "show what agents in this chat suggest for other chats", where: "loki", action: "chat.suggestions" },
-  { id: "inbox", description: "open the inbox", where: "loki", action: "segment.inbox" },
+  { id: "flow", description: "open Flow", where: "loki", action: "segment.inbox" },
   { id: "label", description: "label this chat: /label infra adds infra; /label alone opens its labels", args: "[label]", where: "loki" },
   { id: "chats", description: "search chats, agents and pages", where: "loki", action: "search.open", withKey: true },
 ];
@@ -59,13 +59,16 @@ export function engineCommands(engine: ChatEngineView): SlashCommand[] {
 
 const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;
 
+/** Old names a command still answers to, never listed in the palette: Flow was the Inbox (plan 082, KTD12). */
+const ALIASES: Record<string, string> = { inbox: "flow" };
+
 /**
  * "/compact all" → { id: "compact", args: "all" }; null for anything that is not a command
- * (a path like /Users/…, a line that only starts with a slash mid-sentence).
+ * (a path like /Users/…, a line that only starts with a slash mid-sentence). An old name comes back as its new one.
  */
 export function parseSlash(text: string): { id: string; args: string } | null {
   const m = HEAD.exec(text.trim());
-  return m ? { id: m[1], args: (m.at(2) ?? "").trim() } : null;
+  return m ? { id: ALIASES[m[1]] ?? m[1], args: (m.at(2) ?? "").trim() } : null;
 }
 
 /** While the command name is still being typed (no space yet): the partial name, so the palette can filter. Otherwise null. */

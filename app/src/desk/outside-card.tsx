@@ -709,7 +709,7 @@ function OutsideMoves({
       <Button
         size="sm"
         onClick={moves.archive}
-        title={`done with this thread: it leaves the Inbox and is ${gmail ? "archived in Gmail" : "marked read in Slack"}`}
+        title={`done with this thread: it leaves Flow and is ${gmail ? "archived in Gmail" : "marked read in Slack"}`}
         kbd={deckKey("inbox.archive", typing)}
       >
         archive

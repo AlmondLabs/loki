@@ -241,7 +241,7 @@ function ActingDesk({
   );
 }
 
-/** "Needs your attention": the first of the ready queue, then "n more in Inbox"; absent when nothing waits. */
+/** "Needs your attention": the first of the ready queue, then "n more in Flow"; absent when nothing waits. */
 function AttentionSection({
   attention,
   more,
@@ -260,7 +260,7 @@ function AttentionSection({
       title="Needs your attention"
       count={waiting}
       onTitle={() => navigate({ kind: "tab", tab: "inbox" })}
-      titleLabel={`Needs your attention, ${waiting} waiting. Open Inbox`}
+      titleLabel={`Needs your attention, ${waiting} waiting. Open Flow`}
     >
       <ul className="loki-phone-list" aria-label="needs your attention">
         {attention.map((a) => (
@@ -274,7 +274,7 @@ function AttentionSection({
               data-launch="home:inbox-more"
               onClick={() => navigate({ kind: "tab", tab: "inbox" })}
             >
-              <span className="loki-phone-row-copy loki-phone-link">{more} more in Inbox</span>
+              <span className="loki-phone-row-copy loki-phone-link">{more} more in Flow</span>
             </button>
           </li>
         )}
@@ -409,7 +409,7 @@ function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; f
 }
 
 const SHORTCUTS: Array<{ kind: Shortcut; label: string; icon: IconName; to: Route }> = [
-  { kind: "inbox", label: "Inbox", icon: "inbox", to: { kind: "tab", tab: "inbox" } },
+  { kind: "inbox", label: "Flow", icon: "inbox", to: { kind: "tab", tab: "inbox" } },
   { kind: "learn", label: "Learn", icon: "learn", to: { kind: "learn" } },
   { kind: "agents", label: "Agents", icon: "agents", to: { kind: "tab", tab: "agents" } },
   { kind: "archive", label: "Archive", icon: "archive", to: { kind: "archive" } },

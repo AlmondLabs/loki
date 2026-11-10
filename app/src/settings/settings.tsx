@@ -647,7 +647,7 @@ function FilesFold() {
     <Fold title="Where loki keeps things">
       <Fact label="Widgets" value={`${HOME}/widgets/<chat>/`} mono />
       <Fact label="Layout" value={`${HOME}/state/<chat>.json`} mono />
-      <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
+      <Fact label="Flow marks" value={`${HOME}/state/attention.json`} mono />
       <Fact label="Pictures" value={`${HOME}/chat-images/`} mono />
       <Fact label="Learn" value={`${HOME}/recall/  (cards, schedule and the deleted pile)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
@@ -669,7 +669,7 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
       value={
         shortcut.available ? (
           <span style={{ display: "inline-grid", gap: 4 }}>
-            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
+            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on Flow from anywhere on the Mac" />
             {shortcut.error ? (
               <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note>
             ) : (

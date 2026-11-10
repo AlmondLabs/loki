@@ -18,8 +18,8 @@ export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "
     const name =
       segment === "inbox"
         ? waiting > 0
-          ? `Inbox · ${waiting} waiting`
-          : "Inbox"
+          ? `Flow · ${waiting} waiting`
+          : "Flow"
         : segment === "learn"
           ? dueCards > 0
             ? `Learn · ${dueCards} due`

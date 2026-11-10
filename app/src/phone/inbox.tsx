@@ -592,7 +592,7 @@ export function Inbox({
             </button>
           ) : undefined
         }
-        title={current ? (needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`) : "Inbox"}
+        title={current ? (needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`) : "Flow"}
         right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
@@ -712,7 +712,7 @@ function EmptyDeck({
   if (!loaded && !macProblem)
     return (
       <div className="loki-phone-scroll loki-phone-scroll--flush">
-        <SkeletonCard label="Reading the inbox…" />
+        <SkeletonCard label="Reading Flow…" />
       </div>
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
@@ -727,7 +727,7 @@ function EmptyDeck({
   const line = !available
     ? "Open loki on the Mac."
     : banner
-      ? "Cards come back when it reconnects; nothing in the Inbox is lost."
+      ? "Cards come back when it reconnects; nothing in Flow is lost."
       : again
         ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
         : resting > 0

@@ -49,7 +49,7 @@ export function InboxDemo() {
         <span />
         <span />
         <span />
-        <em>Inbox · {items.length} waiting</em>
+        <em>Flow · {items.length} waiting</em>
       </div>
       <div className="site-inbox-deck">
         <CatchUp

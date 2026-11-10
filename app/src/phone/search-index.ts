@@ -30,7 +30,7 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** Search's groups: chats ("desks", the code's older name), agents, what waits in the Inbox, and the app's pages. */
 export type GroupId = "desks" | "agents" | "inbox" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Inbox", pages: "Pages" };
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Flow", pages: "Pages" };
 const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
 
 /** One search result: the row it draws and the route it opens. */
@@ -71,9 +71,9 @@ export const DESTINATIONS: readonly Destination[] = [
   {
     route: { kind: "tab", tab: "inbox" },
     icon: "inbox",
-    label: "Inbox",
+    label: "Flow",
     line: "What waits on you",
-    keywords: ["catch up", "waiting", "approvals", "activity"],
+    keywords: ["inbox", "catch up", "waiting", "approvals", "activity"],
   },
   { route: { kind: "tab", tab: "agents" }, icon: "agents", label: "Agents", line: "Every agent on the Mac", keywords: ["dms", "people"] },
   { route: { kind: "tab", tab: "more" }, icon: "more", label: "More", line: "This phone and the paired Mac", keywords: ["you", "profile"] },

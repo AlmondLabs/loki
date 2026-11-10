@@ -58,10 +58,10 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
 }
 
 /** Each tab's name in the tab bar. */
-export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Inbox", agents: "Agents", more: "More" };
+export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Flow", agents: "Agents", more: "More" };
 const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
 
-/** A tab's accessible name: "Inbox" or "Inbox, 3 waiting". */
+/** A tab's accessible name: "Flow" or "Flow, 3 waiting". */
 export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${countText(n)} waiting` : TAB_LABEL[t]);
 
 /** Sets --phone-nav-clearance on the shell to the height the dock covers, from its top to the shell's bottom; removed with the dock. */

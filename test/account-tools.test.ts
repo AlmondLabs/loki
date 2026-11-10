@@ -219,6 +219,8 @@ describe("account tools (plan 067, U9)", () => {
     expect(out).not.toContain("work-t3");
     expect(out).not.toContain(OTHER_MAIL);
     expect(out).not.toContain("secret plan");
+    // Its description names loki's deck as the agent would hear it on screen: Flow (plan 082).
+    expect(must(f.tools.get("account_list"), "account_list").description).toContain("open in Flow");
   });
 
   test("account_read fences each message as content from its sender, not instructions", async () => {
