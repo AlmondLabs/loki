@@ -46,7 +46,9 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { startPeering, type Peering } from "./peering.ts";
 import { Accounts } from "./accounts.ts";
-import { AccountThreads } from "./account-threads.ts";
+import { AccountThreads, outsideCardId, type ThreadRecord } from "./account-threads.ts";
+import { outsideResting } from "../core/attention/rest.ts";
+import { keyOf } from "../core/attention/model.ts";
 import { AccountWatcher } from "./account-watcher.ts";
 import { GmailClient } from "./gmail.ts";
 import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
@@ -321,12 +323,16 @@ export default function activate(api: ModApi, host: Host): () => void {
   accounts.onChange((change) => {
     if (change.kind === "disconnected") mailPeople.forget(change.account_id);
   });
+  // A card resting in the Inbox, by the rest every device sets here: the past's cap of 20 leaves it out (plan 078).
+  const restingIn = (accountId: string) => (r: ThreadRecord) =>
+    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now());
   // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
     factories: {
-      gmail: (account) => new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople }),
-      slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id) }),
+      gmail: (account) =>
+        new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
+      slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
     },
     report: log,
   });

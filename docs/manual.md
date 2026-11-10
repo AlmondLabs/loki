@@ -719,7 +719,10 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/inbox`, `/label
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
   stored, and the agent can search the whole chat (`history_search`) and read any part of it back (`history_read`),
-  by the same row numbers the thread has.
+  by the same row numbers the thread has. Each summary leaves one quiet "chat compacted" row where it was written:
+  below it the agent has every turn word for word, above it only the summary, which opening the row shows. While a
+  summary holds the turn up the row reads "compacting the chat", and a summary that fails says "compaction failed"
+  and why.
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
 - `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
   same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
@@ -942,7 +945,7 @@ chats' pictures. A file deleted since says so, and a
 message of only a file names the file on its card. A hand-off still sends the thread alone, now with each link's
 address and what apps attached. In a mail thread, each mail before the newest starts folded to its
 sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past fills each account up to 20 cards**: connecting brings what came in the last 3 days,
-and while a Gmail account or Slack workspace has fewer than 20 open cards (read, unread or resting), older mail and
+and while a Gmail account or Slack workspace has fewer than 20 open cards waiting on you (read or unread, but not resting after read or later), older mail and
 Slack fill it up to 20, newest first, a week back, then two, then a month, then a month more each time, until nothing
 older is left. Closing cards makes room for more, so the whole backlog comes in time, however old. Mail counts every
 thread still in the inbox, read or not; Slack counts DMs and what its Activity lists. Anything new comes at once,
@@ -992,7 +995,8 @@ takes back the move only; the reply stays sent. On the phone, **Send** is Enter'
 this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
 
 **How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
-the card's title. Each mail has its own header line with the sender's face, name and address, whom it went to ("to
+the card's title. With more than one mailbox connected, the header ends with the one it came to ("in
+you@work.example"). Each mail has its own header line with the sender's face, name and address, whom it went to ("to
 you, cc Dev Patel") and when it came. The mails before the newest fold to one line each, and a press opens one. A
 mail's files show as chips with their size under it; open them from Gmail. The reply box sits at the end of the thread,
 under the newest mail. It holds the recipients line, your text, your signature and the quote, then **send** and

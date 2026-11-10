@@ -633,8 +633,9 @@ function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; 
               {what}
             </span>
           )}
-          {facts.only_account !== true && <Meta>{facts.account_label}</Meta>}
           <Meta>{ago(facts.newest_at)}</Meta>
+          {/* Said as where it came in, so a mailbox's address never reads as the sender's (plan 078). */}
+          {facts.only_account !== true && <Meta title={mail ? "the mailbox it came to" : "the workspace it came from"}>in {facts.account_label}</Meta>}
           {went && <Meta>{went}</Meta>}
           {cameBack && <Meta>back · new since you moved on</Meta>}
         </>

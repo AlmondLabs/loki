@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { AccountThreads } from "../mod/account-threads.ts";
+import { AccountThreads, type ThreadRecord } from "../mod/account-threads.ts";
 import { AccountWatcher } from "../mod/account-watcher.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { GmailClient } from "../mod/gmail.ts";
@@ -40,9 +40,9 @@ async function setup(addresses = ["ada@acme.com"]) {
   }
   const clientOf = (id: string) => must(clients.get(id), "the account's client");
   threads.register("gmail", gmailOutsideSource(clientOf));
-  const sync = (i = 0) => {
+  const sync = (i = 0, resting?: (r: ThreadRecord) => boolean) => {
     const account = must(accounts.get(`gmail:${addresses[i]}`), "the account");
-    return new GmailSync({ accounts, threads, account, client: clientOf(account.account_id), now: clock });
+    return new GmailSync({ accounts, threads, account, client: clientOf(account.account_id), now: clock, resting });
   };
   const id = (i = 0) => `gmail:${addresses[i]}`;
   const cards = (i = 0) =>
@@ -151,6 +151,24 @@ describe("the first sync of a Gmail account (R5, R8, AE1)", () => {
     for (const c of cards()) await threads.archive(id(), c);
     await s.tick();
     expect(cards()).toEqual(Array.from({ length: 20 }, (_, i) => t(i + 25)));
+  });
+
+  test("a card resting in the Inbox leaves the cap, so the past fills its room; when it stops resting it counts again", async () => {
+    const { box, sync, cards, ago } = await setup();
+    const t = (i: number) => `t${String(i).padStart(3, "0")}`;
+    for (let i = 0; i < 60; i++) box.deliver({ thread: t(i), at: ago(i * 6 * HOUR + HOUR), from: GRACE, to: "ada@acme.com" });
+    const resting = new Set<string>();
+    const s = sync(0, (r) => resting.has(r.thread_id));
+    await s.tick();
+    expect(cards()).toHaveLength(20);
+    // Five are read and resting: five older threads take their room, and the resting five stay as cards.
+    for (let i = 0; i < 5; i++) resting.add(t(i));
+    await s.tick();
+    expect(cards()).toEqual(Array.from({ length: 25 }, (_, i) => t(i)));
+    // Their rests end: they count again, and the account is over the cap, so nothing more of the past comes.
+    resting.clear();
+    await s.tick();
+    expect(cards()).toHaveLength(25);
   });
 
   test("the past takes inbox threads read or unread alike, newest first, and read cards count toward the cap (plan 078)", async () => {

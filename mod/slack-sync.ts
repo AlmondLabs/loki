@@ -29,6 +29,8 @@ export interface SlackSyncOptions {
   threads: AccountThreads;
   account: AccountRecord;
   client: SlackClient;
+  /** Whether a card rests in the Inbox now, so the past's cap leaves it out (plan 078); none rest when not given. */
+  resting?: (record: ThreadRecord) => boolean;
   /** The clock, for when the whole Activity feed is walked next; the system's when not given. */
   now?: () => Date;
 }
@@ -206,7 +208,7 @@ export class SlackSync {
         threads.markGoneOutThere(this.accountId, r.thread_id);
     }
 
-    const open = threads.list(this.accountId).filter((r) => r.state === "open").length;
+    const open = threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
     if (open < PAST_CAP) await this.refill(older, feed.complete, PAST_CAP - open);
   }
 

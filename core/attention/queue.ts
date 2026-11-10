@@ -6,6 +6,9 @@ import { byScore } from "./priority.ts";
 const NEEDS_YOU: AttentionStatus[] = ["approval", "question", "failed", "done"];
 /** A card's identity in the Inbox and a visit's decisions: "agentId/conversationId". */
 export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
+/** An outside card's content stamp: its newest message, so the mod can tell a rest from it alone (plan 078). */
+export const outsideStamp = (newestMessageId: string) => `outside|${newestMessageId}`;
+
 /**
  * What about this item you would be deciding on. Keyed on content — the last
  * thing the agent said and the pending approval — not on timestamps: turn
@@ -19,7 +22,7 @@ export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
 export const stampOf = (i: AttentionItem) =>
   // An outside card's content is its newest message (plan 067, R11): a new one ends its rest, its text alone never does.
   i.outside
-    ? `outside|${i.outside.newest_message_id}`
+    ? outsideStamp(i.outside.newest_message_id)
     : `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
 
 /**
