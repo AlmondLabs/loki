@@ -126,7 +126,7 @@ a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a c
 component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
 code's desk is the chat).
 
-**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats, mail and Slack messages that wait on you,
+**Inbox** (`app/src/desk/catch-up.tsx`; Catch Up in older code): the chats, mail, Slack messages and Jira tickets that wait on you,
 one card at a time, highest score first (`core/attention/priority.ts`). The same moves work on every card
 (`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see Later) and archive (⌘E). A
 card stays until it is done.
@@ -134,7 +134,8 @@ card stays until it is done.
 **Done** (a card's terminal state, plan 070): the move after which a card is gone from the Inbox for good, until its
 thread gets something new. A chat is done when it is archived, an email when its thread leaves the Gmail inbox
 (archived from loki, from Gmail or by a hand-off), and a Slack message when it is read (in loki, in Slack, by archive
-or by a hand-off). Reading a chat or an email is not done: it rests. _Avoid_: cleared, finished (for a card that only
+or by a hand-off), and a Jira ticket when it is read in loki, which is its only end (reading it in Jira, a hand-off
+or a comment does not end it). Reading a chat or an email is not done: it rests. _Avoid_: cleared, finished (for a card that only
 rests).
 
 **Chat listing** (`mod/chat-listing.ts`): the one module that decides which of this Mac's chats show in the chat
@@ -147,12 +148,13 @@ only. A later rest is the Later below. Anything new in the thread ends either. A
 (`rests` in `state/attention.json`) with its kind, `read` or `later`, so every device shares it. _Avoid_: snooze.
 
 **Later** (⌘[ or ←; a left swipe on the phone; plan 070): a rest that keeps the card unread, in loki and in Gmail, and
-brings it back after the card kind's later time (a day unless Preferences › Inbox says otherwise), or sooner if
-something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
+brings it back after the card kind's later time (a day unless Preferences › Inbox says otherwise; a Jira card takes
+Slack's), or sooner if something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
 once the thread gets something new or the card is read. _Avoid_: snooze, park.
 
-**Account** (`mod/accounts.ts`, plan 067): a Gmail mailbox or a Slack workspace connected on this Mac, whose threads
-addressed to the person become outside cards. Its id is `gmail:<address>` or `slack:<team>:<user>`; its record lives in
+**Account** (`mod/accounts.ts`, plan 067): a Gmail mailbox, a Slack workspace or a Jira site connected on this Mac,
+whose threads addressed to the person (for Jira, the tickets they watch) become outside cards. Its id is
+`gmail:<address>`, `slack:<team>:<user>` or `jira:<API host>:<Atlassian account id>`; its record lives in
 `state/accounts.json` and what it signs in with only in the keychain. An account lives on one Mac. _Avoid_:
 integration, connector, source (a Source is where a thread's steps come from).
 
@@ -163,10 +165,13 @@ disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): an Inbox card for one thread in
 an account rather than a chat: every thread in the Gmail inbox, read or unread, and every unread Slack DM or Activity
-item. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
+item, and every Jira ticket the person watches once someone else comments on it or changes it. It ranks like a chat
+with something new and rests like one. Its moves write back out there (`OutsideSource`,
 plan 070): read marks the thread read, later leaves it unread, archive archives the email in Gmail or marks a Slack DM
-read, label adds Gmail labels, and undo puts the thread back as it was. It shows the whole thread, read from its
-account when it comes up, and takes the person's own reply, which the key they press sends before its own move
+read, label adds Gmail labels, and undo puts the thread back as it was. A Jira card writes nothing back: read ends
+it, later rests it, and it takes no archive or labels (plan 2026-11-10-1451). It shows the whole thread, read from its
+account when it comes up (a Jira ticket's events, oldest first), and takes the person's own reply (a comment on a
+Jira ticket), which the key they press sends before its own move
 (`mod/outside-threads.ts`, plans 068 and 070); it files under its owner's tab. The thread's record (open, archived or
 handed off, read or unread in Gmail, and its newest message) is kept in `state/account-threads/<account id>.json`.
 _Avoid_: notification, email card (for an outside card in general; a Gmail one is an email card).
@@ -180,12 +185,14 @@ the account's Mac, as the data for learning the person's preferences. _Avoid_: h
 **Hand-off** (`mod/handoff.ts`, plan 067): giving an outside card's thread to its account's owner, in a chat loki
 proposes (the one it went to before, or a new one) or another of the owner's chats. The chat gets the whole thread,
 fenced as content from its senders, and the card is done: the thread is archived in Gmail or marked read in Slack, up
-to the message handed, unless a newer one came meanwhile (`AccountThreads.archiveHandedOff`, plan 070). Not the
+to the message handed, unless a newer one came meanwhile (`AccountThreads.archiveHandedOff`, plan 070). A Jira
+hand-off sends the whole ticket and keeps the card, open and unread. Not the
 Handoff above, which is a history page taking over tail rows. _Avoid_: forward, delegate.
 
 **Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
 thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as an Inbox card, in every permission mode; approved,
-perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. loki
+perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. On a
+Jira ticket it is a comment, and approved it waits in the ticket card's comment box until the person sends it. loki
 never sends. _Avoid_: sent reply, outgoing message.
 
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question

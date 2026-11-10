@@ -224,13 +224,14 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      2. **Phone**: the switch that lets phones reach this Mac, the route (Tailscale or this Wi‑Fi), pairing a phone
         (its QR and code) and the paired phones. Mac only for now.
   4. **Inbox and Learn**
-     1. **Inbox**: **Accounts**, each Gmail mailbox and Slack workspace connected on this Mac with its service,
-        owner and state, **move to** and **disconnect** on each, and **reconnect gmail** or **reconnect slack** when
-        it needs it; **Connect an account**, where you choose the owner, then **connect gmail** or **connect slack**,
-        with **Use your own Google app** folded below it (see "Email and Slack"); what read, later, archive, label and
-        a reply do; **Read rests a card for**, for chats and for email, and **Later brings a card back after**, for
-        chats, email and Slack, on every device (see "Return times"); and, under "How the order works", what each
-        card's score is made of (see "The order").
+     1. **Inbox**: **Accounts**, each Gmail mailbox, Slack workspace and Jira site connected on this Mac with its
+        service, owner and state, **move to** and **disconnect** on each, and **reconnect gmail**, **reconnect slack**
+        or **reconnect jira** when it needs it; **Connect an account**, where you choose the owner, then **connect
+        gmail**, **connect slack** or **connect jira** (a form for the site, your email and an API token), with **Use
+        your own Google app** folded below it (see "Email, Slack and Jira"); what read, later, archive, label and a
+        reply do; **Read rests a card for**, for chats and for email, and **Later brings a card back after**, for
+        chats, email and Slack (Jira cards use Slack's), on every device (see "Return times"); and, under "How the
+        order works", what each card's score is made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
         something new, at once), and the last run.
@@ -673,27 +674,29 @@ recognition is available, so treat it like any other cloud dictation.
 ## Inbox (Catch Up)
 
 A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
-is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you are cards in it too, once
-you connect those accounts (see "Email and Slack" below). The inbox icon on the
+is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you, and the Jira tickets you
+watch, are cards in it too, once you connect those accounts (see "Email, Slack and Jira" below). The inbox icon on the
 rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers), highest score first (see "The order" below).
 
-Every card, a chat, an email or a Slack message, stays until it is done, and the same keys move each of them:
+Every card, a chat, an email, a Slack message or a Jira ticket, stays until it is done, and the same keys move each of
+them:
 
 1. **Read**, → or ⌘] (the card's **read**), marks the card read: a chat is seen, an email is marked read in Gmail,
-   a Slack message is marked read in Slack. A chat or an email then rests and comes back in an hour, longer each time
-   while nothing new comes (see "Read sets a card down" below), and at once if something new arrives. A Slack message
-   is done once read.
+   a Slack message is marked read in Slack, and a Jira ticket is read in loki only. A chat or an email then rests and
+   comes back in an hour, longer each time while nothing new comes (see "Read sets a card down" below), and at once if
+   something new arrives. A Slack message or a Jira ticket is done once read.
 2. **Later**, ← or ⌘[ (the card's **later**), keeps the card unread, in loki and in Gmail, and brings it back in a
    day, or sooner if something new arrives. From the second later in a row on the same card, loki asks when it should come back:
    later today, tomorrow, in 3 days, next week, or a date up to about a month on; Esc closes the question with nothing
    scheduled. Once the thread gets something new, or you read the card, the next later counts as a first one again.
 3. **Archive**, E or ⌘E (the card's **archive**), is done for a chat or an email: the chat is archived, the thread is
    archived in Gmail, and either leaves the Inbox. On a Slack card archive marks the message read, which is its end
-   too. A main chat cannot be archived, so it always stays, and the card springs back saying "main chats stay".
+   too. A main chat cannot be archived, so it always stays, and the card springs back saying "main chats stay". A
+   Jira card has no archive: the key leaves it where it is and says "a jira card ends with read".
 4. **Label**, L, on an email card only, opens the account's Gmail labels; the one you pick is added to the thread and
-   the card stays for your next key, so "label and archive" is two moves.
+   the card stays for your next key, so "label and archive" is two moves. On a Jira card it does nothing.
 5. **Undo**, Z or ⌘Z, takes back the last move on any card, a rest, a chat's read mark or archive, or what a move did
    in Gmail (the thread comes back unread or in the inbox, as it was). The ⌘ forms work while you type a reply.
 
@@ -786,7 +789,7 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 ### The order
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
-is in it, with the mail and Slack cards, except one whose agent is mid-turn and one read or later has rested (below). The score is
+is in it, with the mail, Slack and Jira cards, except one whose agent is mid-turn and one read or later has rested (below). The score is
 `blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer; a reply that only reads like
 a question, ending in "?" or "let me know", counts until you have looked at it) `+ new ? 10 : 0` (the
 agent said something since you last looked) `+ 15 × focus`
@@ -811,7 +814,8 @@ card with nothing new (no new message, no approval, no question) climbs: each fu
 longer, 1 hour, 3, 9, 1d3h, 3d9h, up to a week. A chat that has already been quiet longer rests at least that long
 again, so a chat quiet for two days stays away two more; an email starts at the first rest however old it is. A card
 with something new rests the first rest and does not climb, and so does a read straight after replying to a chat on
-the same card: when the answer lands, the card is back. A Slack message does not rest: read is its end. An approval
+the same card: when the answer lands, the card is back. A Slack message or a Jira ticket does not rest: read is its
+end. An approval
 or a question never rests. Anything new in the thread ends the rest and starts the ladder over: the agent's next
 message, question or approval (an idle agent speaks up only when a background task finishes or a schedule fires),
 whatever you send into the chat (from the card, the chat or the phone), which starts a turn, or new mail in an email
@@ -827,7 +831,7 @@ thread, starts that count over.
 1. **Read rests a card for**: the first rest after read, for chats and for email apart: 10 min, 30 min, 1 hour (the
    default) or 3 hours. The ladder above climbs from it.
 2. **Later brings a card back after**: the later return, for chats, email and Slack apart: 3 hours, 1 day (the
-   default), 2 days or 1 week.
+   default), 2 days or 1 week. A Jira card comes back after Slack's.
 
 A rest keeps the time it was given, so a change counts from the next press on. How fast the ladder climbs, and the
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
@@ -859,16 +863,17 @@ above are the starting point.
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
 its chat's focus — behind whatever you are reading then. A reply on an email or Slack card goes with a key instead
-(see "Reply from the card" below).
+(see "Reply from the card" below), and a comment on a Jira card goes alone (see "Jira tickets" below).
 
-### Email and Slack
+### Email, Slack and Jira
 
-Mail and Slack messages addressed to you arrive in the same deck as your chats, one card per thread, so you need not
-open Gmail or Slack to find what waits on you. Connect them in Preferences › Accounts. A Gmail mailbox or a Slack
-workspace is an **account**, and you can connect as many as you like.
+Mail and Slack messages addressed to you, and what others do on the Jira tickets you watch, arrive in the same deck as
+your chats, one card per thread or ticket, so you need not open Gmail, Slack or Jira to find what waits on you. Connect
+them in Preferences › Accounts. A Gmail mailbox, a Slack workspace or a Jira site is an **account**, and you can connect
+as many as you like.
 
-**Each account belongs to one agent.** Under **Connect an account**, press **connect gmail** or **connect slack**; the
-account goes to the agent under **Goes to**, which starts on your first agent: the agent that gets the account's
+**Each account belongs to one agent.** Under **Connect an account**, press **connect gmail**, **connect slack** or
+**connect jira**; the account goes to the agent under **Goes to**, which starts on your first agent: the agent that gets the account's
 hand-offs and is the only agent with tools for it. No account is ever connected without one. The owner picker on an
 account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
 …** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave the Inbox.
@@ -893,6 +898,21 @@ under; allow it. loki calls Slack as you, through that session, and keeps the se
 only for now, since the desktop app keeps its session differently on Windows and Linux. Some workspaces' rules forbid
 using the desktop session this way, and Enterprise Grid may notice it; check yours before connecting.
 
+**Connecting Jira.** **connect jira** opens a form for three things: the site's address (as in `acme.atlassian.net`; a
+whole web address from the site works too), the email of your Atlassian account, and an API token. Make the token in
+your Atlassian account settings, under Security › API tokens: a classic token, with no scopes to choose. Atlassian
+tokens expire, after a year at most, so you will make a new one now and then (see "When an account stops working").
+Press **connect**. loki first asks the address where the site's API lives, without the token, and sends the token only
+there, so a site on its own domain works and its cards link to that domain. A wrong address or a token Jira does not
+accept is refused with the reason, and nothing is kept. The token lives only in the keychain. Jira works on every
+system, Windows and Linux included, and Jira Cloud is the only kind it connects to.
+
+Before or after you connect a site, do two things in Jira and Slack, or each event on a ticket reaches you two or three
+times, as a Jira card, as mail and as a Slack message:
+
+1. Remove the Jira app from Slack.
+2. Switch off Jira's email notifications, in the email notification settings of your Jira profile.
+
 **What becomes a card.** loki watches each account itself, once a minute, with fixed rules; no model reads your mail
 or messages to decide.
 
@@ -906,9 +926,16 @@ or messages to decide.
    minute, so each minute loki reads only its newest page and walks the whole list every 15 minutes: an item read in
    Slack leaves its card within 15 minutes, and a long list is walked a few pages at a time when Slack asks loki to
    wait. Opening a card while Slack asks loki to wait half a minute or less shows the thread once the wait is over.
+3. Jira: a ticket you watch (Jira's own watcher list, which you join with the eye on a ticket, and which Jira often
+   joins you to when you create or comment on one), once someone else comments on it, changes its status or edits any
+   of its fields, the sprint and the rank included. What you do yourself never brings a card or counts as new, and
+   editing a comment that is already there is not an event. A ticket that is assigned to you or mentions you but that
+   you do not watch brings no card. Jira's search can trail a change by a little, so a card may come a minute or two
+   after its event.
 
 A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
-a thread you archived, as does moving an archived thread back to the inbox in Gmail. A message you wrote yourself
+a thread you archived, as does moving an archived thread back to the inbox in Gmail; a Jira ticket's later events join
+its card the same way. A message you wrote yourself
 never counts as new, so your own reply does not bring a card back. Every card in the Mac's Inbox, a chat's
 too, has the same two-line header: a face (the sender's Slack photo, a mail sender's initial, a chat's agent) with a
 small `#` for Slack or an envelope for mail in its corner; who wrote on the first line; then where or what and when: a
@@ -950,8 +977,9 @@ sender, time and first line, as a mail client shows it; press one to open it. Wh
 and while a Gmail account or Slack workspace has fewer than 20 open cards waiting on you (read or unread, but not resting after read or later), older mail and
 Slack fill it up to 20, newest first, a week back, then two, then a month, then a month more each time, until nothing
 older is left. Closing cards makes room for more, so the whole backlog comes in time, however old. Mail counts every
-thread still in the inbox, read or not; Slack counts DMs and what its Activity lists. Anything new comes at once,
-even past 20.
+thread still in the inbox, read or not; Slack counts DMs and what its Activity lists. A Jira site fills the same way
+with the watched tickets someone else has done something on, the most recently updated first, 20 at a time, however
+long ago. Anything new comes at once, even past 20.
 
 **Ranking, read, later and archive.** An outside card ranks like a chat with something new, and gains focus as you
 work with that thread, or for mail that sender; an agent waiting on you still comes first. An email card already read
@@ -979,6 +1007,8 @@ channel's other messages unread. Two gaps are known:
 1. A Slack Activity item (a mention or a thread reply) cannot be marked read in Slack yet. Read or archive ends its
    card in loki, and Slack still shows the item unread.
 2. Undo cannot mark a Slack DM unread again in Slack. The card comes back in loki, and Slack keeps the DM read.
+
+A Jira card's moves write nothing to Jira, and Jira's read state does not reach loki: see "Jira tickets" below.
 
 **Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
 chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
@@ -1037,6 +1067,27 @@ read) stay in the row at the bottom. The phone keeps its own layout.
    your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
    recipients line has To and Cc. The mode, From and Bcc are on the Mac.
 
+**Jira tickets.** A Jira card is one ticket. Its header names the ticket by key and title ("OPS-7 · Rotate the keys"),
+and its tag says why it is there, the most direct that applies: **mentioned you**, **assigned to you** or **watching**.
+Under it are the ticket's events, oldest first: a comment as its text, a change to a field as one line ("status: To Do →
+In Progress"). Slack's red **New** line sits before the first event you have not read, **load earlier** brings older
+events, and **open in jira** opens the ticket in your browser. The phone shows the same events and New line, with no
+tag, as no card there has one. A Jira card's moves differ from mail's and Slack's:
+
+1. Read (⌘], a right swipe on the phone) is the only move that ends the card. It comes back when the ticket gets a new
+   event, with only that event marked new. Undo brings it back at once.
+2. Later (⌘[, a left swipe) keeps it unread and brings it back after Slack's later time (see "Return times").
+3. Archive (⌘E) and label (L) do nothing, and the card shows no archive or label control: archive says "a jira card
+   ends with read", and the phone says "A Jira card ends only with Read."
+4. Hand off sends the owner the whole ticket, and the card stays (see "Hand-off" below).
+
+Jira keeps no read mark for a ticket, so reading the ticket in Jira itself does not end its card, and nothing loki does
+changes the ticket except a comment you send. **To comment**, type in the card's box and press Enter (**Send** on the
+phone): the comment is posted on the ticket as you, in plain text, and the card stays, unread, with its events still
+marked new, so you choose the next move. Your comment shows on the card as yours. ⌘] or ⌘[ with text in the box posts
+it first, then makes its move. A comment that fails is not sent again on its own: your text stays in the box and the
+card says why. There is no @ list of people on a Jira card.
+
 **What loki keeps of your moves.** Each read, later, archive, label, reply, hand-off and undo on an outside card is
 written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:
 
@@ -1045,7 +1096,7 @@ written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. E
    which key followed it;
 3. how long the card was on top first;
 4. who wrote the thread and its subject;
-5. for mail, what kind it was; for Slack, whether it was a DM or a thread.
+5. for mail, what kind it was; for Slack, whether it was a DM or a thread; for Jira, nothing more.
 
 Nothing reads the ledger yet. It is what loki will learn your preferences from (which senders and kinds of mail you
 archive unread, which you answer) and, later, act on for you. It never leaves that Mac. The analytics events stay free
@@ -1057,13 +1108,16 @@ it or another of the owner's chats. The chat receives the whole thread as one me
 from its sender rather than instructions, and the card is done: the thread is archived in Gmail, or marked read in
 Slack, up to the message handed. If a newer message came while the hand-off ran, the thread is left as it is and the
 card stays open for it. If Gmail or Slack refuses, the chat still has the thread and the card still ends; the refusal
-goes to the log. A hand-off cannot be undone. When someone writes in that thread again, it comes back as a new card
+goes to the log. A Jira hand-off sends the whole ticket, every comment and change on it, each marked as content
+from its author, and the card stays where it is, unread; handing it off again after new events sends the ticket as it
+then stands. A hand-off cannot be undone. When someone writes in that thread again, it comes back as a new card
 that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
 while the account is disconnected.
 
 **What the owner can do.** In any of its chats, the owning agent has three tools for its accounts, all reads:
-`account_list` (its accounts and the threads waiting in each, with no message text), `account_read` (a whole thread)
-and `account_search` (a mailbox, in Gmail's search syntax; Slack cannot be searched yet). No other agent has them,
+`account_list` (its accounts and the threads waiting in each, with no message text; a Jira site's open tickets with
+their key and title), `account_read` (a whole thread, or a Jira ticket by its key or id, oldest first) and
+`account_search` (a mailbox, in Gmail's search syntax; Slack and Jira cannot be searched yet). No other agent has them,
 and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
 even if you ask it to.
 
@@ -1073,13 +1127,20 @@ The reply always asks you first, in every permission
 mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
+On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
+card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
+approval. The owner can propose a comment only on a ticket that has had a card in the Inbox. `reply_withdraw` takes a
+proposal back, an approved comment you have not sent included.
 
 **When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
 
 1. "Gmail wants a new sign-in": the sign-in expired or was revoked; **reconnect gmail** signs in again.
 2. "a workspace admin blocks loki in Gmail" (or Slack): ask the admin, or use your own Google app, then connect again.
 3. "the Slack app signed out": sign in to that workspace in the Slack desktop app, then **reconnect slack**.
-4. "… keeps failing for now": loki tries again on its own; nothing to do.
+4. "Jira wants a new API token: Preferences › Accounts": the token expired or was revoked. Make a new one, and
+   **reconnect jira** on the site's row takes it; a token of another Atlassian account is refused. Meanwhile the site's
+   open cards stay and can still be read.
+5. "… keeps failing for now": loki tries again on its own; nothing to do.
 
 **What reaches your model provider.** Only what you hand off and what the owner reads with its tools. Showing a card,
 ranking it and archiving it send nothing to any model.

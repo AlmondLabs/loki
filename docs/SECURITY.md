@@ -2,7 +2,7 @@
 
 loki is a local desktop app. Everything it runs is on your machine, and almost everything it talks to is on your
 machine or chosen by you: your model providers, your MCP servers, and, when you switch them on, your phone, your
-other Macs, and the Gmail and Slack accounts you connect. The rest (web search, the update check, npm for an ACP adapter) is listed under
+other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web search, the update check, npm for an ACP adapter) is listed under
 [What leaves the machine](#what-leaves-the-machine).
 
 ## What runs where
@@ -155,9 +155,9 @@ on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
 
-## Accounts: Gmail and Slack
+## Accounts: Gmail, Slack and Jira
 
-The Inbox can show the mail and Slack threads waiting for you (plan 067). An account is connected in Preferences ›
+The Inbox can show the mail, Slack threads and Jira tickets waiting for you (plan 067, plan 2026-11-10-1451). An account is connected in Preferences ›
 Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Agents never send.** loki sends
 one thing only: a reply you type yourself on an outside card (plan 068). That reply goes through the
 `account_thread_reply` frame, which only your own devices send, to `mod/outside-threads.ts`, the one caller of each
@@ -190,7 +190,17 @@ yourself.
   activity and counts, marking a DM read (read, archive and a hand-off; later and undo write nothing to Slack), listing, writing and deleting drafts, and `chat.postMessage` for your own
   reply, which no agent tool reaches; nothing edits, deletes or schedules a message. Calls go only to
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
-- **What reaches the model.** Mail and Slack text reaches your model provider only when you hand a thread to its
+- **Jira token.** A Jira Cloud site is connected with your Atlassian email and a classic API token you make yourself
+  (plan 2026-11-10-1451). loki first asks the address you typed, without the token, where the site's API lives, and
+  then sends the token only to that host over `https`, as basic authentication (`mod/frames/accounts.ts`,
+  `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
+  token Jira refuses marks the account as wanting a new one; loki does not try it again until you reconnect.
+- **What loki calls in Jira.** It reads: who you are, the tickets you watch, and each ticket's comments and history.
+  It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
+  `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` (a test checks there is no other). Read, later,
+  undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
+  comments. An agent's proposed comment, once you approve it, waits in the card's box for you to send.
+- **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
   owner (`mod/handoff.ts`), or when the owning agent reads it with its account tools (`account_list`, `account_read`,
   `account_search`), which only the owner's chats are offered and which check ownership on every call. Either way the
   text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
@@ -296,8 +306,9 @@ The page's Content Security Policy (in `src-tauri/tauri.conf.json`) allows scrip
 7. A provider's sign-in page in your browser, when you sign in to it.
 8. With the phone or other Macs switched on, what those sections describe, inside your network or tailnet.
 9. With an account connected, calls to Google (sign-in, token refresh and the Gmail API) and to Slack (`slack.com`
-   and your workspaces' `*.slack.com` addresses), as [Accounts](#accounts-gmail-and-slack) describes; mail and Slack
-   text then goes to your model provider only through a hand-off or the owner's account tools.
+   and your workspaces' `*.slack.com` addresses) and to your Jira sites (the address you typed, once, then the site's
+   API host), as [Accounts](#accounts-gmail-slack-and-jira) describes; mail, Slack and Jira text then goes to your
+   model provider only through a hand-off or the owner's account tools.
 10. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
 
 ## Reporting
