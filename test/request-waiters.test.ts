@@ -27,4 +27,20 @@ describe("requests waiting on the mod's answer", () => {
     expect(w.answer("not-sent", { type: "ok" })).toBe(true);
     expect(w.answer("on-b", { type: "ok" })).toBe(true);
   });
+
+  test("a request made with no socket open goes out as the next one opens, once, and is then that socket's", () => {
+    const w = new RequestWaiters<string>();
+    const got: unknown[] = [];
+    w.wait("early", (m) => got.push(m));
+    w.hold("early", { type: "history_get", request_id: "early" });
+    w.wait("gave-up", () => {});
+    w.hold("gave-up", { type: "desks", request_id: "gave-up" });
+    w.drop("gave-up");
+    const out: object[] = [];
+    w.flush("socket-a", (f) => out.push(f));
+    w.flush("socket-a", (f) => out.push(f));
+    expect(out).toEqual([{ type: "history_get", request_id: "early" }]);
+    w.closed("socket-a");
+    expect(got).toEqual([{ type: "error", request_id: "early", message: LINK_CLOSED }]);
+  });
 });

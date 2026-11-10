@@ -109,6 +109,8 @@ export function useDeskSocket() {
         setState(opened);
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
+        // What was asked while no socket was open goes out now: a chat's history is on its way before anything draws.
+        waiters.flush(ws, (frame) => ws.send(JSON.stringify(frame)));
         if (dropped) {
           reconnectListeners.emit();
           listsStale();

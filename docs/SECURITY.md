@@ -64,6 +64,10 @@ Agents and chats). The model:
   its own cookie jar and has to pair again after "Add to Home Screen".
 - **Forget a phone in Preferences › Phone.** Each device is listed with when it was last seen; "forget" deletes it
   and closes its sockets. `POST /unpair` from the phone does the same for itself.
+- **What one socket may cost.** On both listeners a frame is at most 32 MB (`MAX_FRAME_BYTES`, `mod/server.ts`); a
+  larger one closes its socket. Each socket is pinged every 30 seconds and ended when it did not answer the ping
+  before, and one with more than 16 MB waiting unsent is ended rather than fed more: a device that left the network
+  costs no memory, and reads what it missed when it connects again.
 - **Plain http.** A LAN `http://` origin is not a secure context, so there is no service worker and no
   TLS; the traffic — transcripts, approvals, your replies — is readable by anyone on the network path. On
   a network you do not trust (cafés, hotels, offices you do not run), do not switch it on; if you need
