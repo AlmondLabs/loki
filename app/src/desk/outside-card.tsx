@@ -330,24 +330,27 @@ export function useOutsideThread(
   // when the person's own reply went.
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
   const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
-  const showing = useEffectEvent(() => (steady && shown?.tag === tag && shown.failed === null ? shown : null));
+  // A Slack card already showing this view reads only what is newer (plan 090): the read, none when it has nothing to
+  // read, or null when the card reads afresh. One from a Mac older than plan 077 has no window and reads afresh.
+  const readNewer = useEffectEvent(() => {
+    if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
+    const again = refreshAsk(shown.messages, shown.window);
+    return { pending: again ? read(again) : null };
+  });
   useEffect(() => {
     if (!key) return;
     let live = true;
     const stop = () => {
       live = false;
     };
-    const now = showing();
-    if (now?.window) {
-      // A Slack card already showing this view adds what is newer and keeps the rest (plan 090). One from a Mac older
-      // than plan 077 has no window and is read whole again below.
-      const again = refreshAsk(now.messages, now.window);
-      if (again)
-        void read(again)?.then((out) => {
-          if (!live || typeof out === "string") return;
-          setShown((s) => (s?.tag === tag ? withNewer(s, out) : s));
-          if (out.window?.more_after !== true) settle(went);
-        });
+    const newer = readNewer();
+    if (newer) {
+      // What is newer goes at the end and the rest stays (plan 090).
+      void newer.pending?.then((out) => {
+        if (!live || typeof out === "string") return;
+        setShown((s) => (s?.tag === tag ? withNewer(s, out) : s));
+        if (out.window?.more_after !== true) settle(went);
+      });
       return stop;
     }
     void read({})?.then((out) => {

@@ -483,14 +483,11 @@ export function atBottom(box: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "
  * when the person was at the bottom already, or when it is their own; anywhere else the box stays where they are
  * reading. Rows that load later are the person's own doing and are not followed. Returns the call that loads later.
  */
-function useFollowNewest(
-  top: RefObject<HTMLDivElement | null>,
-  opening: string,
-  last: { id: string; mine: boolean },
-  busy: ThreadControls["busy"] | null,
-  load: (() => void) | null,
-) {
-  const { id: lastId, mine: lastMine } = last;
+function useFollowNewest(top: RefObject<HTMLDivElement | null>, opening: string, messages: readonly OutsideMessage[], controls: ThreadControls | null) {
+  const last = messages.at(-1);
+  const lastId = last?.id ?? "";
+  const lastMine = last?.mine === true;
+  const busy = controls?.busy ?? null;
   const bottom = useRef(true);
   useEffect(() => {
     const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
@@ -517,7 +514,7 @@ function useFollowNewest(
   }, [top, opening, lastId, lastMine, busy]);
   return () => {
     loading.current = true;
-    load?.();
+    controls?.load("after");
   };
 }
 
@@ -585,14 +582,7 @@ export function SlackThread({
   const focusAt = newAt >= 0 ? newAt : rows.findIndex((m) => m.id === newest);
   const opening = `${window?.view ?? ""}/${window?.thread_ts ?? ""}`;
   const { focus, top, loadEarlier } = useThreadScroll(opening, rows[0]?.id ?? "", controls?.busy ?? null, controls ? () => controls.load("before") : null);
-  const last = messages.at(-1);
-  const loadLater = useFollowNewest(
-    top,
-    opening,
-    { id: last?.id ?? "", mine: last?.mine === true },
-    controls?.busy ?? null,
-    controls ? () => controls.load("after") : null,
-  );
+  const loadLater = useFollowNewest(top, opening, messages, controls);
   const reactingOn = useReacting(messages, newest, controls);
   return (
     <div className="loki-slack-thread" ref={top}>
