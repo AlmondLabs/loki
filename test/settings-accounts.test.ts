@@ -136,6 +136,18 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
     ]);
   });
 
+  test("Preferences › Accounts lists only this Mac's accounts given a reply with both lists; the editor's call gets both (plan 082, U4)", async () => {
+    const other = { ...SLACK, account_id: "slack:T09:U07", address: "Studio", mac_id: "mac-mini", mac_name: "Mac mini" };
+    const { request } = fakeRequest({ account_list: { accounts: [MAIL], other_macs: [other] } });
+    const calls = daemonCalls(request).accounts;
+    const listed = await calls.list();
+    expect(listed).toEqual([MAIL]);
+    expect(accountRows(typeof listed === "string" ? [] : listed, AGENTS).map((r) => r.account_id)).toEqual(["gmail:ada@acme.com"]);
+    expect(await calls.everywhere()).toEqual({ accounts: [MAIL], other_macs: [other] });
+    // A mod from before other Macs' accounts answers without the list.
+    expect(await daemonCalls(fakeRequest({ account_list: { accounts: [MAIL] } }).request).accounts.everywhere()).toEqual({ accounts: [MAIL], other_macs: [] });
+  });
+
   test("your own Google app goes with the sign-in only when both its id and secret are filled in", () => {
     expect(ownAppOf("", "")).toBeNull();
     expect(ownAppOf(" id.apps.googleusercontent.com ", "")).toBeNull();

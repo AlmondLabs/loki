@@ -1,4 +1,5 @@
 import type { AccountDisconnectCause, AccountProvider, AccountStatus, AccountView } from "../core/frame-types.ts";
+import type { MacAccountView } from "../core/frames.ts";
 import { Listeners } from "../core/listeners.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -315,6 +316,11 @@ export class PeerAccounts {
   sync(macIds: string[]): void {
     const keep = new Set(macIds);
     for (const id of [...this.macs.keys()]) if (!keep.has(id)) this.macs.delete(id);
+  }
+
+  /** Every paired Mac's accounts as each last said, marked with the Mac they live on (plan 082, KTD9). */
+  everywhere(): MacAccountView[] {
+    return [...this.macs].flatMap(([mac, accounts]) => accounts.map((a) => ({ ...a, mac_id: mac, mac_name: this.opts.name(mac) })));
   }
 
   /** The name of the paired Mac holding an account, or null. */

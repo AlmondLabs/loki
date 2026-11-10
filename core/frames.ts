@@ -201,6 +201,13 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
 const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
+/** An account connected on a paired Mac, marked with that Mac, so Flow's lanes can pick it (plan 082, KTD9). */
+export interface MacAccountView extends AccountView {
+  mac_id: string;
+  /** The Mac's name as this Mac shows it. */
+  mac_name: string;
+}
+
 const nothing = (): NoPayload => ({});
 const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = () => ({}) as T): ({ id: string } & T) | string => {
   if (!isRecallId(m.id)) return "a card or lead id required";
@@ -316,8 +323,11 @@ export interface Replies {
    * `replace` asks the person whether to replace a draft already waiting in that place.
    */
   reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
-  /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
-  accounts: { accounts: AccountView[] };
+  /**
+   * The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. A list
+   * also carries each paired Mac's accounts as it last said (plan 082, KTD9); a mod from before that leaves them out.
+   */
+  accounts: { accounts: AccountView[]; other_macs?: MacAccountView[] };
   /**
    * An outside card's thread archived on the Mac its account lives on (plan 067, U3), with what the archive changed out
    * there for an undo (plan 070, R14); null when nothing was written.
