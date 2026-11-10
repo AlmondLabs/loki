@@ -1,5 +1,6 @@
 import type {
   EmojiChoice,
+  JiraCardTicket,
   SlackPerson,
   MailAddressing,
   MailCompose,
@@ -30,6 +31,7 @@ import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
+import { JiraTicket, JiraTicketHead } from "./jira-ticket";
 import { openExternal } from "./env";
 import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } from "./mail-address";
@@ -134,11 +136,13 @@ export type ThreadState =
       opened?: string | null;
       /** A Jira ticket's address, as the read gave it. */
       link?: string | null;
+      /** A Jira card's ticket (plan 089), from the opening read; absent from an older Mac, whose card draws as before. */
+      ticket?: JiraCardTicket | null;
     }
   | { kind: "failed"; message: string };
 
 /** What the card is showing: for which card and view, and what came back, with any load in flight. */
-interface Shown {
+export interface Shown {
   /** The card and view it was read for, and the read itself, which a newer message makes again. */
   view: string;
   tag: string;
@@ -148,14 +152,19 @@ interface Shown {
   failed: string | null;
   /** A Jira ticket's address, as the read gave it. */
   link: string | null;
+  /** A Jira card's ticket (plan 089): only the opening read gives it, so a load of earlier comments keeps this one. */
+  ticket: JiraCardTicket | null;
 }
 
 /** The first message after a thread's pinned first message, which "load earlier" loads before. */
 const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
   (w.view === "thread" ? messages.find((m) => m.id !== w.thread_ts) : messages[0])?.id ?? null;
 
-/** What a load adds to the card (plan 077): the messages it read, before or after what is there, and what more there is. */
-function withLoaded(now: Shown, out: OutsideRead, w: OutsideWindow, direction: "before" | "after"): Shown {
+/**
+ * What a load adds to the card (plan 077): the messages it read, before or after what is there, and what more there is.
+ * Everything else the card shows stays, a Jira card's ticket among it, since a load reads comments alone (plan 089).
+ */
+export function withLoaded(now: Shown, out: OutsideRead, w: OutsideWindow, direction: "before" | "after"): Shown {
   const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
   const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
   const body = rest.filter((m) => !pinned.includes(m));
@@ -274,12 +283,14 @@ export function useOutsideThread(
     void read({})?.then((out) => {
       if (!live) return;
       if (typeof out !== "string") {
-        setShown({ view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null });
+        setShown({ view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null, ticket: out.ticket ?? null });
         settle(went);
         return;
       }
       // A read again that fails keeps what the card shows, with the reply's stand-in.
-      setShown((now) => (now?.tag === tag && now.failed === null ? now : { view, tag, messages: [], window: null, busy: null, failed: out, link: null }));
+      setShown((now) =>
+        now?.tag === tag && now.failed === null ? now : { view, tag, messages: [], window: null, busy: null, failed: out, link: null, ticket: null },
+      );
     });
     return () => {
       live = false;
@@ -291,7 +302,7 @@ export function useOutsideThread(
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
   const messages = [...shown.messages, ...sent.standIns];
   const w = shown.window;
-  if (!w) return { kind: "read", messages, link: shown.link };
+  if (!w) return { kind: "read", messages, link: shown.link, ticket: shown.ticket };
   const load = (direction: "before" | "after") => {
     if (shown.busy) return;
     const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
@@ -308,7 +319,7 @@ export function useOutsideThread(
     busy: shown.busy,
     ...reacting,
   };
-  return { kind: "read", messages, window: w, controls, opened: threadTs, link: shown.link };
+  return { kind: "read", messages, window: w, controls, opened: threadTs, link: shown.link, ticket: shown.ticket };
 }
 
 /**
@@ -408,15 +419,14 @@ export function OutsideThread({
     if (box) scrollWithin(box, el, "end");
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [newest]);
-  if (state.kind !== "read" || state.messages.length === 0)
+  // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to.
+  if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
-        <Meta wrap negative={state.kind === "failed"}>
-          {state.kind === "failed" ? `could not read the whole thread: ${state.message}` : "reading the whole thread…"}
-        </Meta>
-        <OutsideLines facts={facts} touch={touch} />
-      </div>
+      <JiraTicket ticket={state.ticket} count={state.messages.length} touch={touch}>
+        <ThreadList facts={facts} state={state} touch={touch} />
+      </JiraTicket>
     );
+  if (state.kind !== "read" || state.messages.length === 0) return <ThreadStandIn facts={facts} state={state} touch={touch} />;
   if (facts.provider === "slack" && !touch)
     return <SlackThread messages={state.messages} newest={facts.newest_message_id} window={state.window ?? null} controls={state.controls ?? null} />;
   if (facts.provider === "gmail" && !touch)
@@ -427,6 +437,19 @@ export function OutsideThread({
       </>
     );
   return <ThreadList facts={facts} state={state} touch={touch} endRef={end} />;
+}
+
+/** The card's own last lines while its thread is read, or when it could not be, with a line saying which. */
+function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: ThreadState; touch: boolean }) {
+  const failed = state.kind === "failed" ? state.message : null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
+      <Meta wrap negative={failed !== null}>
+        {failed !== null ? `could not read the whole thread: ${failed}` : "reading the whole thread…"}
+      </Meta>
+      <OutsideLines facts={facts} touch={touch} />
+    </div>
+  );
 }
 
 /**
@@ -443,7 +466,8 @@ function ThreadList({
   facts: OutsideFacts;
   state: Extract<ThreadState, { kind: "read" }>;
   touch: boolean;
-  endRef: RefObject<HTMLDivElement | null>;
+  /** The mark at the end the thread scrolls to; absent under a Jira ticket, which stays at its top. */
+  endRef?: RefObject<HTMLDivElement | null>;
 }) {
   const jira = facts.provider === "jira";
   const newAt = jira ? state.messages.findIndex((m) => m.unread === true) : -1;
@@ -463,7 +487,7 @@ function ThreadList({
           <MessageRow m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
         </Fragment>
       ))}
-      <div ref={endRef} />
+      {endRef && <div ref={endRef} />}
     </div>
   );
 }
@@ -806,6 +830,7 @@ export function OutsideHeader({
   went,
   cameBack,
   link = null,
+  ticket = null,
 }: {
   facts: OutsideFacts;
   badge: string | null;
@@ -813,10 +838,33 @@ export function OutsideHeader({
   cameBack: boolean;
   /** A Jira ticket's address as the read gave it; until then the account's host stands in. */
   link?: string | null;
+  /** A Jira card's ticket once read (plan 089): the header then names its type, key and project over its summary. */
+  ticket?: JiraCardTicket | null;
 }) {
   const who = senderName(facts.sender);
   const mail = facts.provider === "gmail";
   const address = ticketAddress(facts, link);
+  const right = (
+    <>
+      {facts.reach && <ReachTag reach={facts.reach} />}
+      {address && (
+        <a
+          className="loki-mail-link"
+          href={address}
+          title={address}
+          onClick={(e) => {
+            e.preventDefault();
+            openExternal(address);
+          }}
+        >
+          open in jira
+        </a>
+      )}
+      {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
+    </>
+  );
+  if (facts.provider === "jira" && ticket)
+    return <JiraTicketHead ticket={ticket} right={right} line={<OutsideHeadLine facts={facts} what={who} went={went} cameBack={cameBack} />} />;
   return (
     <CardHead
       face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />}
@@ -824,25 +872,7 @@ export function OutsideHeader({
       who={mail ? facts.subject || "no subject" : who}
       whoHint={facts.sender_address ? `${who} <${facts.sender_address}>` : undefined}
       line={<OutsideHeadLine facts={facts} what={headWhat(facts)} went={went} cameBack={cameBack} />}
-      right={
-        <>
-          {facts.reach && <ReachTag reach={facts.reach} />}
-          {address && (
-            <a
-              className="loki-mail-link"
-              href={address}
-              title={address}
-              onClick={(e) => {
-                e.preventDefault();
-                openExternal(address);
-              }}
-            >
-              open in jira
-            </a>
-          )}
-          {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
-        </>
-      }
+      right={right}
     />
   );
 }
@@ -931,6 +961,10 @@ function OutsideMoves({
     </>
   );
 }
+
+/** What the header takes from the read: a Jira ticket's address and, from a Mac on plan 089, the ticket itself. */
+const readHead = (thread: ThreadState): { link: string | null; ticket: JiraCardTicket | null } =>
+  thread.kind === "read" ? { link: thread.link ?? null, ticket: thread.ticket ?? null } : { link: null, ticket: null };
 
 /** The addresses a mail card's account sends from, so its own mails read as the person's; none for Slack. */
 function ownAddresses(facts: OutsideFacts, compose: MailCompose | null): string[] {
@@ -1045,13 +1079,7 @@ export function OutsideCard({
   ) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <OutsideHeader
-        facts={facts}
-        badge={flash ?? (current.unread ? "new" : null)}
-        went={went}
-        cameBack={cameBack}
-        link={thread.kind === "read" ? (thread.link ?? null) : null}
-      />
+      <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} {...readHead(thread)} />
       <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>

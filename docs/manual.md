@@ -1103,12 +1103,25 @@ read) stay in the row at the bottom. The phone keeps its own layout.
    your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
    recipients line has To and Cc. The mode, From and Bcc are on the Mac.
 
-**Jira tickets.** A Jira card is one ticket. Its header names the ticket by key and title ("OPS-7 · Rotate the keys"),
-and its tag says why it is there, the most direct that applies: **mentioned you**, **assigned to you** or **watching**.
-Under it are the ticket's events, oldest first: a comment as its text, a change to a field as one line ("status: To Do →
-In Progress"). Slack's red **New** line sits before the first event you have not read, **load earlier** brings older
-events, and **open in jira** opens the ticket in your browser. The phone shows the same events and New line, with no
-tag, as no card there has one. A Jira card's moves differ from mail's and Slack's:
+**Jira tickets.** A Jira card is one ticket, drawn as the ticket reads in Jira. Its header names the ticket's key, type
+and project ("◆ OPS-7 · Task · Operations") over its summary, which is the card's title; its tag says why it is there,
+the most direct that applies: **mentioned you**, **assigned to you** or **watching**, and **open in jira** opens the
+ticket in your browser. Under the header, in order:
+
+1. The fields, on a quiet plate: status (as a small pill), assignee, reporter, priority, sprint and labels, each only
+   when the ticket has it. A field someone else changed since you last read the card is marked **new**, with what it
+   was, who changed it and when under it ("was In progress · Ada Lovelace · 2h"); a changed summary, type or project
+   marks the header new.
+2. One quiet line for the fields the card does not show that someone else changed, by who and when ("also changed:
+   Rank, Story points · Ada Lovelace · 2h").
+3. **Description**, as plain text, folded after six lines with **show more**; an edit to it is marked new under its
+   heading ("edited · Ada Lovelace · 1h").
+4. **Comments** with their count, oldest first: Slack's red **New** line sits before the first comment you have not
+   read, **load earlier** brings older ones, and the comment box comes last. Field changes are not lines here.
+
+The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. A Mac on
+an older loki sends no ticket, so its Jira cards show the ticket's events as one list of comments and field changes, as
+before. A Jira card's moves differ from mail's and Slack's:
 
 1. Read (⌘], a right swipe on the phone) is the only move that ends the card. It comes back when the ticket gets a new
    event, with only that event marked new. Undo brings it back at once.

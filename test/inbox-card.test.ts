@@ -11,7 +11,8 @@ import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
-import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { OutsideReply, OutsideThread } from "../app/src/desk/outside-card.tsx";
+import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { freshSeeds, withSeeds } from "../app/src/desk/outside-words.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -209,6 +210,34 @@ describe("a Jira card on the phone (plan 2026-11-10-1451, U5, R21)", () => {
     expect(html).toContain("Ada Lovelace");
     expect(html).not.toContain("watching");
     expect(html).not.toContain("loki-reach");
+  });
+});
+
+describe("a Jira card's ticket inside the phone's card (plan 089)", () => {
+  const ticketCard = (item: AttentionItem) => {
+    const facts = must(item.outside, "facts");
+    const state = { kind: "read" as const, messages: JIRA_COMMENTS, ticket: jiraTicket() };
+    return inPage(createElement(Card, { item, role: "top", style: {} }, createElement(OutsideThread, { facts, state, touch: true })));
+  };
+
+  test("the card's head, then the ticket's: key, type and project, the summary, the fields and the comments, with no tag", () => {
+    const html = ticketCard(jiraItem());
+    expect(html).toContain("OPS-7 · Rotate the keys");
+    expect(html).toContain("· Task · Operations");
+    expect(html).toMatch(/class="loki-jira-summary[^"]*"[^>]*>Rotate the keys</);
+    expect(html.indexOf("loki-phone-card-head")).toBeLessThan(html.indexOf("loki-jira-head"));
+    expect(html).toContain("Was In progress · Ada Lovelace");
+    expect(html).toContain("Comments · 2");
+    expect(html).not.toContain("watching");
+  });
+  test("a Gmail and a Slack card on the phone draw no ticket parts", () => {
+    const mail = outsideItem("Lunch");
+    const slackFacts = { ...must(mail.outside, "facts"), provider: "slack" as const, account_id: "slack:T1:U1", thread_id: "D1" };
+    for (const item of [mail, { ...mail, outside: slackFacts }]) {
+      const html = ticketCard(item);
+      expect(html).not.toContain("loki-jira");
+      expect(html).not.toContain("Comments ·");
+    }
   });
 });
 

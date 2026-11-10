@@ -1645,6 +1645,93 @@ button.loki-label-chip:focus-visible {
 .loki-card-mark--jira {
   color: var(--loki-mark-jira);
 }
+/* A Jira card drawn as its ticket (plan 089, desk/jira-ticket.tsx): the type, key and project over the summary, the
+   fields on a quiet plate, the description and the comments, each part under its heading. */
+.loki-jira-key-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--loki-muted);
+  white-space: nowrap;
+}
+.loki-jira-type {
+  color: var(--loki-mark-jira);
+  font-size: 11px;
+  font-weight: 700;
+}
+.loki-jira-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.loki-jira-key {
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-jira-kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loki-jira-summary {
+  font-weight: 700;
+  color: var(--loki-fg);
+  overflow-wrap: anywhere;
+}
+.loki-jira-new {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--loki-negative);
+}
+.loki-jira-ticket {
+  display: flex;
+  flex-direction: column;
+}
+.loki-jira-part {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.loki-jira-heading {
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-jira-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel-header);
+}
+/* Each field's label and value sit in the plate's two columns. */
+.loki-jira-field {
+  display: contents;
+}
+.loki-jira-field-value {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+}
+.loki-jira-field-now {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.loki-jira-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 /* How directly a card is meant for the person: the top of the scale reads in full ink, the bottom steps back. */
 .loki-reach {
   white-space: nowrap;

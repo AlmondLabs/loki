@@ -14,7 +14,8 @@ import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } fro
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentLanes } from "../core/attention/lanes.ts";
-import { OutsideCard, OutsideHeader, OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
+import { OutsideCard, OutsideHeader, OutsideReply, OutsideThread, withLoaded, type ReplyBoxControl, type ThreadState } from "../app/src/desk/outside-card.tsx";
+import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
 import { KeysHint } from "../app/src/desk/catch-up-parts.tsx";
 import { Decisions } from "../app/src/phone/inbox.tsx";
@@ -947,6 +948,106 @@ describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
       createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events, window: { ...window, more_before: false }, controls } }),
     );
     expect(all).not.toContain("load earlier");
+  });
+});
+
+describe("a Jira card shaped like the ticket (plan 089)", () => {
+  const read = (over: Partial<Extract<ThreadState, { kind: "read" }>> = {}): ThreadState => ({
+    kind: "read",
+    messages: JIRA_COMMENTS,
+    ticket: jiraTicket(),
+    ...over,
+  });
+  const thread = (state: ThreadState = read(), facts: OutsideFacts = JIRA_FACTS) => renderToStaticMarkup(createElement(OutsideThread, { facts, state }));
+  const head = (ticket = jiraTicket(), facts: OutsideFacts = JIRA_FACTS) =>
+    renderToStaticMarkup(createElement(OutsideHeader, { facts, badge: null, went: null, cameBack: false, ticket }));
+
+  test("its header names the type, key and project, keeps the tag and the link, and is titled by the summary", () => {
+    const html = head();
+    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toMatch(/class="loki-jira-key"[^>]*>OPS-7</);
+    expect(html).toContain("· Task · Operations");
+    expect(html).toMatch(/class="loki-card-head-who"[^>]*>Rotate the keys</);
+    expect(html).toContain(">watching<");
+    expect(html).toContain(">open in jira<");
+    expect(html.indexOf("OPS-7")).toBeLessThan(html.indexOf("Rotate the keys"));
+    expect(html).not.toContain("loki-jira-new");
+  });
+  test("a summary someone else changed marks the header new", () => {
+    const changed = [{ field: "summary", from: "Rotate keys", to: "Rotate the keys", by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
+    expect(head(jiraTicket({ changed }))).toContain(">new<");
+  });
+  test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
+    const html = thread();
+    expect(html).toContain(">Status<");
+    expect(html).toContain(">In review<");
+    expect(html).toContain(">Assignee<");
+    expect(html).toContain(">Reporter<");
+    expect(html).toContain(">Priority<");
+    expect(html).toContain("security, keys");
+    expect(html).not.toContain(">Sprint<");
+    expect(html.match(/>new</g)?.length).toBe(1);
+    expect(html).toContain("was In progress · Ada Lovelace · ");
+  });
+  test("the fields it does not show are one line: also changed, with who", () => {
+    expect(thread()).toContain("also changed: Rank, Story points · Ada Lovelace · ");
+    expect(thread(read({ ticket: jiraTicket({ also_changed: [] }) }))).not.toContain("also changed");
+  });
+  test("the description folds after six lines, with show more", () => {
+    const html = thread();
+    expect(html).toContain(">Description<");
+    expect(html).toContain("line 6");
+    expect(html).not.toContain("line 7");
+    expect(html).toContain(">show more<");
+    const short = thread(read({ ticket: jiraTicket({ description: ["one line"] }) }));
+    expect(short).not.toContain("show more");
+  });
+  test("an edited description is marked under its heading", () => {
+    const changed = [{ field: "description", from: null, to: null, by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
+    expect(thread(read({ ticket: jiraTicket({ changed }) }))).toContain("edited · Ada Lovelace · ");
+  });
+  test("the comments come last under their count, with the New line before the first unread", () => {
+    const html = thread();
+    expect(html).toContain("Comments · 2");
+    const order = ["Status", "also changed", "Description", "Comments · 2", "On it", "New since you last read", "Can you look at the rotation?"].map((s) =>
+      html.indexOf(s),
+    );
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // Field changes are no longer lines in the list.
+    expect(html).not.toContain("status: ");
+  });
+  test("a ticket with no comments yet still draws the ticket", () => {
+    const html = thread(read({ messages: [] }));
+    expect(html).toContain(">Description<");
+    expect(html).not.toContain("reading the whole thread");
+  });
+  test("a read without the ticket, from an older Mac, draws the card as before", () => {
+    const html = thread({ kind: "read", messages: JIRA_COMMENTS });
+    expect(html).not.toContain("Comments ·");
+    expect(html).not.toContain("loki-jira");
+    expect(html).toContain("New since you last read");
+    expect(renderToStaticMarkup(createElement(OutsideHeader, { facts: JIRA_FACTS, badge: null, went: null, cameBack: false }))).toContain(
+      "OPS-7 · Rotate the keys",
+    );
+  });
+  test("a Gmail and a Slack card draw no ticket parts", () => {
+    const mail = must(outsideItem("Lunch").outside, "mail facts");
+    for (const facts of [mail, FACTS]) {
+      const html = thread(read(), facts);
+      expect(html).not.toContain("loki-jira");
+      expect(html).not.toContain("Comments ·");
+      expect(head(jiraTicket(), facts)).not.toContain("loki-jira");
+    }
+  });
+  test("loading earlier comments keeps the ticket the opening read gave", () => {
+    const w: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };
+    const ticket = jiraTicket();
+    const now = { view: "v", tag: "t", messages: JIRA_COMMENTS, window: w, busy: "before" as const, failed: null, link: null, ticket };
+    const earlier = { id: "c0", sender: "Bob Stone", at: "", text: "Earlier", mine: false };
+    const after = withLoaded(now, { messages: [earlier], window: { ...w, more_before: false } }, w, "before");
+    expect(after.ticket).toBe(ticket);
+    expect(after.messages.map((m) => m.id)).toEqual(["c0", "c1", "c2"]);
   });
 });
 
