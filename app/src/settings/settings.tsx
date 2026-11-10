@@ -23,7 +23,7 @@ import type { Recall as RecallModel } from "../shell/use-recall";
 import { RecallSettings } from "../recall/recall-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
-import { REST_GROWTH, type CardKind, type RestFirst, type RestLater, type ReturnTimes } from "../../../core/attention/rest.ts";
+import { REST_GROWTH, laterOf, type CardKind, type RestFirst, type RestLater, type ReturnTimes } from "../../../core/attention/rest.ts";
 
 /** Preferences › Inbox's return times, kept by the mod (plan 070): what they are now, and new ones. */
 export interface ReturnTimesApi {
@@ -546,10 +546,10 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
   return (
     <>
       {lanes && <Lanes {...lanes} />}
-      <Block help="every chat you have not archived, every thread in your Gmail inbox and every unread Slack message. A card stays until it is done: a chat or an email when you archive it, a Slack message when you read it. The card in front of you never moves until you act on it.">
+      <Block help="every chat you have not archived, every thread in your Gmail inbox, every unread Slack message and every Jira ticket you watch that someone else changed. A card stays until it is done: a chat or an email when you archive it, a Slack message or a Jira ticket when you read it. The card in front of you never moves until you act on it.">
         <Setting
           label="Read"
-          help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message is done once read.`}
+          help={`Marks the card read, in Gmail or Slack too. A chat or an email is set aside for a while, then ${REST_GROWTH} times longer each read in a row while nothing new comes, up to a week; anything new brings it back at once. A Slack message or a Jira card is done once read.`}
         >
           <Kbd>{keyFor("inbox.next")}</Kbd>
         </Setting>
@@ -572,7 +572,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
         </Setting>
         <Setting
           label="Later"
-          help="Keeps the card unread, here and in Gmail or Slack, and brings it back after the time below, or sooner if something new comes. The second later in a row asks when."
+          help="Keeps the card unread, here and in Gmail or Slack (a Jira card here only, as Jira keeps no unread), and brings it back after the time below, or sooner if something new comes. The second later in a row asks when."
         >
           <Kbd>{keyFor("inbox.later")}</Kbd>
         </Setting>
@@ -586,14 +586,17 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
                 key={kind}
                 label={`later brings ${KIND_NAME[kind]} back after`}
                 options={REST_LATER_KEYS}
-                value={times.later[kind]}
+                value={laterOf(times, kind)}
                 onPick={(later) => set({ ...times, later: { ...times.later, [kind]: later } })}
                 labels={REST_LATER_LABELS}
               />,
             ])}
           </div>
         </Setting>
-        <Setting label="Archive" help="Done: a chat is archived, an email thread is archived in Gmail, a Slack message is marked read. Undo brings it back.">
+        <Setting
+          label="Archive"
+          help="Done: a chat is archived, an email thread is archived in Gmail, a Slack message is marked read. Undo brings it back. A Jira card has no archive: read ends it."
+        >
           <Kbd>{keyFor("inbox.archive")}</Kbd>
         </Setting>
         <Setting label="Label" help="On an email card: adds Gmail labels, and the card stays for your next key.">
@@ -627,12 +630,12 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
 
 /** Per-kind choices on a row: each kind's name beside its control, the controls lined up on the right. */
 const KIND_GRID: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto auto", alignItems: "center", justifyItems: "end", gap: 8 };
-/** The kinds of card read rests; a Slack message is done once read, so it has no rest. */
+/** The kinds of card read rests; a Slack message or a Jira card is done once read, so it has no rest. */
 const READ_KINDS = ["chat", "email"] as const;
 /** The kinds of card later brings back. */
-const LATER_KINDS = ["chat", "email", "slack"] as const;
+const LATER_KINDS = ["chat", "email", "slack", "jira"] as const;
 /** Each kind of card as the Inbox page names it. */
-const KIND_NAME: Record<CardKind, string> = { chat: "chats", email: "email", slack: "Slack" };
+const KIND_NAME: Record<CardKind, string> = { chat: "chats", email: "email", slack: "Slack", jira: "Jira" };
 /** The first rests on offer, shortest first. */
 const REST_FIRST_KEYS: readonly RestFirst[] = ["10m", "30m", "1h", "3h"];
 /** Each first rest as the setting says it. */

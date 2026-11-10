@@ -229,8 +229,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         or **reconnect jira** when it needs it; **Connect an account**, where you choose the owner, then **connect
         gmail**, **connect slack** or **connect jira** (a form for the site, your email and an API token), with **Use
         your own Google app** folded below it (see "Email, Slack and Jira"); what read, later, archive, label and a
-        reply do; **Read rests a card for**, for chats and for email, and **Later brings a card back after**, for
-        chats, email and Slack (Jira cards use Slack's), on every device (see "Return times"); and, under "How the
+        reply do, a Jira card included (read ends it; archive and label do not apply); **Read rests a card for**, for
+        chats and for email, and **Later brings a card back after**, for chats, email, Slack and Jira, on every device
+        (see "Return times"); and, under "How the
         order works", what each card's score is made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
@@ -860,8 +861,9 @@ thread, starts that count over.
 
 1. **Read rests a card for**: the first rest after read, for chats and for email apart: 10 min, 30 min, 1 hour (the
    default) or 3 hours. The ladder above climbs from it.
-2. **Later brings a card back after**: the later return, for chats, email and Slack apart: 3 hours, 1 day (the
-   default), 2 days or 1 week. A Jira card comes back after Slack's.
+2. **Later brings a card back after**: the later return, for chats, email, Slack and Jira apart: 3 hours, 1 day (the
+   default), 2 days or 1 week. A Mac still on a loki from before Jira's row puts a Jira card off for Slack's
+   time, and keeps Jira's when you change another.
 
 A rest keeps the time it was given, so a change counts from the next press on. How fast the ladder climbs, and the
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
@@ -1110,7 +1112,7 @@ tag, as no card there has one. A Jira card's moves differ from mail's and Slack'
 
 1. Read (⌘], a right swipe on the phone) is the only move that ends the card. It comes back when the ticket gets a new
    event, with only that event marked new. Undo brings it back at once.
-2. Later (⌘[, a left swipe) keeps it unread and brings it back after Slack's later time (see "Return times").
+2. Later (⌘[, a left swipe) keeps it unread and brings it back after Jira's later time (see "Return times").
 3. Archive (⌘E) and label (L) do nothing, and the card shows no archive or label control: archive says "a jira card
    ends with read", and the phone says "A Jira card ends only with Read."
 4. Hand off sends the owner the whole ticket, and the card stays (see "Hand-off" below).

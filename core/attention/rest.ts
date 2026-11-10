@@ -57,36 +57,36 @@ const isRestLater = (raw: unknown): raw is RestLater => typeof raw === "string" 
 const isRestFirstValue = (raw: unknown): raw is RestFirst => typeof raw === "string" && isRestFirst(raw);
 
 /** The kinds of Inbox card that keep their own return times (R15). */
-export type CardKind = "chat" | "email" | "slack";
+export type CardKind = "chat" | "email" | "slack" | "jira";
 
-/**
- * A card's kind for its return times: a chat, or an outside card by its provider. A Jira card rests as the Slack kind
- * (plan 2026-11-10-1451, KTD17): read has no rest of its own and later uses Slack's time, so Jira needs no setting.
- */
+/** A card's kind for its return times: a chat, or an outside card by its provider, a Jira card its own (plan 089). */
 export function cardKindOf(item: Pick<AttentionItem, "outside">): CardKind {
   if (!item.outside) return "chat";
   switch (item.outside.provider) {
     case "gmail":
       return "email";
     case "slack":
-    case "jira":
       return "slack";
+    case "jira":
+      return "jira";
   }
 }
 
 /**
  * The person's return times for each kind of card, as the daemon keeps them (plan 070, R15, KTD8): ⌘]'s first rest for
- * chats and email (a Slack or Jira card read is finished, so it has none), and ⌘['s return for every kind.
+ * chats and email (a Slack or Jira card read is finished, so it has none), and ⌘['s return for every kind. Jira's later
+ * time came with plan 089, so a set stored or sent before it has none and reads as the default (laterOf); a Mac from
+ * before it checks only the keys it knows, so it takes a set with Jira's time and keeps it when it changes another.
  */
 export interface ReturnTimes {
   read_first: { chat: RestFirst; email: RestFirst };
-  later: { chat: RestLater; email: RestLater; slack: RestLater };
+  later: { chat: RestLater; email: RestLater; slack: RestLater; jira?: RestLater };
 }
 
 /** The return times until the person sets any: an hour's first rest, and a day for later. */
 export const RETURN_TIMES_DEFAULT: ReturnTimes = {
   read_first: { chat: REST_FIRST_DEFAULT, email: REST_FIRST_DEFAULT },
-  later: { chat: REST_LATER_DEFAULT, email: REST_LATER_DEFAULT, slack: REST_LATER_DEFAULT },
+  later: { chat: REST_LATER_DEFAULT, email: REST_LATER_DEFAULT, slack: REST_LATER_DEFAULT, jira: REST_LATER_DEFAULT },
 };
 
 /** Whether a value is a whole set of return times, for checking what a client, a paired Mac or the file holds. */
@@ -96,17 +96,23 @@ export function isReturnTimes(v: unknown): v is ReturnTimes {
   if (!first || typeof first !== "object" || !later || typeof later !== "object") return false;
   const f = first as Record<string, unknown>;
   const l = later as Record<string, unknown>;
-  return isRestFirstValue(f.chat) && isRestFirstValue(f.email) && isRestLater(l.chat) && isRestLater(l.email) && isRestLater(l.slack);
+  const known = isRestFirstValue(f.chat) && isRestFirstValue(f.email) && isRestLater(l.chat) && isRestLater(l.email) && isRestLater(l.slack);
+  return known && (l.jira === undefined || isRestLater(l.jira));
 }
 
-/** How long ⌘] first rests a card of this kind; a Slack card has no rest of its own, so it reads the default. */
+/** How long ⌘] first rests a card of this kind; a Slack or Jira card has no rest of its own, so it reads the default. */
 export function readFirstMs(times: ReturnTimes, kind: CardKind): number {
-  return REST_FIRST_CHOICES[kind === "slack" ? REST_FIRST_DEFAULT : times.read_first[kind]];
+  return REST_FIRST_CHOICES[kind === "slack" || kind === "jira" ? REST_FIRST_DEFAULT : times.read_first[kind]];
+}
+
+/** The later choice a set holds for a kind; a set from before Jira had its own (plan 089) reads Jira's as the default. */
+export function laterOf(times: ReturnTimes, kind: CardKind): RestLater {
+  return times.later[kind] ?? REST_LATER_DEFAULT;
 }
 
 /** How long ⌘[ puts a card of this kind off. */
 export function laterMs(times: ReturnTimes, kind: CardKind): number {
-  return REST_LATER_CHOICES[times.later[kind]];
+  return REST_LATER_CHOICES[laterOf(times, kind)];
 }
 
 /** How much longer each further Next on the same card makes its rest. */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
@@ -125,12 +125,46 @@ describe("later (plan 070, U4)", () => {
     const mail = outsideItem("Quarterly numbers");
     const slack = outsideItem("hi", { outside: { ...must(mail.outside, "facts"), provider: "slack" } });
     const jira = outsideItem("OPS-7", { outside: { ...must(mail.outside, "facts"), provider: "jira" } });
-    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack), cardKindOf(jira)]).toEqual(["chat", "email", "slack", "slack"]);
+    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack), cardKindOf(jira)]).toEqual(["chat", "email", "slack", "jira"]);
     expect(readFirstMs(RETURN_TIMES_DEFAULT, "email")).toBe(H);
     expect(laterMs(RETURN_TIMES_DEFAULT, "slack")).toBe(DAY);
     expect(isReturnTimes(RETURN_TIMES_DEFAULT)).toBe(true);
     expect(isReturnTimes({ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "5d", slack: "1d" } })).toBe(false);
+    expect(isReturnTimes({ ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, jira: "5d" } })).toBe(false);
     expect(isReturnTimes(null)).toBe(false);
+  });
+
+  test("a Jira card is put off for its own later time, a day unless the person picked another (plan 089)", () => {
+    expect(laterMs(RETURN_TIMES_DEFAULT, "jira")).toBe(DAY);
+    const times = { ...RETURN_TIMES_DEFAULT, later: { ...RETURN_TIMES_DEFAULT.later, jira: "3h" as const } };
+    expect([laterMs(times, "jira"), laterMs(times, "slack")]).toEqual([REST_LATER_CHOICES["3h"], DAY]);
+  });
+
+  test("read ends a Jira card, as it ends a Slack one, so its first rest is the default whatever is set", () => {
+    const times = { ...RETURN_TIMES_DEFAULT, read_first: { chat: "3h" as const, email: "3h" as const } };
+    expect([readFirstMs(times, "jira"), readFirstMs(times, "slack")]).toEqual([REST_FIRST_MS, REST_FIRST_MS]);
+  });
+
+  test("a set of return times from before Jira, from a file or an older paired Mac, reads with Jira's default", () => {
+    const older = { read_first: { chat: "1h", email: "1h" }, later: { chat: "1d", email: "2d", slack: "1w" } };
+    expect(isReturnTimes(older)).toBe(true);
+    if (!isReturnTimes(older)) return;
+    expect([laterMs(older, "jira"), laterMs(older, "slack")]).toEqual([DAY, 7 * DAY]);
+    const dir = mkdtempSync(join(tmpdir(), "loki-rest-"));
+    try {
+      const path = join(dir, "attention.json");
+      writeFileSync(path, JSON.stringify({ seen: {}, return_times: { times: older, at: "2026-11-05T10:00:00.000Z" } }));
+      const stored = must(new SeenStore(path).returnTimes(), "the stored times");
+      expect(laterMs(stored, "jira")).toBe(DAY);
+      const book = new SeenStore(join(dir, "book.json"));
+      expect(
+        book.applyRemote("mini", { seen: {}, unseen: {}, viewed: {}, focus: {}, rests: {}, return_times: { times: older, at: "2026-11-05T11:00:00.000Z" } }),
+      ).toBe(true);
+      expect(laterMs(must(book.returnTimes(), "the paired Mac's times"), "jira")).toBe(DAY);
+      book.flush();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("setting email's later return to two days changes the next press only; a card already resting keeps its time", () => {
