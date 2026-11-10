@@ -833,6 +833,53 @@ function OutsideMoves({
   );
 }
 
+/** The addresses a mail card's account sends from, so its own mails read as the person's; none for Slack. */
+function ownAddresses(facts: OutsideFacts, compose: MailCompose | null): string[] {
+  if (facts.provider !== "gmail") return [];
+  return [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])];
+}
+
+/** The reply box the deck holds on a desktop card: with the card's moves, its people to mention and its opened thread. */
+function DeckReply({
+  current,
+  facts,
+  thread,
+  source,
+  box,
+  replyRef,
+  onTyping,
+  onEscapeEmpty,
+  row,
+  compose,
+}: {
+  current: AttentionItem;
+  facts: OutsideFacts;
+  thread: ThreadState;
+  source: OutsideThreadSource | null;
+  box: ReplyBoxControl;
+  replyRef?: RefObject<HTMLTextAreaElement | null>;
+  onTyping?: (typing: boolean) => void;
+  onEscapeEmpty?: () => void;
+  row: ReactNode;
+  compose: MailCompose | null;
+}) {
+  const people = source?.searchPeople;
+  return (
+    <OutsideReply
+      facts={facts}
+      box={box}
+      inputRef={replyRef}
+      onTyping={onTyping}
+      onEscapeEmpty={onEscapeEmpty}
+      actions={row}
+      compose={compose}
+      quote={quoteOf(facts, thread)}
+      searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+      inThread={thread.kind === "read" && !!thread.opened}
+    />
+  );
+}
+
 /**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
  * the reply box, and the deck's moves. Read marks the thread read out there, later keeps it unread and brings it back,
@@ -879,24 +926,22 @@ export function OutsideCard({
   compose?: MailCompose | null;
 }) {
   const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
-  const people = source?.searchPeople;
-  const peopleSearch = people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined;
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
-  const own = facts.provider === "gmail" ? [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])] : [];
+  const own = ownAddresses(facts, compose);
   const reply = box ? (
-    <OutsideReply
+    <DeckReply
+      current={current}
       facts={facts}
+      thread={thread}
+      source={source}
       box={box}
-      inputRef={replyRef}
+      replyRef={replyRef}
       onTyping={onTyping}
       onEscapeEmpty={onEscapeEmpty}
-      actions={row}
+      row={row}
       compose={compose}
-      quote={quoteOf(facts, thread)}
-      searchPeople={peopleSearch}
-      inThread={thread.kind === "read" && !!thread.opened}
     />
   ) : null;
   return (
