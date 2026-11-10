@@ -1170,7 +1170,16 @@ describe("a Jira card's comments look like a Slack card's messages (plan 090)", 
       ],
       mentions_me: true,
     },
-    { id: "c3", sender: "Bob Stone", at: at(9, 9, 30), text: "Same here", mine: false, replies: 2 },
+    // Reactions and replies a Jira comment never has, so the card is seen to leave them out.
+    {
+      id: "c3",
+      sender: "Bob Stone",
+      at: at(9, 9, 30),
+      text: "Same here",
+      mine: false,
+      replies: 2,
+      reactions: [{ name: "eyes", count: 1, mine: false, emoji: null }],
+    },
     { id: "c4", sender: "Ada Lovelace", at: at(10, 9, 0), text: "Next day", mine: false, avatar: ADA_FACE, unread: true, brought: true },
   ];
   const window: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };

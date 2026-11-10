@@ -86,12 +86,14 @@ function messageOf(event: JiraEvent, me: string, extra: Partial<ThreadMessage> =
 
 /**
  * What a card draws of a comment beyond its plain text (plan 090): its author's picture, its document as the Slack
- * card's blocks, and whether it mentions the person. A field change has none of these, so it is drawn by its text.
+ * card's blocks, and whether it mentions the person. A field change on the merged log carries its author's picture
+ * too, since it can start a run that the comments under it join, but no blocks or mention: it is drawn by its text.
  */
 function commentLook(event: JiraEvent, me: string): Partial<ThreadMessage> {
-  if (event.kind !== "comment") return {};
+  const face = event.author.avatar ? { avatar: event.author.avatar } : {};
+  if (event.kind !== "comment") return face;
   return {
-    ...(event.author.avatar ? { avatar: event.author.avatar } : {}),
+    ...face,
     body: adfBlocks(event.body),
     ...(me && adfText(event.body).mentions.includes(me) ? { mentions_me: true } : {}),
   };

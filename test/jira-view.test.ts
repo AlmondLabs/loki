@@ -207,12 +207,13 @@ describe("a Jira card's window of comments (KTD14)", () => {
     expect(messages[1]).not.toHaveProperty("mentions_me");
   });
 
-  test("a field change in the older merged log is read as before: no picture, no blocks, no mention flag (plan 090)", async () => {
+  test("a field change in the older merged log carries its author's picture, to start a run, but no blocks or mention flag (plan 090)", async () => {
     const s = site();
-    const h = s.change(1, STATUS("To Do", "Done"));
+    const avatar = "https://avatar-management.example/ada/48";
+    const h = s.change(1, STATUS("To Do", "Done"), { ...JIRA_ADA, avatar });
     const { messages } = await s.plain({ brought_ids: [h] });
     const change = messages.find((m) => m.id === h);
-    expect(change).toBeDefined();
+    expect(change).toMatchObject({ avatar });
     expect(change).not.toHaveProperty("body");
     expect(change).not.toHaveProperty("mentions_me");
   });
