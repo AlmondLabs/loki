@@ -389,7 +389,7 @@ export interface ReplyBoxControl {
 
 /**
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
- * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it with read; the
+ * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it alone (plan 083); the
  * phone's box keeps its own and sends with `onSend`. Shift-Enter starts a line; Esc hands the deck's keys back, or
  * closes the deck when the box is empty. A send that fails keeps the text and says why.
  */
@@ -627,7 +627,7 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
-          title={touch ? "send it as you, then archive the card" : nobody ? "add someone to send it to first" : "send it as you, and the card is read"}
+          title={touch ? "send it as you; the card stays" : nobody ? "add someone to send it to first" : "send it as you; the card stays for your next move"}
         >
           {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
         </Button>

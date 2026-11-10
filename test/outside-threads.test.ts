@@ -344,6 +344,13 @@ describe("the person's reply", () => {
     expect(sentMail).toHaveLength(1);
     expect(moves).toEqual([`dealt ${MAIL}/t1`, `archive ${MAIL}/t1`]);
   });
+  test("with stay, the reply is sent and nothing else moves (plan 083)", async () => {
+    const { t, posted, moves } = threads();
+    expect(await t.reply(SLACK, "D1", "on it", "stay")).toEqual({ sent: true, then_error: null, change: null });
+    expect(posted).toHaveLength(1);
+    expect(moves).toEqual([`dealt ${SLACK}/D1`]);
+  });
+
   test("with read, the reply is sent and the thread marked read, and the card does not end", async () => {
     const { t, sentMail, moves } = threads({ gmail: LUNCH });
     expect(await t.reply(MAIL, "t1", "Thanks.", "read")).toMatchObject({ sent: true, then_error: null, change: { move: "read", ended: false } });
@@ -491,7 +498,7 @@ describe("the reply frames", () => {
     });
     expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "snooze" })).toMatchObject({
       type: "error",
-      message: "then must be read, later or archive",
+      message: "then must be read, later, archive or stay",
     });
     expect(await ask()({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "archive" })).toMatchObject({
       type: "error",

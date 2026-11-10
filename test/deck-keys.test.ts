@@ -129,11 +129,43 @@ describe("⌘] and ⌘[ on a card", () => {
     await settle();
     expect(d.calls.filter((c) => c[0] === "reply")).toHaveLength(1);
   });
-  test("Enter in the box sends with read", async () => {
-    const d = deck([outsideItem("Lunch")], { text: "ok" });
+  test("⌘Enter in a mail's box sends it held for its undo, and the card stays on top (plan 083)", async () => {
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "ok", unsend: () => true });
+    d.moves().sendReply();
+    expect(d.state.box).toMatchObject({ text: "", held: { outbox_id: "o1", text: "ok", mail: null } });
+    await settle();
+    expect(d.calls).toEqual([["reply", "t1#1", "ok", "stay", { mail: null, outbox_id: "o1" }], ["sent"]]);
+    expect(d.state.box.held).toBeNull();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.flash).toEqual(["sending · z undo", "sent"]);
+  });
+  test("Z while a mail sent alone waits stops it and puts the words back, the card where it was", async () => {
+    let finish: (r: OutsideReplyResult) => void = () => {};
+    const waiting = new Promise<OutsideReplyResult>((r) => (finish = r));
+    const d = deck([outsideItem("Lunch"), attentionItem("c2")], { text: "ok", unsend: () => true, reply: waiting });
+    d.moves().sendReply();
+    d.moves().undo();
+    await settle();
+    expect(d.calls).toContainEqual(["unsend", "t1#1", "o1"]);
+    expect(d.state.box).toMatchObject({ text: "ok", held: null, error: null });
+    finish({ sent: false, error: null, undone: true });
+    await settle();
+    expect(d.state.box.text).toBe("ok");
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+    expect(d.state.flash).toEqual(["sending · z undo", "not sent"]);
+  });
+  test("Enter in a Slack card's box only sends: the card stays on top for the person's own next move (plan 083)", async () => {
+    const lunch = outsideItem("Lunch");
+    const slack = { ...lunch, outside: lunch.outside ? { ...lunch.outside, provider: "slack" as const, account_id: "slack:T1:U1" } : undefined };
+    const d = deck([slack, attentionItem("c2")], { text: "on it" });
     d.moves().sendReply();
     await settle();
-    expect(d.calls[0]).toEqual(["reply", "t1#1", "ok", "read"]);
+    expect(d.calls).toEqual([["reply", "t1#1", "on it", "stay"], ["sent"]]);
+    expect(d.state.box.text).toBe("");
+    expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.flash).toEqual(["sent"]);
   });
   test("the second ⌘[ on the same card opens the picker; picking tomorrow rests it until tomorrow", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")], { asks: true });

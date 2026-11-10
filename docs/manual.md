@@ -983,18 +983,20 @@ channel's other messages unread. Two gaps are known:
 **Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
 chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
 you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
-Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. The key you
-press with text in the box sends it first, then makes its own move, and the moves work from inside the box:
+Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. Either way the
+reply goes alone: the card stays where it is until you make the next move yourself, and on email Z stops the reply
+while it waits its 10 seconds. A move key pressed with text in the box sends it first, then makes its own move, and
+the moves work from inside the box:
 
-1. Enter on Slack, ⌘Enter on email, **send** or ⌘] sends the reply and the card rests as read.
+1. ⌘] sends the reply and the card rests as read.
 2. ⌘[ sends it and keeps the card: it comes back when they answer, or after the later time if they stay quiet. A
    Slack card waits the same way, whatever Slack's own read mark says meanwhile.
 3. ⌘E sends it and archives the thread (on Slack, marks it read), and the card ends.
 
 The box clears once the reply is sent. If the move after it fails, the card says so and the reply is not sent again
 when you press the key once more. A send that fails keeps your text, moves nothing, and says why. Undo after a reply
-takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
-this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+takes back the move only; the reply stays sent. On the phone, **Send** sends the reply alone too, and the card waits for
+your swipe. Only you send this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
 
 **Mention people.** Type @ and a few letters in the reply box to see the people who match; ↑ and ↓ move, Enter or Tab
 takes one, and Esc puts the list away. On a Slack card the list is your workspace's people, and a pick writes their

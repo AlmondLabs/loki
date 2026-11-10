@@ -557,6 +557,8 @@ const OUTSIDE_MOVES: ReadonlyArray<OutsideMove["action"]> = ["read", "later", "a
 const MOVE_VIAS: ReadonlyArray<NonNullable<OutsideMove["via"]>> = ["key", "click", "swipe", "tap"];
 const OUTSIDE_WRITES: readonly OutsideWrite[] = ["archive", "read", "unread", "label"];
 const REPLY_THENS: readonly ReplyThen[] = ["read", "later", "archive"];
+/** What a sent reply may be followed by: one of those moves, or none (plan 083). */
+const SEND_THENS: readonly ReplyThen[] = [...REPLY_THENS, "stay"];
 const MAIL_MODES: readonly MailMode[] = ["reply", "reply_all", "forward"];
 /** The most people a mail reply may go to: past Gmail's own limit nobody types on a card. */
 const MAX_RECIPIENTS = 100;
@@ -1326,15 +1328,15 @@ export const FRAMES = {
   ),
   account_thread_reply: request(
     "account_thread_replied",
-    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does; the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does, or makes none (`stay`, plan 083); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
         return "account_id, thread_id and text required";
       // An app or Mac from before plan 070 sends no move, and its reply archived the card then, so it still does. It
       // waits for the answer by its request_id, which the app's socket and the peer link match on, so the answer's
       // new name (account_thread_replied, where it awaited account_thread_archived) still reaches it.
-      const then = m.then === undefined ? "archive" : REPLY_THENS.find((t) => t === m.then);
-      if (!then) return "then must be read, later or archive";
+      const then = m.then === undefined ? "archive" : SEND_THENS.find((t) => t === m.then);
+      if (!then) return "then must be read, later, archive or stay";
       // Plan 076: how a mail reply is addressed, and the id its hold is undone by; both may be left out.
       const mail = parseMailAddressing(m.mail);
       if (typeof mail === "string") return mail;

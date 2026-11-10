@@ -245,11 +245,6 @@ export function undoCard(s: DeckState, item: AttentionItem, via: Via, wasHeld = 
   return { ...s, dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
 }
 
-/** Whether `item` was sent away in this pass at its current stamp, so a late reply's read does not count it again. */
-export function isDismissed(s: DeckState, item: AttentionItem): boolean {
-  return s.dismissed.get(idOf(item)) === stampOf(item);
-}
-
 /**
  * Which move on each card still stands, so a write-back that fails late brings the card back only for the move it
  * belongs to: not after Undo took that move back (the card is back already and the tally cleared), and not over a newer
