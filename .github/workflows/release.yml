@@ -107,6 +107,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -156,6 +158,12 @@ jobs:
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         with:
           args: --target universal-apple-darwin
+      # The build was the last step that signs: the steps after it publish, and get no Apple secret.
+      - name: drop the signing secrets
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            echo "$v=" >> "$GITHUB_ENV"
+          done
       # a new release at the merge, marked latest, or the rolling nightly
       - name: publish the release
         env:
@@ -242,6 +250,9 @@ jobs:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
@@ -275,6 +286,9 @@ jobs:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # npm ci runs every dependency's install script next: none of them finds a token in .git/config.
+          persist-credentials: false
       - name: linux build packages
         run: |
           sudo apt-get update

@@ -79,3 +79,22 @@ describe("an invite for a Mac being introduced (plan 023, addendum D4)", () => {
     }
   });
 });
+
+describe("a code typed on the other Mac", () => {
+  test("pairs one Mac: whoever else saw the code pairs nothing with it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-codes-"));
+    try {
+      const codes = new PairingCodes();
+      const store = new PeerStore(join(dir, "peers.json"));
+      const peers = new Peers({ store, keys: new PeerKeys(memorySecrets()), codes, me: () => BOOK });
+      const { code } = codes.mint();
+      // This Mac's own code back at it is refused and leaves the code for the Mac it was shown to.
+      expect((await peers.accept({ code, hello: BOOK, token: mintPeerToken() })).status).toBe(409);
+      expect((await peers.accept({ code, hello: MINI, token: mintPeerToken() })).status).toBe(200);
+      expect((await peers.accept({ code, hello: THIRD, token: mintPeerToken() })).status).toBe(404);
+      expect(store.get(THIRD.mac_id)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

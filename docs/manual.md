@@ -389,7 +389,8 @@ and tools; from the other Mac you open it, read it and write in it as if you sat
 
 **Pairing.** Install [Tailscale](https://tailscale.com/download) on both Macs and sign in to the same account; Macs
 reach each other over your tailnet only, never the Wi‑Fi or the internet. On one Mac open Preferences › Macs and press
-**show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. On the other Mac, in
+**show a code**: it shows six characters and that Mac's tailnet address, for ten minutes. A code pairs one Mac; show
+another for the next. On the other Mac, in
 Preferences › Macs, pick that Mac in the list of computers on your tailnet (which fills in its address, or type
 the address yourself), type the code and press **pair**. Each Mac now lists the other, with **connected**
 or when it was last seen, and **forget** on either side unpairs both. A Mac running another version of loki shows

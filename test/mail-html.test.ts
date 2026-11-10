@@ -34,6 +34,17 @@ describe("the frame's document for a mail", () => {
       expect(doc).not.toContain(gone);
   });
 
+  test("what the mail loads carries no referrer, whatever rule the mail brings of its own", () => {
+    const doc = mailDocument(
+      `<html><body><meta name="referrer" content="unsafe-url"><META content=unsafe-url NAME=referrer><img referrerpolicy="unsafe-url" src="https://x.example/a.png"><a href="https://x.example" ReferrerPolicy=unsafe-url>go</a></body></html>`,
+    );
+    expect(doc).toContain('<meta name="referrer" content="no-referrer">');
+    // The word appears twice in loki's own tag (its name and its value) and nowhere else.
+    expect(doc.match(/referrer/gi)).toHaveLength(2);
+    expect(doc).toContain('<img src="https://x.example/a.png">');
+    expect(doc).toContain('<a href="https://x.example">go</a>');
+  });
+
   test("a tag with no end tag, such as base, is taken out alone and leaves the rest of the mail", () => {
     const doc = mailDocument('<p>one</p><base href="https://evil.example/"><embed src="x.swf"><p>two</p>');
     expect(doc).toContain("<p>one</p><p>two</p>");

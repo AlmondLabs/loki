@@ -58,6 +58,7 @@ import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
+import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
@@ -374,7 +375,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   const outside = new OutsideThreads({
     accounts,
     threads,
-    outbox: { file: join(paths.state, "outbox.json") },
+    outbox: { file: join(paths.state, "outbox.json"), key: outboxKey(host.secrets) },
     people: mailPeople,
     slackPeople,
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },

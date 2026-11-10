@@ -5,7 +5,8 @@ import { randomInt } from "node:crypto";
  * A code lives ten minutes and may be redeemed more than once inside that window
  * (each redeem mints a new device): an iOS home-screen web app has its own cookie
  * jar, so the user pairs in Safari, adds to the Home Screen, and pairs the new
- * icon with the same code.
+ * icon with the same code. A code that pairs a Mac is the other kind: `spend` takes it out with its first use,
+ * since a paired Mac is trusted with far more than a phone.
  */
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 export { PAIRING_ALPHABET, PAIRING_LENGTH };
@@ -49,6 +50,16 @@ export class PairingCodes {
     if (key.length !== PAIRING_LENGTH) return false;
     const expires = this.codes.get(key);
     return expires !== undefined && expires > this.now();
+  }
+
+  /**
+   * `redeem`, and the code is gone: for pairing a Mac, where one code lets in one Mac. A paired Mac receives this
+   * Mac's mods and MCP servers, so a code someone else saw must not pair a second one.
+   */
+  spend(code: string): boolean {
+    const ok = this.redeem(code);
+    if (ok) this.codes.delete(normalize(code));
+    return ok;
   }
 
   private prune(): void {

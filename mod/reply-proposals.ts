@@ -3,6 +3,7 @@ import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
 import type { AccountProvider, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
 import type { ChatState, ReplyAction } from "../core/frames.ts";
+import { splitMailboxes } from "../core/mail-header.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
 import { ownedAccount } from "./account-tools.ts";
@@ -116,22 +117,7 @@ export const headerOf = (m: GmailMessage | undefined, name: string): string =>
 
 /** An address header's people, each as written ("Grace <grace@acme.com>") and by its bare address, lower case. */
 function people(header: string): Array<{ text: string; address: string }> {
-  const parts: string[] = [];
-  let current = "";
-  let quoted = false;
-  let angle = false;
-  for (const ch of header) {
-    if (ch === '"') quoted = !quoted;
-    else if (!quoted && ch === "<") angle = true;
-    else if (!quoted && ch === ">") angle = false;
-    if (ch === "," && !quoted && !angle) {
-      parts.push(current);
-      current = "";
-    } else current += ch;
-  }
-  parts.push(current);
-  return parts.flatMap((part) => {
-    const text = part.replace(/\s+/g, " ").trim();
+  return splitMailboxes(header).flatMap((text) => {
     // The address is the last <…>: a display name may hold angle brackets of its own, quoted.
     const address = ([...text.matchAll(/<([^<>]+)>/g)].at(-1)?.[1] ?? text).trim().toLowerCase();
     return address.includes("@") ? [{ text, address }] : [];

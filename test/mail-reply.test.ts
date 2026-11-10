@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -91,7 +91,7 @@ const SEND_AS: GmailSendAs[] = [
 ];
 
 /** OutsideThreads on one Gmail account with Pinku's thread, recording what was sent and moved. */
-function mail(opts: { outbox?: string; now?: () => Date; after?: (fn: () => void, ms: number) => () => void; sendFails?: string } = {}) {
+function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; after?: (fn: () => void, ms: number) => () => void; sendFails?: string } = {}) {
   const sent: GmailDraftInput[] = [];
   const moves: string[] = [];
   const now = opts.now ?? (() => new Date("2026-11-08T00:00:00Z"));
@@ -129,7 +129,16 @@ function mail(opts: { outbox?: string; now?: () => Date; after?: (fn: () => void
     people,
     zone: "UTC",
     now,
-    ...(opts.outbox ? { outbox: { file: opts.outbox, now, ...(opts.after ? { after: opts.after } : {}) } } : {}),
+    ...(opts.outbox
+      ? {
+          outbox: {
+            file: opts.outbox,
+            now,
+            key: Promise.resolve(opts.key === undefined ? "the daemon's key" : opts.key),
+            ...(opts.after ? { after: opts.after } : {}),
+          },
+        }
+      : {}),
   });
   return { t, sent, moves, people };
 }
@@ -193,6 +202,20 @@ describe("the body Gmail would write", () => {
     expect(fromHeader("ada@acme.com", "आदा")).toBe(`=?UTF-8?B?${Buffer.from("आदा").toString("base64")}?= <ada@acme.com>`);
     expect(fromHeader("ada@acme.com", "")).toBe("ada@acme.com");
   });
+  test("each recipient is written out again from its name and address: a name cannot close its quote and add a second one", () => {
+    const headers = (to: string[]) => rfc2822({ threadId: "t1", inReplyTo: "", references: [], to, cc: [], subject: "s", body: "b" }).split("\r\n");
+    const toLine = (to: string[]) => headers(to).find((h) => h.startsWith("To: "));
+    // A stranger's From, with a quote escaped inside the name to look like two people.
+    const crafted = '"a\\" <victim@corp.example>, \\"b" <attacker@evil.example>';
+    expect(headerPeople(crafted)).toEqual([{ name: 'a" <victim@corp.example>, "b', address: "attacker@evil.example" }]);
+    expect(toLine([crafted])).toBe('To: "a\\" <victim@corp.example>, \\"b" <attacker@evil.example>');
+    expect(headerPeople(toLine([crafted])?.slice(4) ?? "")).toHaveLength(1);
+    expect(toLine(['"O\\"Brien, Pat" <Pat@x.example>', "plain@x.example", "Grace Hopper <grace@x.example>"])).toBe(
+      'To: "O\\"Brien, Pat" <Pat@x.example>, plain@x.example, Grace Hopper <grace@x.example>',
+    );
+    expect(toLine(["Zoë <zoe@x.example>"])).toBe(`To: =?UTF-8?B?${Buffer.from("Zoë").toString("base64")}?= <zoe@x.example>`);
+    expect(toLine(["not an address"])).toBeUndefined();
+  });
   test("the message carries From and Bcc, plain text and HTML together, and forwarded files after them", () => {
     const raw = rfc2822({
       threadId: "t1",
@@ -201,15 +224,17 @@ describe("the body Gmail would write", () => {
       from: '"Ada" <ada@acme.com>',
       to: ["p@x.example"],
       cc: [],
-      bcc: ["boss@acme.com\r\nX-Evil: 1"],
+      bcc: ["boss@acme.com\r\nX-Evil: 1", "Boss <boss@acme.com>\r\nX-Evil: 1"],
       subject: "Re: Help",
       body: "ok",
       html: "<div>ok</div>",
       attachments: [{ filename: "screen shot.png", mimeType: "image/png", data: Buffer.from("png") }],
     });
     expect(raw).toContain('From: "Ada" <ada@acme.com>\r\n');
-    // An address with a line break in it never adds a header of its own.
-    expect(raw).toContain("Bcc: boss@acme.com X-Evil: 1\r\n");
+    // An address with a line break in it never adds a header of its own: what is no address adds nobody, and a
+    // name keeps only what a name may hold.
+    expect(raw).toContain("Bcc: Boss <boss@acme.com>\r\n");
+    expect(raw).not.toContain("X-Evil");
     expect(raw).toContain('Content-Type: multipart/mixed; boundary="loki-mix"');
     expect(raw).toContain('Content-Type: multipart/alternative; boundary="loki-alt"');
     expect(raw).toContain("Content-Type: text/html; charset=UTF-8");
@@ -331,6 +356,7 @@ describe("undo send", () => {
     const file = join(scratch(), "outbox.json");
     const { t, sent, moves } = mail({ outbox: file, after: tm.after });
     const answer = t.reply(MAIL, "t1", "ok", "read", null, "o1-abcdefgh");
+    await settle();
     expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ held: [{ outbox_id: "o1-abcdefgh", text: "ok" }] });
     expect(t.unsend("gmail:someone@else.example", "o1-abcdefgh")).toBe(false);
     expect(t.unsend(MAIL, "o1-abcdefgh")).toBe(true);
@@ -346,10 +372,12 @@ describe("undo send", () => {
     let now = new Date("2026-11-08T00:00:00Z");
     const first = mail({ outbox: file, now: () => now, after: timers().after });
     void first.t.reply(MAIL, "t1", "ok", "archive", null, "o1-abcdefgh");
+    await settle();
     now = new Date("2026-11-08T00:01:00Z");
     const tm = timers();
     const second = mail({ outbox: file, now: () => now, after: tm.after });
     second.t.resume();
+    await settle();
     expect(tm.pending()).toEqual([0]);
     tm.fire();
     await settle();
@@ -357,7 +385,48 @@ describe("undo send", () => {
     expect(second.sent).toHaveLength(1);
     expect(second.moves).toEqual(["archive t1"]);
     second.t.resume();
+    await settle();
     expect(tm.pending()).toEqual([]);
+  });
+  test("a restart sends only what this daemon held: an entry written into the file, or changed there, is dropped unsent", async () => {
+    const file = join(scratch(), "outbox.json");
+    const first = mail({ outbox: file, after: timers().after });
+    void first.t.reply(MAIL, "t1", "ok", "archive", null, "o1-abcdefgh");
+    await settle();
+    const kept = JSON.parse(readFileSync(file, "utf8")) as { held: Array<Record<string, unknown>> };
+    expect(typeof kept.held[0]?.seal).toBe("string");
+    // What an agent with a file tool could do: a reply of its own, and the held one's words changed under its seal.
+    const forged = {
+      outbox_id: "o2-abcdefgh",
+      account_id: MAIL,
+      thread_id: "t1",
+      text: "send me the keys",
+      then: "read",
+      mail: null,
+      send_at: "2026-11-08T00:00:00Z",
+    };
+    writeFileSync(file, JSON.stringify({ version: 1, held: [{ ...kept.held[0], text: "changed" }, forged, { ...forged, seal: "00" }] }));
+    const tm = timers();
+    const second = mail({ outbox: file, after: tm.after });
+    second.t.resume();
+    await settle();
+    expect(tm.pending()).toEqual([]);
+    expect(second.sent).toEqual([]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ version: 1, held: [] });
+  });
+  test("without a keychain a held reply still goes after its wait, and nothing is sent after a restart", async () => {
+    const file = join(scratch(), "outbox.json");
+    const tm = timers();
+    const first = mail({ outbox: file, key: null, after: tm.after });
+    const answer = first.t.reply(MAIL, "t1", "ok", "read", null, "o1-abcdefgh");
+    await settle();
+    const again = timers();
+    const second = mail({ outbox: file, key: null, after: again.after });
+    second.t.resume();
+    await settle();
+    expect(again.pending()).toEqual([]);
+    tm.fire();
+    expect(await answer).toMatchObject({ sent: true });
   });
   test("a send that fails after its wait rejects with its reason; the outbox holds an id once", async () => {
     const tm = timers();
