@@ -29,6 +29,7 @@ import type {
   OutsideWindowAsk,
   ReplyProposal,
   ReplyThen,
+  EmojiChoice,
   MailAddressing,
   MailCompose,
   Suggestion,
@@ -940,6 +941,21 @@ export class ChatStore {
     const o = card.outside;
     if (o?.provider !== "gmail") return "this card is not a mail";
     return this.attempt((c) => c.composeOutside(o.account_id, o.thread_id, card.home ?? null));
+  };
+
+  /** Add or take back the person's reaction on a Slack card's message (plan 079): null when done, else why not. */
+  reactOutside = async (card: Pick<ConversationInfo, "outside" | "home">, messageId: string, name: string, on: boolean): Promise<string | null> => {
+    const o = card.outside;
+    if (o?.provider !== "slack") return "only a Slack message takes a reaction";
+    const r = await this.attempt((c) => c.reactOutside(o.account_id, o.thread_id, messageId, name, on, card.home ?? null));
+    return typeof r === "string" ? r : null;
+  };
+
+  /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
+  searchEmoji = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<EmojiChoice[] | string> => {
+    const o = card.outside;
+    if (o?.provider !== "slack") return "only a Slack message takes a reaction";
+    return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
   };
 
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */

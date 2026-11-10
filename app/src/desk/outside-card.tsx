@@ -1,6 +1,7 @@
 import type {
   AccountDisconnectCause,
   AccountProvider,
+  EmojiChoice,
   MailAddressing,
   MailCompose,
   OutsideFacts,
@@ -21,6 +22,7 @@ import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, startAddressing } from "./mail-address";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
+import { toggleReaction } from "./slack-reactions";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -88,7 +90,17 @@ export interface ThreadControls {
   back?: () => void;
   /** The side a load is reading now. */
   busy: "before" | "after" | null;
+  /**
+   * Add the person's reaction to a message, or take it back (plan 079): the pill changes at once and goes back if Slack
+   * refuses. Absent where the card cannot react (a source without it).
+   */
+  react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
+  /** The emoji the account can react with whose names hold `query`; empty when they could not be read. */
+  searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
 }
+
+/** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
+export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji">;
 
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
 export type ThreadState =
@@ -117,7 +129,7 @@ const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
  * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
  * its newest message changes (R15).
  */
-export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource, "readOutside"> | null): ThreadState {
+export function useOutsideThread(item: AttentionItem, source: OutsideThreadSource | null): ThreadState {
   const o = item.outside;
   const key = o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
   // The thread the person opened from the channel view, for this card only; another card starts on its own view.
@@ -171,11 +183,25 @@ export function useOutsideThread(item: AttentionItem, source: Pick<OutsideSource
       }),
     );
   };
+  // A reaction shows at once on what the card holds; a refusal puts the message's pills back as they were.
+  const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
+    setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
+  const reactOutside = source?.reactOutside;
+  const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
+    if (!reactOutside) return;
+    setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
+    void reactOutside(item, messageId, choice.name, on).then((refused) => {
+      if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
+    });
+  };
+  const search = source?.searchEmoji;
   const controls: ThreadControls = {
     load,
     openThread: (ts) => setOpened({ key, threadTs: ts }),
     ...(threadTs ? { back: () => setOpened(null) } : {}),
     busy: shown.busy,
+    ...(reactOutside ? { react } : {}),
+    ...(search ? { searchEmoji: (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) } : {}),
   };
   return { kind: "read", messages: shown.messages, window: w, controls };
 }
@@ -738,8 +764,8 @@ export function OutsideCard({
   onHandoff?: () => void;
   /** The picker open on the card, the hand-off's, the return time's or the labels'. */
   picker?: ReactNode;
-  /** Reading the thread; absent, the card shows its last lines. */
-  source?: Pick<OutsideSource, "readOutside"> | null;
+  /** Reading the thread, and reacting on a Slack card (plan 079); absent, the card shows its last lines. */
+  source?: OutsideThreadSource | null;
   /** The reply box, as the deck holds it; absent, the card has no reply box. */
   box?: ReplyBoxControl;
   replyRef?: RefObject<HTMLTextAreaElement | null>;

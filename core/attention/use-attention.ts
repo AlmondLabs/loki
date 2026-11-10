@@ -37,6 +37,7 @@ import type { PayloadOf } from "../frames.ts";
 import type {
   AccountLabel,
   HandoffProposal,
+  EmojiChoice,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -168,6 +169,10 @@ export interface OutsideSource {
   composeOutside?: (item: AttentionItem) => Promise<MailCompose | string>;
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped. */
   unsendOutside?: (item: AttentionItem, outboxId: string) => Promise<boolean>;
+  /** Add or take back the person's reaction on a Slack card's message (plan 079): null when done, else why not. */
+  reactOutside?: (item: AttentionItem, messageId: string, name: string, on: boolean) => Promise<string | null>;
+  /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
+  searchEmoji?: (item: AttentionItem, query: string) => Promise<EmojiChoice[] | string>;
 }
 
 /** What a mail reply carries beside its text (plan 076): how it is addressed (null for reply all) and the id its hold is undone by. */
@@ -910,6 +915,8 @@ export function useAttention(opts: UseAttentionOptions) {
     readOutside: store.readOutside,
     composeOutside: store.composeOutside,
     unsendOutside: store.unsendOutside,
+    reactOutside: store.reactOutside,
+    searchEmoji: store.searchEmoji,
     replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,

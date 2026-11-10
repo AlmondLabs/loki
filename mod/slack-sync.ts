@@ -4,6 +4,7 @@ import type { OutsideChange } from "../core/frame-types.ts";
 import type { AccountThreads, ObservedMessage, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import { log } from "./log.ts";
+import { filePlain, slackFiles } from "./slack-markup.ts";
 import { slackReach } from "../core/outside-reach.ts";
 import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackClient, type SlackCount, type SlackMessage } from "./slack.ts";
 
@@ -356,7 +357,8 @@ export class SlackSync {
     const at = newest ? tsIso(newest.ts) : null;
     if (!newest || !at) return null;
     const lines: string[] = [];
-    for (const m of list.slice(-3)) lines.push(await this.plain(m.text));
+    // A message of only a file has no words, so its files name it (plan 080).
+    for (const m of list.slice(-3)) lines.push([await this.plain(m.text), ...slackFiles(m).map(filePlain)].filter(Boolean).join("\n"));
     return {
       thread_id: c.thread_id,
       message_id: newest.ts,

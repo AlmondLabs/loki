@@ -1,5 +1,5 @@
 import shortcodes from "emojibase-data/en/shortcodes/iamcal.json" with { type: "json" };
-import type { SlackAttachment, SlackBlock, SlackSpan } from "../core/frame-types.ts";
+import type { EmojiChoice, SlackAttachment, SlackBlock, SlackFile, SlackSpan } from "../core/frame-types.ts";
 import type { SlackMessage } from "./slack.ts";
 
 /**
@@ -34,6 +34,51 @@ function emojiSpan(name: string, tone: string | undefined, names: SlackNames, de
   if (char === undefined) return null;
   // Skin tones 2–6 are the five modifiers from U+1F3FB, which follow the emoji in place of its selector.
   return { kind: "emoji", text: tone ? char.replace("️", "") + String.fromCodePoint(0x1f3fb + Number(tone) - 2) : char };
+}
+
+/**
+ * The emoji a reaction's name draws as (plan 079): Slack names a skin tone after `::` (`+1::skin-tone-2`); null when
+ * the name is neither standard nor the workspace's own.
+ */
+export function reactionEmoji(name: string, names: Pick<SlackNames, "emoji">): Extract<SlackSpan, { kind: "emoji" }> | null {
+  const [base = "", tone] = name.split("::skin-tone-");
+  const span = emojiSpan(base, tone, { person: () => Promise.resolve(""), ...names });
+  return span?.kind === "emoji" ? span : null;
+}
+
+/** How well an emoji's name answers a search: a whole match, then its start, then a word's start in it, then anywhere. */
+function matchRank(name: string, query: string): number | null {
+  if (name === query) return 0;
+  if (name.startsWith(query)) return 1;
+  if (name.split(/[_-]/).some((w) => w.startsWith(query))) return 2;
+  return name.includes(query) ? 3 : null;
+}
+
+/**
+ * The emoji whose names hold `query` (plan 079), standard and the workspace's own (`own`, as emoji.list gives them),
+ * the best `limit` matches first, shorter names before longer ones. Names Slack keeps as another's alias draw as it.
+ */
+export function searchEmoji(query: string, own: Record<string, string>, limit = 24): EmojiChoice[] {
+  const q = query.trim().toLowerCase().replace(/^:|:$/g, "");
+  if (!q) return [];
+  const found: Array<{ name: string; rank: number }> = [];
+  for (const name of new Set([...STANDARD.keys(), ...Object.keys(own)])) {
+    const rank = matchRank(name, q);
+    if (rank !== null) found.push({ name, rank });
+  }
+  found.sort((a, b) => a.rank - b.rank || a.name.length - b.name.length || a.name.localeCompare(b.name));
+  const out: EmojiChoice[] = [];
+  const shown = new Set<string>();
+  for (const { name } of found) {
+    const emoji = reactionEmoji(name, { emoji: (n) => own[n] ?? null });
+    // One emoji has many names in Slack (+1, thumbsup); the best-matching one stands for it.
+    const key = emoji?.image ?? emoji?.text;
+    if (!emoji || !key || shown.has(key)) continue;
+    shown.add(key);
+    out.push({ name, emoji });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 const decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
@@ -226,12 +271,71 @@ function attachmentPlain(a: SlackAttachment): string {
   return lines.join("\n");
 }
 
-/** A message read whole: its blocks, what an app attached, and both as plain text (plan 075). */
+/** Where a shared picture's thumbnail is (plan 080): Slack's address for it, and its size in pixels. */
+export interface SlackThumb {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * The files shared in a message (plan 080), read from its `files`: each by its title, kind, size and page in Slack,
+ * and for a picture where its thumbnail is. A file deleted since, or hidden by the workspace's plan, is kept as just
+ * that, so a message of only a file is not an empty row.
+ */
+export function slackFileParts(m: Pick<SlackMessage, "raw">): Array<{ file: SlackFile; thumb: SlackThumb | null }> {
+  const raw = m.raw.files;
+  if (!Array.isArray(raw)) return [];
+  const parts: Array<{ file: SlackFile; thumb: SlackThumb | null }> = [];
+  for (const f of raw as unknown[]) {
+    if (typeof f !== "object" || f === null) continue;
+    const o = f as Record<string, unknown>;
+    const text = (k: string) => (typeof o[k] === "string" && o[k] ? o[k] : null);
+    if (o.mode === "tombstone" || o.mode === "hidden_by_limit") {
+      parts.push({ file: { name: "", kind: null, size: null, link: null, gone: o.mode === "tombstone" ? "deleted" : "hidden" }, thumb: null });
+      continue;
+    }
+    const link = text("permalink");
+    const file: SlackFile = {
+      name: text("title") ?? text("name") ?? "file",
+      kind: text("pretty_type") ?? text("filetype")?.toUpperCase() ?? null,
+      size: typeof o.size === "number" && o.size >= 0 ? o.size : null,
+      link: link?.startsWith("https://") ? link : null,
+    };
+    parts.push({ file, thumb: text("mimetype")?.startsWith("image/") ? thumbOf(o) : null });
+  }
+  return parts;
+}
+
+/** A picture's 360-pixel thumbnail, else its 160-pixel one, with its size; null when Slack made none. */
+function thumbOf(o: Record<string, unknown>): SlackThumb | null {
+  for (const size of ["360", "160"]) {
+    const url = o[`thumb_${size}`];
+    const width = o[`thumb_${size}_w`];
+    const height = o[`thumb_${size}_h`];
+    if (typeof url === "string" && url && typeof width === "number" && typeof height === "number" && width > 0 && height > 0) return { url, width, height };
+  }
+  return null;
+}
+
+/** The files shared in a message (plan 080), without where their thumbnails are. */
+export function slackFiles(m: Pick<SlackMessage, "raw">): SlackFile[] {
+  return slackFileParts(m).map((p) => p.file);
+}
+
+/** A shared file as a line of plain text, for the phone, a hand-off and a card's header. */
+export function filePlain(f: SlackFile): string {
+  if (f.gone) return f.gone === "deleted" ? "file: deleted" : "file: hidden by the workspace's plan";
+  return `file: ${f.name}`;
+}
+
+/** A message read whole: its blocks, what an app attached, the files shared in it, and all of it as plain text (plans 075, 080). */
 export async function readSlackMessage(
   m: Pick<SlackMessage, "text" | "raw">,
   names: SlackNames,
-): Promise<{ body: SlackBlock[]; attachments: SlackAttachment[]; text: string }> {
+): Promise<{ body: SlackBlock[]; attachments: SlackAttachment[]; files: SlackFile[]; text: string }> {
   const [body, attachments] = await Promise.all([slackBlocks(messageMarkup(m), names), slackAttachments(m, names)]);
-  const text = [blocksPlain(body), ...attachments.map(attachmentPlain)].filter(Boolean).join("\n").trim();
-  return { body, attachments, text };
+  const files = slackFiles(m);
+  const text = [blocksPlain(body), ...attachments.map(attachmentPlain), ...files.map(filePlain)].filter(Boolean).join("\n").trim();
+  return { body, attachments, files, text };
 }

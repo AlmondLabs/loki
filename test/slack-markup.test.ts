@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { SlackNames } from "../mod/slack-markup.ts";
-import { messageMarkup, readSlackMessage, slackAttachments, slackBlocks } from "../mod/slack-markup.ts";
+import { messageMarkup, reactionEmoji, readSlackMessage, searchEmoji, slackAttachments, slackBlocks, slackFileParts } from "../mod/slack-markup.ts";
 
 /** A Slack message read the way Slack draws it (plan 075). */
 
@@ -115,5 +115,81 @@ describe("what an app posts", () => {
     expect(a.fields?.[0].title).toBe("Reviewers");
     const read = await readSlackMessage({ text: "Please review this PR", raw }, names);
     expect(read.text).toBe("Please review this PR\nNew pull request\nFix the <card> (https://github.test/pr/1)\nCloses 🐛\nReviewers: @Vedansh Kapoor");
+  });
+});
+
+describe("the emoji a reaction draws and the person can pick (plan 079)", () => {
+  const OWN: Record<string, string> = { shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" };
+  const own = (n: string): string | null => (Object.hasOwn(OWN, n) ? OWN[n] : null);
+
+  test("a reaction's name is a standard emoji, its skin tone after ::, or the workspace's own image; an unknown one is null", () => {
+    expect(reactionEmoji("eyes", {})).toEqual({ kind: "emoji", text: "👀" });
+    expect(reactionEmoji("+1::skin-tone-2", {})).toEqual({ kind: "emoji", text: "👍\u{1F3FB}" });
+    expect(reactionEmoji("ship_it", { emoji: own })).toEqual({ kind: "emoji", text: ":shipit:", image: OWN.shipit });
+    expect(reactionEmoji("not_an_emoji_anywhere", {})).toBeNull();
+  });
+
+  test("a search finds names holding the query, a whole match first, the workspace's own included, each emoji once", () => {
+    const ship = searchEmoji("ship", OWN);
+    expect(ship[0]).toEqual({ name: "ship", emoji: { kind: "emoji", text: "🚢" } });
+    expect(ship.filter((c) => c.emoji.image === OWN.shipit)).toEqual([{ name: "shipit", emoji: { kind: "emoji", text: ":shipit:", image: OWN.shipit } }]);
+    expect(searchEmoji(":eyes:", {})[0]?.name).toBe("eyes");
+    expect(searchEmoji("thumbsup", {}).map((c) => c.emoji.text)).toContain("👍");
+    expect(searchEmoji("  ", OWN)).toEqual([]);
+    expect(searchEmoji("e", {}, 5)).toHaveLength(5);
+  });
+});
+
+describe("the files shared in a message (plan 080)", () => {
+  const files = [
+    { title: "Invoice March", name: "invoice.pdf", pretty_type: "PDF", size: 120_000, permalink: "https://acme.slack.test/files/U1/F1/invoice.pdf" },
+    { name: "photo.png", filetype: "png", permalink: "slack://file?id=F2" },
+    { mode: "tombstone" },
+    { mode: "hidden_by_limit" },
+    "not a file",
+  ];
+
+  test("each file comes with its title, kind, size and page in Slack; a deleted or hidden one says only that", async () => {
+    const read = await readSlackMessage({ text: "", raw: { files } }, names);
+    expect(read.files).toEqual([
+      { name: "Invoice March", kind: "PDF", size: 120_000, link: "https://acme.slack.test/files/U1/F1/invoice.pdf" },
+      { name: "photo.png", kind: "PNG", size: null, link: null },
+      { name: "", kind: null, size: null, link: null, gone: "deleted" },
+      { name: "", kind: null, size: null, link: null, gone: "hidden" },
+    ]);
+    // A message of only files is not empty as plain text, for the phone and a hand-off.
+    expect(read.text).toBe("file: Invoice March\nfile: photo.png\nfile: deleted\nfile: hidden by the workspace's plan");
+  });
+
+  test("a message with no files has none", async () => {
+    expect((await readSlackMessage({ text: "hi", raw: {} }, names)).files).toEqual([]);
+  });
+
+  test("a picture says where its thumbnail is, the 360-pixel one first; other files and pictures without one say none", () => {
+    const parts = slackFileParts({
+      raw: {
+        files: [
+          {
+            name: "a.png",
+            mimetype: "image/png",
+            thumb_360: "https://files.slack.com/a_360.png",
+            thumb_360_w: 360,
+            thumb_360_h: 200,
+            thumb_160: "https://files.slack.com/a_160.png",
+            thumb_160_w: 160,
+            thumb_160_h: 89,
+          },
+          { name: "b.jpg", mimetype: "image/jpeg", thumb_160: "https://files.slack.com/b_160.jpg", thumb_160_w: 120, thumb_160_h: 160 },
+          { name: "c.png", mimetype: "image/png" },
+          { name: "d.pdf", mimetype: "application/pdf", thumb_360: "https://files.slack.com/d_360.png", thumb_360_w: 360, thumb_360_h: 480 },
+        ],
+      },
+    });
+    expect(parts.map((p) => p.thumb)).toEqual([
+      { url: "https://files.slack.com/a_360.png", width: 360, height: 200 },
+      { url: "https://files.slack.com/b_160.jpg", width: 120, height: 160 },
+      null,
+      null,
+    ]);
   });
 });

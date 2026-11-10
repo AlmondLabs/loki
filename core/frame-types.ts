@@ -343,6 +343,10 @@ export interface OutsideMessage {
    * could not be counted. The card offers to open that thread.
    */
   new_replies?: number | true;
+  /** A Slack message's reactions as Slack shows them under it (plan 079), in Slack's order; absent when it has none. */
+  reactions?: SlackReaction[];
+  /** The files shared in a Slack message (plan 080), shown as chips under it; absent when it has none. */
+  slack_files?: SlackFile[];
   /** A mail's To and Cc headers as written (plan 078), for its header line; absent for Slack and from an older loki. */
   to?: string;
   cc?: string;
@@ -399,6 +403,24 @@ export type SlackSpan =
   | { kind: "mention"; text: string }
   | { kind: "emoji"; text: string; image?: string };
 
+/**
+ * One emoji reaction on a Slack message (plan 079): Slack's name for it (`eyes`, `+1::skin-tone-2`), how many people
+ * reacted with it, whether the person is one of them, and the emoji to draw, a character or the workspace's own image;
+ * null when loki does not know the name, so the card shows `:name:`.
+ */
+export interface SlackReaction {
+  name: string;
+  count: number;
+  mine: boolean;
+  emoji: Extract<SlackSpan, { kind: "emoji" }> | null;
+}
+
+/** An emoji the person can react with (plan 079): Slack's name for it and how it draws. */
+export interface EmojiChoice {
+  name: string;
+  emoji: Extract<SlackSpan, { kind: "emoji" }>;
+}
+
 /** A paragraph of a Slack message (plan 075): ordinary lines, a `>` quote, or a code block. */
 export interface SlackBlock {
   kind: "text" | "quote" | "code";
@@ -415,6 +437,24 @@ export interface SlackAttachment {
   body?: SlackBlock[];
   fields?: Array<{ title: string; value: SlackBlock[] }>;
   color?: string;
+}
+
+/**
+ * A file shared in a Slack message (plan 080): its title, the kind Slack names it ("PDF", "PNG"), its size in bytes and
+ * its page in Slack, each null when Slack gave none, and a picture's thumbnail. A file deleted since, or hidden by the
+ * workspace's plan, keeps only that `gone` reason.
+ */
+export interface SlackFile {
+  name: string;
+  kind: string | null;
+  size: number | null;
+  link: string | null;
+  gone?: "deleted" | "hidden";
+  /**
+   * A picture's thumbnail as the card draws it: the name its account's Mac saved it under, served as a message's
+   * pictures are (`/chat-images/<name>`, plan 029), and its size in pixels; absent for any other file.
+   */
+  preview?: { name: string; width: number; height: number };
 }
 
 /** The chat a hand-off proposes (plan 067, KTD12): one of the owner's chats, or a new chat with it by this title. */

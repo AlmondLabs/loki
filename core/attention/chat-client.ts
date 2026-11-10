@@ -3,6 +3,7 @@ import type { InputOf, ReplyAction, ReplyOf, RequestName, RequestResult, Suggest
 import type {
   AccountLabel,
   HandoffProposal,
+  EmojiChoice,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -62,6 +63,8 @@ export type ChatClient = Pick<
   | "replyOutside"
   | "composeOutside"
   | "unsendOutside"
+  | "reactOutside"
+  | "searchEmoji"
   | "moveOutside"
   | "handoff"
   | "updateModel"
@@ -333,6 +336,17 @@ export class FrameChatClient {
   async composeOutside(accountId: string, threadId: string, home: string | null): Promise<MailCompose> {
     const r = await this.call("account_thread_compose", { account_id: accountId, thread_id: threadId, home }, 30_000);
     return { modes: r.modes, from: r.from, default_from: r.default_from, subject: r.subject, people: r.people };
+  }
+
+  /** Add the person's reaction to a Slack card's message, or take it back (plan 079), on the Mac its account lives on. */
+  async reactOutside(accountId: string, threadId: string, messageId: string, name: string, on: boolean, home: string | null): Promise<void> {
+    await this.call("account_thread_react", { account_id: accountId, thread_id: threadId, message_id: messageId, name, on, home });
+  }
+
+  /** The emoji a Slack account can react with whose names hold `query` (plan 079), from the Mac it lives on. */
+  async searchEmoji(accountId: string, query: string, home: string | null): Promise<EmojiChoice[]> {
+    const r = await this.call("account_emoji_search", { account_id: accountId, query, home });
+    return r.emoji;
   }
 
   /** Stop a held mail reply before it goes (plan 076); false when it already went. */

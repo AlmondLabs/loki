@@ -2,6 +2,7 @@ import { messageOf } from "../core/errors.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import type {
   AccountProvider,
+  EmojiChoice,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -22,6 +23,7 @@ import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { headerOf, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
+import { searchEmoji } from "./slack-markup.ts";
 
 /**
  * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
@@ -35,8 +37,8 @@ import { SlackError, type SlackClient } from "./slack.ts";
  */
 export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
 
-/** What sending a reply needs of Slack: the post. */
-export type SendSlack = Pick<SlackClient, "postReply">;
+/** What the person's own Slack moves need: the post, a reaction, and the workspace's emoji to pick one from (plan 079). */
+export type SendSlack = Pick<SlackClient, "postReply" | "react" | "emojiList">;
 
 /** One account's sending client. */
 export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: "slack"; client: SendSlack };
@@ -80,6 +82,8 @@ const MAX_FORWARD_BYTES = 17 * 1024 * 1024;
 export class OutsideThreads {
   private readonly opts: OutsideThreadsOptions;
   private readonly outbox: MailOutbox | null;
+  /** Each Slack account's own emoji, read once while loki runs for the emoji search; a failed read is tried again. */
+  private readonly ownEmoji = new Map<string, Promise<Record<string, string>>>();
 
   constructor(opts: OutsideThreadsOptions) {
     this.opts = opts;
@@ -114,6 +118,41 @@ export class OutsideThreads {
       subject: headerOf(newest, "Subject") || headerOf(thread.messages.at(0), "Subject"),
       people,
     };
+  }
+
+  /**
+   * Add the person's emoji reaction to a message on a Slack card, or take it back (plan 079). Like a reply, only the
+   * person's own frame reaches this; agents never react. It moves nothing on the card.
+   */
+  async react(accountId: string, threadId: string, messageId: string, name: string, on: boolean): Promise<void> {
+    const sender = this.slackSender(accountId);
+    const { channel } = slackPlace(threadId);
+    await sender.react({ channel, ts: messageId, name, on });
+    log("outside:reacted", { provider: "slack", on });
+  }
+
+  /** The emoji a Slack account can react with whose names hold `query`, the workspace's own included (plan 079). */
+  async searchEmoji(accountId: string, query: string): Promise<EmojiChoice[]> {
+    const sender = this.slackSender(accountId);
+    let own = this.ownEmoji.get(accountId);
+    if (!own) {
+      own = sender.emojiList().catch(() => {
+        this.ownEmoji.delete(accountId);
+        return {};
+      });
+      this.ownEmoji.set(accountId, own);
+    }
+    return searchEmoji(query, await own);
+  }
+
+  /** A connected Slack account's own client, or why there is none. */
+  private slackSender(accountId: string): SendSlack {
+    const account = this.need(accountId);
+    if (account.provider !== "slack") throw new Error("only a Slack message takes a reaction");
+    if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
+    const sender = this.opts.clientFor(account);
+    if (sender.provider !== "slack") throw new Error("only a Slack message takes a reaction");
+    return sender.client;
   }
 
   /** Stop a held mail reply before it goes (plan 076); false when it already went or was never held here. */
@@ -162,6 +201,8 @@ export class OutsideThreads {
       ...(m.attachments?.length ? { attachments: m.attachments } : {}),
       ...(m.brought ? { brought: true } : {}),
       ...(m.new_replies ? { new_replies: m.new_replies } : {}),
+      ...(m.reactions?.length ? { reactions: m.reactions } : {}),
+      ...(m.slack_files?.length ? { slack_files: m.slack_files } : {}),
     }));
     return { messages, window: read.window };
   }

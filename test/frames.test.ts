@@ -89,6 +89,8 @@ describe("the frame table", () => {
         "account_thread_reply",
         "account_thread_compose",
         "account_thread_unsend",
+        "account_thread_react",
+        "account_emoji_search",
         "account_thread_move",
         "reply_decide",
       ].sort(),
@@ -577,6 +579,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     ]);
     expect(by("scope")).toEqual(["desk_get", "gesture", "measure", "widget_status"]);
     expect(by("home")).toEqual([
+      "account_emoji_search",
       "account_labels_list",
       "account_thread_archive",
       "account_thread_compose",
@@ -586,6 +589,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "account_thread_mark_read",
       "account_thread_mark_unread",
       "account_thread_move",
+      "account_thread_react",
       "account_thread_read",
       "account_thread_reply",
       "account_thread_restore",

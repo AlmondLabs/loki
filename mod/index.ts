@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer } from "./server.ts";
 import { Sockets } from "./sockets.ts";
 import { chatImageRoute } from "./chat-images.ts";
+import { SlackPreviews } from "./slack-previews.ts";
 import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
@@ -359,13 +360,15 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
   // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
+  // Thumbnails of pictures shared in Slack, saved beside a message's pictures so windows and paired Macs load them (plan 080).
+  const slackPreviews = new SlackPreviews({ dir: paths.chatImages, fetchThumb: (accountId, url) => slackClient(accountId).fileThumb(url) });
   const outside = new OutsideThreads({
     accounts,
     threads,
     outbox: { file: join(paths.state, "outbox.json") },
     people: mailPeople,
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
-    cardView: { slack: slackChannelView(slackClient) },
+    cardView: { slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)) },
     clientFor: (account) =>
       account.provider === "gmail"
         ? { provider: "gmail", client: gmailClient(account.account_id) }

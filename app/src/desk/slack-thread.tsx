@@ -1,11 +1,15 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import type { OutsideMessage, OutsideWindow, SlackAttachment, SlackBlock, SlackSpan } from "../../../core/frame-types.ts";
+import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import type { OutsideMessage, OutsideWindow, SlackAttachment, SlackBlock, SlackFile, SlackReaction, SlackSpan } from "../../../core/frame-types.ts";
+import { Chip } from "../components";
 import { clockLabel, dayLabel, dayPills } from "../shared/thread";
 import { scrollWithin } from "../shared/scroll-within";
 import { AgentFace } from "./agent-chip";
-import { openExternal } from "./env";
+import { chatImageUrl, openExternal } from "./env";
 import { LinkedText, openableHref } from "./mail-html";
+import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
+import { keyFor, registerActions } from "../shell/keymap";
+import { EmojiPicker, Reactions } from "./slack-reactions";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -148,6 +152,76 @@ function Attachment({ a }: { a: SlackAttachment }) {
   );
 }
 
+/** What a shared file's chip says after its name: its kind and size, as far as Slack gave them (plan 080). */
+export function fileFacts(f: SlackFile): string {
+  return [f.kind, f.size === null ? null : fileSize(f.size)].filter(Boolean).join(" · ");
+}
+
+/** The largest a picture's preview draws, in pixels, as Slack draws one in a channel. */
+const PREVIEW_BOX = { width: 360, height: 240 };
+
+/** A preview's size fitted into PREVIEW_BOX, kept to its shape and never grown, so the row is its height before it loads. */
+export function previewSize(p: { width: number; height: number }): { width: number; height: number } {
+  const scale = Math.min(1, PREVIEW_BOX.width / p.width, PREVIEW_BOX.height / p.height);
+  return { width: Math.round(p.width * scale), height: Math.round(p.height * scale) };
+}
+
+/** A shared picture drawn as itself, its name under it; pressing it opens it in Slack. */
+function SlackPreview({ f, preview }: { f: SlackFile; preview: NonNullable<SlackFile["preview"]> }) {
+  const link = f.link;
+  const picture = <img src={chatImageUrl(preview.name)} alt={f.name} loading="lazy" {...previewSize(preview)} />;
+  return (
+    <figure className="loki-slack-preview">
+      {link ? (
+        <button type="button" title={`open ${f.name} in Slack`} onClick={() => openExternal(link)}>
+          {picture}
+        </button>
+      ) : (
+        picture
+      )}
+      <figcaption>{f.name}</figcaption>
+    </figure>
+  );
+}
+
+/**
+ * The files shared in a message as chips (plan 080), by name, kind and size, and a picture as itself when its account's
+ * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
+ */
+function SlackFiles({ files }: { files: readonly SlackFile[] }) {
+  return (
+    <div className="loki-slack-files">
+      {keyed(files, () => 1).map(([key, f]) => {
+        if (f.gone)
+          return (
+            <Chip key={key} static>
+              <span style={{ color: "var(--loki-muted)" }}>{f.gone === "deleted" ? "file deleted" : "file hidden by the workspace's plan"}</span>
+            </Chip>
+          );
+        if (f.preview) return <SlackPreview key={key} f={f} preview={f.preview} />;
+        const facts = fileFacts(f);
+        const words = (
+          <>
+            {f.name} {facts && <span style={{ color: "var(--loki-muted)" }}>{facts}</span>}
+          </>
+        );
+        const link = f.link;
+        if (!link)
+          return (
+            <Chip key={key} static title={`${f.name}: open it from Slack`}>
+              {words}
+            </Chip>
+          );
+        return (
+          <Chip key={key} title={`open ${f.name} in Slack`} onClick={() => openExternal(link)}>
+            {words}
+          </Chip>
+        );
+      })}
+    </div>
+  );
+}
+
 /** The words Slack sends to a whole channel, which the card marks as a mention. */
 const BROADCAST = /(@(?:channel|here|everyone))\b/;
 
@@ -216,9 +290,33 @@ function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void })
 }
 
 /** One message as the chat draws one: a face and name on the first of a run, its time (and day, when it moved on) beside the name. */
-function SlackRow({ m, first, dayNote, onOpen }: { m: OutsideMessage; first: boolean; dayNote: string | null; onOpen?: () => void }) {
+/** What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, and the picker when open. */
+interface RowReacting {
+  open: () => void;
+  toggle: (r: SlackReaction) => void;
+  picker: ReactNode;
+}
+
+function SlackRow({
+  m,
+  first,
+  dayNote,
+  onOpen,
+  reacting,
+}: {
+  m: OutsideMessage;
+  first: boolean;
+  dayNote: string | null;
+  onOpen?: () => void;
+  reacting?: RowReacting;
+}) {
   return (
-    <div className="loki-msg" data-first={first ? "true" : undefined}>
+    <div className="loki-msg loki-slack-row" data-first={first ? "true" : undefined}>
+      {reacting && (
+        <button type="button" className="loki-slack-react" title={`react with an emoji (${keyFor("inbox.react")} on the main message)`} onClick={reacting.open}>
+          react
+        </button>
+      )}
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={m.sender} src={m.avatar ?? null} size={36} />}
       </span>
@@ -232,6 +330,9 @@ function SlackRow({ m, first, dayNote, onOpen }: { m: OutsideMessage; first: boo
             ))}
           </div>
         )}
+        {m.slack_files && <SlackFiles files={m.slack_files} />}
+        <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />
+        {reacting?.picker}
         <SlackReplies m={m} onOpen={onOpen} />
       </div>
     </div>
@@ -321,6 +422,42 @@ function useThreadScroll(opening: string, firstId: string, busy: ThreadControls[
 }
 
 /**
+ * The message ⌘⇧\ reacts to (plan 079): the newest of those that brought the card, else the card's newest message,
+ * else the last one shown.
+ */
+export function mainMessage(messages: readonly OutsideMessage[], newest: string): string | null {
+  const brought = messages.filter((m) => m.brought).at(-1);
+  if (brought) return brought.id;
+  return messages.some((m) => m.id === newest) ? newest : (messages.at(-1)?.id ?? null);
+}
+
+/**
+ * Reactions on the card (plan 079): which message has the picker open, ⌘⇧\ to open it on the main message while
+ * the card can react, and for each row what it can do; nothing where the card cannot react.
+ */
+function useReacting(messages: readonly OutsideMessage[], newest: string, controls: ThreadControls | null) {
+  const [picking, setPicking] = useState<string | null>(null);
+  const react = controls?.react;
+  const main = mainMessage(messages, newest);
+  const openMain = useEffectEvent(() => setPicking(main));
+  const canReact = !!react;
+  useEffect(() => (canReact ? registerActions({ "inbox.react": () => openMain() }) : undefined), [canReact]);
+  return (m: OutsideMessage): RowReacting | undefined => {
+    if (!react) return undefined;
+    const pick = (choice: { name: string; emoji: NonNullable<SlackReaction["emoji"]> }) => {
+      setPicking(null);
+      const mine = m.reactions?.some((r) => r.name === choice.name && r.mine) === true;
+      react(m.id, choice, !mine);
+    };
+    return {
+      open: () => setPicking(m.id),
+      toggle: (r) => react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine),
+      picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} onPick={pick} onClose={() => setPicking(null)} /> : null,
+    };
+  };
+}
+
+/**
  * A Slack card's body as Slack shows it: the window around what brought the card (plan 077), in the thread alone with
  * its first message pinned on top, or in the channel or DM with a post's threads indented under it (plan 074), with
  * Slack's day pills, its red New line before the first new message, and the mention look on the messages that brought
@@ -345,6 +482,7 @@ export function SlackThread({
   const focusAt = newAt >= 0 ? newAt : rows.findIndex((m) => m.id === newest);
   const opening = `${window?.view ?? ""}/${window?.thread_ts ?? ""}`;
   const { focus, top, loadEarlier } = useThreadScroll(opening, rows[0]?.id ?? "", controls?.busy ?? null, controls ? () => controls.load("before") : null);
+  const reactingOn = useReacting(messages, newest, controls);
   return (
     <div className="loki-slack-thread" ref={top}>
       {controls?.back && (
@@ -354,7 +492,7 @@ export function SlackThread({
       )}
       {pinned && (
         <div className={pinned.brought ? "loki-slack-brought" : undefined}>
-          <SlackRow m={pinned} first dayNote={null} />
+          <SlackRow m={pinned} first dayNote={null} reacting={reactingOn(pinned)} />
         </div>
       )}
       <LoadButton direction="before" window={window} controls={controls} onLoad={loadEarlier} />
@@ -367,6 +505,7 @@ export function SlackThread({
               first={plan[i].first}
               dayNote={plan[i].dayNote}
               onOpen={controls && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
+              reacting={reactingOn(m)}
             />
           </div>
         </Fragment>

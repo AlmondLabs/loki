@@ -8,6 +8,8 @@ import type {
   HandoffTarget,
   MailFile,
   SlackAttachment,
+  SlackFile,
+  SlackReaction,
   SlackBlock,
 } from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -54,6 +56,9 @@ export interface ThreadMessage {
   /** What a Slack card's window marks on a message (plan 077). */
   brought?: boolean;
   new_replies?: number | true;
+  /** A Slack message's reactions (plan 079) and the files shared in it (plan 080). */
+  reactions?: SlackReaction[];
+  slack_files?: SlackFile[];
   /**
    * A mail's HTML part as its sender wrote it, for the person's own card to draw (it never goes to a model); absent for
    * Slack, for mail with no HTML part, and for one larger than MAIL_HTML_MAX, which the card shows as text instead.
