@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type {
   EmojiChoice,
   OutsideMessage,
@@ -470,6 +470,57 @@ function useThreadScroll(opening: string, firstId: string, busy: ThreadControls[
   return { focus, top, loadEarlier };
 }
 
+/** How near the bottom the person counts as reading the newest, in pixels: a row's worth less than the very end. */
+const AT_BOTTOM_PX = 24;
+
+/** Whether a scroll box is at its bottom, or near enough that the newest message is in view. */
+export function atBottom(box: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">): boolean {
+  return box.scrollHeight - box.scrollTop - box.clientHeight <= AT_BOTTOM_PX;
+}
+
+/**
+ * Following new messages (plan 090), as Slack does: a message added at the end of the view brings the box down to it
+ * when the person was at the bottom already, or when it is their own; anywhere else the box stays where they are
+ * reading. Rows that load later are the person's own doing and are not followed. Returns the call that loads later.
+ */
+function useFollowNewest(
+  top: RefObject<HTMLDivElement | null>,
+  opening: string,
+  last: { id: string; mine: boolean },
+  busy: ThreadControls["busy"] | null,
+  load: (() => void) | null,
+) {
+  const { id: lastId, mine: lastMine } = last;
+  const bottom = useRef(true);
+  useEffect(() => {
+    const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
+    if (!box) return;
+    const onScroll = () => {
+      bottom.current = atBottom(box);
+    };
+    box.addEventListener("scroll", onScroll, { passive: true });
+    return () => box.removeEventListener("scroll", onScroll);
+  }, [top]);
+  const loading = useRef(false);
+  const seen = useRef({ opening, lastId });
+  useLayoutEffect(() => {
+    const was = seen.current;
+    seen.current = { opening, lastId };
+    // While a load is out, rows it brings are the person's; once it is back, failed or not, following resumes.
+    if (busy !== null) return;
+    const manual = loading.current;
+    loading.current = false;
+    // A view that just opened is placed by its opening; only a newer last row in the same view is followed.
+    if (was.opening !== opening || was.lastId === lastId || manual || !(bottom.current || lastMine)) return;
+    const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [top, opening, lastId, lastMine, busy]);
+  return () => {
+    loading.current = true;
+    load?.();
+  };
+}
+
 /**
  * The message ⌘⇧\ reacts to (plan 079): the newest of those that brought the card, else the card's newest message,
  * else the last one shown.
@@ -534,6 +585,14 @@ export function SlackThread({
   const focusAt = newAt >= 0 ? newAt : rows.findIndex((m) => m.id === newest);
   const opening = `${window?.view ?? ""}/${window?.thread_ts ?? ""}`;
   const { focus, top, loadEarlier } = useThreadScroll(opening, rows[0]?.id ?? "", controls?.busy ?? null, controls ? () => controls.load("before") : null);
+  const last = messages.at(-1);
+  const loadLater = useFollowNewest(
+    top,
+    opening,
+    { id: last?.id ?? "", mine: last?.mine === true },
+    controls?.busy ?? null,
+    controls ? () => controls.load("after") : null,
+  );
   const reactingOn = useReacting(messages, newest, controls);
   return (
     <div className="loki-slack-thread" ref={top}>
@@ -562,7 +621,7 @@ export function SlackThread({
           </div>
         </Fragment>
       ))}
-      <LoadButton direction="after" window={window} controls={controls} onLoad={() => controls?.load("after")} />
+      <LoadButton direction="after" window={window} controls={controls} onLoad={loadLater} />
       {messages.at(-1)?.more_after === true && <div className="loki-slack-more">more messages in the channel since</div>}
     </div>
   );
