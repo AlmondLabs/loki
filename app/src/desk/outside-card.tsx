@@ -169,12 +169,19 @@ const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
   (w.view === "thread" ? messages.find((m) => m.id !== w.thread_ts) : messages[0])?.id ?? null;
 
 /**
- * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
- * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
- * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
- * its newest message changes (R15).
+ * Whether a card reads its thread again after the person's own send (plan 2026-11-10-1451, U7): the newest event of a
+ * Jira card does not change for the person's own comment, so nothing else would show it there; mail and Slack cards
+ * keep reading again only on a newer message.
  */
-export function useOutsideThread(item: AttentionItem, source: OutsideThreadSource | null): ThreadState {
+const READS_AFTER_SEND: Record<AccountProvider, boolean> = { gmail: false, slack: false, jira: true };
+
+/**
+ * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
+ * it, or for a Jira card when `sent`, the count of the person's sends from it, goes up; without a source (a demo, an
+ * old daemon) it stays loading and the card shows its last lines. A Slack card's window (plan 077) loads more on either
+ * side and opens a post's thread; what was loaded is dropped when the card or its newest message changes (R15).
+ */
+export function useOutsideThread(item: AttentionItem, source: OutsideThreadSource | null, sent = 0): ThreadState {
   const o = item.outside;
   const key = o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
   // The thread the person opened from the channel view, for this card only; another card starts on its own view.
@@ -182,7 +189,9 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
   const threadTs = opened?.key === key ? opened.threadTs : null;
   const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
   const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
-  const tag = `${key}/${threadTs ?? ""}`;
+  // Read again after a send where the card asks for it, keeping what it shows meanwhile, as for a newer message.
+  const again = o && READS_AFTER_SEND[o.provider] ? sent : 0;
+  const tag = `${key}/${threadTs ?? ""}/${again}`;
   const [shown, setShown] = useState<Shown | null>(null);
   // The item changes identity on every list update; the thread is read again only when its newest message does.
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
@@ -437,6 +446,20 @@ export interface ReplyBoxControl {
   onSend: () => void;
 }
 
+/** What the desktop's send button says it does, for each service: a Jira comment leaves the card unread (KTD11). */
+const SEND_TITLE: Record<AccountProvider, string> = {
+  gmail: "send it as you; the card stays for your next move",
+  slack: "send it as you; the card stays for your next move",
+  jira: "post it on the ticket as you; the card stays, unread, for your next move",
+};
+
+/** The line under the phone's send, for each service. */
+const SEND_NOTE: Record<AccountProvider, string> = {
+  gmail: "Waits 10 seconds so you can undo, then archives the card.",
+  slack: "Sends as you, then archives the card.",
+  jira: "Posts on the ticket as you. The card stays until you read it.",
+};
+
 /**
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
  * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it alone (plan 083); the
@@ -496,7 +519,7 @@ export function OutsideReply({
   const isMail = facts.provider === "gmail";
   const shown = compose ? (mail ?? startAddressing(compose)) : null;
   // Mentioning (plan 082): a mail pick writes the name and adds them to To, as Gmail does; a Slack pick writes the
-  // handle, which the account's Mac sends as Slack's mention.
+  // handle, which the account's Mac sends as Slack's mention. A Jira comment is plain text, so it offers no one.
   const ownRef = useRef<HTMLTextAreaElement | null>(null);
   const mentionSource: MentionSource | null =
     isMail && shown && compose
@@ -512,7 +535,7 @@ export function OutsideReply({
             }));
           },
         }
-      : !isMail && searchPeople
+      : facts.provider === "slack" && searchPeople
         ? {
             later: (q) => searchPeople(q).then((people) => people.map((p) => ({ key: p.id, label: p.name, sub: `@${p.handle}`, insert: p.handle }))),
           }
@@ -677,7 +700,7 @@ export function OutsideReply({
           disabled={off || !text.trim()}
           onClick={() => void send()}
           kbd={touch ? undefined : sendKey ? formatKeys(sendKey) : keyFor("chat.send")}
-          title={touch ? "send it as you; the card stays" : nobody ? "add someone to send it to first" : "send it as you; the card stays for your next move"}
+          title={touch ? "send it as you; the card stays" : nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider]}
         >
           {busy ? (touch ? "Sending…" : "sending…") : touch ? "Send" : "send"}
         </Button>
@@ -686,9 +709,7 @@ export function OutsideReply({
             Undo
           </Button>
         )}
-        {touch && !error && !busy && (
-          <Meta wrap>{isMail ? "Waits 10 seconds so you can undo, then archives the card." : "Sends as you, then archives the card."}</Meta>
-        )}
+        {touch && !error && !busy && <Meta wrap>{SEND_NOTE[facts.provider]}</Meta>}
         {framed && error && (
           <Meta negative wrap style={{ flex: 1 }}>
             {error}
@@ -807,7 +828,7 @@ function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts;
   );
 }
 
-/** The deck's moves on an outside card: read (⌘]), later (⌘[), archive (⌘E) and, on an email card, label (L). */
+/** The deck's moves on an outside card: read (⌘]), later (⌘[), archive (⌘E, not on a Jira card) and, on an email card, label (L). */
 export interface OutsideMoveHandlers {
   read: () => void;
   later: () => void;
@@ -829,6 +850,23 @@ const READ_TITLE: Record<AccountProvider, string> = {
   jira: "done reading: the card ends until the ticket changes again; nothing changes in Jira",
 };
 
+/**
+ * What archive says it does, for each service; null where there is no archive: a Jira card ends only with read, so it
+ * draws none (KTD12).
+ */
+const ARCHIVE_TITLE: Record<AccountProvider, string | null> = {
+  gmail: "done with this thread: it leaves the Inbox and is archived in Gmail",
+  slack: "done with this thread: it leaves the Inbox and is marked read in Slack",
+  jira: null,
+};
+
+/** What hand off says it does, for each service: a mail or a Slack card leaves with it, and a Jira card stays (KTD13). */
+const HANDOFF_TITLE: Record<AccountProvider, (owner: string) => string> = {
+  gmail: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
+  slack: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
+  jira: (owner) => `give the whole ticket to ${owner} in one of its chats; the card stays until you read it`,
+};
+
 /** Hand off, label, archive, later and read: they share the reply's row, so the card has one bar of buttons. */
 function OutsideMoves({
   facts,
@@ -844,6 +882,7 @@ function OutsideMoves({
   picking: boolean;
 }) {
   const gmail = facts.provider === "gmail";
+  const archiveTitle = ARCHIVE_TITLE[facts.provider];
   return (
     <>
       {onHandoff && (
@@ -854,7 +893,7 @@ function OutsideMoves({
           title={
             facts.disconnected
               ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
-              : `give the whole thread to ${facts.owner_name ?? "its agent"} in one of its chats; the card leaves until someone writes again`
+              : HANDOFF_TITLE[facts.provider](facts.owner_name ?? "its agent")
           }
         >
           hand off
@@ -871,14 +910,11 @@ function OutsideMoves({
           label
         </Button>
       )}
-      <Button
-        size="sm"
-        onClick={moves.archive}
-        title={`done with this thread: it leaves the Inbox and is ${gmail ? "archived in Gmail" : "marked read in Slack"}`}
-        kbd={deckKey("inbox.archive", typing)}
-      >
-        archive
-      </Button>
+      {archiveTitle && (
+        <Button size="sm" onClick={moves.archive} title={archiveTitle} kbd={deckKey("inbox.archive", typing)}>
+          archive
+        </Button>
+      )}
       <span style={{ flex: 1 }} />
       <Button size="sm" onClick={moves.later} title={LATER_TITLE[facts.provider]} kbd={deckKey("inbox.later", typing)}>
         later
@@ -912,6 +948,7 @@ export function OutsideCard({
   onTyping,
   onEscapeEmpty,
   compose = null,
+  sent = 0,
 }: {
   current: AttentionItem;
   facts: OutsideFacts;
@@ -934,8 +971,10 @@ export function OutsideCard({
   onEscapeEmpty?: () => void;
   /** What a mail card's recipients line starts from (plan 076), as the deck read it. */
   compose?: MailCompose | null;
+  /** How many of the person's sends went this visit, so a Jira card reads its ticket again to show their comment. */
+  sent?: number;
 }) {
-  const thread = useOutsideThread(current, source);
+  const thread = useOutsideThread(current, source, sent);
   const people = source?.searchPeople;
   const peopleSearch = people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined;
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;

@@ -4,7 +4,7 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
-import type { OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
+import type { AccountProvider, OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
 import type { ChatLink } from "../chat-links.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
@@ -158,6 +158,21 @@ export interface AttentionItem extends ConversationInfo {
  * that owns its account, so mail and Slack file under the agent that handles them.
  */
 export const ownerAgentOf = (i: Pick<AttentionItem, "agent_id" | "outside">): string => i.outside?.owner_agent_id ?? i.agent_id;
+
+/**
+ * Which moves end an outside card besides read (plan 2026-11-10-1451, R19, KTD12, KTD13): ⌘E archives a mail in Gmail
+ * and marks a Slack message read, and a hand-off ends either card. A Jira card ends only with read, since loki changes
+ * nothing on a ticket but the person's own comment: ⌘E is refused, and a hand-off leaves the card where it is.
+ */
+export const OUTSIDE_ENDS: Record<AccountProvider, { archive: boolean; handoff: boolean }> = {
+  gmail: { archive: true, handoff: true },
+  slack: { archive: true, handoff: true },
+  jira: { archive: false, handoff: false },
+};
+
+/** Whether ⌘E can take a card off: a chat that is not a main chat, or an outside card whose service archives. */
+export const archivable = (item: Pick<AttentionItem, "id" | "outside">): boolean =>
+  item.outside ? OUTSIDE_ENDS[item.outside.provider].archive : item.id !== "default";
 
 /** The key a chat goes by in the maps of live state, seen markers and focus: "agentId/conversationId". */
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;

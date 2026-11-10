@@ -1,4 +1,4 @@
-import { ownerAgentOf, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
+import { OUTSIDE_ENDS, ownerAgentOf, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
@@ -296,16 +296,28 @@ export function CardActions({
   );
 }
 
-/** The key legend under the deck, in whichever grammar applies right now, for the card on top: a chat, an email or a Slack message. */
+/**
+ * The key legend under the deck, in whichever grammar applies right now, for the card on top: a chat, an email, a Slack
+ * message or a Jira ticket, which shows only its own moves: no archive and a comment rather than a reply (KTD11, KTD12).
+ */
 export function KeysHint({ typing, current }: { typing: boolean; current?: AttentionItem }) {
   const o = current?.outside;
-  const moves = `${deckKey("inbox.next", typing)} read · ${deckKey("inbox.later", typing)} later · ${deckKey("inbox.archive", typing)} archive`;
+  const archive = !o || OUTSIDE_ENDS[o.provider].archive ? ` · ${deckKey("inbox.archive", typing)} archive` : "";
+  const moves = `${deckKey("inbox.next", typing)} read · ${deckKey("inbox.later", typing)} later${archive}`;
   const mail = o?.provider === "gmail";
+  const jira = o?.provider === "jira";
   const label = mail ? ` · ${keyFor("inbox.label")} label` : "";
   // A mail sends on ⌘Enter and is held for its undo (plan 076); ⇧R and F switch it to the sender alone or to a forward.
+  // A Jira comment sends on Enter and leaves the card where it is.
+  const send = mail
+    ? `${formatKeys("cmd+enter")} send, then read · ${formatKeys("cmd+shift+c")} recipients`
+    : jira
+      ? "enter comment (the card stays)"
+      : "enter send, then read";
+  const written = jira ? "comment" : "reply";
   const outside = typing
-    ? `${mail ? `${formatKeys("cmd+enter")} send, then read · ${formatKeys("cmd+shift+c")} recipients` : "enter send, then read"} · ${moves} (a reply goes first) · esc back to the deck's keys`
-    : `${moves}${label} · ${keyFor("inbox.reply")} reply${mail ? ` · ${keyFor("inbox.reply_sender")} reply to sender · ${keyFor("inbox.forward")} forward` : ""} · ${deckKey("inbox.undo", false)} undo · esc close`;
+    ? `${send} · ${moves} (a ${written} goes first) · esc back to the deck's keys`
+    : `${moves}${label} · ${keyFor("inbox.reply")} ${written}${mail ? ` · ${keyFor("inbox.reply_sender")} reply to sender · ${keyFor("inbox.forward")} forward` : ""} · ${deckKey("inbox.undo", false)} undo · esc close`;
   const chat = typing
     ? `enter send (you stay on the card) · ${moves} · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys`
     : `${moves} · ${deckKey("inbox.approve", false)} approve · ${deckKey("inbox.deny", false)} deny · ${keyFor("inbox.reply")} reply · ${deckKey("inbox.open", false)} open · ${deckKey("inbox.undo", false)} undo · esc close`;

@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
+import { OUTSIDE_ENDS, ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
@@ -249,13 +249,15 @@ export function createDeckMoves(host: DeckMovesHost) {
   };
 
   /**
-   * Archive (⌘E, E): done with the card. A main chat cannot be archived; the card stays and says so. An outside card's
-   * thread is archived in its account (Slack: read), and a refusal there brings the card back the same way.
+   * Archive (⌘E, E): done with the card. A main chat cannot be archived, nor a Jira card, which ends only with read
+   * (KTD12); the card stays, says so, and any text in its box stays unsent. An outside card's thread is archived in its
+   * account (Slack: read), and a refusal there brings the card back the same way.
    */
   const archive = () => {
     const item = host.current;
     if (!item || host.reply.busy) return;
     if (!item.outside && item.id === "default") return host.say("main chats stay");
+    if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("a jira card ends with read");
     if (hasReply(item)) return void sendThen(item, "archive");
     decide(item, "archive");
     host.say("archived");

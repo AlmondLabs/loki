@@ -417,6 +417,9 @@ export function createCardMoves(first: CardMovesHost) {
    * move rests the card as that key would and is kept, so an undo takes back the move and never the reply.
    */
   const replied = (item: AttentionItem, then: ReplyThen, change: OutsideChange | null): void => {
+    // A comment sent alone on a Jira card is no decision (plan 083, KTD11): the card stays where it is, unread, its
+    // events still new, and the person's next key is the move.
+    if (then === "stay" && item.outside?.provider === "jira") return;
     const prev = prevOf(item);
     let r: Rest | null = null;
     if (then === "archive") keep(item, { action: "archive", change });

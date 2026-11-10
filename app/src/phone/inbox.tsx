@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSPropertie
 import type { LabelView } from "../../../core/labels.ts";
 import type { AccountProvider } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
-import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import { archivable, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -231,10 +231,11 @@ const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(
 const isMove = (via: Via): via is Move => via === "seen" || via === "later" || via === "archive";
 
 /** Why a card refused to go: the reason a screen reader hears. */
-type Refusal = "approval" | "main" | "typed" | "sending";
+type Refusal = "approval" | "main" | "jira" | "typed" | "sending";
 const REFUSED: Record<Refusal, string> = {
   approval: "This one needs Approve or Deny.",
   main: "A main chat cannot be archived.",
+  jira: "A Jira card ends only with Read.",
   typed: "Send the reply first, or use the buttons.",
   sending: "The reply is still sending.",
 };
@@ -288,7 +289,7 @@ function usePass({
     const held = deck.heldId === idOf(item);
     onCommit(item);
     if (!deck.commit(item, via)) {
-      flashRefused(item.pendingApproval ? "approval" : "main");
+      flashRefused(item.pendingApproval ? "approval" : item.outside ? "jira" : "main");
       return;
     }
     const move = ledger.made(idOf(item));
@@ -624,7 +625,8 @@ export function Inbox({
             sending={sending}
             onRead={() => commit(current, "seen")}
             onLater={() => later(current, "tap")}
-            onArchive={() => commit(current, "archive")}
+            // A main chat keeps its button and refuses with why; a Jira card has none (KTD12).
+            onArchive={!current.outside || archivable(current) ? () => commit(current, "archive") : undefined}
             onLabel={current.outside?.provider === "gmail" ? () => setLabelling(current) : undefined}
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
@@ -1140,7 +1142,9 @@ function OutsideBody({
   onSending?: (on: boolean) => void;
 }) {
   const [picking, setPicking] = useState(false);
-  const thread = useOutsideThread(item, outside);
+  // The person's sends from this card, so a Jira card reads its ticket again to show their comment.
+  const [sent, setSent] = useState(0);
+  const thread = useOutsideThread(item, outside, sent);
   // A mail's recipients line (plan 076), and the id of the reply held for its undo while it waits.
   const compose = useMailCompose(item, outside);
   const held = useRef<string | null>(null);
@@ -1184,7 +1188,10 @@ function OutsideBody({
                 // A reply goes alone and the card stays for the person's next swipe (plan 083).
                 const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId });
                 // A sent reply clears the box, which fires no input: the swipes come back here.
-                if (r.sent) onTyped?.(false);
+                if (r.sent) {
+                  onTyped?.(false);
+                  setSent((n) => n + 1);
+                }
                 return r;
               } finally {
                 held.current = null;
@@ -1196,7 +1203,7 @@ function OutsideBody({
       )}
       {handoff &&
         (picking ? (
-          // The card leaves the Inbox once the thread went, so there is nothing to do on done but close.
+          // The card leaves the Inbox once the thread went, or stays for a Jira card (KTD13): either way done only closes.
           <HandoffPicker item={item} source={handoff} touch onCancel={() => setPicking(false)} onDone={() => setPicking(false)} />
         ) : (
           <Button
@@ -1234,7 +1241,7 @@ function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews
 
 /**
  * The big buttons under the card, laid out as the swipes go: Later on the left, then Label (an email card only,
- * `onLabel`) and Archive (a button only), and Read on the right, under the thumb; or — for an approval, which leaves
+ * `onLabel`) and Archive (a button only, and none on a Jira card), and Read on the right, under the thumb; or — for an approval, which leaves
  * only by its decision — Deny and Approve. The card's conversation opens from its head.
  */
 export function Decisions({
@@ -1251,7 +1258,8 @@ export function Decisions({
   sending?: boolean;
   onRead: () => void;
   onLater: () => void;
-  onArchive: () => void;
+  /** Absent on a Jira card, which ends only with Read (KTD12). */
+  onArchive?: () => void;
   onLabel?: () => void;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
 }) {
@@ -1290,9 +1298,11 @@ export function Decisions({
           Label
         </button>
       )}
-      <button type="button" className="loki-phone-decide-btn" onClick={onArchive} disabled={sending}>
-        Archive
-      </button>
+      {onArchive && (
+        <button type="button" className="loki-phone-decide-btn" onClick={onArchive} disabled={sending}>
+          Archive
+        </button>
+      )}
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={onRead} disabled={sending}>
         Read
       </button>

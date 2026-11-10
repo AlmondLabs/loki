@@ -1,13 +1,21 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { memorySecrets } from "../daemon/credentials.ts";
+import { AccountThreads } from "../mod/account-threads.ts";
+import { Accounts } from "../mod/accounts.ts";
+import { jiraAccountClient, type JiraSecret } from "../mod/jira.ts";
+import { JiraSync, jiraOutsideSource } from "../mod/jira-sync.ts";
+import { jiraCardView, jiraThreadText } from "../mod/jira-view.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
-import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
-import { OutsideHeader, OutsideThread, outsideTitle, replyPlace } from "../app/src/desk/outside-card.tsx";
+import { OutsideCard, OutsideHeader, OutsideReply, OutsideThread, outsideTitle, replyPlace, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
+import { KeysHint, agentPills } from "../app/src/desk/catch-up-parts.tsx";
+import { Decisions } from "../app/src/phone/inbox.tsx";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
@@ -18,9 +26,17 @@ import { OutsideThreads } from "../mod/outside-threads.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
 import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
 import { attentionItem } from "./fixtures/attention.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
+import { JIRA_ADA, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
+import { must } from "./fixtures/must.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
 /** Outside cards for the person (plan 068): the whole thread on the card, and their own reply sent in it. */
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
@@ -75,6 +91,8 @@ function threads(
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
   const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
+  /** Each Jira comment posted, as `[ticket, text]`. */
+  const commented: Array<[string, string]> = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
   const moves: string[] = [];
@@ -115,47 +133,58 @@ function threads(
         }
       : {}),
     clientFor: (a) =>
-      a.provider === "gmail"
+      a.provider === "jira"
         ? {
-            provider: "gmail",
+            provider: "jira",
             client: {
-              getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: opts.gmail ?? [] }),
-              sendAs: () =>
-                Promise.resolve(
-                  opts.sendAs ?? [
-                    { address: "ada@acme.com", name: "Ada", signature: "", isDefault: true },
-                    { address: "ada@work.example", name: "Ada", signature: "", isDefault: false },
-                  ],
-                ),
-              attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
-              sendReply: (r) => {
+              postComment: (ticket: string, text: string) => {
                 if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
-                sentMail.push(r);
-                return Promise.resolve({ id: "s1" });
+                commented.push([ticket, text]);
+                return Promise.resolve({ id: "30009" });
               },
             },
           }
-        : {
-            provider: "slack",
-            client: {
-              postReply: (r) => {
-                if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
-                posted.push(r);
-                return Promise.resolve({ ts: "2.0" });
+        : a.provider === "gmail"
+          ? {
+              provider: "gmail",
+              client: {
+                getThread: () => Promise.resolve({ id: "t1", historyId: "1", messages: opts.gmail ?? [] }),
+                sendAs: () =>
+                  Promise.resolve(
+                    opts.sendAs ?? [
+                      { address: "ada@acme.com", name: "Ada", signature: "", isDefault: true },
+                      { address: "ada@work.example", name: "Ada", signature: "", isDefault: false },
+                    ],
+                  ),
+                attachment: (messageId: string, attachmentId: string) => Promise.resolve(Buffer.from(`${messageId}/${attachmentId}`)),
+                sendReply: (r) => {
+                  if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
+                  sentMail.push(r);
+                  return Promise.resolve({ id: "s1" });
+                },
               },
-              react: (r) => {
-                reacted.push(r);
-                return Promise.resolve();
-              },
-              emojiList: () => {
-                emojiReads.n++;
-                return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
+            }
+          : {
+              provider: "slack",
+              client: {
+                postReply: (r) => {
+                  if (opts.sendFails) return Promise.reject(new Error(opts.sendFails));
+                  posted.push(r);
+                  return Promise.resolve({ ts: "2.0" });
+                },
+                react: (r) => {
+                  reacted.push(r);
+                  return Promise.resolve();
+                },
+                emojiList: () => {
+                  emojiReads.n++;
+                  return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
+                },
               },
             },
-          },
     ...opts.extra,
   });
-  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads };
+  return { t, sentMail, posted, commented, archived, moves, viewed, reacted, emojiReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -417,6 +446,129 @@ describe("the person's reply", () => {
   });
 });
 
+describe("the person's comment on a Jira card (plan 2026-11-10-1451, U7, KTD11)", () => {
+  const jira = (over: Parameters<typeof threads>[0] = {}) => threads({ accounts: [account(JIRA)], ...over });
+
+  test("Covers F3, AE1. with stay, the comment is posted on the ticket and nothing moves, not even the dealt mark", async () => {
+    const { t, commented, moves } = jira();
+    expect(await t.reply(JIRA, "10001", "  On it, rotating tonight.  ", "stay")).toEqual({ sent: true, then_error: null, change: null });
+    expect(commented).toEqual([["10001", "On it, rotating tonight."]]);
+    expect(moves).toEqual([]);
+  });
+  test("with read, the comment is posted and then the card is read, which ends it", async () => {
+    const { t, commented, moves } = jira();
+    expect(await t.reply(JIRA, "10001", "Done.", "read")).toMatchObject({ sent: true, then_error: null, change: { move: "read" } });
+    expect(commented).toHaveLength(1);
+    expect(moves).toEqual([`read ${JIRA}/10001`]);
+  });
+  test("with later, the comment is posted and the card left unread to come back", async () => {
+    const { t, commented, moves } = jira();
+    expect(await t.reply(JIRA, "10001", "Will look tomorrow.", "later")).toMatchObject({ sent: true, then_error: null, change: { move: "unread" } });
+    expect(commented).toHaveLength(1);
+    expect(moves).toEqual([`waiting ${JIRA}/10001`, `unread ${JIRA}/10001`]);
+  });
+  test("a post that fails throws its reason, and nothing is marked", async () => {
+    const { t, commented, moves } = jira({ sendFails: "Jira answered 500" });
+    await expect(t.reply(JIRA, "10001", "On it", "stay")).rejects.toThrow("Jira answered 500");
+    expect([...commented, ...moves]).toEqual([]);
+  });
+  test("an empty comment, one past the length limit and one on a disconnected site are refused before anything is posted", async () => {
+    const on = jira();
+    await expect(on.t.reply(JIRA, "10001", "  \n ", "stay")).rejects.toThrow("the reply is empty");
+    await expect(on.t.reply(JIRA, "10001", "x".repeat(30_001), "stay")).rejects.toThrow("that reply is too long to send");
+    const off = threads({ accounts: [account(JIRA, { status: { disconnected: "sign_in_again" } })] });
+    await expect(off.t.reply(JIRA, "10001", "On it", "stay")).rejects.toThrow("not connected now");
+    expect([...on.commented, ...off.commented, ...on.moves, ...off.moves]).toEqual([]);
+  });
+});
+
+describe("a comment from the card reaches the ticket and leaves the card as it was (plan 2026-11-10-1451, U7)", () => {
+  const ID = `jira:acme.atlassian.net:${JIRA_ME.account_id}`;
+  const START = Date.parse("2026-11-10T09:00:00.000Z");
+
+  /** A site connected on a temporary folder: its records, the card's real reader, the sync and the reply, all over the fake site. */
+  async function site(fetchOver?: typeof fetch) {
+    const dir = mkdtempSync(join(tmpdir(), "loki-jira-comment-"));
+    dirs.push(dir);
+    let now = START;
+    const clock = () => new Date(now);
+    const jira = fakeJira({ now: clock });
+    const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), now: clock });
+    const secret: JiraSecret = { site: jira.host, email: jira.state.email, token: jira.state.token };
+    await accounts.add({ account_id: ID, provider: "jira", address: jira.host, owner_agent_id: "agent-work" }, JSON.stringify(secret));
+    const records = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
+    records.register("jira", jiraOutsideSource());
+    const client = jiraAccountClient(accounts, ID, { fetch: fetchOver ?? jira.fetch, now: clock });
+    const sync = new JiraSync({ accounts, threads: records, account: must(accounts.get(ID), "the account"), client, now: clock });
+    const t = new OutsideThreads({
+      accounts,
+      threads: records,
+      threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]), jira: jiraThreadText(() => client) },
+      cardView: {
+        jira: jiraCardView(
+          () => client,
+          () => Promise.resolve(secret),
+        ),
+      },
+      clientFor: () => ({ provider: "jira", client }),
+    });
+    return { jira, records, sync, t, advance: (ms: number) => (now += ms), at: (minutes: number) => new Date(START + minutes * 60_000) };
+  }
+
+  test("Covers AE1. the comment is on the ticket as the person's, shows on the card as theirs, and the card stays open with its new marks; the next sync brings nothing", async () => {
+    const s = await site();
+    await s.sync.tick();
+    s.advance(60_000);
+    const ticket = s.jira.addTicket({ key: "OPS-7", summary: "Rotate the keys", at: s.at(0.5) });
+    s.jira.comment("OPS-7", { at: s.at(0.5), author: JIRA_ADA, text: "Can you look at the rotation?" });
+    await s.sync.tick();
+    const before = must(s.records.get(ID, ticket), "the card's record");
+    expect(before.state).toBe("open");
+
+    s.advance(60_000);
+    expect(await s.t.reply(ID, ticket, "On it.\nRotating tonight.\n\nWill confirm here.", "stay")).toEqual({ sent: true, then_error: null, change: null });
+    // Two paragraphs, the first with a line break, as Jira's own editor writes them (KTD15).
+    expect(s.jira.posted.map(({ key, body }) => ({ key, body }))).toEqual([
+      {
+        key: "OPS-7",
+        body: {
+          version: 1,
+          type: "doc",
+          content: [
+            { type: "paragraph", content: [{ type: "text", text: "On it." }, { type: "hardBreak" }, { type: "text", text: "Rotating tonight." }] },
+            { type: "paragraph", content: [{ type: "text", text: "Will confirm here." }] },
+          ],
+        },
+      },
+    ]);
+    expect(s.records.get(ID, ticket)).toEqual(before);
+
+    const read = await s.t.read(ID, ticket);
+    expect(read.messages.map((m) => [m.sender, m.mine, m.unread === true])).toEqual([
+      ["Ada Lovelace", false, true],
+      [JIRA_ME.display_name, true, false],
+    ]);
+
+    s.advance(60_000);
+    await s.sync.tick();
+    expect(s.records.get(ID, ticket)).toEqual(before);
+  });
+
+  test("a post that times out is reported and never sent again", async () => {
+    const posts: string[] = [];
+    const timingOut: typeof fetch = (input, init) => {
+      if (init?.method === "POST") {
+        posts.push(input instanceof Request ? input.url : input instanceof URL ? input.href : input);
+        return Promise.reject(new DOMException("The operation timed out.", "TimeoutError"));
+      }
+      return Promise.resolve(new Response("{}", { status: 404 }));
+    };
+    const s = await site(timingOut);
+    await expect(s.t.reply(ID, "10001", "On it", "stay")).rejects.toThrow("timed out");
+    expect(posts).toHaveLength(1);
+  });
+});
+
 /** The mail parts of the reply frames' fake, for tests about something else. */
 /** What a fake reader that is about neither mail nor reactions answers. */
 describe("the person's reactions on a Slack card (plan 079)", () => {
@@ -475,6 +627,11 @@ describe("mentioning people in a Slack reply (plan 082)", () => {
     const { t } = threads({ extra: { slackPeople: people() } });
     expect(await t.searchPeople(SLACK, "ravi")).toEqual([{ id: "U2", handle: "ravi.kumar", name: "ravi", avatar: null }]);
     await expect(t.searchPeople(MAIL, "ravi")).rejects.toThrow("only a Slack account has people to mention");
+  });
+
+  test("a Jira site has no one to mention, so its card's box draws no list (plan 2026-11-10-1451, KTD11)", async () => {
+    const { t } = threads({ accounts: [account(JIRA)], extra: { slackPeople: people() } });
+    await expect(t.searchPeople(JIRA, "ravi")).rejects.toThrow("only a Slack account has people to mention");
   });
 });
 
@@ -588,11 +745,14 @@ describe("the reply frames", () => {
 });
 
 describe("agents never send", () => {
+  test("the person's Jira comment is posted from the reply module alone (plan 2026-11-10-1451, U7)", () => {
+    expect(readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8")).toMatch(/\.postComment\(/);
+  });
   test("the send calls are called from the person's reply module and nowhere else in the mod", () => {
     const dir = join(import.meta.dirname, "..", "mod");
     const callers = readdirSync(dir, { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /\.(sendReply|postReply)\(/.test(readFileSync(join(dir, f), "utf8")));
+      .filter((f) => /\.(sendReply|postReply|postComment)\(/.test(readFileSync(join(dir, f), "utf8")));
     expect(callers).toEqual(["outside-threads.ts"]);
   });
 });
@@ -719,6 +879,77 @@ describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
       createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events, window: { ...window, more_before: false }, controls } }),
     );
     expect(all).not.toContain("load earlier");
+  });
+});
+
+describe("the moves a Jira card offers (plan 2026-11-10-1451, U6)", () => {
+  const noop = () => {};
+  const card = (facts: OutsideFacts) =>
+    renderToStaticMarkup(
+      createElement(OutsideCard, {
+        current: attentionItem("10001#1", { outside: facts }),
+        facts,
+        flash: null,
+        cameBack: false,
+        typing: false,
+        moves: { read: noop, later: noop, archive: noop, label: noop },
+        onHandoff: noop,
+      }),
+    );
+
+  test("on the desktop: hand off, later and read, with no archive or label, and hand off says the card stays", () => {
+    const html = card(JIRA_FACTS);
+    expect(html).toContain(">hand off<");
+    expect(html).toContain(">later<");
+    expect(html).toContain(">read<");
+    expect(html).not.toContain(">archive<");
+    expect(html).not.toContain(">label<");
+    expect(html).toContain("give the whole ticket to friday in one of its chats; the card stays until you read it");
+    // A Slack card keeps its archive and its hand-off words.
+    const slack = card(FACTS);
+    expect(slack).toContain(">archive<");
+    expect(slack).toContain("the card leaves until someone writes again");
+  });
+
+  test("the key legend names only a Jira card's moves, and a comment rather than a reply", () => {
+    const legend = (typing: boolean, current: Parameters<typeof KeysHint>[0]["current"]) => renderToStaticMarkup(createElement(KeysHint, { typing, current }));
+    const jira = legend(false, jiraItem());
+    expect(jira).not.toContain("archive");
+    expect(jira).not.toContain("label");
+    expect(jira).toContain(" comment");
+    const typing = legend(true, jiraItem());
+    expect(typing).toContain("enter comment (the card stays)");
+    expect(typing).toContain("(a comment goes first)");
+    expect(typing).not.toContain("archive");
+    // Mail keeps its own.
+    expect(legend(false, outsideItem("Lunch"))).toContain("archive");
+    expect(legend(false, outsideItem("Lunch"))).toContain("label");
+  });
+
+  test("on the phone: Later and Read under a Jira card, and no Archive", () => {
+    const decide = (onArchive?: () => void) =>
+      renderToStaticMarkup(createElement(Decisions, { item: jiraItem(), onRead: noop, onLater: noop, onArchive, onApprove: noop }));
+    expect(decide()).not.toContain("Archive");
+    expect(decide()).toContain(">Later<");
+    expect(decide()).toContain(">Read<");
+    expect(decide(noop)).toContain(">Archive<");
+  });
+});
+
+describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
+  const box: ReplyBoxControl = { text: "On it", mail: null, busy: false, error: null, onText: () => {}, onMail: () => {}, onSend: () => {} };
+  test("on the desktop it comments on the ticket, sends on Enter, and says the card stays unread", () => {
+    const html = renderToStaticMarkup(createElement(OutsideReply, { facts: JIRA_FACTS, box }));
+    expect(html).toContain('placeholder="comment on the ticket"');
+    expect(html).toContain('title="post it on the ticket as you; the card stays, unread, for your next move"');
+    expect(html).not.toContain("loki-mail-compose");
+  });
+  test("on the phone it says the comment posts as the person and the card stays; Slack's and mail's lines are as they were", () => {
+    const phone = (facts: OutsideFacts) =>
+      renderToStaticMarkup(createElement(OutsideReply, { facts, touch: true, onSend: () => Promise.resolve({ sent: true, error: null }) }));
+    expect(phone(JIRA_FACTS)).toContain("Posts on the ticket as you. The card stays until you read it.");
+    expect(phone(JIRA_FACTS)).toContain('placeholder="Comment on the ticket"');
+    expect(phone(FACTS)).toContain("Sends as you, then archives the card.");
   });
 });
 

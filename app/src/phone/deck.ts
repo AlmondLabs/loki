@@ -3,7 +3,7 @@
  * when a drag becomes a swipe and which way it commits, how far a card leans and how strongly the
  * reveal shows, what this visit has done, and which cards the deck must not show again.
  */
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import { archivable, type AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
 import type { CardVia, MoveResult } from "../../../core/attention/use-attention.ts";
 import { releaseCommits } from "../kit/let-go";
@@ -219,10 +219,13 @@ export function throughResting(s: DeckState): DeckState {
   return { ...EMPTY_DECK, pass: s.pass, resting: true };
 }
 
-/** The ways off a card: an approval only by its decision, anything else by Read, Later or Archive; a main chat cannot be archived. */
+/**
+ * The ways off a card: an approval only by its decision, anything else by Read, Later or Archive; a main chat cannot be
+ * archived, nor a Jira card, which ends only with Read (plan 2026-11-10-1451, KTD12).
+ */
 export function canCommit(item: AttentionItem, via: Via): boolean {
   if (item.pendingApproval) return via === "approve" || via === "deny";
-  return via === "seen" || via === "later" || (via === "archive" && item.id !== "default");
+  return via === "seen" || via === "later" || (via === "archive" && archivable(item));
 }
 
 const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);

@@ -59,7 +59,7 @@ import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
 import { jiraAccountClient, parseJiraSecret, type JiraClient } from "./jira.ts";
 import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
-import { OutsideThreads } from "./outside-threads.ts";
+import { OutsideThreads, type SendClient } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
@@ -410,10 +410,17 @@ export default function activate(api: ModApi, host: Host): () => void {
       // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
       jira: jiraCardView(jiraClients.of, async (accountId) => parseJiraSecret(await accounts.getSecret(accountId))),
     },
-    clientFor: (account) =>
-      account.provider === "gmail"
-        ? { provider: "gmail", client: gmailClient(account.account_id) }
-        : { provider: "slack", client: slackClient(account.account_id) },
+    // A Jira comment goes through the site's one client, so a wait Jira asked for holds for it too.
+    clientFor: (account): SendClient => {
+      switch (account.provider) {
+        case "gmail":
+          return { provider: "gmail", client: gmailClient(account.account_id) };
+        case "slack":
+          return { provider: "slack", client: slackClient(account.account_id) };
+        case "jira":
+          return { provider: "jira", client: jiraClients.of(account.account_id) };
+      }
+    },
   });
   // A mail reply held when the daemon last stopped goes now, or when its time comes.
   outside.resume();

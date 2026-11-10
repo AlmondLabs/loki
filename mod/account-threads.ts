@@ -455,6 +455,20 @@ export class AccountThreads {
   }
 
   /**
+   * A Jira ticket went to its owner's chat (plan 2026-11-10-1451, KTD13): only the chat is noted, so the card names it
+   * and the next hand-off proposes it again. The card stays open and unread, its new events stay new, and nothing is
+   * written out there, since a hand-off does not end a Jira card.
+   */
+  handedOffStaying(accountId: string, threadId: string, conversationId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    if (r.handoff_conversation_id === conversationId) return true;
+    this.records(accountId).set(threadId, { ...r, handoff_conversation_id: conversationId });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
    * Archive a handed-off thread out there (plan 070, U9, R13): Gmail archives it, Slack marks it read, each up to the
    * newest message the record holds, which is the one handed off. The record stays handed off. A thread that is not
    * handed off, because a newer message came during the hand-off and its card is open again, is left alone and null

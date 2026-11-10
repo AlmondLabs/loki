@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
+import { OUTSIDE_ENDS, ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -259,7 +259,9 @@ function CatchUpDeck(props: DeckProps) {
       onCancel={closePicker}
       onDone={() => {
         closePicker();
-        // The thread went to its chat: the card leaves this visit, and comes back only on a new message.
+        // The thread went to its chat: the card leaves this visit, and comes back only on a new message. A Jira card
+        // stays where it is (KTD13), since only read ends it.
+        if (current.outside && !OUTSIDE_ENDS[current.outside.provider].handoff) return;
         setQueue((q) => q.filter((i) => idOf(i) !== idOf(current)));
       }}
     />
@@ -303,6 +305,7 @@ function CatchUpDeck(props: DeckProps) {
               went={wentTo(current.outside, items)}
               onHandoff={handoffSource ? () => actions.openPicker("handoff") : undefined}
               source={outsideSource}
+              sent={actions.replies}
               box={
                 replyOutside
                   ? {
