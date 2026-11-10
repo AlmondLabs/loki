@@ -17,17 +17,24 @@ const say = (touch: boolean, words: string) => (touch ? sentence(words) : words)
 /** The description shows this many lines before "show more". */
 const FOLD_AT = 6;
 
-/** The header's parts a change to marks new: Jira's history names for the summary, the type and the project. */
-const HEAD_FIELDS = new Set(["summary", "issuetype", "project"]);
+/** The header's parts a change to marks new, by Jira's history name for each, with the plain word the card says for it. */
+const HEAD_FIELDS = new Map<string, string>([
+  ["summary", "summary"],
+  ["issuetype", "type"],
+  ["project", "project"],
+]);
 
-/** The fields the card shows, in order, by the name Jira's history gives each (`Sprint` with its capital). */
+/**
+ * The fields the card shows, in order, by the name Jira's history gives each (`Sprint` with its capital). Labels are
+ * written lowercase, as desktop labels are, and `say` gives the phone its sentence case.
+ */
 const FIELDS: Array<{ key: keyof JiraCardFields; label: string; history: string }> = [
-  { key: "status", label: "Status", history: "status" },
-  { key: "assignee", label: "Assignee", history: "assignee" },
-  { key: "reporter", label: "Reporter", history: "reporter" },
-  { key: "priority", label: "Priority", history: "priority" },
-  { key: "sprint", label: "Sprint", history: "Sprint" },
-  { key: "labels", label: "Labels", history: "labels" },
+  { key: "status", label: "status", history: "status" },
+  { key: "assignee", label: "assignee", history: "assignee" },
+  { key: "reporter", label: "reporter", history: "reporter" },
+  { key: "priority", label: "priority", history: "priority" },
+  { key: "sprint", label: "sprint", history: "Sprint" },
+  { key: "labels", label: "labels", history: "labels" },
 ];
 
 /** Jira's history writes labels as one text parted by spaces; the card lists them parted by commas. */
@@ -77,7 +84,7 @@ export function JiraTicketHead({ ticket, touch = false, line, right }: { ticket:
           {ticket.key}
         </span>
         {kind && <span className="loki-jira-kind">· {kind}</span>}
-        {change && <NewMark touch={touch} title={`${change.field} changed · ${byWhen(change)}`} />}
+        {change && <NewMark touch={touch} title={`${HEAD_FIELDS.get(change.field) ?? change.field} changed · ${byWhen(change)}`} />}
       </div>
       {touch ? (
         <div className="loki-jira-summary" style={{ fontSize: "var(--phone-text-emph)" }}>
@@ -122,7 +129,7 @@ function JiraFields({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean 
     <dl className="loki-jira-fields" style={{ fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
       {rows.map((f) => (
         <div key={f.key} className="loki-jira-field">
-          <dt className={touch ? "loki-phone-meta" : "loki-meta"}>{f.label}</dt>
+          <dt className={touch ? "loki-phone-meta" : "loki-meta"}>{say(touch, f.label)}</dt>
           <dd className="loki-jira-field-value">
             <span className="loki-jira-field-now">
               <FieldValue field={f.key} fields={fields} />
@@ -200,9 +207,10 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
 
 /**
  * The ticket's body on its card (plan 089, items 2-6): on the phone its header first, then the fields, what else
- * changed, the description, and the comments under their count, which `children` draws as the thread's list.
+ * changed, the description, and the comments under the ticket's count of them, which `children` draws as the thread's
+ * list; the list is a window, so it may hold fewer.
  */
-export function JiraTicket({ ticket, count, touch = false, children }: { ticket: JiraCardTicket; count: number; touch?: boolean; children: ReactNode }) {
+export function JiraTicket({ ticket, touch = false, children }: { ticket: JiraCardTicket; touch?: boolean; children: ReactNode }) {
   const also = alsoChangedText(ticket.also_changed);
   return (
     <div className="loki-jira-ticket" style={{ gap: touch ? "var(--phone-space-4)" : 16 }}>
@@ -213,7 +221,7 @@ export function JiraTicket({ ticket, count, touch = false, children }: { ticket:
       </div>
       <JiraDescription ticket={ticket} touch={touch} />
       <section className="loki-jira-part">
-        <Heading touch={touch}>{`Comments · ${String(count)}`}</Heading>
+        <Heading touch={touch}>{`Comments · ${String(ticket.comment_count)}`}</Heading>
         {children}
       </section>
     </div>

@@ -309,7 +309,10 @@ export class FrameChatClient {
     return r.labels;
   }
 
-  /** An outside card's whole thread (plan 068), read from its account on the Mac it lives on. */
+  /**
+   * An outside card's whole thread (plan 068), read from its account on the Mac it lives on; a Jira card's ticket comes
+   * back too when `ask` asks for it and that Mac knows how (plan 089).
+   */
   async readOutside(accountId: string, threadId: string, home: string | null, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
     const r = await this.call("account_thread_read", { account_id: accountId, thread_id: threadId, home, ...ask }, 30_000);
     return { messages: r.messages, window: r.window ?? null, ...(r.link ? { link: r.link } : {}), ...(r.ticket ? { ticket: r.ticket } : {}) };

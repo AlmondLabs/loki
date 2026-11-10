@@ -200,7 +200,8 @@ yourself.
   `*.atlassian.net` host, where every Jira Cloud site's API lives; an answer naming any other host is refused before
   the token leaves the Mac (`mod/frames/accounts.ts`, `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
   token Jira refuses marks the account as wanting a new one; loki does not try it again until you reconnect.
-- **What loki calls in Jira.** It reads: who you are, the tickets you watch, and each ticket's comments and history.
+- **What loki calls in Jira.** It reads: who you are, the tickets you watch, each ticket's fields and description, the
+  site's list of fields (once, to find its Sprint field), and each ticket's comments and history.
   It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
   `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` (a test checks there is no other). Read, later,
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other

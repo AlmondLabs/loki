@@ -1119,9 +1119,11 @@ ticket in your browser. Under the header, in order:
 4. **Comments** with their count, oldest first: Slack's red **New** line sits before the first comment you have not
    read, **load earlier** brings older ones, and the comment box comes last. Field changes are not lines here.
 
-The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. A Mac on
-an older loki sends no ticket, so its Jira cards show the ticket's events as one list of comments and field changes, as
-before. A Jira card's moves differ from mail's and Slack's:
+The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. When the
+Jira site lives on a paired Mac still on an older loki, or an app on an older loki shows a card from this Mac, the card
+shows the older log, the ticket's events as one list of comments and field changes, until both are updated. So does a
+card whose ticket's fields Jira would not give this time: its comments and changes still show. A Jira card's moves
+differ from mail's and Slack's:
 
 1. Read (⌘], a right swipe on the phone) is the only move that ends the card. It comes back when the ticket gets a new
    event, with only that event marked new. Undo brings it back at once.

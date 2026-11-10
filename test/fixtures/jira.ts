@@ -129,6 +129,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     display_url: null as string | null,
     /** Whether the site has a field named Sprint; a site without Jira Software has none. */
     has_sprints: true,
+    /** One read that fails with this status: a ticket's fields (`issue`) or the site's list of fields (`field`); null for none. */
+    broken: null as { read: "issue" | "field"; status: number } | null,
   };
   let ticketSeq = 10000;
   let commentSeq = 30000;
@@ -182,6 +184,13 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return json(200, { issues, isLast, ...(isLast ? {} : { nextPageToken: String(from + size) }) });
   };
 
+  /** The answer a broken read gives: Jira's refusal of the token for 401, else a failure with a message. */
+  const breaks = (read: "issue" | "field"): Response | null => {
+    if (state.broken?.read !== read) return null;
+    if (state.broken.status === 401) return new Response("Client must be authenticated to access this resource.", { status: 401 });
+    return json(state.broken.status, { errorMessages: ["Internal server error"] });
+  };
+
   const site = (req: FakeJiraRequest): Response => {
     const path = req.url.pathname;
     const q = req.url.searchParams;
@@ -201,6 +210,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
 
     const one = /^\/rest\/api\/3\/issue\/([^/]+)$/.exec(path);
     if (one && req.method === "GET") {
+      const broken = breaks("issue");
+      if (broken) return broken;
       const ticket = find(decodeURIComponent(one[1]));
       if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
       const fields = (q.get("fields") ?? "").split(",").filter(Boolean);
@@ -225,12 +236,15 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     }
     // Every field the person may see, a list rather than an object; a custom field's id differs from site to site.
     if (path === "/rest/api/3/field" && req.method === "GET")
-      return json(200, [
-        { id: "summary", name: "Summary", custom: false },
-        { id: "status", name: "Status", custom: false },
-        { id: "customfield_10016", name: "Story point estimate", custom: true },
-        ...(state.has_sprints ? [{ id: JIRA_SPRINT_FIELD, name: "Sprint", custom: true }] : []),
-      ]);
+      return (
+        breaks("field") ??
+        json(200, [
+          { id: "summary", name: "Summary", custom: false },
+          { id: "status", name: "Status", custom: false },
+          { id: "customfield_10016", name: "Story point estimate", custom: true },
+          ...(state.has_sprints ? [{ id: JIRA_SPRINT_FIELD, name: "Sprint", custom: true }] : []),
+        ])
+      );
     const issue = /^\/rest\/api\/3\/issue\/([^/]+)\/(comment|changelog)$/.exec(path);
     if (issue) {
       const ticket = find(decodeURIComponent(issue[1]));

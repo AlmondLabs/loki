@@ -43,14 +43,17 @@ function site(over: { link_host?: string } = {}) {
     () => Promise.resolve(secret),
   );
   const facts = (f: Partial<CardFacts> = {}): CardFacts => ({ dealt_message_id: null, brought_ids: [], newest_message_id: null, place: "OPS-7", ...f });
-  const read = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), ask);
+  /** A read as an app on plan 089 asks it, with the ticket. */
+  const read = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), { ticket: true, ...ask });
+  /** A read as an older app asks it, without the ticket. */
+  const plain = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), ask);
   /** Someone comments at a minute; returns the comment's id on the card. */
   const comment = (minute: number, author: FakeJiraPerson = JIRA_ADA): string =>
     eid(at(minute), "c", jira.comment("OPS-7", { at: at(minute), author, text: `comment at ${String(minute)}` }));
   /** Someone changes fields at a minute; returns the history entry's id on the card. */
   const change = (minute: number, items: FakeJiraChange[], author: FakeJiraPerson = JIRA_ADA): string =>
     eid(at(minute), "h", jira.change("OPS-7", { at: at(minute), author, items }));
-  return { jira, ticket, read, comment, change, text: jiraThreadText(() => client) };
+  return { jira, ticket, read, plain, comment, change, text: jiraThreadText(() => client) };
 }
 
 const STATUS = (from: string, to: string): FakeJiraChange[] => [{ field: "status", from, to }];
@@ -189,7 +192,16 @@ describe("a Jira card's ticket (plan 089)", () => {
       description: ["Rotate every key.", "Then tell the team."],
       changed: [],
       also_changed: [],
+      comment_count: 1,
     });
+  });
+
+  test("the comment count is the ticket's, not the window's", async () => {
+    const s = site();
+    const ids = Array.from({ length: 130 }, (_, i) => s.comment(i));
+    const { messages, ticket } = await s.read({ dealt_message_id: ids[127] });
+    expect(messages).toHaveLength(7);
+    expect(ticket?.comment_count).toBe(130);
   });
 
   test("a status changed by someone else after the mark is new, with its old value, who and when", async () => {
@@ -279,6 +291,73 @@ describe("a Jira card's ticket (plan 089)", () => {
     const { ticket } = await s.read();
     expect(ticket?.fields).toEqual({ status: null, assignee: null, reporter: null, priority: null, sprint: null, labels: [] });
     expect(ticket?.description).toEqual([]);
+  });
+});
+
+describe("a Jira card read by an older app, or when the ticket cannot be read (plan 089)", () => {
+  /** A comment, someone else's status change that brought the card, and a later comment. */
+  const ticketWithChange = () => {
+    const s = site();
+    const c1 = s.comment(0);
+    const h = s.change(1, STATUS("To Do", "In Progress"));
+    const c2 = s.comment(2);
+    return { s, c1, h, c2 };
+  };
+  /** What a merged log shows: each event's id, its text, and whether it is unread and brought. */
+  const lines = (messages: ReadonlyArray<{ id?: string; text: string; unread?: boolean; brought?: boolean }>) =>
+    messages.map((m) => [m.id, m.text, m.unread === true, m.brought === true]);
+
+  test("a read that does not ask for the ticket gets comments and changes as one log, oldest first, and no ticket", async () => {
+    const { s, c1, h, c2 } = ticketWithChange();
+    const read = await s.plain({ brought_ids: [h] });
+    expect(lines(read.messages)).toEqual([
+      [c1, "comment at 0", false, false],
+      [h, "status: To Do → In Progress", true, true],
+      [c2, "comment at 2", false, false],
+    ]);
+    expect(read.ticket).toBeUndefined();
+    expect(read.link).toBe("https://acme.atlassian.net/browse/OPS-7");
+  });
+
+  test("its load of earlier events reads both lists, 20 before the one asked", async () => {
+    const s = site();
+    const ids = Array.from({ length: 30 }, (_, i) => [s.comment(i * 2), s.change(i * 2 + 1, STATUS("To Do", "In Progress"))]).flat();
+    const earlier = await s.plain({}, { direction: "before", from: ids[40] });
+    expect(earlier.messages.map((m) => m.id)).toEqual(ids.slice(20, 40));
+    expect(earlier.window.more_before).toBe(true);
+  });
+
+  test("a read that asks for the ticket gets the comments alone and the ticket", async () => {
+    const { s, c1, c2 } = ticketWithChange();
+    const read = await s.read();
+    expect(read.messages.map((m) => m.id)).toEqual([c1, c2]);
+    expect(read.ticket?.key).toBe("OPS-7");
+  });
+
+  test("when the ticket's fields cannot be read, the card gets the one log instead, without the ticket", async () => {
+    const { s, c1, h, c2 } = ticketWithChange();
+    s.jira.state.broken = { read: "issue", status: 500 };
+    const read = await s.read({ brought_ids: [h] });
+    expect(lines(read.messages)).toEqual([
+      [c1, "comment at 0", false, false],
+      [h, "status: To Do → In Progress", true, true],
+      [c2, "comment at 2", false, false],
+    ]);
+    expect(read.ticket).toBeUndefined();
+  });
+
+  test("so too when the site's list of fields cannot be read", async () => {
+    const { s, c1, h, c2 } = ticketWithChange();
+    s.jira.state.broken = { read: "field", status: 500 };
+    const read = await s.read();
+    expect(read.messages.map((m) => m.id)).toEqual([c1, h, c2]);
+    expect(read.ticket).toBeUndefined();
+  });
+
+  test("a refused token still fails the read, so the card says to reconnect", async () => {
+    const { s } = ticketWithChange();
+    s.jira.state.broken = { read: "issue", status: 401 };
+    await expect(s.read()).rejects.toThrow("Jira did not accept the API token");
   });
 });
 

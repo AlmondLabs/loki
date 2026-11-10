@@ -654,7 +654,7 @@ describe("a Jira card shaped like the ticket, on the phone (plan 089)", () => {
       "OPS-7",
       "· Task · Operations",
       "Rotate the keys",
-      "Status",
+      ">Status<",
       "Also changed: Rank, Story points · Ada Lovelace",
       "Description",
       "Comments · 2",

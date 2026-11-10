@@ -248,6 +248,14 @@ function useSentStandIns(source: OutsideThreadSource | null, facts: OutsideFacts
 }
 
 /**
+ * What a read of a Jira card asks beyond its window (plan 089): the ticket, on the opening read, and on a load of
+ * earlier comments while the card shows the ticket, so the load brings comments alone. A card the Mac answered with the
+ * older log of comments and changes loads more of that log; a Gmail or Slack card asks nothing more.
+ */
+export const ticketAsk = (o: OutsideFacts | undefined, showsTicket: boolean): OutsideWindowAsk =>
+  o?.provider === "jira" && showsTicket ? { ticket: true } : {};
+
+/**
  * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
  * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
  * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
@@ -275,7 +283,7 @@ export function useOutsideThread(
   const went = sent.went;
   // The item changes identity on every list update; the thread is read again only when its newest message does, or
   // when the person's own reply went.
-  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
+  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
   const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
   useEffect(() => {
     if (!key) return;
@@ -309,7 +317,7 @@ export function useOutsideThread(
     if (!from) return;
     setShown({ ...shown, busy: direction });
     void source
-      ?.readOutside(item, { ...ask, direction, from })
+      ?.readOutside(item, { ...ask, ...ticketAsk(o, shown.ticket !== null), direction, from })
       .then((out) => setShown((now) => (now?.tag !== tag ? now : typeof out === "string" ? { ...now, busy: null } : withLoaded(now, out, w, direction))));
   };
   const controls: ThreadControls = {
@@ -422,7 +430,7 @@ export function OutsideThread({
   // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to.
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
-      <JiraTicket ticket={state.ticket} count={state.messages.length} touch={touch}>
+      <JiraTicket ticket={state.ticket} touch={touch}>
         <ThreadList facts={facts} state={state} touch={touch} />
       </JiraTicket>
     );

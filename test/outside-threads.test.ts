@@ -12,9 +12,19 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
+import { FrameChatClient, type FrameRequest } from "../core/attention/chat-client.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentLanes } from "../core/attention/lanes.ts";
-import { OutsideCard, OutsideHeader, OutsideReply, OutsideThread, withLoaded, type ReplyBoxControl, type ThreadState } from "../app/src/desk/outside-card.tsx";
+import {
+  OutsideCard,
+  OutsideHeader,
+  OutsideReply,
+  OutsideThread,
+  ticketAsk,
+  withLoaded,
+  type ReplyBoxControl,
+  type ThreadState,
+} from "../app/src/desk/outside-card.tsx";
 import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
 import { KeysHint } from "../app/src/desk/catch-up-parts.tsx";
@@ -262,8 +272,10 @@ describe("reading a card's whole thread", () => {
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
-  test("a Jira card reads its window with the record's key, and the ticket's address comes back with it (KTD14, R14)", async () => {
+  test("a Jira card reads its window with the record's key, and the ticket's address and the ticket come back with it (KTD14, R14, plan 089)", async () => {
     const viewed: CardFacts[] = [];
+    const asked: OutsideWindowAsk[] = [];
+    const ticket = jiraTicket();
     const { t } = threads({
       accounts: [account(JIRA)],
       record: { dealt_message_id: "a", brought_ids: ["b"] },
@@ -278,24 +290,29 @@ describe("reading a card's whole thread", () => {
           get: () => ({ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }),
         },
         cardView: {
-          jira: (_a, _t, facts) => {
+          jira: (_a, _t, facts, ask) => {
             viewed.push(facts);
+            asked.push(ask);
             return Promise.resolve({
-              messages: [{ id: "b", sender: "Ada", at: "", text: "status: To Do → Done", unread: true, brought: true }],
+              messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", unread: true, brought: true }],
               window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
               link: "https://jira.acme.example/browse/OPS-7",
+              ...(ask.ticket ? { ticket } : {}),
             });
           },
         },
       },
     });
-    const read = await t.read(JIRA, "10001");
+    const read = await t.read(JIRA, "10001", { ticket: true });
     expect(viewed).toEqual([{ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }]);
+    expect(asked).toEqual([{ ticket: true }]);
     expect(read).toEqual({
-      messages: [{ id: "b", sender: "Ada", at: "", text: "status: To Do → Done", mine: false, unread: true, brought: true }],
+      messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", mine: false, unread: true, brought: true }],
       window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
       link: "https://jira.acme.example/browse/OPS-7",
+      ticket,
     });
+    expect(await t.read(JIRA, "10001")).not.toHaveProperty("ticket");
   });
   test("a Jira read that fails says why, so the card shows its last lines with the reason", async () => {
     const { t } = threads({
@@ -804,6 +821,33 @@ describe("the reply frames", () => {
     });
     expect(thens).toEqual(["archive"]);
   });
+  test("a Jira card's ask for its ticket reaches the reader, and the ticket comes back in the answer and from the app's client (plan 089)", async () => {
+    const asked: OutsideWindowAsk[] = [];
+    const ticket = jiraTicket();
+    const send = ask({
+      ...NO_MAIL,
+      read: (_a, _t, more) => {
+        asked.push(more ?? {});
+        return Promise.resolve({ messages: JIRA_COMMENTS, window: WINDOW, ...(more?.ticket ? { ticket } : {}) });
+      },
+      reply: () => Promise.reject(new Error("not sent")),
+    });
+    const answer = await send({ type: "account_thread_read", account_id: JIRA, thread_id: "10001", ticket: true });
+    expect(answer).toMatchObject({ type: "account_thread", messages: JIRA_COMMENTS, ticket });
+    // Anything but true is not an ask: an older app sends nothing, and a stray value changes nothing.
+    await send({ type: "account_thread_read", account_id: JIRA, thread_id: "10001", ticket: "yes" });
+    expect(asked).toEqual([{ ticket: true }, {}]);
+
+    const sent: Array<Record<string, unknown>> = [];
+    const request = ((type: string, payload: Record<string, unknown>) => {
+      sent.push({ type, ...payload });
+      return Promise.resolve({ ok: true, reply: answer });
+    }) as unknown as FrameRequest;
+    const app = new FrameChatClient({ request, onChatEvent: () => () => {} });
+    const read = await app.readOutside(JIRA, "10001", null, { ticket: true });
+    expect(sent).toEqual([{ type: "account_thread_read", account_id: JIRA, thread_id: "10001", home: null, ticket: true }]);
+    expect(read).toEqual({ messages: JIRA_COMMENTS, window: WINDOW, ticket });
+  });
   test("both go to the Mac the account lives on, and the phone may send them", () => {
     expect(peerMeaning("account_thread_read")).toMatchObject({ route: "home" });
     expect(peerMeaning("account_thread_reply")).toMatchObject({ route: "home", relists: true });
@@ -977,17 +1021,40 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     const changed = [{ field: "summary", from: "Rotate keys", to: "Rotate the keys", by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" }];
     expect(head(jiraTicket({ changed }))).toContain(">new<");
   });
+  test("the header's new mark says in plain words what changed: the type, the project or the summary", () => {
+    const by = { by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" };
+    const said = (field: string) => head(jiraTicket({ changed: [{ field, from: "a", to: "b", ...by }] }));
+    expect(said("issuetype")).toContain('title="type changed · Ada Lovelace · ');
+    expect(said("project")).toContain('title="project changed · Ada Lovelace · ');
+    expect(said("summary")).toContain('title="summary changed · Ada Lovelace · ');
+    expect(said("issuetype")).not.toContain("issuetype");
+  });
   test("the fields show what the ticket has, the changed status marked new with what it was and who changed it", () => {
     const html = thread();
-    expect(html).toContain(">Status<");
+    // Desktop labels are lowercase (docs/style.md); the phone's are in sentence case.
+    expect(html).toContain(">status<");
     expect(html).toContain(">In review<");
-    expect(html).toContain(">Assignee<");
-    expect(html).toContain(">Reporter<");
-    expect(html).toContain(">Priority<");
+    expect(html).toContain(">assignee<");
+    expect(html).toContain(">reporter<");
+    expect(html).toContain(">priority<");
+    expect(html).toContain(">labels<");
     expect(html).toContain("security, keys");
-    expect(html).not.toContain(">Sprint<");
+    expect(html).not.toContain(">sprint<");
     expect(html.match(/>new</g)?.length).toBe(1);
     expect(html).toContain("was In progress · Ada Lovelace · ");
+  });
+  test("a labels change says what they were, parted by commas, and a status that had none says was none", () => {
+    const by = { by: "Ada Lovelace", at: "2026-11-10T09:00:00.000Z" };
+    const changed = [
+      { field: "labels", from: "security ops", to: "security keys", ...by },
+      { field: "status", from: null, to: "In review", ...by },
+    ];
+    const html = thread(read({ ticket: jiraTicket({ changed }) }));
+    expect(html).toContain("was security, ops · Ada Lovelace · ");
+    expect(html).toContain("was none · Ada Lovelace · ");
+  });
+  test("the comment count is the ticket's, though the window shows fewer", () => {
+    expect(thread(read({ ticket: jiraTicket({ comment_count: 40 }) }))).toContain("Comments · 40");
   });
   test("the fields it does not show are one line: also changed, with who", () => {
     expect(thread()).toContain("also changed: Rank, Story points · Ada Lovelace · ");
@@ -1009,7 +1076,7 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
   test("the comments come last under their count, with the New line before the first unread", () => {
     const html = thread();
     expect(html).toContain("Comments · 2");
-    const order = ["Status", "also changed", "Description", "Comments · 2", "On it", "New since you last read", "Can you look at the rotation?"].map((s) =>
+    const order = [">status<", "also changed", "Description", "Comments · 2", "On it", "New since you last read", "Can you look at the rotation?"].map((s) =>
       html.indexOf(s),
     );
     expect(order.every((at) => at >= 0)).toBe(true);
@@ -1039,6 +1106,13 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
       expect(html).not.toContain("Comments ·");
       expect(head(jiraTicket(), facts)).not.toContain("loki-jira");
     }
+  });
+  test("a Jira card's opening read asks for the ticket, and so does a load while it shows one; Gmail and Slack ask nothing new", () => {
+    expect(ticketAsk(JIRA_FACTS, true)).toEqual({ ticket: true });
+    // A card the Mac answered with the older log loads more of that log.
+    expect(ticketAsk(JIRA_FACTS, false)).toEqual({});
+    const mail = must(outsideItem("Lunch").outside, "mail facts");
+    for (const facts of [mail, FACTS, undefined]) expect(ticketAsk(facts, true)).toEqual({});
   });
   test("loading earlier comments keeps the ticket the opening read gave", () => {
     const w: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };

@@ -16,6 +16,7 @@ export const jiraTicket = (over: Partial<JiraCardTicket> = {}): JiraCardTicket =
     { field: "Rank", by: "Ada Lovelace", at: "2026-11-10T09:01:00.000Z" },
     { field: "Story points", by: "Ada Lovelace", at: "2026-11-10T09:02:00.000Z" },
   ],
+  comment_count: 2,
   ...over,
 });
 

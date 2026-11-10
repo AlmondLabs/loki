@@ -188,6 +188,8 @@ export type JiraEvent = {
 export interface JiraEventPage {
   events: JiraEvent[];
   earlier: number | null;
+  /** How many the whole list holds, as Jira counts it. */
+  total: number;
 }
 
 /** Which page of events to read: `limit` of them, ending just before position `before`, or at the newest when it is left out. */
@@ -424,7 +426,8 @@ export class JiraClient {
       start = num(answer.total) - limit;
       answer = await ask(start, limit);
     }
-    return { events: parse(answer), earlier: start > 0 ? start : null };
+    const events = parse(answer);
+    return { events, earlier: start > 0 ? start : null, total: Math.max(num(answer.total), start + events.length) };
   }
 
   /** One request whose answer is an object, as nearly every Jira answer is. */

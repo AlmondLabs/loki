@@ -430,6 +430,8 @@ export interface JiraCardTicket {
   changed: JiraFieldChange[];
   /** The fields the card does not show (rank, story points and the like) that someone else changed since the dealt mark. */
   also_changed: JiraOtherChange[];
+  /** How many comments the ticket has in all, which the card's window of them may show only some of. */
+  comment_count: number;
 }
 
 /** The fields a Jira card shows (plan 089, Decision 2), each null, or empty for labels, when the ticket has none. */
@@ -481,6 +483,11 @@ export interface OutsideWindowAsk {
   thread_ts?: string;
   direction?: "before" | "after";
   from?: string;
+  /**
+   * A Jira card drawn as its ticket (plan 089): its comments alone, and with the opening window the ticket itself. Left
+   * out, as an app older than plan 089 leaves it, the card's messages are its comments and field changes together.
+   */
+  ticket?: boolean;
 }
 
 /**
