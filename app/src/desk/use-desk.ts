@@ -156,11 +156,11 @@ export function useDesk() {
       const done = (m: Record<string, unknown> | null) => {
         window.clearTimeout(timer);
         if (retry !== null) window.clearInterval(retry);
-        waiters.current.drop(requestId);
+        waiters.drop(requestId);
         resolve(requestResult<ReplyOf<N>>(m));
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
-      waiters.current.wait(requestId, done);
+      waiters.wait(requestId, done);
       const frame = { type, request_id: requestId, ...payload };
       if (!sendRaw(frame)) {
         retry = window.setInterval(() => {
