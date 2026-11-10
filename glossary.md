@@ -131,6 +131,13 @@ messages that wait on you, one card at a time, highest score first (`core/attent
 on every card (`app/src/desk/deck-moves.ts`, plan 070): read (⌘], it rests, see Rest), later (⌘[, see Later) and
 archive (⌘E). A card stays until it is done. The code, frames, stored files and analytics keep the name `inbox`.
 
+**Lane** (`core/attention/lanes.ts`, plan 082): a part of Flow the person chooses to see on its own: chats from all,
+picked or no agents, and mail and Slack from all, picked or no accounts. Lanes are shared by every device (kept in
+`state/attention.json` beside the return times); each device keeps its own active lane. Each agent with cards waiting
+also has a built-in lane, its chats and the accounts it owns. _Avoid_: focus mode, filter, profile.
+
+**Everything**: Flow with no lane on, every card; where a new device starts.
+
 **Done** (a card's terminal state, plan 070): the move after which a card is gone from Flow for good, until its
 thread gets something new. A chat is done when it is archived, an email when its thread leaves the Gmail inbox
 (archived from loki, from Gmail or by a hand-off), and a Slack message when it is read (in loki, in Slack, by archive

@@ -703,9 +703,8 @@ only resting cards are left, Flow says "You're caught up", how many rest, and **
 approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
 Esc returns to Chats. Preferences › Flow lists these keys and sets the return times for each kind of card (see
 "Return times" below).
-The header reads "n need you" and "m chats". Once two agents have something waiting, filter pills sit over the
-deck: **All**, then each agent with cards, busiest first, each with its count; a pill shows only that agent's cards
-this visit. Once you have been past every chat the deck says "You've been through
+The header reads "n need you" and "m chats", counting the lane you are in (see "Lanes" below). Once you have been
+past every chat the deck says "You've been through
 every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing Flow
 ends a visit; opening it again starts a fresh one.
 Flow runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
@@ -782,6 +781,37 @@ The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
 Every chat row, chat header, message and card in Flow shows the face of the agent that owns the conversation (its
 `profile.png` from memory, or a coloured initial), so multi-agent setups stay legible.
+
+### Lanes
+
+A lane is a part of your work you choose to see on its own: the chats of all your agents or of the ones you pick (or
+none), and the mail and Slack of all your accounts or of the ones you pick (or none). "Chats only", "Ada's chats" and
+"everything Ada owns but her chats" are each a lane. A lane set to all agents or all accounts takes in the ones you add
+later; a picked one does not. Deleting an agent or an account takes it out of every lane.
+
+**Making one.** Preferences › Flow lists your lanes above the return times; **new lane** opens the editor: a name, then
+chats from all agents, picked agents or none, then mail and Slack from all accounts, picked accounts or none. Each
+account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
+Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
+
+**Switching.** Flow's title names the lane you are in ("flow · work" on the desktop, "Work" on the phone); click or tap
+it for the switcher: **everything**, your lanes, then a lane for each agent with cards waiting (its chats and the
+accounts it owns), busiest first. The desktop menu also has **new lane…**, which opens Preferences › Flow. Each device
+keeps its own lane until you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts
+in Everything.
+
+**What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks
+through, approvals and questions included; a quiet line says "4 waiting in other lanes" instead. That device's badges
+count only the lane: the rail, the window title ("Flow · Work · 3 waiting"), the tray and dock, the phone's Flow tab and
+Home's "Needs your attention". The chat list, ⌘K and Search still show everything. An empty lane says you're caught up,
+with the count from other lanes and **back to everything**; an agent's lane stays on when it empties and leaves the
+switcher once you move on.
+
+**What a switch keeps.** Switching moves no card: rests, laters and unread marks stay as they were, and a card the lane
+hides is not read. The card on top stays on top when the new lane holds it. Undo takes back only moves on cards in the
+lane you are in; switch back to undo one made elsewhere. A mail or Slack reply you were typing is kept for the session,
+so it is still there when its card comes back. Proposed replies and suggestions belong to the owning agent's chat card,
+so a lane shows them through its chats, not through an account.
 
 ### The order
 
