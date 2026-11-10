@@ -7,7 +7,7 @@ import type { AgentName } from "./accounts";
 import { Block, Segmented, Setting } from "./layout";
 
 /**
- * Preferences › Flow's lane editor (plan 082, U8): the lanes the person made, and one lane's name and two sides, chats
+ * Preferences › Flow's lane editor (plan 085, U8): the lanes the person made, and one lane's name and two sides, chats
  * from all agents, picked ones or none, then mail and Slack from all accounts, picked ones or none (R9). Saving sends
  * the whole list to the mod, which shares it with every paired Mac and the phone (KTD1).
  */

@@ -245,9 +245,10 @@ export interface OutsideChange {
 
 /**
  * The move that follows a reply the person sent from an outside card (plan 070, R11, KTD6): mark the thread read, leave
- * it unread and waiting for an answer (`later`), or archive it.
+ * it unread and waiting for an answer (`later`), or archive it; or none (`stay`, plan 083), so the card stays for the
+ * person's own next move, as Enter leaves a Slack card.
  */
-export type ReplyThen = "read" | "later" | "archive";
+export type ReplyThen = "read" | "later" | "archive" | "stay";
 
 /**
  * How a reply went (plan 070, KTD6): it was sent, and the move after it is told apart, so a move that failed can be
@@ -278,6 +279,17 @@ export interface MailSender {
   address: string;
   name: string;
   signature: string;
+}
+
+/**
+ * Someone in a Slack workspace the person can mention (plan 082): Slack's id for them, the handle a reply names them
+ * by (`@handle`), the name Slack shows, and their photo.
+ */
+export interface SlackPerson {
+  id: string;
+  handle: string;
+  name: string;
+  avatar: string | null;
 }
 
 /** Someone the account has mail with (plan 076), for the recipients line's suggestions: the name they show, if any, and their address. */

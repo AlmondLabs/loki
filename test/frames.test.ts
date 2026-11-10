@@ -91,6 +91,7 @@ describe("the frame table", () => {
         "account_thread_unsend",
         "account_thread_react",
         "account_emoji_search",
+        "account_people_search",
         "account_thread_move",
         "reply_decide",
       ].sort(),
@@ -529,7 +530,7 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
   });
 
-  test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 082, U3)", () => {
+  test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 085, U3)", () => {
     expect(PHONE_FRAMES.has("lanes_set")).toBe(false);
     expect(
       parse("lanes_set", {
@@ -597,6 +598,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     expect(by("home")).toEqual([
       "account_emoji_search",
       "account_labels_list",
+      "account_people_search",
       "account_thread_archive",
       "account_thread_compose",
       "account_thread_handoff",

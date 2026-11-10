@@ -71,7 +71,7 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("dark")).toEqual(["appearance"]);
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
-    // Flow was the Inbox (plan 082): the old word still finds its page.
+    // Flow was the Inbox (plan 085): the old word still finds its page.
     expect(pagesMatching("inbox")).toEqual(["inbox"]);
   });
 });

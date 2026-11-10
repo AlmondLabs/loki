@@ -91,7 +91,7 @@ describe("desktop search: what it finds (AE5)", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
     expect(topHit(search(buildIndex(src), "learn"))?.target).toEqual({ kind: "section", segment: "learn" });
-    // Flow was the Inbox (plan 082): both words open it.
+    // Flow was the Inbox (plan 085): both words open it.
     expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "inbox" });
     expect(topHit(search(buildIndex(src), "inbox"))?.target).toEqual({ kind: "section", segment: "inbox" });
     expect(topHit(search(buildIndex(src), "inbox"))?.title).toBe("Flow");

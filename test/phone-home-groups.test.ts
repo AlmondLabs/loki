@@ -62,7 +62,7 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
   });
 });
 
-describe("Home under the phone's lane (plan 082, R15, R16)", () => {
+describe("Home under the phone's lane (plan 085, R15, R16)", () => {
   const desk = (scope: string, agentId: string): DeskSummary => ({
     scope,
     title: scope,

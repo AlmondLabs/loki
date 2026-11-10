@@ -190,7 +190,7 @@ describe("analytics: the report", () => {
     expect(text).toMatch(/event +count +sessions +mac +windows +linux +phone +mod/);
   });
 
-  test("lane switches (inbox_filtered, plan 082) break down by the kind of lane; a pill from before lanes has none", () => {
+  test("lane switches (inbox_filtered, plan 085) break down by the kind of lane; a pill from before lanes has none", () => {
     const log = [
       ev(1, "inbox_filtered", { kind: "own", agent: null }),
       ev(1, "inbox_filtered", { kind: "agent", agent: "ag-1" }),

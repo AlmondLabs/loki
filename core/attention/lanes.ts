@@ -1,5 +1,5 @@
 /**
- * Lanes (plan 082): the slice of work that reaches the person right now. A lane is a name and two sides, the agents
+ * Lanes (plan 085): the slice of work that reaches the person right now. A lane is a name and two sides, the agents
  * whose chats it holds and the Gmail and Slack accounts whose cards it holds, each side "all" or a picked list (KTD2).
  * An empty list is none, so "chats only" and "no chats" are both lanes. "all" takes in agents and accounts added later;
  * a picked id the device does not know matches nothing, which is how deleting an agent or account leaves every lane

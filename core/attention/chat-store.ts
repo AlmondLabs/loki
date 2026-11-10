@@ -30,6 +30,7 @@ import type {
   ReplyProposal,
   ReplyThen,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   Suggestion,
@@ -90,8 +91,8 @@ export interface HistoryPage {
 /** What the store asks of the app, read at call time: the host builds these afresh on every render. */
 export interface ChatStoreHost {
   markSeen: (agentId: string, conversationId: string) => void;
-  /** Every open conversation with its digest, from the mod (inbox_list). */
-  listConversations: () => Promise<Array<ConversationInfo & Digest>>;
+  /** Every open conversation with its digest, from the mod (inbox_list); null when the mod did not answer, and the store then keeps the list it has. */
+  listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
   /** A page of a chat's thread, through the mod; null when no page came. `before`: the page ends before that position. */
   loadLocalHistory?: (agentId: string, conversationId: string, limit?: number, before?: number) => Promise<HistoryPage | null>;
   /** How many of the newest conversations to follow for live events. */
@@ -162,6 +163,8 @@ export const HISTORY_PAGE = 400;
 /** How long a folder change waits for the daemon's answer. */
 const FOLDER_MOVE_MS = 8000;
 /** What every call says while the mod's socket is down. */
+/** How soon the Inbox's list is asked for again after a request for it got no answer. */
+const LIST_RETRY_MS = 5000;
 const NOT_CONNECTED = "not connected to loki's daemon";
 /** Why an outside move on a chat card is refused. */
 const NOT_OUTSIDE = "this card is not from an account";
@@ -219,6 +222,8 @@ export class ChatStore {
   private readonly threadWatchers = new Listeners();
   /** The live map the handlers change in place; `snap.live` is its copy as last published. */
   private readonly liveMap = new Map<string, Live>();
+  /** The chats whose thread was read from the daemon, to read again when the socket comes back after a drop. */
+  private readonly threadsRead = new Map<string, Runtime>();
   /** Each chat's face as last published (faceOf): what a flush compares to tell a list change from a thread change. */
   private readonly faces = new Map<string, readonly unknown[]>();
   private client: ChatClient | null = null;
@@ -311,6 +316,7 @@ export class ChatStore {
       }
     });
     let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const off = client.onChat((rt, events) => {
       const changed = this.heard(client, rt, events);
       const key = keyOf(rt.agent_id, rt.conversation_id);
@@ -343,6 +349,15 @@ export class ChatStore {
       // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await this.host().listConversations();
       if (stopped()) return;
+      // No answer (a slow link, a socket that closed under the request) is not an empty Inbox: what is shown stays, and
+      // the list is asked for again shortly instead of at the next poll.
+      if (rows === null) {
+        retryTimer ??= setTimeout(() => {
+          retryTimer = null;
+          load();
+        }, LIST_RETRY_MS);
+        return;
+      }
       this.lastReload = this.now();
       // The same answer as last time changes nothing (plan 047): the poll and every reload no longer redraw the app.
       const same = !this.droppedHere && keepSame(lastRows, rows) === lastRows;
@@ -380,12 +395,19 @@ export class ChatStore {
       if (this.visible) load();
     }, 60_000);
     const offStale = client.onListsStale(load);
+    // Rows that settled while the socket was down (the Mac asleep, the phone in a pocket) were pushed to no one: every
+    // thread already read is read again, so an open chat shows them without being left and opened again.
+    const offReopened = client.onReopened(() => {
+      for (const rt of this.threadsRead.values()) void this.loadThread(rt);
+    });
     return () => {
       cancelled = true;
       clearInterval(poll);
       offStale();
+      offReopened();
       offStatus();
       if (reloadTimer) clearTimeout(reloadTimer);
+      if (retryTimer) clearTimeout(retryTimer);
       off();
       client.close();
       if (this.client === client) {
@@ -468,6 +490,7 @@ export class ChatStore {
       if (unreached) return;
       const rows: HistoryRow[] = page?.rows ?? [];
       thread.load(rows, page?.start);
+      this.threadsRead.set(key, rt);
       const first = thread.firstPosition;
       this.set({ older: flagged(this.snap.older, key, first === null ? !!page?.more : first > 0) });
       this.publish();
@@ -541,11 +564,14 @@ export class ChatStore {
       wait_ms: was ? Math.max(0, this.now() - Date.parse(was.at)) || null : null,
     });
     this.bump();
-    void this.client?.respondApproval(rt, requestId, behavior).then((ok) => {
-      if (ok || !l || !was) return;
-      l.pending ??= was; // the server refused: put the request back
-      this.bump();
-    });
+    void this.client
+      ?.respondApproval(rt, requestId, behavior)
+      .catch(() => false)
+      .then((ok) => {
+        if (ok || !l || !was) return;
+        l.pending ??= was; // refused, or the answer never arrived: put the request back, since the agent still waits
+        this.bump();
+      });
   };
 
   /** Answer a pending question (the user_ask tool); the card clears at once and comes back if the daemon refuses. */
@@ -571,11 +597,14 @@ export class ChatStore {
       wait_ms: Math.max(0, this.now() - Date.parse(was.at)) || null,
     });
     this.bump();
-    void this.client?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
-      if (ok) return;
-      l.pendingAsk ??= was;
-      this.bump();
-    });
+    void this.client
+      ?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers))
+      .catch(() => false)
+      .then((ok) => {
+        if (ok) return;
+        l.pendingAsk ??= was;
+        this.bump();
+      });
   };
 
   /**
@@ -616,7 +645,18 @@ export class ChatStore {
     this.bump();
     void this.follow(rt)
       .then(() => this.client?.sendUserMessage(rt, out.text, out.images, this.noteFor(key, env.desk, env.labels), mode === "steer"))
-      .catch((err: unknown) => console.warn("loki: send", err));
+      .then(
+        (accepted) => (accepted === false ? "the daemon did not take it" : null),
+        (err: unknown) => messageOf(err),
+      )
+      .then((why) => {
+        if (why === null) return;
+        // The message is on screen as sent, so the chat says it may not be: silence would leave the person waiting
+        // on an answer to a message the agent never got.
+        console.warn("loki: send", why);
+        l.error = `this message may not have been sent: ${why}`;
+        this.bump();
+      });
     host.markSeen(rt.agent_id, rt.conversation_id);
   };
 
@@ -956,6 +996,13 @@ export class ChatStore {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack message takes a reaction";
     return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
+  };
+
+  /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why they could not be read. */
+  searchPeople = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<SlackPerson[] | string> => {
+    const o = card.outside;
+    if (o?.provider !== "slack") return "only a Slack account has people to mention";
+    return this.attempt((c) => c.searchPeople(o.account_id, query, card.home ?? null));
   };
 
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */

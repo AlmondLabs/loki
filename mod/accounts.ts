@@ -318,7 +318,7 @@ export class PeerAccounts {
     for (const id of [...this.macs.keys()]) if (!keep.has(id)) this.macs.delete(id);
   }
 
-  /** Every paired Mac's accounts as each last said, marked with the Mac they live on (plan 082, KTD9). */
+  /** Every paired Mac's accounts as each last said, marked with the Mac they live on (plan 085, KTD9). */
   everywhere(): MacAccountView[] {
     return [...this.macs].flatMap(([mac, accounts]) => accounts.map((a) => ({ ...a, mac_id: mac, mac_name: this.opts.name(mac) })));
   }

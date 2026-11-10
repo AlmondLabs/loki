@@ -91,6 +91,33 @@ describe("a stop the task's processes cannot all hear", () => {
   });
 });
 
+describe("tasks of an agent that is gone, and tasks at the daemon's exit", () => {
+  test("removing an agent stops its tasks and leaves another agent's running", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const gone = tasks.start("agent-a", "c", tmpdir(), "echo up; sleep 30; echo after");
+    const kept = tasks.start("agent-b", "c", tmpdir(), "echo up; sleep 30; echo after");
+    await tasks.wait(gone, "agent-a", "up", 2000);
+    await tasks.wait(kept, "agent-b", "up", 2000);
+    tasks.stopAgent("agent-a");
+    expect(await tasks.wait(gone, "agent-a", undefined, 3000)).toContain("[stopped (SIGTERM)]");
+    expect(tasks.output(kept, "agent-b")).not.toContain("[stopped");
+    tasks.stopAll();
+  });
+
+  // What the daemon does as it exits: a task that ignores SIGTERM is ended all the same, at once.
+  test.skipIf(process.platform === "win32")("killAll ends a task that ignores the stop signal", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const id = tasks.start("agent-a", "c", tmpdir(), "trap '' TERM; sleep 30 & echo up; wait; echo after");
+    // "up" comes after the shell has started its child: a group killed while its shell is still forking can miss the
+    // child being made, which then holds the output open (the race the stop's second signal is for).
+    await tasks.wait(id, "agent-a", "up", 2000);
+    tasks.killAll();
+    const out = await tasks.wait(id, "agent-a", undefined, 3000);
+    expect(out).not.toContain("after");
+    expect(out).toMatch(/\[(stopped|exited|killed)[^\]]*\]/);
+  });
+});
+
 describe("a task's shell", () => {
   test("the person's own, else /bin/sh; on Windows Git Bash where Git for Windows puts it, else bash.exe on PATH", () => {
     expect(shell({ SHELL: "/bin/zsh" }, "darwin")).toBe("/bin/zsh");
@@ -205,6 +232,26 @@ describe("scheduled tasks", () => {
       expect(await schedules.tick(new Date("2026-11-20T00:00:00Z"))).toBe(0);
       expect(await schedules.tick(new Date("2026-12-01T03:30:00Z"))).toBe(1);
       expect(fired).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an agent that is removed takes its tasks with it; another agent's stay", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
+    try {
+      const schedules = new Schedules(join(dir, "crons.json"), () => Promise.resolve(null));
+      const base = { conversation_id: "c", description: null, recurring: true, prompt: "p", cron: "0 9 * * *", timezone: "UTC" };
+      schedules.create({ ...base, agent_id: "a", name: "one" });
+      schedules.create({ ...base, agent_id: "a", name: "two" });
+      schedules.create({ ...base, agent_id: "b", name: "theirs" });
+      expect(schedules.cancelAgent("a")).toBe(2);
+      expect(schedules.cancelAgent("a")).toBe(0);
+      expect(schedules.list().map((t) => [t.name, t.status])).toEqual([
+        ["one", "cancelled"],
+        ["two", "cancelled"],
+        ["theirs", "active"],
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -7,7 +7,10 @@ import type { EmojiChoice, SlackReaction } from "../../../core/frame-types.ts";
  * reaction is the person's own move in Slack; it moves nothing on the card.
  */
 
-/** The quick choices, each on a number key while the search is empty: seen it, done, agreed, thanks, well done. */
+/**
+ * The quick choices when Slack keeps no most-used emoji for the person (or a Mac on an older loki cannot say), each on
+ * a number key while the search is empty: seen it, done, agreed, thanks, well done.
+ */
 export const QUICK_EMOJI: readonly EmojiChoice[] = [
   { name: "eyes", emoji: { kind: "emoji", text: "👀" } },
   { name: "white_check_mark", emoji: { kind: "emoji", text: "✅" } },
@@ -15,6 +18,39 @@ export const QUICK_EMOJI: readonly EmojiChoice[] = [
   { name: "pray", emoji: { kind: "emoji", text: "🙏" } },
   { name: "raised_hands", emoji: { kind: "emoji", text: "🙌" } },
 ];
+
+/** How many quick reactions a card offers: the first three on a message's hover bar, all five on the picker's keys. */
+const QUICK_COUNT = 5;
+
+/** The person's most used emoji, filled up to five from QUICK_EMOJI with those not among them (plan 084). */
+export function quickChoices(used: readonly EmojiChoice[]): EmojiChoice[] {
+  const names = new Set(used.map((c) => c.name));
+  return [...used, ...QUICK_EMOJI.filter((c) => !names.has(c.name))].slice(0, QUICK_COUNT);
+}
+
+/**
+ * The quick reactions for a Slack card's account (plan 084): what the person uses most in Slack, as its hover bar
+ * shows them, asked of the account's Mac once per account while the Inbox shows its cards, and QUICK_EMOJI until then.
+ */
+export function useQuickEmoji(accountId: string | null, search: ((query: string) => Promise<EmojiChoice[]>) | null): EmojiChoice[] {
+  const [found, setFound] = useState<{ accountId: string; used: EmojiChoice[] } | null>(null);
+  // The card makes its search afresh on each render; only another account asks again.
+  const ask = useEffectEvent(() => search?.("") ?? Promise.resolve([]));
+  const asks = !!search;
+  useEffect(() => {
+    if (!accountId || !asks) return;
+    let live = true;
+    void ask()
+      .catch(() => [])
+      .then((used) => {
+        if (live) setFound({ accountId, used });
+      });
+    return () => {
+      live = false;
+    };
+  }, [accountId, asks]);
+  return quickChoices(found?.accountId === accountId ? found.used : []);
+}
 
 /**
  * A message's reactions after the person adds `choice` (`on`) or takes theirs back: the count moves by one and the pill
@@ -30,7 +66,7 @@ export function toggleReaction(reactions: readonly SlackReaction[], choice: Emoj
 }
 
 /** An emoji as Slack draws it: the character, or the workspace's own image at the height of a line. */
-function Emoji({ emoji, name }: { emoji: EmojiChoice["emoji"] | null; name: string }) {
+export function Emoji({ emoji, name }: { emoji: EmojiChoice["emoji"] | null; name: string }) {
   if (!emoji) return <span>:{name}:</span>;
   return emoji.image ? <img className="loki-emoji" src={emoji.image} alt={`:${name}:`} /> : <span>{emoji.text}</span>;
 }
@@ -63,16 +99,19 @@ export function Reactions({ reactions, onToggle }: { reactions: readonly SlackRe
 const SEARCH_WAIT_MS = 150;
 
 /**
- * The picker under a message: the quick choices on 1 to 5, and a search box that asks the account's Mac for every
+ * The picker under a message: the quick choices on 1 to 5 (the person's most used, plan 084), and a search box that asks the account's Mac for every
  * emoji whose name holds what is typed; ↵ takes the first match, esc closes. It is a dialog, so esc closes it and not
  * the Inbox under it.
  */
 export function EmojiPicker({
   search,
+  quick = QUICK_EMOJI,
   onPick,
   onClose,
 }: {
   search: ((query: string) => Promise<EmojiChoice[]>) | null;
+  /** The quick choices on 1 to 5 (plan 084): the person's most used. */
+  quick?: readonly EmojiChoice[];
   onPick: (choice: EmojiChoice) => void;
   onClose: () => void;
 }) {
@@ -95,14 +134,14 @@ export function EmojiPicker({
     };
   }, [query]);
   const q = query.trim();
-  const shown = q ? (found.query === q ? found.emoji : null) : QUICK_EMOJI;
+  const shown = q ? (found.query === q ? found.emoji : null) : quick;
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation();
     if (e.key === "Escape") onClose();
     else if (e.key === "Enter" && shown?.[0]) onPick(shown[0]);
-    else if (!q && /^[1-5]$/.test(e.key)) {
+    else if (!q && /^[1-5]$/.test(e.key) && quick[Number(e.key) - 1]) {
       e.preventDefault();
-      onPick(QUICK_EMOJI[Number(e.key) - 1]);
+      onPick(quick[Number(e.key) - 1]);
     }
   };
   return (

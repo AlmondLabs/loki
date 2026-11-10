@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
- * The unsent reply on a mail or Slack card, kept in memory per card for the page's lifetime (plan 082, KTD7), the way
+ * The unsent reply on a mail or Slack card, kept in memory per card for the page's lifetime (plan 085, KTD7), the way
  * drafts.ts keeps a chat's: a lane switch that hides the card, or any other way off the screen, leaves the words in its
  * box for when it comes back. Keyed by the card's id (`idOf`), on the desktop and the phone alike. A sent reply
  * empties its box, and an empty box forgets its card. Only the text is kept; a mail's recipients start over.

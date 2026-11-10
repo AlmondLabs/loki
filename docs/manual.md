@@ -967,9 +967,10 @@ off; later does not count), so a mention you already handled shows as an ordinar
 though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
 @mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
 reply from a later day shows that day beside its time. **Reactions** show under each message as Slack shows them,
-with their counts and yours outlined; press one to add or take back yours. **react** on the message under the pointer,
-or ⌘⇧\ for the card's main message (what brought it, else its newest), opens a picker: 1 to 5 pick 👀 ✅ 👍 🙏 🙌,
-and typing searches every emoji, the workspace's own too. A reaction tells the sender you saw it without a reply; the
+with their counts and yours outlined; press one to add or take back yours. Hovering over a message shows Slack's bar
+on it: your three most-used emoji in Slack, one press each, and the add-reaction face, which opens a picker (⌘⇧\
+opens it on the card's main message: what brought it, else its newest). In the picker 1 to 5 pick your five most
+used (👀 ✅ 👍 🙏 🙌 when Slack keeps none), and typing searches every emoji, the workspace's own too. A reaction tells the sender you saw it without a reply; the
 card stays until you read, put off or archive it. **Files** shared in a Slack message show as chips under it, with
 their name, kind and size; press one to open it in Slack, which holds the file. A picture shows as itself, up to 360
 by 240, with its name under it: the Mac that holds the account fetches Slack's small copy once and keeps it with your
@@ -1013,18 +1014,26 @@ channel's other messages unread. Two gaps are known:
 **Reply from the card.** Under the thread is a box for your own reply. It takes focus when the card comes up, as a
 chat card's does (R focuses it again, Esc gives the keys back or closes the deck when it is empty), and sends it as
 you. On a Slack card, Enter or **send** sends it (Shift-Enter starts a new line), in the DM or in the thread for an
-Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. The key you
-press with text in the box sends it first, then makes its own move, and the moves work from inside the box:
+Activity item. On an email card, ⌘Enter or **send** sends it and Enter starts a new line, as in Gmail. Either way the
+reply goes alone: the card stays where it is until you make the next move yourself, and on email Z stops the reply
+while it waits its 10 seconds. A move key pressed with text in the box sends it first, then makes its own move, and
+the moves work from inside the box:
 
-1. Enter on Slack, ⌘Enter on email, **send** or ⌘] sends the reply and the card rests as read.
+1. ⌘] sends the reply and the card rests as read.
 2. ⌘[ sends it and keeps the card: it comes back when they answer, or after the later time if they stay quiet. A
    Slack card waits the same way, whatever Slack's own read mark says meanwhile.
 3. ⌘E sends it and archives the thread (on Slack, marks it read), and the card ends.
 
 The box clears once the reply is sent. If the move after it fails, the card says so and the reply is not sent again
 when you press the key once more. A send that fails keeps your text, moves nothing, and says why. Undo after a reply
-takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
-this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+takes back the move only; the reply stays sent. On the phone, **Send** sends the reply alone too, and the card waits for
+your swipe. Only you send this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
+
+**Mention people.** Type @ and a few letters in the reply box to see the people who match; ↑ and ↓ move, Enter or Tab
+takes one, and Esc puts the list away. On a Slack card the list is your workspace's people, and a pick writes their
+handle (`@ravi.kumar`): when the reply goes, each handle of someone in the workspace becomes a Slack mention, so Slack
+tells them. On an email card the list is the people you have mail with, as Gmail's is: a pick writes their name and
+adds them to To when they are not already on the reply. Both work on the phone too.
 
 **How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
 the card's title. With more than one mailbox connected, the header ends with the one it came to ("in

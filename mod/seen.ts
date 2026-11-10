@@ -16,7 +16,7 @@ import { writeJsonAtomic } from "./json-file.ts";
  *            inbox ranks by its share; your messages, answers, decisions and reads add to it
  *  - rests:  how long Next has rested each chat's Inbox card, and on which rung (core/attention/rest.ts)
  *  - return times: how long ⌘] and ⌘[ rest each kind of card, the person's setting (plan 070, KTD8)
- *  - lanes: the lanes the person made (core/attention/lanes.ts, plan 082, KTD1), one whole list
+ *  - lanes: the lanes the person made (core/attention/lanes.ts, plan 085, KTD1), one whole list
  * The browser decides what these mean; the mod only remembers them.
  *
  * Shared with paired Macs (plan 023, U8, KTD9): a mark is a time, so the later one wins wherever it was made, and
@@ -37,7 +37,7 @@ export interface MarksSnapshot {
   rests?: Record<string, Rest>;
   /** The person's return times and when they were set; missing from a Mac from before plan 070, null where none are set. */
   return_times?: ReturnTimesMark | null;
-  /** The person's lanes and when they were set; missing from a Mac from before plan 082, null where none were ever set. */
+  /** The person's lanes and when they were set; missing from a Mac from before plan 085, null where none were ever set. */
   lanes?: LanesMark | null;
 }
 
@@ -87,7 +87,7 @@ export class SeenStore {
   private rests: Record<string, Rest> = {};
   /** The person's return times for each kind of card (plan 070), null until they set any. */
   private returns: ReturnTimesMark | null = null;
-  /** The person's lanes (plan 082), null until any are set on some Mac. */
+  /** The person's lanes (plan 085), null until any are set on some Mac. */
   private laneMark: LanesMark | null = null;
   private readonly path: string;
   private readonly now: () => string;

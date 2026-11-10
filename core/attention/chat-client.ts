@@ -4,6 +4,7 @@ import type {
   AccountLabel,
   HandoffProposal,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -65,6 +66,7 @@ export type ChatClient = Pick<
   | "unsendOutside"
   | "reactOutside"
   | "searchEmoji"
+  | "searchPeople"
   | "moveOutside"
   | "handoff"
   | "updateModel"
@@ -73,6 +75,7 @@ export type ChatClient = Pick<
   | "onListsStale"
   | "serverInfo"
   | "onStatus"
+  | "onReopened"
 >;
 
 /** The link to the daemon as a chat client reports it. */
@@ -100,6 +103,7 @@ export class FrameChatClient {
   private readonly unsubscribe: () => void;
   private readonly listeners = new Listeners<[rt: Runtime, events: ChatEvent[]]>();
   private readonly staleListeners = new Listeners();
+  private readonly reopened = new Listeners();
   private readonly statuses = new Listeners<[status: LinkStatus]>();
   private readonly opened = new Set<string>();
   private readonly agents = new Map<string, string>();
@@ -170,6 +174,14 @@ export class FrameChatClient {
     return this.statuses.add(fn);
   }
 
+  /**
+   * Told once the chats this client follows are open again after the socket came back. Their state now is current, but
+   * the rows that settled while the socket was down were pushed to no one: whoever shows a thread reads it again.
+   */
+  onReopened(fn: () => void): () => void {
+    return this.reopened.add(fn);
+  }
+
   onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void {
     return this.listeners.add(fn);
   }
@@ -190,6 +202,7 @@ export class FrameChatClient {
     const chats = [...this.opened].map((key) => key.split("\u0000"));
     this.opened.clear();
     await Promise.all(chats.map(([agentId, conversationId]) => this.runtimeStart({ agent_id: agentId, conversation_id: conversationId }).catch(() => {})));
+    this.reopened.emit();
   }
 
   isSubscribed(rt: Runtime): boolean {
@@ -347,6 +360,12 @@ export class FrameChatClient {
   async searchEmoji(accountId: string, query: string, home: string | null): Promise<EmojiChoice[]> {
     const r = await this.call("account_emoji_search", { account_id: accountId, query, home });
     return r.emoji;
+  }
+
+  /** The people in a Slack account's workspace whose handle or name holds `query` (plan 082), from the Mac it lives on. */
+  async searchPeople(accountId: string, query: string, home: string | null): Promise<SlackPerson[]> {
+    const r = await this.call("account_people_search", { account_id: accountId, query, home });
+    return r.people;
   }
 
   /** Stop a held mail reply before it goes (plan 076); false when it already went. */

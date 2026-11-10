@@ -409,8 +409,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 12. With paired Macs (plan 023): `state/peers.json` (the Macs and their token hashes), `backend/tombstones.json`
    (agents deleted anywhere), `state/mcp-sync.json` and `recall/.sync.json`, `mods/.sync.json` (what was seen last,
    to notice changes), and in each agent's memory `conflicts/sync.md` while a clash waits for reflection.
-13. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
-    events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
+13. `logs/`: `daemon.log` (the daemon's output, appended across restarts, and set aside as `daemon.log.1` once past
+    10 MB) and `events.jsonl` (the local usage events). The mod's trace log, `mod.log`, sits in `~/.loki` itself.
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the

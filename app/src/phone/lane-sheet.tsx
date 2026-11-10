@@ -6,7 +6,7 @@ import { Icon } from "./icons";
 import { laneChoices } from "./deck";
 
 /**
- * Flow's title on the phone (plan 082, R11): the active lane's name, "Flow" in Everything, as a button that opens the
+ * Flow's title on the phone (plan 085, R11): the active lane's name, "Flow" in Everything, as a button that opens the
  * lane sheet.
  */
 export function LaneTitle({ lane, onOpen }: { lane: ResolvedLane | null; onOpen: () => void }) {
@@ -20,7 +20,7 @@ export function LaneTitle({ lane, onOpen }: { lane: ResolvedLane | null; onOpen:
 }
 
 /**
- * The phone's lane sheet (plan 082, U7), opened from Flow's title: Everything, the person's lanes, then a built-in lane
+ * The phone's lane sheet (plan 085, U7), opened from Flow's title: Everything, the person's lanes, then a built-in lane
  * for each agent with cards, in sentence case. A pick switches this phone's lane only (R10); lanes are made on a Mac,
  * so there is no entry for a new one (R8). Mounted only while open.
  */

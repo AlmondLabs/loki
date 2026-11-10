@@ -738,11 +738,12 @@ export class AcpChats {
       { kind: "loop", state: "running", turn_id: turn.id },
       { kind: "step", step: { kind: "user", raw: contentText(content), at } },
     ]);
-    await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
     let usage: acp.Usage | null = null;
     let stopReason: acp.StopReason | null = null;
     const outcome: TurnOutcome = { text: "", error: null };
     try {
+      // Inside the try: the chat already reads as running, so a write the store refuses must still end the turn.
+      await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
       const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine), turn.abort.signal, this.stopWaitMs);
       const caps = await proc.capabilities();
       const prompt: acp.ContentBlock[] = [

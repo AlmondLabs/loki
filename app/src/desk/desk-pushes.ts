@@ -46,7 +46,7 @@ export interface DeskSocketState {
    * null while the person has set none.
    */
   returnTimes: ReturnTimes | null | undefined;
-  /** The lanes the person made (plan 082), shared by every Mac and the phone: null until a push carries them. */
+  /** The lanes the person made (plan 085), shared by every Mac and the phone: null until a push carries them. */
   lanes: Lane[] | null;
   /** Bumped when the mod says the cards changed: the Learn view refetches. */
   recallVersion: number;

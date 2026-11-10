@@ -10,6 +10,7 @@ import type {
   OutsideReplied,
   OutsideWindowAsk,
   ReplyThen,
+  SlackPerson,
 } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
@@ -23,7 +24,8 @@ import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { headerOf, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
-import { searchEmoji } from "./slack-markup.ts";
+import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
+import type { SlackPeople } from "./slack-people.ts";
 
 /**
  * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
@@ -38,7 +40,7 @@ import { searchEmoji } from "./slack-markup.ts";
 export type SendGmail = Pick<GmailClient, "getThread" | "sendAs" | "sendReply" | "attachment">;
 
 /** What the person's own Slack moves need: the post, a reaction, and the workspace's emoji to pick one from (plan 079). */
-export type SendSlack = Pick<SlackClient, "postReply" | "react" | "emojiList">;
+export type SendSlack = Pick<SlackClient, "postReply" | "react" | "emojiList" | "frequentEmoji">;
 
 /** One account's sending client. */
 export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: "slack"; client: SendSlack };
@@ -59,6 +61,8 @@ export interface OutsideThreadsOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Where held mail replies wait for their undo (plan 076); without it a mail reply goes at once. */
   outbox?: Omit<MailOutboxOptions, "send">;
+  /** The people in each Slack workspace, for the reply box's @ suggestions and the mentions a reply sends (plan 082). */
+  slackPeople?: Pick<SlackPeople, "search" | "mentions">;
   /** The people each account has mail with, for suggestions, and told of whom the person sends to (plan 076). */
   people?: Pick<MailPeople, "top" | "saw">;
   /** The time zone a quote's date is written in; this Mac's when left out. */
@@ -75,6 +79,12 @@ const READ_WAIT_MAX_MS = 30_000;
 /** The longest reply loki sends: well under Gmail's and Slack's own limits, and far past anything typed on a card. */
 const MAX_REPLY = 30_000;
 
+/** How many quick reactions a Slack card offers from the person's most used (plan 084): three on the bar, five on keys. */
+const QUICK_COUNT = 5;
+
+/** How long the person's most-used emoji are kept before Slack is asked again, so a new favourite shows within minutes. */
+const FREQUENT_TTL_MS = 10 * 60_000;
+
 /** The most a forward carries in files: under Gmail's 25 MB once the files are written out as text. */
 const MAX_FORWARD_BYTES = 17 * 1024 * 1024;
 
@@ -84,6 +94,8 @@ export class OutsideThreads {
   private readonly outbox: MailOutbox | null;
   /** Each Slack account's own emoji, read once while loki runs for the emoji search; a failed read is tried again. */
   private readonly ownEmoji = new Map<string, Promise<Record<string, string>>>();
+  /** Each workspace's most-used emoji (plan 084) and when they were read, read again after FREQUENT_TTL_MS. */
+  private readonly frequent = new Map<string, { at: number; names: Promise<string[]> }>();
 
   constructor(opts: OutsideThreadsOptions) {
     this.opts = opts;
@@ -142,10 +154,40 @@ export class OutsideThreads {
       });
       this.ownEmoji.set(accountId, own);
     }
-    return searchEmoji(query, await own);
+    if (query.trim()) return searchEmoji(query, await own);
+    // An empty search is the person's quick reactions (plan 084): what they use most in Slack, as Slack's hover bar
+    // shows them. The card fills up to five with its own when Slack keeps fewer.
+    const [names, emoji] = await Promise.all([this.frequentOf(accountId, sender), own]);
+    const quick: EmojiChoice[] = [];
+    for (const name of names) {
+      const drawn = reactionEmoji(name, { emoji: (n) => emoji[n] ?? null });
+      if (drawn) quick.push({ name, emoji: drawn });
+      if (quick.length === QUICK_COUNT) break;
+    }
+    return quick;
+  }
+
+  /** The person's most-used emoji in the workspace, read again once they are FREQUENT_TTL_MS old; none when unreadable. */
+  private frequentOf(accountId: string, sender: SendSlack): Promise<string[]> {
+    const now = (this.opts.now?.() ?? new Date()).getTime();
+    const had = this.frequent.get(accountId);
+    if (had && now - had.at < FREQUENT_TTL_MS) return had.names;
+    const names = sender.frequentEmoji().catch(() => {
+      this.frequent.delete(accountId);
+      return [];
+    });
+    this.frequent.set(accountId, { at: now, names });
+    return names;
   }
 
   /** A connected Slack account's own client, or why there is none. */
+  /** The people in a Slack account's workspace whose handle or name holds `query` (plan 082), for @ suggestions. */
+  async searchPeople(accountId: string, query: string): Promise<SlackPerson[]> {
+    if (this.need(accountId).provider !== "slack") throw new Error("only a Slack account has people to mention");
+    if (!this.opts.slackPeople) return [];
+    return this.opts.slackPeople.search(accountId, query);
+  }
+
   private slackSender(accountId: string): SendSlack {
     const account = this.need(accountId);
     if (account.provider !== "slack") throw new Error("only a Slack message takes a reaction");
@@ -245,7 +287,9 @@ export class OutsideThreads {
     if (sender.provider === "gmail") await this.sendMail(account, sender.client, threadId, body, mail);
     else {
       const { channel, ts } = slackPlace(threadId);
-      await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body });
+      // People who cannot be read leave each @handle as typed; the reply still goes.
+      const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
+      await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions });
     }
     log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null });
     // Replying is dealing with what came before, whichever key follows (plan 077, R5).
@@ -310,6 +354,8 @@ export class OutsideThreads {
   /** The move after a sent reply, as the card's own move frames write it back. */
   private follow(accountId: string, threadId: string, then: ReplyThen): Promise<OutsideChange | null> {
     const { threads } = this.opts;
+    // Sent alone (plan 083): the card stays for the person's own next move.
+    if (then === "stay") return Promise.resolve(null);
     if (then === "archive") return threads.archive(accountId, threadId);
     if (then === "read") return threads.markRead(accountId, threadId);
     // The wait is loki's own record and is marked first, so it holds even when Gmail refuses the unread mark.

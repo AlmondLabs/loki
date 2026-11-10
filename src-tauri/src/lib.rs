@@ -199,11 +199,19 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
         .spawn(move || {
             let mut exits: Vec<std::time::Instant> = vec![];
             let mut held = false;
+            // Whether the window was told the daemon keeps stopping; taken back once it has run a minute.
+            let mut looping = false;
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 let Some(h) = app.try_state::<harness::Harness>() else { break };
                 if h.was_stopped() { break; }
-                let Some(status) = h.exited() else { continue };
+                let Some(status) = h.exited() else {
+                    if looping && exits.last().is_some_and(|t| t.elapsed() >= std::time::Duration::from_secs(60)) {
+                        looping = false;
+                        app.state::<DaemonState>().set(|s| s.error = None);
+                    }
+                    continue;
+                };
                 if status.code() == Some(harness::EXIT_HELD) {
                     if !held { eprintln!("loki: daemon: another daemon is already serving — using that one, and trying again every {} s", HELD_RETRY.as_secs()); }
                     held = true;
@@ -221,7 +229,11 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
                 if h.was_stopped() { break; }
                 let result = launch(&app);
                 if let Err(e) = &result { eprintln!("loki: daemon restart failed: {e}"); }
-                app.state::<DaemonState>().set(|s| s.error = result.err());
+                // A start that works says nothing of a daemon that dies again a moment later: one that keeps
+                // stopping is reported until it has run a minute.
+                let note = harness::crash_loop_note(exits.len(), &loki_dir().join("logs").join("daemon.log"));
+                looping = note.is_some();
+                app.state::<DaemonState>().set(|s| s.error = result.err().or(note));
             }
             app.state::<DaemonState>().supervising.store(false, std::sync::atomic::Ordering::SeqCst);
         })

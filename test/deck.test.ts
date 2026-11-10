@@ -34,7 +34,6 @@ import {
   makeMove,
   returnChoices,
   undoMove,
-  isDismissed,
   moveLedger,
 } from "../app/src/phone/deck.ts";
 import { dayLabel, unreadBoundary } from "../app/src/shared/thread.ts";
@@ -498,18 +497,6 @@ describe("the phone's moves (plan 070, U8)", () => {
     expect(ledger.stands("a1/a", first)).toBe(false);
     expect(ledger.stands("a1/a", second)).toBe(true);
     expect(ledger.stands("a1/b", second)).toBe(false);
-  });
-
-  test("a reply's read is not counted again for a card a button already moved", () => {
-    const a = item("a");
-    let s = commitCard(EMPTY_DECK, a, "seen");
-    // The reply resolves after Read: the card is already dismissed at this stamp, so its own commit is skipped.
-    expect(isDismissed(s, a)).toBe(true);
-    if (!isDismissed(s, a)) s = commitCard(s, a, "seen");
-    expect(s.pass.seen).toBe(1);
-    expect(isDismissed(undoCard(s, a, "seen"), a)).toBe(false);
-    // Something new on the card is a new card: a reply to it counts.
-    expect(isDismissed(s, item("a", { lastAssistantText: "something new" }))).toBe(false);
   });
 
   test("an undo after a hand-off says it was handed off; any other refusal says why", async () => {

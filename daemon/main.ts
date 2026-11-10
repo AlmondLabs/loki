@@ -262,6 +262,7 @@ const chat: DaemonChats = new DaemonChats({
   report,
   macId: installId(),
   schedules,
+  background,
 });
 chats.follow(stores, report);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
@@ -435,4 +436,7 @@ function stop(signal: string) {
 }
 process.on("SIGTERM", () => stop("SIGTERM"));
 process.on("SIGINT", () => stop("SIGINT"));
-process.on("exit", () => lock.release());
+process.on("exit", () => {
+  background.killAll();
+  lock.release();
+});

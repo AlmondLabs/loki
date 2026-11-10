@@ -38,7 +38,7 @@ const HOME: Lane = { id: "lane-home", name: "Home", chats: ["agent-home"], accou
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
 const noAccounts = { everywhere: () => Promise.resolve({ accounts: [], other_macs: [] }) };
 
-describe("Preferences › Flow: the lane editor (plan 082, U8)", () => {
+describe("Preferences › Flow: the lane editor (plan 085, U8)", () => {
   test("making Work with two agents and one account sends the lanes with that lane and the chosen ids (F1)", () => {
     const draft: LaneDraft = { ...newDraft("lane-new"), name: "Work", chatIds: ["agent-work", "agent-ops"], accountIds: [MAIL.account_id] };
     expect(saveLane([HOME], draft)).toEqual([HOME, { id: "lane-new", name: "Work", chats: ["agent-work", "agent-ops"], accounts: [MAIL.account_id] }]);

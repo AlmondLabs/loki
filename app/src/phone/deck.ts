@@ -246,11 +246,6 @@ export function undoCard(s: DeckState, item: AttentionItem, via: Via, wasHeld = 
   return { ...s, dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
 }
 
-/** Whether `item` was sent away in this pass at its current stamp, so a late reply's read does not count it again. */
-export function isDismissed(s: DeckState, item: AttentionItem): boolean {
-  return s.dismissed.get(idOf(item)) === stampOf(item);
-}
-
 /**
  * Which move on each card still stands, so a write-back that fails late brings the card back only for the move it
  * belongs to: not after Undo took that move back (the card is back already and the tally cleared), and not over a newer
@@ -286,7 +281,7 @@ export function holdCard(s: DeckState, item: AttentionItem): DeckState {
 
 /**
  * After the live list changes: forget dismissals it has outgrown, pin whatever is now on top. The same object when
- * nothing moved. `items` are the active lane's cards and `all` every card (plan 082, KTD6): a dismissal is weighed
+ * nothing moved. `items` are the active lane's cards and `all` every card (plan 085, KTD6): a dismissal is weighed
  * against every card, so a card passed over in one lane stays passed over through a switch and back, and the card on
  * top stays on top when the new lane holds it.
  */
@@ -300,7 +295,7 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[], all: Attenti
   return topId === next.topId ? next : { ...next, topId };
 }
 
-// ---- Lanes (plan 082) ------------------------------------------------------------------------------
+// ---- Lanes (plan 085) ------------------------------------------------------------------------------
 
 /** One entry in the lane sheet: the lane's id ("" is Everything) and its name as the lane has it. */
 export interface LaneChoice {

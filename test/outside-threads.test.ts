@@ -66,6 +66,9 @@ function threads(
     thenFails?: string;
     sendAs?: GmailSendAs[];
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
+    /** The person's most-used emoji as Slack keeps them, and whether reading them fails (plan 084). */
+    frequent?: string[];
+    frequentFails?: boolean;
   } = {},
 ) {
   /** What each card-view read was given: the record's facts and the ask. */
@@ -73,7 +76,8 @@ function threads(
   const sentMail: GmailDraftInput[] = [];
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
-  const posted: SlackDraftInput[] = [];
+  const frequentReads = { n: 0 };
+  const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
   const moves: string[] = [];
@@ -150,11 +154,15 @@ function threads(
                 emojiReads.n++;
                 return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
               },
+              frequentEmoji: () => {
+                frequentReads.n++;
+                return opts.frequentFails ? Promise.reject(new Error("ratelimited")) : Promise.resolve(opts.frequent ?? []);
+              },
             },
           },
     ...opts.extra,
   });
-  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads };
+  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads, frequentReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -247,7 +255,12 @@ describe("reading a card's whole thread", () => {
       },
       clientFor: () => ({
         provider: "slack",
-        client: { postReply: () => Promise.resolve({ ts: "1" }), react: () => Promise.resolve(), emojiList: () => Promise.resolve({}) },
+        client: {
+          postReply: () => Promise.resolve({ ts: "1" }),
+          react: () => Promise.resolve(),
+          emojiList: () => Promise.resolve({}),
+          frequentEmoji: () => Promise.resolve([]),
+        },
       }),
       sleep: (ms) => {
         waits.push(ms);
@@ -313,8 +326,8 @@ describe("the person's reply", () => {
     await t.reply(SLACK, "C1:1.0", "on it", "archive");
     await t.reply(SLACK, "D1", "thanks", "archive");
     expect(posted).toEqual([
-      { channel: "C1", thread_ts: "1.0", text: "on it" },
-      { channel: "D1", text: "thanks" },
+      { channel: "C1", thread_ts: "1.0", text: "on it", mentions: new Map() },
+      { channel: "D1", text: "thanks", mentions: new Map() },
     ]);
     expect(archived).toEqual([`${SLACK}/C1:1.0`, `${SLACK}/D1`]);
   });
@@ -344,6 +357,13 @@ describe("the person's reply", () => {
     expect(sentMail).toHaveLength(1);
     expect(moves).toEqual([`dealt ${MAIL}/t1`, `archive ${MAIL}/t1`]);
   });
+  test("with stay, the reply is sent and nothing else moves (plan 083)", async () => {
+    const { t, posted, moves } = threads();
+    expect(await t.reply(SLACK, "D1", "on it", "stay")).toEqual({ sent: true, then_error: null, change: null });
+    expect(posted).toHaveLength(1);
+    expect(moves).toEqual([`dealt ${SLACK}/D1`]);
+  });
+
   test("with read, the reply is sent and the thread marked read, and the card does not end", async () => {
     const { t, sentMail, moves } = threads({ gmail: LUNCH });
     expect(await t.reply(MAIL, "t1", "Thanks.", "read")).toMatchObject({ sent: true, then_error: null, change: { move: "read", ended: false } });
@@ -353,7 +373,7 @@ describe("the person's reply", () => {
   test("a sent reply whose archive fails answers sent with the archive's reason, and nothing is sent twice", async () => {
     const { t, posted } = threads({ thenFails: "Slack is out of reach" });
     expect(await t.reply(SLACK, "D1", "on it", "archive")).toEqual({ sent: true, then_error: "Slack is out of reach", change: null });
-    expect(posted).toEqual([{ channel: "D1", text: "on it" }]);
+    expect(posted).toEqual([{ channel: "D1", text: "on it", mentions: new Map() }]);
   });
   test("a Gmail thread with no one else in it is refused before anything is sent", async () => {
     const { t, sentMail } = threads({ gmail: [message("m1", 1, { From: "ada@acme.com", To: "ada@work.example", Subject: "note" })] });
@@ -388,6 +408,31 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
     await t.searchEmoji(SLACK, "eyes");
     expect(emojiReads.n).toBe(1);
   });
+
+  test("an empty search is the person's most used in Slack, drawn, at most five; read again after ten minutes (plan 084)", async () => {
+    let at = Date.parse("2026-11-10T10:00:00Z");
+    const frequent = ["100", "ship_it", "not_an_emoji_anywhere", "+1::skin-tone-2", "eyes", "pray", "fire"];
+    const { t, frequentReads } = threads({ frequent, extra: { now: () => new Date(at) } });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([
+      { name: "100", emoji: { kind: "emoji", text: "💯" } },
+      { name: "ship_it", emoji: { kind: "emoji", text: ":shipit:", image: "https://example.test/shipit.png" } },
+      { name: "+1::skin-tone-2", emoji: { kind: "emoji", text: "👍\u{1F3FB}" } },
+      { name: "eyes", emoji: { kind: "emoji", text: "👀" } },
+      { name: "pray", emoji: { kind: "emoji", text: "🙏" } },
+    ]);
+    await t.searchEmoji(SLACK, " ");
+    expect(frequentReads.n).toBe(1);
+    at += 11 * 60_000;
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
+  });
+
+  test("most used that cannot be read are none, and asked again next time", async () => {
+    const { t, frequentReads } = threads({ frequentFails: true });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([]);
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
+  });
 });
 
 const NO_MAIL = {
@@ -395,7 +440,33 @@ const NO_MAIL = {
   unsend: () => false,
   react: () => Promise.resolve(),
   searchEmoji: () => Promise.resolve([]),
+  searchPeople: () => Promise.resolve([]),
 };
+
+describe("mentioning people in a Slack reply (plan 082)", () => {
+  const people = (fails = false) => ({
+    search: (_accountId: string, query: string) => Promise.resolve([{ id: "U2", handle: "ravi.kumar", name: query, avatar: null }]),
+    mentions: () => (fails ? Promise.reject(new Error("offline")) : Promise.resolve(new Map([["ravi.kumar", "U2"]]))),
+  });
+
+  test("a reply carries the workspace's handles, so its @handles go as Slack's mentions", async () => {
+    const { t, posted } = threads({ extra: { slackPeople: people() } });
+    await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
+    expect(posted[0]?.mentions).toEqual(new Map([["ravi.kumar", "U2"]]));
+  });
+
+  test("people who cannot be read leave the handles as typed, and the reply still goes", async () => {
+    const { t, posted } = threads({ extra: { slackPeople: people(true) } });
+    await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
+    expect(posted[0]).toMatchObject({ text: "@ravi.kumar can you look", mentions: new Map() });
+  });
+
+  test("the search reaches the workspace's people; a mail account has none to mention", async () => {
+    const { t } = threads({ extra: { slackPeople: people() } });
+    expect(await t.searchPeople(SLACK, "ravi")).toEqual([{ id: "U2", handle: "ravi.kumar", name: "ravi", avatar: null }]);
+    await expect(t.searchPeople(MAIL, "ravi")).rejects.toThrow("only a Slack account has people to mention");
+  });
+});
 
 describe("the reply frames", () => {
   /** The account frames on a bridge, with a fake reader; each frame's last answer. */
@@ -465,7 +536,7 @@ describe("the reply frames", () => {
     });
     expect(await ask(reader)({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "snooze" })).toMatchObject({
       type: "error",
-      message: "then must be read, later or archive",
+      message: "then must be read, later, archive or stay",
     });
     expect(await ask()({ type: "account_thread_reply", account_id: SLACK, thread_id: "D1", text: "ok", then: "archive" })).toMatchObject({
       type: "error",

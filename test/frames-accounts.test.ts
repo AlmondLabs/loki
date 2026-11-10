@@ -105,7 +105,7 @@ describe("the account frames", () => {
     expect(JSON.stringify(answer)).not.toContain("token-1");
   });
 
-  test("account_list adds each paired Mac's accounts, marked with that Mac, beside this Mac's own (plan 082, U4)", async () => {
+  test("account_list adds each paired Mac's accounts, marked with that Mac, beside this Mac's own (plan 085, U4)", async () => {
     const slack = {
       account_id: "slack:T09:U07",
       provider: "slack",

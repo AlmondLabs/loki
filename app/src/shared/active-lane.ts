@@ -3,7 +3,7 @@ import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.
 import { createSessionValue } from "./session-value";
 
 /**
- * The active lane on this device (plan 082, KTD4). Lanes are shared by every Mac and the phone; which one is active is
+ * The active lane on this device (plan 085, KTD4). Lanes are shared by every Mac and the phone; which one is active is
  * this device's own, kept in localStorage until the person switches, so the phone may sit in Everything while the Mac
  * sits in Work (R10). "" is Everything, and a new device starts there.
  */

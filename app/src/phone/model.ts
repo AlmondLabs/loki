@@ -357,7 +357,7 @@ export interface HomeCounts {
 
 /**
  * The shortcut rail's numbers, from the same derivations the destinations use. Flow's count is of `laneItems`, the
- * phone's active lane (plan 082, R15), and of every item when none is passed; the rest ignore lanes (R16).
+ * phone's active lane (plan 085, R15), and of every item when none is passed; the rest ignore lanes (R16).
  */
 export function homeCounts({
   items,
@@ -416,7 +416,7 @@ export function homeDeskSections(
 }
 
 /**
- * What Home draws (plan 082, R15, R16): its counts, "Needs your attention" from the phone's active lane (`laneItems`),
+ * What Home draws (plan 085, R15, R16): its counts, "Needs your attention" from the phone's active lane (`laneItems`),
  * and the chat groups from every item, so a chat outside the lane is still listed below, once.
  */
 export function homeLists({

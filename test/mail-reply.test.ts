@@ -484,6 +484,10 @@ describe("the people an account has mail with", () => {
 
 describe("the reply frame's addressing", () => {
   const parse = (m: Record<string, unknown>) => FRAMES.account_thread_reply.parse({ account_id: MAIL, thread_id: "t1", text: "ok", then: "read", ...m });
+  test("a reply may be sent with no move after it, and a move loki does not know is refused (plan 083)", () => {
+    expect(parse({ then: "stay" })).toMatchObject({ then: "stay" });
+    expect(parse({ then: "snooze" })).toBe("then must be read, later, archive or stay");
+  });
   test("read as sent, with the signature on unless it says off", () => {
     expect(parse({ mail: { mode: "forward", to: ["eng@acme.com"] }, outbox_id: "o1-abcdefgh" })).toMatchObject({
       mail: { mode: "forward", to: ["eng@acme.com"], cc: [], bcc: [], from: null, signature: true },

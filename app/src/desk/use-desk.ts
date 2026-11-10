@@ -154,24 +154,16 @@ export function useDesk() {
   const request = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number): Promise<RequestResult<ReplyOf<N>>> =>
     new Promise((resolve) => {
       const requestId = `${type}-${Math.random().toString(36).slice(2, 10)}`;
-      let retry: number | null = null;
       const done = (m: Record<string, unknown> | null) => {
         window.clearTimeout(timer);
-        if (retry !== null) window.clearInterval(retry);
-        waiters.current.delete(requestId);
+        waiters.drop(requestId);
         resolve(requestResult<ReplyOf<N>>(m));
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
-      waiters.current.set(requestId, done);
+      waiters.wait(requestId, done);
       const frame = { type, request_id: requestId, ...payload };
-      if (!sendRaw(frame)) {
-        retry = window.setInterval(() => {
-          if (sendRaw(frame) && retry !== null) {
-            window.clearInterval(retry);
-            retry = null;
-          }
-        }, 250);
-      }
+      // No socket yet (a view mounting at startup, a chat switch under way): the frame goes out as the next one opens.
+      if (!sendRaw(frame)) waiters.hold(requestId, frame);
     });
 
   /** Inverse gestures, newest last; ⌘Z on the sheet pops one. Local to this window. */
@@ -356,7 +348,7 @@ export function useDesk() {
     /** How long ⌘] and ⌘[ rest each kind of card (the mod's, plan 070), the defaults while none are set, and new ones. */
     returnTimes: returnTimes ?? RETURN_TIMES_DEFAULT,
     setReturnTimes: (times: ReturnTimes) => send({ type: "return_times_set", return_times: times }),
-    /** The lanes the person made (the mod's, plan 082), null until the mod says; and a new whole list, from a Mac only. */
+    /** The lanes the person made (the mod's, plan 085), null until the mod says; and a new whole list, from a Mac only. */
     lanes,
     setLanes: (next: Lane[]) => send({ type: "lanes_set", lanes: next }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),
@@ -364,8 +356,8 @@ export function useDesk() {
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agent_id: agentId, conversation_id: conversationId }),
-    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Empty when the mod does not answer. */
-    listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
+    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Null when the mod does not answer. */
+    listInbox: (): Promise<InboxConversation[] | null> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : null)),
     /**
      * The conversation's transcript from the daemon's store, through the mod; empty if the mod does not know it.
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).

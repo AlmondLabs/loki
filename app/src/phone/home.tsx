@@ -79,7 +79,7 @@ export function Home({
   desksLoaded: boolean;
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
-  /** The phone's active lane's items (plan 082), which "Needs your attention" and Flow's count read; left out, every item. */
+  /** The phone's active lane's items (plan 085), which "Needs your attention" and Flow's count read; left out, every item. */
   laneItems?: AttentionItem[];
   due: number;
   /** Keep Home mounted under child pages so the filter, the folds and the scroll survive the round trip. */

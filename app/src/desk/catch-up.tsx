@@ -18,7 +18,7 @@ import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBac
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
-import { OutsideCard, useMailCompose, wentTo } from "./outside-card";
+import { OutsideCard, threadSourceOf, useMailCompose, wentTo } from "./outside-card";
 import { addressingFor } from "./mail-address";
 import { HandoffPicker } from "./handoff-picker";
 import { ReturnPicker } from "./return-picker";
@@ -53,7 +53,7 @@ interface CatchUpProps {
   labelList?: readonly LabelView[] | null;
   /** Every card in Flow, whatever the lane: the deck reads the lane's, the quiet count and the menu all of them (KTD3). */
   items: AttentionItem[];
-  /** This device's active lane, null for Everything (plan 082). */
+  /** This device's active lane, null for Everything (plan 085). */
   lane: ResolvedLane | null;
   /** The lanes the person made, for the title's menu; null until they first come. */
   lanes: Lane[] | null;
@@ -155,8 +155,8 @@ function CatchUpDeck(props: DeckProps) {
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
-  const { readOutside, replyOutside, composeOutside, unsendOutside } = props.chats;
-  const outsideSource = readOutside ? { readOutside } : null;
+  const { replyOutside, composeOutside, unsendOutside } = props.chats;
+  const outsideSource = threadSourceOf(props.chats);
   // What the recipients line of the mail card on top starts from (plan 076); the keys that switch its mode need it too.
   const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.

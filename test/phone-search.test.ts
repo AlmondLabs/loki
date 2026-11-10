@@ -107,7 +107,7 @@ describe("matching", () => {
     expect(titles(src(), "theme", "pages")).toEqual(["Preferences"]);
     expect(titles(src(), "archive", "pages")).toContain("Archived chats");
     expect(search(src(), "connection").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "connection" });
-    // Flow was the Inbox (plan 082): the old word still finds it.
+    // Flow was the Inbox (plan 085): the old word still finds it.
     expect(titles(src(), "inbox", "pages")).toEqual(["Flow"]);
     expect(search(src(), "inbox").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "tab", tab: "inbox" });
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");

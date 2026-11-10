@@ -1,4 +1,4 @@
-// An unsent reply on a mail or Slack card is kept per card for the session (plan 082, KTD7): a lane switch that hides
+// An unsent reply on a mail or Slack card is kept per card for the session (plan 085, KTD7): a lane switch that hides
 // the card and brings it back leaves the words in its box, and a sent reply clears them.
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";

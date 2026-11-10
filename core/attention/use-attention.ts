@@ -38,6 +38,7 @@ import type {
   AccountLabel,
   HandoffProposal,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -71,7 +72,7 @@ const minutesSince = (iso: string | null, now: number): number | null => {
 };
 
 /**
- * The device's lane, as the shell hands it to useAttention (plan 082, KTD3, KTD4): the stored id and its setter, the
+ * The device's lane, as the shell hands it to useAttention (plan 085, KTD3, KTD4): the stored id and its setter, the
  * lanes the person made, and the resolver that turns the id into a lane. The id and its storage are the app's
  * (app/src/shared/active-lane.ts); useAttention applies the lane once, beside the items it builds.
  */
@@ -89,7 +90,7 @@ export interface LaneChoice {
 }
 
 /**
- * Flow's lane on this device (plan 082), for Flow and its badges: the active lane and its cards, and what the switcher
+ * Flow's lane on this device (plan 085), for Flow and its badges: the active lane and its cards, and what the switcher
  * and the editor need. `laneItems` is what the badges count (R15); the full `items` beside it stay for everything
  * outside Flow (R16) and the quiet count of other lanes.
  */
@@ -134,7 +135,8 @@ export interface UseAttentionOptions {
   /** What a page left out of a lean row (plans 041 and 043), from the Mac the chat lives on; null when it did not come. */
   loadLocalStep?: (agentId: string, conversationId: string, row: number) => Promise<WholeRow | null>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
-  listConversations: () => Promise<Array<ConversationInfo & Digest>>;
+  /** The Inbox's list, or null when the mod did not answer. */
+  listConversations: () => Promise<Array<ConversationInfo & Digest> | null>;
   /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
   subscribeLimit?: number;
   /** Analytics (core/analytics.ts): an event this model carried out for the user. */
@@ -150,7 +152,7 @@ export interface UseAttentionOptions {
   visibility?: Activity;
   /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
   makeClient: () => ChatClient;
-  /** This device's lane (plan 082); left out, Everything, with no way to switch. */
+  /** This device's lane (plan 085); left out, Everything, with no way to switch. */
   lane?: LaneChoice;
 }
 
@@ -216,6 +218,8 @@ export interface OutsideSource {
   reactOutside?: (item: AttentionItem, messageId: string, name: string, on: boolean) => Promise<string | null>;
   /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
   searchEmoji?: (item: AttentionItem, query: string) => Promise<EmojiChoice[] | string>;
+  /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why not. */
+  searchPeople?: (item: AttentionItem, query: string) => Promise<SlackPerson[] | string>;
 }
 
 /** What a mail reply carries beside its text (plan 076): how it is addressed (null for reply all) and the id its hold is undone by. */
@@ -937,7 +941,7 @@ export function useAttention(opts: UseAttentionOptions) {
     setPurpose: store.setPurpose,
     createDesk: store.createDesk,
     items,
-    /** Flow's lane on this device and the cards it holds (plan 082); `items` stays every card. */
+    /** Flow's lane on this device and the cards it holds (plan 085); `items` stays every card. */
     flow,
     loadHistory,
     loadThread: store.loadThread,
@@ -979,6 +983,7 @@ export function useAttention(opts: UseAttentionOptions) {
     unsendOutside: store.unsendOutside,
     reactOutside: store.reactOutside,
     searchEmoji: store.searchEmoji,
+    searchPeople: store.searchPeople,
     replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,

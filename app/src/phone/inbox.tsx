@@ -1,14 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
@@ -62,7 +52,6 @@ import {
   deckQueue,
   flingVelocity,
   holdCard,
-  isDismissed,
   isHorizontalDrag,
   moveLedger,
   reconcileDeck,
@@ -91,6 +80,7 @@ import type { AccountLabel } from "../../../core/frame-types.ts";
 import { ReturnTimeSheet } from "./return-time-sheet";
 import { MailLabelsSheet } from "./mail-labels-sheet";
 import { LaneSheet, LaneTitle } from "./lane-sheet";
+import { newId } from "../shared/new-id";
 
 /**
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
@@ -146,11 +136,6 @@ export interface Deck {
   undo: (item: AttentionItem, via: Via, wasHeld: boolean) => void;
   /** Something went out from this card: keep it on top until it is decided. */
   hold: (item: AttentionItem) => void;
-  /**
-   * Whether the card was sent away at its current stamp, read from the pass as it is now (not as it was when a caller's
-   * closure was made), so a reply resolving late does not take a card off a second time.
-   */
-  dismissed: (item: AttentionItem) => boolean;
   /** A fresh visit: the cards moved past in this one come back. */
   again: () => void;
   /** Go through the cards Read rested. */
@@ -161,7 +146,7 @@ export interface Deck {
 
 /**
  * The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight: over the active
- * lane's cards (`items`), with every card (`all`) beside them so the visit carries across a lane switch (plan 082, KTD6).
+ * lane's cards (`items`), with every card (`all`) beside them so the visit carries across a lane switch (plan 085, KTD6).
  */
 export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): Deck {
   const [state, setState] = useState<DeckState>(EMPTY_DECK);
@@ -170,11 +155,6 @@ export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): D
   // Pin whatever is on top, drop dismissals the live list has outgrown (the same state when nothing moved).
   const reconciled = useMemo(() => reconcileDeck(state, items, all), [state, items, all]);
   if (reconciled !== state) setState(reconciled);
-  // The pass as last drawn, for `dismissed`: a reply's send captures the deck of the render it started in.
-  const live = useRef(state);
-  useLayoutEffect(() => {
-    live.current = state;
-  });
   return {
     visible,
     current,
@@ -188,7 +168,6 @@ export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): D
     },
     undo: (item, via, wasHeld) => setState((s) => undoCard(s, item, via, wasHeld)),
     hold: (item) => setState((s) => holdCard(s, item)),
-    dismissed: (item) => isDismissed(live.current, item),
     again: () => setState(EMPTY_DECK),
     restingToo: () => setState(throughResting),
     resting: state.resting,
@@ -471,7 +450,7 @@ export interface CardModel {
 
 /**
  * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
- * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 082, U7) the title names
+ * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 085, U7) the title names
  * it and opens the lane sheet; the deck, its counts and the caught-up state are the lane's, and a quiet line counts
  * what waits in other lanes.
  */
@@ -648,10 +627,6 @@ export function Inbox({
             <Stack
               onTyped={(item, has) => setTypedId((t) => (has ? idOf(item) : t === idOf(item) ? null : t))}
               onSending={(item, on) => setSendingId((t) => (on ? idOf(item) : t === idOf(item) ? null : t))}
-              // A button that slipped through while it sent has taken the card off already: count it once.
-              onReplied={(item) => {
-                if (!deck.dismissed(item)) commit(item, "seen", "tap", { done: true });
-              }}
               visible={visible}
               leaving={leaving}
               drag={swipe.drag}
@@ -869,14 +844,11 @@ function Stack({
   items,
   onTyped,
   onSending,
-  onReplied,
 }: {
   /** The top outside card's reply box went from empty to holding text, or back. */
   onTyped: (item: AttentionItem, has: boolean) => void;
   /** The top outside card's reply started on its way, or landed (sent or not). */
   onSending: (item: AttentionItem, on: boolean) => void;
-  /** A reply from the top outside card was sent and the card marked read with it. */
-  onReplied: (item: AttentionItem) => void;
   labelList: readonly LabelView[] | null;
   /** Every card in the Inbox, where a follow-up card finds the title of the chat its thread went to (R19). */
   items: AttentionItem[];
@@ -965,12 +937,12 @@ function Stack({
                       replyOutside: chats.replyOutside,
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
+                      searchPeople: chats.searchPeople,
                     }
                   : null
               }
               onTyped={(has) => onTyped(item, has)}
               onSending={(on) => onSending(item, on)}
-              onReplied={() => onReplied(item)}
             />
           ) : (
             <LiveCardConversation
@@ -1178,7 +1150,7 @@ export function CardConversation({
 /**
  * An outside card's body (plan 067, U3, U8; plan 068): the account's state when it stopped working, the chat the thread
  * went to before, the whole thread, the box for the person's own reply, and Hand off, which opens the chats to give the
- * thread to. Send sends the reply and marks the thread read (plan 070, R11), so the card goes as Read would. While the
+ * thread to. Send sends the reply alone and the card stays for the person's next swipe (plan 083). While the
  * box holds text the card tells the deck (`onTyped`), whose swipes then spring back.
  */
 function OutsideBody({
@@ -1189,7 +1161,6 @@ function OutsideBody({
   outside = null,
   onTyped,
   onSending,
-  onReplied,
 }: {
   item: AttentionItem;
   banner?: ReactNode;
@@ -1201,7 +1172,6 @@ function OutsideBody({
   onTyped?: (has: boolean) => void;
   /** The reply is on its way (true) or has landed (false), so the deck holds its moves meanwhile. */
   onSending?: (on: boolean) => void;
-  onReplied?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const thread = useOutsideThread(item, outside);
@@ -1211,6 +1181,7 @@ function OutsideBody({
   const facts = item.outside;
   if (!facts) return null;
   const unsend = outside?.unsendOutside;
+  const people = outside?.searchPeople;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
       {banner}
@@ -1232,6 +1203,7 @@ function OutsideBody({
             touch
             compose={compose}
             quote={quoteOf(facts, thread)}
+            searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
             onUndo={
               facts.provider === "gmail" && unsend
                 ? () => {
@@ -1241,13 +1213,13 @@ function OutsideBody({
             }
             onSend={async (text, mail) => {
               onSending?.(true);
-              const outboxId = facts.provider === "gmail" && unsend ? crypto.randomUUID() : null;
+              const outboxId = facts.provider === "gmail" && unsend ? newId() : null;
               held.current = outboxId;
               try {
-                const r = await outside.replyOutside(item, text, "read", { mail, outbox_id: outboxId });
+                // A reply goes alone and the card stays for the person's next swipe (plan 083).
+                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId });
                 // A sent reply clears the box, which fires no input: the swipes come back here.
                 if (r.sent) onTyped?.(false);
-                if (r.sent && !r.error) onReplied?.();
                 return r;
               } finally {
                 held.current = null;

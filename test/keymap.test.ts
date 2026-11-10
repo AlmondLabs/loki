@@ -128,7 +128,7 @@ describe("keymap: resolution", () => {
     }
     expect(KEYMAP.filter((b) => b.keys.includes("cmd+3"))).toEqual([]);
     expect(KEYMAP.filter((b) => b.id.startsWith("task"))).toEqual([]);
-    // The rail: no Tasks between Flow and Agents. Flow was the Inbox (plan 082); its id stays segment.inbox.
+    // The rail: no Tasks between Flow and Agents. Flow was the Inbox (plan 085); its id stays segment.inbox.
     expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
     expect(SEGMENTS.map((s) => s.id)).toContain("inbox");
     expect(KEYMAP.find((b) => b.id === "segment.inbox")?.label).toBe("Flow");

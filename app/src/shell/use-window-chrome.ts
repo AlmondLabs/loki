@@ -6,7 +6,7 @@ import type { Desk } from "./types";
 /**
  * The window title, as `name` for the window and `document` for a browser tab: the desk's name on the desk, Flow with
  * its count, Learn with its due cards, agents, Preferences (while its sheet is up). With a lane active Flow names it
- * ("Flow · Work · 3 waiting", plan 082 KTD10), so the person can tell which lane the count and the dock badge are of;
+ * ("Flow · Work · 3 waiting", plan 085 KTD10), so the person can tell which lane the count and the dock badge are of;
  * `waiting` is already that lane's. A waiting count prefixes the tab title everywhere but Flow.
  */
 export function windowTitle(

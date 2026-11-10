@@ -83,11 +83,45 @@ pub fn restart_delay(recent_exits: usize) -> std::time::Duration {
     std::time::Duration::from_secs(1u64.checked_shl(recent_exits.min(5) as u32).unwrap_or(32).min(30))
 }
 
+/// How many exits in a minute make a daemon one that keeps stopping, which the window should say.
+pub const CRASH_LOOP_EXITS: usize = 3;
+
+/// What the window says of a daemon that keeps stopping: a start that succeeds each time is no sign it is well. None
+/// below CRASH_LOOP_EXITS exits in the last minute.
+pub fn crash_loop_note(recent_exits: usize, log: &Path) -> Option<String> {
+    (recent_exits >= CRASH_LOOP_EXITS).then(|| {
+        format!("loki's daemon keeps stopping ({recent_exits} times in the last minute): its log is {}", log.display())
+    })
+}
+
+/// The size past which the daemon's log is set aside before the next start.
+pub const LOG_MAX_BYTES: u64 = 10 * 1024 * 1024;
+
+/// Set a log past `max` aside as `<name>.1`, replacing the one set aside before, so the daemon's log is at most two
+/// files of that size: a daemon that crashes at every start writes a stack trace each time, for as long as loki runs.
+/// A failure leaves the log where it is; it is then appended to as before.
+pub fn rotate_log(log: &Path, max: u64) {
+    let Ok(meta) = std::fs::metadata(log) else { return };
+    if meta.len() <= max {
+        return;
+    }
+    let mut aside = log.as_os_str().to_owned();
+    aside.push(".1");
+    let aside = std::path::PathBuf::from(aside);
+    let _ = std::fs::remove_file(&aside);
+    if let Err(e) = std::fs::rename(log, &aside) {
+        eprintln!("loki: could not set the daemon's log aside: {e}");
+    }
+}
+
 impl Harness {
     /// Start loki's daemon; replaces a child started earlier.
     pub fn start_daemon(&self, d: &Daemon, launch: &Launch) -> Result<(), String> {
-        // Appended, so a restarted daemon's log follows the one that died rather than replacing it.
-        self.spawn(daemon_command(d, launch), &launch.log_dir.join("daemon.log"))
+        // Appended, so a restarted daemon's log follows the one that died rather than replacing it; set aside first
+        // once it is past LOG_MAX_BYTES.
+        let log = launch.log_dir.join("daemon.log");
+        rotate_log(&log, LOG_MAX_BYTES);
+        self.spawn(daemon_command(d, launch), &log)
     }
 
     /// Whether the child has exited, and how: None while it runs or when there is none.
@@ -317,6 +351,35 @@ mod tests {
 
     fn launch<'a>(dir: &'a Path) -> Launch<'a> {
         Launch { token_file: dir, log_dir: dir }
+    }
+
+    #[test]
+    fn a_daemon_that_keeps_stopping_is_said_so_from_its_third_exit_in_a_minute() {
+        let log = Path::new("logs").join("daemon.log");
+        assert_eq!(crash_loop_note(0, &log), None);
+        assert_eq!(crash_loop_note(CRASH_LOOP_EXITS - 1, &log), None);
+        let note = crash_loop_note(CRASH_LOOP_EXITS, &log).expect("a note at the third exit");
+        assert!(note.contains("keeps stopping (3 times in the last minute)"), "{note}");
+        assert!(note.contains("daemon.log"), "{note}");
+    }
+
+    #[test]
+    fn a_log_past_its_size_is_set_aside_once_and_a_smaller_one_is_left() {
+        let dir = std::env::temp_dir().join(format!("loki-log-rotate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("daemon.log");
+        let aside = dir.join("daemon.log.1");
+        std::fs::write(&log, b"short").unwrap();
+        rotate_log(&log, 10);
+        assert!(log.exists() && !aside.exists());
+        std::fs::write(&log, b"longer than ten bytes").unwrap();
+        std::fs::write(&aside, b"the one before").unwrap();
+        rotate_log(&log, 10);
+        assert!(!log.exists());
+        assert_eq!(std::fs::read(&aside).unwrap(), b"longer than ten bytes");
+        // No log at all is nothing to do.
+        rotate_log(&log, 10);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// Linux: a start through the parent-death setup succeeds, and the harness outlives the thread that asked for it

@@ -82,7 +82,7 @@ export function daemonCalls(request: FrameRequest) {
      */
     accounts: {
       list: () => attempt(request, "account_list", {}).then(listed),
-      /** This Mac's accounts and every paired Mac's, for picking accounts in a lane (plan 082, KTD9); Accounts' rows use `list`. */
+      /** This Mac's accounts and every paired Mac's, for picking accounts in a lane (plan 085, KTD9); Accounts' rows use `list`. */
       everywhere: async (): Promise<{ accounts: AccountView[]; other_macs: MacAccountView[] } | string> => {
         const r = await attempt(request, "account_list", {});
         return typeof r === "string" ? r : { accounts: r.accounts, other_macs: r.other_macs ?? [] };

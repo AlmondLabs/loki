@@ -198,7 +198,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
-  // The phone's own lane (plan 082, R10): its Flow, tab badge, title and Home's attention count only its cards.
+  // The phone's own lane (plan 085, R10): its Flow, tab badge, title and Home's attention count only its cards.
   // Lanes are edited on a Mac (R8), so the phone has no setLanes.
   const [laneId, setLaneId] = useActiveLaneId("phone");
   const catchUp = useAttention({
