@@ -10,7 +10,7 @@ import { JiraSync, jiraOutsideSource } from "../mod/jira-sync.ts";
 import { jiraCardView, jiraThreadText } from "../mod/jira-view.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
+import type { OutsideChange, OutsideFacts, OutsideMessage, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { FrameChatClient, type FrameRequest } from "../core/attention/chat-client.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
@@ -272,7 +272,13 @@ describe("reading a card's whole thread", () => {
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
-  test("a Jira card reads its window with the record's key, and the ticket's address and the ticket come back with it (KTD14, R14, plan 089)", async () => {
+  /** What a Jira comment carries for the card to draw it as Slack's (plan 090): a picture, its blocks, and that it mentions the person. */
+  const DRAWN = {
+    avatar: "https://avatar-management.example/ada/48",
+    body: [{ kind: "text" as const, spans: [{ kind: "mention" as const, text: "@Mina Example" }] }],
+    mentions_me: true,
+  };
+  test("a Jira card reads its window with the record's key, and the ticket's address and the ticket come back with it (KTD14, R14, plan 089, 090)", async () => {
     const viewed: CardFacts[] = [];
     const asked: OutsideWindowAsk[] = [];
     const ticket = jiraTicket();
@@ -294,7 +300,7 @@ describe("reading a card's whole thread", () => {
             viewed.push(facts);
             asked.push(ask);
             return Promise.resolve({
-              messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", unread: true, brought: true }],
+              messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", unread: true, brought: true, ...DRAWN }],
               window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
               link: "https://jira.acme.example/browse/OPS-7",
               ...(ask.ticket ? { ticket } : {}),
@@ -307,7 +313,7 @@ describe("reading a card's whole thread", () => {
     expect(viewed).toEqual([{ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }]);
     expect(asked).toEqual([{ ticket: true }]);
     expect(read).toEqual({
-      messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", mine: false, unread: true, brought: true }],
+      messages: [{ id: "b", sender: "Ada", at: "", text: "Can you look?", mine: false, unread: true, brought: true, ...DRAWN }],
       window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
       link: "https://jira.acme.example/browse/OPS-7",
       ticket,
@@ -1122,6 +1128,119 @@ describe("a Jira card shaped like the ticket (plan 089)", () => {
     const after = withLoaded(now, { messages: [earlier], window: { ...w, more_before: false } }, w, "before");
     expect(after.ticket).toBe(ticket);
     expect(after.messages.map((m) => m.id)).toEqual(["c0", "c1", "c2"]);
+  });
+});
+
+describe("a Jira card's comments look like a Slack card's messages (plan 090)", () => {
+  const ADA_FACE = "https://avatar-management.example/ada/48";
+  const at = (day: number, hour: number, minute: number) => new Date(Date.UTC(2026, 10, day, hour, minute)).toISOString();
+  const comments: OutsideMessage[] = [
+    {
+      id: "c1",
+      sender: "Ada Lovelace",
+      at: at(9, 9, 0),
+      text: "Plan is bold",
+      mine: false,
+      avatar: ADA_FACE,
+      body: [
+        {
+          kind: "text",
+          spans: [
+            { kind: "text", text: "Plan is " },
+            { kind: "text", text: "bold", bold: true },
+          ],
+        },
+      ],
+    },
+    {
+      id: "c2",
+      sender: "Ada Lovelace",
+      at: at(9, 9, 1),
+      text: "@Mina Example can you?",
+      mine: false,
+      avatar: ADA_FACE,
+      body: [
+        {
+          kind: "text",
+          spans: [
+            { kind: "mention", text: "@Mina Example" },
+            { kind: "text", text: " can you?" },
+          ],
+        },
+      ],
+      mentions_me: true,
+    },
+    { id: "c3", sender: "Bob Stone", at: at(9, 9, 30), text: "Same here", mine: false, replies: 2 },
+    { id: "c4", sender: "Ada Lovelace", at: at(10, 9, 0), text: "Next day", mine: false, avatar: ADA_FACE, unread: true, brought: true },
+  ];
+  const window: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };
+  // The card's controls can react and open threads, as a Slack card's do; a Jira card uses neither.
+  const controls = { load: () => {}, openThread: () => {}, busy: null, react: () => {} };
+  const draw = (state: Partial<Extract<ThreadState, { kind: "read" }>> = {}, facts: OutsideFacts = JIRA_FACTS, touch = false) =>
+    renderToStaticMarkup(
+      createElement(OutsideThread, {
+        facts,
+        touch,
+        state: { kind: "read", messages: comments, window, controls, ticket: jiraTicket({ comment_count: 9 }), ...state },
+      }),
+    );
+
+  test("faces on the first comment of each run, one name per run, clock times, day pills and the New line", () => {
+    const html = draw();
+    expect(html).toContain("loki-slack-thread");
+    // Ada's two comments a minute apart are one run; Bob's, and Ada's on the next day, start their own.
+    expect(html.match(/data-first="true"/g)).toHaveLength(3);
+    expect(html.match(/<img[^>]*src="https:\/\/avatar-management\.example\/ada\/48"/g)).toHaveLength(2);
+    expect(html.match(/class="loki-msg-name">Ada Lovelace/g)).toHaveLength(2);
+    expect(html).toContain('<span class="sr-only">Ada Lovelace: </span>');
+    expect(html.match(/<time class="loki-msg-time"/g)).toHaveLength(3);
+    expect(html).toContain("loki-msg-day-pill");
+    expect(html.match(/New since you last read/g)).toHaveLength(1);
+    expect(html.indexOf("New since you last read")).toBeLessThan(html.indexOf("Next day"));
+  });
+
+  test("the words are drawn as Slack's blocks, a mention as its pill, and the wash is on the comment that mentions the person", () => {
+    const html = draw();
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain('<span class="loki-mention">@Mina Example</span>');
+    // The wash marks the mention, not the comment that only brought the card.
+    expect(html.match(/loki-slack-brought/g)).toHaveLength(1);
+    expect(html.indexOf("loki-slack-brought")).toBeGreaterThan(html.indexOf("Plan is"));
+    expect(html.indexOf("loki-slack-brought")).toBeLessThan(html.indexOf("can you?"));
+  });
+
+  test("no reactions, no hover bar, no replies to open; load earlier and the comments heading stay", () => {
+    const html = draw();
+    expect(html).not.toContain("loki-slack-hoverbar");
+    expect(html).not.toContain("loki-slack-reaction");
+    expect(html).not.toContain("replies");
+    expect(html).toContain(">load earlier<");
+    expect(html).toContain("Comments · 9");
+    expect(html.indexOf("Comments · 9")).toBeLessThan(html.indexOf("load earlier"));
+  });
+
+  test("a card from an older Mac, without the ticket, draws its log the same way", () => {
+    const html = draw({ ticket: null });
+    expect(html).not.toContain("Comments ·");
+    expect(html.match(/data-first="true"/g)).toHaveLength(3);
+    expect(html).toContain(">load earlier<");
+    expect(html).not.toContain("loki-slack-hoverbar");
+  });
+
+  test("the phone keeps the plain list", () => {
+    const html = draw({}, JIRA_FACTS, true);
+    expect(html).not.toContain("loki-slack-thread");
+    expect(html).not.toContain("data-first");
+    expect(html).not.toContain("loki-slack-brought");
+    expect(html).toContain("@Mina Example can you?");
+  });
+
+  test("a Slack card is as it was: the wash on what brought it, the hover bar, and its replies to open", () => {
+    const html = draw({ ticket: null }, FACTS);
+    expect(html.match(/loki-slack-brought/g)).toHaveLength(1);
+    expect(html.indexOf("loki-slack-brought")).toBeGreaterThan(html.indexOf("Same here"));
+    expect(html).toContain("loki-slack-hoverbar");
+    expect(html).toContain("2 replies");
   });
 });
 

@@ -427,24 +427,41 @@ export function OutsideThread({
     if (box) scrollWithin(box, el, "end");
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [newest]);
-  // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to.
+  // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to. On the
+  // desktop a Jira card's comments are drawn by the Slack card's rows (plan 090); the phone keeps the plain list.
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
       <JiraTicket ticket={state.ticket} touch={touch}>
-        <ThreadList facts={facts} state={state} touch={touch} />
+        {touch ? <ThreadList facts={facts} state={state} touch /> : <SlackRows facts={facts} state={state} stays />}
       </JiraTicket>
     );
   if (state.kind !== "read" || state.messages.length === 0) return <ThreadStandIn facts={facts} state={state} touch={touch} />;
-  if (facts.provider === "slack" && !touch)
-    return <SlackThread messages={state.messages} newest={facts.newest_message_id} window={state.window ?? null} controls={state.controls ?? null} />;
-  if (facts.provider === "gmail" && !touch)
+  if (touch) return <ThreadList facts={facts} state={state} touch endRef={end} />;
+  if (facts.provider === "gmail")
     return (
       <>
         <MailThread messages={state.messages} own={own} />
         <div ref={end} />
       </>
     );
-  return <ThreadList facts={facts} state={state} touch={touch} endRef={end} />;
+  return <SlackRows facts={facts} state={state} />;
+}
+
+/**
+ * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 090); a Jira card's
+ * without what only Slack has, and under its ticket without scrolling away from the ticket's top (`stays`).
+ */
+function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state: Extract<ThreadState, { kind: "read" }>; stays?: boolean }) {
+  return (
+    <SlackThread
+      messages={state.messages}
+      newest={facts.newest_message_id}
+      window={state.window ?? null}
+      controls={state.controls ?? null}
+      jira={facts.provider === "jira"}
+      stays={stays}
+    />
+  );
 }
 
 /** The card's own last lines while its thread is read, or when it could not be, with a line saying which. */
@@ -461,9 +478,8 @@ function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: Th
 }
 
 /**
- * The thread as a plain list, oldest first, with the mark `OutsideThread` scrolls to at its end. A Jira card draws the
- * New line before its first unread event, and loads earlier events (KTD14); the phone's Slack and mail cards keep the
- * plain list they had.
+ * The thread as a plain list, oldest first, with the mark `OutsideThread` scrolls to at its end, as the phone draws
+ * every card. A Jira card draws the New line before its first unread event, and loads earlier events (KTD14).
  */
 function ThreadList({
   facts,

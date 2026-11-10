@@ -10,6 +10,8 @@
 export interface FakeJiraPerson {
   account_id: string;
   display_name: string;
+  /** The 48 px picture Jira gives under `avatarUrls`; left out, the person has none. */
+  avatar?: string;
 }
 
 /** A request the fake received: its method, URL, body as text and authorization header. */
@@ -93,7 +95,12 @@ const stamp = (ms: number) => new Date(ms).toISOString().replace("Z", "+0000");
 /** The instant a time names; Jira's offset has no colon, which Date.parse is not promised to read. */
 const instant = (at: FakeJiraTime) => (at instanceof Date ? at.getTime() : Date.parse(at.replace(/([+-]\d{2})(\d{2})$/, "$1:$2")));
 const written = (at: FakeJiraTime) => (at instanceof Date ? stamp(at.getTime()) : at);
-const person = (p: FakeJiraPerson) => ({ accountId: p.account_id, displayName: p.display_name, active: true });
+const person = (p: FakeJiraPerson) => ({
+  accountId: p.account_id,
+  displayName: p.display_name,
+  active: true,
+  ...(p.avatar ? { avatarUrls: { "16x16": `${p.avatar}?s=16`, "48x48": p.avatar } } : {}),
+});
 const paragraphs = (text: string) => ({ version: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 /** A description's text as Jira's document: a paragraph for each line. */
 const lines = (text: string) => ({

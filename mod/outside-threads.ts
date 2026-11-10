@@ -252,6 +252,7 @@ export class OutsideThreads {
       ...(m.body ? { body: m.body } : {}),
       ...(m.attachments?.length ? { attachments: m.attachments } : {}),
       ...(m.brought ? { brought: true } : {}),
+      ...(m.mentions_me ? { mentions_me: true } : {}),
       ...(m.new_replies ? { new_replies: m.new_replies } : {}),
       ...(m.reactions?.length ? { reactions: m.reactions } : {}),
       ...(m.slack_files?.length ? { slack_files: m.slack_files } : {}),

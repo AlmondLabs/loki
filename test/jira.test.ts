@@ -226,6 +226,17 @@ describe("a ticket's events", () => {
     expect((await c.comments(id)).events).toEqual(expected);
   });
 
+  test("a comment's author carries their 48 px picture when Jira gives one, and only a web address (plan 090)", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    const avatar = "https://avatar-management.example/ada/48";
+    jira.comment("OPS-1", { at: at("2026-11-10T09:00:00.000Z"), author: { ...JIRA_ADA, avatar }, text: "On it.", id: "1" });
+    jira.comment("OPS-1", { at: at("2026-11-10T09:01:00.000Z"), author: { ...JIRA_BOB, avatar: "javascript:alert(1)" }, text: "Me too.", id: "2" });
+    const [ada, bob] = (await c.comments("OPS-1")).events;
+    expect(ada.author).toEqual({ account_id: "acc-ada", display_name: "Ada Lovelace", avatar });
+    expect(bob.author).toEqual({ account_id: "acc-bob", display_name: "Bob Stone" });
+  });
+
   test("a history entry carries its changed fields by the values Jira shows, and an id with h", async () => {
     const { c, jira } = setup();
     jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
