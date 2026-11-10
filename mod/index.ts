@@ -57,7 +57,7 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
-import { jiraAccountClient, type JiraClient } from "./jira.ts";
+import { jiraAccountClient, parseJiraSecret, type JiraClient } from "./jira.ts";
 import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
@@ -65,6 +65,7 @@ import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
+import { jiraCardView, jiraThreadText } from "./jira-view.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -378,8 +379,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
-  // A Jira ticket has no reader until its sync is wired (plan 2026-11-10-1451, U4), so reading one says so.
-  const jiraThreadText = () => Promise.reject(new Error("Jira is not connected to this yet"));
+  // A Jira ticket read whole with its site's one client (plan 2026-11-10-1451, U5), for the hand-off and the card.
+  const jiraText = jiraThreadText(jiraClients.of);
   // Hand-off (plan 067, U8): a card's whole thread, read with the clients above, sent to its owner's chat through the
   // same chat caller suggestions use, so a new chat is made on the owner's Mac.
   const handoff = new Handoff({
@@ -389,7 +390,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     chats: () => macs.desks(),
     agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
-    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraThreadText },
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
   });
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
   // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
@@ -403,8 +404,12 @@ export default function activate(api: ModApi, host: Host): () => void {
     outbox: { file: join(paths.state, "outbox.json"), key: outboxKey(host.secrets) },
     people: mailPeople,
     slackPeople,
-    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraThreadText },
-    cardView: { slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)) },
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
+    cardView: {
+      slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)),
+      // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
+      jira: jiraCardView(jiraClients.of, async (accountId) => parseJiraSecret(await accounts.getSecret(accountId))),
+    },
     clientFor: (account) =>
       account.provider === "gmail"
         ? { provider: "gmail", client: gmailClient(account.account_id) }

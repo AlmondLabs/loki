@@ -138,14 +138,14 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         const accounts = need();
         // The address typed is not yet known to be the person's site, so it is asked only where the site lives, by a
         // client that holds no token. The host Jira names is the account's (KTD4), and the only one the token goes to.
-        const host = await asking({ site: typed, email: "", token: "" })
+        const info = await asking({ site: typed, email: "", token: "" })
           .serverInfo()
-          .then(
-            (info) => hostOf(info.base_url),
-            () => null,
-          );
-        if (!host) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
-        const secret: JiraSecret = { site: host, email, token };
+          .catch(() => null);
+        const host = info ? hostOf(info.base_url) : null;
+        if (!info || !host) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
+        // A custom domain is where people browse the site, so a card's link opens there (R14); the token never goes to it.
+        const linkHost = hostOf(info.display_url);
+        const secret: JiraSecret = { site: host, email, token, ...(linkHost && linkHost !== host ? { link_host: linkHost } : {}) };
         const me = await asking(secret).myself();
         const accountId = accountIdOf({ provider: "jira", host, account_id: me.account_id });
         if (reconnecting && reconnecting !== accountId)
@@ -202,7 +202,13 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       try {
         const ask = { ...(view ? { view } : {}), ...(threadTs ? { thread_ts: threadTs } : {}), ...(direction ? { direction } : {}), ...(from ? { from } : {}) };
         const read = await deps.outside.read(accountId, threadId, ask);
-        return reply({ account_id: accountId, thread_id: threadId, messages: read.messages, ...(read.window ? { window: read.window } : {}) });
+        return reply({
+          account_id: accountId,
+          thread_id: threadId,
+          messages: read.messages,
+          ...(read.window ? { window: read.window } : {}),
+          ...(read.link ? { link: read.link } : {}),
+        });
       } catch (err) {
         return fail(errorMessage(err));
       }

@@ -378,6 +378,8 @@ export interface OutsideRead {
   messages: OutsideMessage[];
   /** Null for mail, and from a Mac on a loki older than plan 077, which reads the whole view at once. */
   window: OutsideWindow | null;
+  /** A Jira ticket's address in the browser (R14), on the site's own domain; absent for mail and Slack. */
+  link?: string;
 }
 
 /** Which of a Slack card's two views a window is (plan 077, R10): one thread alone, or the channel or DM around it. */

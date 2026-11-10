@@ -50,11 +50,14 @@ export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
   threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt"> & {
     /** A card's record, for what its window is built around (plan 077). */
-    get: (accountId: string, threadId: string) => Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> | null;
+    get: (
+      accountId: string,
+      threadId: string,
+    ) => (Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> & { place?: string | null }) | null;
   };
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
-  /** A card's own reader where it shows a window of more than the thread: Slack's (plan 074, plan 077). */
+  /** A card's own reader where it shows a window rather than the whole thread: Slack's (plan 074, plan 077) and Jira's (KTD14). */
   cardView?: Partial<Record<AccountProvider, CardView>>;
   clientFor: (account: AccountRecord) => SendClient;
   /** Waiting out a rate limit before reading again; a timer when not given. */
@@ -173,7 +176,8 @@ export class OutsideThreads {
 
   /**
    * The thread as the card draws it: every message with its sender and time, and mail without the quoted thread under
-   * it; for a Slack card, the window around what is new, or what `ask` asks for (plan 077), from the card's record.
+   * it; for a Slack or Jira card, the window around what is new, or what `ask` asks for (plan 077, KTD14), from the
+   * card's record, and for a Jira card the ticket's address in the browser.
    */
   async read(accountId: string, threadId: string, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
     const account = this.need(accountId);
@@ -183,8 +187,9 @@ export class OutsideThreads {
       dealt_message_id: record?.dealt_message_id ?? null,
       brought_ids: record?.brought_ids ?? [],
       newest_message_id: record?.newest_message_id ?? null,
+      ...(record?.place ? { place: record.place } : {}),
     };
-    const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"] }> =>
+    const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"]; link?: string }> =>
       view ? view(accountId, threadId, facts, ask) : { messages: await this.opts.threadText[account.provider](accountId, threadId), window: null };
     const read = await readThread().catch(async (err: unknown) => {
       const wait = err instanceof SlackError && err.code === "ratelimited" ? err.retryAfterMs : null;
@@ -215,7 +220,7 @@ export class OutsideThreads {
       ...(m.reactions?.length ? { reactions: m.reactions } : {}),
       ...(m.slack_files?.length ? { slack_files: m.slack_files } : {}),
     }));
-    return { messages, window: read.window };
+    return { messages, window: read.window, ...(read.link ? { link: read.link } : {}) };
   }
 
   /**

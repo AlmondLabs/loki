@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
+import type { AccountProvider } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -930,6 +931,9 @@ function Stack({
   });
 }
 
+/** Whether an outside card has a title of its own, a mail's subject or a Jira ticket's key and title, beside its account. */
+const OUTSIDE_NAMED: Record<AccountProvider, boolean> = { gmail: true, slack: false, jira: true };
+
 /**
  * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
  * the ones behind are its frame and head under a veil, and the one flying off is inert.
@@ -963,8 +967,10 @@ export function Card({
 }) {
   const top = role === "top";
   // An outside card names who wrote it, and its account and agent where a chat names its folder (plan 067, R10); a mail
-  // has its subject for a title, a Slack message only its sender (plan 068).
-  const title = item.outside ? (item.outside.provider === "gmail" ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
+  // has its subject for a title and a Jira card its ticket's key and title, each with the account after it, and a Slack
+  // message only its sender, so its title is the account (plan 068).
+  const named = item.outside ? OUTSIDE_NAMED[item.outside.provider] : false;
+  const title = item.outside ? (named ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
   const who = item.outside ? senderName(item.outside.sender) : (item.agent_name ?? "agent");
   return (
     <article
@@ -993,7 +999,7 @@ export function Card({
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
-          {item.outside?.provider === "gmail" && (
+          {item.outside && named && (
             <>
               <span aria-hidden>·</span>
               <span className="loki-phone-ellipsis">{outsideWho(item.outside)}</span>

@@ -7,7 +7,7 @@ import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } fro
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
 import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
-import { OutsideThread, outsideTitle, replyPlace } from "../app/src/desk/outside-card.tsx";
+import { OutsideHeader, OutsideThread, outsideTitle, replyPlace } from "../app/src/desk/outside-card.tsx";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
@@ -24,13 +24,14 @@ import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
+const JIRA = "jira:acme.atlassian.net:557058:acc-me";
 /** The window a fake card view answers with. */
 const WINDOW: OutsideWindow = { view: "thread", thread_ts: "1", more_before: 3, more_after: false };
 
 const account = (accountId: string, over: Partial<AccountRecord> = {}): AccountRecord => ({
   account_id: accountId,
-  provider: accountId.startsWith("gmail:") ? "gmail" : "slack",
-  address: accountId.startsWith("gmail:") ? "ada@acme.com" : "Acme",
+  provider: accountId.startsWith("gmail:") ? "gmail" : accountId.startsWith("jira:") ? "jira" : "slack",
+  address: accountId.startsWith("gmail:") ? "ada@acme.com" : accountId.startsWith("jira:") ? "acme.atlassian.net" : "Acme",
   owner_agent_id: "agent-work",
   status: "connected",
   connected_at: "2026-11-01T00:00:00.000Z",
@@ -219,6 +220,52 @@ describe("reading a card's whole thread", () => {
     expect(viewed).toEqual([{ facts: { dealt_message_id: "1", brought_ids: ["2"], newest_message_id: "3" }, ask: { direction: "before", from: "2" } }]);
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
+  });
+  test("a Jira card reads its window with the record's key, and the ticket's address comes back with it (KTD14, R14)", async () => {
+    const viewed: CardFacts[] = [];
+    const { t } = threads({
+      accounts: [account(JIRA)],
+      record: { dealt_message_id: "a", brought_ids: ["b"] },
+      extra: {
+        threads: {
+          archive: () => Promise.resolve(null),
+          markRead: () => Promise.resolve(null),
+          markUnread: () => Promise.resolve(null),
+          markWaiting: () => true,
+          markDealt: () => true,
+          get: () => ({ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }),
+        },
+        cardView: {
+          jira: (_a, _t, facts) => {
+            viewed.push(facts);
+            return Promise.resolve({
+              messages: [{ id: "b", sender: "Ada", at: "", text: "status: To Do → Done", unread: true, brought: true }],
+              window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
+              link: "https://jira.acme.example/browse/OPS-7",
+            });
+          },
+        },
+      },
+    });
+    const read = await t.read(JIRA, "10001");
+    expect(viewed).toEqual([{ dealt_message_id: "a", brought_ids: ["b"], newest_message_id: "b", place: "OPS-7" }]);
+    expect(read).toEqual({
+      messages: [{ id: "b", sender: "Ada", at: "", text: "status: To Do → Done", mine: false, unread: true, brought: true }],
+      window: { view: "channel", thread_ts: null, more_before: true, more_after: false },
+      link: "https://jira.acme.example/browse/OPS-7",
+    });
+  });
+  test("a Jira read that fails says why, so the card shows its last lines with the reason", async () => {
+    const { t } = threads({
+      accounts: [account(JIRA)],
+      extra: { cardView: { jira: () => Promise.reject(new Error("Jira did not accept the API token")) } },
+    });
+    await expect(t.read(JIRA, "10001")).rejects.toThrow("Jira did not accept the API token");
+    const shown = renderToStaticMarkup(
+      createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "failed", message: "Jira did not accept the API token" } }),
+    );
+    expect(shown).toContain("could not read the whole thread: Jira did not accept the API token");
+    expect(shown).toContain("Can you look at the rotation?");
   });
   test("an account not on this Mac is refused", async () => {
     await expect(threads({ accounts: [] }).t.read(MAIL, "t1")).rejects.toThrow("not connected on this Mac");
@@ -448,9 +495,13 @@ describe("the reply frames", () => {
     const asked: OutsideWindowAsk[] = [];
     const send = ask({
       ...NO_MAIL,
-      read: (_a, _t, more) => {
+      read: (_a, threadId, more) => {
         asked.push(more ?? {});
-        return Promise.resolve({ messages: [{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }], window: WINDOW });
+        return Promise.resolve({
+          messages: [{ id: "1.0", sender: "Bob", at: "", text: "hi", mine: false }],
+          window: WINDOW,
+          ...(threadId === "10001" ? { link: "https://jira.acme.example/browse/OPS-7" } : {}),
+        });
       },
       reply: (_a, _t, text, then) =>
         text === "boom"
@@ -462,6 +513,11 @@ describe("the reply frames", () => {
       messages: [{ sender: "Bob", text: "hi" }],
       window: WINDOW,
     });
+    expect(await send({ type: "account_thread_read", account_id: JIRA, thread_id: "10001" })).toMatchObject({
+      type: "account_thread",
+      link: "https://jira.acme.example/browse/OPS-7",
+    });
+    asked.pop();
     await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", view: "thread", thread_ts: "1", direction: "after", from: "5" });
     expect(asked).toEqual([{}, { view: "thread", thread_ts: "1", direction: "after", from: "5" }]);
     expect(await send({ type: "account_thread_read", account_id: SLACK, thread_id: "C1:1", direction: "sideways", from: "5" })).toMatchObject({
@@ -593,6 +649,76 @@ describe("the card", () => {
     const loading = renderToStaticMarkup(createElement(OutsideThread, { facts: FACTS, state: { kind: "loading" } }));
     expect(loading).toContain("reading the whole thread");
     expect(loading).toContain("Please review this PR");
+  });
+});
+
+const JIRA_FACTS: OutsideFacts = {
+  account_id: JIRA,
+  provider: "jira",
+  account_label: "acme.atlassian.net",
+  thread_id: "10001",
+  generation: 0,
+  owner_agent_id: "agent-work",
+  owner_name: "friday",
+  sender: "Ada Lovelace",
+  sender_address: null,
+  subject: "Rotate the keys",
+  lines: ["Can you look at the rotation?"],
+  newest_message_id: "2026-11-10T09:02:00.000Z:c000000030002",
+  newest_at: "2026-11-10T09:02:00.000Z",
+  handoff_conversation_id: null,
+  disconnected: null,
+  unread_out_there: true,
+  reach: "watching",
+  place: "OPS-7",
+  only_account: false,
+};
+
+describe("a Jira card (plan 2026-11-10-1451, U5)", () => {
+  const header = (link: string | null = null) =>
+    renderToStaticMarkup(createElement(OutsideHeader, { facts: JIRA_FACTS, badge: null, went: null, cameBack: false, link }));
+  const events = [
+    { id: "e1", sender: "Bob Stone", at: "", text: "status: To Do → In Progress", mine: false },
+    { id: "e2", sender: "Mina Example", at: "", text: "On it", mine: true },
+    { id: "e3", sender: "Ada Lovelace", at: "", text: "Can you look at the rotation?", mine: false, unread: true, brought: true },
+    { id: "e4", sender: "Bob Stone", at: "", text: "priority: Low → High", mine: false, unread: true, brought: true },
+  ];
+
+  test("is titled by its ticket's key and title, and its box comments on the ticket", () => {
+    expect(outsideTitle(JIRA_FACTS)).toBe("OPS-7 · Rotate the keys");
+    expect(replyPlace(JIRA_FACTS)).toBe("comment on the ticket");
+  });
+  test("its header shows the Jira mark, who, the key and title, the tag and the link to the ticket, and names the site", () => {
+    const html = header();
+    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toContain("◆");
+    expect(html).toContain("Ada Lovelace");
+    expect(html).toContain("OPS-7 · Rotate the keys");
+    expect(html).toContain(">watching<");
+    expect(html).toMatch(/<a [^>]*href="https:\/\/acme\.atlassian\.net\/browse\/OPS-7"[^>]*>open in jira<\/a>/);
+    expect(html).toContain('title="the site it came from"');
+    expect(html).not.toContain("workspace");
+  });
+  test("a site with a custom domain links to that domain, as the read gave it", () => {
+    expect(header("https://jira.acme.example/browse/OPS-7")).toContain('href="https://jira.acme.example/browse/OPS-7"');
+  });
+  test("its thread draws each event, the person's own as you, with the New line before the first unread one", () => {
+    const html = renderToStaticMarkup(createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events } }));
+    expect(html.match(/New since you last read/g)?.length).toBe(1);
+    expect(html.indexOf("New since you last read")).toBeLessThan(html.indexOf("Can you look at the rotation?"));
+    expect(html.indexOf("New since you last read")).toBeGreaterThan(html.indexOf("On it"));
+    expect(html).toContain(">you<");
+    expect(html).toContain("status: To Do → In Progress");
+  });
+  test("it offers earlier events while the window has more before them", () => {
+    const controls = { load: () => {}, openThread: () => {}, busy: null };
+    const window: OutsideWindow = { view: "channel", thread_ts: null, more_before: true, more_after: false };
+    const more = renderToStaticMarkup(createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events, window, controls } }));
+    expect(more).toContain(">load earlier<");
+    const all = renderToStaticMarkup(
+      createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: events, window: { ...window, more_before: false }, controls } }),
+    );
+    expect(all).not.toContain("load earlier");
   });
 });
 

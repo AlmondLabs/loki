@@ -344,7 +344,7 @@ export interface Replies {
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
-  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow };
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow; link?: string };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
   account_move_kept: { account_id: string; thread_id: string; kept: boolean };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */

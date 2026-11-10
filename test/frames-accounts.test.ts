@@ -463,9 +463,11 @@ describe("connecting a Jira site (plan 2026-11-10-1451, U3)", () => {
   test("a site reached by its custom domain and by its atlassian.net name is one account", async () => {
     const { connect, site, details } = connectingJira();
     site.state.display_url = "https://jira.acme.example";
-    const { ask, accounts } = await fixture(undefined, connect);
+    const { ask, accounts, secrets } = await fixture(undefined, connect);
     expect((await ask({ ...details, site: "jira.acme.example" })).type).toBe("accounts");
     expect(accounts.list().filter((a) => a.provider === "jira")).toMatchObject([{ account_id: JIRA_ID, address: "acme.atlassian.net" }]);
+    // The custom domain is kept beside the token, so the card's link opens there (R14).
+    expect(JSON.parse(secrets.entries.get(`account:${JIRA_ID}`) ?? "null")).toMatchObject({ site: "acme.atlassian.net", link_host: "jira.acme.example" });
     expect(await ask(details)).toMatchObject({ type: "error", message: "acme.atlassian.net (Jira) is already connected" });
   });
 

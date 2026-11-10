@@ -22,6 +22,11 @@ export interface JiraSecret {
   site: string;
   email: string;
   token: string;
+  /**
+   * The host people browse the site at, as in `jira.acme.example`, kept only when it differs from `site` (a custom
+   * domain), so a card's link opens the address the person knows. An entry from before it was kept has none.
+   */
+  link_host?: string;
 }
 
 /** A Jira account's keychain entry read back, or null when there is none or it is not one: then only connecting again helps. */
@@ -29,10 +34,16 @@ export function parseJiraSecret(raw: string | null): JiraSecret | null {
   if (!raw) return null;
   try {
     const r = rec(JSON.parse(raw) as unknown);
-    return str(r.site) && str(r.email) && str(r.token) ? { site: str(r.site), email: str(r.email), token: str(r.token) } : null;
+    if (!(str(r.site) && str(r.email) && str(r.token))) return null;
+    return { site: str(r.site), email: str(r.email), token: str(r.token), ...(str(r.link_host) ? { link_host: str(r.link_host) } : {}) };
   } catch {
     return null;
   }
+}
+
+/** A ticket's address in the browser (R14): on the site's own domain when it has one, else on its API host. */
+export function jiraTicketUrl(secret: Pick<JiraSecret, "site" | "link_host">, key: string): string {
+  return `https://${secret.link_host ?? secret.site}/browse/${encodeURIComponent(key)}`;
 }
 
 /** Jira's header, on an answer of any status, when it did not accept the credentials: some calls answer 200 with it. */

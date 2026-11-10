@@ -38,12 +38,16 @@ export interface CardFacts {
   brought_ids: readonly string[];
   /** The card's newest message, the one its header names; what brought a card that remembers nothing else. */
   newest_message_id: string | null;
+  /** Where the card's thread is, as its record names it: a Jira ticket's key, which its link is built from. */
+  place?: string | null;
 }
 
-/** A Slack card's window: its messages, oldest first, and what more there is (plan 077). */
+/** A card's window: its messages, oldest first, and what more there is (plan 077). */
 export interface CardWindow {
   messages: ThreadMessage[];
   window: OutsideWindow;
+  /** The thread's address in the browser, for a Jira card (R14). */
+  link?: string;
 }
 
 /** A card's window read from its account: the opening one, or what `ask` asks for. */

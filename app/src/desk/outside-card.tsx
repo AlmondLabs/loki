@@ -10,7 +10,7 @@ import type {
   OutsideWindow,
   OutsideWindowAsk,
 } from "../../../core/frame-types.ts";
-import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
 import { Button, Chip, Meta, TextArea } from "../components";
@@ -18,16 +18,17 @@ import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "..
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
-import { CardFace, CardHead, ReachTag } from "./card-head";
+import { CardFace, CardHead, ReachTag, type CardMark } from "./card-head";
+import { openExternal } from "./env";
 import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } from "./mail-address";
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
-import { SlackThread } from "./slack-thread";
+import { NewLine, SlackThread, loadLabel } from "./slack-thread";
 import { toggleReaction } from "./slack-reactions";
 
 /**
- * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
+ * An outside card (plan 067, U3): a Gmail or Slack thread or a Jira ticket in the Inbox, not a chat. It shows who wrote, about what,
  * which account and agent it belongs to (R10), and the whole thread read from its account (plan 068), with a box for
  * the person's own reply. It is never a Conversation: the reply goes to the thread, not to an agent. The phone draws
  * the same thread with `OutsideThread`.
@@ -80,9 +81,33 @@ export function wentTo(o: OutsideFacts, items: readonly AttentionItem[]): string
   return chat?.title ? `went to ${chat.title}` : "went to a chat before";
 }
 
-/** The card's title: a mail's subject, or for Slack, who wrote, since a Slack message has no subject of its own. */
+/**
+ * The card's title: a mail's subject; for Slack, who wrote, since a Slack message has no subject of its own; for Jira,
+ * the ticket's key and title.
+ */
 export function outsideTitle(o: OutsideFacts): string {
-  return o.provider === "gmail" ? o.subject || "no subject" : senderName(o.sender);
+  switch (o.provider) {
+    case "gmail":
+      return o.subject || "no subject";
+    case "slack":
+      return senderName(o.sender);
+    case "jira":
+      return ticketLine(o);
+  }
+}
+
+/** A Jira ticket as its card names it: "OPS-7 · Rotate the keys". */
+export function ticketLine(o: Pick<OutsideFacts, "place" | "subject">): string {
+  return [o.place, o.subject].filter(Boolean).join(" · ");
+}
+
+/**
+ * A Jira ticket's address in the browser (R14): as its site's Mac read it, on the site's own domain, else on the
+ * account's host until the read comes back; null for mail and Slack.
+ */
+export function ticketAddress(o: OutsideFacts, link: string | null = null): string | null {
+  if (o.provider !== "jira") return null;
+  return link ?? (o.place ? `https://${o.account_label}/browse/${encodeURIComponent(o.place)}` : null);
 }
 
 /** What a Slack card's window can do next (plan 077): load more on a side, open a post's thread, go back to the channel. */
@@ -123,7 +148,7 @@ export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThre
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
 export type ThreadState =
   | { kind: "loading" }
-  | { kind: "read"; messages: OutsideMessage[]; window?: OutsideWindow | null; controls?: ThreadControls }
+  | { kind: "read"; messages: OutsideMessage[]; window?: OutsideWindow | null; controls?: ThreadControls; link?: string | null }
   | { kind: "failed"; message: string };
 
 /** What the card is showing: for which card and view, and what came back, with any load in flight. */
@@ -135,6 +160,8 @@ interface Shown {
   window: OutsideWindow | null;
   busy: "before" | "after" | null;
   failed: string | null;
+  /** A Jira ticket's address, as the read gave it. */
+  link: string | null;
 }
 
 /** The first message after a thread's pinned first message, which "load earlier" loads before. */
@@ -166,8 +193,8 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
       if (!live) return;
       setShown(
         typeof out === "string"
-          ? { view, tag, messages: [], window: null, busy: null, failed: out }
-          : { view, tag, messages: out.messages, window: out.window, busy: null, failed: null },
+          ? { view, tag, messages: [], window: null, busy: null, failed: out, link: null }
+          : { view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null },
       );
     });
     return () => {
@@ -178,7 +205,7 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
   const w = shown.window;
-  if (!w) return { kind: "read", messages: shown.messages };
+  if (!w) return { kind: "read", messages: shown.messages, link: shown.link };
   const load = (direction: "before" | "after") => {
     if (shown.busy) return;
     const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
@@ -221,7 +248,7 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
     ...(reactOutside ? { react } : {}),
     ...(search ? { searchEmoji: (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) } : {}),
   };
-  return { kind: "read", messages: shown.messages, window: w, controls };
+  return { kind: "read", messages: shown.messages, window: w, controls, link: shown.link };
 }
 
 /**
@@ -312,14 +339,15 @@ export function OutsideThread({
   own?: readonly string[];
 }) {
   const end = useRef<HTMLDivElement>(null);
-  const count = state.kind === "read" ? state.messages.length : 0;
+  // Scrolled when the newest message changes, so events a Jira card loads above what is read leave it where it is.
+  const newest = state.kind === "read" ? (state.messages.at(-1)?.id ?? "") : "";
   useEffect(() => {
     const el = end.current;
-    if (!count || !el) return;
+    if (!newest || !el) return;
     const box = el.closest<HTMLElement>("[data-thread-scroll]");
     if (box) scrollWithin(box, el, "end");
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
-  }, [count]);
+  }, [newest]);
   const gap = touch ? "var(--phone-space-4)" : 16;
   if (state.kind !== "read" || state.messages.length === 0)
     return (
@@ -339,20 +367,41 @@ export function OutsideThread({
         <div ref={end} />
       </>
     );
+  // A Jira card draws the New line before its first unread event, and loads earlier events (KTD14); the phone's Slack
+  // and mail cards keep the plain list they had.
+  const jira = facts.provider === "jira";
+  const newAt = jira ? state.messages.findIndex((m) => m.unread === true) : -1;
+  const { window: w, controls } = state;
+  const earlier = jira && w && controls && w.more_before !== false && w.more_before !== 0 ? controls : null;
+  const earlierLabel = earlier ? loadLabel("before", true, earlier.busy === "before") : "";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap }}>
+      {earlier && (
+        <Button size={touch ? "touch" : "sm"} bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} style={{ alignSelf: "center" }}>
+          {touch ? `${earlierLabel[0].toUpperCase()}${earlierLabel.slice(1)}` : earlierLabel}
+        </Button>
+      )}
       {state.messages.map((m, i) => (
-        <MessageRow key={m.id} m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
+        <Fragment key={m.id}>
+          {i === newAt && <NewLine />}
+          <MessageRow m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
+        </Fragment>
       ))}
       <div ref={end} />
     </div>
   );
 }
 
-/** Where the person's reply goes, in words: reply-all in a mail thread, the DM, or a Slack thread. */
+/** Where the person's reply goes, in words: reply-all in a mail thread, the DM or a Slack thread, or a comment on the ticket. */
 export function replyPlace(o: OutsideFacts): string {
-  if (o.provider === "gmail") return "reply to all";
-  return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
+  switch (o.provider) {
+    case "gmail":
+      return "reply to all";
+    case "slack":
+      return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
+    case "jira":
+      return "comment on the ticket";
+  }
 }
 
 /** The deck's chords that reach it from inside the reply box (KTD9): read, later and archive, each sending the text first. */
@@ -669,25 +718,67 @@ export function OutsideReply({
   );
 }
 
+/** The mark on a card's face for where it came from. */
+const MARK: Record<AccountProvider, CardMark> = { gmail: "mail", slack: "slack", jira: "jira" };
+
+/** What the header's second line names first: a mail's sender, a Slack channel or DM, or a Jira ticket's key and title. */
+function headWhat(facts: OutsideFacts): string | null {
+  switch (facts.provider) {
+    case "gmail":
+      return senderName(facts.sender);
+    case "slack":
+      return facts.place ?? (facts.reach === "dm" ? "direct message" : null);
+    case "jira":
+      return ticketLine(facts) || null;
+  }
+}
+
 /**
- * The card's header (plan 073): the sender's face with the mark of Slack or mail, who wrote, then where (a Slack
- * channel) or what (a mail's subject) and when; the tag for how directly it is meant for the person, and the badge or
- * the last move's flash. The account is named only when more than one of its service is connected.
+ * The card's header (plan 073): the sender's face with the mark of Slack, mail or Jira, who wrote, then where (a Slack
+ * channel), what (a mail's subject, a ticket's key and title) and when; the tag for how directly it is meant for the
+ * person, a Jira card's link to its ticket, and the badge or the last move's flash. The account is named only when
+ * more than one of its service is connected.
  */
-function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; badge: string | null; went: string | null; cameBack: boolean }) {
+export function OutsideHeader({
+  facts,
+  badge,
+  went,
+  cameBack,
+  link = null,
+}: {
+  facts: OutsideFacts;
+  badge: string | null;
+  went: string | null;
+  cameBack: boolean;
+  /** A Jira ticket's address as the read gave it; until then the account's host stands in. */
+  link?: string | null;
+}) {
   const who = senderName(facts.sender);
   const mail = facts.provider === "gmail";
-  // A mail card is titled by its subject, as Gmail's thread view is (plan 078); each mail then names who wrote it.
-  const what = mail ? who : (facts.place ?? (facts.reach === "dm" ? "direct message" : null));
+  const address = ticketAddress(facts, link);
   return (
     <CardHead
-      face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={mail ? "mail" : "slack"} />}
+      face={<CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />}
+      // A mail card is titled by its subject, as Gmail's thread view is (plan 078); each mail then names who wrote it.
       who={mail ? facts.subject || "no subject" : who}
       whoHint={facts.sender_address ? `${who} <${facts.sender_address}>` : undefined}
-      line={<OutsideHeadLine facts={facts} what={what} went={went} cameBack={cameBack} />}
+      line={<OutsideHeadLine facts={facts} what={headWhat(facts)} went={went} cameBack={cameBack} />}
       right={
         <>
           {facts.reach && <ReachTag reach={facts.reach} />}
+          {address && (
+            <a
+              className="loki-mail-link"
+              href={address}
+              title={address}
+              onClick={(e) => {
+                e.preventDefault();
+                openExternal(address);
+              }}
+            >
+              open in jira
+            </a>
+          )}
           {badge && <Chip tone="var(--loki-positive)">{badge}</Chip>}
         </>
       }
@@ -695,9 +786,11 @@ function OutsideHeader({ facts, badge, went, cameBack }: { facts: OutsideFacts; 
   );
 }
 
+/** Where a card came from, as the header says it when more than one account of its service is connected. */
+const CAME_FROM: Record<AccountProvider, string> = { gmail: "the mailbox it came to", slack: "the workspace it came from", jira: "the site it came from" };
+
 /** The header's second line: where or who, when, the account when more than one is connected, and the last move. */
 function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts; what: string | null; went: string | null; cameBack: boolean }) {
-  const mail = facts.provider === "gmail";
   return (
     <>
       {what && (
@@ -707,7 +800,7 @@ function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts;
       )}
       <Meta>{ago(facts.newest_at)}</Meta>
       {/* Said as where it came in, so a mailbox's address never reads as the sender's (plan 078). */}
-      {facts.only_account !== true && <Meta title={mail ? "the mailbox it came to" : "the workspace it came from"}>in {facts.account_label}</Meta>}
+      {facts.only_account !== true && <Meta title={CAME_FROM[facts.provider]}>in {facts.account_label}</Meta>}
       {went && <Meta>{went}</Meta>}
       {cameBack && <Meta>back · new since you moved on</Meta>}
     </>
@@ -721,6 +814,20 @@ export interface OutsideMoveHandlers {
   archive: () => void;
   label: () => void;
 }
+
+/** What later says it does, for each service: Jira keeps no read mark, so nothing changes there (R20). */
+const LATER_TITLE: Record<AccountProvider, string> = {
+  gmail: "keep it unread in Gmail: the card comes back in a day, or sooner if something new arrives",
+  slack: "keep it unread in Slack: the card comes back in a day, or sooner if something new arrives",
+  jira: "keep it unread: the card comes back in a day, or sooner if the ticket changes",
+};
+
+/** What read says it does, for each service. */
+const READ_TITLE: Record<AccountProvider, string> = {
+  gmail: "mark it read in Gmail: the card rests and comes back later",
+  slack: "mark it read in Slack: the card ends until someone writes again",
+  jira: "done reading: the card ends until the ticket changes again; nothing changes in Jira",
+};
 
 /** Hand off, label, archive, later and read: they share the reply's row, so the card has one bar of buttons. */
 function OutsideMoves({
@@ -773,21 +880,10 @@ function OutsideMoves({
         archive
       </Button>
       <span style={{ flex: 1 }} />
-      <Button
-        size="sm"
-        onClick={moves.later}
-        title={`keep it unread${gmail ? " in Gmail" : " in Slack"}: the card comes back in a day, or sooner if something new arrives`}
-        kbd={deckKey("inbox.later", typing)}
-      >
+      <Button size="sm" onClick={moves.later} title={LATER_TITLE[facts.provider]} kbd={deckKey("inbox.later", typing)}>
         later
       </Button>
-      <Button
-        size="sm"
-        tone="paper"
-        onClick={moves.read}
-        title={gmail ? "mark it read in Gmail: the card rests and comes back later" : "mark it read in Slack: the card ends until someone writes again"}
-        kbd={deckKey("inbox.next", typing)}
-      >
+      <Button size="sm" tone="paper" onClick={moves.read} title={READ_TITLE[facts.provider]} kbd={deckKey("inbox.next", typing)}>
         read
       </Button>
     </>
@@ -861,7 +957,13 @@ export function OutsideCard({
   ) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} />
+      <OutsideHeader
+        facts={facts}
+        badge={flash ?? (current.unread ? "new" : null)}
+        went={went}
+        cameBack={cameBack}
+        link={thread.kind === "read" ? (thread.link ?? null) : null}
+      />
       <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>

@@ -10,6 +10,7 @@ import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
+import { outsideItem } from "./fixtures/outside-item.ts";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
@@ -178,5 +179,32 @@ describe("the phone's decisions under a card", () => {
     const disabled = [...out.matchAll(/<button[^>]*disabled=""[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
     expect(disabled).toEqual(["Later", "Archive", "Read"]);
     expect(html({}, true)).not.toContain("disabled");
+  });
+});
+
+describe("a Jira card on the phone (plan 2026-11-10-1451, U5, R21)", () => {
+  const base = outsideItem("Rotate the keys");
+  const jira = (): AttentionItem => ({
+    ...base,
+    agent_id: "account:jira:acme.atlassian.net:acc-me",
+    outside: base.outside && {
+      ...base.outside,
+      account_id: "jira:acme.atlassian.net:acc-me",
+      provider: "jira",
+      account_label: "acme.atlassian.net",
+      sender: "Ada Lovelace",
+      sender_address: null,
+      place: "OPS-7",
+      reach: "watching",
+    },
+  });
+
+  test("is titled by the ticket's key and title, names its site and agent after, and shows no tag", () => {
+    const html = inPage(createElement(Card, { item: jira(), role: "top", style: {} }));
+    expect(html).toContain("OPS-7 · Rotate the keys");
+    expect(html).toContain("acme.atlassian.net · Jira · ira");
+    expect(html).toContain("Ada Lovelace");
+    expect(html).not.toContain("watching");
+    expect(html).not.toContain("loki-reach");
   });
 });

@@ -86,8 +86,8 @@ function parseCursor(v: Record<string, unknown>): JiraCursor | null {
   return { watermark: v.watermark, seen, past: { page_token: typeof past.page_token === "string" ? past.page_token : null, done: past.done === true } };
 }
 
-/** An event as a card's lines: a comment's text, or a line for each field a history entry changed. */
-const linesOf = (event: JiraEvent): string[] => (event.kind === "comment" ? adfText(event.body).lines : historyLines(event.items));
+/** An event as a card's lines: a comment's text, or a line for each field a history entry changed (KTD15). */
+export const eventLines = (event: JiraEvent): string[] => (event.kind === "comment" ? adfText(event.body).lines : historyLines(event.items));
 
 /** One Jira site's watching, ticked by the AccountWatcher. */
 export class JiraSync implements AccountSync {
@@ -286,7 +286,7 @@ export class JiraSync implements AccountSync {
       at: newest.created,
       sender: newest.author.display_name,
       subject: ticket.summary,
-      lines: linesOf(newest),
+      lines: eventLines(newest),
       place: ticket.key,
       reach: this.reach(ticket, fresh, kept.length > 0 ? (prev?.reach ?? null) : null),
       brought_ids: [...new Set([...kept, ...fresh.map((e) => e.id)])].sort(),

@@ -1,4 +1,9 @@
 import { describe, expect, test } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
+import { OutsideThread } from "../app/src/desk/outside-card.tsx";
+import { must } from "./fixtures/must.ts";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
 import { outsideItem } from "./fixtures/outside-item.ts";
@@ -597,5 +602,36 @@ describe("Preferences: appearance on the phone is System, Light or Dark — no p
     expect(settings).not.toMatch(/ThemeChoice|PALETTES|setPalette/);
     const desktop = readFileSync(new URL("../app/src/settings/settings.tsx", import.meta.url), "utf8");
     expect(desktop).toMatch(/options=\{PALETTES\}/);
+  });
+});
+
+describe("an outside card's thread on the phone (plan 2026-11-10-1451, U5, R21)", () => {
+  const events: OutsideMessage[] = [
+    { id: "e1", sender: "Bob Stone", at: "", text: "status: To Do → In Progress", mine: false },
+    { id: "e2", sender: "Mina Example", at: "", text: "On it", mine: true },
+    { id: "e3", sender: "Ada Lovelace", at: "", text: "Can you look at the rotation?", mine: false, unread: true },
+  ];
+  const facts = must(outsideItem("Rotate the keys").outside, "the card's facts");
+  const draw = (provider: "jira" | "slack", window: OutsideWindow | null = null) =>
+    renderToStaticMarkup(
+      createElement(OutsideThread, {
+        facts: { ...facts, provider, place: "OPS-7" },
+        state: { kind: "read", messages: events, window, controls: { load: () => {}, openThread: () => {}, busy: null } },
+        touch: true,
+      }),
+    );
+
+  test("a Jira card shows every event, the person's own as you, and the New line before the first unread one", () => {
+    const html = draw("jira");
+    expect(html.match(/New since you last read/g)?.length).toBe(1);
+    expect(html.indexOf("New since you last read")).toBeGreaterThan(html.indexOf("On it"));
+    expect(html.indexOf("New since you last read")).toBeLessThan(html.indexOf("Can you look at the rotation?"));
+    expect(html).toContain(">you<");
+  });
+  test("a Slack card on the phone keeps its plain list, with no New line", () => {
+    expect(draw("slack")).not.toContain("New since you last read");
+  });
+  test("a Jira card offers its earlier events in the phone's words", () => {
+    expect(draw("jira", { view: "channel", thread_ts: null, more_before: true, more_after: false })).toContain(">Load earlier<");
   });
 });
