@@ -898,6 +898,7 @@ function Stack({
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
                       searchPeople: chats.searchPeople,
+                      sentReplies: chats.sentReplies,
                     }
                   : null
               }
