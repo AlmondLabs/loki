@@ -9,6 +9,7 @@ import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.
 import { Listeners } from "../../../core/listeners.ts";
 import { parseWidgetEntry } from "./widget-rows";
 import { EMPTY_DESK_SOCKET, PHONE_DEMO, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "./desk-pushes";
+import { RequestWaiters } from "./request-waiters";
 
 /** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
 const STALE_AFTER_HIDDEN_MS = 5_000;
@@ -65,7 +66,7 @@ export function useDeskSocket() {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
   }, [staleListeners]);
   /** Pending request/reply exchanges with the mod, by request_id. */
-  const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
+  const waiters = useRef(new RequestWaiters<WebSocket>());
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastInteractionRef = useRef(0);
@@ -118,9 +119,7 @@ export function useDeskSocket() {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
         // A request's answer (its reply, or `error`), by request_id: it goes to whoever asked, nowhere else.
         if (typeof raw.request_id === "string") {
-          const w = waiters.current.get(raw.request_id);
-          waiters.current.delete(raw.request_id);
-          w?.(raw); // none: its request already timed out, and the answer has no one left to tell
+          waiters.current.answer(raw.request_id, raw); // no one waiting: its request already timed out
           return;
         }
         // Everything else is a push (core/frames.ts Pushes). What it leaves in the tab is desk-pushes.ts's to fold in; what
@@ -169,6 +168,8 @@ export function useDeskSocket() {
         }
       };
       ws.onclose = () => {
+        // What was asked on this socket can no longer be answered: say so now, not when each request's time runs out.
+        waiters.current.closed(ws);
         setConnection("closed");
         if (!disposed) {
           dropped = true;
@@ -205,6 +206,8 @@ export function useDeskSocket() {
     const ws = wsRef.current;
     if (ws?.readyState !== WebSocket.OPEN) return false;
     ws.send(JSON.stringify(msg));
+    const id = (msg as { request_id?: unknown }).request_id;
+    if (typeof id === "string") waiters.current.sent(id, ws);
     return true;
   }, []);
   /** A send (core/frames.ts), typed by its name. False while the socket is not open. */

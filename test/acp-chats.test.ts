@@ -324,6 +324,20 @@ describe("ACP agents (plan 020)", () => {
     expect(s.words()).toBe("mode default, model default | Hi there");
   });
 
+  test("a message the store refuses to write ends its turn: the chat says why and takes the next message", async () => {
+    const t = setup();
+    const id = await t.chat();
+    const store = await t.stored(id).then((s) => s.store);
+    const append = store.appendEntries.bind(store);
+    let refused = 0;
+    store.appendEntries = (...args) => (refused++ === 0 ? Promise.reject(new Error("the disk is full")) : append(...args));
+    await t.say(id, "hello");
+    expect(t.errors().join(" ")).toContain("the disk is full");
+    expect(t.acp.busy("ada", id)).toBe(false);
+    await t.say(id, "hello again");
+    expect(t.words()).not.toBe("");
+  });
+
   test("the agent's process dying fails the turn with its stderr; the next message starts it again and loads the session", async () => {
     const s = setup();
     const id = await s.chat();

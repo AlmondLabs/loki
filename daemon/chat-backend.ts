@@ -28,6 +28,7 @@ import { editMemoryFile, isDoctorChat, isReflectionChat, revertMemoryCommit } fr
 import type { AgentStore, ChatInfo } from "./kernel/index.ts";
 import { LabelColors, type LabelColorsSnapshot } from "./labels.ts";
 import { exportChat, importChat, type MoveNames, type MovedChat } from "./chat-move.ts";
+import type { BackgroundTasks } from "./background.ts";
 import type { Schedules } from "./schedule.ts";
 import { homeOf, readRecord } from "./store/agent-sync.ts";
 import { chatLabels, type LabelView } from "../core/labels.ts";
@@ -69,6 +70,8 @@ interface Deps {
   macId?: string;
   /** The scheduled tasks (daemon/schedule.ts), which move with their chat to another Mac (plan 023, U9). */
   schedules?: Schedules;
+  /** The background tasks, stopped for an agent that is removed. Absent in tests that run none. */
+  background?: Pick<BackgroundTasks, "stopAgent">;
   /** The clock for those stamps and for the time a message from loki carries; Date.now unless a test sets it. */
   now?: () => number;
 }
@@ -614,6 +617,9 @@ export class DaemonChats implements ChatBackend {
 
   /** Remove an agent's store, memory and record here, as a delete on another Mac asks; no tombstone of this Mac's. */
   async removeAgent(agentId: string): Promise<void> {
+    // What would still act for the agent goes first: a schedule that fired later would open a new, empty store for it.
+    this.deps.schedules?.cancelAgent(agentId);
+    this.deps.background?.stopAgent(agentId);
     await this.deps.stores.close(agentId);
     for (const path of [
       this.deps.stores.file(agentId),

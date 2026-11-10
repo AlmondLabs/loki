@@ -156,11 +156,11 @@ export function useDesk() {
       const done = (m: Record<string, unknown> | null) => {
         window.clearTimeout(timer);
         if (retry !== null) window.clearInterval(retry);
-        waiters.current.delete(requestId);
+        waiters.current.drop(requestId);
         resolve(requestResult<ReplyOf<N>>(m));
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
-      waiters.current.set(requestId, done);
+      waiters.current.wait(requestId, done);
       const frame = { type, request_id: requestId, ...payload };
       if (!sendRaw(frame)) {
         retry = window.setInterval(() => {
@@ -359,8 +359,8 @@ export function useDesk() {
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agent_id: agentId, conversation_id: conversationId }),
-    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Empty when the mod does not answer. */
-    listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
+    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Null when the mod does not answer. */
+    listInbox: (): Promise<InboxConversation[] | null> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : null)),
     /**
      * The conversation's transcript from the daemon's store, through the mod; empty if the mod does not know it.
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
