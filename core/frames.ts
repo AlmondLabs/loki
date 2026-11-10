@@ -1477,6 +1477,17 @@ export const FRAMES = {
     (m) =>
       isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
   ),
+  // Desktop only: the frame carries the API token, as account_connect_gmail carries the person's own app secret.
+  account_connect_jira: request(
+    "accounts",
+    "connect a Jira Cloud site the given agent will own, with its address, the person's Atlassian email and an API token, which Jira checks before anything is kept (plan 2026-11-10-1451, R1, R5); with `account_id`, connect that site again with a new token",
+    (m) => {
+      if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
+      const [site, email, token] = [m.site, m.email, m.token].map((v) => (str(v) ? v.trim() : ""));
+      if (!site || !email || !token) return "site, email and token required";
+      return { owner_agent_id: m.owner_agent_id, site, email, token, account_id: str(m.account_id) && m.account_id ? m.account_id : null };
+    },
+  ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],
   }),

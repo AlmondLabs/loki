@@ -126,7 +126,8 @@ export function causeWords(cause: AccountDisconnectCause, provider: AccountProvi
   const where = "Preferences › Accounts";
   switch (cause) {
     case "sign_in_again":
-      return `${service} wants a new sign-in: ${where}`;
+      // A Jira site is connected with an API token the person makes, so there is no sign-in to make again.
+      return `${service} wants a new ${provider === "jira" ? "API token" : "sign-in"}: ${where}`;
     case "admin_blocks":
       return `a workspace admin blocks loki in ${service}: ask them, then connect again in ${where}`;
     case "slack_signed_out":

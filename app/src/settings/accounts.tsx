@@ -6,8 +6,8 @@ import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
 
 /**
- * Preferences › Accounts (plan 067, U11): the Gmail mailboxes and Slack workspaces whose mail and messages reach
- * the Inbox, each owned by one agent. Connecting asks for the owner first (R2); an account can move to another agent
+ * Preferences › Accounts (plan 067, U11): the Gmail mailboxes, Slack workspaces and Jira sites whose mail, messages
+ * and ticket events reach the Inbox, each owned by one agent. Connecting asks for the owner first (R2); an account can move to another agent
  * (R3) or be disconnected, and one that stopped working says why and how to get it back (R22).
  */
 
@@ -20,6 +20,25 @@ export interface AccountsApi {
   connectGmail: (ownerAgentId: string, ownApp: OwnApp | null) => Promise<{ url: string } | string>;
   /** Without a team, the workspaces signed in to the Slack desktop app; with one, that workspace connected. */
   connectSlack: (ownerAgentId: string, teamId?: string) => Promise<{ workspaces: SlackWorkspaceView[]; account: AccountView | null } | string>;
+  /** A Jira site connected with the person's API token, or connected again when `account_id` names one; answers with the accounts as they now stand. */
+  connectJira: (input: JiraConnect) => Promise<AccountView[] | string>;
+}
+
+/** What connecting a Jira site sends: its owner, what the person typed, and the account being reconnected, if one is. */
+export interface JiraConnect {
+  owner_agent_id: string;
+  site: string;
+  email: string;
+  token: string;
+  account_id: string | null;
+}
+
+/** The Jira form as the person fills it in. `reconnecting` names the account a row's reconnect opened it for, and its owner. */
+export interface JiraForm {
+  reconnecting: { account_id: string; owner_agent_id: string } | null;
+  site: string;
+  email: string;
+  token: string;
 }
 
 /** The person's own Google app, used in place of loki's shared one (R20). */
@@ -34,13 +53,16 @@ export interface AgentName {
   name: string;
 }
 
-/** How a disconnected account comes back: Gmail signs in again; Slack connects its workspace again. */
-export interface Reconnect {
-  provider: AccountProvider;
-  owner_agent_id: string;
-  /** The Slack workspace to connect again; null for Gmail. */
-  team_id: string | null;
-}
+/**
+ * How a disconnected account comes back: Gmail signs in again, Slack connects its workspace again, and Jira takes a
+ * new API token for the same site. Each service has its own shape, so one can never be sent down another's way.
+ */
+export type Reconnect =
+  | { provider: "gmail"; owner_agent_id: string; team_id: null }
+  /** `team_id` is the Slack workspace to connect again. */
+  | { provider: "slack"; owner_agent_id: string; team_id: string | null }
+  /** `site` is the host the form opens with. */
+  | { provider: "jira"; owner_agent_id: string; account_id: string; site: string };
 
 /** One account's row: what it is, who owns it, whether it works, and the way back when it does not. */
 export interface AccountRow {
@@ -60,7 +82,10 @@ const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack
 /** How often the list is asked again while the page shows: a Gmail sign-in finishes in the browser, and accounts can stop working. */
 const POLL_MS = 3000;
 
-/** Whether connecting can start: an owner must be chosen first, and Slack is read from the desktop app on a Mac only. */
+/**
+ * Whether connecting can start: an owner must be chosen first, and Slack is read from the desktop app on a Mac only.
+ * Gmail and Jira connect on every OS.
+ */
 export function connectState(provider: AccountProvider, owner: string | null, os: Platform): { ready: boolean; reason: string | null } {
   if (provider === "slack" && os !== "macos") return { ready: false, reason: notYetOn("Connecting Slack", os) };
   if (!owner) return { ready: false, reason: "add an agent first: an account belongs to one" };
@@ -70,15 +95,54 @@ export function connectState(provider: AccountProvider, owner: string | null, os
 /** The Slack workspace in an account id, `slack:<team_id>:<user_id>`; null for any other. */
 const teamOf = (accountId: string): string | null => /^slack:([^:]+):/.exec(accountId)?.[1] ?? null;
 
+/** The way back for a disconnected account, by its service. */
+function reconnectOf(a: AccountView): Reconnect {
+  switch (a.provider) {
+    case "gmail":
+      return { provider: "gmail", owner_agent_id: a.owner_agent_id, team_id: null };
+    case "slack":
+      return { provider: "slack", owner_agent_id: a.owner_agent_id, team_id: teamOf(a.account_id) };
+    case "jira":
+      return { provider: "jira", owner_agent_id: a.owner_agent_id, account_id: a.account_id, site: a.address };
+  }
+}
+
+/** What a row's reconnect starts, one way for each service. */
+export interface ReconnectWays {
+  gmail: (ownerId: string) => void;
+  slack: (ownerId: string, teamId?: string) => void;
+  /** Open the Jira form for the account, with its site filled in. */
+  jira: (form: JiraForm) => void;
+}
+
+/** Start a row's reconnect the way of its own service; every service is named, so a new one cannot fall into another's. */
+export function reconnectVia(r: Reconnect, ways: ReconnectWays): void {
+  switch (r.provider) {
+    case "gmail":
+      return ways.gmail(r.owner_agent_id);
+    case "slack":
+      return ways.slack(r.owner_agent_id, r.team_id ?? undefined);
+    case "jira":
+      return ways.jira({ reconnecting: { account_id: r.account_id, owner_agent_id: r.owner_agent_id }, site: r.site, email: "", token: "" });
+  }
+}
+
+/**
+ * The Jira form as connecting takes it: all three fields filled in, trimmed, for the agent a new account goes to, or
+ * for the account's own agent on a reconnect; otherwise null, and there is nothing to send yet.
+ */
+export function jiraConnectOf(form: JiraForm, owner: string | null): JiraConnect | null {
+  const [site, email, token] = [form.site.trim(), form.email.trim(), form.token.trim()];
+  const ownerId = form.reconnecting?.owner_agent_id ?? owner;
+  return ownerId && site && email && token ? { owner_agent_id: ownerId, site, email, token, account_id: form.reconnecting?.account_id ?? null } : null;
+}
+
 /** The accounts as rows: the owner by name, the state in words, and a reconnect wherever the person can bring it back. */
 export function accountRows(accounts: readonly AccountView[], agents: readonly AgentName[]): AccountRow[] {
   return accounts.map((a) => {
     const cause = a.status === "connected" ? null : a.status.disconnected;
     // A service failing for now comes back on its own; every other cause needs the person to connect again.
-    const reconnect: Reconnect | null =
-      cause && cause !== "temporarily_failing"
-        ? { provider: a.provider, owner_agent_id: a.owner_agent_id, team_id: a.provider === "slack" ? teamOf(a.account_id) : null }
-        : null;
+    const reconnect = cause && cause !== "temporarily_failing" ? reconnectOf(a) : null;
     return {
       account_id: a.account_id,
       label: a.address,
@@ -170,9 +234,10 @@ function useAccounts(api: AccountsApi) {
 
 /**
  * Preferences › Accounts (plan 068): each account with its service, owner and state, the owner changed in place and
- * "disconnect" on each; then "connect gmail" and "connect slack", with the agent a new account goes to beside them,
- * already set to the first agent. Gmail opens Google's page in the browser; Slack lists the workspaces signed in to its
- * desktop app to pick from.
+ * "disconnect" on each; then "connect gmail", "connect slack" and "connect jira", with the agent a new account goes to
+ * beside them, already set to the first agent. Gmail opens Google's page in the browser; Slack lists the workspaces
+ * signed in to its desktop app to pick from; Jira opens a form for the site's address, the person's email and an API
+ * token (plan 2026-11-10-1451, U3), which a Jira row's reconnect opens too, with its site filled in.
  */
 export function Accounts({ api, agents, os = platform }: { api: AccountsApi; agents: readonly AgentName[]; os?: Platform }) {
   const { accounts, error, setError, apply } = useAccounts(api);
@@ -183,6 +248,8 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   const [clientSecret, setClientSecret] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<{ owner: string; list: SlackWorkspaceView[] } | null>(null);
+  // The Jira form while it is open. The token lives here only until the form closes.
+  const [jiraForm, setJiraForm] = useState<JiraForm | null>(null);
 
   const gmail = async (ownerId: string) => {
     const r = await api.connectGmail(ownerId, ownAppOf(clientId, clientSecret));
@@ -200,26 +267,37 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     }
     setWorkspaces({ owner: ownerId, list: r.workspaces });
   };
-  const reconnect = (r: Reconnect) => void (r.provider === "gmail" ? gmail(r.owner_agent_id) : slack(r.owner_agent_id, r.team_id ?? undefined));
+  const jiraInput = jiraForm && jiraConnectOf(jiraForm, owner);
+  const jira = async (input: JiraConnect) => {
+    const r = await api.connectJira(input);
+    // The list is asked again every few seconds and clears the error line above it, so the reason stays in the notice.
+    if (typeof r === "string") return setNotice(r);
+    setJiraForm(null);
+    setNotice(null);
+    apply(r);
+  };
+  const reconnect = (r: Reconnect) =>
+    reconnectVia(r, { gmail: (ownerId) => void gmail(ownerId), slack: (ownerId, teamId) => void slack(ownerId, teamId), jira: setJiraForm });
 
   const rows = accountRows(accounts ?? [], agents);
   const connectedTeams = new Set((accounts ?? []).filter((a) => a.status === "connected").map((a) => teamOf(a.account_id)));
   const gmailState = connectState("gmail", owner, os);
   const slackState = connectState("slack", owner, os);
+  const jiraState = connectState("jira", owner, os);
   return (
     <>
       <Block
         title="Accounts"
-        help="mail and Slack messages addressed to you arrive as Inbox cards; each account belongs to one agent, which gets its hand-offs and its tools."
+        help="mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as Inbox cards; each account belongs to one agent, which gets its hand-offs and its tools."
       >
         {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
         {!accounts && !error && <Setting label="Accounts" help="asking loki…" />}
-        {accounts && rows.length === 0 && <Setting label="None yet" help="Connect a Gmail account or a Slack workspace below." />}
+        {accounts && rows.length === 0 && <Setting label="None yet" help="Connect a Gmail account, a Slack workspace or a Jira site below." />}
         {rows.map((row) => (
           <AccountLine key={row.account_id} row={row} agents={agents} api={api} apply={apply} onReconnect={reconnect} />
         ))}
       </Block>
-      <Block title="Connect an account" help="a mailbox or a workspace; it goes to the agent below, which you can change on its row later.">
+      <Block title="Connect an account" help="a mailbox, a workspace or a Jira site; it goes to the agent below, which you can change on its row later.">
         <Setting label="Gmail" help={gmailState.reason ?? "Opens Google's sign-in in your browser."}>
           <Button tone="positive" disabled={!gmailState.ready} onClick={() => owner && void gmail(owner)}>
             connect gmail
@@ -230,10 +308,53 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
             connect slack
           </Button>
         </Setting>
+        <Setting label="Jira" help={jiraState.reason ?? "Asks for your site's address, your Atlassian email and an API token."}>
+          <Button tone="positive" disabled={!jiraState.ready} onClick={() => setJiraForm({ reconnecting: null, site: "", email: "", token: "" })}>
+            connect jira
+          </Button>
+        </Setting>
         <Setting label="Goes to" help="The agent that gets a new account's hand-offs, and the only one with tools for it.">
           <AgentPicker agents={agents} value={owner} onPick={setOwner} label="the agent a new account goes to" placeholder="choose an agent" />
         </Setting>
         {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
+        {jiraForm && (
+          <>
+            <Setting
+              label={jiraForm.reconnecting ? `A new API token for ${jiraForm.site}` : "Jira site, email and API token"}
+              help="The site's address as in acme.atlassian.net, the email of your Atlassian account, and an API token made in that account's security settings. loki keeps the token in the keychain."
+            />
+            <Field
+              value={jiraForm.site}
+              onChange={(e) => setJiraForm({ ...jiraForm, site: e.target.value })}
+              aria-label="jira site address"
+              placeholder="site address"
+              mono
+            />
+            <Field
+              value={jiraForm.email}
+              onChange={(e) => setJiraForm({ ...jiraForm, email: e.target.value })}
+              aria-label="atlassian email"
+              placeholder="email"
+              mono
+              style={{ marginTop: 8 }}
+            />
+            <Field
+              value={jiraForm.token}
+              onChange={(e) => setJiraForm({ ...jiraForm, token: e.target.value })}
+              aria-label="jira api token"
+              placeholder="api token"
+              type="password"
+              mono
+              style={{ marginTop: 8 }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0" }}>
+              <Button tone="positive" disabled={!jiraInput} onClick={() => jiraInput && void jira(jiraInput)}>
+                {jiraForm.reconnecting ? "reconnect jira" : "connect"}
+              </Button>
+              <Button onClick={() => setJiraForm(null)}>cancel</Button>
+            </div>
+          </>
+        )}
         {workspaces?.list.length === 0 && <Setting label="No workspaces" help="Sign in to a workspace in the Slack desktop app, then connect slack again." />}
         {workspaces?.list.map((w) => (
           <Setting key={w.team_id} label={w.team_name} help={w.url} mono>

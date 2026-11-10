@@ -1,4 +1,5 @@
 import type { AccountStatus } from "../core/frame-types.ts";
+import type { Accounts } from "./accounts.ts";
 import { textToAdf } from "./jira-text.ts";
 import type { JiraHistoryItem } from "./jira-text.ts";
 import { log } from "./log.ts";
@@ -21,6 +22,17 @@ export interface JiraSecret {
   site: string;
   email: string;
   token: string;
+}
+
+/** A Jira account's keychain entry read back, or null when there is none or it is not one: then only connecting again helps. */
+export function parseJiraSecret(raw: string | null): JiraSecret | null {
+  if (!raw) return null;
+  try {
+    const r = rec(JSON.parse(raw) as unknown);
+    return str(r.site) && str(r.email) && str(r.token) ? { site: str(r.site), email: str(r.email), token: str(r.token) } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Jira's header, on an answer of any status, when it did not accept the credentials: some calls answer 200 with it. */
@@ -331,4 +343,26 @@ export class JiraClient {
     log("jira:rate-limited", { wait_ms: wait });
     throw new JiraError(`Jira asked loki to wait ${Math.ceil(wait / 1000)} s`, "rate_limited", 429, wait);
   }
+}
+
+/**
+ * The client of one connected Jira account (plan 2026-11-10-1451, U3). It reads the site, email and token from the
+ * account's keychain entry for each call, so a reconnect's new token is used at once, and a token Jira rejects marks
+ * the account as needing a new one (R3). An account that already says so is not written again, since every call made
+ * with a rejected token would otherwise tell every client the accounts changed; one no longer here is left alone.
+ */
+export function jiraAccountClient(
+  accounts: Pick<Accounts, "get" | "getSecret" | "setStatus">,
+  accountId: string,
+  opts: Pick<JiraClientOptions, "fetch" | "now"> = {},
+): JiraClient {
+  return new JiraClient({
+    ...opts,
+    secret: async () => parseJiraSecret(await accounts.getSecret(accountId)),
+    setStatus: (status) => {
+      const account = accounts.get(accountId);
+      if (!account || JSON.stringify(account.status) === JSON.stringify(status)) return;
+      accounts.setStatus(accountId, status);
+    },
+  });
 }

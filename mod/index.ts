@@ -57,6 +57,8 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
+import { jiraAccountClient, type JiraClient } from "./jira.ts";
+import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
 import { OutsideThreads } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
@@ -270,8 +272,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
-  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace here and the one agent that owns it. Its
-  // secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a change.
+  // Inbox accounts (plan 067, U2): each Gmail mailbox, Slack workspace or Jira site here and the one agent that owns
+  // it. Its secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a
+  // change.
   const accounts = new Accounts({
     file: join(paths.state, "accounts.json"),
     secrets: host.secrets,
@@ -286,7 +289,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
   threads.onChange(() => broadcast({ type: "chat_changed" }));
   // Connecting (U5): Gmail by a sign-in that comes back to the loopback server, Slack from the desktop app's sessions,
-  // read from this person's home and kept in memory only (KTD2, KTD7).
+  // read from this person's home and kept in memory only (KTD2, KTD7). A Jira site is connected by the account frames
+  // themselves, with the address, email and API token the person types.
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
   // One Gmail client per account, shared by its watcher and its archive so a refreshed token is used by both; an
@@ -315,11 +319,28 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return client;
   };
+  // One Jira client per site, reading its token from the keychain for each call (plan 2026-11-10-1451, U3), and kept
+  // so the wait Jira asks for after a rate limit holds for everything that calls the site.
+  const jiraClients = {
+    made: new Map<string, JiraClient>(),
+    of: (accountId: string): JiraClient => {
+      let client = jiraClients.made.get(accountId);
+      if (!client) {
+        client = jiraAccountClient(accounts, accountId);
+        jiraClients.made.set(accountId, client);
+      }
+      return client;
+    },
+  };
   accounts.onChange((change) => {
     gmailClients.delete(change.account_id);
     slackClients.delete(change.account_id);
+    jiraClients.made.delete(change.account_id);
   });
   threads.register("gmail", gmailOutsideSource(gmailClient));
+  // Jira's write-back writes nothing to Jira (plan 2026-11-10-1451, KTD10), so it is registered once here rather than
+  // by a live sync: read and undo still work on a site whose token Jira has stopped taking.
+  threads.register("jira", jiraOutsideSource());
   // The people each mailbox has mail with (plan 076), from the headers the watcher reads, for the recipients line.
   const mailPeople = new MailPeople({ file: join(paths.state, "mail-people.json") });
   accounts.onChange((change) => {
@@ -335,6 +356,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       gmail: (account) =>
         new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
       slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
+      // The site's one client, so a rate limit's wait outlives a sync rebuilt when the account changes.
+      jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClients.of(account.account_id), resting: restingIn(account.account_id) }),
     },
     report: log,
   });

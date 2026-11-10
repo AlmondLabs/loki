@@ -67,7 +67,11 @@ describe("desktop search: what it finds (AE5)", () => {
     expect(search(buildIndex(src), "quarterly")).toEqual([]);
   });
   test("agents, waiting items and pages; the shared scope and not-waiting items are left out", () => {
-    expect(titles("ira")).toEqual([["agents", ["ira"]]]);
+    // "ira" is also part of "jira", one of the words the Accounts page is found by.
+    expect(titles("ira")).toEqual([
+      ["agents", ["ira"]],
+      ["pages", ["Accounts"]],
+    ]);
     expect(titles("deploy")).toEqual([["waiting", ["Deploy the ops fix"]]]);
     expect(titles("shared")).toEqual([]);
     expect(titles("running")).toEqual([]);

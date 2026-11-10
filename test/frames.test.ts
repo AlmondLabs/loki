@@ -529,6 +529,16 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
   });
 
+  test("connecting a Jira site names an owner, a site, an email and a token; the phone may not send it", () => {
+    const parse = FRAMES.account_connect_jira.parse;
+    const details = { owner_agent_id: "agent-local-a", site: " acme.atlassian.net ", email: " mina@example.com ", token: " tok " };
+    expect(parse(details)).toEqual({ owner_agent_id: "agent-local-a", site: "acme.atlassian.net", email: "mina@example.com", token: "tok", account_id: null });
+    expect(parse({ ...details, account_id: "jira:acme.atlassian.net:acc-me" })).toMatchObject({ account_id: "jira:acme.atlassian.net:acc-me" });
+    expect(parse({ ...details, token: "  " })).toBe("site, email and token required");
+    expect(parse({ ...details, owner_agent_id: undefined })).toBe("owner_agent_id required");
+    expect(FRAMES.account_connect_jira.phone).toBe(false);
+  });
+
   test("none of the MCP or always-allow frames reach a phone", () => {
     for (const n of ["chat_mcp_get", "chat_mcp_server", "chat_mcp_secret", "chat_mcp_agent", "chat_approvals_set"] as const)
       expect(PHONE_FRAMES.has(n)).toBe(false);
