@@ -921,7 +921,8 @@ or needs approval, marked with the red dot; **mentioned you**; **your thread**, 
 that even when it is addressed to you. The phone keeps its own header for now. A card files under its owner's tab in
 the Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
 first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
-each reply ("On … wrote:"), unless the quote is all there is, as in a forward with nothing typed above it. A mail with an HTML part is drawn as its sender designed it, on a light page: its
+each reply ("On … wrote:"); on a mail drawn as designed, **•••** under it shows that thread. A forward reads open, with
+or without a note above it, and a mail that is all quote shows it. A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
 you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
 text, with its web addresses made into links. **A Slack card opens on what brought it**: the messages that brought it

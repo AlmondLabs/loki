@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FORWARD_OPENER } from "../../../core/mail-quote.ts";
 import { openExternal } from "./env";
 
 /**
@@ -9,7 +10,13 @@ import { openExternal } from "./env";
  */
 
 /** Elements whose content never belongs in a drawn mail: scripts and anything that embeds or navigates on its own. */
-const DROPPED = ["script", "noscript", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "link[rel=import]"];
+const DROPPED = ["script", "noscript", "iframe", "frameset", "object", "applet"];
+
+/**
+ * Elements of the same kind that have no end tag. Each is taken out as its one tag: matched like those above, an
+ * unclosed `<base>` took the rest of the mail with it.
+ */
+const DROPPED_VOID = ["frame", "embed", "base", "link"];
 
 /**
  * The policy the mail's frame runs under: nothing but images, inline and linked styles, and fonts, so a mail cannot
@@ -30,26 +37,33 @@ const MAIL_STYLE = [
   "a{color:LinkText}",
 ].join("");
 
-/** Hides the quoted thread under a reply, as the text view does; added only when the mail has its own part above it. */
+/** Hides the quoted thread under a reply until the person opens it with "•••". */
 const QUOTE_HIDDEN = ".gmail_quote,blockquote[type=cite],.yahoo_quoted{display:none}";
 
 /** Where a quoted thread or forwarded mail starts in a body: Gmail's and Yahoo's classes, Apple Mail's cite. */
 const QUOTE_START = /<[a-z]+\b[^>]*(?:class\s*=\s*["'][^"']*\b(?:gmail_quote|yahoo_quoted)\b|type\s*=\s*["']?cite\b)/i;
 
-/**
- * Whether a body has anything of its own before its quote: text or an image. Gmail wraps a forwarded mail in the same
- * class as a reply's history, so a forward with nothing typed above it is all quote; hiding that drew an empty page.
- * The text view keeps a message's whole text in that case too (`withoutQuoted`), so nothing a person sent disappears.
- */
-export function ownPartShows(body: string): boolean {
-  const at = body.search(QUOTE_START);
-  const own = at < 0 ? body : body.slice(0, at);
-  if (/<img\b/i.test(own)) return true;
-  const text = own
+/** A piece of HTML as its words: no tags, no styles, no invisible spaces. */
+function wordsOf(html: string): string {
+  return html
     .replace(/<(style|title)\b[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(?:nbsp|zwnj);|&#(?:x?a0|0*160|x?200b|0*8203);/gi, "");
-  return text.trim() !== "";
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(?:nbsp|zwnj);|&#(?:x?a0|0*160|x?200b|0*8203);/gi, " ")
+    .trim();
+}
+
+/**
+ * Whether a body's quote folds behind "•••": only the earlier thread under a reply that has text or an image of its
+ * own above it. Gmail wraps a forward in the same class as a reply's history, but the forwarded mail is what it was
+ * sent for, so it reads open, as Gmail shows it; and a mail that is all quote shows it, so a page is never empty. The
+ * text view treats forwards and bare quotes the same way (`withoutQuoted`).
+ */
+export function quoteFolds(body: string): boolean {
+  const at = body.search(QUOTE_START);
+  if (at < 0) return false;
+  const own = body.slice(0, at);
+  if (!/<img\b/i.test(own) && wordsOf(own) === "") return false;
+  return !FORWARD_OPENER.test(wordsOf(body.slice(at, at + 2000)));
 }
 
 /** The text between `<body…>` and `</body>`, or the whole of it when the mail has no body element. */
@@ -76,17 +90,15 @@ export function darkRulesOff(css: string): string {
 }
 
 /**
- * The frame's document for a mail: its head's styles and its body, with scripts, embedded frames and objects, base
- * and refresh tags taken out, under MAIL_POLICY, opening links in a new window, and sending no referrer with what it
- * loads. The sandbox already stops scripts;
+ * The frame's document for a mail: its head's styles and its body, its quoted thread folded unless `quoteOpen`, with
+ * scripts, embedded frames and objects, base and refresh tags taken out, under MAIL_POLICY, opening links in a new
+ * window, and sending no referrer with what it loads. The sandbox already stops scripts;
  * taking them out keeps their text from showing and keeps the document small.
  */
-export function mailDocument(html: string): string {
+export function mailDocument(html: string, quoteOpen = false): string {
   let body = darkRulesOff(bodyOf(html));
-  for (const tag of DROPPED) {
-    const name = tag.replace(/\[.*$/, "");
-    body = body.replace(new RegExp(`<${name}\\b[\\s\\S]*?(?:<\\/${name}\\s*>|\\/>|$)`, "gi"), "");
-  }
+  for (const name of DROPPED) body = body.replace(new RegExp(`<${name}\\b[\\s\\S]*?(?:<\\/${name}\\s*>|\\/>|$)`, "gi"), "");
+  for (const name of DROPPED_VOID) body = body.replace(new RegExp(`<${name}\\b[^>]*>`, "gi"), "");
   body = body.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
   // The frame's own referrer rule (below) is the only one: a mail that brought its own could have the page's address,
   // which carries the daemon's token in a browser tab, sent to whoever hosts its images.
@@ -95,7 +107,7 @@ export function mailDocument(html: string): string {
     "<!doctype html><html><head>",
     `<meta http-equiv="Content-Security-Policy" content="${MAIL_POLICY}">`,
     '<meta charset="utf-8"><meta name="referrer" content="no-referrer"><base target="_blank">',
-    `<style>${MAIL_STYLE}${ownPartShows(body) ? QUOTE_HIDDEN : ""}</style>`,
+    `<style>${MAIL_STYLE}${quoteFolds(body) && !quoteOpen ? QUOTE_HIDDEN : ""}</style>`,
     darkRulesOff(stylesOf(html)).replace(/<\/?script\b[^>]*>/gi, ""),
     "</head><body>",
     body,
@@ -108,11 +120,16 @@ export function openableHref(href: string): boolean {
   return /^(?:https?:|mailto:)/i.test(href.trim());
 }
 
-/** A mail's HTML in its frame, as tall as its content, its links opened in the person's browser. */
+/**
+ * A mail's HTML in its frame, as tall as its content, its links opened in the person's browser. A reply's quoted thread
+ * folds behind "•••" under the frame, as in Gmail; opening it redraws the frame with the quote shown.
+ */
 export function MailHtml({ html, title }: { html: string; title: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
-  const doc = useMemo(() => mailDocument(html), [html]);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const folds = useMemo(() => quoteFolds(bodyOf(html)), [html]);
+  const doc = useMemo(() => mailDocument(html, quoteOpen), [html, quoteOpen]);
   useEffect(() => {
     const el = frame.current;
     if (!el) return;
@@ -148,7 +165,7 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
       observer?.disconnect();
     };
   }, [doc]);
-  return (
+  const page = (
     <iframe
       ref={frame}
       className="loki-mail-html"
@@ -161,6 +178,22 @@ export function MailHtml({ html, title }: { html: string; title: string }) {
       srcDoc={doc}
       style={{ height }}
     />
+  );
+  if (!folds) return page;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {page}
+      <button
+        type="button"
+        className="loki-mail-quote-toggle"
+        aria-expanded={quoteOpen}
+        aria-label={quoteOpen ? "hide the earlier mail" : "show the earlier mail"}
+        title={quoteOpen ? "hide the earlier mail quoted under this one" : "show the earlier mail quoted under this one"}
+        onClick={() => setQuoteOpen(!quoteOpen)}
+      >
+        •••
+      </button>
+    </div>
   );
 }
 
