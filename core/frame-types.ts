@@ -280,6 +280,17 @@ export interface MailSender {
   signature: string;
 }
 
+/**
+ * Someone in a Slack workspace the person can mention (plan 082): Slack's id for them, the handle a reply names them
+ * by (`@handle`), the name Slack shows, and their photo.
+ */
+export interface SlackPerson {
+  id: string;
+  handle: string;
+  name: string;
+  avatar: string | null;
+}
+
 /** Someone the account has mail with (plan 076), for the recipients line's suggestions: the name they show, if any, and their address. */
 export interface MailPerson {
   name: string;

@@ -73,7 +73,7 @@ function threads(
   const sentMail: GmailDraftInput[] = [];
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
-  const posted: SlackDraftInput[] = [];
+  const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
   const moves: string[] = [];
@@ -313,8 +313,8 @@ describe("the person's reply", () => {
     await t.reply(SLACK, "C1:1.0", "on it", "archive");
     await t.reply(SLACK, "D1", "thanks", "archive");
     expect(posted).toEqual([
-      { channel: "C1", thread_ts: "1.0", text: "on it" },
-      { channel: "D1", text: "thanks" },
+      { channel: "C1", thread_ts: "1.0", text: "on it", mentions: new Map() },
+      { channel: "D1", text: "thanks", mentions: new Map() },
     ]);
     expect(archived).toEqual([`${SLACK}/C1:1.0`, `${SLACK}/D1`]);
   });
@@ -353,7 +353,7 @@ describe("the person's reply", () => {
   test("a sent reply whose archive fails answers sent with the archive's reason, and nothing is sent twice", async () => {
     const { t, posted } = threads({ thenFails: "Slack is out of reach" });
     expect(await t.reply(SLACK, "D1", "on it", "archive")).toEqual({ sent: true, then_error: "Slack is out of reach", change: null });
-    expect(posted).toEqual([{ channel: "D1", text: "on it" }]);
+    expect(posted).toEqual([{ channel: "D1", text: "on it", mentions: new Map() }]);
   });
   test("a Gmail thread with no one else in it is refused before anything is sent", async () => {
     const { t, sentMail } = threads({ gmail: [message("m1", 1, { From: "ada@acme.com", To: "ada@work.example", Subject: "note" })] });
@@ -395,7 +395,33 @@ const NO_MAIL = {
   unsend: () => false,
   react: () => Promise.resolve(),
   searchEmoji: () => Promise.resolve([]),
+  searchPeople: () => Promise.resolve([]),
 };
+
+describe("mentioning people in a Slack reply (plan 082)", () => {
+  const people = (fails = false) => ({
+    search: (_accountId: string, query: string) => Promise.resolve([{ id: "U2", handle: "ravi.kumar", name: query, avatar: null }]),
+    mentions: () => (fails ? Promise.reject(new Error("offline")) : Promise.resolve(new Map([["ravi.kumar", "U2"]]))),
+  });
+
+  test("a reply carries the workspace's handles, so its @handles go as Slack's mentions", async () => {
+    const { t, posted } = threads({ extra: { slackPeople: people() } });
+    await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
+    expect(posted[0]?.mentions).toEqual(new Map([["ravi.kumar", "U2"]]));
+  });
+
+  test("people who cannot be read leave the handles as typed, and the reply still goes", async () => {
+    const { t, posted } = threads({ extra: { slackPeople: people(true) } });
+    await t.reply(SLACK, "D1", "@ravi.kumar can you look", "archive");
+    expect(posted[0]).toMatchObject({ text: "@ravi.kumar can you look", mentions: new Map() });
+  });
+
+  test("the search reaches the workspace's people; a mail account has none to mention", async () => {
+    const { t } = threads({ extra: { slackPeople: people() } });
+    expect(await t.searchPeople(SLACK, "ravi")).toEqual([{ id: "U2", handle: "ravi.kumar", name: "ravi", avatar: null }]);
+    await expect(t.searchPeople(MAIL, "ravi")).rejects.toThrow("only a Slack account has people to mention");
+  });
+});
 
 describe("the reply frames", () => {
   /** The account frames on a bridge, with a fake reader; each frame's last answer. */

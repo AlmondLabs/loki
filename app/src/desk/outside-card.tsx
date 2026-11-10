@@ -2,6 +2,7 @@ import type {
   AccountDisconnectCause,
   AccountProvider,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideFacts,
@@ -19,7 +20,8 @@ import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
-import { MailAddressLine, startAddressing } from "./mail-address";
+import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } from "./mail-address";
+import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
 import { toggleReaction } from "./slack-reactions";
@@ -100,7 +102,22 @@ export interface ThreadControls {
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
-export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji">;
+export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople">;
+
+/**
+ * What a card's thread is read and reacted through, taken from everything the Inbox holds; null when it cannot read
+ * threads. Each is passed on, so a card offers reacting (plan 079) and mentioning (plan 082) wherever its source can.
+ */
+export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThreadSource | null {
+  const { readOutside, reactOutside, searchEmoji, searchPeople } = chats;
+  if (!readOutside) return null;
+  return {
+    readOutside,
+    ...(reactOutside ? { reactOutside } : {}),
+    ...(searchEmoji ? { searchEmoji } : {}),
+    ...(searchPeople ? { searchPeople } : {}),
+  };
+}
 
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
 export type ThreadState =
@@ -388,8 +405,11 @@ export function OutsideReply({
   compose = null,
   quote = null,
   onUndo,
+  searchPeople,
 }: {
   facts: OutsideFacts;
+  /** The people a Slack card's workspace can mention whose handle or name holds `query` (plan 082); absent, no list. */
+  searchPeople?: (query: string) => Promise<SlackPerson[]>;
   /**
    * The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a
    * sent reply clears the box so it is not sent twice, and an undone one keeps it.
@@ -425,6 +445,29 @@ export function OutsideReply({
   const off = busy || !!facts.disconnected;
   const isMail = facts.provider === "gmail";
   const shown = compose ? (mail ?? startAddressing(compose)) : null;
+  // Mentioning (plan 082): a mail pick writes the name and adds them to To, as Gmail does; a Slack pick writes the
+  // handle, which the account's Mac sends as Slack's mention.
+  const ownRef = useRef<HTMLTextAreaElement | null>(null);
+  const mentionSource: MentionSource | null =
+    isMail && shown && compose
+      ? {
+          now: (q) => {
+            const taken = new Set([...shown.to, ...shown.cc, ...shown.bcc].map((e) => addressOf(e).toLowerCase()));
+            return suggest(compose.people, q, new Set()).map((p) => ({
+              key: p.address,
+              label: p.name || p.address,
+              sub: p.name ? p.address : null,
+              insert: p.name || p.address.split("@")[0],
+              onPick: taken.has(p.address.toLowerCase()) ? undefined : () => setMail({ ...shown, to: [...shown.to, asRecipient(p)] }),
+            }));
+          },
+        }
+      : !isMail && searchPeople
+        ? {
+            later: (q) => searchPeople(q).then((people) => people.map((p) => ({ key: p.id, label: p.name, sub: `@${p.handle}`, insert: p.handle }))),
+          }
+        : null;
+  const mentions = useMentions({ text, setText, source: off ? null : mentionSource, ref: ownRef });
   const nobody = !!shown && shown.to.length + shown.cc.length + shown.bcc.length === 0;
   const send = async () => {
     if (off || !text.trim()) return;
@@ -448,6 +491,7 @@ export function OutsideReply({
     }
   };
   const keys = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentions.onKeyDown(e)) return;
     const key = replyBoxKey(e.nativeEvent, keyboard, isMail);
     // ⌘], ⌘[ and ⌘E go on to the deck, which sends the text with their move (KTD9).
     if (key === "deck") return;
@@ -499,21 +543,34 @@ export function OutsideReply({
           />
         </div>
       )}
-      <TextArea
-        ref={inputRef}
-        size={touch ? "touch" : "sm"}
-        bare={framed}
-        className={framed ? "loki-mail-compose-text" : undefined}
-        value={text}
-        rows={touch ? 4 : 3}
-        disabled={off}
-        placeholder={touch ? `${hint[0].toUpperCase()}${hint.slice(1)}` : hint}
-        aria-label={hint}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={keys}
-        onFocus={() => onTyping?.(true)}
-        onBlur={() => onTyping?.(false)}
-      />
+      <div style={{ position: "relative", display: "flex", flexDirection: "column" }}>
+        {mentions.list}
+        <TextArea
+          ref={(el) => {
+            ownRef.current = el;
+            if (inputRef) inputRef.current = el;
+          }}
+          size={touch ? "touch" : "sm"}
+          bare={framed}
+          className={framed ? "loki-mail-compose-text" : undefined}
+          value={text}
+          rows={touch ? 4 : 3}
+          disabled={off}
+          placeholder={touch ? `${hint[0].toUpperCase()}${hint.slice(1)}` : hint}
+          aria-label={hint}
+          onChange={(e) => {
+            setText(e.target.value);
+            mentions.onCaret(e.target);
+          }}
+          onSelect={(e) => mentions.onCaret(e.currentTarget)}
+          onKeyDown={keys}
+          onFocus={() => onTyping?.(true)}
+          onBlur={() => {
+            mentions.onCaret(null);
+            onTyping?.(false);
+          }}
+        />
+      </div>
       {isMail && compose && (hasSignature || quote) && (
         <div className={framed ? "loki-mail-compose-extra" : undefined} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {hasSignature && (
@@ -771,7 +828,7 @@ export function OutsideCard({
   onHandoff?: () => void;
   /** The picker open on the card, the hand-off's, the return time's or the labels'. */
   picker?: ReactNode;
-  /** Reading the thread, and reacting on a Slack card (plan 079); absent, the card shows its last lines. */
+  /** Reading the thread, reacting on a Slack card (plan 079) and its people to mention (plan 082); absent, the card shows its last lines. */
   source?: OutsideThreadSource | null;
   /** The reply box, as the deck holds it; absent, the card has no reply box. */
   box?: ReplyBoxControl;
@@ -782,6 +839,8 @@ export function OutsideCard({
   compose?: MailCompose | null;
 }) {
   const thread = useOutsideThread(current, source);
+  const people = source?.searchPeople;
+  const peopleSearch = people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined;
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
@@ -796,6 +855,7 @@ export function OutsideCard({
       actions={row}
       compose={compose}
       quote={quoteOf(facts, thread)}
+      searchPeople={peopleSearch}
     />
   ) : null;
   return (

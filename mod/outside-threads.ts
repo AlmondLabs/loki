@@ -10,6 +10,7 @@ import type {
   OutsideReplied,
   OutsideWindowAsk,
   ReplyThen,
+  SlackPerson,
 } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
@@ -24,6 +25,7 @@ import type { MailPeople } from "./mail-people.ts";
 import { headerOf, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 import { searchEmoji } from "./slack-markup.ts";
+import type { SlackPeople } from "./slack-people.ts";
 
 /**
  * An outside card's thread for the person (plan 068): the whole thread to read on the card, and the person's own
@@ -59,6 +61,8 @@ export interface OutsideThreadsOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Where held mail replies wait for their undo (plan 076); without it a mail reply goes at once. */
   outbox?: Omit<MailOutboxOptions, "send">;
+  /** The people in each Slack workspace, for the reply box's @ suggestions and the mentions a reply sends (plan 082). */
+  slackPeople?: Pick<SlackPeople, "search" | "mentions">;
   /** The people each account has mail with, for suggestions, and told of whom the person sends to (plan 076). */
   people?: Pick<MailPeople, "top" | "saw">;
   /** The time zone a quote's date is written in; this Mac's when left out. */
@@ -146,6 +150,13 @@ export class OutsideThreads {
   }
 
   /** A connected Slack account's own client, or why there is none. */
+  /** The people in a Slack account's workspace whose handle or name holds `query` (plan 082), for @ suggestions. */
+  async searchPeople(accountId: string, query: string): Promise<SlackPerson[]> {
+    if (this.need(accountId).provider !== "slack") throw new Error("only a Slack account has people to mention");
+    if (!this.opts.slackPeople) return [];
+    return this.opts.slackPeople.search(accountId, query);
+  }
+
   private slackSender(accountId: string): SendSlack {
     const account = this.need(accountId);
     if (account.provider !== "slack") throw new Error("only a Slack message takes a reaction");
@@ -245,7 +256,9 @@ export class OutsideThreads {
     if (sender.provider === "gmail") await this.sendMail(account, sender.client, threadId, body, mail);
     else {
       const { channel, ts } = slackPlace(threadId);
-      await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body });
+      // People who cannot be read leave each @handle as typed; the reply still goes.
+      const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
+      await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions });
     }
     log("outside:replied", { provider: account.provider, then, mode: mail?.mode ?? null });
     // Replying is dealing with what came before, whichever key follows (plan 077, R5).

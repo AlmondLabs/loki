@@ -4,6 +4,7 @@ import type {
   AccountLabel,
   HandoffProposal,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -65,6 +66,7 @@ export type ChatClient = Pick<
   | "unsendOutside"
   | "reactOutside"
   | "searchEmoji"
+  | "searchPeople"
   | "moveOutside"
   | "handoff"
   | "updateModel"
@@ -347,6 +349,12 @@ export class FrameChatClient {
   async searchEmoji(accountId: string, query: string, home: string | null): Promise<EmojiChoice[]> {
     const r = await this.call("account_emoji_search", { account_id: accountId, query, home });
     return r.emoji;
+  }
+
+  /** The people in a Slack account's workspace whose handle or name holds `query` (plan 082), from the Mac it lives on. */
+  async searchPeople(accountId: string, query: string, home: string | null): Promise<SlackPerson[]> {
+    const r = await this.call("account_people_search", { account_id: accountId, query, home });
+    return r.people;
   }
 
   /** Stop a held mail reply before it goes (plan 076); false when it already went. */

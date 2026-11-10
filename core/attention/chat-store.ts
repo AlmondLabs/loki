@@ -30,6 +30,7 @@ import type {
   ReplyProposal,
   ReplyThen,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   Suggestion,
@@ -956,6 +957,13 @@ export class ChatStore {
     const o = card.outside;
     if (o?.provider !== "slack") return "only a Slack message takes a reaction";
     return this.attempt((c) => c.searchEmoji(o.account_id, query, card.home ?? null));
+  };
+
+  /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why they could not be read. */
+  searchPeople = async (card: Pick<ConversationInfo, "outside" | "home">, query: string): Promise<SlackPerson[] | string> => {
+    const o = card.outside;
+    if (o?.provider !== "slack") return "only a Slack account has people to mention";
+    return this.attempt((c) => c.searchPeople(o.account_id, query, card.home ?? null));
   };
 
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped, false when it went or could not be reached. */

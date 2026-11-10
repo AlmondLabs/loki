@@ -925,6 +925,7 @@ function Stack({
                       replyOutside: chats.replyOutside,
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
+                      searchPeople: chats.searchPeople,
                     }
                   : null
               }
@@ -1171,6 +1172,7 @@ function OutsideBody({
   const facts = item.outside;
   if (!facts) return null;
   const unsend = outside?.unsendOutside;
+  const people = outside?.searchPeople;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
       {banner}
@@ -1191,6 +1193,7 @@ function OutsideBody({
             touch
             compose={compose}
             quote={quoteOf(facts, thread)}
+            searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
             onUndo={
               facts.provider === "gmail" && unsend
                 ? () => {

@@ -14,6 +14,7 @@ import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts
 import type {
   AccountLabel,
   EmojiChoice,
+  SlackPerson,
   AccountView,
   HandoffProposal,
   OutsideChange,
@@ -339,6 +340,7 @@ export interface Replies {
   account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
   account_thread_reacted: { account_id: string; thread_id: string; message_id: string; name: string; on: boolean };
   account_emoji: { account_id: string; emoji: EmojiChoice[] };
+  account_people: { account_id: string; people: SlackPerson[] };
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
@@ -1378,6 +1380,16 @@ export const FRAMES = {
   account_emoji_search: request(
     "account_emoji",
     "the emoji a Slack account can react with whose names hold `query` (plan 079), the workspace's own included, best matches first; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.query) && m.query.length <= 100
+        ? { account_id: m.account_id, query: m.query, home: strOr(m.home, null) }
+        : "account_id and query required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_people_search: request(
+    "account_people",
+    "the people in a Slack account's workspace whose handle or name holds `query` (plan 082), best matches first, for the reply box's @ suggestions; sent to the Mac the account lives on by `home`",
     (m) =>
       str(m.account_id) && m.account_id && str(m.query) && m.query.length <= 100
         ? { account_id: m.account_id, query: m.query, home: strOr(m.home, null) }

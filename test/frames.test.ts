@@ -91,6 +91,7 @@ describe("the frame table", () => {
         "account_thread_unsend",
         "account_thread_react",
         "account_emoji_search",
+        "account_people_search",
         "account_thread_move",
         "reply_decide",
       ].sort(),
@@ -581,6 +582,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     expect(by("home")).toEqual([
       "account_emoji_search",
       "account_labels_list",
+      "account_people_search",
       "account_thread_archive",
       "account_thread_compose",
       "account_thread_handoff",
