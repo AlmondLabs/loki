@@ -218,6 +218,7 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
           messages: read.messages,
           ...(read.window ? { window: read.window } : {}),
           ...(read.link ? { link: read.link } : {}),
+          ...(read.ticket ? { ticket: read.ticket } : {}),
         });
       } catch (err) {
         return fail(errorMessage(err));

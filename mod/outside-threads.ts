@@ -212,7 +212,8 @@ export class OutsideThreads {
   /**
    * The thread as the card draws it: every message with its sender and time, and mail without the quoted thread under
    * it; for a Slack or Jira card, the window around what is new, or what `ask` asks for (plan 077, KTD14), from the
-   * card's record, and for a Jira card the ticket's address in the browser.
+   * card's record, and for a Jira card the ticket's address in the browser and, with the opening window, the ticket
+   * itself (plan 089).
    */
   async read(accountId: string, threadId: string, ask: OutsideWindowAsk = {}): Promise<OutsideRead> {
     const account = this.need(accountId);
@@ -224,7 +225,7 @@ export class OutsideThreads {
       newest_message_id: record?.newest_message_id ?? null,
       ...(record?.place ? { place: record.place } : {}),
     };
-    const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"]; link?: string }> =>
+    const readThread = async (): Promise<{ messages: ThreadMessage[]; window: OutsideRead["window"]; link?: string; ticket?: OutsideRead["ticket"] }> =>
       view ? view(accountId, threadId, facts, ask) : { messages: await this.opts.threadText[account.provider](accountId, threadId), window: null };
     const read = await readThread().catch(async (err: unknown) => {
       const wait = err instanceof SlackError && err.code === "ratelimited" ? err.retryAfterMs : null;
@@ -255,7 +256,7 @@ export class OutsideThreads {
       ...(m.reactions?.length ? { reactions: m.reactions } : {}),
       ...(m.slack_files?.length ? { slack_files: m.slack_files } : {}),
     }));
-    return { messages, window: read.window, ...(read.link ? { link: read.link } : {}) };
+    return { messages, window: read.window, ...(read.link ? { link: read.link } : {}), ...(read.ticket ? { ticket: read.ticket } : {}) };
   }
 
   /**

@@ -3,9 +3,9 @@ import type { OutsideWindowAsk } from "../core/frame-types.ts";
 import { JiraClient, type JiraSecret } from "../mod/jira.ts";
 import { jiraCardView, jiraThreadText } from "../mod/jira-view.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
-import { JIRA_ADA, JIRA_BOB, fakeJira, type FakeJiraPerson } from "./fixtures/jira.ts";
+import { JIRA_ADA, JIRA_BOB, fakeJira, type FakeJiraChange, type FakeJiraPerson } from "./fixtures/jira.ts";
 
-/** Reading a Jira ticket on its card and for a hand-off (plan 2026-11-10-1451, U5, KTD14). */
+/** Reading a Jira ticket on its card and for a hand-off (plan 2026-11-10-1451, U5, KTD14; plan 089). */
 
 const MIN = 60_000;
 const START = Date.parse("2026-11-10T09:00:00.000Z");
@@ -22,7 +22,20 @@ const eid = (when: Date, kind: "c" | "h", jiraId: string) => `${when.toISOString
 function site(over: { link_host?: string } = {}) {
   const clock = () => at(1000);
   const jira = fakeJira({ now: clock, me: ME });
-  const ticket = jira.addTicket({ key: "OPS-7", summary: "Rotate the keys", at: at(0) });
+  const ticket = jira.addTicket({
+    key: "OPS-7",
+    summary: "Rotate the keys",
+    at: at(0),
+    type: "Task",
+    project: "Operations",
+    status: "In Progress",
+    assignee: JIRA_ADA,
+    reporter: JIRA_BOB,
+    priority: "High",
+    labels: ["security"],
+    sprints: [{ name: "Sprint 12", state: "active" }],
+    description: "Rotate every key.\nThen tell the team.",
+  });
   const secret: JiraSecret = { site: jira.host, email: jira.state.email, token: jira.state.token, ...over };
   const client = new JiraClient({ secret: () => Promise.resolve(secret), setStatus: () => {}, fetch: jira.fetch, now: clock });
   const view = jiraCardView(
@@ -31,18 +44,21 @@ function site(over: { link_host?: string } = {}) {
   );
   const facts = (f: Partial<CardFacts> = {}): CardFacts => ({ dealt_message_id: null, brought_ids: [], newest_message_id: null, place: "OPS-7", ...f });
   const read = (f: Partial<CardFacts> = {}, ask: OutsideWindowAsk = {}) => view(ID, ticket, facts(f), ask);
-  /** Someone comments (even minutes) or changes the status (odd minutes); returns the event's id on the card. */
-  const event = (minute: number, author: FakeJiraPerson = JIRA_ADA): string =>
-    minute % 2 === 0
-      ? eid(at(minute), "c", jira.comment("OPS-7", { at: at(minute), author, text: `comment at ${String(minute)}` }))
-      : eid(at(minute), "h", jira.change("OPS-7", { at: at(minute), author, items: [{ field: "status", from: "To Do", to: "In Progress" }] }));
-  return { jira, ticket, read, event, text: jiraThreadText(() => client) };
+  /** Someone comments at a minute; returns the comment's id on the card. */
+  const comment = (minute: number, author: FakeJiraPerson = JIRA_ADA): string =>
+    eid(at(minute), "c", jira.comment("OPS-7", { at: at(minute), author, text: `comment at ${String(minute)}` }));
+  /** Someone changes fields at a minute; returns the history entry's id on the card. */
+  const change = (minute: number, items: FakeJiraChange[], author: FakeJiraPerson = JIRA_ADA): string =>
+    eid(at(minute), "h", jira.change("OPS-7", { at: at(minute), author, items }));
+  return { jira, ticket, read, comment, change, text: jiraThreadText(() => client) };
 }
 
-describe("a Jira card's window (KTD14)", () => {
-  test("a ticket with 30 events and 3 new opens on the 3 new plus the 5 before, with earlier offered", async () => {
+const STATUS = (from: string, to: string): FakeJiraChange[] => [{ field: "status", from, to }];
+
+describe("a Jira card's window of comments (KTD14)", () => {
+  test("a ticket with 30 comments and 3 new opens on the 3 new plus the 5 before, with earlier offered", async () => {
     const s = site();
-    const ids = Array.from({ length: 30 }, (_, i) => s.event(i));
+    const ids = Array.from({ length: 30 }, (_, i) => s.comment(i * 2));
     const { messages, window } = await s.read({ brought_ids: ids.slice(-3) });
     expect(messages.map((m) => m.id)).toEqual(ids.slice(-8));
     expect(messages.map((m) => m.unread === true)).toEqual([false, false, false, false, false, true, true, true]);
@@ -50,9 +66,19 @@ describe("a Jira card's window (KTD14)", () => {
     expect(window).toMatchObject({ more_before: true, more_after: false });
   });
 
-  test("loading earlier adds 20 older events in order, and stops offering once the first event is shown", async () => {
+  test("field changes are not messages: the window holds the comments alone, oldest first", async () => {
     const s = site();
-    const ids = Array.from({ length: 30 }, (_, i) => s.event(i));
+    const c1 = s.comment(0);
+    s.change(1, STATUS("To Do", "In Progress"));
+    const c2 = s.comment(2);
+    const { messages } = await s.read();
+    expect(messages.map((m) => m.id)).toEqual([c1, c2]);
+  });
+
+  test("loading earlier adds 20 older comments in order, and stops offering once the first is shown", async () => {
+    const s = site();
+    const ids = Array.from({ length: 30 }, (_, i) => s.comment(i * 2));
+    for (let i = 0; i < 30; i++) s.change(i * 2 + 1, STATUS("To Do", "In Progress"));
     const first = await s.read({ brought_ids: ids.slice(-3) }, { direction: "before", from: ids[22] });
     expect(first.messages.map((m) => m.id)).toEqual(ids.slice(2, 22));
     expect(first.window.more_before).toBe(true);
@@ -61,28 +87,28 @@ describe("a Jira card's window (KTD14)", () => {
     expect(last.window.more_before).toBe(false);
   });
 
-  test("a ticket longer than a page of each list still opens on what is new and loads the rest", async () => {
+  test("a ticket longer than a page of comments still opens on what is new and loads the rest", async () => {
     const s = site();
-    const ids = Array.from({ length: 130 }, (_, i) => s.event(i));
+    const ids = Array.from({ length: 130 }, (_, i) => s.comment(i));
     const opened = await s.read({ dealt_message_id: ids[119] });
     expect(opened.messages.map((m) => m.id)).toEqual(ids.slice(115));
     const earlier = await s.read({ dealt_message_id: ids[119] }, { direction: "before", from: ids[115] });
     expect(earlier.messages.map((m) => m.id)).toEqual(ids.slice(95, 115));
   });
 
-  test("events after the dealt mark are unread; with no dealt mark, only the brought events are", async () => {
+  test("comments after the dealt mark are unread; with no dealt mark, only the brought ones are", async () => {
     const s = site();
-    const ids = Array.from({ length: 8 }, (_, i) => s.event(i));
+    const ids = Array.from({ length: 8 }, (_, i) => s.comment(i));
     const dealt = await s.read({ dealt_message_id: ids[4], brought_ids: [ids[7]] });
     expect(dealt.messages.filter((m) => m.unread).map((m) => m.id)).toEqual(ids.slice(5));
     const brought = await s.read({ brought_ids: [ids[5], ids[7]] });
     expect(brought.messages.filter((m) => m.unread).map((m) => m.id)).toEqual([ids[5], ids[7]]);
   });
 
-  test("a dealt mark whose event was deleted in Jira does not shift which events are unread", async () => {
+  test("a dealt mark whose comment was deleted in Jira does not shift which comments are unread", async () => {
     const s = site();
-    const before = [s.event(0), s.event(1), s.event(2)];
-    const after = [s.event(4), s.event(5)];
+    const before = [s.comment(0), s.comment(1), s.comment(2)];
+    const after = [s.comment(4), s.comment(5)];
     // The comment the person last read, at minute 3, is gone from Jira: its id is no longer among the events.
     const gone = eid(at(3), "c", "39999");
     const { messages } = await s.read({ dealt_message_id: gone });
@@ -90,10 +116,10 @@ describe("a Jira card's window (KTD14)", () => {
     expect(messages.filter((m) => m.unread).map((m) => m.id)).toEqual(after);
   });
 
-  test("the person's own events show as theirs and are never unread", async () => {
+  test("the person's own comments show as theirs and are never unread", async () => {
     const s = site();
-    const theirs = s.event(0, JIRA_BOB);
-    const mine = [s.event(2, ME), s.event(3, ME)];
+    const theirs = s.comment(0, JIRA_BOB);
+    const mine = [s.comment(2, ME), s.comment(3, ME)];
     const { messages } = await s.read({ dealt_message_id: theirs });
     expect(messages.map((m) => [m.id, m.mine, m.unread === true])).toEqual([
       [theirs, false, false],
@@ -102,7 +128,7 @@ describe("a Jira card's window (KTD14)", () => {
     ]);
   });
 
-  test("a comment shows its converted text, a status change its one line, each with who made it and when", async () => {
+  test("a comment shows its converted text, with who made it and when", async () => {
     const s = site();
     const body = {
       version: 1,
@@ -119,31 +145,171 @@ describe("a Jira card's window (KTD14)", () => {
       ],
     };
     const c = s.jira.comment("OPS-7", { at: at(1), author: JIRA_ADA, body });
-    const h = s.jira.change("OPS-7", { at: at(2), author: JIRA_BOB, items: [{ field: "status", from: "To Do", to: "In Progress" }] });
-    const { messages } = await s.read({ brought_ids: [eid(at(2), "h", h)] });
+    const { messages } = await s.read({ brought_ids: [eid(at(1), "c", c)] });
     expect(messages).toEqual([
-      { id: eid(at(1), "c", c), sender: "Ada Lovelace", at: at(1).toISOString(), text: "Two things:\n- the keys\n- the docs", mine: false },
-      { id: eid(at(2), "h", h), sender: "Bob Stone", at: at(2).toISOString(), text: "status: To Do → In Progress", mine: false, unread: true, brought: true },
+      {
+        id: eid(at(1), "c", c),
+        sender: "Ada Lovelace",
+        at: at(1).toISOString(),
+        text: "Two things:\n- the keys\n- the docs",
+        mine: false,
+        unread: true,
+        brought: true,
+      },
     ]);
   });
 
   test("the window carries the ticket's address, on the site's own domain when it has one (R14)", async () => {
     const plain = site();
-    plain.event(0);
+    plain.comment(0);
     expect((await plain.read()).link).toBe("https://acme.atlassian.net/browse/OPS-7");
     const custom = site({ link_host: "jira.acme.example" });
-    custom.event(0);
+    custom.comment(0);
     expect((await custom.read()).link).toBe("https://jira.acme.example/browse/OPS-7");
+  });
+
+  test("a load before a comment carries no ticket: the card already has it", async () => {
+    const s = site();
+    const ids = Array.from({ length: 3 }, (_, i) => s.comment(i));
+    expect((await s.read({}, { direction: "before", from: ids[2] })).ticket).toBeUndefined();
+  });
+});
+
+describe("a Jira card's ticket (plan 089)", () => {
+  test("the card has the summary, type, project, the fields and the description as lines", async () => {
+    const s = site();
+    s.comment(0);
+    const { ticket } = await s.read();
+    expect(ticket).toEqual({
+      key: "OPS-7",
+      summary: "Rotate the keys",
+      type: "Task",
+      project: "Operations",
+      fields: { status: "In Progress", assignee: "Ada Lovelace", reporter: "Bob Stone", priority: "High", sprint: "Sprint 12", labels: ["security"] },
+      description: ["Rotate every key.", "Then tell the team."],
+      changed: [],
+      also_changed: [],
+    });
+  });
+
+  test("a status changed by someone else after the mark is new, with its old value, who and when", async () => {
+    const s = site();
+    const mark = s.comment(0);
+    s.change(1, STATUS("To Do", "In Progress"), JIRA_BOB);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([{ field: "status", from: "To Do", to: "In Progress", by: "Bob Stone", at: at(1).toISOString() }]);
+  });
+
+  test("a change at or before the mark is not new", async () => {
+    const s = site();
+    s.change(0, STATUS("To Do", "In Progress"), JIRA_BOB);
+    const mark = s.comment(1);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([]);
+  });
+
+  test("two changes to one field since the mark show once, with the first old value and the newest change's who and when", async () => {
+    const s = site();
+    const mark = s.comment(0);
+    s.change(1, STATUS("To Do", "In Review"), JIRA_BOB);
+    s.change(2, STATUS("In Review", "In Progress"), JIRA_ADA);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([{ field: "status", from: "To Do", to: "In Progress", by: "Ada Lovelace", at: at(2).toISOString() }]);
+  });
+
+  test("the person's own change is not new, and someone else's before it is seen by it", async () => {
+    const s = site();
+    const mark = s.comment(0);
+    s.change(1, STATUS("To Do", "In Review"), JIRA_BOB);
+    s.change(2, STATUS("In Review", "In Progress"), ME);
+    s.change(3, [{ field: "priority", from: "Low", to: "High" }], ME);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([]);
+    expect(ticket?.also_changed).toEqual([]);
+  });
+
+  test("a change to a field the card does not show is in also changed, once per field, with the newest who and when", async () => {
+    const s = site();
+    const mark = s.comment(0);
+    s.change(1, [{ field: "Rank", from: null, to: "Ranked higher" }], JIRA_BOB);
+    s.change(2, [
+      { field: "Rank", from: null, to: "Ranked lower" },
+      { field: "Story point estimate", from: "3", to: "5" },
+    ]);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([]);
+    expect(ticket?.also_changed).toEqual([
+      { field: "Rank", by: "Ada Lovelace", at: at(2).toISOString() },
+      { field: "Story point estimate", by: "Ada Lovelace", at: at(2).toISOString() },
+    ]);
+  });
+
+  test("an edited description and summary are marked, the description without its old and new text", async () => {
+    const s = site();
+    const mark = s.comment(0);
+    s.change(1, [
+      { field: "description", from: "Rotate the key.", to: "Rotate every key.\nThen tell the team." },
+      { field: "summary", from: "Rotate the key", to: "Rotate the keys" },
+    ]);
+    const { ticket } = await s.read({ dealt_message_id: mark });
+    expect(ticket?.changed).toEqual([
+      { field: "description", from: null, to: null, by: "Ada Lovelace", at: at(1).toISOString() },
+      { field: "summary", from: "Rotate the key", to: "Rotate the keys", by: "Ada Lovelace", at: at(1).toISOString() },
+    ]);
+  });
+
+  test("with no dealt mark, the changes that brought the card are new", async () => {
+    const s = site();
+    s.change(0, [{ field: "priority", from: "Low", to: "Medium" }], JIRA_BOB);
+    const brought = s.change(1, [{ field: "Sprint", from: "Sprint 11", to: "Sprint 12" }], JIRA_BOB);
+    const { ticket } = await s.read({ brought_ids: [brought] });
+    expect(ticket?.changed).toEqual([{ field: "Sprint", from: "Sprint 11", to: "Sprint 12", by: "Bob Stone", at: at(1).toISOString() }]);
+  });
+
+  test("a site without a sprint field shows no sprint", async () => {
+    const s = site();
+    s.jira.state.has_sprints = false;
+    const { ticket } = await s.read();
+    expect(ticket?.fields.sprint).toBeNull();
+  });
+
+  test("a ticket with none of the fields shows each as empty", async () => {
+    const s = site();
+    s.jira.edit("OPS-7", { assignee: null, reporter: null, status: null, priority: null, labels: [], sprints: [], description: null });
+    const { ticket } = await s.read();
+    expect(ticket?.fields).toEqual({ status: null, assignee: null, reporter: null, priority: null, sprint: null, labels: [] });
+    expect(ticket?.description).toEqual([]);
   });
 });
 
 describe("a Jira ticket read whole, for a hand-off", () => {
-  test("every comment and history entry, oldest first, across pages, with the person's own marked", async () => {
+  test("the ticket first, then every comment oldest first across pages, then the field history", async () => {
     const s = site();
-    const ids = Array.from({ length: 120 }, (_, i) => s.event(i, i === 7 ? ME : JIRA_ADA));
+    const comments = Array.from({ length: 60 }, (_, i) => s.comment(i * 2, i === 7 ? ME : JIRA_ADA));
+    const changes = Array.from({ length: 60 }, (_, i) => s.change(i * 2 + 1, STATUS("To Do", "In Progress")));
     const messages = await s.text(ID, s.ticket);
-    expect(messages.map((m) => m.id)).toEqual(ids);
-    expect(messages.filter((m) => m.mine).map((m) => m.id)).toEqual([ids[7]]);
-    expect(messages[1]).toEqual({ id: ids[1], sender: "Ada Lovelace", at: at(1).toISOString(), text: "status: To Do → In Progress", mine: false });
+    expect(messages).toHaveLength(121);
+    expect(messages[0]).toEqual({
+      sender: "Bob Stone",
+      at: at(0).toISOString(),
+      text: [
+        "OPS-7: Rotate the keys",
+        "type: Task",
+        "project: Operations",
+        "status: In Progress",
+        "assignee: Ada Lovelace",
+        "reporter: Bob Stone",
+        "priority: High",
+        "sprint: Sprint 12",
+        "labels: security",
+        "",
+        "description:",
+        "Rotate every key.",
+        "Then tell the team.",
+      ].join("\n"),
+    });
+    expect(messages.slice(1).map((m) => m.id)).toEqual([...comments, ...changes]);
+    expect(messages.filter((m) => m.mine).map((m) => m.id)).toEqual([comments[7]]);
+    expect(messages[61]).toEqual({ id: changes[0], sender: "Ada Lovelace", at: at(1).toISOString(), text: "status: To Do → In Progress", mine: false });
   });
 });

@@ -1,6 +1,7 @@
 /**
  * A stand-in for one Jira Cloud site, driven through an injected fetch (plan 2026-11-10-1451, U2). It keeps tickets, who
- * watches each, their comments and their history, and the one email and API token it accepts. Every request is
+ * watches each, their fields and description (plan 089), their comments and their history, a list of fields with a
+ * Sprint custom field unless `state.has_sprints` is off, and the one email and API token it accepts. Every request is
  * recorded, so a test can say which endpoints were reached and with what, and every comment posted is kept in `posted`.
  * Switches in `state` make it answer as Jira does when the token is refused or the site asks for a wait.
  */
@@ -45,11 +46,34 @@ interface StoredHistory {
   items: FakeJiraChange[];
 }
 
-interface StoredTicket {
+/** A sprint as Jira Cloud lists it in a ticket's sprint field. */
+export interface FakeJiraSprint {
+  name: string;
+  state: "active" | "closed" | "future";
+}
+
+/** The fields a ticket's card shows (plan 089), each left out of the answer when null. */
+export interface FakeJiraFields {
+  type: string | null;
+  project: string | null;
+  status: string | null;
+  reporter: FakeJiraPerson | null;
+  priority: string | null;
+  labels: string[];
+  sprints: FakeJiraSprint[];
+  /** The description as plain text, served as a document of one paragraph per line; null for none. */
+  description: string | null;
+}
+
+/** The id the fake site gives its sprint field, as a real site gives a custom field. */
+export const JIRA_SPRINT_FIELD = "customfield_10020";
+
+interface StoredTicket extends FakeJiraFields {
   id: string;
   key: string;
   summary: string;
   updated: number;
+  created: number;
   assignee: FakeJiraPerson | null;
   watchers: Set<string>;
   hidden: boolean;
@@ -71,6 +95,13 @@ const instant = (at: FakeJiraTime) => (at instanceof Date ? at.getTime() : Date.
 const written = (at: FakeJiraTime) => (at instanceof Date ? stamp(at.getTime()) : at);
 const person = (p: FakeJiraPerson) => ({ accountId: p.account_id, displayName: p.display_name, active: true });
 const paragraphs = (text: string) => ({ version: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+/** A description's text as Jira's document: a paragraph for each line. */
+const lines = (text: string) => ({
+  version: 1,
+  type: "doc",
+  content: text.split("\n").map((t) => ({ type: "paragraph", content: [{ type: "text", text: t }] })),
+});
+const NO_FIELDS: FakeJiraFields = { type: null, project: null, status: null, reporter: null, priority: null, labels: [], sprints: [], description: null };
 
 /** One Jira Cloud site with one signed-in person, on the test's clock. */
 export function fakeJira(opts: { now: () => Date; host?: string; email?: string; token?: string; me?: FakeJiraPerson }) {
@@ -96,6 +127,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     history_list: "values" as "values" | "histories",
     /** The address people browse the site at, when it has a custom domain. */
     display_url: null as string | null,
+    /** Whether the site has a field named Sprint; a site without Jira Software has none. */
+    has_sprints: true,
   };
   let ticketSeq = 10000;
   let commentSeq = 30000;
@@ -171,13 +204,33 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       const ticket = find(decodeURIComponent(one[1]));
       if (!ticket) return json(404, { errorMessages: ["Issue does not exist or you do not have permission to see it."] });
       const fields = (q.get("fields") ?? "").split(",").filter(Boolean);
+      const named = (name: string | null) => (name ? { name } : null);
       const all: Record<string, unknown> = {
         summary: ticket.summary,
         updated: stamp(ticket.updated),
+        created: stamp(ticket.created),
         assignee: ticket.assignee ? person(ticket.assignee) : null,
+        reporter: ticket.reporter ? person(ticket.reporter) : null,
+        issuetype: named(ticket.type),
+        project: ticket.project ? { key: ticket.key.split("-")[0], name: ticket.project } : null,
+        status: named(ticket.status),
+        priority: named(ticket.priority),
+        labels: ticket.labels,
+        description: ticket.description === null ? null : lines(ticket.description),
+        ...(state.has_sprints
+          ? { [JIRA_SPRINT_FIELD]: ticket.sprints.length ? ticket.sprints.map((s, i) => ({ id: i + 1, name: s.name, state: s.state, boardId: 1 })) : null }
+          : {}),
       };
       return json(200, { id: ticket.id, key: ticket.key, fields: Object.fromEntries(fields.filter((f) => f in all).map((f) => [f, all[f]])) });
     }
+    // Every field the person may see, a list rather than an object; a custom field's id differs from site to site.
+    if (path === "/rest/api/3/field" && req.method === "GET")
+      return json(200, [
+        { id: "summary", name: "Summary", custom: false },
+        { id: "status", name: "Status", custom: false },
+        { id: "customfield_10016", name: "Story point estimate", custom: true },
+        ...(state.has_sprints ? [{ id: JIRA_SPRINT_FIELD, name: "Sprint", custom: true }] : []),
+      ]);
     const issue = /^\/rest\/api\/3\/issue\/([^/]+)\/(comment|changelog)$/.exec(path);
     if (issue) {
       const ticket = find(decodeURIComponent(issue[1]));
@@ -230,13 +283,19 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     posted,
     state,
     /** A ticket, watched by the person unless `watchers` says otherwise; `at` is when it last changed (now when left out). Returns its numeric id. */
-    addTicket(input: { key: string; summary: string; at?: FakeJiraTime; watchers?: FakeJiraPerson[]; assignee?: FakeJiraPerson | null }): string {
+    addTicket(
+      input: { key: string; summary: string; at?: FakeJiraTime; watchers?: FakeJiraPerson[]; assignee?: FakeJiraPerson | null } & Partial<FakeJiraFields>,
+    ): string {
       const id = String(++ticketSeq);
+      const { key: _key, summary: _summary, at: _at, watchers: _watchers, assignee: _assignee, ...fields } = input;
       tickets.push({
+        ...NO_FIELDS,
+        ...fields,
         id,
         key: input.key,
         summary: input.summary,
         updated: instant(input.at ?? opts.now()),
+        created: instant(input.at ?? opts.now()),
         assignee: input.assignee ?? null,
         watchers: new Set((input.watchers ?? [me]).map((p) => p.account_id)),
         hidden: false,
@@ -257,9 +316,17 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       ticket.updated = Math.max(ticket.updated, entry.ms);
       return entry.id;
     },
-    /** Change a ticket's title, key, assignee or watchers in place, as edits in Jira would; its update time is left alone. */
-    edit(key: string, patch: { key?: string; summary?: string; assignee?: FakeJiraPerson | null; watchers?: FakeJiraPerson[] }): void {
+    /**
+     * Change a ticket's title, key, assignee, watchers or other fields in place, as edits in Jira would; its update time
+     * is left alone, and no history is written: `change` writes that.
+     */
+    edit(
+      key: string,
+      patch: { key?: string; summary?: string; assignee?: FakeJiraPerson | null; watchers?: FakeJiraPerson[] } & Partial<FakeJiraFields>,
+    ): void {
       const ticket = must(key);
+      const { key: _key, summary: _summary, assignee: _assignee, watchers: _watchers, ...fields } = patch;
+      Object.assign(ticket, fields);
       if (patch.key !== undefined) ticket.key = patch.key;
       if (patch.summary !== undefined) ticket.summary = patch.summary;
       if (patch.assignee !== undefined) ticket.assignee = patch.assignee;

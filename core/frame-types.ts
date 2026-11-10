@@ -399,6 +399,73 @@ export interface OutsideRead {
   window: OutsideWindow | null;
   /** A Jira ticket's address in the browser (R14), on the site's own domain; absent for mail and Slack. */
   link?: string;
+  /**
+   * A Jira card's ticket (plan 089): its header, fields, description and what changed since the card was last read.
+   * Given with the opening window only, not with a load of earlier comments; absent for mail and Slack, and from a Mac
+   * on a loki older than plan 089, whose Jira messages are its comments and field changes together.
+   */
+  ticket?: JiraCardTicket;
+}
+
+/**
+ * A Jira ticket as its card shows it (plan 089, Decisions 1-4): the type, key and project of its header, its summary as
+ * the title, a fixed set of fields, its description as plain lines (KTD15), and the changes someone else made since
+ * the card's dealt mark. The card's messages are the ticket's comments alone.
+ */
+export interface JiraCardTicket {
+  key: string;
+  summary: string;
+  /** The issue type, as in `Task` or `Bug`; null when Jira gave none. */
+  type: string | null;
+  /** The project's name; null when Jira gave none. */
+  project: string | null;
+  fields: JiraCardFields;
+  /** The description as plain lines, top to bottom; empty when the ticket has none. */
+  description: string[];
+  /**
+   * The shown parts someone else changed since the dealt mark, one entry for each, in the order of their newest change.
+   * `field` is the name Jira's history gives it: `status`, `assignee`, `reporter`, `priority`, `Sprint`, `labels`,
+   * `description`, `summary`, `issuetype` or `project`.
+   */
+  changed: JiraFieldChange[];
+  /** The fields the card does not show (rank, story points and the like) that someone else changed since the dealt mark. */
+  also_changed: JiraOtherChange[];
+}
+
+/** The fields a Jira card shows (plan 089, Decision 2), each null, or empty for labels, when the ticket has none. */
+export interface JiraCardFields {
+  status: string | null;
+  /** People by the names Jira shows. */
+  assignee: string | null;
+  reporter: string | null;
+  priority: string | null;
+  /** The sprint the ticket is in; null on a site without a sprint field. */
+  sprint: string | null;
+  labels: string[];
+}
+
+/**
+ * A shown field changed by someone else since the card's dealt mark (plan 089, Decision 3): what it was before the
+ * first such change, what the newest made it, and who made the newest and when. Changes the person made themselves are
+ * never new, and one of theirs after someone else's means they have seen it. The description's old and new text are
+ * left out (null): the card shows its text and marks it edited. Values are as Jira's history writes them, so labels
+ * are one text, parted by spaces.
+ */
+export interface JiraFieldChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+  /** Who made the newest change, by the name Jira shows. */
+  by: string;
+  /** When, in UTC to the millisecond. */
+  at: string;
+}
+
+/** A field the card does not show that someone else changed since the dealt mark: its name in Jira's history, who and when. */
+export interface JiraOtherChange {
+  field: string;
+  by: string;
+  at: string;
 }
 
 /** Which of a Slack card's two views a window is (plan 077, R10): one thread alone, or the channel or DM around it. */

@@ -307,6 +307,71 @@ describe("a ticket's events", () => {
   });
 });
 
+describe("a ticket's fields for its card (plan 089)", () => {
+  test("the issue read asks for the card's fields and the sprint field, found by name once per site", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({
+      key: "OPS-1",
+      summary: "Rotate the keys",
+      at: at("2026-11-10T08:00:00.000Z"),
+      assignee: JIRA_ADA,
+      reporter: JIRA_BOB,
+      type: "Task",
+      project: "Operations",
+      status: "In Progress",
+      priority: "High",
+      labels: ["security", "q4"],
+      sprints: [
+        { name: "Sprint 11", state: "closed" },
+        { name: "Sprint 12", state: "active" },
+      ],
+      description: "Rotate every key.\nThen tell the team.",
+    });
+    const issue = await c.issue("OPS-1");
+    expect(issue).toEqual({
+      id: expect.any(String) as string,
+      key: "OPS-1",
+      summary: "Rotate the keys",
+      type: "Task",
+      project: "Operations",
+      status: "In Progress",
+      assignee: "Ada Lovelace",
+      reporter: "Bob Stone",
+      priority: "High",
+      sprint: "Sprint 12",
+      labels: ["security", "q4"],
+      description: expect.objectContaining({ type: "doc" }) as unknown,
+      created: "2026-11-10T08:00:00.000Z",
+    });
+    await c.issue("OPS-1");
+    expect(jira.requests.map((r) => r.url.pathname)).toEqual(["/rest/api/3/field", "/rest/api/3/issue/OPS-1", "/rest/api/3/issue/OPS-1"]);
+    expect(jira.requests[1].url.searchParams.get("fields")?.split(",")).toEqual(
+      expect.arrayContaining(["summary", "issuetype", "project", "status", "assignee", "reporter", "priority", "labels", "description", "customfield_10020"]),
+    );
+  });
+
+  test("a site without a sprint field shows none, and asks for its fields only once", async () => {
+    const { c, jira } = setup();
+    jira.state.has_sprints = false;
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    const issue = await c.issue("OPS-1");
+    expect(issue).toMatchObject({ sprint: null, status: null, assignee: null, labels: [], description: null });
+    await c.issue("OPS-1");
+    expect(jira.requests.filter((r) => r.url.pathname === "/rest/api/3/field")).toHaveLength(1);
+    expect(jira.requests[1].url.searchParams.get("fields")).not.toMatch(/customfield/);
+  });
+
+  test("a failed look for the sprint field is asked again on the next read", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    jira.state.unauthorized = true;
+    await refusal(c.issue("OPS-1"));
+    jira.state.unauthorized = false;
+    expect((await c.issue("OPS-1")).key).toBe("OPS-1");
+    expect(jira.requests.filter((r) => r.url.pathname === "/rest/api/3/field")).toHaveLength(2);
+  });
+});
+
 describe("the person's comment", () => {
   test("posts paragraphs with line breaks to the ticket and returns the new comment's id", async () => {
     const { c, jira } = setup();
@@ -335,7 +400,7 @@ describe("the person's comment", () => {
 const WRITES = /post|send|add|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
 
 /** The client's own helpers, which make no request of their own choosing. */
-const PRIVATE = ["now", "call", "page", "rejected", "rateLimited"];
+const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited"];
 
 describe("the only thing the client writes is the person's comment", () => {
   test("postComment is the only client method whose name suggests writing", () => {
@@ -353,11 +418,14 @@ describe("the only thing the client writes is the person's comment", () => {
     await c.comments("OPS-1");
     await c.history("OPS-1");
     await c.ticket("OPS-1");
+    await c.issue("OPS-1");
     expect(jira.writes()).toEqual([]);
     await c.postComment("OPS-1", "hello");
     expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([["POST", "/rest/api/3/issue/OPS-1/comment"]]);
     const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment"].includes(n));
     // Every public method was exercised above; a new one must be added here, where its requests are checked.
-    expect(called.filter((n) => !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket"].includes(n) && !PRIVATE.includes(n))).toEqual([]);
+    expect(
+      called.filter((n) => !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue"].includes(n) && !PRIVATE.includes(n)),
+    ).toEqual([]);
   });
 });
