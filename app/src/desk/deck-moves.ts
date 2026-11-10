@@ -14,6 +14,11 @@ export interface ReplyBox {
   mail: MailAddressing | null;
   busy: boolean;
   error: string | null;
+  /**
+   * A mail reply sent alone and still held for its undo (plan 083): the card stays on top, so Z finds the hold here
+   * rather than on a decision. Null or absent once it went.
+   */
+  held?: { outbox_id: string; text: string; mail: MailAddressing | null } | null;
 }
 
 /** An empty reply box: what a card starts with, and what a sent reply leaves. */
@@ -62,15 +67,18 @@ export interface DeckMovesHost {
   newId?: () => string;
 }
 
+/** A move a key makes after its reply; a reply sent alone (`stay`, plan 083) makes none. */
+type Move = Exclude<ReplyThen, "stay">;
+
 /** The decision each key leaves behind, and how it reads in the visit's summary. */
-const DECISION: Record<ReplyThen, { action: Decision["action"]; via: NonNullable<Decision["via"]>; word: string }> = {
+const DECISION: Record<Move, { action: Decision["action"]; via: NonNullable<Decision["via"]>; word: string }> = {
   read: { action: "seen", via: "next", word: "read" },
   later: { action: "later", via: "later", word: "later" },
   archive: { action: "archived", via: "archive", word: "archived" },
 };
 
 /** What a refused move flashes, before the reason. */
-const REFUSED: Record<ReplyThen, string> = { read: "not marked read", later: "not put off", archive: "not archived" };
+const REFUSED: Record<Move, string> = { read: "not marked read", later: "not put off", archive: "not archived" };
 
 /** Whether a card takes labels: an email card only (R12); a chat or a Slack message has none. */
 export const takesLabels = (item: AttentionItem | undefined): boolean => item?.outside?.provider === "gmail";
@@ -85,7 +93,7 @@ export const takesLabels = (item: AttentionItem | undefined): boolean => item?.o
  */
 export function createDeckMoves(host: DeckMovesHost) {
   const { moves } = host;
-  const decide = (item: AttentionItem, then: ReplyThen) => {
+  const decide = (item: AttentionItem, then: Move) => {
     const { action, via } = DECISION[then];
     host.setDir("next");
     host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item) }]);
@@ -104,7 +112,7 @@ export function createDeckMoves(host: DeckMovesHost) {
    * waits (`held` on its decision). A send that fails brings the card back on top with the words and the reason; a move
    * after it that fails brings it back with the reason, the reply sent.
    */
-  const sendHeld = async (item: AttentionItem, then: ReplyThen, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
+  const sendHeld = async (item: AttentionItem, then: Move, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
     const { text, mail } = host.reply;
     const outbox = host.newId?.() ?? crypto.randomUUID();
@@ -136,12 +144,35 @@ export function createDeckMoves(host: DeckMovesHost) {
     }
   };
 
+  /**
+   * A mail reply sent alone (plan 083): held for its undo like any mail reply, while the card stays on top for the
+   * person's own next move. Z stops it while it waits and puts the words back; a send that fails puts them back too.
+   */
+  const sendHeldStay = async (item: AttentionItem, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
+    const id = idOf(item);
+    const { text, mail } = host.reply;
+    const outbox = host.newId?.() ?? crypto.randomUUID();
+    host.setReply(id, { text: "", mail: null, error: null, held: { outbox_id: outbox, text, mail } });
+    host.say("sending · z undo");
+    const r = await send(item, text, "stay", { mail, outbox_id: outbox });
+    // Undo stopped it and already put the words back.
+    if (r.undone) return;
+    if (r.sent) {
+      host.setReply(id, { held: null });
+      host.sent();
+      host.say("sent");
+      return;
+    }
+    host.setReply(id, { text, mail, error: r.error, held: null });
+    host.say("not sent");
+  };
+
   /** Send the box's text, then the key's move; the card moves on only when both went, and keeps the error when not. */
   const sendThen = async (item: AttentionItem, then: ReplyThen): Promise<void> => {
     const send = moves.replyOutside;
     const id = idOf(item);
     if (!send || host.reply.busy) return;
-    if (item.outside?.provider === "gmail" && moves.unsendOutside) return sendHeld(item, then, send);
+    if (item.outside?.provider === "gmail" && moves.unsendOutside) return then === "stay" ? sendHeldStay(item, send) : sendHeld(item, then, send);
     host.setReply(id, { busy: true, error: null });
     let r: OutsideReplyResult;
     try {
@@ -160,6 +191,10 @@ export function createDeckMoves(host: DeckMovesHost) {
       return;
     }
     if (!r.sent) return;
+    if (then === "stay") {
+      host.say("sent");
+      return;
+    }
     decide(item, then);
     host.say(DECISION[then].word);
   };
@@ -256,6 +291,17 @@ export function createDeckMoves(host: DeckMovesHost) {
 
   /** Undo (⌘Z, Z): the last move of this visit (the pill's agent's, when one is on) is taken back, out there too (R14). */
   const undo = () => {
+    // A mail reply sent alone and still held (plan 083): stopped before it goes, and the words come back to the box.
+    const waiting = host.reply.held;
+    const here = host.current;
+    if (waiting && here && moves.unsendOutside) {
+      void moves.unsendOutside(here, waiting.outbox_id).then((stopped) => {
+        if (!stopped) return host.say("already sent");
+        host.setReply(idOf(here), { text: waiting.text, mail: waiting.mail, error: null, held: null });
+        host.say("not sent");
+      });
+      return;
+    }
     let at = host.decided.length - 1;
     while (at >= 0 && host.agent && ownerAgentOf(host.decided[at].item) !== host.agent) at--;
     const last = at >= 0 ? host.decided[at] : undefined;
@@ -296,10 +342,13 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.say(behavior !== "deny" ? "approved" : "denied");
   };
 
-  /** Enter in an outside card's box, or its send button: the reply goes, and the card is read (R11). */
+  /**
+   * Enter in a Slack card's box, ⌘Enter in a mail's, or the send button: the reply goes alone, and the card stays where
+   * it is for the person's own next move (plan 083).
+   */
   const sendReply = () => {
     const item = host.current;
-    if (item && hasReply(item)) void sendThen(item, "read");
+    if (item && hasReply(item)) void sendThen(item, "stay");
   };
 
   return { read, later, pickLater, archive, label, pickLabels, undo, approve, sendReply };

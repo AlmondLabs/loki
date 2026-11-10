@@ -310,6 +310,8 @@ export class OutsideThreads {
   /** The move after a sent reply, as the card's own move frames write it back. */
   private follow(accountId: string, threadId: string, then: ReplyThen): Promise<OutsideChange | null> {
     const { threads } = this.opts;
+    // Sent alone (plan 083): the card stays for the person's own next move.
+    if (then === "stay") return Promise.resolve(null);
     if (then === "archive") return threads.archive(accountId, threadId);
     if (then === "read") return threads.markRead(accountId, threadId);
     // The wait is loki's own record and is marked first, so it holds even when Gmail refuses the unread mark.
