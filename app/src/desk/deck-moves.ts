@@ -20,6 +20,29 @@ export interface ReplyBox {
    * rather than on a decision. Null or absent once it went.
    */
   held?: { outbox_id: string; text: string; mail: MailAddressing | null } | null;
+  /**
+   * The thread the person opened on a Slack card (plan 085), for the card as it was then (`key`, cardKey): the view
+   * shows it, and the reply goes into it. A newer message on the card makes it stale, and the card's own place is used.
+   */
+  thread?: OpenedThread | null;
+}
+
+/** A thread opened on a Slack card (plan 085): the card it was opened on, as cardKey says, and the thread's first message. */
+export interface OpenedThread {
+  key: string;
+  ts: string;
+}
+
+/** A card as its thread view knows it: its account, thread and newest message, so a newer message is another card. */
+export function cardKey(item: AttentionItem): string {
+  const o = item.outside;
+  return o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
+}
+
+/** The thread a reply on this card goes into (plan 085): the one opened on it as it is now, else none. */
+export function openedThreadOf(item: AttentionItem, reply: Pick<ReplyBox, "thread">): string | null {
+  const key = cardKey(item);
+  return key && reply.thread?.key === key ? reply.thread.ts : null;
 }
 
 /** An empty reply box: what a card starts with, and what a sent reply leaves. */
@@ -177,7 +200,8 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setReply(id, { busy: true, error: null });
     let r: OutsideReplyResult;
     try {
-      r = await send(item, host.reply.text, then, { mail: host.reply.mail });
+      const threadTs = openedThreadOf(item, host.reply);
+      r = await send(item, host.reply.text, then, { mail: host.reply.mail, ...(threadTs ? { thread_ts: threadTs } : {}) });
     } finally {
       host.setReply(id, { busy: false });
     }

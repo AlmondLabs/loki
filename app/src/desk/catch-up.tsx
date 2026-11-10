@@ -313,6 +313,8 @@ function CatchUpDeck(props: DeckProps) {
                       onText: actions.setText,
                       onMail: actions.setMail,
                       onSend: actions.sendReply,
+                      thread: actions.reply.thread ?? null,
+                      onThread: actions.setThread,
                     }
                   : undefined
               }

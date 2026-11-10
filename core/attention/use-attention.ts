@@ -179,10 +179,14 @@ export interface OutsideSource {
   searchPeople?: (item: AttentionItem, query: string) => Promise<SlackPerson[] | string>;
 }
 
-/** What a mail reply carries beside its text (plan 076): how it is addressed (null for reply all) and the id its hold is undone by. */
+/**
+ * What a reply carries beside its text: for mail (plan 076), how it is addressed (null for reply all) and the id its
+ * hold is undone by; for Slack (plan 085), the thread the person opened on the card, which the reply goes into.
+ */
 export interface OutsideReplyExtra {
   mail?: MailAddressing | null;
   outbox_id?: string | null;
+  thread_ts?: string | null;
 }
 
 /**

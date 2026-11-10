@@ -2,7 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
-import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
+import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type OpenedThread, type PickerKind, type ReplyBox } from "./deck-moves";
 
 /** How long a word stays on the badge. */
 export const FLASH_MS = 900;
@@ -108,6 +108,8 @@ export function useDeckActions({
     setText: (text: string) => setReply(currentId, { text }),
     /** How the mail reply on top is addressed (plan 076). */
     setMail: (mail: MailAddressing) => setReply(currentId, { mail }),
+    /** The thread opened on the Slack card on top, which its reply goes into (plan 085); null back in its conversation. */
+    setThread: (thread: OpenedThread | null) => setReply(currentId, { thread }),
     openPicker: (kind: PickerKind | null) => setPicking(kind && currentId ? { id: currentId, kind } : null),
     ...deck,
     sent,

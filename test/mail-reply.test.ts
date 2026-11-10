@@ -484,6 +484,11 @@ describe("the people an account has mail with", () => {
 
 describe("the reply frame's addressing", () => {
   const parse = (m: Record<string, unknown>) => FRAMES.account_thread_reply.parse({ account_id: MAIL, thread_id: "t1", text: "ok", then: "read", ...m });
+  test("a Slack reply may name the thread it goes into, as a Slack message time (plan 085)", () => {
+    expect(parse({ thread_ts: "1731234567.000100" })).toMatchObject({ thread_ts: "1731234567.000100" });
+    expect(parse({})).toMatchObject({ thread_ts: null });
+    expect(parse({ thread_ts: "C1:1.0" })).toBe("thread_ts must be a Slack message time");
+  });
   test("a reply may be sent with no move after it, and a move loki does not know is refused (plan 083)", () => {
     expect(parse({ then: "stay" })).toMatchObject({ then: "stay" });
     expect(parse({ then: "snooze" })).toBe("then must be read, later, archive or stay");
