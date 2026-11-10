@@ -1895,7 +1895,12 @@ button.loki-label-chip:focus-visible {
   padding-left: 10px;
   border-left: 4px solid var(--loki-border);
 }
-/* Above the body's own image rule, which would let an emoji take its picture's height. */
+/*
+ * A custom emoji is a picture as big as Slack stored it, often 128px or a GIF; it takes the size of the text around
+ * it wherever it is drawn: a message, a reaction pill, the picker. The second selector outranks the body's own image
+ * rule, which would let an emoji take its picture's height.
+ */
+img.loki-emoji,
 .loki-slack-text img.loki-emoji {
   display: inline-block;
   width: 1.375em;
@@ -2142,6 +2147,7 @@ button.loki-label-chip:focus-visible {
 .loki-slack-reactions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   margin-top: 4px;
 }
