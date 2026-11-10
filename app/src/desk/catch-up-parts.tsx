@@ -1,16 +1,18 @@
-import { ownerAgentOf, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
+import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
+import { agentLanes, type AgentLane, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
-import { Button, Chip, Dot, Empty, Meta } from "../components";
+import { Button, Chip, Dot, Empty, Meta, Popover, Row } from "../components";
 import { chipText } from "../chat/suggestion-card";
 import { CardFace, CardHead } from "./card-head";
 import { avatarUrl } from "./env";
 import { keyboard } from "./env";
 import { formatKeys, keyFor } from "../shell/keymap";
 
-/** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
+/** The pieces of a Flow card around its Conversation, and the title with its lane switcher. State lives in CatchUpDeck; these only draw it and call back. */
 
 /**
  * Status → label and colour for an attention item; the phone inbox (app/src/phone/inbox.tsx) uses the same table.
@@ -36,15 +38,38 @@ export function ago(iso: string | null): string {
   return `${Math.round(h / 24)}d`;
 }
 
+/** Flow's title as its switcher says it (R11): "flow" in Everything, "flow · Work" in a lane, the name as it was typed. */
+export const laneTitle = (lane: ResolvedLane | null): string => (lane ? `flow · ${lane.name}` : "flow");
+
+/** The quiet line of R14: how many cards need the person in other lanes, never a red badge. Empty at 0. */
+const othersLine = (others: number) => (others > 0 ? `${others} waiting in other lanes` : "");
+
+/** The props of the title line and its switcher: the active lane, the person's lanes, and every card in Flow. */
+export interface LaneSwitchProps {
+  /** The active lane, null for Everything. */
+  lane: ResolvedLane | null;
+  /** The lanes the person made, null until they first come. */
+  lanes: Lane[] | null;
+  /** Every card in Flow, whatever the lane: the agent lanes are listed from them (KTD5). */
+  items: AttentionItem[];
+  /** A lane picked, null for Everything. */
+  onLane: (lane: ResolvedLane | null) => void;
+  /** Open Preferences › Flow to make a lane; left out, the menu has no "new lane…". */
+  onNewLane?: () => void;
+}
+
 /**
- * The title line: what needs you and how many chats are in the Inbox. A chat stays until it is archived, so there
- * is no pass to count down and no progress bar; the counts follow the live list.
+ * The title line: the lane switcher, then what needs you and how many chats are in the lane, and while a lane is on,
+ * the quiet count of cards waiting in the others (R14). A chat stays until it is archived, so there is no pass to
+ * count down and no progress bar; the counts follow the live list.
  */
-export function DeckHeader({ needYou, chats }: { needYou: number; chats: number }) {
+export function DeckHeader({ needYou, chats, others, ...lane }: LaneSwitchProps & { needYou: number; chats: number; others: number }) {
+  const quiet = othersLine(others);
   return (
     <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-      <span>Flow</span>
+      <LaneSwitch {...lane} />
       <span>
+        {quiet && <span style={{ marginRight: 14 }}>{quiet}</span>}
         <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
         <span style={{ marginLeft: 14 }}>
           {chats} {chats === 1 ? "chat" : "chats"}
@@ -54,53 +79,135 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
   );
 }
 
-/** That agent's name as its pill says it. */
-const pillNameOf = (i: AttentionItem): string => (i.outside ? i.outside.owner_name : i.agent_name) ?? "agent";
-
-/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many cards, its accounts' included. */
-export function agentPills(items: AttentionItem[]): Array<{ agentId: string; name: string; count: number }> {
-  const by = new Map<string, { agentId: string; name: string; count: number }>();
-  for (const i of inboxQueue(items)) {
-    const id = ownerAgentOf(i);
-    const p = by.get(id) ?? { agentId: id, name: pillNameOf(i), count: 0 };
-    // A chat names its agent better than a card from one of its accounts does.
-    if (!i.outside && i.agent_name) p.name = i.agent_name;
-    p.count++;
-    by.set(id, p);
-  }
-  return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+/** Flow's title as a menu button (R11, plan 082 U6): it names the lane, and opens the menu that switches it. */
+function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        className="loki-label"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="switch lane"
+        onClick={() => setOpen((v) => !v)}
+        style={{ background: "none", border: 0, padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "baseline", gap: 4 }}
+      >
+        {laneTitle(props.lane)}
+        <span aria-hidden style={{ fontSize: 9.5 }}>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <LaneMenu {...props} onPick={(lane) => (close(), onLane(lane))} onNewLane={onNewLane ? () => (close(), onNewLane()) : undefined} onClose={close} />
+      )}
+    </span>
+  );
 }
 
 /**
- * Slack's filter pills over the deck: All, then each agent with something waiting. Shown once two agents
- * wait (one agent is All already), or while a pill is on, which stays with its count at 0 once its cards are
- * cleared, so you can see you are done with it and go back to All.
+ * The agent lanes the menu lists (R18, KTD5): one per agent with cards in Flow, and the active one
+ * even once its cards are cleared, so the person sees where they are; it leaves the list when they switch away (R20).
  */
-export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
-  const pills = agentPills(items);
-  if (agent && !pills.some((p) => p.agentId === agent)) {
-    const one = items.find((i) => ownerAgentOf(i) === agent);
-    pills.push({ agentId: agent, name: one ? pillNameOf(one) : "agent", count: 0 });
-  }
-  if (pills.length < 2 && !agent) return null;
-  const all = pills.reduce((n, p) => n + p.count, 0);
+function listedAgentLanes(items: AttentionItem[], lane: ResolvedLane | null): AgentLane[] {
+  const listed = agentLanes(items);
+  if (lane && "agent_id" in lane && !listed.some((l) => l.id === lane.id)) listed.push(lane);
+  return listed;
+}
+
+const menuItems = (menu: HTMLElement | null) => [...(menu?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+
+/**
+ * The lane menu under Flow's title: everything, the person's lanes, then each agent's built-in lane, each a radio
+ * item, and "new lane…". ↑↓ move, Enter picks, Esc or a press outside closes. Every key stays in the menu, so a
+ * letter meant for it never moves the card under it.
+ */
+export function LaneMenu({
+  lane,
+  lanes,
+  items,
+  onPick,
+  onNewLane,
+  onClose,
+}: Omit<LaneSwitchProps, "onLane"> & { onPick: (lane: ResolvedLane | null) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  useEffect(() => {
+    const menu = ref.current;
+    const anchor = menu?.parentElement ?? null;
+    (menu?.querySelector<HTMLElement>('[aria-checked="true"]') ?? menuItems(menu).at(0))?.focus();
+    const away = (e: PointerEvent) => {
+      if (!anchor?.contains(e.target as Node)) closeRef.current();
+    };
+    // Capture phase: the deck stops pointerdown from bubbling, and a press on it must still close the menu.
+    window.addEventListener("pointerdown", away, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      const a = document.activeElement;
+      if (!a || a === document.body || menu?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    };
+  }, []);
+  const activeId = lane?.id ?? "";
+  const radio = (key: string, on: boolean, pick: () => void, body: ReactNode) => (
+    <Row key={key} dense role="menuitemradio" aria-checked={on} onClick={pick} style={{ display: "flex", justifyContent: "space-between" }}>
+      {body}
+    </Row>
+  );
+  const agents = listedAgentLanes(items, lane);
   return (
-    <div role="group" aria-label="Filter by agent" style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 6px 10px" }}>
-      <Chip active={!agent} aria-pressed={!agent} onClick={() => onAgent(null)}>
-        All <Meta>{all}</Meta>
-      </Chip>
-      {pills.map((p) => (
-        <Chip key={p.agentId} active={agent === p.agentId} aria-pressed={agent === p.agentId} onClick={() => onAgent(agent === p.agentId ? null : p.agentId)}>
-          {p.name} <Meta>{p.count}</Meta>
-        </Chip>
-      ))}
-    </div>
+    <Popover
+      ref={ref}
+      role="menu"
+      aria-label="lanes"
+      width={240}
+      style={{ padding: 4 }}
+      onKeyDown={(e) => {
+        if (e.key === "Tab") return;
+        e.stopPropagation();
+        const all = menuItems(ref.current);
+        const i = all.indexOf(document.activeElement as HTMLElement);
+        if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
+        else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
+        else if (e.key === "Home") all[0]?.focus();
+        else if (e.key === "End") all.at(-1)?.focus();
+        else if (e.key === "Escape") onClose();
+        else return;
+        e.preventDefault();
+      }}
+    >
+      {radio("", activeId === "", () => onPick(null), <span>everything</span>)}
+      {(lanes ?? []).map((l) => radio(l.id, l.id === activeId, () => onPick(l), <span>{l.name}</span>))}
+      {agents.length > 0 && <hr className="loki-title-menu-sep" />}
+      {agents.map((l) =>
+        radio(
+          l.id,
+          l.id === activeId,
+          () => onPick(l),
+          <>
+            <span>{l.name}</span> <Meta>{l.count}</Meta>
+          </>,
+        ),
+      )}
+      {onNewLane && (
+        <>
+          <hr className="loki-title-menu-sep" />
+          <Row dense role="menuitem" onClick={onNewLane}>
+            new lane…
+          </Row>
+        </>
+      )}
+    </Popover>
   );
 }
 
 /**
  * No card left: every chat moved past this visit (or none at all). What is still running, what rests (Next rested it,
- * core/attention/rest.ts) with the way to go through those, and what this visit did.
+ * core/attention/rest.ts) with the way to go through those, and what this visit did. In a lane, also how many cards
+ * wait in the other lanes and the way back to everything (R20).
  */
 export function CaughtUp({
   items,
@@ -108,6 +215,8 @@ export function CaughtUp({
   replies,
   resting = 0,
   onResting,
+  others = 0,
+  onEverything,
 }: {
   items: AttentionItem[];
   decided: Decision[];
@@ -115,7 +224,12 @@ export function CaughtUp({
   /** Cards Next has rested, not due back yet. */
   resting?: number;
   onResting?: () => void;
+  /** Cards needing the person in other lanes (R14); 0 in Everything. */
+  others?: number;
+  /** Back to Everything; given only while a lane is on. */
+  onEverything?: () => void;
 }) {
+  const quiet = othersLine(others);
   const running = items.filter((i) => i.status === "running").length;
   return (
     <Empty card title={resting > 0 ? "You're caught up." : decided.length ? "You've been through every chat." : "Nothing in Flow."}>
@@ -138,6 +252,14 @@ export function CaughtUp({
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
         anything new lands here while this stays open
       </div>
+      {onEverything && (
+        <div className="loki-meta loki-meta--wrap" style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          {quiet && <span>{quiet}</span>}
+          <Button bare size="sm" tone="brass" onClick={onEverything}>
+            back to everything
+          </Button>
+        </div>
+      )}
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>
         {decided.length ? "z undo · " : ""}esc close
       </div>

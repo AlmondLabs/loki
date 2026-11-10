@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { inLane, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -13,7 +14,7 @@ import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-wi
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
+import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
@@ -50,7 +51,16 @@ interface CatchUpProps {
   onClose: () => void;
   /** The labels' colours (plan 022), for the card's chips. */
   labelList?: readonly LabelView[] | null;
+  /** Every card in Flow, whatever the lane: the deck reads the lane's, the quiet count and the menu all of them (KTD3). */
   items: AttentionItem[];
+  /** This device's active lane, null for Everything (plan 082). */
+  lane: ResolvedLane | null;
+  /** The lanes the person made, for the title's menu; null until they first come. */
+  lanes: Lane[] | null;
+  /** A lane picked in the title's menu, null for Everything: switch to it. */
+  onLane: (lane: ResolvedLane | null) => void;
+  /** "new lane…" in the menu: open Preferences › Flow. */
+  onNewLane?: () => void;
   /** Read (⌘]): marked read here and out there, and rested (plan 070, R5). */
   onRead: (item: AttentionItem) => Promise<MoveResult>;
   /** Later (⌘[): left unread and put off, until `until` (ISO) when the person picked (R6, R7). */
@@ -95,8 +105,6 @@ interface CatchUpProps {
   onPass?: PassSummaryHandler;
   /** A card came to the top (analytics: its dwell clock starts). */
   onShown?: (item: AttentionItem) => void;
-  /** An agent pill chosen, null for All (analytics). */
-  onFilter?: (agent: string | null) => void;
   /** The desks' widgets, so a card draws the ones its chat made, live, in the thread (chat/use-inline-widgets.tsx). */
   widgetSource?: InlineWidgetSource;
 }
@@ -119,15 +127,20 @@ export type PassSummaryHandler = (pass: {
 type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
-  const { onClose, items, loadHistory, onOpenDesk } = props;
-  /** The agent pill on: only that agent's cards come up this visit; null is All. */
-  const [agent, setAgent] = useState<string | null>(null);
-  const shown = useMemo(() => (agent ? items.filter((i) => ownerAgentOf(i) === agent) : items), [items, agent]);
+  const { onClose, items, lane, loadHistory, onOpenDesk } = props;
+  /** The cards the active lane holds: only they come up (R13). */
+  const shown = useMemo(() => laneItems(items, lane), [items, lane]);
   /** Going through the cards Next rested, asked for at the end of the pass. */
   const [resting, setResting] = useState(false);
-  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent, resting);
-  // What undo takes back: this agent's part of the visit.
-  const decided = agent ? allDecided.filter((d) => ownerAgentOf(d.item) === agent) : allDecided;
+  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, lane, resting);
+  // What undo takes back and the summary shows: the visit's moves on cards this lane holds (KTD6).
+  const decided = lane ? allDecided.filter((d) => inLane(d.item, lane)) : allDecided;
+  // The quiet line: cards needing the person in the other lanes (R14, KTD5).
+  const others = otherLanesCount(items, lane);
+  /** Switch lanes from the title's menu; picking the lane already on is no switch. */
+  const pickLane = (next: ResolvedLane | null) => {
+    if ((next?.id ?? "") !== (lane?.id ?? "")) props.onLane(next);
+  };
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
@@ -170,7 +183,7 @@ function CatchUpDeck(props: DeckProps) {
   const actions = useDeckActions({
     current,
     decided: allDecided,
-    agent,
+    lane,
     setDecided,
     setQueue,
     moves: deckMoveApi(props, replyOutside, unsendOutside),
@@ -287,10 +300,27 @@ function CatchUpDeck(props: DeckProps) {
       }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown).length} />
-        <AgentPills items={items} agent={agent} onAgent={(a) => (setAgent(a), props.onFilter?.(a))} />
+        <DeckHeader
+          lane={lane}
+          lanes={props.lanes}
+          items={items}
+          onLane={pickLane}
+          onNewLane={props.onNewLane}
+          needYou={liveWaitingCount(shown)}
+          chats={inboxQueue(shown).length}
+          // While caught up the count sits with the way back, once.
+          others={current ? others : 0}
+        />
         {!current ? (
-          <CaughtUp items={shown} decided={decided} replies={actions.replies} resting={resting ? 0 : restingCount(shown)} onResting={() => setResting(true)} />
+          <CaughtUp
+            items={shown}
+            decided={decided}
+            replies={actions.replies}
+            resting={resting ? 0 : restingCount(shown)}
+            onResting={() => setResting(true)}
+            others={others}
+            onEverything={lane ? () => pickLane(null) : undefined}
+          />
         ) : current.outside ? (
           <div key={idOf(current)} style={cardFrame(needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color, actions.dir)}>
             <OutsideCard

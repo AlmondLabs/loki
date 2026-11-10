@@ -262,7 +262,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
   // thread is fetched once when it arrives, and live rows stream in on top.
-  const deck = useDeck(catchUp.flow.laneItems);
+  const deck = useDeck(catchUp.flow.laneItems, catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
   const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
   // Learn's sitting (the card under your hands, the ones answered) lives here, above the routes, so

@@ -16,6 +16,7 @@ import { Button, Chip, Meta, TextArea } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
+import { useOutsideReply } from "../shared/outside-replies";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { LinkedText, MailHtml } from "./mail-html";
@@ -374,7 +375,9 @@ export interface ReplyBoxControl {
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
  * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it with read; the
  * phone's box keeps its own and sends with `onSend`. Shift-Enter starts a line; Esc hands the deck's keys back, or
- * closes the deck when the box is empty. A send that fails keeps the text and says why.
+ * closes the deck when the box is empty. A send that fails keeps the text and says why. With `keep`, the unsent text
+ * outlives the box (plan 082, KTD7): a card hidden by a lane switch, or gone from the screen any other way, has its
+ * words back when it returns.
  */
 export function OutsideReply({
   facts,
@@ -388,8 +391,11 @@ export function OutsideReply({
   compose = null,
   quote = null,
   onUndo,
+  keep,
 }: {
   facts: OutsideFacts;
+  /** The card's id (`idOf`), under which its unsent text is kept for the session (shared/outside-replies.ts); absent, the text goes with the box. */
+  keep?: string;
   /**
    * The box's own send, when the deck does not hold it: resolves whether the reply was sent and why what failed did; a
    * sent reply clears the box so it is not sent twice, and an undone one keeps it.
@@ -410,7 +416,11 @@ export function OutsideReply({
   onEscapeEmpty?: () => void;
   touch?: boolean;
 }) {
-  const [ownText, setOwnText] = useState("");
+  const [localText, setLocalText] = useState("");
+  // The phone's box keeps its own text; with `keep` it outlives the box. The desktop deck keeps its box's text itself.
+  const [keptText, setKeptText] = useOutsideReply(keep ?? null);
+  const ownText = keep ? keptText : localText;
+  const setOwnText = keep ? setKeptText : setLocalText;
   const [ownMail, setOwnMail] = useState<MailAddressing | null>(null);
   const [ownBusy, setBusy] = useState(false);
   const [ownError, setError] = useState<string | null>(null);

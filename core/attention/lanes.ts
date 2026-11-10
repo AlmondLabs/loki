@@ -99,6 +99,15 @@ export function agentLanes(items: AttentionItem[]): AgentLane[] {
 }
 
 /**
+ * What `inbox_filtered` says of a lane switched to (KTD11): its kind, and the agent for a built-in agent lane. A lane
+ * the person made goes by its kind alone, so its name never leaves the device.
+ */
+export function laneEvent(lane: ResolvedLane | null): { kind: "everything" | "own" | "agent"; agent: string | null } {
+  if (!lane) return { kind: "everything", agent: null };
+  return "agent_id" in lane ? { kind: "agent", agent: lane.agent_id } : { kind: "own", agent: null };
+}
+
+/**
  * One agent's built-in lane, for the active lane on a device: from agentLanes while it has cards, else with a count of
  * 0 and a name from any card of its, so a lane emptied by working through it stays on until the person leaves it.
  */

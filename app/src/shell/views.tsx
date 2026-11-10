@@ -4,6 +4,7 @@ import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../desk/desk-conversation";
 import { runAction } from "./keymap";
+import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/catch-up";
 import { NewDesk } from "../desk/new-desk";
@@ -50,6 +51,16 @@ export function RecallView({
 /** How the Inbox's last move was made, for analytics: the last input was a key or a click. */
 const via = () => (lastInput() === "key" ? "key" : "click");
 
+/** "new lane…" in Flow's title: Preferences opens on its Flow page, where lanes are made (plan 082, R8). */
+function openFlowPreferences() {
+  try {
+    sessionStorage.setItem(SETTINGS_PAGE_KEY, "inbox");
+  } catch {
+    // Without storage Preferences opens on its first page; the person goes to Flow from there.
+  }
+  runAction("segment.settings");
+}
+
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
 export function InboxView({
   desk,
@@ -81,6 +92,10 @@ export function InboxView({
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
+      lane={catchUp.flow.lane}
+      lanes={catchUp.flow.lanes}
+      onLane={(lane) => (catchUp.flow.setLaneId(lane?.id ?? ""), catchUp.filtered(lane))}
+      onNewLane={openFlowPreferences}
       labelList={catchUp.labels.list}
       onRead={(item) => catchUp.read(item, via())}
       onLater={(item, until) => catchUp.later(item, via(), until)}
@@ -100,7 +115,6 @@ export function InboxView({
       onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
       onStop={(item) => catchUp.stop(item.runtime)}
       onShown={catchUp.shown}
-      onFilter={catchUp.filtered}
       onOpenDesk={(agentId, conversationId) => {
         const item = catchUp.items.find((i) => i.agent_id === agentId && i.id === conversationId);
         if (item) catchUp.decided(item, "open", via());

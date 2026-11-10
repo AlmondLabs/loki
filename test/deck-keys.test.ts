@@ -56,7 +56,7 @@ function deck(
     createDeckMoves({
       current: state.queue[0],
       decided: state.decided,
-      agent: null,
+      lane: null,
       reply: state.box,
       setReply: (_id, patch) => (state.box = { ...state.box, ...patch }),
       setDecided: (v) => (state.decided = apply(v, state.decided)),

@@ -189,6 +189,23 @@ describe("analytics: the report", () => {
     expect(text).toContain("sessions 8 (mac 3 · windows 1 · linux 1 · phone 1 · mod 2)");
     expect(text).toMatch(/event +count +sessions +mac +windows +linux +phone +mod/);
   });
+
+  test("lane switches (inbox_filtered, plan 082) break down by the kind of lane; a pill from before lanes has none", () => {
+    const log = [
+      ev(1, "inbox_filtered", { kind: "own", agent: null }),
+      ev(1, "inbox_filtered", { kind: "agent", agent: "ag-1" }),
+      ev(1, "inbox_filtered", { kind: "own", agent: null }),
+      ev(2, "inbox_filtered", { agent: "ag-1" }),
+    ];
+    expect(analyticsReport(log, { now: NOW, days: 7 }).breakdowns.find((b) => b.event === "inbox_filtered")).toEqual({
+      event: "inbox_filtered",
+      property: "kind",
+      values: [
+        ["own", 2],
+        ["agent", 1],
+      ],
+    });
+  });
 });
 
 describe("analytics: finished work (plan 065)", () => {

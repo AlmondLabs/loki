@@ -49,7 +49,7 @@ import type {
   Suggestion,
 } from "../frame-types.ts";
 import { ChatStore, type AgentEntry, type ChatStoreHost } from "./chat-store.ts";
-import { laneItems, type Lane, type ResolvedLane } from "./lanes.ts";
+import { laneEvent, laneItems, type Lane, type ResolvedLane } from "./lanes.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
 
@@ -782,9 +782,9 @@ export function useAttention(opts: UseAttentionOptions) {
   useEffect(() => moves.setHost(movesHost(store, opts, report)));
   const decided = moves.decided;
   const undone = moves.undone;
-  /** An agent pill chosen in the Inbox (null: All). */
-  const filtered = useCallback((agent: string | null) => {
-    optsRef.current.capture?.("inbox_filtered", { agent });
+  /** A lane switched to in Flow's title (null: Everything), for analytics (KTD11). */
+  const filtered = useCallback((lane: ResolvedLane | null) => {
+    optsRef.current.capture?.("inbox_filtered", laneEvent(lane));
   }, []);
 
   /** Each listed chat's waiting reply proposals by key, from its row (plan 067), for chats this client does not follow. */
