@@ -68,6 +68,95 @@ describe("a frame the server cannot read", () => {
   });
 });
 
+describe("the limits of a socket", () => {
+  const token = "0123456789abcdef0123456789abcdef";
+  const hello = (ws: WsClient) =>
+    new Promise<void>((resolve, reject) => {
+      ws.once("message", () => resolve());
+      ws.once("error", reject);
+    });
+  const closed = (ws: WsClient) => new Promise<number>((resolve) => ws.once("close", (code) => resolve(code)));
+  /** Wait for the server's side to catch up with a close the client already saw. */
+  const until = async (ok: () => boolean) => {
+    const deadline = Date.now() + 2000;
+    while (!ok() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+  };
+
+  test("a frame past the size limit closes that socket; one inside it is read", async () => {
+    const s = await startServer({ port: 0 });
+    const got: string[] = [];
+    const bridge = attachWs(
+      s.server,
+      token,
+      { onConnect: (c) => c.send({ type: "hello" }), onMessage: (_c, m) => got.push(String(m.type)) },
+      { maxFrameBytes: 1000 },
+    );
+    try {
+      const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      ws.on("error", () => {});
+      await hello(ws);
+      const end = closed(ws);
+      ws.send(JSON.stringify({ type: "small" }));
+      ws.send(JSON.stringify({ type: "big", fill: "x".repeat(2000) }));
+      expect(await end).toBe(1009);
+      expect(got).toEqual(["small"]);
+      await until(() => bridge.clientCount() === 0);
+      expect(bridge.clientCount()).toBe(0);
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+
+  test("a socket that stops answering pings is ended; one that answers stays", async () => {
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(s.server, token, { onConnect: (c) => c.send({ type: "hello" }), onMessage: () => {} }, { heartbeatMs: 40 });
+    try {
+      // A device that left the network: its socket is open here and nothing on it answers.
+      const gone = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token), { autoPong: false });
+      const here = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      for (const ws of [gone, here]) ws.on("error", () => {});
+      await Promise.all([hello(gone), hello(here)]);
+      await closed(gone);
+      expect(bridge.clientCount()).toBe(1);
+      expect(here.readyState).toBe(WsClient.OPEN);
+      here.close();
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+
+  test("a socket with too much waiting unsent is ended rather than fed more", async () => {
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(
+      s.server,
+      token,
+      {
+        onConnect: (c) => {
+          // Far more than the socket takes at once: most of it waits in memory, past the limit, when the next goes.
+          c.send({ type: "hello", fill: "x".repeat(8 * 1024 * 1024) });
+          c.send({ type: "one more" });
+        },
+        onMessage: () => {},
+      },
+      { maxBufferedBytes: 64 * 1024 },
+    );
+    try {
+      const ws = new WsClient(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols(token));
+      ws.on("error", () => {});
+      const types: string[] = [];
+      ws.on("message", (raw) => types.push((JSON.parse(Buffer.isBuffer(raw) ? raw.toString("utf8") : "{}") as { type: string }).type));
+      await closed(ws);
+      expect(types).not.toContain("one more");
+      expect(bridge.clientCount()).toBe(0);
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+});
+
 describe("loki server", () => {
   test("health, 404s, tokenized WS upgrade, scope from URL", async () => {
     const s = await startServer({ port: 0, health: () => ({ desks: ["x"] }) });

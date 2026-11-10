@@ -152,24 +152,16 @@ export function useDesk() {
   const request = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number): Promise<RequestResult<ReplyOf<N>>> =>
     new Promise((resolve) => {
       const requestId = `${type}-${Math.random().toString(36).slice(2, 10)}`;
-      let retry: number | null = null;
       const done = (m: Record<string, unknown> | null) => {
         window.clearTimeout(timer);
-        if (retry !== null) window.clearInterval(retry);
         waiters.drop(requestId);
         resolve(requestResult<ReplyOf<N>>(m));
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
       waiters.wait(requestId, done);
       const frame = { type, request_id: requestId, ...payload };
-      if (!sendRaw(frame)) {
-        retry = window.setInterval(() => {
-          if (sendRaw(frame) && retry !== null) {
-            window.clearInterval(retry);
-            retry = null;
-          }
-        }, 250);
-      }
+      // No socket yet (a view mounting at startup, a chat switch under way): the frame goes out as the next one opens.
+      if (!sendRaw(frame)) waiters.hold(requestId, frame);
     });
 
   /** Inverse gestures, newest last; ⌘Z on the sheet pops one. Local to this window. */
