@@ -224,6 +224,29 @@ const standIn = (r: SentReply, facts: OutsideFacts, opened: boolean): OutsideMes
   ...(facts.provider === "slack" && (opened || facts.thread_id.includes(":")) ? { in_thread: true } : {}),
 });
 
+/** What a card's thread shows of the replies the person sent alone in the view it is on (plan 086). */
+interface SentStandIns {
+  /** How many went, which the thread is read again on. */
+  went: number;
+  standIns: OutsideMessage[];
+  /** A read came back that was made once `upTo` had gone: those are in it now. */
+  settle: (upTo: number) => void;
+}
+
+/** The replies sent alone in the view a card is on: its own thread, or the post's thread opened on it (plan 085). */
+function useSentStandIns(source: OutsideThreadSource | null, facts: OutsideFacts | undefined, threadTs: string | null): SentStandIns {
+  const store = source?.sentReplies ?? null;
+  const key = facts ? sentKey(facts.account_id, facts.thread_id, threadTs) : "";
+  const sent = useSentReplies(store, key);
+  return {
+    went: sent.went,
+    standIns: facts ? sent.replies.map((r) => standIn(r, facts, threadTs !== null)) : [],
+    settle: (upTo) => {
+      if (key) store?.settle(key, upTo);
+    },
+  };
+}
+
 /**
  * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
  * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
@@ -248,14 +271,12 @@ export function useOutsideThread(
   const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
   const tag = `${key}/${threadTs ?? ""}`;
   const [shown, setShown] = useState<Shown | null>(null);
-  const sent = useSentReplies(source?.sentReplies ?? null, o ? sentKey(o.account_id, o.thread_id, threadTs) : "");
+  const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
   // The item changes identity on every list update; the thread is read again only when its newest message does, or
   // when the person's own reply went.
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
-  const settle = useEffectEvent((upTo: number) => {
-    if (o) source?.sentReplies?.settle(sentKey(o.account_id, o.thread_id, threadTs), upTo);
-  });
+  const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
   useEffect(() => {
     if (!key) return;
     let live = true;
@@ -277,7 +298,7 @@ export function useOutsideThread(
   // A newer message reads the thread again; meanwhile the card keeps what it shows.
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
-  const messages = o ? [...shown.messages, ...sent.replies.map((r) => standIn(r, o, !!threadTs))] : shown.messages;
+  const messages = [...shown.messages, ...sent.standIns];
   const w = shown.window;
   if (!w) return { kind: "read", messages };
   const load = (direction: "before" | "after") => {
