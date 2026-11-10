@@ -357,6 +357,17 @@ describe("the person's reply", () => {
     expect(sentMail).toHaveLength(1);
     expect(moves).toEqual([`dealt ${MAIL}/t1`, `archive ${MAIL}/t1`]);
   });
+  test("a reply goes into the thread the person opened on the card, in the card's conversation (plan 085)", async () => {
+    const { t, posted } = threads();
+    await t.reply(SLACK, "D1", "on it", "stay", null, null, "5.0");
+    await t.reply(SLACK, "C1:1.0", "looking", "stay", null, null, "7.0");
+    expect(posted.map((p) => [p.channel, p.thread_ts, p.text])).toEqual([
+      ["D1", "5.0", "on it"],
+      ["C1", "7.0", "looking"],
+    ]);
+    await expect(t.reply(MAIL, "t1", "ok", "stay", null, null, "7.0")).rejects.toThrow("only a Slack reply goes into a thread the card opened");
+  });
+
   test("with stay, the reply is sent and nothing else moves (plan 083)", async () => {
     const { t, posted, moves } = threads();
     expect(await t.reply(SLACK, "D1", "on it", "stay")).toEqual({ sent: true, then_error: null, change: null });
@@ -610,6 +621,8 @@ describe("the card", () => {
       "reply in the thread",
       "reply to all",
     ]);
+    // A thread opened on a DM card is where the reply goes (plan 085).
+    expect(replyPlace(FACTS, true)).toBe("reply in the thread");
   });
   test("the thread draws each message with its sender, and the person's own as you; while it loads, the last lines stand in", () => {
     const read = renderToStaticMarkup(

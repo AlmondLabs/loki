@@ -1347,7 +1347,7 @@ export const FRAMES = {
   ),
   account_thread_reply: request(
     "account_thread_replied",
-    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does, or makes none (`stay`, plan 083); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    "send the person's own reply in an outside card's thread (plan 068), then make the key's move: `then` marks it read, leaves it unread and waiting for an answer (`later`), or archives it (plan 070, R11), which is also what a reply without `then` does, or makes none (`stay`, plan 083); a Slack reply with `thread_ts` goes into that thread of the card's conversation, the one the person opened (plan 085); the answer tells the send and the move apart; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
     (m) => {
       if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.text) || !m.text.trim())
         return "account_id, thread_id and text required";
@@ -1360,6 +1360,8 @@ export const FRAMES = {
       const mail = parseMailAddressing(m.mail);
       if (typeof mail === "string") return mail;
       if (m.outbox_id !== undefined && (!str(m.outbox_id) || !/^[\w-]{8,64}$/.test(m.outbox_id))) return "outbox_id must be a short id";
+      // Plan 085: the Slack thread the person opened on the card, which the reply goes into; left out, the card's place.
+      if (m.thread_ts !== undefined && (!str(m.thread_ts) || !/^\d{1,12}\.\d{1,8}$/.test(m.thread_ts))) return "thread_ts must be a Slack message time";
       return {
         account_id: m.account_id,
         thread_id: m.thread_id,
@@ -1367,6 +1369,7 @@ export const FRAMES = {
         then,
         mail,
         outbox_id: str(m.outbox_id) ? m.outbox_id : null,
+        thread_ts: str(m.thread_ts) ? m.thread_ts : null,
         home: strOr(m.home, null),
       };
     },

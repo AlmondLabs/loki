@@ -326,7 +326,7 @@ export class FrameChatClient {
     text: string,
     then: ReplyThen,
     home: string | null,
-    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null } = {},
   ): Promise<OutsideReplied> {
     const r = await this.call(
       "account_thread_reply",
@@ -338,6 +338,7 @@ export class FrameChatClient {
         home,
         ...(extra.mail ? { mail: extra.mail } : {}),
         ...(extra.outbox_id ? { outbox_id: extra.outbox_id } : {}),
+        ...(extra.thread_ts ? { thread_ts: extra.thread_ts } : {}),
       },
       // A held mail reply answers once its undo time is over and it went (plan 076).
       60_000,

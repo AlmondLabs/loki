@@ -27,6 +27,7 @@ import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
 import { toggleReaction, useQuickEmoji } from "./slack-reactions";
+import { cardKey, type OpenedThread } from "./deck-moves";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -126,7 +127,14 @@ export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThre
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
 export type ThreadState =
   | { kind: "loading" }
-  | { kind: "read"; messages: OutsideMessage[]; window?: OutsideWindow | null; controls?: ThreadControls }
+  | {
+      kind: "read";
+      messages: OutsideMessage[];
+      window?: OutsideWindow | null;
+      controls?: ThreadControls;
+      /** The thread the person opened on the card, which a reply goes into (plan 085); null in its own view. */
+      opened?: string | null;
+    }
   | { kind: "failed"; message: string };
 
 /** What the card is showing: for which card and view, and what came back, with any load in flight. */
@@ -191,12 +199,19 @@ function useReactControls(
  * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
  * its newest message changes (R15).
  */
-export function useOutsideThread(item: AttentionItem, source: OutsideThreadSource | null): ThreadState {
+export function useOutsideThread(
+  item: AttentionItem,
+  source: OutsideThreadSource | null,
+  hold?: { opened: OpenedThread | null; setOpened: (opened: OpenedThread | null) => void },
+): ThreadState {
   const o = item.outside;
-  const key = o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
-  // The thread the person opened from the channel view, for this card only; another card starts on its own view.
-  const [opened, setOpened] = useState<{ key: string; threadTs: string } | null>(null);
-  const threadTs = opened?.key === key ? opened.threadTs : null;
+  const key = cardKey(item);
+  // The thread the person opened from the channel view, for this card only; another card starts on its own view. The
+  // deck holds it when it holds the reply box, so the reply and its keys send into it (plan 085).
+  const [ownOpened, setOwnOpened] = useState<OpenedThread | null>(null);
+  const opened = hold ? hold.opened : ownOpened;
+  const setOpened = hold ? hold.setOpened : setOwnOpened;
+  const threadTs = opened?.key === key ? opened.ts : null;
   const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
   const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
   const tag = `${key}/${threadTs ?? ""}`;
@@ -235,12 +250,12 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
   };
   const controls: ThreadControls = {
     load,
-    openThread: (ts) => setOpened({ key, threadTs: ts }),
+    openThread: (ts) => setOpened({ key, ts }),
     ...(threadTs ? { back: () => setOpened(null) } : {}),
     busy: shown.busy,
     ...reacting,
   };
-  return { kind: "read", messages: shown.messages, window: w, controls };
+  return { kind: "read", messages: shown.messages, window: w, controls, opened: threadTs };
 }
 
 /**
@@ -369,9 +384,9 @@ export function OutsideThread({
 }
 
 /** Where the person's reply goes, in words: reply-all in a mail thread, the DM, or a Slack thread. */
-export function replyPlace(o: OutsideFacts): string {
+export function replyPlace(o: OutsideFacts, inThread = false): string {
   if (o.provider === "gmail") return "reply to all";
-  return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
+  return inThread || o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
 }
 
 /** The deck's chords that reach it from inside the reply box (KTD9): read, later and archive, each sending the text first. */
@@ -405,6 +420,9 @@ export interface ReplyBoxControl {
   onText: (text: string) => void;
   onMail: (mail: MailAddressing) => void;
   onSend: () => void;
+  /** The thread opened on the card, which the reply goes into (plan 085), and its change; absent, the card keeps its own. */
+  thread?: OpenedThread | null;
+  onThread?: (thread: OpenedThread | null) => void;
 }
 
 /**
@@ -429,7 +447,10 @@ export function OutsideReply({
   onUndo,
   keep,
   searchPeople,
+  inThread = false,
 }: {
+  /** A thread is open on the card (plan 085): the reply goes into it, and the box says so. */
+  inThread?: boolean;
   facts: OutsideFacts;
   /** The card's id (`idOf`), under which its unsent text is kept for the session (shared/outside-replies.ts); absent, the text goes with the box. */
   keep?: string;
@@ -540,7 +561,7 @@ export function OutsideReply({
     }
   };
   // The recipients line says who a mail goes to, so the box says only what is written in it.
-  const hint = !isMail ? replyPlace(facts) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
+  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
   const sendKey = isMail ? "cmd+enter" : undefined;
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
@@ -867,7 +888,7 @@ export function OutsideCard({
   /** What a mail card's recipients line starts from (plan 076), as the deck read it. */
   compose?: MailCompose | null;
 }) {
-  const thread = useOutsideThread(current, source);
+  const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
   const people = source?.searchPeople;
   const peopleSearch = people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined;
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
@@ -885,6 +906,7 @@ export function OutsideCard({
       compose={compose}
       quote={quoteOf(facts, thread)}
       searchPeople={peopleSearch}
+      inThread={thread.kind === "read" && !!thread.opened}
     />
   ) : null;
   return (

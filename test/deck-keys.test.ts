@@ -6,7 +6,7 @@ import type { MoveResult, OutsideReplyResult } from "../core/attention/use-atten
 import type { ReplyThen } from "../core/frame-types.ts";
 import { opensChat } from "../app/src/desk/use-deck-keys.ts";
 import { FLASH_MS, createFlash } from "../app/src/desk/use-deck-actions.ts";
-import { EMPTY_REPLY, createDeckMoves, type PickerKind } from "../app/src/desk/deck-moves.ts";
+import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind } from "../app/src/desk/deck-moves.ts";
 import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/return-picker.tsx";
 import { pickableLabels } from "../app/src/desk/label-picker.tsx";
 import { replyBoxKey } from "../app/src/desk/outside-card.tsx";
@@ -74,7 +74,7 @@ function deck(
         label: (item, ids) => (calls.push(["label", item.id, ids]), Promise.resolve(null)),
         undo: (item) => (calls.push(["undo", item.id]), Promise.resolve(null)),
         replyOutside: (item, text: string, then: ReplyThen, extra) => (
-          calls.push(extra?.outbox_id ? ["reply", item.id, text, then, extra] : ["reply", item.id, text, then]),
+          calls.push(extra?.outbox_id || extra?.thread_ts ? ["reply", item.id, text, then, extra] : ["reply", item.id, text, then]),
           Promise.resolve(over.reply ?? { sent: true, error: null })
         ),
         ...(over.unsend
@@ -166,6 +166,19 @@ describe("⌘] and ⌘[ on a card", () => {
     expect(d.state.queue.map((i) => i.id)).toEqual(["t1#1", "c2"]);
     expect(d.state.decided).toEqual([]);
     expect(d.state.flash).toEqual(["sent"]);
+  });
+  test("a reply on a Slack card goes into the thread opened on it, and not once a newer message made it another card (plan 085)", async () => {
+    const lunch = outsideItem("Lunch");
+    const slack = { ...lunch, outside: lunch.outside ? { ...lunch.outside, provider: "slack" as const, account_id: "slack:T1:U1" } : undefined };
+    const d = deck([slack], { text: "on it" });
+    d.state.box = { ...d.state.box, thread: { key: cardKey(slack), ts: "7.0" } };
+    d.moves().sendReply();
+    await settle();
+    expect(d.calls[0]).toEqual(["reply", "t1#1", "on it", "stay", { mail: null, thread_ts: "7.0" }]);
+    d.state.box = { ...d.state.box, text: "again", thread: { key: "an older card", ts: "7.0" } };
+    d.moves().read();
+    await settle();
+    expect(d.calls.filter((c) => c[0] === "reply")[1]).toEqual(["reply", "t1#1", "again", "read"]);
   });
   test("the second ⌘[ on the same card opens the picker; picking tomorrow rests it until tomorrow", async () => {
     const d = deck([outsideItem("Lunch"), attentionItem("c2")], { asks: true });

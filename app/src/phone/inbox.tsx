@@ -1204,6 +1204,7 @@ function OutsideBody({
             compose={compose}
             quote={quoteOf(facts, thread)}
             searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+            inThread={thread.kind === "read" && !!thread.opened}
             onUndo={
               facts.provider === "gmail" && unsend
                 ? () => {
@@ -1217,7 +1218,9 @@ function OutsideBody({
               held.current = outboxId;
               try {
                 // A reply goes alone and the card stays for the person's next swipe (plan 083).
-                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId });
+                // A thread opened on the card is where the reply goes (plan 085).
+                const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
+                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) });
                 // A sent reply clears the box, which fires no input: the swipes come back here.
                 if (r.sent) onTyped?.(false);
                 return r;

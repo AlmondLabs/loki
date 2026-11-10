@@ -90,7 +90,7 @@ jobs:
     needs: plan
     # a nightly only from a merge (a manual run refreshes the PRs, it does not ship); a stable always
     if: needs.plan.outputs.kind == 'stable' || (needs.plan.outputs.kind == 'nightly' && github.event_name == 'push')
-    runs-on: macos-14
+    runs-on: macos-15
     permissions:
       contents: write
     concurrency:
