@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref, ownPartShows } from "../app/src/desk/mail-html.tsx";
+import { MAIL_POLICY, darkRulesOff, linkParts, mailDocument, openableHref, quoteFolds } from "../app/src/desk/mail-html.tsx";
 import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { firstLine } from "../app/src/desk/mail-thread.tsx";
 
@@ -34,23 +34,38 @@ describe("the frame's document for a mail", () => {
       expect(doc).not.toContain(gone);
   });
 
+  test("a tag with no end tag, such as base, is taken out alone and leaves the rest of the mail", () => {
+    const doc = mailDocument('<p>one</p><base href="https://evil.example/"><embed src="x.swf"><p>two</p>');
+    expect(doc).toContain("<p>one</p><p>two</p>");
+  });
+
   test("a mail that is a bare fragment, with no head or body, is drawn whole", () => {
     expect(mailDocument("<p>hi</p>")).toContain("<body><p>hi</p></body>");
   });
 
-  test("hides the quoted thread under a reply, but shows a forward with nothing typed above it", () => {
+  test("folds a reply's quoted thread, and draws it when opened", () => {
     expect(mailDocument(BILL)).toContain(".gmail_quote,blockquote[type=cite],.yahoo_quoted{display:none}");
-    const forward =
-      '<div dir="ltr"><br></div><div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br></div><p>Terms</p></div>';
-    expect(mailDocument(forward)).not.toContain("{display:none}");
-    expect(mailDocument(forward)).toContain("<p>Terms</p>");
+    expect(mailDocument(BILL, true)).not.toContain("{display:none}");
   });
 
-  test("a body's own part shows when it has text or an image before its quote", () => {
-    expect(ownPartShows('<p>Thanks</p><div class="gmail_quote">old</div>')).toBe(true);
-    expect(ownPartShows('<p><img src="cid:a"></p><blockquote type="cite">old</blockquote>')).toBe(true);
-    expect(ownPartShows('<div>&nbsp;<br></div><div class="yahoo_quoted">old</div>')).toBe(false);
-    expect(ownPartShows("<p>no quote at all</p>")).toBe(true);
+  test("a forward reads open, with a note above it or without", () => {
+    const forwarded = '<div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br></div><p>Terms</p></div>';
+    expect(mailDocument(`<div dir="ltr"><br></div>${forwarded}`)).not.toContain("{display:none}");
+    expect(mailDocument(`<div dir="ltr">FYI in case this is relevant</div>${forwarded}`)).not.toContain("{display:none}");
+    expect(quoteFolds('<p>FYI</p><blockquote type="cite"><div>Begin forwarded message:</div><p>Terms</p></blockquote>')).toBe(false);
+  });
+
+  test("a quote folds only under a part of the mail's own: text or an image", () => {
+    expect(quoteFolds('<p>Thanks</p><div class="gmail_quote">On Tue, Bob wrote: old</div>')).toBe(true);
+    expect(quoteFolds('<p><img src="cid:a"></p><blockquote type="cite">old</blockquote>')).toBe(true);
+    expect(quoteFolds('<div>&nbsp;<br></div><div class="yahoo_quoted">old</div>')).toBe(false);
+    expect(quoteFolds("<p>no quote at all</p>")).toBe(false);
+  });
+
+  test("a reply quoting an earlier forward still folds", () => {
+    const reply =
+      '<p>Thanks</p><div class="gmail_quote"><div class="gmail_attr">On Tue, Bob wrote:</div><blockquote>---------- Forwarded message ---------</blockquote></div>';
+    expect(quoteFolds(reply)).toBe(true);
   });
 
   test("only web and mail links leave for the browser", () => {
