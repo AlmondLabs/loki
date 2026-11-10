@@ -87,3 +87,8 @@ with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm 
 The Pi libraries (`@earendil-works/pi-ai`, `pi-durable`, `chord`), the MCP client and the keychain binding are
 pinned to exact versions in `package.json`: the daemon is built on their APIs, so an upgrade is its own PR, with
 the full checks and a run of the app. New dependencies are pinned exactly too, at a version at least two weeks old.
+
+Tauri's JavaScript packages (`@tauri-apps/api`, `cli`, `plugin-dialog`, `plugin-opener`) are held to the minor
+versions of the Rust crates in `src-tauri/Cargo.lock` with `~`: `tauri dev` and `tauri build` refuse to start when the
+two sides differ in major or minor version, and a package manager that does not read `package-lock.json` would
+otherwise take the newest 2.x. Upgrade both sides in one PR.
