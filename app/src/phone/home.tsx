@@ -15,17 +15,7 @@ import { agentChips } from "../shell/desk-tree";
 import type { SidebarSection } from "../shell/sidebar-model";
 import { Button, Chip, Field, Sheet } from "../components";
 import { Icon, type IconName } from "./icons";
-import {
-  deskName,
-  homeCounts,
-  homeDeskSections,
-  homeSections,
-  shortcutLine,
-  type HomeAttention,
-  type HomeCounts,
-  type LinkState,
-  type Shortcut,
-} from "./model";
+import { deskName, homeLists, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
 import type { Me } from "./pair";
 import { navigate, openConversation, type Route } from "./router";
 import { PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
@@ -54,9 +44,9 @@ const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecti
 /**
  * Home, Slack's orientation screen with loki's content: the workspace header (loki, the menu, the
  * profile with the Mac's presence), a rail of shortcuts with their counts, then "Needs your attention"
- * — the head of the Inbox queue — and the live desks grouped as the desktop sidebar groups them (Pinned, then
- * one folding section per agent), each conversation in one place, never two (model.ts homeSections,
- * homeDeskSections). The filter and refresh live in the menu, New desk in the compose button; while a
+ * — the head of the Inbox queue in the phone's lane — and the live desks grouped as the desktop sidebar groups them
+ * (Pinned, then one folding section per agent, every chat whatever the lane), each conversation in one place, never
+ * two (model.ts homeLists). The filter and refresh live in the menu, New desk in the compose button; while a
  * filter is on it shows as a pill that clears it. A long press on a desk (or its actions button) pins or
  * archives it. Home stays mounted under other pages, so all of this — and the scroll — survives a round trip.
  */
@@ -67,6 +57,7 @@ export function Home({
   desksLoaded,
   agents,
   items,
+  laneItems = items,
   due,
   hidden = false,
   banner,
@@ -88,6 +79,8 @@ export function Home({
   desksLoaded: boolean;
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
+  /** The phone's active lane's items (plan 082), which "Needs your attention" and Flow's count read; left out, every item. */
+  laneItems?: AttentionItem[];
   due: number;
   /** Keep Home mounted under child pages so the filter, the folds and the scroll survive the round trip. */
   hidden?: boolean;
@@ -131,9 +124,10 @@ export function Home({
     return m;
   }, [items]);
   const chips = useMemo(() => agentChips(agents, desks), [agents, desks]);
-  const counts = useMemo(() => homeCounts({ items, due, agents: chips, desks }), [items, due, chips, desks]);
-  const sections = useMemo(() => homeSections(desks, items, null, query), [desks, items, query]);
-  const groups = useMemo(() => homeDeskSections(desks, items, sections.attention, query, chips), [desks, items, sections.attention, query, chips]);
+  const { counts, attention, more, groups } = useMemo(
+    () => homeLists({ desks, items, laneItems, query, agents: chips, due }),
+    [desks, items, laneItems, query, chips, due],
+  );
   const filtered = !!query.trim();
 
   return (
@@ -141,11 +135,11 @@ export function Home({
       <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} />
       {banner}
       {/* Rows glide when the arrangement changes under you; not while a filter is typed (nothing moves for the keyboard). */}
-      <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(sections.attention, sections.more, groups, folded)}>
+      <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(attention, more, groups, folded)}>
         <ShortcutRail counts={counts} />
         <FilterPills query={query} labelList={labelList} onQuery={setQuery} />
 
-        <AttentionSection attention={sections.attention} more={sections.more} waiting={counts.inbox} onTopCard={onTopCard} />
+        <AttentionSection attention={attention} more={more} waiting={counts.inbox} onTopCard={onTopCard} />
         <DeskSections
           groups={groups}
           marks={marks}
@@ -154,7 +148,7 @@ export function Home({
           onToggle={toggleFold}
           empty={desks.length === 0}
           loaded={desksLoaded}
-          nothingMatches={desks.length > 0 && filtered && groups.length === 0 && sections.attention.length === 0}
+          nothingMatches={desks.length > 0 && filtered && groups.length === 0 && attention.length === 0}
           filtered={filtered}
           onActions={setActing}
           onNew={() => setSheet("new")}

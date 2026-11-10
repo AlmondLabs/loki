@@ -355,20 +355,25 @@ export interface HomeCounts {
   archive: number;
 }
 
-/** The shortcut rail's numbers, from the same derivations the destinations use. */
+/**
+ * The shortcut rail's numbers, from the same derivations the destinations use. Flow's count is of `laneItems`, the
+ * phone's active lane (plan 082, R15), and of every item when none is passed; the rest ignore lanes (R16).
+ */
 export function homeCounts({
   items,
+  laneItems = items,
   due,
   agents,
   desks,
 }: {
   items: AttentionItem[];
+  laneItems?: AttentionItem[];
   due: number;
   agents: Array<{ id: string }>;
   desks: DeskSummary[];
 }): HomeCounts {
   return {
-    inbox: catchUpQueue(items).length,
+    inbox: catchUpQueue(laneItems).length,
     learn: due,
     agents: agents.length,
     running: new Set(items.filter((i) => i.status === "running").map((i) => i.agent_id)).size,
@@ -408,6 +413,34 @@ export function homeDeskSections(
       return { ...sec, rows, waiting: rows.filter((r) => r.kind === "waits").length };
     })
     .filter((sec) => sec.rows.length > 0);
+}
+
+/**
+ * What Home draws (plan 082, R15, R16): its counts, "Needs your attention" from the phone's active lane (`laneItems`),
+ * and the chat groups from every item, so a chat outside the lane is still listed below, once.
+ */
+export function homeLists({
+  desks,
+  items,
+  laneItems,
+  query,
+  agents,
+  due,
+}: {
+  desks: DeskSummary[];
+  items: AttentionItem[];
+  laneItems: AttentionItem[];
+  query: string;
+  agents: Array<{ id: string; name: string | null }>;
+  due: number;
+}): { counts: HomeCounts; attention: HomeAttention[]; more: number; groups: SidebarSection[] } {
+  const { attention, more } = homeSections(desks, laneItems, null, query);
+  return {
+    counts: homeCounts({ items, laneItems, due, agents, desks }),
+    attention,
+    more,
+    groups: homeDeskSections(desks, items, attention, query, agents),
+  };
 }
 
 /** A waiting conversation on Home, with its desk when it has one (the desk names it better than the item). */

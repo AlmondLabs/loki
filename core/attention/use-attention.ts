@@ -48,7 +48,8 @@ import type {
   ReplyThen,
   Suggestion,
 } from "../frame-types.ts";
-import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
+import { ChatStore, type AgentEntry, type ChatStoreHost } from "./chat-store.ts";
+import { laneItems, type Lane, type ResolvedLane } from "./lanes.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
 
@@ -68,6 +69,46 @@ const minutesSince = (iso: string | null, now: number): number | null => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
 };
+
+/**
+ * The device's lane, as the shell hands it to useAttention (plan 082, KTD3, KTD4): the stored id and its setter, the
+ * lanes the person made, and the resolver that turns the id into a lane. The id and its storage are the app's
+ * (app/src/shared/active-lane.ts); useAttention applies the lane once, beside the items it builds.
+ */
+export interface LaneChoice {
+  /** This device's active lane id; "" is Everything. */
+  id: string;
+  /** Switch this device's lane; "" for Everything. */
+  setId: (id: string) => void;
+  /** The lanes the person made, null until the first push carries them. */
+  lanes: Lane[] | null;
+  /** Save a whole new list of lanes; null where lanes are not edited (the phone reads them only, R8). */
+  setLanes: ((lanes: Lane[]) => void) | null;
+  /** Which lane the id stands for, or null for Everything: pure, from the lanes, the items and the agents. */
+  resolve: (lanes: Lane[] | null, items: AttentionItem[], agents: AgentEntry[], id: string) => ResolvedLane | null;
+}
+
+/**
+ * Flow's lane on this device (plan 082), for Flow and its badges: the active lane and its cards, and what the switcher
+ * and the editor need. `laneItems` is what the badges count (R15); the full `items` beside it stay for everything
+ * outside Flow (R16) and the quiet count of other lanes.
+ */
+export interface FlowLane {
+  /** The active lane, or null for Everything. */
+  lane: ResolvedLane | null;
+  /** The stored id the lane was resolved from ("" is Everything); it may name a lane not loaded yet. */
+  laneId: string;
+  /** Switch this device's lane; "" for Everything. */
+  setLaneId: (id: string) => void;
+  /** The lanes the person made, null until the first push carries them. */
+  lanes: Lane[] | null;
+  /** Save a whole new list of lanes; null on the phone. */
+  setLanes: ((lanes: Lane[]) => void) | null;
+  /** The cards the active lane holds: every item in Everything, as the same list. */
+  laneItems: AttentionItem[];
+}
+
+const noLaneSwitch = () => {};
 
 /** What the app hands useAttention: the mod's socket state, seen and viewed markers, focus weights, and the calls that reach the mod for lists, history and markers. */
 export interface UseAttentionOptions {
@@ -109,6 +150,8 @@ export interface UseAttentionOptions {
   visibility?: Activity;
   /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
   makeClient: () => ChatClient;
+  /** This device's lane (plan 082); left out, Everything, with no way to switch. */
+  lane?: LaneChoice;
 }
 
 /** A conversation as a chat surface reads it from useAttention's `conversation`: everything but its rows. */
@@ -653,6 +696,18 @@ export function useAttention(opts: UseAttentionOptions) {
     () => buildItems(snap.conversations, snap.digests, live, opts.seen, now, opts.viewed, focusShares(opts.focus ?? {}, now), opts.rests),
     [snap.conversations, snap.digests, opts.seen, opts.viewed, opts.focus, opts.rests, live, now],
   );
+  // The lane is applied once, here beside the items (KTD3): Flow and every badge on this device read the same list.
+  const laneId = opts.lane?.id ?? "";
+  const lanes = opts.lane?.lanes ?? null;
+  const resolveLane = opts.lane?.resolve;
+  const setLaneId = opts.lane?.setId ?? noLaneSwitch;
+  const setLanes = opts.lane?.setLanes ?? null;
+  const activeLane = useMemo(() => resolveLane?.(lanes, items, snap.agents, laneId) ?? null, [resolveLane, lanes, items, snap.agents, laneId]);
+  const flowItems = useMemo(() => laneItems(items, activeLane), [items, activeLane]);
+  const flow = useMemo(
+    (): FlowLane => ({ lane: activeLane, laneId, setLaneId, lanes, setLanes, laneItems: flowItems }),
+    [activeLane, laneId, setLaneId, lanes, setLanes, flowItems],
+  );
 
   /**
    * The Inbox's analytics, for tuning the ranking against what you actually do. Each card event carries where the
@@ -877,6 +932,8 @@ export function useAttention(opts: UseAttentionOptions) {
     setPurpose: store.setPurpose,
     createDesk: store.createDesk,
     items,
+    /** Flow's lane on this device and the cards it holds (plan 082); `items` stays every card. */
+    flow,
     loadHistory,
     loadThread: store.loadThread,
     subscribe: store.follow,
