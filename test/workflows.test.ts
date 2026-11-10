@@ -43,7 +43,7 @@ describe("ci: a PR's checks", () => {
     const checks = runs(ci.jobs.checks);
     for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod", "npm run smoke"])
       expect(checks).toContain(c);
-    expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-14", "windows-latest"]);
+    expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "windows-latest"]);
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
@@ -57,7 +57,7 @@ describe("shell: the Rust shell's tests", () => {
 
   test("run for a PR that changes src-tauri, on the three systems", () => {
     expect(shell.on.pull_request?.paths).toContain("src-tauri/**");
-    expect(shell.jobs.cargo.strategy?.matrix?.os?.sort()).toEqual(["macos-14", "ubuntu-22.04", "windows-latest"]);
+    expect(shell.jobs.cargo.strategy?.matrix?.os?.sort()).toEqual(["macos-15", "ubuntu-22.04", "windows-latest"]);
   });
 
   test("need no Node and no app build: stand-ins for app/dist and the resources do", () => {
@@ -90,6 +90,13 @@ describe("supply chain", () => {
 
   test("no runner image that moves under us (ubuntu-latest became Ubuntu 26 on 2026-10-19)", () => {
     for (const { name, wf } of all) for (const [job, j] of Object.entries(wf.jobs)) expect(j["runs-on"], `${name}/${job}`).not.toMatch(/^ubuntu-latest$/);
+  });
+
+  test("one macOS runner everywhere: the release builds on the Mac CI tests on (macos-14 was refused from 2026-11-06)", () => {
+    const macs = new Set<string>();
+    for (const { wf } of all)
+      for (const j of Object.values(wf.jobs)) for (const os of [j["runs-on"], ...(j.strategy?.matrix?.os ?? [])]) if (os.startsWith("macos")) macs.add(os);
+    expect([...macs]).toEqual(["macos-15"]);
   });
 
   test("release grants nothing by default; only the jobs that publish or open PRs can write", () => {
