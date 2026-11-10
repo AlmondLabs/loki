@@ -1,6 +1,6 @@
 import type { FrameRequest } from "./attention/chat-client.ts";
 import type { AccountView } from "./frame-types.ts";
-import type { InputOf, ReplyOf, RequestName } from "./frames.ts";
+import type { InputOf, MacAccountView, ReplyOf, RequestName } from "./frames.ts";
 
 /**
  * The daemon's settings and agent calls, grouped by what they are about rather than by their frame names (plan 052):
@@ -82,6 +82,11 @@ export function daemonCalls(request: FrameRequest) {
      */
     accounts: {
       list: () => attempt(request, "account_list", {}).then(listed),
+      /** This Mac's accounts and every paired Mac's, for picking accounts in a lane (plan 087, KTD9); Accounts' rows use `list`. */
+      everywhere: async (): Promise<{ accounts: AccountView[]; other_macs: MacAccountView[] } | string> => {
+        const r = await attempt(request, "account_list", {});
+        return typeof r === "string" ? r : { accounts: r.accounts, other_macs: r.other_macs ?? [] };
+      },
       move: (accountId: string, ownerAgentId: string) => attempt(request, "account_move", { account_id: accountId, owner_agent_id: ownerAgentId }).then(listed),
       disconnect: (accountId: string) => attempt(request, "account_disconnect", { account_id: accountId }).then(listed),
       connectGmail: async (ownerAgentId: string, ownApp: { client_id: string; client_secret: string } | null): Promise<{ url: string } | string> => {

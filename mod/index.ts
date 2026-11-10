@@ -492,6 +492,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     outside,
     ledger,
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
+    otherMacs: () => macs.accountsElsewhere(),
     widgets,
     gestures,
     // Every list holds this Mac's chats and every paired Mac's, each of those marked with its Mac (plan 023, U4).

@@ -128,8 +128,10 @@ describe("keymap: resolution", () => {
     }
     expect(KEYMAP.filter((b) => b.keys.includes("cmd+3"))).toEqual([]);
     expect(KEYMAP.filter((b) => b.id.startsWith("task"))).toEqual([]);
-    // The rail: no Tasks between the Inbox and Agents.
-    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Inbox", "Agents", "Learn", "Preferences"]);
+    // The rail: no Tasks between Flow and Agents. Flow was the Inbox (plan 087); its id stays segment.inbox.
+    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
+    expect(SEGMENTS.map((s) => s.id)).toContain("inbox");
+    expect(KEYMAP.find((b) => b.id === "segment.inbox")?.label).toBe("Flow");
     expect(menuSpec().map((m) => m.title)).not.toContain("Tasks");
     expect(resolve(ev("1", { meta: true }), "agents")?.id).toBe("segment.desk");
     expect(resolve(ev("2", { meta: true }), "agents")?.id).toBe("segment.inbox");
@@ -172,8 +174,8 @@ describe("keymap: presentation", () => {
   test("the menu spec groups with separators and omits accelerators the text needs", () => {
     const spec = menuSpec();
     const inbox = must(
-      spec.find((m) => m.title === "Inbox"),
-      "the Inbox menu",
+      spec.find((m) => m.title === "Flow"),
+      "the Flow menu",
     );
     expect(inbox.items.some((i) => "separator" in i)).toBe(true);
     const undo = inbox.items.find((i) => "id" in i && i.id === "inbox.undo") as { accelerator: string | null };

@@ -106,11 +106,11 @@ loki no longer moves or links `~/.letta/loki`, and it never deletes `~/.letta`, 
 ## The window
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
-window (double-click zooms). The window title still names what shows — the chat's name, "Inbox · n waiting",
+window (double-click zooms). The window title still names what shows — the chat's name, "Flow · n waiting",
 "Agents", "Preferences" — for the Window menu and Mission Control. On the left, a rail of five sections, each icon
 with its label under it, a red count on what needs you and a quiet count of the cards due on Learn; beside it, for Chats, Agents and Learn, a **sidebar** listing
 that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
-sidebar (in the Inbox, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
+sidebar (in Flow, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
 width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
@@ -120,9 +120,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   when its agent wrote since you looked. On the right of each row, one thing: a red badge when it waits on you, else a
   green dot that breathes while its agent is working, else when it last spoke ("5m", "3h", "2d"). Opening a chat (or having it open, the window in front, when a
   message arrives) marks it **viewed**, which clears the bold: the list shows what is new to you, nothing more. The
-  Inbox keeps the chat until it is **read**: what the Inbox's → does, a reply, an approval or an answer; by hand
+  Flow keeps the chat until it is **read**: what Flow's → does, a reply, an approval or an answer; by hand
   it is **Mark as read** (⌘⇧↵ on the open chat, or the row's right-click menu), and **Mark as unread** in the
-  same menu puts it back in the Inbox. None of these is done: a chat is done only when it is archived. Viewed
+  same menu puts it back in Flow. None of these is done: a chat is done only when it is archived. Viewed
   and read are kept by the mod, so the phone and the Mac agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
@@ -133,13 +133,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   **Labels** gather related chats across agents (`infra`, `client-x`): a chat carries up to eight, each a lowercase
   word with its own colour. Add them from the row's **Labels…**, from **+ label** in the chat's header (**edit labels** once it has some), or with
   `/label infra` in the message box (`/label` alone opens the picker); in the picker, type to find a label, ↵ takes
-  the first match or makes the label when none matches. A chat's header and its Inbox card show its labels as chips;
+  the first match or makes the label when none matches. A chat's header and its card in Flow show its labels as chips;
   the sidebar rows leave them out, since a chat can carry several. Click a header chip, or type `label:infra` in "Find a chat…", to list that label's chats
   (`label:infra label:billing` wants both); ⌘K finds labels too. On the phone, **Labels** is in a chat's actions, and Home's menu lists every label: a tap filters Home to it, as
   `label:` does on the Mac, and a second tap takes it off.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
-  Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
+  Opening a chat — from the sidebar, ⌘K, Flow, Agents or Learn — shows it like a Slack channel: a header
   with its name, its purpose line under it, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
   chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
@@ -161,11 +161,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
   chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
-  per conversation; a main chat's model is the agent's. Inbox cards carry the same chips in their actions row. When a tool call asks, its card
+  per conversation; a main chat's model is the agent's. Cards in Flow carry the same chips in their actions row. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
-- **Inbox** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): Catch Up as a full view, see below. The rail icon carries
+- **Flow** (⌘2, or ⌥Space from anywhere on the Mac; ⌥Space has no binding on Windows or Linux): the deck as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
@@ -223,8 +223,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      1. **Macs**: this Mac, the Macs paired with it, and pairing another (see "Your other Macs").
      2. **Phone**: the switch that lets phones reach this Mac, the route (Tailscale or this Wi‑Fi), pairing a phone
         (its QR and code) and the paired phones. Mac only for now.
-  4. **Inbox and Learn**
-     1. **Inbox**: **Accounts**, each Gmail mailbox and Slack workspace connected on this Mac with its service,
+  4. **Flow and Learn**
+     1. **Flow**: **Accounts**, each Gmail mailbox and Slack workspace connected on this Mac with its service,
         owner and state, **move to** and **disconnect** on each, and **reconnect gmail** or **reconnect slack** when
         it needs it; **Connect an account**, where you choose the owner, then **connect gmail** or **connect slack**,
         with **Use your own Google app** folded below it (see "Email and Slack"); what read, later, archive, label and
@@ -250,26 +250,26 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         `~/.loki/state/usage.json`, by hour, for 400 days, whether analytics is on or off; history from before it
         began comes once from `events.jsonl`, with its cost not split by token type.
 
-**⌘K** opens search from anywhere: chats, agents, what waits on you in the Inbox, and the app's pages (each
+**⌘K** opens search from anywhere: chats, agents, what waits on you in Flow, and the app's pages (each
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
 places you visited last; ↑↓ move, ↵ opens the top result (a chat on Messages), Esc or ⌘K again closes it. `/chats`
 in a message box opens it too. ⌘K used to open the chats tree; the sidebar holds that list now. Typing "desk", the old word, still finds chats.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
-that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Preferences › Keyboard shortcuts says so); `?` or
-Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox
+that work everywhere (less any the view takes for itself, such as ⌘⇧D in Flow; Preferences › Keyboard shortcuts says so); `?` or
+Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, agents in Agents, pages in Preferences — the
 same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
-sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
+sheet); where a text box has focus (Flow, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
 
 A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Preferences › About links. Chats, Inbox, Agents, Learn, Preferences, search and the mod are the Mac's. What
+Preferences › About links. Chats, Flow, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
@@ -298,21 +298,21 @@ Testers: [docs/preview-checklist.md](preview-checklist.md) lists what to try on 
 
 ## Phone
 
-The inbox and your chats, on your phone, with nothing installed. Preferences › Phone → switch on "Phones can
+Flow and your chats, on your phone, with nothing installed. Preferences › Phone → switch on "Phones can
 reach this Mac" → "pair a phone" → scan the QR with the phone's camera → in Safari, Share → Add to Home Screen → open
 the new icon and type the six-character code once (a home-screen app has its own cookie jar, so the code shown in
 Preferences is asked for one more time; it stays valid ten minutes). From then on the icon opens on Home. Four tabs
-float in a capsule at the bottom — Home, Inbox, Agents, More, the Inbox carrying the waiting count — with a round
+float in a capsule at the bottom — Home, Flow, Agents, More, Flow carrying the waiting count — with a round
 Search button beside them:
 
 1. **Home**: the loki header (its menu holds the filter, every label as a chip to filter by, **Refresh chats** and
    **Archived chats**; what filters the list shows as pills over it, each clearing itself), a row of
-   shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
-   Inbox queue — then **Chats**, pinned first. A long press on a chat (or its actions button) opens its actions sheet: pin,
+   shortcuts with their counts (Flow, Learn, Agents, Archive), **Needs your attention** — the head of the
+   Flow queue — then **Chats**, pinned first. A long press on a chat (or its actions button) opens its actions sheet: pin,
    **Rename** or archive. The round compose button at the bottom right starts a new chat: pick the agent, a name if
    you like, and the folder, from the folders that agent has worked in on the Mac (its most recent to begin with,
    the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
-2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
+2. **Flow**: the same cards as Flow on the Mac, in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question; its head opens
    the conversation full screen. Every card, a chat, an email or a Slack message, moves the same way. Swipe right
    (or **Read**) to mark it read, in Gmail or Slack too: a chat or an email rests a while, longer each time (see
@@ -322,7 +322,7 @@ Search button beside them:
    email card also has **Label**, a sheet of the account's Gmail labels; the card stays for its next move. On a mail
    or Slack card, **Send** sends your reply and marks the thread read; while the reply box holds text a swipe springs
    back, so nothing goes by accident. A mail card's box has its recipients line, where you can add someone to To or
-   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left the Inbox says how many and offers **Go
+   Cc. A mail reply waits 10 seconds with **Undo** beside it (see "Replying to mail as Gmail does"). Once only resting cards are left Flow says how many and offers **Go
    through them**. An approval leaves only by its decision: the buttons become **Deny** and **Approve**, and it
    refuses both swipes. Undo sits in the top bar for six seconds after Read, Later or Archive, and puts the thread
    in Gmail or Slack back as it was; a move that fails brings the card back with the reason. The top bar reads "n
@@ -339,7 +339,7 @@ Search button beside them:
 **Learn** (from Home or More) is the same deck, thumb-sized: review, delete and undo; the writer's switch and
 knobs stay on the Mac. A tap on a chat or a card opens the conversation: the transcript, the approval or
 question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
-on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
+on Home stops being bold but keeps its dot, the card stays in Flow, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
 read, **Mark as unread**, and pin. A chat's suggestions wait behind a chip in its reply box as on the Mac, with the
 same four actions (see [Suggestions](#suggestions)), and **Rename** in the actions sheet takes the purpose line too.
@@ -431,7 +431,7 @@ reachable; a closed lid still sleeps.
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to
    `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat
    on the Mac it lives on, so a Friday chat on the mini still teaches Friday, and a moved chat is not read twice.
-6. **What is yours syncs.** Read, unread and viewed marks (the later one wins), the Inbox's focus (both Macs'
+6. **What is yours syncs.** Read, unread and viewed marks (the later one wins), Flow's focus (both Macs'
    engagement adds up) and its rests, pins, label colours, Learn's cards and reviews, your MCP servers and your mods. Provider sign-ins, the
    "always allow" list, usage and the shared skills folder stay on each Mac: sign in on each Mac you run chats
    on.
@@ -447,14 +447,14 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - watches `~/.loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
 - appends what the user did on the canvas to their next turn (`turn_start`)
 - carries each chat between the app and the daemon over its socket (`/ws` on 127.0.0.1:41414): the chat's
-  conversation and Catch Up cards are one model (`core/attention`), streaming token by token
-- lists every open conversation for the inbox (`inbox_list`): main chats included, however old, with who spoke
-  last; a conversation leaves the inbox by being archived
+  conversation and Flow cards are one model (`core/attention`), streaming token by token
+- lists every open conversation for Flow (`inbox_list`): main chats included, however old, with who spoke
+  last; a conversation leaves Flow by being archived
 - keeps the recall cards (`recall_*`); the daemon's Learn pass writes them: once a conversation has been quiet for half an
   hour it reads the new stretch, asks the agent in its hidden "recall" conversation, and writes cards up to the day's
   cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript (`history_get`), which survives compaction, and keeps the read
-  (`seen_mark`), viewed (`viewed_mark`) and focus marks the inbox and the sidebar need
+  (`seen_mark`), viewed (`viewed_mark`) and focus marks Flow and the sidebar need
 - keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
@@ -558,7 +558,7 @@ Code: the other tabs are greyed out, and a new chat is how you go back to loki's
 Code itself, always through `npx` at the adapter version this loki pins (npx fetches it the first time), so it needs
 Node and a `claude` that is signed in (`claude /login` in a terminal). In such a chat:
 
-- the replies, tool calls and their diffs show as in any chat, and stay in loki's history and the Inbox;
+- the replies, tool calls and their diffs show as in any chat, and stay in loki's history and Flow;
 - when Claude Code asks before a tool, the card is loki's, on the Mac and the phone; **always allow** goes to Claude
   Code's own list, not loki's;
 - the mode chip shows Claude Code's own modes (default, accept edits, plan, bypass permissions);
@@ -614,7 +614,7 @@ or on any agent, is the sign-in command loki shows when the agent says you are s
 
 ## Questions from the agent
 
-When an agent calls `user_ask`, the conversation (on either tab) and the inbox card show
+When an agent calls `user_ask`, the conversation (on either tab) and the card in Flow show
 a question card instead of a permission block: each question with its options (pick one, or pick many), and, when
 there are several questions, an "or your own…" field under each. **answer** sends everything back in one go. With a
 single question, the message box is the way to answer in your own words: what you type there is treated as the
@@ -623,7 +623,7 @@ answer.
 ## Quick replies
 
 When an agent's turn ends on a choice you are likely to make from a few clear options, it may offer them as quick
-replies: two to four buttons under its last reply, in the chat and on its Inbox card, on the Mac and the phone. A
+replies: two to four buttons under its last reply, in the chat and on its card in Flow, on the Mac and the phone. A
 button's words are the message: a click sends them as yours, as if you had typed them, and the agent acts on them. On
 the Mac, **1** to **4** send the matching option while the message box is empty and has focus; each button shows its
 number. The buttons belong to the last reply only: once you send anything, clicked or typed, or the agent starts
@@ -670,11 +670,11 @@ Windows or Linux yet. Recognition stops by itself when you pause; Enter
 sends. Chrome may send the audio to Google's speech service unless on-device
 recognition is available, so treat it like any other cloud dictation.
 
-## Inbox (Catch Up)
+## Flow
 
-A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
+A chat is not done until it is archived. Flow holds every chat you have not archived, except one whose agent
 is mid-turn, where there is nothing to do yet. Mail and Slack threads addressed to you are cards in it too, once
-you connect those accounts (see "Email and Slack" below). The inbox icon on the
+you connect those accounts (see "Email and Slack" below). Flow's icon on the
 rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers), highest score first (see "The order" below).
@@ -690,7 +690,7 @@ Every card, a chat, an email or a Slack message, stays until it is done, and the
    later today, tomorrow, in 3 days, next week, or a date up to about a month on; Esc closes the question with nothing
    scheduled. Once the thread gets something new, or you read the card, the next later counts as a first one again.
 3. **Archive**, E or ⌘E (the card's **archive**), is done for a chat or an email: the chat is archived, the thread is
-   archived in Gmail, and either leaves the Inbox. On a Slack card archive marks the message read, which is its end
+   archived in Gmail, and either leaves Flow. On a Slack card archive marks the message read, which is its end
    too. A main chat cannot be archived, so it always stays, and the card springs back saying "main chats stay".
 4. **Label**, L, on an email card only, opens the account's Gmail labels; the one you pick is added to the thread and
    the card stays for your next key, so "label and archive" is two moves.
@@ -699,23 +699,22 @@ Every card, a chat, an email or a Slack message, stays until it is done, and the
 
 A move that loki or Gmail refuses brings the card back on top with the reason. Approval and question cards never
 rest: an approval leaves only by Approve or Deny, and read or later on it only moves past it for this visit. Once
-only resting cards are left, the Inbox says "You're caught up", how many rest, and **go through them**. A or ⌘↵
+only resting cards are left, Flow says "You're caught up", how many rest, and **go through them**. A or ⌘↵
 approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused,
-Esc returns to Chats. Preferences › Inbox lists these keys and sets the return times for each kind of card (see
+Esc returns to Chats. Preferences › Flow lists these keys and sets the return times for each kind of card (see
 "Return times" below).
-The header reads "n need you" and "m chats". Once two agents have something waiting, filter pills sit over the
-deck: **All**, then each agent with cards, busiest first, each with its count; a pill shows only that agent's cards
-this visit. Once you have been past every chat the deck says "You've been through
-every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing the inbox
+The header reads "n need you" and "m chats", counting the lane you are in (see "Lanes" below). Once you have been
+past every chat the deck says "You've been through
+every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing Flow
 ends a visit; opening it again starts a fresh one.
-Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
+Flow runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
 chats included, with who spoke last — nothing is windowed by age or capped by count, so a conversation only leaves
-the inbox when it is archived (main chats are never archived, so they always stay). The live half — streaming,
+Flow when it is archived (main chats are never archived, so they always stay). The live half — streaming,
 approvals, answers — comes over the same socket. The read (`seen`), viewed and focus marks live in
 `~/.loki/state/attention.json`, so the phone and the Mac share them.
 
-Slash commands work in the message box, and in the reply box of an inbox card: type `/` and a palette lists what the
-box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/inbox`, `/label [label]`, `/chats` for ⌘K search) and the daemon's:
+Slash commands work in the message box, and in the reply box of a card in Flow: type `/` and a palette lists what the
+box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`, its old name, still works), `/label [label]`, `/chats` for ⌘K search) and the daemon's:
 
 - `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
   thread stays). A summary, yours or the one the agent makes when its context fills, loses nothing: every turn stays
@@ -777,11 +776,42 @@ the brief as your first message: open with why this matters to you, furnish the 
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
 conversation is still empty) is listed under "lessons under way" with **send the brief**.
 **not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never inbox cards. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
+**Deleted**, with the deleted cards). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
-Every chat row, chat header, message and inbox card shows the face of the agent that owns the conversation (its
+Every chat row, chat header, message and card in Flow shows the face of the agent that owns the conversation (its
 `profile.png` from memory, or a coloured initial), so multi-agent setups stay legible.
+
+### Lanes
+
+A lane is a part of your work you choose to see on its own: the chats of all your agents or of the ones you pick (or
+none), and the mail and Slack of all your accounts or of the ones you pick (or none). "Chats only", "Ada's chats" and
+"everything Ada owns but her chats" are each a lane. A lane set to all agents or all accounts takes in the ones you add
+later; a picked one does not. Deleting an agent or an account takes it out of every lane.
+
+**Making one.** Preferences › Flow lists your lanes above the return times; **new lane** opens the editor: a name, then
+chats from all agents, picked agents or none, then mail and Slack from all accounts, picked accounts or none. Each
+account shows the agent that owns it, and the Mac it lives on when that is a paired Mac. Names must be there and differ.
+Lanes are made and edited on a Mac; your paired Macs and the phone get them as you save.
+
+**Switching.** Flow's title names the lane you are in ("flow · work" on the desktop, "Work" on the phone); click or tap
+it for the switcher: **everything**, your lanes, then a lane for each agent with cards waiting (its chats and the
+accounts it owns), busiest first. The desktop menu also has **new lane…**, which opens Preferences › Flow. Each device
+keeps its own lane until you switch, so the Mac can sit in Work while the phone stays in Everything; a new device starts
+in Everything.
+
+**What a lane changes.** The deck holds only the lane's cards, in the usual order. Nothing from another lane breaks
+through, approvals and questions included; a quiet line says "4 waiting in other lanes" instead. That device's badges
+count only the lane: the rail, the window title ("Flow · Work · 3 waiting"), the tray and dock, the phone's Flow tab and
+Home's "Needs your attention". The chat list, ⌘K and Search still show everything. An empty lane says you're caught up,
+with the count from other lanes and **back to everything**; an agent's lane stays on when it empties and leaves the
+switcher once you move on.
+
+**What a switch keeps.** Switching moves no card: rests, laters and unread marks stay as they were, and a card the lane
+hides is not read. The card on top stays on top when the new lane holds it. Undo takes back only moves on cards in the
+lane you are in; switch back to undo one made elsewhere. A mail or Slack reply you were typing is kept for the session,
+so it is still there when its card comes back. Proposed replies and suggestions belong to the owning agent's chat card,
+so a lane shows them through its chats, not through an account.
 
 ### The order
 
@@ -792,12 +822,12 @@ a question, ending in "?" or "let me know", counts until you have looked at it) 
 agent said something since you last looked) `+ 15 × focus`
 (the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
 blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,
-so it ranks like any other card. The badges (the rail's Inbox count, the phone's tab, Home's **Needs your
+so it ranks like any other card. The badges (the rail's Flow count, the phone's tab, Home's **Needs your
 attention**, search's waiting group) count only what needs you: an approval, a question, a failed turn, or
 something new.
 
 **Focus is learned, never set.** Every chat keeps a weight that your actions add to — a message you send
-(from the Mac, the phone, the Inbox or the terminal) adds 1, answering a question 1, approving or denying ½,
+(from the Mac, the phone, Flow or the terminal) adds 1, answering a question 1, approving or denying ½,
 opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
 focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
 the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
@@ -819,10 +849,10 @@ thread. Opening a chat, or reading the mail in Gmail, does not: a card you read 
 
 **Later puts a card off.** Later (⌘[ or ←, a left swipe on the phone) keeps the card unread and rests it for a day,
 whatever rung it was on; anything new in the thread brings it back sooner. From the second press in a row on the same
-card, later asks when the card should come back instead (see "Inbox (Catch Up)" above). A read, or anything new in the
+card, later asks when the card should come back instead (see "Flow" above). A read, or anything new in the
 thread, starts that count over.
 
-**Return times.** Preferences › Inbox sets them for each kind of card, on every device, the phone included:
+**Return times.** Preferences › Flow sets them for each kind of card, on every device, the phone included:
 
 1. **Read rests a card for**: the first rest after read, for chats and for email apart: 10 min, 30 min, 1 hour (the
    default) or 3 hours. The ladder above climbs from it.
@@ -831,7 +861,7 @@ thread, starts that count over.
 
 A rest keeps the time it was given, so a change counts from the next press on. How fast the ladder climbs, and the
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
-resting cards are left, the Inbox says how many and offers to go through them. The Mac's loki process keeps the rests
+resting cards are left, Flow says how many and offers to go through them. The Mac's loki process keeps the rests
 and the return times beside the focus weights (`rests` and `return_times` in `state/attention.json`), and paired Macs and the phone share
 them; `npm run analytics` reports how often a card back from a rest is acted on, by rung.
 
@@ -841,7 +871,7 @@ finishing or blocking anywhere, the half-minute clock — and again whenever a c
 front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
 is the score, `core/attention/focus.ts` the focus, `core/attention/rest.ts` the rest.
 
-**What the Inbox is tuned for: finished work.** Engagement counts every reply as a win, a shallow one too, and it
+**What Flow is tuned for: finished work.** Engagement counts every reply as a win, a shallow one too, and it
 rose the more you hopped between chats. So `npm run analytics` leads with finished work: chats archived, and a day;
 the messages a finished chat took (median, counting chats you messaged in the period); and how often, coming back to
 a chat within three hours, you had messaged none, 1, 2 or 3+ other chats in between. Engagement stays beside it for
@@ -871,7 +901,7 @@ workspace is an **account**, and you can connect as many as you like.
 account goes to the agent under **Goes to**, which starts on your first agent: the agent that gets the account's
 hand-offs and is the only agent with tools for it. No account is ever connected without one. The owner picker on an
 account's row gives it, and its tools, to another agent at any time; **disconnect** asks once (**disconnect
-…** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave the Inbox.
+…** or **keep it**), then stops watching it, deletes its sign-in from the keychain, and its cards leave Flow.
 Deleting an agent that owns accounts lists them on its Agents page and asks you to move each to another agent or
 disconnect it first. An account lives on the Mac it was connected on: only that Mac watches it, a paired Mac refuses
 to connect it a second time, and its cards reach the phone and your paired Macs the way that Mac's chat cards do.
@@ -897,7 +927,7 @@ using the desktop session this way, and Enterprise Grid may notice it; check you
 or messages to decide.
 
 1. Gmail: every thread in your inbox becomes a card, read or unread, newsletters, receipts and notifications
-   included, so loki's Inbox and the Gmail inbox hold the same threads. The card follows Gmail's read state: read the
+   included, so loki's Flow and the Gmail inbox hold the same threads. The card follows Gmail's read state: read the
    mail in Gmail and the card stays, as read; archive it there and the card ends at the next check. loki notes what kind of mail each one is (to you or not, a list, sent by a machine, and Gmail's tab),
    read from the message's headers and labels, and keeps that beside what you do with it (below).
 2. Slack: a DM or group DM with unread messages, and each unread Activity item: an @mention of you, a reply in a
@@ -909,7 +939,7 @@ or messages to decide.
 
 A card is one thread: a new message in it updates its card rather than adding another, and brings back the card of
 a thread you archived, as does moving an archived thread back to the inbox in Gmail. A message you wrote yourself
-never counts as new, so your own reply does not bring a card back. Every card in the Mac's Inbox, a chat's
+never counts as new, so your own reply does not bring a card back. Every card in the Mac's Flow, a chat's
 too, has the same two-line header: a face (the sender's Slack photo, a mail sender's initial, a chat's agent) with a
 small `#` for Slack or an envelope for mail in its corner; who wrote on the first line; then where or what and when: a
 Slack channel ("#crm-support") or "direct message", a mail's subject, a chat's title. The workspace or mailbox is named
@@ -919,14 +949,14 @@ or needs approval, marked with the red dot; **mentioned you**; **your thread**, 
 **your group** (a Slack user group you are in) or **not to you** (a mail you were not addressed in); **@channel** or
 **list**, and **automated** (a mail sent by a machine), both in muted ink. A mail from a machine or a list reads as
 that even when it is addressed to you. The phone keeps its own header for now. A card files under its owner's tab in
-the Inbox, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
+Flow, with your chats with that agent. Opening it reads the **whole thread** from its account: every message, oldest
 first, with who wrote it and when, and yours marked **you**; mail loses the earlier thread its client quoted under
 each reply ("On … wrote:"); on a mail drawn as designed, **•••** under it shows that thread. A forward reads open, with
 or without a note above it, and a mail that is all quote shows it. A mail with an HTML part is drawn as its sender designed it, on a light page: its
 layout, its images and its links, which open in your browser. Images load as they do in Gmail, so a sender can tell
 you opened the mail. Nothing in a mail runs: no script, no form, no frame. A plain mail, or a Slack message, keeps its
 text, with its web addresses made into links. **A Slack card opens on what brought it**: the messages that brought it
-into your Inbox, with 5 messages before and 5 after, drawn as a chat draws messages, with faces, day pills, @channel
+into your Flow, with 5 messages before and 5 after, drawn as a chat draws messages, with faces, day pills, @channel
 marked, and Slack's red **New** line before the first new one; the card opens on that line. What brought it, a mention,
 an @channel, a group mention or a reply in a thread you follow, has Slack's yellow mention look; a DM's unread messages
 have the New line alone. When everything new is a reply in one thread, the card shows that thread alone, its first
@@ -1074,7 +1104,7 @@ even if you ask it to.
 **Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
 one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
 The reply always asks you first, in every permission
-mode: it shows in its chat and as an Inbox card, and you can edit it before you approve. Approved, loki writes it as a
+mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
 
@@ -1092,7 +1122,7 @@ ranking it and archiving it send nothing to any model.
 
 An agent sets a scheduled task with its `schedule_create` tool: a prompt that arrives in a chat on a cron schedule,
 in a timezone, once or again and again (`schedule_list` and `schedule_delete` show and remove them). The prompt
-begins "Scheduled task", so the Inbox knows it is not yours, and a slot missed while loki was closed fires once at the
+begins "Scheduled task", so Flow knows it is not yours, and a slot missed while loki was closed fires once at the
 next start.
 
 A run that cannot reach the model (the Mac had no network, the provider was down) tries again after 5, 15 and 60
@@ -1118,10 +1148,10 @@ while any wait, the message box's bottom row shows a **3 suggestions** chip afte
 phone, the spark icon and the count). The chip opens them, in a modal over the window on the Mac and a sheet on the
 phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, each its title and, under it, the chat it is for; the newest
 starts open, showing its message, written in markdown as an agent's reply is, and four actions. Esc, a click outside
-or close shuts it. On an Inbox card, the header says **3 suggestions** beside *draft*, and pressing it opens them for
+or close shuts it. On a card in Flow, the header says **3 suggestions** beside *draft*, and pressing it opens them for
 that card's chat. A suggestion stays until you act on it or its agent takes it back
 (`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
-Inbox, so it has a screen to show in.
+Flow, so it has a screen to show in.
 
 <img src="images/suggestion-chip.jpg" width="560" alt="The suggestions modal over a chat: a header saying 3 waiting, the newest open with its markdown message (a numbered list, bullets, code and a link) and send now, save as draft, change chat and reject, two more below as a title and the chat each is for">
 
@@ -1135,10 +1165,10 @@ Inbox, so it has a screen to show in.
    second chat or sends twice.
 2. **save as draft** puts the message in its chat's message box, ready to edit and send, on the Mac and the phone, and
    it survives reloads and restarts. It never replaces what you typed: while the box holds your own text, the draft
-   waits under it and shows once the box is empty. The chat's Inbox card says **draft** (on the phone, **Draft**). The
+   waits under it and shows once the box is empty. The chat's card in Flow says **draft** (on the phone, **Draft**). The
    next message sent from that chat, or emptying its box, clears the draft. A chat holds one saved draft at a time: a
    second is refused until the first is sent, or goes to another chat. A new chat holding only a draft is listed in
-   the Inbox and rests after read like any other card.
+   Flow and rests after read like any other card.
 3. **change chat** points the suggestion somewhere else before you send or save it: type to find a chat or an agent,
    and pick an agent for a new chat with it, then give the new chat's folder.
 4. **reject** drops it.
@@ -1170,7 +1200,7 @@ Reflection and Learn cannot suggest: a background pass has no chat screen to sho
 **What happened to Tasks.** The shared task list (Tasks, ⌘3, backed by beads) was removed in October 2026, with its
 views, assigning, task chips, Add task and the `task_*` tools. On the first start of the version without it, each
 open task became a suggestion in the chat it was filed from, for a new chat with the same agent in the same folder,
-and an archived source chat came back into the Inbox. Each task moves once (noted in `~/.loki/state/migrations.json`);
+and an archived source chat came back into Flow. Each task moves once (noted in `~/.loki/state/migrations.json`);
 one that cannot move yet, because `bd` is missing or its chat's Mac is out of reach, is tried again at the next start
 and when a paired Mac comes into reach, and one that names no chat it was filed from stays where it is; the daemon's
 log names each. loki only reads the beads store (`~/.loki/tasks`) for this and leaves it on disk as it was; `bd` is
@@ -1183,7 +1213,7 @@ question, hand it a piece of the work and hear back. It goes only along a link y
 said.
 
 **The link card.** The first time an agent messages a chat this chat has no link to, its turn stops on a card where a
-question card would be, in the chat and on its Inbox card, on the Mac and the phone. It names the other chat (with its
+question card would be, in the chat and on its card in Flow, on the Mac and the phone. It names the other chat (with its
 agent, and its Mac when that is another) and shows the message. You pick:
 
 1. **direction**: **one way**, so this chat may message that one, or **both ways**, so each may message the other;
@@ -1285,7 +1315,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 
 ## Analytics
 
-loki keeps product analytics on itself — which views you open, which chats get turns, how an inbox visit went,
+loki keeps product analytics on itself — which views you open, which chats get turns, how a visit to Flow went,
 what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
 writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
@@ -1293,7 +1323,7 @@ writes the file, nothing sends it anywhere, and `npm run analytics` on this mach
 linux, phone, or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
-`message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
+`message_sent`, `inbox_pass_completed` (one per visit to Flow: how many next, archive, approve, deny and replies),
 `inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
 `inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod; any ACP chat's turn too, Claude Code's or Cursor's, with its
 harness version `acp:<agent>` and without the model and tool times those agents don't report), `approval_requested` (reported by
@@ -1303,7 +1333,7 @@ at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon'
 
 `npm run analytics` (or `npm run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
-property (views by name, turns by chat, sends by origin, models picked), the inbox visits and their decision
+property (views by name, turns by chat, sends by origin, models picked), the visits to Flow and their decision
 split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
 period.
 

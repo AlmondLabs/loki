@@ -4,6 +4,7 @@
  * reveal shows, what this visit has done, and which cards the deck must not show again.
  */
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import { agentLanes, type Lane } from "../../../core/attention/lanes.ts";
 import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
 import type { CardVia, MoveResult } from "../../../core/attention/use-attention.ts";
 import { releaseCommits } from "../kit/let-go";
@@ -278,15 +279,41 @@ export function holdCard(s: DeckState, item: AttentionItem): DeckState {
   return { ...s, held: item, topId: idOf(item) };
 }
 
-/** After the live list changes: forget dismissals it has outgrown, pin whatever is now on top. The same object when nothing moved. */
-export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
-  const pruned = pruneDismissed(s.dismissed, items);
+/**
+ * After the live list changes: forget dismissals it has outgrown, pin whatever is now on top. The same object when
+ * nothing moved. `items` are the active lane's cards and `all` every card (plan 087, KTD6): a dismissal is weighed
+ * against every card, so a card passed over in one lane stays passed over through a switch and back, and the card on
+ * top stays on top when the new lane holds it.
+ */
+export function reconcileDeck(s: DeckState, items: AttentionItem[], all: AttentionItem[] = items): DeckState {
+  const pruned = pruneDismissed(s.dismissed, all);
   const dismissed = pruned.size === s.dismissed.size ? s.dismissed : pruned;
   const held = s.held && items.some(same(s.held)) ? s.held : null;
   const next = dismissed === s.dismissed && held === s.held ? s : { ...s, dismissed, held };
   const top = deckQueue(items, next).at(0);
   const topId = top ? idOf(top) : null;
   return topId === next.topId ? next : { ...next, topId };
+}
+
+// ---- Lanes (plan 087) ------------------------------------------------------------------------------
+
+/** One entry in the lane sheet: the lane's id ("" is Everything) and its name as the lane has it. */
+export interface LaneChoice {
+  id: string;
+  name: string;
+}
+
+/**
+ * The lane sheet's entries (R11, KTD5): Everything, the person's lanes, then a built-in lane for each agent with cards
+ * in Flow, busiest first, read from every card, not the active lane's. No "new lane": lanes are made on a Mac (R8).
+ */
+export function laneChoices(lanes: Lane[] | null, all: AttentionItem[]): LaneChoice[] {
+  return [{ id: "", name: "Everything" }, ...(lanes ?? []).map(({ id, name }) => ({ id, name })), ...agentLanes(all).map(({ id, name }) => ({ id, name }))];
+}
+
+/** Flow's quiet line in a lane (R14): how many cards need the person in other lanes, or null at 0, never a badge. */
+export function otherLanesLine(count: number): string | null {
+  return count > 0 ? `${count} waiting in other lanes` : null;
 }
 
 // ---- What the card says -----------------------------------------------------------------------------

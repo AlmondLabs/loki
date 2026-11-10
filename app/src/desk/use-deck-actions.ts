@@ -1,7 +1,9 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
+import { outsideReplies } from "../shared/outside-replies";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type OpenedThread, type PickerKind, type ReplyBox } from "./deck-moves";
 
 /** How long a word stays on the badge. */
@@ -46,15 +48,15 @@ export function useDeckActions({
   setDecided,
   setQueue,
   moves,
-  agent = null,
+  lane = null,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
   moves: DeckMoveApi;
-  /** The agent pill on, if one is: undo takes back that agent's last decision, the one you can see. */
-  agent?: string | null;
+  /** The lane Flow is in, null for Everything: undo takes back the last decision on a card it holds (KTD6). */
+  lane?: ResolvedLane | null;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   /** Replies and answers sent this visit. A reply on a chat keeps you on the card; the deck's keys move it. */
@@ -63,22 +65,28 @@ export function useDeckActions({
   const [dir, setDir] = useState<"next" | "back">("next");
   /** The picker open, and on which card; another card on top closes it. */
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
-  /** The reply box of one outside card; another card on top starts with an empty one. */
+  /**
+   * The reply box of one outside card; another card on top starts with an empty one, but for the words the person left
+   * unsent in that card's box, which are kept for the session (plan 087, KTD7) so a lane switch does not lose them.
+   */
   const [box, setBox] = useState<{ id: string } & ReplyBox>({ id: "", ...EMPTY_REPLY });
 
   const currentId = current ? idOf(current) : "";
-  const reply: ReplyBox = box.id === currentId ? box : EMPTY_REPLY;
+  const reply: ReplyBox = box.id === currentId ? box : { ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
   const picker = picking?.id === currentId ? picking.kind : null;
 
   // One flash for the deck's life, made once from the stable setter, and its pending clear cancelled when the deck goes.
   const [flasher] = useState(() => createFlash(setFlash));
   useEffect(() => () => flasher.stop(), [flasher]);
   const say = flasher.say;
-  const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY }), ...patch }));
+  const setReply = (id: string, patch: Partial<ReplyBox>) => {
+    if (patch.text !== undefined) outsideReplies.set(id, patch.text);
+    setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
+  };
   const deck = createDeckMoves({
     current,
     decided,
-    agent,
+    lane,
     reply,
     setReply,
     setDecided,

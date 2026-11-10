@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import type { DeskSummary, InboxRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
-import { stateFolders } from "../core/frames.ts";
+import { stateFolders, type MacAccountView } from "../core/frames.ts";
 import { Awake } from "../daemon/awake.ts";
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
@@ -108,6 +108,8 @@ export interface Peering {
   agentDeleteBlocked(agentId: string): string | null;
   /** The name of the paired Mac that holds an account, as it last said, or null (plan 067, KTD14). */
   accountHeldBy(accountId: string): string | null;
+  /** Every paired Mac's accounts as each last said, marked with its Mac, for Flow's lanes (plan 087, KTD9). */
+  accountsElsewhere(): MacAccountView[];
   /** A picture not here, from whichever paired Mac in reach holds it (plan 029). */
   chatImage(name: string): Promise<Buffer | null>;
   /** The listener is up: keep it up for the paired Macs, and open a link to each. */
@@ -436,6 +438,7 @@ export function startPeering(deps: PeeringDeps): Peering {
       return peerAccounts.deleteBlocked(agentId);
     },
     accountHeldBy: (accountId) => peerAccounts.heldBy(accountId),
+    accountsElsewhere: () => peerAccounts.everywhere(),
     chatImage: async (name) => {
       for (const p of peerStore.list()) {
         if (!links.reachable(p.mac_id)) continue;

@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
-import { agentPills } from "../app/src/desk/catch-up-parts.tsx";
+import { agentLanes } from "../core/attention/lanes.ts";
 import { OutsideThread, outsideTitle, replyPlace } from "../app/src/desk/outside-card.tsx";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
@@ -646,12 +646,12 @@ describe("the card", () => {
   });
 });
 
-describe("the Inbox's tabs file outside cards under their owner", () => {
-  test("a card from friday's Slack counts on friday's pill, not one of its own", () => {
+describe("Flow's agent lanes file outside cards under their owner", () => {
+  test("a card from friday's Slack counts in friday's lane, not one of its own", () => {
     const chat = attentionItem("c", { agent_id: "agent-work", agent_name: "friday" });
     const card = attentionItem("o", { agent_id: `account:${SLACK}`, agent_name: "farmart (Slack)", outside: FACTS });
     expect(ownerAgentOf(card)).toBe("agent-work");
-    expect(agentPills([chat, card]).map((p) => [p.agentId, p.name, p.count])).toEqual([["agent-work", "friday", 2]]);
-    expect(agentPills([card]).map((p) => p.name)).toEqual(["friday"]);
+    expect(agentLanes([chat, card]).map((l) => [l.agent_id, l.name, l.count])).toEqual([["agent-work", "friday", 2]]);
+    expect(agentLanes([card]).map((l) => l.name)).toEqual(["friday"]);
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { CatchUp } from "../../app/src/desk/catch-up";
+import type { ResolvedLane } from "../../core/attention/lanes.ts";
 import { resolve, runAction } from "../../app/src/shell/keymap";
 import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
 import { DEMO_AGENTS, DemoChats } from "./demo-chats";
@@ -20,6 +21,8 @@ export function InboxDemo() {
   const [lastMove] = useState(() => new Map<string, "read" | "later" | "archive">());
   /** Bumped by "start over", so the deck opens a fresh visit over the reset chats. */
   const [visit, setVisit] = useState(0);
+  /** The demo's lane, kept for the page's life: its agent lanes switch the deck as the app's do. */
+  const [lane, setLane] = useState<ResolvedLane | null>(null);
   const source = useMemo((): Parameters<typeof CatchUp>[0]["chats"] => {
     const suggestions: Omit<SuggestionSource, "conversation"> = {
       // Every chat, not only the Inbox's: a suggestion's chat may be mid-answer.
@@ -49,7 +52,7 @@ export function InboxDemo() {
         <span />
         <span />
         <span />
-        <em>Inbox · {items.length} waiting</em>
+        <em>Flow · {items.length} waiting</em>
       </div>
       <div className="site-inbox-deck">
         <CatchUp
@@ -57,6 +60,9 @@ export function InboxDemo() {
           open
           onClose={startOver}
           items={items}
+          lane={lane}
+          lanes={[]}
+          onLane={setLane}
           chats={source}
           loadHistory={() => {}}
           onRead={(item) => (chats.seen(item.id), lastMove.set(item.id, "read"), Promise.resolve(MOVED))}

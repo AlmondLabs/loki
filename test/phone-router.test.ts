@@ -190,7 +190,7 @@ describe("ownership and Back", () => {
     }
   });
   test("labels for Back read as destinations", () => {
-    expect(labelOf({ kind: "tab", tab: "inbox" })).toBe("inbox");
+    expect(labelOf({ kind: "tab", tab: "inbox" })).toBe("flow");
     expect(labelOf({ kind: "tab", tab: "more" })).toBe("more");
     expect(labelOf({ kind: "search" })).toBe("search");
     expect(labelOf({ kind: "archive" })).toBe("archive");
@@ -232,11 +232,11 @@ describe("navigation labels", () => {
   test("names, counts and the 99+ cap read the same to eyes and screen readers", async () => {
     const { navLabel, TAB_LABEL } = await import("../app/src/phone/tab-bar.tsx");
     const { countText } = await import("../app/src/components/index.tsx");
-    expect(TABS.map((t) => TAB_LABEL[t])).toEqual(["Home", "Inbox", "Agents", "More"]);
-    expect(navLabel("inbox", 0)).toBe("Inbox");
-    expect(navLabel("inbox", 1)).toBe("Inbox, 1 waiting");
-    expect(navLabel("inbox", 3)).toBe("Inbox, 3 waiting");
-    expect(navLabel("inbox", 100)).toBe("Inbox, 99+ waiting");
+    expect(TABS.map((t) => TAB_LABEL[t])).toEqual(["Home", "Flow", "Agents", "More"]);
+    expect(navLabel("inbox", 0)).toBe("Flow");
+    expect(navLabel("inbox", 1)).toBe("Flow, 1 waiting");
+    expect(navLabel("inbox", 3)).toBe("Flow, 3 waiting");
+    expect(navLabel("inbox", 100)).toBe("Flow, 99+ waiting");
     expect(countText(99)).toBe("99");
     expect(countText(250)).toBe("99+");
     expect(navLabel("home", 0)).toBe("Home");

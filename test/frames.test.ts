@@ -332,6 +332,7 @@ describe("every frame in the table, through the real router", () => {
     focus_add: { conversation_id: "conv-1", action: "answer" },
     card_rest: { conversation_id: "conv-1", rest: { n: 1, until: "2026-10-20T09:10:00Z", stamp: "s", at: "2026-10-20T09:00:00Z" } },
     return_times_set: { return_times: RETURN_TIMES_DEFAULT },
+    lanes_set: { lanes: [{ id: "l-work", name: "Work", chats: "all", accounts: [] }] },
     capture: { event: "frames_walked" },
     history_get: { conversation_id: "conv-1" },
     recall_grade: { id: "k", grade: 3 },
@@ -527,6 +528,21 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_server", { entry: " ", edit: null })).toBe("entry required");
     expect(parse("chat_mcp_agent", { agent_id: "agent-local-a", server: "gh", on: true })).toEqual({ agent_id: "agent-local-a", server: "gh", on: true });
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
+  });
+
+  test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 087, U3)", () => {
+    expect(PHONE_FRAMES.has("lanes_set")).toBe(false);
+    expect(
+      parse("lanes_set", {
+        lanes: [
+          { id: "l", name: "Work", chats: "all", accounts: [] },
+          { id: "", name: "x", chats: [], accounts: [] },
+        ],
+      }),
+    ).toEqual({
+      lanes: [{ id: "l", name: "Work", chats: "all", accounts: [] }],
+    });
+    expect(parse("lanes_set", { lanes: "all" })).toBe("lanes must be a list of lanes");
   });
 
   test("none of the MCP or always-allow frames reach a phone", () => {

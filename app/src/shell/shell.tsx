@@ -18,6 +18,7 @@ import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
 import type { Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
+import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { useLokiUpdate } from "./use-loki-update";
@@ -72,7 +73,10 @@ export function Shell() {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
+  // This Mac's lane (plan 087): Flow, the rail, the window title, the dock and the tray count only its cards.
+  const [laneId, setLaneId] = useActiveLaneId("desktop");
   const catchUp = useAttention({
+    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveLane },
     enabled: attention.available,
     makeClient: attention.makeClient,
     seen: attention.seen,
@@ -231,25 +235,30 @@ export function Shell() {
     openDesk(rt.agent_id, rt.conversation_id, { chat: true });
   };
 
-  const waiting = catchUpQueue(catchUp.items).length;
+  // The badges count the active lane's cards (R15); search, the sidebar and agents keep every card (R16).
+  const waiting = catchUpQueue(catchUp.flow.laneItems).length;
   // The inbox badge ticks when something new starts waiting.
   const [tick, setTick] = useState(false);
   const prevWaiting = useRef(waiting);
+  // A lane switch changes the count without anything new coming, so it does not tick.
+  const prevLane = useRef(laneId);
   useEffect(() => {
-    if (waiting > prevWaiting.current) {
+    const switched = prevLane.current !== laneId;
+    prevLane.current = laneId;
+    if (!switched && waiting > prevWaiting.current) {
       setTick(true);
       const t = setTimeout(() => setTick(false), 500);
       prevWaiting.current = waiting;
       return () => clearTimeout(t);
     }
     prevWaiting.current = waiting;
-  }, [waiting]);
+  }, [waiting, laneId]);
   const toggleInbox = useCallback(() => setSegmentRaw((s) => (s === "inbox" ? "desk" : "inbox")), []);
   useTray(waiting, toggleInbox);
   useEffect(() => {
     sessionStorage.setItem(SEGMENT_KEY, segment);
   }, [segment]);
-  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, recall.due);
+  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, recall.due, catchUp.flow.lane?.name ?? null);
 
   // The desks list feeds the sidebar, search and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
   // status too, so the rail's green dot is right before Settings is ever opened.

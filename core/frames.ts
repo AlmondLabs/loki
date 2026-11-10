@@ -9,6 +9,7 @@ import type { UsageReply } from "./usage.ts";
 import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
+import { parseLanes, type Lane } from "./attention/lanes.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
@@ -202,6 +203,13 @@ const linkEnd = (v: unknown): { agent_id: string; conversation_id: string; title
 const lokiMode = (v: unknown): LokiMode | null => (v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted" ? v : null);
 /** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
+/** An account connected on a paired Mac, marked with that Mac, so Flow's lanes can pick it (plan 087, KTD9). */
+export interface MacAccountView extends AccountView {
+  mac_id: string;
+  /** The Mac's name as this Mac shows it. */
+  mac_name: string;
+}
+
 const nothing = (): NoPayload => ({});
 const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = () => ({}) as T): ({ id: string } & T) | string => {
   if (!isRecallId(m.id)) return "a card or lead id required";
@@ -317,8 +325,11 @@ export interface Replies {
    * `replace` asks the person whether to replace a draft already waiting in that place.
    */
   reply_decided: { proposal: ReplyProposal; done: boolean; message: string | null; replace: boolean };
-  /** The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. */
-  accounts: { accounts: AccountView[] };
+  /**
+   * The accounts connected on this Mac (plan 067, U2), after a list, a move or a disconnect; no secrets in them. A list
+   * also carries each paired Mac's accounts as it last said (plan 087, KTD9); a mod from before that leaves them out.
+   */
+  accounts: { accounts: AccountView[]; other_macs?: MacAccountView[] };
   /**
    * An outside card's thread archived on the Mac its account lives on (plan 067, U3), with what the archive changed out
    * there for an undo (plan 070, R14); null when nothing was written.
@@ -416,7 +427,8 @@ export interface Pushes {
   desks: { desks: DeskSummary[] };
   /**
    * `viewed`, `focus`, `rests` and `return_times` are missing from older mods; `return_times` is null while the person
-   * has set none (plan 070), and the Mac then moves its own old first-rest choice there.
+   * has set none (plan 070), and the Mac then moves its own old first-rest choice there. `lanes` is missing from a mod
+   * from before plan 087, and the client then keeps what it has.
    */
   seen: {
     seen: Record<string, string>;
@@ -424,6 +436,7 @@ export interface Pushes {
     focus?: Record<string, FocusEntry>;
     rests?: Record<string, Rest>;
     return_times?: ReturnTimes | null;
+    lanes?: Lane[];
   };
   /** One chat's marks as they now stand, after a change to that chat alone (plan 055); null where it has none. */
   seen_chat: { key: string; seen: string | null; viewed: string | null; focus: FocusEntry | null; rest: Rest | null };
@@ -680,6 +693,12 @@ export const FRAMES = {
     "how long ⌘] and ⌘[ rest each kind of card (core/attention/rest.ts ReturnTimes, plan 070)",
     (m) => (isReturnTimes(m.return_times) ? { return_times: m.return_times } : "return_times must be { read_first, later } of known choices"),
     { phone: PHONE, causes: ["seen"] },
+  ),
+  // Not for the phone: lanes are made and edited on a Mac (plan 087, R8); the phone only reads them from the push.
+  lanes_set: send(
+    "the person's whole list of lanes, replacing the one kept (core/attention/lanes.ts, plan 087)",
+    (m) => (Array.isArray(m.lanes) ? { lanes: parseLanes(m.lanes) } : "lanes must be a list of lanes"),
+    { causes: ["seen"] },
   ),
 
   // Analytics

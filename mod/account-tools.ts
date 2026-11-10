@@ -136,7 +136,7 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
     forAgent,
     description:
       "List the Gmail mailboxes and Slack workspaces you own (id, name, service, whether connected) and the threads " +
-      "waiting in each: open in the Inbox or handed to a chat. One line per thread: thread id, sender, subject or first " +
+      "waiting in each: open in Flow or handed to a chat. One line per thread: thread id, sender, subject or first " +
       "line, state, time, and the chat it went to. No message text: read a thread with account_read. `account` keeps one.",
     parameters: {
       type: "object",

@@ -269,7 +269,7 @@ function Lessons({
         ) : lessons.length === 0 ? (
           <div className="loki-phone-empty">
             <p className="loki-phone-headline">No lessons yet</p>
-            <p>A lead you start becomes a lesson: a conversation with the agent who was there, kept out of the Inbox.</p>
+            <p>A lead you start becomes a lesson: a conversation with the agent who was there, kept out of Flow.</p>
           </div>
         ) : (
           <ul className="loki-phone-list" aria-label="lessons under way">

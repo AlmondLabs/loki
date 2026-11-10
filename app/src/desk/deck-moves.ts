@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { inLane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
@@ -72,9 +73,10 @@ export interface DeckMoveApi {
 /** What the deck's moves read and write: the card on top, the visit's queue and decisions, the badge's flash, the pickers and the reply box. */
 export interface DeckMovesHost {
   current: AttentionItem | undefined;
-  /** Every decision this visit; `agent` narrows which one undo takes back. */
+  /** Every decision this visit, across lane switches; `lane` narrows which one undo takes back. */
   decided: Decision[];
-  agent: string | null;
+  /** The lane Flow is in on this device, null for Everything (plan 087, KTD6). */
+  lane: ResolvedLane | null;
   /** The reply box of the card on top. */
   reply: ReplyBox;
   setReply: (id: string, patch: Partial<ReplyBox>) => void;
@@ -314,7 +316,10 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setQueue((q) => [last.item, ...q.filter((i) => idOf(i) !== idOf(last.item))]);
   };
 
-  /** Undo (⌘Z, Z): the last move of this visit (the pill's agent's, when one is on) is taken back, out there too (R14). */
+  /**
+   * Undo (⌘Z, Z): the last move of this visit on a card in the active lane is taken back, out there too (R14). A move
+   * made on a card another lane holds waits until the person is back in a lane that holds it (KTD6).
+   */
   const undo = () => {
     // A mail reply sent alone and still held (plan 083): stopped before it goes, and the words come back to the box.
     const waiting = host.reply.held;
@@ -327,8 +332,9 @@ export function createDeckMoves(host: DeckMovesHost) {
       });
       return;
     }
+    const { lane } = host;
     let at = host.decided.length - 1;
-    while (at >= 0 && host.agent && ownerAgentOf(host.decided[at].item) !== host.agent) at--;
+    while (at >= 0 && lane && !inLane(host.decided[at].item, lane)) at--;
     const last = at >= 0 ? host.decided[at] : undefined;
     if (!last) return;
     // A mail reply still held (plan 076): stopped before it goes, and the card comes back with the words in its box.

@@ -107,6 +107,9 @@ describe("matching", () => {
     expect(titles(src(), "theme", "pages")).toEqual(["Preferences"]);
     expect(titles(src(), "archive", "pages")).toContain("Archived chats");
     expect(search(src(), "connection").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "connection" });
+    // Flow was the Inbox (plan 087): the old word still finds it.
+    expect(titles(src(), "inbox", "pages")).toEqual(["Flow"]);
+    expect(search(src(), "inbox").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "tab", tab: "inbox" });
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");
   });
   test("the inbox holds the loaded actionable items only", () => {
@@ -197,7 +200,7 @@ describe("recent places", () => {
   const file = formatRoute({ kind: "file", agentId: "a2", path: "notes/today.md" });
   test("each kind of place resolves to a row that opens it", () => {
     const hits = recentPlaceHits([conv, inboxConv, agent, file, "#/learn", "#/preferences", "#/inbox"], src());
-    expect(hits.map((h) => h.title)).toEqual(["Loki mobile", "Approve the invoice", "Ledger", "today.md", "Learn", "Preferences", "Inbox"]);
+    expect(hits.map((h) => h.title)).toEqual(["Loki mobile", "Approve the invoice", "Ledger", "today.md", "Learn", "Preferences", "Flow"]);
     for (const h of hits) expect(typeof formatRoute(h.route)).toBe("string");
     expect(hits[0].route).toEqual({ kind: "conversation", agentId: "a1", conversationId: "c-Loki mobile", prefill: null });
   });

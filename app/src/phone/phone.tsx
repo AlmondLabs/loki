@@ -6,6 +6,7 @@ import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/use-desk";
+import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { savePurpose } from "../desk/rename-desk";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
@@ -197,7 +198,11 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     (event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }),
     [captureRaw],
   );
+  // The phone's own lane (plan 087, R10): its Flow, tab badge, title and Home's attention count only its cards.
+  // Lanes are edited on a Mac (R8), so the phone has no setLanes.
+  const [laneId, setLaneId] = useActiveLaneId("phone");
   const catchUp = useAttention({
+    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: null, resolve: resolveLane },
     enabled: attention.available,
     makeClient: attention.makeClient,
     seen: attention.seen,
@@ -250,14 +255,14 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   });
   useUnpairWatch(desk.connection, onUnpaired);
 
-  const waiting = catchUpQueue(catchUp.items).length;
+  const waiting = catchUpQueue(catchUp.flow.laneItems).length;
   useEffect(() => {
     document.title = waiting > 0 ? `(${waiting}) loki` : "loki";
   }, [waiting]);
 
   // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
   // thread is fetched once when it arrives, and live rows stream in on top.
-  const deck = useDeck(catchUp.items);
+  const deck = useDeck(catchUp.flow.laneItems, catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
   const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
   // Learn's sitting (the card under your hands, the ones answered) lives here, above the routes, so
@@ -666,6 +671,7 @@ function Screen({
         desksLoaded={desk.desks.loaded}
         agents={catchUp.agents}
         items={catchUp.items}
+        laneItems={catchUp.flow.laneItems}
         due={due}
         banner={banner}
         onRefresh={desk.desks.request}

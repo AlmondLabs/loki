@@ -34,7 +34,7 @@ describe("Preferences: the segment keys over the sheet", () => {
 
 describe("Preferences: the section list", () => {
   test("the groups hold every page once, and the list is the groups' pages in order", () => {
-    expect(GROUPS.map((g) => g.title)).toEqual(["General", "Models and tools", "Your devices", "Inbox and Learn", "Labels", "loki"]);
+    expect(GROUPS.map((g) => g.title)).toEqual(["General", "Models and tools", "Your devices", "Flow and Learn", "Labels", "loki"]);
     expect(PAGES.map((p) => pageTitle(p.id))).toEqual([
       "Appearance",
       "Chat",
@@ -45,7 +45,7 @@ describe("Preferences: the section list", () => {
       "Skills",
       "Macs",
       "Phone",
-      "Inbox",
+      "Flow",
       "Accounts",
       "Learn",
       "Labels",
@@ -71,6 +71,8 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("dark")).toEqual(["appearance"]);
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
+    // Flow was the Inbox (plan 087): the old word still finds its page.
+    expect(pagesMatching("inbox")).toEqual(["inbox"]);
   });
 });
 
