@@ -171,9 +171,9 @@ account moves them. An account never has no owner, so an agent that owns one can
 disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
-an account rather than a chat: every thread in the Gmail inbox, read or unread, and every unread Slack DM or Activity
-item, and every Jira ticket the person watches once someone else comments on it or changes it. It ranks like a chat
-with something new and rests like one. Its moves write back out there (`OutsideSource`,
+an account rather than a chat: every thread in the Gmail inbox, read or unread (the inbox is the list of email
+cards, plan 088), every unread Slack DM or Activity item, and every Jira ticket the person watches once someone else
+comments on it or changes it. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
 plan 070): read marks the thread read, later leaves it unread, archive archives the email in Gmail or marks a Slack DM
 read, label adds Gmail labels, and undo puts the thread back as it was. A Jira card writes nothing back: read ends
 it, later rests it, and it takes no archive or labels (plan 2026-11-10-1451). It shows the whole thread, read from its

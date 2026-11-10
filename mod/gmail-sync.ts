@@ -1,4 +1,4 @@
-import { advanceRefill, firstRefill, parseRefill, refillWindow, type RefillCursor, type RefillResult, type RefillWindow } from "../core/account-refill.ts";
+import { PAST_CAP } from "../core/account-refill.ts";
 import { messageOf } from "../core/errors.ts";
 import { addressesIn, mailTraits } from "../core/mail-filter.ts";
 import type { OutsideChange, OutsideMessageChange, OutsideWrite } from "../core/frame-types.ts";
@@ -11,18 +11,18 @@ import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 
 /**
- * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11, KTD13; plan 070, KTD2, KTD5). Every thread in the inbox,
- * read or unread, is a card that carries Gmail's read state. The first tick keeps the mailbox's history id and brings
- * every inbox thread of the last 3 days; each later tick asks Gmail what changed since that id (2 quota units when
- * nothing did), turns new mail in the inbox into cards, follows mail read or marked unread in Gmail, and takes away the
- * cards of threads the person archived there, and brings a card back when its mail is moved back into the inbox
- * (plan 070, KTD4). When Gmail no longer keeps history that far back, the account is read
- * again from a bounded search; the thread records keep archived and handed-off threads from coming back. While the
- * account has fewer than 20 open cards, older inbox threads fill it up to 20 (core/account-refill.ts, plan 078).
+ * Watching one Gmail account (plan 067, U5, KTD3, KTD6, KTD11; plan 070, KTD2; plan 088). Gmail's inbox is the list of
+ * email cards: every thread in it, read or unread, in every tab, is a card that carries Gmail's read state, and
+ * archiving is the only way one is done. The first tick keeps the mailbox's history id; each later tick asks Gmail what
+ * changed since that id (2 quota units when nothing did), turns new mail in the inbox into cards, follows mail read or
+ * marked unread in Gmail, takes away the cards of threads the person archived there, and brings a card back when its
+ * mail is moved back into the inbox (plan 070, KTD4). While the inbox may hold threads loki has not drawn (the first
+ * sync, an upgrade, lost history, or a listing that stopped at the cap) the inbox is listed, newest first, and each
+ * thread loki has no record of becomes a card, until the account has 20 open cards (PAST_CAP, plan 078).
  */
 
 /** The calls a Gmail sync makes; GmailClient has them. */
-export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | "historySince" | "listMessages" | "getThread">;
+export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | "historySince" | "listInbox" | "getThread">;
 
 /** What GmailSync is built from; the clock is injected so tests own it. */
 export interface GmailSyncOptions {
@@ -32,7 +32,7 @@ export interface GmailSyncOptions {
   client: GmailSyncClient;
   /** Told of the people on each message the watcher reads, for the recipients line's suggestions (plan 076). */
   people?: Pick<MailPeople, "saw">;
-  /** Whether a card rests in the Inbox now, so the past's cap leaves it out (plan 078); none rest when not given. */
+  /** Whether a card rests in the Inbox now, so the listing's cap leaves it out (plan 078); none rest when not given. */
   resting?: (record: ThreadRecord) => boolean;
   now?: () => Date;
 }
@@ -40,24 +40,22 @@ export interface GmailSyncOptions {
 /** Where the watcher stands on a Gmail account, kept as the account's backfill cursor. */
 interface GmailCursor {
   history_id: string;
-  refill: RefillCursor;
+  /**
+   * The inbox may hold threads loki has not drawn (plan 088): set by the first sync, an upgrade and lost history, kept
+   * while a listing stops at the cap, and cleared by a listing that reaches the inbox's end.
+   */
+  more: boolean;
   /** Which rule the records were last brought in step with; a cursor from before plan 070 has none and reads as 1. */
   version: number;
 }
 
 /** Failed ticks in a row before the account says it is failing for now (R22). */
 const FAILURES_BEFORE_STATUS = 3;
-/** Windows one tick reads at most while the account has room, so a long backlog spreads over ticks. */
-const REFILL_STEPS_PER_TICK = 4;
-/** How far back a rebuild after lost history reads; mail older than this was there before and was read then. */
-const REBUILD_DAYS = 30;
-const DAY = 24 * 3600 * 1000;
-const IN_INBOX = "in:inbox";
 /**
- * The cursor's version now. Version 2 (plan 070): every inbox thread is a card, so the threads the rule before archived
- * only for being read are checked once against the inbox.
+ * The cursor's version now. Version 3 (plan 088): the inbox is the list of cards, so a cursor from before lists the
+ * inbox once, which brings in the threads an earlier rule passed over.
  */
-const CURSOR_VERSION = 2;
+const CURSOR_VERSION = 3;
 /** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
 const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
 
@@ -155,8 +153,6 @@ const headerOf = (m: GmailMessage, name: string): string => m.payload?.headers.f
 const isInInbox = (m: GmailMessage): boolean => m.labelIds.includes("INBOX");
 const fromOwn = (m: GmailMessage, own: readonly string[]): boolean => addressesIn(headerOf(m, "From")).some((a) => own.includes(a));
 const timeOf = (m: GmailMessage): number => Number(m.internalDate) || 0;
-/** Gmail's search takes whole seconds. */
-const seconds = (iso: string, round: (n: number) => number): number => round(Date.parse(iso) / 1000);
 
 /** Who a From header names, as a card shows them: the display name, or the address when it has none. */
 function senderOf(from: string): { name: string; address: string | null } {
@@ -179,10 +175,11 @@ const plain = (snippet: string): string =>
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
 
+/** The cursor as the account keeps it; one from before this version lists the inbox once (plan 088). */
 function parseCursor(v: Record<string, unknown>): GmailCursor | null {
-  const refill = parseRefill(v.refill);
   const version = typeof v.version === "number" ? v.version : 1;
-  return typeof v.history_id === "string" && v.history_id && refill ? { history_id: v.history_id, refill, version } : null;
+  if (typeof v.history_id !== "string" || !v.history_id) return null;
+  return { history_id: v.history_id, more: v.more === true || version < CURSOR_VERSION, version };
 }
 
 /** One Gmail account's watching, ticked by the AccountWatcher. */
@@ -226,45 +223,26 @@ export class GmailSync implements AccountSync {
   }
 
   private save(cursor: GmailCursor): void {
-    this.opts.accounts.setBackfill(this.accountId, { history_id: cursor.history_id, refill: cursor.refill, version: cursor.version });
+    this.opts.accounts.setBackfill(this.accountId, { history_id: cursor.history_id, more: cursor.more, version: CURSOR_VERSION });
   }
 
   private async run(): Promise<void> {
     const own = (this.own ??= [...new Set([...(await this.opts.client.sendAsAddresses()), this.opts.account.address].map((a) => a.trim().toLowerCase()))]);
     const cursor = this.cursor();
     if (!cursor) {
-      // The history id first, so mail that comes while the first window is read arrives with the next tick.
+      // The history id first, so mail that comes while the inbox is listed arrives with the next tick.
       const profile = await this.opts.client.profile();
-      this.save({ history_id: profile.historyId, refill: firstRefill(this.now()), version: CURSOR_VERSION });
+      this.save({ history_id: profile.historyId, more: true, version: CURSOR_VERSION });
     } else {
       const changes = await this.opts.client.historySince(cursor.history_id);
-      if (changes.kind === "expired") await this.rebuild(own, cursor);
+      if (changes.kind === "expired") await this.rebuild(own);
       else {
         const { all, back } = this.touched(changes.history);
         for (const threadId of all) await this.syncThread(threadId, own, false, back.has(threadId));
         this.save({ ...cursor, history_id: changes.history_id });
       }
-      if (cursor.version < CURSOR_VERSION) await this.reconcile(own);
     }
-    await this.refill(own);
-  }
-
-  /**
-   * Once, on the first tick after the upgrade to plan 070 (KTD5): the rule before archived a thread whose mail was all
-   * read although it stayed in the Gmail inbox. Each archived record's thread is read again; one with a message in the
-   * inbox opens again as the same card, and one gone from the inbox stays archived. A failure leaves the version as it
-   * was, so the next tick checks again; those already reopened are open by then and are not read twice.
-   */
-  private async reconcile(own: string[]): Promise<void> {
-    for (const r of this.opts.threads.list(this.accountId)) {
-      if (r.state !== "archived") continue;
-      const messages = await this.threadOf(r.thread_id);
-      if (!messages?.some(isInInbox)) continue;
-      this.opts.threads.reopen(this.accountId, r.thread_id);
-      this.apply(r.thread_id, messages, own, r.from_backfill);
-    }
-    const cursor = this.cursor();
-    if (cursor) this.save({ ...cursor, version: CURSOR_VERSION });
+    await this.listInbox(own);
   }
 
   /**
@@ -291,23 +269,27 @@ export class GmailSync implements AccountSync {
   }
 
   /**
-   * History lost (KTD3): watch on from the mailbox's history id now, read again the inbox of the part already covered
-   * (at most the last 30 days), and check each open card's thread. A thread whose newest mail is the one recorded stays
-   * as it was, archived or handed off included (AccountThreads.observe).
+   * History lost (KTD3): watch on from the mailbox's history id now, and read again each open card's thread and each
+   * thread in the inbox loki has a record of, so mail that came meanwhile in a thread loki had closed shows as it would
+   * have. A thread whose newest mail is the one recorded stays as it was, archived or handed off included
+   * (AccountThreads.observe). The threads loki has no record of are the listing's, which runs after (plan 088).
    */
-  private async rebuild(own: string[], cursor: GmailCursor): Promise<void> {
+  private async rebuild(own: string[]): Promise<void> {
     const profile = await this.opts.client.profile();
-    const after = Math.max(Date.parse(cursor.refill.before), this.now().getTime() - REBUILD_DAYS * DAY);
-    const threadIds = new Set<string>();
+    const threadIds = new Set(
+      this.opts.threads
+        .list(this.accountId)
+        .filter((r) => r.state === "open")
+        .map((r) => r.thread_id),
+    );
     let pageToken: string | undefined;
     do {
-      const page = await this.opts.client.listMessages(`${IN_INBOX} after:${String(Math.floor(after / 1000))}`, pageToken);
-      for (const m of page.messages) threadIds.add(m.threadId);
+      const page = await this.opts.client.listInbox(pageToken);
+      for (const threadId of page.threads) if (this.opts.threads.get(this.accountId, threadId)) threadIds.add(threadId);
       pageToken = page.nextPageToken;
     } while (pageToken);
-    for (const r of this.opts.threads.list(this.accountId)) if (r.state === "open") threadIds.add(r.thread_id);
     for (const threadId of threadIds) await this.syncThread(threadId, own, false);
-    this.save({ ...cursor, history_id: profile.historyId });
+    this.save({ history_id: profile.historyId, more: true, version: CURSOR_VERSION });
   }
 
   /**
@@ -315,8 +297,8 @@ export class GmailSync implements AccountSync {
    * with Gmail's read state, or the card taken away when none is. The thread's messages are returned, for a batch's
    * place; null when the thread is gone or unreadable. `observed` says whether a card opened or changed, and `unread`
    * whether the thread is unread in Gmail. With `reopen`, the thread was moved back into the inbox, so an archived
-   * record with mail in the inbox opens again as the same card (KTD4); a rebuild never asks this, so it keeps archived
-   * threads out.
+   * record with mail in the inbox opens again as the same card (KTD4); a rebuild and a listing never ask this, so they
+   * keep archived threads out.
    */
   private async syncThread(
     threadId: string,
@@ -401,57 +383,28 @@ export class GmailSync implements AccountSync {
     return this.opts.accounts.get(this.accountId)?.status === "connected";
   }
 
-  /** Fill the account up to PAST_CAP open cards with older inbox threads, read or unread (KTD13; plan 078). */
-  private async refill(own: string[]): Promise<void> {
-    for (let step = 0; step < REFILL_STEPS_PER_TICK; step++) {
-      const cursor = this.cursor();
-      if (!cursor) return;
-      const open = this.opts.threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
-      const window = refillWindow(cursor.refill, open);
-      if (!window) return;
-      const result = await this.readWindow(window, own);
-      this.save({ ...cursor, refill: advanceRefill(cursor.refill, window, result) });
-    }
-  }
-
   /**
-   * Read one window into cards (plan 078): its inbox threads, read or unread, newest first, until the window's limit;
-   * a full window stops at the oldest thread it took, so the next read goes on from there and skips nothing newer.
-   * Threads already recorded are passed over.
+   * List the inbox, newest first, while it may hold threads loki has not drawn (plan 088), and make a card of each
+   * thread loki has no record of until the account has PAST_CAP open cards; resting cards leave the count (plan 078).
+   * A thread with a record is passed over whatever its state, so a listing never brings back what the person archived,
+   * even while that archive is still on its way to Gmail. Stopping at the cap keeps `more`, and the next tick with room
+   * lists again; reaching the inbox's end clears it.
    */
-  private async readWindow(window: RefillWindow, own: string[]): Promise<RefillResult> {
-    const span = `after:${String(seconds(window.after, Math.floor))} before:${String(seconds(window.before, Math.ceil))}`;
-    const passed = new Set<string>();
-    let any = false;
-    let taken = 0;
+  private async listInbox(own: string[]): Promise<void> {
+    if (!this.cursor()?.more) return;
+    let room = PAST_CAP - this.opts.threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
+    if (room <= 0) return;
     let pageToken: string | undefined;
     do {
-      const page = await this.opts.client.listMessages(`${IN_INBOX} ${span}`, pageToken);
-      for (const listed of page.messages) {
-        any = true;
-        if (passed.has(listed.threadId) || this.opts.threads.get(this.accountId, listed.threadId)) continue;
-        passed.add(listed.threadId);
-        const synced = await this.syncThread(listed.threadId, own, true);
-        if (!synced?.observed) continue;
-        taken++;
-        if (window.limit !== null && taken >= window.limit) {
-          const at = synced.messages.find((m) => m.id === listed.id);
-          return { kind: "full", oldest_at: new Date(at ? timeOf(at) : Date.parse(window.after)).toISOString() };
-        }
+      const page = await this.opts.client.listInbox(pageToken);
+      for (const threadId of page.threads) {
+        if (this.opts.threads.get(this.accountId, threadId)) continue;
+        const synced = await this.syncThread(threadId, own, true);
+        if (synced?.observed && --room <= 0) return;
       }
       pageToken = page.nextPageToken;
     } while (pageToken);
-    if (any) return { kind: "done" };
-    return { kind: "empty", newest_older_at: await this.newestBefore(window.after) };
-  }
-
-  /** When the newest mail in the inbox older than a time came, or null when there is none. */
-  private async newestBefore(iso: string): Promise<string | null> {
-    const page = await this.opts.client.listMessages(`${IN_INBOX} before:${String(seconds(iso, Math.floor))}`);
-    const first = page.messages.at(0);
-    if (!first) return null;
-    const thread = await this.opts.client.getThread(first.threadId, "metadata");
-    const m = thread.messages.find((x) => x.id === first.id);
-    return m ? new Date(timeOf(m)).toISOString() : null;
+    const cursor = this.cursor();
+    if (cursor) this.save({ ...cursor, more: false });
   }
 }
