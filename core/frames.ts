@@ -22,6 +22,7 @@ import type {
   OutsideMessage,
   OutsideWindow,
   OutsideWindowAsk,
+  JiraCardTicket,
   OutsideMessageChange,
   OutsideMove,
   OutsideReplied,
@@ -355,7 +356,7 @@ export interface Replies {
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
-  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow; link?: string };
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow; link?: string; ticket?: JiraCardTicket };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
   account_move_kept: { account_id: string; thread_id: string; kept: boolean };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
@@ -1329,7 +1330,7 @@ export const FRAMES = {
   ),
   account_thread_read: request(
     "account_thread",
-    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one, and with `view` and `thread_ts` one thread alone (plan 077); sent to the Mac the account lives on by `home`",
+    "an outside card's thread, every message with its sender and time, read from its account (plan 068); a Slack card's window around what is new, or with `direction` and `from` 20 more messages before or after one, and with `view` and `thread_ts` one thread alone (plan 077); a Jira card's comments and field changes the same way, or with `ticket` its comments alone and, with its opening window, the ticket's fields, description and what changed since it was read (plan 089); sent to the Mac the account lives on by `home`",
     (m) => {
       if (!(str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id)) return "account_id and thread_id required";
       const ask: OutsideWindowAsk = {};
@@ -1340,6 +1341,8 @@ export const FRAMES = {
       else if (m.direction !== undefined) return "direction must be before or after";
       if (str(m.from) && m.from) ask.from = m.from;
       if (ask.direction && !ask.from) return "from required with direction";
+      // Plan 089: an older Mac builds its ask from the keys it knows, so it drops this one and answers as it did.
+      if (m.ticket === true) ask.ticket = true;
       return { account_id: m.account_id, thread_id: m.thread_id, home: strOr(m.home, null), ...ask };
     },
     PHONE,

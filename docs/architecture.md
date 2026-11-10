@@ -467,8 +467,9 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `jira-text.ts`, which turns Jira's document format into plain lines and back; `jira-sync.ts`, the sync of a site's
    watched tickets (an account id `jira:<API host>:<Atlassian account id>`; its watermark, a memo of each ticket's
    update time and the past fill's page token kept in the account record's backfill) and its write-back, which writes
-   nothing to Jira; and `jira-view.ts`, a card's window of events and the whole ticket for a hand-off and
-   `account_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
+   nothing to Jira; and `jira-view.ts`, which builds a Jira card's ticket (fields, description, changes) and its
+   window of comments, or the older merged log of comments and changes when the app does not ask for the ticket, and
+   the whole ticket for a hand-off and `account_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
    each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
    recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
    for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM

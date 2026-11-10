@@ -229,8 +229,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         or **reconnect jira** when it needs it; **Connect an account**, where you choose the owner, then **connect
         gmail**, **connect slack** or **connect jira** (a form for the site, your email and an API token), with **Use
         your own Google app** folded below it (see "Email, Slack and Jira"); what read, later, archive, label and a
-        reply do; **Read rests a card for**, for chats and for email, and **Later brings a card back after**, for
-        chats, email and Slack (Jira cards use Slack's), on every device (see "Return times"); and, under "How the
+        reply do, a Jira card included (read ends it; archive and label do not apply); **Read rests a card for**, for
+        chats and for email, and **Later brings a card back after**, for chats, email, Slack and Jira, on every device
+        (see "Return times"); and, under "How the
         order works", what each card's score is made of (see "The order").
      2. **Learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
@@ -860,8 +861,9 @@ thread, starts that count over.
 
 1. **Read rests a card for**: the first rest after read, for chats and for email apart: 10 min, 30 min, 1 hour (the
    default) or 3 hours. The ladder above climbs from it.
-2. **Later brings a card back after**: the later return, for chats, email and Slack apart: 3 hours, 1 day (the
-   default), 2 days or 1 week. A Jira card comes back after Slack's.
+2. **Later brings a card back after**: the later return, for chats, email, Slack and Jira apart: 3 hours, 1 day (the
+   default), 2 days or 1 week. A Mac still on a loki from before Jira's row puts a Jira card off for Slack's
+   time, and keeps Jira's when you change another.
 
 A rest keeps the time it was given, so a change counts from the next press on. How fast the ladder climbs, and the
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
@@ -1101,16 +1103,31 @@ read) stay in the row at the bottom. The phone keeps its own layout.
    your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
    recipients line has To and Cc. The mode, From and Bcc are on the Mac.
 
-**Jira tickets.** A Jira card is one ticket. Its header names the ticket by key and title ("OPS-7 · Rotate the keys"),
-and its tag says why it is there, the most direct that applies: **mentioned you**, **assigned to you** or **watching**.
-Under it are the ticket's events, oldest first: a comment as its text, a change to a field as one line ("status: To Do →
-In Progress"). Slack's red **New** line sits before the first event you have not read, **load earlier** brings older
-events, and **open in jira** opens the ticket in your browser. The phone shows the same events and New line, with no
-tag, as no card there has one. A Jira card's moves differ from mail's and Slack's:
+**Jira tickets.** A Jira card is one ticket, drawn as the ticket reads in Jira. Its header names the ticket's key, type
+and project ("◆ OPS-7 · Task · Operations") over its summary, which is the card's title; its tag says why it is there,
+the most direct that applies: **mentioned you**, **assigned to you** or **watching**, and **open in jira** opens the
+ticket in your browser. Under the header, in order:
+
+1. The fields, on a quiet plate: status (as a small pill), assignee, reporter, priority, sprint and labels, each only
+   when the ticket has it. A field someone else changed since you last read the card is marked **new**, with what it
+   was, who changed it and when under it ("was In progress · Ada Lovelace · 2h"); a changed summary, type or project
+   marks the header new.
+2. One quiet line for the fields the card does not show that someone else changed, by who and when ("also changed:
+   Rank, Story points · Ada Lovelace · 2h").
+3. **Description**, as plain text, folded after six lines with **show more**; an edit to it is marked new under its
+   heading ("edited · Ada Lovelace · 1h").
+4. **Comments** with their count, oldest first: Slack's red **New** line sits before the first comment you have not
+   read, **load earlier** brings older ones, and the comment box comes last. Field changes are not lines here.
+
+The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. When the
+Jira site lives on a paired Mac still on an older loki, or an app on an older loki shows a card from this Mac, the card
+shows the older log, the ticket's events as one list of comments and field changes, until both are updated. So does a
+card whose ticket's fields Jira would not give this time: its comments and changes still show. A Jira card's moves
+differ from mail's and Slack's:
 
 1. Read (⌘], a right swipe on the phone) is the only move that ends the card. It comes back when the ticket gets a new
    event, with only that event marked new. Undo brings it back at once.
-2. Later (⌘[, a left swipe) keeps it unread and brings it back after Slack's later time (see "Return times").
+2. Later (⌘[, a left swipe) keeps it unread and brings it back after Jira's later time (see "Return times").
 3. Archive (⌘E) and label (L) do nothing, and the card shows no archive or label control: archive says "a jira card
    ends with read", and the phone says "A Jira card ends only with Read."
 4. Hand off sends the owner the whole ticket, and the card stays (see "Hand-off" below).

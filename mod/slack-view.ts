@@ -1,4 +1,4 @@
-import type { OutsideWindow, OutsideWindowAsk, SlackCardView, SlackFile, SlackReaction } from "../core/frame-types.ts";
+import type { JiraCardTicket, OutsideWindow, OutsideWindowAsk, SlackCardView, SlackFile, SlackReaction } from "../core/frame-types.ts";
 import { senderOf, tsIso, type ThreadMessage } from "./handoff.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
 import { reactionEmoji, readSlackMessage, slackFileParts, type SlackNames, type SlackThumb } from "./slack-markup.ts";
@@ -48,6 +48,8 @@ export interface CardWindow {
   window: OutsideWindow;
   /** The thread's address in the browser, for a Jira card (R14). */
   link?: string;
+  /** A Jira card's ticket (plan 089), with its opening window only. */
+  ticket?: JiraCardTicket;
 }
 
 /** A card's window read from its account: the opening one, or what `ask` asks for. */

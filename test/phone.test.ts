@@ -6,7 +6,8 @@ import { OutsideThread } from "../app/src/desk/outside-card.tsx";
 import { must } from "./fixtures/must.ts";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
-import { outsideItem } from "./fixtures/outside-item.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
+import { JIRA_COMMENTS, jiraTicket } from "./fixtures/jira-card.ts";
 import {
   AUTO_RELOAD_HIDDEN_MS,
   CODE_ALPHABET,
@@ -633,5 +634,44 @@ describe("an outside card's thread on the phone (plan 2026-11-10-1451, U5, R21)"
   });
   test("a Jira card offers its earlier events in the phone's words", () => {
     expect(draw("jira", { view: "channel", thread_ts: null, more_before: true, more_after: false })).toContain(">Load earlier<");
+  });
+});
+
+describe("a Jira card shaped like the ticket, on the phone (plan 089)", () => {
+  const facts = must(jiraItem().outside, "the card's facts");
+  const draw = (ticket = jiraTicket(), window: OutsideWindow | null = null) =>
+    renderToStaticMarkup(
+      createElement(OutsideThread, {
+        facts,
+        state: { kind: "read", messages: JIRA_COMMENTS, ticket, window, controls: { load: () => {}, openThread: () => {}, busy: null } },
+        touch: true,
+      }),
+    );
+
+  test("the same parts in the same order, in sentence case, without the tag", () => {
+    const html = draw();
+    const order = [
+      "OPS-7",
+      "· Task · Operations",
+      "Rotate the keys",
+      ">Status<",
+      "Also changed: Rank, Story points · Ada Lovelace",
+      "Description",
+      "Comments · 2",
+    ].map((s) => html.indexOf(s));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toContain(">New<");
+    expect(html).toContain("Was In progress · Ada Lovelace · ");
+    expect(html).toContain(">Show more<");
+    expect(html).not.toContain("line 7");
+    expect(html).not.toContain("watching");
+    expect(html).not.toContain("open in jira");
+  });
+  test("its comments keep the New line and load earlier in the phone's words", () => {
+    const html = draw(jiraTicket(), { view: "channel", thread_ts: null, more_before: true, more_after: false });
+    expect(html).toContain(">Load earlier<");
+    expect(html.indexOf("New since you last read")).toBeGreaterThan(html.indexOf("On it"));
+    expect(html.indexOf("New since you last read")).toBeLessThan(html.indexOf("Can you look at the rotation?"));
   });
 });

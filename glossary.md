@@ -155,8 +155,8 @@ only. A later rest is the Later below. Anything new in the thread ends either. A
 (`rests` in `state/attention.json`) with its kind, `read` or `later`, so every device shares it. _Avoid_: snooze.
 
 **Later** (⌘[ or ←; a left swipe on the phone; plan 070): a rest that keeps the card unread, in loki and in Gmail, and
-brings it back after the card kind's later time (a day unless Preferences › Flow says otherwise; a Jira card takes
-Slack's), or sooner if something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
+brings it back after the card kind's later time (a day unless Preferences › Flow says otherwise, for chats, email,
+Slack and Jira apart), or sooner if something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over
 once the thread gets something new or the card is read. _Avoid_: snooze, park.
 
 **Account** (`mod/accounts.ts`, plan 067): a Gmail mailbox, a Slack workspace or a Jira site connected on this Mac,

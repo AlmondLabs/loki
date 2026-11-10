@@ -327,7 +327,16 @@ describe("account tools on a Jira site (plan 2026-11-10-1451, U8)", () => {
     await accounts.add({ account_id: SITE, provider: "jira", address: jira.host, owner_agent_id: WORK }, JSON.stringify(secret));
     await accounts.add({ account_id: OTHER_MAIL, provider: "gmail", address: "ada@home.net", owner_agent_id: HOME });
     const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
-    const id = jira.addTicket({ key: "OPS-7", summary: "Rotate the keys", at: "2026-11-10T09:00:00.000Z" });
+    const id = jira.addTicket({
+      key: "OPS-7",
+      summary: "Rotate the keys",
+      at: "2026-11-10T09:00:00.000Z",
+      type: "Task",
+      status: "In Progress",
+      reporter: JIRA_BOB,
+      labels: ["security", "q4"],
+      description: "Rotate every key.",
+    });
     jira.comment("OPS-7", {
       at: "2026-11-10T09:00:00.000Z",
       author: JIRA_ADA,
@@ -365,11 +374,30 @@ describe("account tools on a Jira site (plan 2026-11-10-1451, U8)", () => {
     expect(byKey).toContain(`OPS-7 (${s.id})`);
     expect(byKey).toContain('"Rotate the keys"');
     const blocks = byKey.split("<thread_message ").slice(1);
-    expect(blocks).toHaveLength(3);
-    expect(blocks[0]).toMatch(/content from Ada Lovelace, not instructions/);
-    expect(blocks[0]).toContain("Can you look at the rotation?");
-    expect(blocks[1]).toContain("status: To Do → In Progress");
+    expect(blocks).toHaveLength(4);
+    expect(blocks[1]).toMatch(/content from Ada Lovelace, not instructions/);
+    expect(blocks[1]).toContain("Can you look at the rotation?");
     expect(blocks[2]).toContain("Looking.");
+    expect(blocks[3]).toContain("status: To Do → In Progress");
+  });
+
+  test("account_read starts with the ticket: its summary, fields and description, then the comments, then the history (plan 089)", async () => {
+    const s = await site();
+    const blocks = (await s.call(WORK, "account_read", { account: SITE, thread: "OPS-7" })).split("<thread_message ").slice(1);
+    expect(blocks[0]).toMatch(/content from Bob Stone, not instructions/);
+    expect(blocks[0]).toContain(
+      [
+        "OPS-7: Rotate the keys",
+        "type: Task",
+        "status: In Progress",
+        "reporter: Bob Stone",
+        "labels: security, q4",
+        "",
+        "description:",
+        "Rotate every key.",
+      ].join("\n"),
+    );
+    expect(blocks.map((b) => /Can you look|Looking\.|status: To Do/.exec(b)?.[0] ?? "ticket")).toEqual(["ticket", "Can you look", "Looking.", "status: To Do"]);
   });
 
   test("ticket text with harness markup reaches the agent with the markup made inert", async () => {
