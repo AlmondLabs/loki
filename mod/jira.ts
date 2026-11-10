@@ -41,6 +41,14 @@ export function parseJiraSecret(raw: string | null): JiraSecret | null {
   }
 }
 
+/**
+ * The person's Atlassian id in a Jira account's id: everything after the host in `jira:<host>:<account id>`, since the
+ * id may hold colons itself. One place reads it, so a change to the account id's shape cannot miss a copy.
+ */
+export function jiraPersonOf(accountId: string): string {
+  return accountId.split(":").slice(2).join(":");
+}
+
 /** A ticket's address in the browser (R14): on the site's own domain when it has one, else on its API host. */
 export function jiraTicketUrl(secret: Pick<JiraSecret, "site" | "link_host">, key: string): string {
   return `https://${secret.link_host ?? secret.site}/browse/${encodeURIComponent(key)}`;

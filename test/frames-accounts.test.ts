@@ -447,6 +447,18 @@ describe("connecting a Jira site (plan 2026-11-10-1451, U3)", () => {
     expect(accounts.get(JIRA_ID)).toBeNull();
   });
 
+  test("a site that names its API somewhere other than atlassian.net is refused, and the token is never sent", async () => {
+    const { connect, site, details } = connectingJira(fakeJira({ now: NOW, host: "jira.elsewhere.example" }));
+    const { ask, accounts } = await fixture(undefined, connect);
+    expect(await ask(details)).toMatchObject({
+      type: "error",
+      message: "jira.elsewhere.example did not answer as a Jira Cloud site: check the site address",
+    });
+    expect(site.requests.length).toBeGreaterThan(0);
+    expect(site.requests.filter((r) => r.authorization !== "")).toEqual([]);
+    expect(accounts.list().filter((a) => a.provider === "jira")).toEqual([]);
+  });
+
   test("a site address given as a full URL, with a path or in mixed case is the same account as its bare host", async () => {
     for (const typed of [
       "https://acme.atlassian.net",

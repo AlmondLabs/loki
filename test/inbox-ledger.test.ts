@@ -52,6 +52,7 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   dealt_was: null,
   brought_ids: [],
   seeds: [],
+  seeds_was: [],
   ...over,
 });
 

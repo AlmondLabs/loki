@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import type { AccountProvider, AccountView, SlackWorkspaceView } from "../../../core/frame-types.ts";
 import { Button, Dot, Field } from "../components";
-import { disconnectedText } from "../desk/outside-card";
+import { disconnectedText } from "../desk/outside-words";
 import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
 import { Block, Fold, Setting } from "./layout";
 
@@ -268,13 +268,21 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     setWorkspaces({ owner: ownerId, list: r.workspaces });
   };
   const jiraInput = jiraForm && jiraConnectOf(jiraForm, owner);
+  // A connect on its way: a second press would connect the site again and end in "already connected" under a success.
+  const [connecting, setConnecting] = useState(false);
   const jira = async (input: JiraConnect) => {
-    const r = await api.connectJira(input);
-    // The list is asked again every few seconds and clears the error line above it, so the reason stays in the notice.
-    if (typeof r === "string") return setNotice(r);
-    setJiraForm(null);
-    setNotice(null);
-    apply(r);
+    if (connecting) return;
+    setConnecting(true);
+    try {
+      const r = await api.connectJira(input);
+      // The list is asked again every few seconds and clears the error line above it, so the reason stays in the notice.
+      if (typeof r === "string") return setNotice(r);
+      setJiraForm(null);
+      setNotice(null);
+      apply(r);
+    } finally {
+      setConnecting(false);
+    }
   };
   const reconnect = (r: Reconnect) =>
     reconnectVia(r, { gmail: (ownerId) => void gmail(ownerId), slack: (ownerId, teamId) => void slack(ownerId, teamId), jira: setJiraForm });
@@ -309,7 +317,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
           </Button>
         </Setting>
         <Setting label="Jira" help={jiraState.reason ?? "Asks for your site's address, your Atlassian email and an API token."}>
-          <Button tone="positive" disabled={!jiraState.ready} onClick={() => setJiraForm({ reconnecting: null, site: "", email: "", token: "" })}>
+          <Button tone="positive" disabled={!jiraState.ready || connecting} onClick={() => setJiraForm({ reconnecting: null, site: "", email: "", token: "" })}>
             connect jira
           </Button>
         </Setting>
@@ -348,10 +356,12 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
               style={{ marginTop: 8 }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0" }}>
-              <Button tone="positive" disabled={!jiraInput} onClick={() => jiraInput && void jira(jiraInput)}>
+              <Button tone="positive" disabled={!jiraInput || connecting} onClick={() => jiraInput && void jira(jiraInput)}>
                 {jiraForm.reconnecting ? "reconnect jira" : "connect"}
               </Button>
-              <Button onClick={() => setJiraForm(null)}>cancel</Button>
+              <Button disabled={connecting} onClick={() => setJiraForm(null)}>
+                cancel
+              </Button>
             </div>
           </>
         )}

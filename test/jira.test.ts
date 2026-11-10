@@ -158,6 +158,36 @@ describe("a rate limit", () => {
     expect(jira.requests).toHaveLength(2);
     expect(statuses).toEqual([]);
   });
+
+  test("a 429 whose wait is missing, zero or not a number holds every call for 60 s", async () => {
+    for (const retryAfter of [null, "0", "soon"]) {
+      const { jira, statuses, clock } = setup();
+      let limited = true;
+      let asked = 0;
+      const c = new JiraClient({
+        secret: () => Promise.resolve({ site: jira.host, email: jira.state.email, token: "fixture-jira-token" }),
+        setStatus: (s) => statuses.push(s),
+        fetch: (input, init) => {
+          asked += 1;
+          if (!limited) return jira.fetch(input, init);
+          limited = false;
+          return Promise.resolve(new Response("{}", { status: 429, headers: retryAfter === null ? {} : { "retry-after": retryAfter } }));
+        },
+        now: () => new Date(clock.t),
+      });
+      const first = await refusal(c.myself());
+      expect([retryAfter, first.code, first.retryAfterMs]).toEqual([retryAfter, "rate_limited", 60_000]);
+
+      clock.t = T0 + 59_999;
+      expect([retryAfter, (await refusal(c.myself())).retryAfterMs]).toEqual([retryAfter, 1]);
+      expect(asked).toBe(1);
+
+      clock.t = T0 + 60_000;
+      expect((await c.myself()).account_id).toBe("acc-me");
+      expect(asked).toBe(2);
+      expect(statuses).toEqual([]);
+    }
+  });
 });
 
 describe("a ticket the person cannot see", () => {

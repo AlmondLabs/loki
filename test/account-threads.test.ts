@@ -489,6 +489,31 @@ describe("an approved Jira comment waits on the record (plan 2026-11-10-1451, U8
     expect([r.sender, r.seeds]).toEqual(["Bob Stone", [SEED]]);
   });
 
+  test("ending the card with nothing sent lets the comment go; the next event does not bring it back", async () => {
+    const { threads } = await site();
+    threads.register("jira", fakeSource({ markRead: (_a, r) => Promise.resolve(changeOf("read", true, r)) }));
+    threads.observe(SITE, event());
+    threads.seed(SITE, "10001", SEED);
+    must(await threads.markRead(SITE, "10001"));
+    expect(threads.get(SITE, "10001")?.seeds).toEqual([]);
+    threads.observe(SITE, event({ message_id: "2026-11-10T11:00:00.000Z:c000000030002", at: "2026-11-10T11:00:00.000Z", sender: "Bob Stone" }));
+    const r = must(threads.get(SITE, "10001"));
+    expect([r.state, r.seeds]).toEqual(["open", []]);
+    expect(threads.rows()[0]?.outside?.seeds).toBeUndefined();
+  });
+
+  test("undoing the read puts the comment back in the box", async () => {
+    const { threads } = await site();
+    threads.register("jira", fakeSource({ markRead: (_a, r) => Promise.resolve(changeOf("read", true, r)) }));
+    threads.observe(SITE, event());
+    threads.seed(SITE, "10001", SEED);
+    const change = must(await threads.markRead(SITE, "10001"));
+    await threads.restore(SITE, "10001", change);
+    const r = must(threads.get(SITE, "10001"));
+    expect([r.state, r.seeds]).toEqual(["open", [SEED]]);
+    expect(threads.rows()[0]?.outside?.seeds).toEqual([SEED]);
+  });
+
   test("a seed goes on its own or with the rest; a record from before seeds has none", async () => {
     const { dir, threads, again } = await site();
     threads.observe(SITE, event());

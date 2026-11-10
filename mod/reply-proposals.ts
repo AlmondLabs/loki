@@ -593,8 +593,8 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     name: "reply_propose",
     forAgent,
     description:
-      "Propose a reply in a thread of an account you own: one the person handed to this chat, or one you found with " +
-      "account_search or read with account_read. The person sees it as a card, may edit it, and on " +
+      "Propose a reply in a thread of an account you own: one the person handed to this chat, or one from account_list, " +
+      "account_read or, for Gmail, account_search. The person sees it as a card, may edit it, and on " +
       "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
       "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
       "conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a ticket that has " +
@@ -604,7 +604,10 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       type: "object",
       properties: {
         account: { type: "string", description: "The account's id or name, from account_list, account_search or the hand-off." },
-        thread: { type: "string", description: "The thread id, from the hand-off, account_search or account_read; for Jira, the ticket's key or id." },
+        thread: {
+          type: "string",
+          description: "The thread id, from the hand-off, account_list, account_search or account_read; for Jira, the ticket's key or id.",
+        },
         text: { type: "string", description: "The reply, as plain text." },
       },
       required: ["account", "thread", "text"],

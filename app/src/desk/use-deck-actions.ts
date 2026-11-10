@@ -3,7 +3,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
-import { freshSeeds, withSeeds } from "./outside-card";
+import { freshSeeds, withSeeds } from "./outside-words";
 
 /** How long a word stays on the badge. */
 export const FLASH_MS = 900;

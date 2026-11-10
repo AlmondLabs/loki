@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
-import type { AccountProvider } from "../../../core/frame-types.ts";
+import type { AccountProvider, OutsideSeed } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
 import { archivable, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -22,17 +22,8 @@ import { draftKey, useDraft } from "../shared/drafts";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
-import {
-  OutsideReply,
-  OutsideThread,
-  disconnectedText,
-  outsideTitle,
-  outsideWho,
-  quoteOf,
-  useMailCompose,
-  useOutsideThread,
-  wentTo,
-} from "../desk/outside-card";
+import { OutsideReply, OutsideThread, quoteOf, useMailCompose, useOutsideThread, wentTo } from "../desk/outside-card";
+import { disconnectedText, freshSeeds, outsideTitle, outsideWho } from "../desk/outside-words";
 import { senderName } from "../desk/mail-thread";
 import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
@@ -443,6 +434,25 @@ export interface CardModel {
   onPick?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
 }
 
+/** The approved comments the top card's reply box has taken in (KTD18), and for which card. */
+export interface SeedsTaken {
+  card: string | null;
+  taken: readonly string[];
+}
+
+/**
+ * What the deck holds once the top card is drawn with `seeds`: its box takes in each approved comment it has not had
+ * yet, as `OutsideReply` does, and that fires no input event. `lock` says the box now holds text, so the deck's swipes
+ * spring back as they do for typed text; null when nothing changed, so the person's own edit of the box keeps its say.
+ */
+export function takeSeeds(now: SeedsTaken, card: string | null, seeds: readonly OutsideSeed[] | undefined): { next: SeedsTaken; lock: boolean } | null {
+  const same = now.card === card;
+  const taken = same ? now.taken : [];
+  const fresh = freshSeeds(seeds, taken);
+  if (same && fresh.length === 0) return null;
+  return { next: { card, taken: [...taken, ...fresh.map((s) => s.id)] }, lock: fresh.length > 0 };
+}
+
 /**
  * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
  * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing.
@@ -511,6 +521,15 @@ export function Inbox({
   // The card whose reply is on its way: the reply reads it and takes it off, so its buttons and swipes wait until then.
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
+  // An approved Jira comment goes into the top card's box as it is drawn (KTD18), which fires no input: the box holds
+  // text all the same, so its swipes spring back as for typed text. Adjusted as the deck renders, as the box takes it in.
+  const [seedsTaken, setSeedsTaken] = useState<SeedsTaken>({ card: null, taken: [] });
+  const boxSeeds = current?.outside && chats.readOutside && chats.replyOutside ? current.outside.seeds : undefined;
+  const took = takeSeeds(seedsTaken, currentId, boxSeeds);
+  if (took) {
+    setSeedsTaken(took.next);
+    if (took.lock) setTypedId(currentId);
+  }
   // A Later that asks when first, and the email card whose labels are being picked: each in its sheet.
   const [asking, setAsking] = useState<{ item: AttentionItem; how: "swipe" | "tap" } | null>(null);
   const [labelling, setLabelling] = useState<AttentionItem | null>(null);

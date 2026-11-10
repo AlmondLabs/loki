@@ -1,5 +1,5 @@
 import type { ThreadMessage, ThreadText } from "./handoff.ts";
-import { jiraTicketUrl, type JiraClient, type JiraEvent, type JiraEventPage, type JiraEventPageOptions, type JiraSecret } from "./jira.ts";
+import { jiraPersonOf, jiraTicketUrl, type JiraClient, type JiraEvent, type JiraEventPage, type JiraEventPageOptions, type JiraSecret } from "./jira.ts";
 import { eventLines } from "./jira-sync.ts";
 import { VIEW_AROUND, VIEW_LOAD, type CardView } from "./slack-view.ts";
 
@@ -15,9 +15,6 @@ export type JiraViewClient = Pick<JiraClient, "comments" | "history">;
 
 /** One of a ticket's two lists of events, read a page at a time. */
 type EventList = (opts: JiraEventPageOptions) => Promise<JiraEventPage>;
-
-/** The person's Atlassian id: everything after the host in `jira:<host>:<account id>`, since the id may hold colons itself. */
-const personOf = (accountId: string): string => accountId.split(":").slice(2).join(":");
 
 const byId = (a: JiraEvent, b: JiraEvent): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -65,7 +62,7 @@ function messageOf(event: JiraEvent, me: string, extra: Partial<ThreadMessage> =
 /** A ticket's whole text, oldest first, for a hand-off and the owner's tools: every comment and history entry. */
 export function jiraThreadText(client: (accountId: string) => JiraViewClient): ThreadText {
   return async (accountId, threadId) => {
-    const me = personOf(accountId);
+    const me = jiraPersonOf(accountId);
     const { events } = await readTicket(client(accountId), threadId, () => false);
     return events.map((e) => messageOf(e, me));
   };
@@ -81,7 +78,7 @@ export function jiraThreadText(client: (accountId: string) => JiraViewClient): T
  */
 export function jiraCardView(client: (accountId: string) => JiraViewClient, secret: (accountId: string) => Promise<JiraSecret | null>): CardView {
   return async (accountId, threadId, facts, ask) => {
-    const me = personOf(accountId);
+    const me = jiraPersonOf(accountId);
     const mark = facts.dealt_message_id;
     const brought = new Set(facts.brought_ids);
     const isNew = (e: JiraEvent) => e.author.account_id !== me && (mark !== null ? e.id > mark : brought.has(e.id));

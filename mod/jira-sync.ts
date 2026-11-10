@@ -4,7 +4,7 @@ import type { OutsideChange, OutsideReach } from "../core/frame-types.ts";
 import type { AccountThreads, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
-import { JiraError, type JiraClient, type JiraEvent, type JiraEventPage, type JiraEventPageOptions, type JiraTicket } from "./jira.ts";
+import { JiraError, jiraPersonOf, type JiraClient, type JiraEvent, type JiraEventPage, type JiraEventPageOptions, type JiraTicket } from "./jira.ts";
 import { adfText, historyLines } from "./jira-text.ts";
 import { log } from "./log.ts";
 
@@ -100,7 +100,7 @@ export class JiraSync implements AccountSync {
   constructor(opts: JiraSyncOptions) {
     this.opts = opts;
     this.accountId = opts.account.account_id;
-    this.me = this.accountId.split(":").slice(2).join(":");
+    this.me = jiraPersonOf(this.accountId);
   }
 
   /**

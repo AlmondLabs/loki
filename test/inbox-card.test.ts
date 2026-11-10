@@ -5,13 +5,14 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { Card, CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
+import { Card, CardConversation, Decisions, takeSeeds, type CardActions } from "../app/src/phone/inbox.tsx";
 import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
-import { OutsideReply, freshSeeds, withSeeds } from "../app/src/desk/outside-card.tsx";
+import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { freshSeeds, withSeeds } from "../app/src/desk/outside-words.ts";
 import { must } from "./fixtures/must.ts";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
@@ -229,5 +230,19 @@ describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KT
     const facts = { ...must(item.outside, "facts"), seeds: [SEED] };
     const html = inPage(createElement(OutsideReply, { facts, touch: true, onSend: () => Promise.resolve({ sent: false, error: null }) }));
     expect(html).toContain(">Rotating tonight.</textarea>");
+  });
+
+  test("the phone's deck locks the swipes when the top card's box takes in a comment, which fires no input", () => {
+    const none = { card: null, taken: [] };
+    // A card drawn with an approved comment: the box holds text, so the swipes spring back as for typed text.
+    const first = must(takeSeeds(none, "jira:OPS-7", [SEED]), "first");
+    expect(first).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1"] }, lock: true });
+    // Drawn again with the same comment: nothing changes, so the person's own edit of the box keeps its say.
+    expect(takeSeeds(first.next, "jira:OPS-7", [SEED])).toBeNull();
+    // A second comment approved while the card is up locks it again.
+    expect(takeSeeds(first.next, "jira:OPS-7", [SEED, OTHER])).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1", "reply-2"] }, lock: true });
+    // Another card without comments starts its own count and locks nothing.
+    expect(takeSeeds(first.next, "jira:OPS-8", undefined)).toEqual({ next: { card: "jira:OPS-8", taken: [] }, lock: false });
+    expect(takeSeeds(none, null, undefined)).toBeNull();
   });
 });

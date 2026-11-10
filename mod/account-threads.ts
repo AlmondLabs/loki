@@ -77,10 +77,12 @@ export interface ThreadRecord {
   brought_ids: string[];
   /**
    * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
-   * first: they wait for the card's comment box until the person sends a comment or the agent takes one back. Empty for
-   * every other kind of card and for records from before.
+   * first: they wait for the card's comment box until the person sends a comment, ends the card without sending one, or
+   * the agent takes one back. Empty for every other kind of card and for records from before.
    */
   seeds: OutsideSeed[];
+  /** The approved comments the last move that ended the card let go, so an undo of that move puts them back. */
+  seeds_was: OutsideSeed[];
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -198,6 +200,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     dealt_was: s("dealt_was"),
     brought_ids: Array.isArray(r.brought_ids) ? r.brought_ids.filter((l): l is string => typeof l === "string") : [],
     seeds: parseSeeds(r.seeds),
+    seeds_was: parseSeeds(r.seeds_was),
   };
 }
 
@@ -288,6 +291,7 @@ export class AccountThreads {
       brought_ids: (m.brought_ids ?? prev?.brought_ids ?? []).slice(-BROUGHT_MAX),
       // An approved comment waits for the person whatever happens on the ticket meanwhile (KTD18).
       seeds: prev?.seeds ?? [],
+      seeds_was: prev?.seeds_was ?? [],
     });
     this.save(accountId);
     return true;
@@ -441,8 +445,19 @@ export class AccountThreads {
       const keptOpen = reopened || now.kept_open;
       // The move being undone set the dealt-with mark; it goes back to what it was, so the card's new messages stay new.
       const mark = reopened ? now.dealt_was : now.dealt_message_id;
-      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open && mark === now.dealt_message_id) return;
-      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread, kept_open: keptOpen, dealt_message_id: mark });
+      // The comments that move let go come back to the box, beside any the agent proposed since.
+      const back = change.ended ? now.seeds_was.filter((s) => !now.seeds.some((x) => x.id === s.id)) : [];
+      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open && mark === now.dealt_message_id && back.length === 0) return;
+      const seeds = back.length > 0 ? [...back, ...now.seeds] : now.seeds;
+      this.records(accountId).set(threadId, {
+        ...now,
+        state,
+        unread_out_there: unread,
+        kept_open: keptOpen,
+        dealt_message_id: mark,
+        seeds,
+        seeds_was: change.ended ? [] : now.seeds_was,
+      });
       this.save(accountId);
     });
   }
@@ -465,7 +480,7 @@ export class AccountThreads {
       const now = this.records(accountId).get(threadId);
       if (now?.state !== "open" || now.newest_message_id !== r.newest_message_id) return change;
       const next = change.ended
-        ? { ...dealt(now), state: "archived" as const }
+        ? { ...dealt(now), state: "archived" as const, ...this.letSeedsGo(accountId, now) }
         : change.move === "read" || change.move === "unread"
           ? { ...now, unread_out_there: change.move === "unread" }
           : now;
@@ -475,6 +490,16 @@ export class AccountThreads {
       }
       return change;
     });
+  }
+
+  /**
+   * The approved comments a move that ends a Jira card lets go (plan 2026-11-10-1451, KTD18): the person ended it without
+   * sending, so the comment is not wanted, and a later event must not put it back in the box. They are kept aside for an
+   * undo. Other providers' records have no seeds and are left as they are.
+   */
+  private letSeedsGo(accountId: string, r: ThreadRecord): Pick<ThreadRecord, "seeds" | "seeds_was"> {
+    if (this.opts.accounts.get(accountId)?.provider !== "jira") return { seeds: r.seeds, seeds_was: r.seeds_was };
+    return { seeds: [], seeds_was: r.seeds };
   }
 
   /** The write-back of an account's provider; throws why when the account is not here or its provider has none yet. */

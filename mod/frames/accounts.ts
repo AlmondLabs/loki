@@ -49,6 +49,9 @@ export interface AccountsDeps {
 const NO_OWNER = "an account needs an owner: pick the agent it belongs to";
 const NO_THREADS = "Inbox accounts are not available in this mod";
 
+/** Where every Jira Cloud site's API lives: a name under atlassian.net, with no port of its own. */
+const JIRA_CLOUD_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.atlassian\.net$/;
+
 /**
  * The host in a site address as a person gives it: a bare host, a whole URL or a link to a page of the site, in any
  * case; null when there is none. A Jira account is named by its host (KTD4), so every spelling must come to one.
@@ -142,7 +145,9 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
           .serverInfo()
           .catch(() => null);
         const host = info ? hostOf(info.base_url) : null;
-        if (!info || !host) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
+        // Jira Cloud's API lives under atlassian.net even for a site with its own domain, so an answer naming any other
+        // host is not a Cloud site, and the token must not go there.
+        if (!info || !host || !JIRA_CLOUD_HOST.test(host)) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
         // A custom domain is where people browse the site, so a card's link opens there (R14); the token never goes to it.
         const linkHost = hostOf(info.display_url);
         const secret: JiraSecret = { site: host, email, token, ...(linkHost && linkHost !== host ? { link_host: linkHost } : {}) };

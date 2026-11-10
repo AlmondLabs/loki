@@ -17,7 +17,7 @@ import { Accounts } from "../mod/accounts.ts";
 import { GmailClient } from "../mod/gmail.ts";
 import type { JiraSecret } from "../mod/jira.ts";
 import { jiraOutsideSource } from "../mod/jira-sync.ts";
-import { DRAFT_THERE, ReplyProposals, registerReplyTools, type ReplySlack } from "../mod/reply-proposals.ts";
+import { DRAFT_THERE, ReplyProposals, registerReplyTools, type ReplyProposalsOptions, type ReplySlack } from "../mod/reply-proposals.ts";
 import type { SlackDraft, SlackDraftInput } from "../mod/slack.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
@@ -547,11 +547,12 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
       });
     await threads.markRead(SITE, "10002");
     const pushed: ChatEvent[][] = [];
-    const open = () =>
+    /** The proposals as stored, over the site's records or another view of them. */
+    const open = (over: ReplyProposalsOptions["threads"] = threads) =>
       new ReplyProposals({
         file: join(dir, "reply-proposals.json"),
         accounts,
-        threads,
+        threads: over,
         clientFor: () => ({ provider: "jira" }),
         push: (_agent, _conversation, events) => pushed.push(events),
         now,
@@ -632,6 +633,51 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
     expect(s.card("10002")).toMatchObject({ unread: true, outside: { seeds: [{ text: "Closing this out." }] } });
     // Without a comment waiting, the same mark would read the open card as read.
     expect(s.card("10001").unread).toBe(false);
+  });
+
+  test("Covers AE9. a comment approved, then let go by read with nothing sent, does not come back with the next event", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." });
+    await s.replies.decide(s.chat, s.only().id, "approve", "desktop");
+    must(await s.threads.markRead(SITE, "10001"));
+    s.threads.observe(SITE, {
+      thread_id: "10001",
+      message_id: "2026-11-12T09:00:00.000Z:c000000030002",
+      at: "2026-11-12T09:00:00.000Z",
+      sender: "Bob Stone",
+      subject: "Ticket OPS-7",
+      lines: ["Any news?"],
+      place: "OPS-7",
+    });
+    const r = must(s.threads.get(SITE, "10001"), "the record");
+    expect([r.state, r.seeds]).toEqual(["open", []]);
+    expect(s.card("10001").outside?.seeds).toBeUndefined();
+    expect(s.jira.posted).toEqual([]);
+  });
+
+  test("undoing the read that let an approved comment go puts it back in the card's box", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." });
+    await s.replies.decide(s.chat, s.only().id, "approve", "desktop");
+    const change = must(await s.threads.markRead(SITE, "10001"));
+    await s.threads.restore(SITE, "10001", change);
+    expect(s.card("10001")).toMatchObject({ outside: { seeds: [{ text: "Rotating tonight." }] } });
+  });
+
+  test("a comment whose card went between proposal and approval is refused with the reason, and stays waiting", async () => {
+    const s = await site();
+    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." });
+    const id = s.only().id;
+    const gone = s.open({
+      get: (a, t) => s.threads.get(a, t),
+      list: (a) => s.threads.list(a),
+      seed: () => false,
+      dropSeed: () => false,
+    });
+    const out = await gone.decide(s.chat, id, "approve", "desktop");
+    expect(out).toMatchObject({ done: false, message: "loki has no card for that ticket now", proposal: { status: "pending" } });
+    expect(gone.list(s.chat).at(-1)).toMatchObject({ id, status: "pending", reason: "loki has no card for that ticket now" });
+    expect(s.threads.get(SITE, "10001")?.seeds).toEqual([]);
   });
 
   test("a comment for a ticket that never had a card is refused with the reason", async () => {

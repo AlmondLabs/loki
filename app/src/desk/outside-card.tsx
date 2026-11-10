@@ -1,5 +1,4 @@
 import type {
-  AccountDisconnectCause,
   AccountProvider,
   EmojiChoice,
   SlackPerson,
@@ -7,7 +6,6 @@ import type {
   MailCompose,
   OutsideFacts,
   OutsideMessage,
-  OutsideSeed,
   OutsideWindow,
   OutsideWindowAsk,
 } from "../../../core/frame-types.ts";
@@ -19,7 +17,7 @@ import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "..
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
 import { ago, deckKey } from "./catch-up-parts";
-import { CardFace, CardHead, ReachTag, type CardMark } from "./card-head";
+import { CardFace, CardHead, ReachTag } from "./card-head";
 import { openExternal } from "./env";
 import { LinkedText, MailHtml } from "./mail-html";
 import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } from "./mail-address";
@@ -27,37 +25,29 @@ import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { NewLine, SlackThread, loadLabel } from "./slack-thread";
 import { toggleReaction } from "./slack-reactions";
+import {
+  ARCHIVE_TITLE,
+  CAME_FROM,
+  HANDOFF_TITLE,
+  LATER_TITLE,
+  MARK,
+  READ_TITLE,
+  SEND_NOTE,
+  SEND_TITLE,
+  disconnectedText,
+  freshSeeds,
+  headWhat,
+  replyPlace,
+  ticketAddress,
+  withSeeds,
+} from "./outside-words";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread or a Jira ticket in the Inbox, not a chat. It shows who wrote, about what,
  * which account and agent it belongs to (R10), and the whole thread read from its account (plan 068), with a box for
  * the person's own reply. It is never a Conversation: the reply goes to the thread, not to an agent. The phone draws
- * the same thread with `OutsideThread`.
+ * the same thread with `OutsideThread`. What it says for each service is in `outside-words`.
  */
-
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
-
-/** What a disconnected account's cards say (R22): what happened and how to reconnect, lowercase as desktop meta. */
-export function disconnectedText(cause: AccountDisconnectCause, provider: AccountProvider): string {
-  const service = SERVICE[provider];
-  const where = "Preferences › Accounts";
-  switch (cause) {
-    case "sign_in_again":
-      // A Jira site is connected with an API token the person makes, so there is no sign-in to make again.
-      return `${service} wants a new ${provider === "jira" ? "API token" : "sign-in"}: ${where}`;
-    case "admin_blocks":
-      return `a workspace admin blocks loki in ${service}: ask them, then connect again in ${where}`;
-    case "slack_signed_out":
-      return `the Slack app signed out: sign in there, then connect again in ${where}`;
-    case "temporarily_failing":
-      return `${service} keeps failing for now: loki tries again on its own`;
-  }
-}
-
-/** The account and its owner, as the card names them: "ada@acme.com · Gmail · Work". */
-export function outsideWho(o: OutsideFacts): string {
-  return [o.account_label, SERVICE[o.provider], o.owner_name ?? "its agent"].join(" · ");
-}
 
 /** The thread's last messages, one paragraph each, as plain text; the phone draws the same inside its card. */
 export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; touch?: boolean }) {
@@ -80,35 +70,6 @@ export function wentTo(o: OutsideFacts, items: readonly AttentionItem[]): string
   if (!o.handoff_conversation_id) return null;
   const chat = items.find((i) => !i.outside && i.agent_id === o.owner_agent_id && i.id === o.handoff_conversation_id);
   return chat?.title ? `went to ${chat.title}` : "went to a chat before";
-}
-
-/**
- * The card's title: a mail's subject; for Slack, who wrote, since a Slack message has no subject of its own; for Jira,
- * the ticket's key and title.
- */
-export function outsideTitle(o: OutsideFacts): string {
-  switch (o.provider) {
-    case "gmail":
-      return o.subject || "no subject";
-    case "slack":
-      return senderName(o.sender);
-    case "jira":
-      return ticketLine(o);
-  }
-}
-
-/** A Jira ticket as its card names it: "OPS-7 · Rotate the keys". */
-export function ticketLine(o: Pick<OutsideFacts, "place" | "subject">): string {
-  return [o.place, o.subject].filter(Boolean).join(" · ");
-}
-
-/**
- * A Jira ticket's address in the browser (R14): as its site's Mac read it, on the site's own domain, else on the
- * account's host until the read comes back; null for mail and Slack.
- */
-export function ticketAddress(o: OutsideFacts, link: string | null = null): string | null {
-  if (o.provider !== "jira") return null;
-  return link ?? (o.place ? `https://${o.account_label}/browse/${encodeURIComponent(o.place)}` : null);
 }
 
 /** What a Slack card's window can do next (plan 077): load more on a side, open a post's thread, go back to the channel. */
@@ -402,31 +363,6 @@ export function OutsideThread({
   );
 }
 
-/** Where the person's reply goes, in words: reply-all in a mail thread, the DM or a Slack thread, or a comment on the ticket. */
-export function replyPlace(o: OutsideFacts): string {
-  switch (o.provider) {
-    case "gmail":
-      return "reply to all";
-    case "slack":
-      return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
-    case "jira":
-      return "comment on the ticket";
-  }
-}
-
-/**
- * The comments the person approved for a Jira card that its box has not taken in yet (plan 2026-11-10-1451, KTD18): a
- * box takes each seed once, by its proposal's id, so one already there is never added again.
- */
-export function freshSeeds(seeds: readonly OutsideSeed[] | undefined, taken: readonly string[]): OutsideSeed[] {
-  return (seeds ?? []).filter((s) => !taken.includes(s.id));
-}
-
-/** The box's text with approved comments added after whatever is already there, each after a blank line. */
-export function withSeeds(text: string, seeds: readonly OutsideSeed[]): string {
-  return [text.trimEnd(), ...seeds.map((s) => s.text)].filter(Boolean).join("\n\n");
-}
-
 /** The deck's chords that reach it from inside the reply box (KTD9): read, later and archive, each sending the text first. */
 const DECK_CHORDS = new Set(["inbox.next", "inbox.later", "inbox.archive"]);
 
@@ -459,20 +395,6 @@ export interface ReplyBoxControl {
   onMail: (mail: MailAddressing) => void;
   onSend: () => void;
 }
-
-/** What the desktop's send button says it does, for each service: a Jira comment leaves the card unread (KTD11). */
-const SEND_TITLE: Record<AccountProvider, string> = {
-  gmail: "send it as you; the card stays for your next move",
-  slack: "send it as you; the card stays for your next move",
-  jira: "post it on the ticket as you; the card stays, unread, for your next move",
-};
-
-/** The line under the phone's send, for each service. */
-const SEND_NOTE: Record<AccountProvider, string> = {
-  gmail: "Waits 10 seconds so you can undo, then archives the card.",
-  slack: "Sends as you, then archives the card.",
-  jira: "Posts on the ticket as you. The card stays until you read it.",
-};
 
 /**
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
@@ -762,21 +684,6 @@ export function OutsideReply({
   );
 }
 
-/** The mark on a card's face for where it came from. */
-const MARK: Record<AccountProvider, CardMark> = { gmail: "mail", slack: "slack", jira: "jira" };
-
-/** What the header's second line names first: a mail's sender, a Slack channel or DM, or a Jira ticket's key and title. */
-function headWhat(facts: OutsideFacts): string | null {
-  switch (facts.provider) {
-    case "gmail":
-      return senderName(facts.sender);
-    case "slack":
-      return facts.place ?? (facts.reach === "dm" ? "direct message" : null);
-    case "jira":
-      return ticketLine(facts) || null;
-  }
-}
-
 /**
  * The card's header (plan 073): the sender's face with the mark of Slack, mail or Jira, who wrote, then where (a Slack
  * channel), what (a mail's subject, a ticket's key and title) and when; the tag for how directly it is meant for the
@@ -830,9 +737,6 @@ export function OutsideHeader({
   );
 }
 
-/** Where a card came from, as the header says it when more than one account of its service is connected. */
-const CAME_FROM: Record<AccountProvider, string> = { gmail: "the mailbox it came to", slack: "the workspace it came from", jira: "the site it came from" };
-
 /** The header's second line: where or who, when, the account when more than one is connected, and the last move. */
 function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts; what: string | null; went: string | null; cameBack: boolean }) {
   return (
@@ -858,37 +762,6 @@ export interface OutsideMoveHandlers {
   archive: () => void;
   label: () => void;
 }
-
-/** What later says it does, for each service: Jira keeps no read mark, so nothing changes there (R20). */
-const LATER_TITLE: Record<AccountProvider, string> = {
-  gmail: "keep it unread in Gmail: the card comes back in a day, or sooner if something new arrives",
-  slack: "keep it unread in Slack: the card comes back in a day, or sooner if something new arrives",
-  jira: "keep it unread: the card comes back in a day, or sooner if the ticket changes",
-};
-
-/** What read says it does, for each service. */
-const READ_TITLE: Record<AccountProvider, string> = {
-  gmail: "mark it read in Gmail: the card rests and comes back later",
-  slack: "mark it read in Slack: the card ends until someone writes again",
-  jira: "done reading: the card ends until the ticket changes again; nothing changes in Jira",
-};
-
-/**
- * What archive says it does, for each service; null where there is no archive: a Jira card ends only with read, so it
- * draws none (KTD12).
- */
-const ARCHIVE_TITLE: Record<AccountProvider, string | null> = {
-  gmail: "done with this thread: it leaves the Inbox and is archived in Gmail",
-  slack: "done with this thread: it leaves the Inbox and is marked read in Slack",
-  jira: null,
-};
-
-/** What hand off says it does, for each service: a mail or a Slack card leaves with it, and a Jira card stays (KTD13). */
-const HANDOFF_TITLE: Record<AccountProvider, (owner: string) => string> = {
-  gmail: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
-  slack: (owner) => `give the whole thread to ${owner} in one of its chats; the card leaves until someone writes again`,
-  jira: (owner) => `give the whole ticket to ${owner} in one of its chats; the card stays until you read it`,
-};
 
 /** Hand off, label, archive, later and read: they share the reply's row, so the card has one bar of buttons. */
 function OutsideMoves({

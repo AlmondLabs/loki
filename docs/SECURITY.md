@@ -192,8 +192,9 @@ yourself.
   `https://slack.com` or a workspace's own `https://<name>.slack.com` address, so the token never goes anywhere else.
 - **Jira token.** A Jira Cloud site is connected with your Atlassian email and a classic API token you make yourself
   (plan 2026-11-10-1451). loki first asks the address you typed, without the token, where the site's API lives, and
-  then sends the token only to that host over `https`, as basic authentication (`mod/frames/accounts.ts`,
-  `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
+  then sends the token only to that host over `https`, as basic authentication, and only when it is an
+  `*.atlassian.net` host, where every Jira Cloud site's API lives; an answer naming any other host is refused before
+  the token leaves the Mac (`mod/frames/accounts.ts`, `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
   token Jira refuses marks the account as wanting a new one; loki does not try it again until you reconnect.
 - **What loki calls in Jira.** It reads: who you are, the tickets you watch, and each ticket's comments and history.
   It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
