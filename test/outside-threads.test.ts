@@ -162,10 +162,16 @@ describe("an email's own words, without the thread quoted under them", () => {
     expect(withoutQuoted("Friday works.\n\nOn Tue, 4 Nov 2026 at 10:02, Bob <bob@acme.com> wrote:\n> Lunch?")).toBe("Friday works.");
     expect(withoutQuoted("Yes.\nOn Tue, 4 Nov 2026 at 10:02, Bob\n<bob@acme.com> wrote:\n> Lunch?")).toBe("Yes.");
   });
-  test("cut at Outlook's From: and Sent: block and at a forwarded message's rule, and trailing > lines go", () => {
+  test("cut at Outlook's From: and Sent: block, and trailing > lines go", () => {
     expect(withoutQuoted("Done.\n\nFrom: Bob <bob@acme.com>\nSent: Tuesday\nSubject: x")).toBe("Done.");
-    expect(withoutQuoted("See below.\n---------- Forwarded message ---------\nFrom: x")).toBe("See below.");
     expect(withoutQuoted("ok\n> earlier\n> more")).toBe("ok");
+  });
+  test("a forward is kept whole, with the forwarded mail's header, but a reply quoting an earlier forward is cut", () => {
+    const gmail = "See below.\n\n---------- Forwarded message ---------\nFrom: Bob <bob@acme.com>\nDate: Tue\n\nThe plan.";
+    expect(withoutQuoted(gmail)).toBe(gmail);
+    const apple = "FYI\n\nBegin forwarded message:\n\nFrom: Bob <bob@acme.com>\nDate: Tue\n\nThe plan.";
+    expect(withoutQuoted(apple)).toBe(apple);
+    expect(withoutQuoted("Thanks.\n\nOn Tue, Ada <ada@acme.com> wrote:\n> ---------- Forwarded message ---------\n> The plan.")).toBe("Thanks.");
   });
   test("a lone From: line is the writer's own text, and a message that is only a quote keeps its whole text", () => {
     expect(withoutQuoted("From: the team, thanks.\nAll good.")).toBe("From: the team, thanks.\nAll good.");
