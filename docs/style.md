@@ -13,11 +13,15 @@ The checks, all in CI and all to run before pushing:
 ```bash
 npm run format:check   # Prettier; npm run format fixes it
 npm run lint           # ESLint: typescript-eslint strict + stylistic (type-checked), React hooks and Compiler rules
-npm run typecheck      # tsc, strict
+npm run typecheck      # tsc, strict; repeat runs reuse node_modules/.cache/tsc and re-check only what changed
 npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
+
+`npm run lint:fast` is the same lint with ESLint's cache, for while you work: it skips files whose text has not
+changed, so it can miss an error a type change in another file causes. `npm run lint` never uses the cache, and it is
+the one to run before pushing.
 
 ## 1. Formatting
 
