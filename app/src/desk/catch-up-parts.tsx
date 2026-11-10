@@ -308,12 +308,12 @@ export function KeysHint({ typing, current }: { typing: boolean; current?: Atten
   const jira = o?.provider === "jira";
   const label = mail ? ` · ${keyFor("inbox.label")} label` : "";
   // A mail sends on ⌘Enter and is held for its undo (plan 076); ⇧R and F switch it to the sender alone or to a forward.
-  // A Jira comment sends on Enter and leaves the card where it is.
+  // A reply or a Jira comment sent alone leaves the card where it is (plan 083).
   const send = mail
-    ? `${formatKeys("cmd+enter")} send, then read · ${formatKeys("cmd+shift+c")} recipients`
+    ? `${formatKeys("cmd+enter")} send (the card stays) · ${formatKeys("cmd+shift+c")} recipients`
     : jira
       ? "enter comment (the card stays)"
-      : "enter send, then read";
+      : "enter send (the card stays)";
   const written = jira ? "comment" : "reply";
   const outside = typing
     ? `${send} · ${moves} (a ${written} goes first) · esc back to the deck's keys`

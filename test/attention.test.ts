@@ -185,6 +185,18 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     expect(t.reported).toEqual([]);
   });
 
+  test("a reply sent alone on a mail or Slack card makes no move either: no rest, no seen mark and no decision (plan 083)", () => {
+    const t = host();
+    const mail = email();
+    const dm = email({ outside: facts({ provider: "slack", account_id: "slack:T1:U1", thread_id: "D1" }) });
+    t.moves.replied(mail, "stay", null);
+    t.moves.replied({ ...mail, unread: false }, "stay", null);
+    t.moves.replied(dm, "stay", null);
+    expect(t.rests).toEqual({});
+    expect(t.marks).toEqual([]);
+    expect(t.reported).toEqual([]);
+  });
+
   test("a comment sent with ⌘] or ⌘[ on a Jira card is a reply decision followed by that move, as on any card", () => {
     const t = host();
     const ticket = email({ outside: facts({ provider: "jira", account_id: "jira:acme.atlassian.net:acc-me", thread_id: "10001" }) });

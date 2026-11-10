@@ -96,8 +96,8 @@ export const SEND_TITLE: Record<AccountProvider, string> = {
 
 /** The line under the phone's send, for each service. */
 export const SEND_NOTE: Record<AccountProvider, string> = {
-  gmail: "Waits 10 seconds so you can undo, then archives the card.",
-  slack: "Sends as you, then archives the card.",
+  gmail: "Waits 10 seconds so you can undo. The card stays for your next swipe.",
+  slack: "Sends as you. The card stays for your next swipe.",
   jira: "Posts on the ticket as you. The card stays until you read it.",
 };
 

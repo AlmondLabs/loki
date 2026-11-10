@@ -965,7 +965,7 @@ describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
       renderToStaticMarkup(createElement(OutsideReply, { facts, touch: true, onSend: () => Promise.resolve({ sent: true, error: null }) }));
     expect(phone(JIRA_FACTS)).toContain("Posts on the ticket as you. The card stays until you read it.");
     expect(phone(JIRA_FACTS)).toContain('placeholder="Comment on the ticket"');
-    expect(phone(FACTS)).toContain("Sends as you, then archives the card.");
+    expect(phone(FACTS)).toContain("Sends as you. The card stays for your next swipe.");
   });
 });
 
