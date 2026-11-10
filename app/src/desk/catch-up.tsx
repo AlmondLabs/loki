@@ -136,7 +136,7 @@ function CatchUpDeck(props: DeckProps) {
   // What undo takes back and the summary shows: the visit's moves on cards this lane holds (KTD6).
   const decided = lane ? allDecided.filter((d) => inLane(d.item, lane)) : allDecided;
   // The quiet line: cards needing the person in the other lanes (R14, KTD5).
-  const others = otherLanesCount(items, lane);
+  const others = useMemo(() => otherLanesCount(items, lane), [items, lane]);
   /** Switch lanes from the title's menu; picking the lane already on is no switch. */
   const pickLane = (next: ResolvedLane | null) => {
     if ((next?.id ?? "") !== (lane?.id ?? "")) props.onLane(next);

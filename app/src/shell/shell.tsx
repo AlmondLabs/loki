@@ -240,15 +240,19 @@ export function Shell() {
   // The inbox badge ticks when something new starts waiting.
   const [tick, setTick] = useState(false);
   const prevWaiting = useRef(waiting);
+  // A lane switch changes the count without anything new coming, so it does not tick.
+  const prevLane = useRef(laneId);
   useEffect(() => {
-    if (waiting > prevWaiting.current) {
+    const switched = prevLane.current !== laneId;
+    prevLane.current = laneId;
+    if (!switched && waiting > prevWaiting.current) {
       setTick(true);
       const t = setTimeout(() => setTick(false), 500);
       prevWaiting.current = waiting;
       return () => clearTimeout(t);
     }
     prevWaiting.current = waiting;
-  }, [waiting]);
+  }, [waiting, laneId]);
   const toggleInbox = useCallback(() => setSegmentRaw((s) => (s === "inbox" ? "desk" : "inbox")), []);
   useTray(waiting, toggleInbox);
   useEffect(() => {

@@ -38,8 +38,13 @@ export interface AgentLane {
 /** A lane as Flow applies it: one the person made or an agent's built-in one. Everything is null. */
 export type ResolvedLane = Lane | AgentLane;
 
+const AGENT_LANE = "agent:";
+
 /** A built-in agent lane's id, derived from the agent so every device names it the same way. */
-export const agentLaneId = (agentId: string) => `agent:${agentId}`;
+export const agentLaneId = (agentId: string) => `${AGENT_LANE}${agentId}`;
+
+/** The agent a built-in lane's id names, or null for any other id. */
+export const agentOfLaneId = (id: string): string | null => (id.startsWith(AGENT_LANE) ? id.slice(AGENT_LANE.length) : null);
 
 const isSide = (v: unknown): v is LaneSide => v === "all" || (Array.isArray(v) && v.every((id) => typeof id === "string"));
 
@@ -99,12 +104,13 @@ export function agentLanes(items: AttentionItem[]): AgentLane[] {
 }
 
 /**
- * What `inbox_filtered` says of a lane switched to (KTD11): its kind, and the agent for a built-in agent lane. A lane
- * the person made goes by its kind alone, so its name never leaves the device.
+ * What `inbox_filtered` says of a lane switched to, by its id (KTD11): its kind, and the agent for a built-in agent
+ * lane. A lane the person made goes by its kind alone, so its name never leaves the device. "" is Everything.
  */
-export function laneEvent(lane: ResolvedLane | null): { kind: "everything" | "own" | "agent"; agent: string | null } {
-  if (!lane) return { kind: "everything", agent: null };
-  return "agent_id" in lane ? { kind: "agent", agent: lane.agent_id } : { kind: "own", agent: null };
+export function laneEvent(id: string): { kind: "everything" | "own" | "agent"; agent: string | null } {
+  if (!id) return { kind: "everything", agent: null };
+  const agent = agentOfLaneId(id);
+  return agent !== null ? { kind: "agent", agent } : { kind: "own", agent: null };
 }
 
 /**

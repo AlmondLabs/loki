@@ -94,7 +94,7 @@ export function InboxView({
       items={catchUp.items}
       lane={catchUp.flow.lane}
       lanes={catchUp.flow.lanes}
-      onLane={(lane) => (catchUp.flow.setLaneId(lane?.id ?? ""), catchUp.filtered(lane))}
+      onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
       onNewLane={openFlowPreferences}
       labelList={catchUp.labels.list}
       onRead={(item) => catchUp.read(item, via())}

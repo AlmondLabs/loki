@@ -1,4 +1,4 @@
-import { agentLane, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
+import { agentLane, agentOfLaneId, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { createSessionValue } from "./session-value";
 
@@ -13,8 +13,6 @@ export type LaneDevice = "desktop" | "phone";
 
 /** The localStorage key each shell keeps its active lane's id under. */
 export const LANE_KEYS: Record<LaneDevice, string> = { desktop: "loki.desktop.lane", phone: "loki.phone.lane" };
-
-const BUILT_IN = "agent:";
 
 /**
  * The stored active lane id for one shell, over `storage` (localStorage unless a test hands another). Anything stored
@@ -43,8 +41,8 @@ export function useActiveLaneId(device: LaneDevice): [string, (id: string) => vo
  */
 export function resolveLane(lanes: Lane[] | null, items: AttentionItem[], agents: Array<{ id: string; name: string }>, id: string): ResolvedLane | null {
   if (!id) return null;
-  if (id.startsWith(BUILT_IN)) {
-    const agentId = id.slice(BUILT_IN.length);
+  const agentId = agentOfLaneId(id);
+  if (agentId !== null) {
     const agent = agents.find((a) => a.id === agentId);
     const lane = agentLane(items, agentId);
     if (lane.count > 0) return lane;

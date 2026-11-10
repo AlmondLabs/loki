@@ -123,11 +123,15 @@ export function laneAccounts(r: { accounts: readonly AccountView[]; other_macs: 
   return [...r.accounts.map((a) => row(a, null)), ...r.other_macs.map((a) => row(a, a.mac_name))];
 }
 
-/** The accounts to pick from, asked again every few seconds while the page shows; null until the first answer, or why not. */
-function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[]): LaneAccount[] | string | null {
+/**
+ * The accounts to pick from, asked again every few seconds while a lane is open in the editor (`open`), and not at all
+ * otherwise; null until the first answer, or why not.
+ */
+function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[], open: boolean): LaneAccount[] | string | null {
   const [answer, setAnswer] = useState<{ accounts: AccountView[]; other_macs: MacAccountView[] } | string | null>(null);
   const read = useEffectEvent(() => api.everywhere());
   useEffect(() => {
+    if (!open) return;
     let live = true;
     const load = () => void read().then((r) => live && setAnswer(r));
     load();
@@ -136,7 +140,7 @@ function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[]): La
       live = false;
       clearInterval(t);
     };
-  }, []);
+  }, [open]);
   return answer === null || typeof answer === "string" ? answer : laneAccounts(answer, agents);
 }
 
@@ -145,8 +149,8 @@ function useLaneAccounts(api: LaneAccountsApi, agents: readonly AgentName[]): La
  * missing or taken says so in the editor and sends nothing.
  */
 export function Lanes({ lanes: api, accounts, agents, newId = newLaneId }: LanesProps) {
-  const choices = useLaneAccounts(accounts, agents);
   const [draft, setDraft] = useState<LaneDraft | null>(null);
+  const choices = useLaneAccounts(accounts, agents, draft !== null);
   const [error, setError] = useState<string | null>(null);
   const { lanes, set } = api;
   if (!lanes) return <Setting label="Lanes" help="asking loki…" />;

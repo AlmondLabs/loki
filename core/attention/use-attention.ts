@@ -700,7 +700,16 @@ export function useAttention(opts: UseAttentionOptions) {
   const laneId = opts.lane?.id ?? "";
   const lanes = opts.lane?.lanes ?? null;
   const resolveLane = opts.lane?.resolve;
-  const setLaneId = opts.lane?.setId ?? noLaneSwitch;
+  const setId = opts.lane?.setId ?? noLaneSwitch;
+  // A switch, from the desktop's menu or the phone's sheet, is reported once here for analytics (KTD11).
+  const setLaneId = useCallback(
+    (id: string) => {
+      if (id === laneId) return;
+      setId(id);
+      optsRef.current.capture?.("inbox_filtered", laneEvent(id));
+    },
+    [laneId, setId],
+  );
   const setLanes = opts.lane?.setLanes ?? null;
   const activeLane = useMemo(() => resolveLane?.(lanes, items, snap.agents, laneId) ?? null, [resolveLane, lanes, items, snap.agents, laneId]);
   const flowItems = useMemo(() => laneItems(items, activeLane), [items, activeLane]);
@@ -782,10 +791,6 @@ export function useAttention(opts: UseAttentionOptions) {
   useEffect(() => moves.setHost(movesHost(store, opts, report)));
   const decided = moves.decided;
   const undone = moves.undone;
-  /** A lane switched to in Flow's title (null: Everything), for analytics (KTD11). */
-  const filtered = useCallback((lane: ResolvedLane | null) => {
-    optsRef.current.capture?.("inbox_filtered", laneEvent(lane));
-  }, []);
 
   /** Each listed chat's waiting reply proposals by key, from its row (plan 067), for chats this client does not follow. */
   const rowReplies = useMemo(
@@ -979,6 +984,5 @@ export function useAttention(opts: UseAttentionOptions) {
     decided,
     shown,
     undone,
-    filtered,
   };
 }
