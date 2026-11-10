@@ -965,7 +965,7 @@ export class ChatStore {
     card: Pick<ConversationInfo, "agent_id" | "id" | "outside" | "home">,
     text: string,
     then: ReplyThen,
-    extra: { mail?: MailAddressing | null; outbox_id?: string | null } = {},
+    extra: { mail?: MailAddressing | null; outbox_id?: string | null; thread_ts?: string | null } = {},
   ): Promise<{ sent: boolean; error: string | null; change: OutsideChange | null; undone?: true }> => {
     const o = card.outside;
     if (!o) return { sent: false, error: "this card is not from an account", change: null };

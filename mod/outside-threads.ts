@@ -265,6 +265,7 @@ export class OutsideThreads {
     then: ReplyThen,
     mail: MailAddressing | null = null,
     outboxId: string | null = null,
+    threadTs: string | null = null,
   ): Promise<OutsideReplied> {
     const body = text.trim();
     if (!body) throw new Error("the reply is empty");
@@ -272,21 +273,25 @@ export class OutsideThreads {
     const account = this.need(accountId);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     if (mail && account.provider !== "gmail") throw new Error("only a mail reply has recipients");
+    if (threadTs && account.provider !== "slack") throw new Error("only a Slack reply goes into a thread the card opened");
     if (mail && mail.to.length + mail.cc.length + mail.bcc.length === 0) throw new Error("add someone to send it to");
     const held = { outbox_id: outboxId ?? "", account_id: accountId, thread_id: threadId, text: body, then, mail };
     if (this.outbox && outboxId && account.provider === "gmail") return this.outbox.hold(held);
-    return this.sendNow(held);
+    return this.sendNow(held, threadTs);
   }
 
   /** The send itself and the move after it, at once or once a hold is over. */
-  private async sendNow(held: Omit<HeldReply, "send_at">): Promise<OutsideReplied> {
+  private async sendNow(held: Omit<HeldReply, "send_at">, threadTs: string | null = null): Promise<OutsideReplied> {
     const { account_id: accountId, thread_id: threadId, text: body, then, mail } = held;
     const account = this.need(accountId);
     if (account.status !== "connected") throw new Error("that account is not connected now: connect it again in Preferences › Accounts");
     const sender = this.opts.clientFor(account);
     if (sender.provider === "gmail") await this.sendMail(account, sender.client, threadId, body, mail);
     else {
-      const { channel, ts } = slackPlace(threadId);
+      // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
+      const place = slackPlace(threadId);
+      const { channel } = place;
+      const ts = threadTs ?? place.ts;
       // People who cannot be read leave each @handle as typed; the reply still goes.
       const mentions = (await this.opts.slackPeople?.mentions(accountId, body).catch(() => null)) ?? new Map<string, string>();
       await sender.client.postReply({ channel, ...(ts ? { thread_ts: ts } : {}), text: body, mentions });

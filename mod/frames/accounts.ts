@@ -151,10 +151,10 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
-    account_thread_reply: async ({ account_id: accountId, thread_id: threadId, text, then, mail, outbox_id: outboxId }) => {
+    account_thread_reply: async ({ account_id: accountId, thread_id: threadId, text, then, mail, outbox_id: outboxId, thread_ts: threadTs }) => {
       if (!deps.outside) return fail("replying is not available in this mod");
       try {
-        return reply({ account_id: accountId, thread_id: threadId, ...(await deps.outside.reply(accountId, threadId, text, then, mail, outboxId)) });
+        return reply({ account_id: accountId, thread_id: threadId, ...(await deps.outside.reply(accountId, threadId, text, then, mail, outboxId, threadTs)) });
       } catch (err) {
         return fail(errorMessage(err));
       }
