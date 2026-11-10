@@ -2091,26 +2091,50 @@ button.loki-label-chip:focus-visible {
 .loki-slack-row {
   position: relative;
 }
-.loki-slack-react {
+/* The bar on the message under the pointer (plan 084), as Slack's: quick reactions and the add-reaction mark. */
+.loki-slack-hoverbar {
   position: absolute;
-  top: 0;
-  right: 0;
-  padding: 2px 8px;
+  top: -14px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--loki-border);
-  border-radius: var(--loki-radius-sm);
+  border-radius: var(--loki-radius-md);
   background: var(--loki-panel);
+  box-shadow: var(--loki-shadow-sheet);
+  opacity: 0;
+  pointer-events: none;
+}
+.loki-slack-row:hover > .loki-slack-hoverbar,
+.loki-slack-hoverbar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.loki-slack-hoverbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
   color: var(--loki-muted);
   font: inherit;
-  font-size: 12px;
+  font-size: 17px;
   cursor: pointer;
-  opacity: 0;
 }
-.loki-slack-row:hover > .loki-slack-react,
-.loki-slack-react:focus-visible {
-  opacity: 1;
-}
-.loki-slack-react:hover {
+.loki-slack-hoverbar button:hover {
+  background: var(--loki-hover);
   color: var(--loki-fg);
+}
+.loki-slack-hoverbar .loki-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 .loki-slack-reactions {
   display: flex;

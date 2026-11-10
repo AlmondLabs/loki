@@ -66,6 +66,9 @@ function threads(
     thenFails?: string;
     sendAs?: GmailSendAs[];
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
+    /** The person's most-used emoji as Slack keeps them, and whether reading them fails (plan 084). */
+    frequent?: string[];
+    frequentFails?: boolean;
   } = {},
 ) {
   /** What each card-view read was given: the record's facts and the ask. */
@@ -73,6 +76,7 @@ function threads(
   const sentMail: GmailDraftInput[] = [];
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
+  const frequentReads = { n: 0 };
   const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
@@ -150,11 +154,15 @@ function threads(
                 emojiReads.n++;
                 return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
               },
+              frequentEmoji: () => {
+                frequentReads.n++;
+                return opts.frequentFails ? Promise.reject(new Error("ratelimited")) : Promise.resolve(opts.frequent ?? []);
+              },
             },
           },
     ...opts.extra,
   });
-  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads };
+  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads, frequentReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -247,7 +255,12 @@ describe("reading a card's whole thread", () => {
       },
       clientFor: () => ({
         provider: "slack",
-        client: { postReply: () => Promise.resolve({ ts: "1" }), react: () => Promise.resolve(), emojiList: () => Promise.resolve({}) },
+        client: {
+          postReply: () => Promise.resolve({ ts: "1" }),
+          react: () => Promise.resolve(),
+          emojiList: () => Promise.resolve({}),
+          frequentEmoji: () => Promise.resolve([]),
+        },
       }),
       sleep: (ms) => {
         waits.push(ms);
@@ -394,6 +407,31 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
     expect((await t.searchEmoji(SLACK, "shipit")).map((c) => c.name)).toEqual(["shipit"]);
     await t.searchEmoji(SLACK, "eyes");
     expect(emojiReads.n).toBe(1);
+  });
+
+  test("an empty search is the person's most used in Slack, drawn, at most five; read again after ten minutes (plan 084)", async () => {
+    let at = Date.parse("2026-11-10T10:00:00Z");
+    const frequent = ["100", "ship_it", "not_an_emoji_anywhere", "+1::skin-tone-2", "eyes", "pray", "fire"];
+    const { t, frequentReads } = threads({ frequent, extra: { now: () => new Date(at) } });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([
+      { name: "100", emoji: { kind: "emoji", text: "💯" } },
+      { name: "ship_it", emoji: { kind: "emoji", text: ":shipit:", image: "https://example.test/shipit.png" } },
+      { name: "+1::skin-tone-2", emoji: { kind: "emoji", text: "👍\u{1F3FB}" } },
+      { name: "eyes", emoji: { kind: "emoji", text: "👀" } },
+      { name: "pray", emoji: { kind: "emoji", text: "🙏" } },
+    ]);
+    await t.searchEmoji(SLACK, " ");
+    expect(frequentReads.n).toBe(1);
+    at += 11 * 60_000;
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
+  });
+
+  test("most used that cannot be read are none, and asked again next time", async () => {
+    const { t, frequentReads } = threads({ frequentFails: true });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([]);
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
   });
 });
 

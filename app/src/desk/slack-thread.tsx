@@ -1,5 +1,14 @@
 import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { OutsideMessage, OutsideWindow, SlackAttachment, SlackBlock, SlackFile, SlackReaction, SlackSpan } from "../../../core/frame-types.ts";
+import type {
+  EmojiChoice,
+  OutsideMessage,
+  OutsideWindow,
+  SlackAttachment,
+  SlackBlock,
+  SlackFile,
+  SlackReaction,
+  SlackSpan,
+} from "../../../core/frame-types.ts";
 import { Chip } from "../components";
 import { clockLabel, dayLabel, dayPills } from "../shared/thread";
 import { scrollWithin } from "../shared/scroll-within";
@@ -9,7 +18,7 @@ import { LinkedText, openableHref } from "./mail-html";
 import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
-import { EmojiPicker, Reactions } from "./slack-reactions";
+import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -290,11 +299,48 @@ function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void })
 }
 
 /** One message as the chat draws one: a face and name on the first of a run, its time (and day, when it moved on) beside the name. */
-/** What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, and the picker when open. */
+/**
+ * What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, react with one of the
+ * person's quick reactions from its hover bar (plan 084), and the picker when open.
+ */
 interface RowReacting {
   open: () => void;
   toggle: (r: SlackReaction) => void;
+  quick: readonly EmojiChoice[];
+  pick: (choice: EmojiChoice) => void;
   picker: ReactNode;
+}
+
+/** How many of the person's quick reactions a message's hover bar shows, as Slack's does. */
+const BAR_QUICK = 3;
+
+/** Slack's add-reaction mark: a face with a plus, drawn in the text's colour. */
+function AddReactionMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+      <path d="M16.5 9.5a7 7 0 1 1-6-6.9" />
+      <path d="M7 12.5c.8 1 1.8 1.5 3 1.5s2.2-.5 3-1.5" />
+      <circle cx="7.5" cy="8.5" r=".6" fill="currentColor" />
+      <circle cx="12.5" cy="8.5" r=".6" fill="currentColor" />
+      <path d="M15.5 1.5v5M13 4h5" />
+    </svg>
+  );
+}
+
+/** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
+function HoverBar({ reacting }: { reacting: RowReacting }) {
+  return (
+    <div className="loki-slack-hoverbar" role="toolbar" aria-label="react">
+      {reacting.quick.slice(0, BAR_QUICK).map((c) => (
+        <button key={c.name} type="button" title={`react with :${c.name}:`} onClick={() => reacting.pick(c)}>
+          <Emoji emoji={c.emoji} name={c.name} />
+        </button>
+      ))}
+      <button type="button" title={`add a reaction (${keyFor("inbox.react")} on the main message)`} aria-label="add a reaction" onClick={reacting.open}>
+        <AddReactionMark />
+      </button>
+    </div>
+  );
 }
 
 function SlackRow({
@@ -312,11 +358,7 @@ function SlackRow({
 }) {
   return (
     <div className="loki-msg loki-slack-row" data-first={first ? "true" : undefined}>
-      {reacting && (
-        <button type="button" className="loki-slack-react" title={`react with an emoji (${keyFor("inbox.react")} on the main message)`} onClick={reacting.open}>
-          react
-        </button>
-      )}
+      {reacting && <HoverBar reacting={reacting} />}
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={m.sender} src={m.avatar ?? null} size={36} />}
       </span>
@@ -438,21 +480,24 @@ export function mainMessage(messages: readonly OutsideMessage[], newest: string)
 function useReacting(messages: readonly OutsideMessage[], newest: string, controls: ThreadControls | null) {
   const [picking, setPicking] = useState<string | null>(null);
   const react = controls?.react;
+  const quick = controls?.quick ?? QUICK_EMOJI;
   const main = mainMessage(messages, newest);
   const openMain = useEffectEvent(() => setPicking(main));
   const canReact = !!react;
   useEffect(() => (canReact ? registerActions({ "inbox.react": () => openMain() }) : undefined), [canReact]);
   return (m: OutsideMessage): RowReacting | undefined => {
     if (!react) return undefined;
-    const pick = (choice: { name: string; emoji: NonNullable<SlackReaction["emoji"]> }) => {
+    const pick = (choice: EmojiChoice) => {
       setPicking(null);
       const mine = m.reactions?.some((r) => r.name === choice.name && r.mine) === true;
       react(m.id, choice, !mine);
     };
     return {
       open: () => setPicking(m.id),
+      quick,
+      pick,
       toggle: (r) => react(m.id, { name: r.name, emoji: r.emoji ?? { kind: "emoji", text: `:${r.name}:` } }, !r.mine),
-      picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} onPick={pick} onClose={() => setPicking(null)} /> : null,
+      picker: picking === m.id ? <EmojiPicker search={controls.searchEmoji ?? null} quick={quick} onPick={pick} onClose={() => setPicking(null)} /> : null,
     };
   };
 }

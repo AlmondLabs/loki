@@ -24,7 +24,7 @@ import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } fro
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { SlackThread } from "./slack-thread";
-import { toggleReaction } from "./slack-reactions";
+import { toggleReaction, useQuickEmoji } from "./slack-reactions";
 
 /**
  * An outside card (plan 067, U3): a Gmail or Slack thread in the Inbox, not a chat. It shows who wrote, about what,
@@ -99,6 +99,8 @@ export interface ThreadControls {
   react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
   /** The emoji the account can react with whose names hold `query`; empty when they could not be read. */
   searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
+  /** The person's quick reactions (plan 084): their most used in Slack, five, for the hover bar and the picker's keys. */
+  quick?: EmojiChoice[];
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
@@ -173,6 +175,9 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
       live = false;
     };
   }, [key, tag, view]);
+  const search = source?.searchEmoji;
+  const searchEmoji = search ? (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) : null;
+  const quick = useQuickEmoji(o?.provider === "slack" && source?.reactOutside ? o.account_id : null, searchEmoji);
   // A newer message reads the thread again; meanwhile the card keeps what it shows.
   if (!key || shown?.view !== view) return { kind: "loading" };
   if (shown.failed !== null) return { kind: "failed", message: shown.failed };
@@ -211,14 +216,13 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
       if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
     });
   };
-  const search = source?.searchEmoji;
   const controls: ThreadControls = {
     load,
     openThread: (ts) => setOpened({ key, threadTs: ts }),
     ...(threadTs ? { back: () => setOpened(null) } : {}),
     busy: shown.busy,
-    ...(reactOutside ? { react } : {}),
-    ...(search ? { searchEmoji: (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) } : {}),
+    ...(reactOutside ? { react, quick } : {}),
+    ...(searchEmoji ? { searchEmoji } : {}),
   };
   return { kind: "read", messages: shown.messages, window: w, controls };
 }
