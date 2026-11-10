@@ -102,7 +102,7 @@ function threads(
       },
       get: () => (opts.record ? { dealt_message_id: null, brought_ids: [], newest_message_id: "3", ...opts.record } : null),
     },
-    threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []) },
+    threadText: { gmail: () => Promise.resolve(opts.thread ?? []), slack: () => Promise.resolve(opts.thread ?? []), jira: () => Promise.resolve([]) },
     ...(opts.view
       ? {
           cardView: {
@@ -244,6 +244,7 @@ describe("reading a card's whole thread", () => {
           calls++ === 0
             ? Promise.reject(new SlackError(`Slack asked loki to wait ${String(waitMs / 1000)} s`, "ratelimited", waitMs))
             : Promise.resolve([{ sender: "Grace", at: "", text: "anyone with crm access?", id: "1" }]),
+        jira: () => Promise.resolve([]),
       },
       clientFor: () => ({
         provider: "slack",

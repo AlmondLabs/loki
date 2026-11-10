@@ -33,7 +33,7 @@ import { toggleReaction } from "./slack-reactions";
  * the same thread with `OutsideThread`.
  */
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack" };
+const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
 /** What a disconnected account's cards say (R22): what happened and how to reconnect, lowercase as desktop meta. */
 export function disconnectedText(cause: AccountDisconnectCause, provider: AccountProvider): string {

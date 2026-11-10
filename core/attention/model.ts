@@ -57,7 +57,7 @@ export interface ConversationInfo {
   cwd?: string | null;
   /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9), as the list has them. */
   reply_proposals?: ReplyProposal[];
-  /** An outside card: a Gmail or Slack thread, not a chat (plan 067, KTD1); absent on a chat. */
+  /** An outside card: a Gmail or Slack thread or a Jira ticket, not a chat (plan 067, KTD1); absent on a chat. */
   kind?: "outside";
   /** The outside card's own facts, present exactly when `kind` is `outside`. */
   outside?: OutsideFacts;
@@ -504,13 +504,24 @@ export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: 
 }
 
 /**
- * An outside card before its score (plan 067, KTD1): never blocked, so it scores like a chat with a new reply (R9). An
+ * Whether an outside card is unread (plan 067, KTD1): never blocked, it scores like a chat with a new reply (R9). An
  * email card is unread exactly while Gmail says so (plan 070, KTD2): a mail read there keeps its card, one marked unread
  * there comes back, and a read in loki reaches Gmail through its write-back. A Slack card is new until its own mark is
- * newer than its newest message. It has no live half; its preview is its last line.
+ * newer than its newest message, and so is a Jira card, since Jira keeps no read state for a ticket.
  */
+function outsideUnread(o: OutsideFacts, seenAt: string | null): boolean {
+  switch (o.provider) {
+    case "gmail":
+      return o.unread_out_there !== false;
+    case "slack":
+    case "jira":
+      return !seenAt || seenAt < o.newest_at;
+  }
+}
+
+/** An outside card as an item before its score. It has no live half; its preview is its last line. */
 function outsideItem(c: ConversationInfo, o: OutsideFacts, seenAt: string | null, viewedAt: string | null): Unscored {
-  const unread = o.provider === "gmail" ? o.unread_out_there !== false : !seenAt || seenAt < o.newest_at;
+  const unread = outsideUnread(o, seenAt);
   return {
     ...c,
     status: unread ? "done" : "idle",

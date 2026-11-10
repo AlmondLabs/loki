@@ -124,7 +124,8 @@ describe("later (plan 070, U4)", () => {
   test("each kind of card keeps its own return times, and an unknown record is not one", () => {
     const mail = outsideItem("Quarterly numbers");
     const slack = outsideItem("hi", { outside: { ...must(mail.outside, "facts"), provider: "slack" } });
-    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack)]).toEqual(["chat", "email", "slack"]);
+    const jira = outsideItem("OPS-7", { outside: { ...must(mail.outside, "facts"), provider: "jira" } });
+    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack), cardKindOf(jira)]).toEqual(["chat", "email", "slack", "slack"]);
     expect(readFirstMs(RETURN_TIMES_DEFAULT, "email")).toBe(H);
     expect(laterMs(RETURN_TIMES_DEFAULT, "slack")).toBe(DAY);
     expect(isReturnTimes(RETURN_TIMES_DEFAULT)).toBe(true);

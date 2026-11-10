@@ -5,7 +5,7 @@ import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
 import { keyedQueue } from "../core/serial.ts";
-import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
+import { SERVICE_NAME, accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 
@@ -102,7 +102,7 @@ export interface ObservedMessage {
 }
 
 /**
- * A provider's write-backs (plan 067, R12; plan 070, KTD3): each move on an outside card written to Gmail or Slack.
+ * A provider's write-backs (plan 067, R12; plan 070, KTD3): each move on an outside card written to its service.
  * Each write answers what it changed, so `restore` can put back exactly that for an undo (R14). Each throws why when it
  * could not, and the record stays as it was.
  */
@@ -186,6 +186,28 @@ function parseRecord(v: unknown): ThreadRecord | null {
 
 /** A record marked as dealt with at its newest message (plan 077, KTD1), keeping the mark it had for an undo. */
 const dealt = (r: ThreadRecord): ThreadRecord => ({ ...r, dealt_message_id: r.newest_message_id, dealt_was: r.dealt_message_id });
+
+/** The sender's address a card carries: mail's only, since email focus is learned by it and the others have none. */
+function senderAddressOf(provider: AccountProvider, r: ThreadRecord): string | null {
+  switch (provider) {
+    case "gmail":
+      return r.sender_address;
+    case "slack":
+    case "jira":
+      return null;
+  }
+}
+
+/** A card's reach: the one its watcher recorded; a mail's is read from its traits when none was. */
+function reachOf(provider: AccountProvider, r: ThreadRecord): OutsideReach | null {
+  switch (provider) {
+    case "gmail":
+      return r.reach ?? mailReach(r.traits);
+    case "slack":
+    case "jira":
+      return r.reach;
+  }
+}
 
 /** The thread records of every account on this Mac, and the outside cards they make. */
 export class AccountThreads {
@@ -409,7 +431,7 @@ export class AccountThreads {
     const account = this.opts.accounts.get(accountId);
     if (!account) throw new Error("that account is not connected on this Mac");
     const source = this.sources.get(account.provider);
-    if (!source) throw new Error(`loki cannot ${what} in ${account.provider === "gmail" ? "Gmail" : "Slack"} yet`);
+    if (!source) throw new Error(`loki cannot ${what} in ${SERVICE_NAME[account.provider]} yet`);
     return source;
   }
 
@@ -492,7 +514,7 @@ export class AccountThreads {
         owner_agent_id: account.owner_agent_id,
         owner_name: this.opts.agentName?.(account.owner_agent_id) ?? null,
         sender: r.sender,
-        sender_address: account.provider === "gmail" ? r.sender_address : null,
+        sender_address: senderAddressOf(account.provider, r),
         subject: r.subject_or_first_line,
         lines: [...r.lines],
         newest_message_id: r.newest_message_id,
@@ -500,7 +522,7 @@ export class AccountThreads {
         handoff_conversation_id: r.handoff_conversation_id,
         disconnected: account.status === "connected" ? null : account.status.disconnected,
         unread_out_there: r.unread_out_there,
-        reach: r.reach ?? (account.provider === "gmail" ? mailReach(r.traits) : null),
+        reach: reachOf(account.provider, r),
         place: r.place,
         sender_avatar: r.sender_avatar,
         only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,

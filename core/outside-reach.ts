@@ -2,9 +2,9 @@ import type { OutsideReach } from "./frame-types.ts";
 import type { MailTraits } from "./mail-filter.ts";
 
 /**
- * How directly a card is meant for the person (plan 073), on one scale for Slack, mail and chats: 1 needs them (a DM, a
- * mail to them, a chat that asked them), 2 names them, 3 is their own work coming back, 4 names a group, 5 is everyone,
- * 6 is a machine. The card's tag shows it; only level 1 takes the attention colour, and 5 and 6 are muted.
+ * How directly a card is meant for the person (plan 073), on one scale for Slack, mail, Jira and chats: 1 needs them (a
+ * DM, a mail to them, a chat that asked them), 2 names them, 3 is their own work coming back (their thread, a ticket
+ * assigned to them), 4 names a group or is only followed (a ticket they watch), 5 is everyone, 6 is a machine. The card's tag shows it; only level 1 takes the attention colour, and 5 and 6 are muted.
  */
 export type ReachLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -14,8 +14,10 @@ export const REACH_LEVEL: Record<OutsideReach, ReachLevel> = {
   to_you: 1,
   mention: 2,
   thread: 3,
+  assigned: 3,
   group: 4,
   not_to_you: 4,
+  watching: 4,
   channel: 5,
   list: 5,
   automated: 6,
@@ -27,8 +29,10 @@ export const REACH_LABEL: Record<OutsideReach, string> = {
   to_you: "to you",
   mention: "mentioned you",
   thread: "your thread",
+  assigned: "assigned to you",
   group: "your group",
   not_to_you: "not to you",
+  watching: "watching",
   channel: "@channel",
   list: "list",
   automated: "automated",

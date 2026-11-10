@@ -360,7 +360,15 @@ describe("outside cards (plan 067, U3)", () => {
   const AT = "2026-11-04T09:00:00Z";
   /** An outside row as the mod lists it: one Gmail thread of the work agent's mailbox. */
   const outside = (
-    more: { generation?: number; message?: string; at?: string; owner?: string; sender?: string; unreadOutThere?: boolean; provider?: "gmail" | "slack" } = {},
+    more: {
+      generation?: number;
+      message?: string;
+      at?: string;
+      owner?: string;
+      sender?: string;
+      unreadOutThere?: boolean;
+      provider?: "gmail" | "slack" | "jira";
+    } = {},
   ): ConversationInfo => ({
     kind: "outside",
     id: `t1#${String(more.generation ?? 1)}`,
@@ -429,6 +437,13 @@ describe("outside cards (plan 067, U3)", () => {
     const key = keyOf("account:gmail:ada@acme.com", "t1#1");
     expect(one(outside({ provider: "slack" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(false);
     expect(one(outside({ provider: "slack", message: "m2", at: "2026-11-04T09:30:00Z" }), { seen: { [key]: "2026-11-04T09:10:00Z" } }).unread).toBe(true);
+  });
+
+  test("a Jira card is unread while its newest event is newer than the card's own mark, whatever is said of out there", () => {
+    const key = keyOf("account:gmail:ada@acme.com", "t1#1");
+    const seen = { seen: { [key]: "2026-11-04T09:10:00Z" } };
+    expect(one(outside({ provider: "jira", unreadOutThere: true }), seen).unread).toBe(false);
+    expect(one(outside({ provider: "jira", unreadOutThere: false, message: "e2", at: "2026-11-04T09:30:00Z" }), seen).unread).toBe(true);
   });
 
   test("an email card unread in Gmail shows unread even when loki's seen mark is newer (marked unread there)", () => {

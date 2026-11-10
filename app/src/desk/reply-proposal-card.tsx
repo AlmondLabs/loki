@@ -31,7 +31,7 @@ export interface ReplyProposalsProps {
   touch?: boolean;
 }
 
-const SERVICE = { gmail: "Gmail", slack: "Slack" } as const;
+const SERVICE = { gmail: "Gmail", slack: "Slack", jira: "Jira" } as const;
 
 /** The words of a control: lowercase on the desktop, sentence case on the phone. */
 const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);

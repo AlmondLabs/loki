@@ -55,7 +55,7 @@ export interface AccountRow {
   reconnect: Reconnect | null;
 }
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack" };
+const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
 /** How often the list is asked again while the page shows: a Gmail sign-in finishes in the browser, and accounts can stop working. */
 const POLL_MS = 3000;

@@ -70,6 +70,7 @@ async function fixture() {
     threadText: {
       gmail: (accountId, threadId) => (read.push(`${accountId} ${threadId}`), Promise.resolve(THREAD)),
       slack: () => Promise.reject(new Error("no Slack here")),
+      jira: () => Promise.resolve([]),
     },
   });
   return { dir, accounts, threads, chats, calls, fail, read, handoff };
@@ -129,7 +130,7 @@ describe("handing a thread to its owner's chat", () => {
       threads,
       chats: () => chats,
       call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
-      threadText: { gmail: () => Promise.resolve(THREAD), slack: () => Promise.resolve([]) },
+      threadText: { gmail: () => Promise.resolve(THREAD), slack: () => Promise.resolve([]), jira: () => Promise.resolve([]) },
     });
     expect(await again.handOff(GMAIL, "t1")).toEqual({ agent_id: "agent-work", conversation_id: "c-new-1" });
     expect(creates(calls)).toHaveLength(1);
@@ -228,6 +229,7 @@ describe("handing a thread to its owner's chat", () => {
           return Promise.resolve(THREAD);
         },
         slack: () => Promise.resolve([]),
+        jira: () => Promise.resolve([]),
       },
     });
     const before = must(threads.get(GMAIL, "t1"), "the thread").generation;
@@ -345,7 +347,7 @@ describe("a hand-off ends the thread out there (plan 070, U9, R13)", () => {
       threads,
       chats: () => chats,
       call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
-      threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve(THREAD) },
+      threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve(THREAD), jira: () => Promise.resolve([]) },
     });
     await handoff.handOff(SLACK, "D7", { conversation_id: "c-plan" });
     // Slack's archive write-back is its read mark: the DM is read up to the handed message.
@@ -376,6 +378,7 @@ describe("a hand-off ends the thread out there (plan 070, U9, R13)", () => {
           return Promise.resolve(THREAD);
         },
         slack: () => Promise.resolve([]),
+        jira: () => Promise.resolve([]),
       },
     });
     await handoff.handOff(GMAIL, "t1", { conversation_id: "c-plan" });

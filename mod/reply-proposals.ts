@@ -75,7 +75,7 @@ interface ChatRecord extends ChatKey {
   notices: string[];
 }
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack" };
+const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 const STATUSES: readonly ReplyProposalStatus[] = ["pending", "drafting", "drafted", "rejected", "withdrawn"];
 /** What a draft that threw on the way leaves on the card; the proposal waits again. */
 const UNFINISHED = "the draft was not written: try again";

@@ -138,7 +138,7 @@ export interface InboxRow extends LocalDigest, ChatHome {
   /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9): the card is blocked. */
   reply_proposals?: ReplyProposal[];
   /**
-   * An outside card (plan 067, KTD1): a Gmail or Slack thread, not a chat. Its `agent_id` is `account:<account_id>` and
+   * An outside card (plan 067, KTD1): a Gmail or Slack thread or a Jira ticket, not a chat. Its `agent_id` is `account:<account_id>` and
    * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a
    * hand-off starts clean. Absent on a chat's row.
    */
@@ -195,10 +195,11 @@ export interface OutsideFacts {
 
 /**
  * How directly a card's newest message is meant for the person (plan 073): a Slack DM or a mail to them, a mention of
- * them, a reply in their thread, a mention of a user group they are in or a mail not addressed to them, @channel or a
- * mailing list, a mail sent by a machine. `core/outside-reach.ts` orders them.
+ * them, a reply in their thread or a Jira ticket assigned to them, a mention of a user group they are in, a mail not
+ * addressed to them or a Jira ticket they only watch, @channel or a mailing list, a mail sent by a machine.
+ * `core/outside-reach.ts` orders them.
  */
-export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "group" | "not_to_you" | "channel" | "list" | "automated";
+export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "assigned" | "group" | "not_to_you" | "watching" | "channel" | "list" | "automated";
 
 /**
  * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,
@@ -757,8 +758,8 @@ export interface McpView {
   config_path: string;
 }
 
-/** The services an Inbox account connects (plan 067): a Gmail mailbox or a Slack workspace. */
-export type AccountProvider = "gmail" | "slack";
+/** The services an Inbox account connects (plan 067): a Gmail mailbox, a Slack workspace or a Jira site. */
+export type AccountProvider = "gmail" | "slack" | "jira";
 /**
  * Why an account stopped working, as an id the app turns into words and a way back (plan 067, R22): Google wants a new
  * sign-in, a workspace admin blocks the app, the Slack desktop app signed out, or the service keeps failing for now.
@@ -768,11 +769,14 @@ export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_s
 export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
 
 /**
- * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, or
- * a Slack workspace's name), and the one agent that owns it. It never carries a token.
+ * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, a
+ * Slack workspace's name, or a Jira site's host), and the one agent that owns it. It never carries a token.
  */
 export interface AccountView {
-  /** The provider and its stable id: `gmail:<address>` or `slack:<team_id>:<user_id>` (mod/accounts.ts accountIdOf). */
+  /**
+   * The provider and its stable id: `gmail:<address>`, `slack:<team_id>:<user_id>` or `jira:<host>:<account id>`
+   * (mod/accounts.ts accountIdOf).
+   */
   account_id: string;
   provider: AccountProvider;
   address: string;

@@ -114,7 +114,7 @@ interface Pending {
   made_conversation_id: string | null;
 }
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack" };
+const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 const TAG = "thread_message";
 const TITLE_MAX = 80;
 

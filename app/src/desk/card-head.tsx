@@ -5,7 +5,7 @@ import { Chip, Dot } from "../components";
 import { AgentFace } from "./agent-chip";
 
 /**
- * An Inbox card's header (plan 073), the same shape on a Slack, mail or chat card: a face with a mark for where the
+ * An Inbox card's header (plan 073), the same shape on a Slack, mail, Jira or chat card: a face with a mark for where the
  * card came from, who on the first line, where or what and when on the second, and the tag and badge at the end.
  */
 export function CardHead({
@@ -37,12 +37,17 @@ export function CardHead({
   );
 }
 
-/** Where an outside card came from, as the mark on its face: Slack or mail. A chat is loki's own and has none. */
-export type CardMark = "slack" | "mail";
+/** Where an outside card came from, as the mark on its face: Slack, mail or Jira. A chat is loki's own and has none. */
+export type CardMark = "slack" | "mail" | "jira";
 
 /** The mark's glyph: plain signs, not the services' logos, which their brand terms keep for their own uses. */
-const MARK_GLYPH: Record<CardMark, string> = { slack: "#", mail: "✉" };
-const MARK_CLASS: Record<CardMark, string> = { slack: "loki-card-mark loki-card-mark--slack", mail: "loki-card-mark loki-card-mark--mail" };
+const MARK_GLYPH: Record<CardMark, string> = { slack: "#", mail: "✉", jira: "◆" };
+const MARK_CLASS: Record<CardMark, string> = {
+  slack: "loki-card-mark loki-card-mark--slack",
+  mail: "loki-card-mark loki-card-mark--mail",
+  jira: "loki-card-mark loki-card-mark--jira",
+};
+const MARK_LABEL: Record<CardMark, string> = { slack: "from Slack", mail: "from mail", jira: "from Jira" };
 
 /** A sender's or agent's face, 36 across, with the mark of where the card came from in its corner. */
 export function CardFace({ name, src, mark }: { name: string; src: string | null; mark?: CardMark }) {
@@ -50,7 +55,7 @@ export function CardFace({ name, src, mark }: { name: string; src: string | null
     <span className="loki-card-face">
       <AgentFace name={name} src={src} size={36} />
       {mark && (
-        <span className={MARK_CLASS[mark]} aria-label={mark === "slack" ? "from Slack" : "from mail"}>
+        <span className={MARK_CLASS[mark]} aria-label={MARK_LABEL[mark]}>
           {MARK_GLYPH[mark]}
         </span>
       )}

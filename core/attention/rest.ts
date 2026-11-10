@@ -58,15 +58,24 @@ const isRestFirstValue = (raw: unknown): raw is RestFirst => typeof raw === "str
 /** The kinds of Inbox card that keep their own return times (R15). */
 export type CardKind = "chat" | "email" | "slack";
 
-/** A card's kind for its return times: a chat, or an outside card by its provider. */
+/**
+ * A card's kind for its return times: a chat, or an outside card by its provider. A Jira card rests as the Slack kind
+ * (plan 2026-11-10-1451, KTD17): read has no rest of its own and later uses Slack's time, so Jira needs no setting.
+ */
 export function cardKindOf(item: Pick<AttentionItem, "outside">): CardKind {
   if (!item.outside) return "chat";
-  return item.outside.provider === "slack" ? "slack" : "email";
+  switch (item.outside.provider) {
+    case "gmail":
+      return "email";
+    case "slack":
+    case "jira":
+      return "slack";
+  }
 }
 
 /**
  * The person's return times for each kind of card, as the daemon keeps them (plan 070, R15, KTD8): ⌘]'s first rest for
- * chats and email (a Slack card read is finished, so it has none), and ⌘['s return for every kind.
+ * chats and email (a Slack or Jira card read is finished, so it has none), and ⌘['s return for every kind.
  */
 export interface ReturnTimes {
   read_first: { chat: RestFirst; email: RestFirst };

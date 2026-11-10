@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { MemoryStorage } from "@earendil-works/pi-durable";
+import type { AccountProvider } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import type { ModApi, ModTool, SectionInput } from "../daemon/mods/api.ts";
@@ -114,7 +115,7 @@ async function fixture(threadsPerMailbox = 3) {
   const deps = {
     accounts,
     threads,
-    clientFor: (account: { account_id: string; provider: "gmail" | "slack" }) =>
+    clientFor: (account: { account_id: string; provider: AccountProvider }) =>
       account.provider === "gmail"
         ? { provider: "gmail" as const, client: must(mailboxes.get(account.account_id)) }
         : { provider: "slack" as const, client: fakeSlack() },

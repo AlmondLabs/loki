@@ -112,7 +112,7 @@ function mail(opts: { outbox?: string; key?: string | null; now?: () => Date; af
       markDealt: () => true,
       get: () => null,
     },
-    threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
+    threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]), jira: () => Promise.resolve([]) },
     clientFor: () => ({
       provider: "gmail",
       client: {

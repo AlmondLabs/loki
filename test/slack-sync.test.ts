@@ -204,7 +204,7 @@ async function fixture(clock = { t: CONNECTED * 1000 + 60_000 }) {
   const outside = new OutsideThreads({
     accounts,
     threads,
-    threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]) },
+    threadText: { gmail: () => Promise.resolve([]), slack: () => Promise.resolve([]), jira: () => Promise.resolve([]) },
     clientFor: () => ({ provider: "slack", client }),
   });
   return { dir, slack, accounts, threads, sync, open, outside, clock, resting };

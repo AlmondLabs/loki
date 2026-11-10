@@ -232,7 +232,11 @@ describe("the account frames", () => {
           threads,
           chats: () => [{ agent_id: "agent-work", conversation_id: "c-plan", title: "Planning", status: "live", last_active: null }],
           call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
-          threadText: { gmail: () => Promise.resolve([{ sender: "Grace", at: "2026-11-04T09:00:00.000Z", text: "hi" }]), slack: () => Promise.resolve([]) },
+          threadText: {
+            gmail: () => Promise.resolve([{ sender: "Grace", at: "2026-11-04T09:00:00.000Z", text: "hi" }]),
+            slack: () => Promise.resolve([]),
+            jira: () => Promise.resolve([]),
+          },
         }),
     );
     threads.observe("gmail:ada@acme.com", { thread_id: "t1", message_id: "m1", at: "2026-11-04T09:00:00.000Z", sender: "Grace", subject: "hi", lines: ["hi"] });

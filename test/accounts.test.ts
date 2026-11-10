@@ -1,10 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import type { AccountView } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { Accounts, PeerAccounts, accountIdOf, type AccountChange } from "../mod/accounts.ts";
+import { Accounts, PeerAccounts, accountIdOf, accountLabel, type AccountChange } from "../mod/accounts.ts";
 
 const NOW = new Date("2026-11-04T09:00:00Z");
 const AGENTS = new Set(["agent-work", "agent-home"]);
@@ -41,6 +41,32 @@ describe("account ids", () => {
   test("a mailbox is its address in lower case, a workspace its team and user", () => {
     expect(accountIdOf({ provider: "gmail", address: " Ada@Acme.COM " })).toBe("gmail:ada@acme.com");
     expect(accountIdOf({ provider: "slack", team_id: "T01", user_id: "U02" })).toBe("slack:T01:U02");
+  });
+
+  test("a Jira site is its API host and the person's Atlassian account, and its label names the service", () => {
+    expect(accountIdOf({ provider: "jira", host: "Acme.atlassian.net", account_id: "5b10ac8d82e05b22cc7d4ef5" })).toBe(
+      "jira:acme.atlassian.net:5b10ac8d82e05b22cc7d4ef5",
+    );
+    expect(accountLabel({ provider: "jira", address: "acme.atlassian.net" })).toBe("acme.atlassian.net (Jira)");
+  });
+
+  test("a stored Jira account is read back, and one of a service loki does not know is dropped", () => {
+    const { file, reopen } = fixture();
+    const stored = (provider: string, host: string) => ({
+      account_id: `${provider}:${host}:u1`,
+      provider,
+      address: host,
+      owner_agent_id: "agent-work",
+      status: "connected",
+      connected_at: NOW.toISOString(),
+      backfill: {},
+    });
+    writeFileSync(file, JSON.stringify({ version: 1, accounts: [stored("jira", "acme.atlassian.net"), stored("trello", "trello.example")] }));
+    expect(
+      reopen()
+        .list()
+        .map((a) => a.account_id),
+    ).toEqual(["jira:acme.atlassian.net:u1"]);
   });
 });
 

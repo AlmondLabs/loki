@@ -78,6 +78,29 @@ describe("a card's header facts (plan 073)", () => {
     await accounts.add({ account_id: "gmail:ada@home.example", provider: "gmail", address: "ada@home.example", owner_agent_id: "agent-work" });
     expect(reach()).toEqual(["ask to_you false", "bill automated false"]);
   });
+
+  test("a Jira card's reach is the one recorded, kept across a restart, and it carries no sender address", async () => {
+    const { threads, accounts, again } = await fixture();
+    const site = "jira:acme.atlassian.net:u1";
+    await accounts.add({ account_id: site, provider: "jira", address: "acme.atlassian.net", owner_agent_id: "agent-work" });
+    threads.observe(site, message({ thread_id: "10001", reach: "assigned" }));
+    threads.observe(site, message({ thread_id: "10002", reach: "watching" }));
+    threads.observe(site, message({ thread_id: "10003", traits: { to_you: true, list: false, automated: false, category: null } }));
+    const facts = () =>
+      again()
+        .rows()
+        .map((r) => `${r.outside?.thread_id ?? ""} ${r.outside?.reach ?? "none"} ${String(r.outside?.sender_address)}`)
+        .sort();
+    expect(facts()).toEqual(["10001 assigned null", "10002 watching null", "10003 none null"]);
+  });
+
+  test("a move on an account whose service has no write-back yet is refused by the service's name", async () => {
+    const { threads, accounts } = await fixture();
+    const site = "jira:acme.atlassian.net:u1";
+    await accounts.add({ account_id: site, provider: "jira", address: "acme.atlassian.net", owner_agent_id: "agent-work" });
+    threads.observe(site, message());
+    await expect(threads.archive(site, "t1")).rejects.toThrow("loki cannot archive in Jira yet");
+  });
 });
 
 describe("the thread records of an account", () => {
