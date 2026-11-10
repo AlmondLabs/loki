@@ -109,6 +109,8 @@ describe("handing a thread to its owner's chat", () => {
     const { text } = sent[0];
     expect(text.startsWith("Handed off from ada@acme.com, thread t1. Use account_read for newer messages.")).toBe(true);
     expect(text).toContain(fenceThread(THREAD));
+    // The reminder names loki's deck by its name on screen, Flow (plan 087).
+    expect(sent[0].context).toContain("to you from Flow.");
     // The card leaves; no write-back is registered here, so Gmail is not touched (the U9 tests register one).
     expect(threads.get(GMAIL, "t1")).toMatchObject({ state: "handed_off", handoff_conversation_id: "c-new-1" });
     expect(threads.rows()).toEqual([]);

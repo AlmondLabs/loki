@@ -193,15 +193,64 @@ export interface WsBridge {
 }
 
 /**
+ * The largest frame a socket may send: room for a message with several pictures, which the page shrinks first. The
+ * library's own limit is 100 MB, and one frame that size from a paired device would hold the daemon in JSON.parse.
+ */
+export const MAX_FRAME_BYTES = 32 * 1024 * 1024;
+/** How often each socket is pinged. One that has not answered the ping before is ended: its device is gone. */
+export const HEARTBEAT_MS = 30_000;
+/**
+ * The most that may wait unsent on one socket. A phone that left the Wi-Fi stays "open" until TCP gives up, minutes
+ * later, and every push meanwhile is kept in memory for it; past this the socket is ended, and the device reads what
+ * it missed when it connects again.
+ */
+export const MAX_BUFFERED_BYTES = 16 * 1024 * 1024;
+
+/** The limits of a listener's sockets; the defaults are the constants above, and tests shorten them. */
+export interface WsLimits {
+  maxFrameBytes?: number;
+  heartbeatMs?: number;
+  maxBufferedBytes?: number;
+}
+
+/**
  * WebSocket upgrades on `/ws` (the bridge). `auth` is the desktop
  * token (checked by tokenAuth: the subprotocol header, or `?t=`) or an Authorize callback; the handlers are the same
  * for both listeners.
  */
-export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers): WsBridge {
+export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers, limits: WsLimits = {}): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
+  const maxBuffered = limits.maxBufferedBytes ?? MAX_BUFFERED_BYTES;
   // A tab that sent its token in the subprotocol header is answered `loki`; one that sent none is asked nothing.
-  const wss = new WebSocketServer({ noServer: true, handleProtocols: (protocols) => (protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false) });
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: limits.maxFrameBytes ?? MAX_FRAME_BYTES,
+    handleProtocols: (protocols) => (protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false),
+  });
   const clients = new Map<WebSocket, Client>();
+  /** The sockets that answered the last ping (or opened since); the rest are ended at the next one. */
+  const alive = new Set<WebSocket>();
+  const send = (ws: WebSocket, text: string): void => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    if (ws.bufferedAmount > maxBuffered) {
+      ws.terminate();
+      clients.delete(ws);
+      return;
+    }
+    ws.send(text);
+  };
+  const heartbeat = setInterval(() => {
+    for (const ws of clients.keys()) {
+      if (!alive.has(ws)) {
+        ws.terminate();
+        clients.delete(ws);
+        continue;
+      }
+      alive.delete(ws);
+      ws.ping();
+    }
+  }, limits.heartbeatMs ?? HEARTBEAT_MS);
+  heartbeat.unref();
 
   server.on("upgrade", (req, socket, head) => {
     let url: URL;
@@ -223,11 +272,16 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     }
     const scope = scopeFor(url.searchParams.get("desk"));
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const client: Client = { scope, send: (msg) => send(ws, msg) };
+      const client: Client = { scope, send: (msg) => send(ws, JSON.stringify(msg)) };
       if (who.deviceId) client.deviceId = who.deviceId;
       if (who.peerId) client.peerId = who.peerId;
       clients.set(ws, client);
-      ws.on("close", () => clients.delete(ws));
+      alive.add(ws);
+      ws.on("pong", () => alive.add(ws));
+      ws.on("close", () => {
+        clients.delete(ws);
+        alive.delete(ws);
+      });
       // A frame ws cannot read (bad UTF-8, too large) is emitted as an error before the close, and an error nobody
       // listens for is thrown: one bad client would end the daemon.
       ws.on("error", () => {});
@@ -236,14 +290,14 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
         try {
           msg = JSON.parse(messageText(raw));
         } catch {
-          send(ws, { type: "error", message: "invalid json" });
+          send(ws, JSON.stringify({ type: "error", message: "invalid json" }));
           return;
         }
         if (typeof msg !== "object" || msg === null) return;
         try {
           handlers.onMessage(client, msg as Record<string, unknown>);
         } catch (err) {
-          send(ws, { type: "error", message: messageOf(err) });
+          send(ws, JSON.stringify({ type: "error", message: messageOf(err) }));
         }
       });
       handlers.onConnect(client);
@@ -269,22 +323,19 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
       let text: string | undefined;
       for (const [ws, c] of clients)
         if ((to === "all" || c.peerId) && (!scope || c.scope === scope || c.peerId) && ws.readyState === WebSocket.OPEN)
-          ws.send((text ??= JSON.stringify(msg)));
+          send(ws, (text ??= JSON.stringify(msg)));
     },
     clientCount: () => clients.size,
     closeDevice: (deviceId) => closeWhere((c) => c.deviceId === deviceId),
     closePeer: (peerId) => closeWhere((c) => c.peerId === peerId),
     closeDevices: () => closeWhere((c) => c.deviceId !== undefined),
     close: () => {
+      clearInterval(heartbeat);
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
       clients.clear();
       wss.close();
     },
   };
-}
-
-function send(ws: WebSocket, msg: object): void {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 /**

@@ -1,8 +1,10 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
-import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type PickerKind, type ReplyBox } from "./deck-moves";
+import { outsideReplies } from "../shared/outside-replies";
+import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type OpenedThread, type PickerKind, type ReplyBox } from "./deck-moves";
 import { freshSeeds, withSeeds } from "./outside-words";
 
 /** How long a word stays on the badge. */
@@ -48,15 +50,15 @@ export function useDeckActions({
   setDecided,
   setQueue,
   moves,
-  agent = null,
+  lane = null,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
   moves: DeckMoveApi;
-  /** The agent pill on, if one is: undo takes back that agent's last decision, the one you can see. */
-  agent?: string | null;
+  /** The lane Flow is in, null for Everything: undo takes back the last decision on a card it holds (KTD6). */
+  lane?: ResolvedLane | null;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   /** Replies and answers sent this visit. A reply on a chat keeps you on the card; the deck's keys move it. */
@@ -67,29 +69,36 @@ export function useDeckActions({
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
   /**
    * The reply box of one outside card, and the approved comments it took in by proposal id; another card on top starts
-   * with an empty one, which takes the comments still waiting on that card again.
+   * with an empty one, but for the words the person left unsent in that card's box, which are kept for the session
+   * (plan 087, KTD7) so a lane switch does not lose them, and the comments still waiting on that card, taken in again
+   * unless the kept words already hold them.
    */
   const [box, setBox] = useState<{ id: string; seeded: readonly string[] } & ReplyBox>({ id: "", seeded: [], ...EMPTY_REPLY });
 
   const currentId = current ? idOf(current) : "";
-  const own = box.id === currentId ? box : { id: currentId, seeded: [], ...EMPTY_REPLY };
+  const own = box.id === currentId ? box : { id: currentId, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
   const fresh = currentId ? freshSeeds(current?.outside?.seeds, own.seeded) : [];
   if (fresh.length > 0) {
     // Taken in as the deck renders, the way React adjusts state to new props: no effect copies them in a frame later.
-    setBox({ ...own, text: withSeeds(own.text, fresh), seeded: [...own.seeded, ...fresh.map((s) => s.id)] });
+    // The kept words learn them once the person edits the box, so nothing outside React changes during render.
+    const missing = fresh.filter((s) => !own.text.includes(s.text));
+    setBox({ ...own, text: withSeeds(own.text, missing), seeded: [...own.seeded, ...fresh.map((s) => s.id)] });
   }
-  const reply: ReplyBox = box.id === currentId ? box : EMPTY_REPLY;
+  const reply: ReplyBox = box.id === currentId ? box : { ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
   const picker = picking?.id === currentId ? picking.kind : null;
 
   // One flash for the deck's life, made once from the stable setter, and its pending clear cancelled when the deck goes.
   const [flasher] = useState(() => createFlash(setFlash));
   useEffect(() => () => flasher.stop(), [flasher]);
   const say = flasher.say;
-  const setReply = (id: string, patch: Partial<ReplyBox>) => setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY }), ...patch }));
+  const setReply = (id: string, patch: Partial<ReplyBox>) => {
+    if (patch.text !== undefined) outsideReplies.set(id, patch.text);
+    setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
+  };
   const deck = createDeckMoves({
     current,
     decided,
-    agent,
+    lane,
     reply,
     setReply,
     setDecided,
@@ -119,6 +128,8 @@ export function useDeckActions({
     setText: (text: string) => setReply(currentId, { text }),
     /** How the mail reply on top is addressed (plan 076). */
     setMail: (mail: MailAddressing) => setReply(currentId, { mail }),
+    /** The thread opened on the Slack card on top, which its reply goes into (plan 085); null back in its conversation. */
+    setThread: (thread: OpenedThread | null) => setReply(currentId, { thread }),
     openPicker: (kind: PickerKind | null) => setPicking(kind && currentId ? { id: currentId, kind } : null),
     ...deck,
     sent,

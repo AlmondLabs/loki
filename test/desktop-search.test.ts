@@ -95,6 +95,10 @@ describe("desktop search: what it finds (AE5)", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
     expect(topHit(search(buildIndex(src), "learn"))?.target).toEqual({ kind: "section", segment: "learn" });
+    // Flow was the Inbox (plan 087): both words open it.
+    expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "inbox" });
+    expect(topHit(search(buildIndex(src), "inbox"))?.target).toEqual({ kind: "section", segment: "inbox" });
+    expect(topHit(search(buildIndex(src), "inbox"))?.title).toBe("Flow");
     // Tasks was retired (plan 049, U6): it is no page to open any more.
     expect(flatHits(search(buildIndex(src), "tasks")).some((h) => h.title === "Tasks")).toBe(false);
     expect(topHit(search(buildIndex(src), "providers"))?.target).toEqual({ kind: "preferences", page: "providers" });

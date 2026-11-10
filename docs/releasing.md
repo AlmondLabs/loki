@@ -36,7 +36,7 @@ never goes stale; the Windows and Linux PR names the stable it is for. Nothing r
    it changing `.github/preview.txt` (a preview of the stable it names, when that release exists; nothing when it
    does not). Everything else with commits since the last stable is a nightly. Commits titled `chore(release): …` (or
    `release: …`, before October 2026), the two PRs' own, do not count as something to ship. A manual run only refreshes the two PRs.
-2. **A nightly or a stable** is the Mac's: one `macos-14` job decides its number (`release.ts version`), stamps it
+2. **A nightly or a stable** is the Mac's: one `macos-15` job decides its number (`release.ts version`), stamps it
    (`release.ts set`), smoke-tests the bundle (`npm run smoke`: it starts and signs in, or nothing ships), builds the
    universal `.dmg` with `tauri-apps/tauri-action` (`--target universal-apple-darwin`),
    publishes it with `release.ts publish`, renders the cask from it, attaches `cask.rb` to the release and pushes it

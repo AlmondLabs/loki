@@ -1,21 +1,34 @@
 import type {
-  AccountProvider,
   EmojiChoice,
   SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideFacts,
   OutsideMessage,
+  OutsideRead,
   OutsideWindow,
   OutsideWindowAsk,
 } from "../../../core/frame-types.ts";
-import { Fragment, useEffect, useEffectEvent, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
+import { sentKey, type SentReplies, type SentReply, type SentSnapshot } from "../../../core/attention/sent-replies.ts";
 import { Button, Chip, Meta, TextArea } from "../components";
 import { KEYMAP, chordIds, cmdHeld, formatKeys, keyFor, type Platform } from "../shell/keymap";
 import { keyboard } from "./env";
 import { scrollWithin } from "../shared/scroll-within";
+import { useOutsideReply } from "../shared/outside-replies";
 import { ago, deckKey } from "./catch-up-parts";
 import { CardFace, CardHead, ReachTag } from "./card-head";
 import { openExternal } from "./env";
@@ -24,7 +37,8 @@ import { MailAddressLine, addressOf, asRecipient, startAddressing, suggest } fro
 import { useMentions, type MentionSource } from "./mentions";
 import { MAIL_INDENT, MailThread, firstLine, senderName } from "./mail-thread";
 import { NewLine, SlackThread, loadLabel } from "./slack-thread";
-import { toggleReaction } from "./slack-reactions";
+import { toggleReaction, useQuickEmoji } from "./slack-reactions";
+import { cardKey, type OpenedThread } from "./deck-moves";
 import {
   ARCHIVE_TITLE,
   CAME_FROM,
@@ -87,20 +101,23 @@ export interface ThreadControls {
   react?: (messageId: string, choice: EmojiChoice, on: boolean) => void;
   /** The emoji the account can react with whose names hold `query`; empty when they could not be read. */
   searchEmoji?: (query: string) => Promise<EmojiChoice[]>;
+  /** The person's quick reactions (plan 084): their most used in Slack, five, for the hover bar and the picker's keys. */
+  quick?: EmojiChoice[];
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
-export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople">;
+export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople" | "sentReplies">;
 
 /**
  * What a card's thread is read and reacted through, taken from everything the Inbox holds; null when it cannot read
  * threads. Each is passed on, so a card offers reacting (plan 079) and mentioning (plan 082) wherever its source can.
  */
 export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThreadSource | null {
-  const { readOutside, reactOutside, searchEmoji, searchPeople } = chats;
+  const { readOutside, reactOutside, searchEmoji, searchPeople, sentReplies } = chats;
   if (!readOutside) return null;
   return {
     readOutside,
+    ...(sentReplies ? { sentReplies } : {}),
     ...(reactOutside ? { reactOutside } : {}),
     ...(searchEmoji ? { searchEmoji } : {}),
     ...(searchPeople ? { searchPeople } : {}),
@@ -110,7 +127,16 @@ export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThre
 /** Where a thread stands on the card: read from its account, still being read, or why it could not be. */
 export type ThreadState =
   | { kind: "loading" }
-  | { kind: "read"; messages: OutsideMessage[]; window?: OutsideWindow | null; controls?: ThreadControls; link?: string | null }
+  | {
+      kind: "read";
+      messages: OutsideMessage[];
+      window?: OutsideWindow | null;
+      controls?: ThreadControls;
+      /** The thread the person opened on the card, which a reply goes into (plan 085); null in its own view. */
+      opened?: string | null;
+      /** A Jira ticket's address, as the read gave it. */
+      link?: string | null;
+    }
   | { kind: "failed"; message: string };
 
 /** What the card is showing: for which card and view, and what came back, with any load in flight. */
@@ -130,79 +156,37 @@ interface Shown {
 const firstLoaded = (messages: readonly OutsideMessage[], w: OutsideWindow) =>
   (w.view === "thread" ? messages.find((m) => m.id !== w.thread_ts) : messages[0])?.id ?? null;
 
-/**
- * Whether a card reads its thread again after the person's own send (plan 2026-11-10-1451, U7): the newest event of a
- * Jira card does not change for the person's own comment, so nothing else would show it there; mail and Slack cards
- * keep reading again only on a newer message.
- */
-const READS_AFTER_SEND: Record<AccountProvider, boolean> = { gmail: false, slack: false, jira: true };
+/** What a load adds to the card (plan 077): the messages it read, before or after what is there, and what more there is. */
+function withLoaded(now: Shown, out: OutsideRead, w: OutsideWindow, direction: "before" | "after"): Shown {
+  const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
+  const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
+  const body = rest.filter((m) => !pinned.includes(m));
+  const more = out.window ?? w;
+  return {
+    ...now,
+    busy: null,
+    messages: direction === "before" ? [...pinned, ...out.messages, ...body] : [...rest, ...out.messages],
+    window: direction === "before" ? { ...w, more_before: more.more_before } : { ...w, more_after: more.more_after },
+  };
+}
 
 /**
- * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
- * it, or for a Jira card when `sent`, the count of the person's sends from it, goes up; without a source (a demo, an
- * old daemon) it stays loading and the card shows its last lines. A Slack card's window (plan 077) loads more on either
- * side and opens a post's thread; what was loaded is dropped when the card or its newest message changes (R15).
+ * What a Slack card's thread reacts with (plans 079, 084): reacting, which shows at once on what the card holds and
+ * goes back if Slack refuses; the emoji search; and the person's quick reactions. Empty where the source cannot react.
  */
-export function useOutsideThread(item: AttentionItem, source: OutsideThreadSource | null, sent = 0): ThreadState {
+function useReactControls(
+  item: AttentionItem,
+  source: OutsideThreadSource | null,
+  setShown: (change: (now: Shown | null) => Shown | null) => void,
+  tag: string,
+): Pick<ThreadControls, "react" | "quick" | "searchEmoji"> {
   const o = item.outside;
-  const key = o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
-  // The thread the person opened from the channel view, for this card only; another card starts on its own view.
-  const [opened, setOpened] = useState<{ key: string; threadTs: string } | null>(null);
-  const threadTs = opened?.key === key ? opened.threadTs : null;
-  const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
-  const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
-  // Read again after a send where the card asks for it, keeping what it shows meanwhile, as for a newer message.
-  const again = o && READS_AFTER_SEND[o.provider] ? sent : 0;
-  const tag = `${key}/${threadTs ?? ""}/${again}`;
-  const [shown, setShown] = useState<Shown | null>(null);
-  // The item changes identity on every list update; the thread is read again only when its newest message does.
-  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
-  useEffect(() => {
-    if (!key) return;
-    let live = true;
-    void read({})?.then((out) => {
-      if (!live) return;
-      setShown(
-        typeof out === "string"
-          ? { view, tag, messages: [], window: null, busy: null, failed: out, link: null }
-          : { view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null },
-      );
-    });
-    return () => {
-      live = false;
-    };
-  }, [key, tag, view]);
-  // A newer message reads the thread again; meanwhile the card keeps what it shows.
-  if (!key || shown?.view !== view) return { kind: "loading" };
-  if (shown.failed !== null) return { kind: "failed", message: shown.failed };
-  const w = shown.window;
-  if (!w) return { kind: "read", messages: shown.messages, link: shown.link };
-  const load = (direction: "before" | "after") => {
-    if (shown.busy) return;
-    const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
-    if (!from) return;
-    setShown({ ...shown, busy: direction });
-    void source?.readOutside(item, { ...ask, direction, from }).then((out) =>
-      setShown((now) => {
-        if (now?.tag !== tag) return now;
-        if (typeof out === "string") return { ...now, busy: null };
-        const rest = now.messages.filter((m) => !out.messages.some((n) => n.id === m.id));
-        const pinned = w.view === "thread" ? rest.filter((m) => m.id === w.thread_ts) : [];
-        const body = rest.filter((m) => !pinned.includes(m));
-        const more = out.window ?? w;
-        return {
-          ...now,
-          busy: null,
-          messages: direction === "before" ? [...pinned, ...out.messages, ...body] : [...rest, ...out.messages],
-          window: direction === "before" ? { ...w, more_before: more.more_before } : { ...w, more_after: more.more_after },
-        };
-      }),
-    );
-  };
-  // A reaction shows at once on what the card holds; a refusal puts the message's pills back as they were.
+  const search = source?.searchEmoji;
+  const searchEmoji = search ? (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) : null;
+  const reactOutside = source?.reactOutside;
+  const quick = useQuickEmoji(o?.provider === "slack" && reactOutside ? o.account_id : null, searchEmoji);
   const setReactions = (messageId: string, change: (m: OutsideMessage) => OutsideMessage["reactions"]) =>
     setShown((now) => (now?.tag === tag ? { ...now, messages: now.messages.map((m) => (m.id === messageId ? { ...m, reactions: change(m) } : m)) } : now));
-  const reactOutside = source?.reactOutside;
   const react = (messageId: string, choice: EmojiChoice, on: boolean) => {
     if (!reactOutside) return;
     setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, on));
@@ -210,16 +194,123 @@ export function useOutsideThread(item: AttentionItem, source: OutsideThreadSourc
       if (refused !== null) setReactions(messageId, (m) => toggleReaction(m.reactions ?? [], choice, !on));
     });
   };
-  const search = source?.searchEmoji;
+  return { ...(reactOutside ? { react, quick } : {}), ...(searchEmoji ? { searchEmoji } : {}) };
+}
+
+const NO_SENT: SentSnapshot = { replies: [], went: 0 };
+
+/** The replies the person sent alone in a thread (plan 086), from the store when there is one. */
+function useSentReplies(store: SentReplies | null, key: string): SentSnapshot {
+  const subscribe = useCallback((fn: () => void) => (store && key ? store.subscribe(key, fn) : () => {}), [store, key]);
+  const read = () => (store && key ? store.get(key) : NO_SENT);
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+/** A sent reply as the thread draws it until the thread is read again: the person's own, at the end of the thread. */
+const standIn = (r: SentReply, facts: OutsideFacts, opened: boolean): OutsideMessage => ({
+  id: r.id,
+  sender: "you",
+  at: r.at,
+  text: r.text,
+  mine: true,
+  // A Slack thread's replies sit under its first message, in the card's own thread or one opened on it.
+  ...(facts.provider === "slack" && (opened || facts.thread_id.includes(":")) ? { in_thread: true } : {}),
+});
+
+/** What a card's thread shows of the replies the person sent alone in the view it is on (plan 086). */
+interface SentStandIns {
+  /** How many went, which the thread is read again on. */
+  went: number;
+  standIns: OutsideMessage[];
+  /** A read came back that was made once `upTo` had gone: those are in it now. */
+  settle: (upTo: number) => void;
+}
+
+/** The replies sent alone in the view a card is on: its own thread, or the post's thread opened on it (plan 085). */
+function useSentStandIns(source: OutsideThreadSource | null, facts: OutsideFacts | undefined, threadTs: string | null): SentStandIns {
+  const store = source?.sentReplies ?? null;
+  const key = facts ? sentKey(facts.account_id, facts.thread_id, threadTs) : "";
+  const sent = useSentReplies(store, key);
+  return {
+    went: sent.went,
+    standIns: facts ? sent.replies.map((r) => standIn(r, facts, threadTs !== null)) : [],
+    settle: (upTo) => {
+      if (key) store?.settle(key, upTo);
+    },
+  };
+}
+
+/**
+ * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
+ * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
+ * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
+ * its newest message changes (R15). A reply the person sent alone shows at the end at once, and the thread is read
+ * again once it went (plan 086), in the view it went to: the card's own, or a post's thread opened on it.
+ */
+export function useOutsideThread(
+  item: AttentionItem,
+  source: OutsideThreadSource | null,
+  hold?: { opened: OpenedThread | null; setOpened: (opened: OpenedThread | null) => void },
+): ThreadState {
+  const o = item.outside;
+  const key = cardKey(item);
+  // The thread the person opened from the channel view, for this card only; another card starts on its own view. The
+  // deck holds it when it holds the reply box, so the reply and its keys send into it (plan 085).
+  const [ownOpened, setOwnOpened] = useState<OpenedThread | null>(null);
+  const opened = hold ? hold.opened : ownOpened;
+  const setOpened = hold ? hold.setOpened : setOwnOpened;
+  const threadTs = opened?.key === key ? opened.ts : null;
+  const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
+  const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
+  const tag = `${key}/${threadTs ?? ""}`;
+  const [shown, setShown] = useState<Shown | null>(null);
+  const sent = useSentStandIns(source, o, threadTs);
+  const went = sent.went;
+  // The item changes identity on every list update; the thread is read again only when its newest message does, or
+  // when the person's own reply went.
+  const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...more }) ?? null);
+  const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    void read({})?.then((out) => {
+      if (!live) return;
+      if (typeof out !== "string") {
+        setShown({ view, tag, messages: out.messages, window: out.window, busy: null, failed: null, link: out.link ?? null });
+        settle(went);
+        return;
+      }
+      // A read again that fails keeps what the card shows, with the reply's stand-in.
+      setShown((now) => (now?.tag === tag && now.failed === null ? now : { view, tag, messages: [], window: null, busy: null, failed: out, link: null }));
+    });
+    return () => {
+      live = false;
+    };
+  }, [key, tag, view, went]);
+  const reacting = useReactControls(item, source, setShown, tag);
+  // A newer message reads the thread again; meanwhile the card keeps what it shows.
+  if (!key || shown?.view !== view) return { kind: "loading" };
+  if (shown.failed !== null) return { kind: "failed", message: shown.failed };
+  const messages = [...shown.messages, ...sent.standIns];
+  const w = shown.window;
+  if (!w) return { kind: "read", messages, link: shown.link };
+  const load = (direction: "before" | "after") => {
+    if (shown.busy) return;
+    const from = direction === "before" ? firstLoaded(shown.messages, w) : (shown.messages.at(-1)?.id ?? null);
+    if (!from) return;
+    setShown({ ...shown, busy: direction });
+    void source
+      ?.readOutside(item, { ...ask, direction, from })
+      .then((out) => setShown((now) => (now?.tag !== tag ? now : typeof out === "string" ? { ...now, busy: null } : withLoaded(now, out, w, direction))));
+  };
   const controls: ThreadControls = {
     load,
-    openThread: (ts) => setOpened({ key, threadTs: ts }),
+    openThread: (ts) => setOpened({ key, ts }),
     ...(threadTs ? { back: () => setOpened(null) } : {}),
     busy: shown.busy,
-    ...(reactOutside ? { react } : {}),
-    ...(search ? { searchEmoji: (q: string) => search(item, q).then((r) => (typeof r === "string" ? [] : r)) } : {}),
+    ...reacting,
   };
-  return { kind: "read", messages: shown.messages, window: w, controls, link: shown.link };
+  return { kind: "read", messages, window: w, controls, opened: threadTs, link: shown.link };
 }
 
 /**
@@ -394,14 +485,19 @@ export interface ReplyBoxControl {
   onText: (text: string) => void;
   onMail: (mail: MailAddressing) => void;
   onSend: () => void;
+  /** The thread opened on the card, which the reply goes into (plan 085), and its change; absent, the card keeps its own. */
+  thread?: OpenedThread | null;
+  onThread?: (thread: OpenedThread | null) => void;
 }
 
 /**
  * The reply box under the thread (plan 068): the person's own words, sent in the thread as they wrote them. On the
  * desktop the deck holds the text (`box`), so ⌘], ⌘[ and ⌘E send it with their move and Enter sends it alone (plan 083); the
  * phone's box keeps its own and sends with `onSend`. A Jira comment the person approved for the agent is added to
- * either box once, after what is there, and goes nowhere until they send it (KTD18). Shift-Enter starts a line; Esc hands the deck's keys back, or
- * closes the deck when the box is empty. A send that fails keeps the text and says why.
+ * either box once, after what is there, and goes nowhere until they send it (KTD18). Shift-Enter starts a line; Esc
+ * hands the deck's keys back, or closes the deck when the box is empty. A send that fails keeps the text and says why.
+ * With `keep`, the unsent text outlives the box (plan 087, KTD7): a card hidden by a lane switch, or gone from the
+ * screen any other way, has its words back when it returns.
  */
 export function OutsideReply({
   facts,
@@ -415,9 +511,15 @@ export function OutsideReply({
   compose = null,
   quote = null,
   onUndo,
+  keep,
   searchPeople,
+  inThread = false,
 }: {
+  /** A thread is open on the card (plan 085): the reply goes into it, and the box says so. */
+  inThread?: boolean;
   facts: OutsideFacts;
+  /** The card's id (`idOf`), under which its unsent text is kept for the session (shared/outside-replies.ts); absent, the text goes with the box. */
+  keep?: string;
   /** The people a Slack card's workspace can mention whose handle or name holds `query` (plan 082); absent, no list. */
   searchPeople?: (query: string) => Promise<SlackPerson[]>;
   /**
@@ -440,20 +542,35 @@ export function OutsideReply({
   onEscapeEmpty?: () => void;
   touch?: boolean;
 }) {
-  const [ownText, setOwnText] = useState("");
-  // The approved comments this box took in (KTD18), so each is added once even after the person edits it away.
-  const [ownSeeded, setOwnSeeded] = useState<readonly string[]>([]);
+  const [localText, setLocalText] = useState("");
+  // The phone's box keeps its own text; with `keep` it outlives the box. The desktop deck keeps its box's text itself.
+  const [keptText, setKeptText] = useOutsideReply(keep ?? null);
+  // The approved comments this box took in (KTD18), by proposal id, so each is added once even after the person edits
+  // it away, and the text they made until the person next edits it. Taken in as the box renders, the way React adjusts
+  // state to new props, so the box shows them from its first paint; one whose words the text already holds was taken in
+  // before the box last left the screen.
+  const [seeded, setSeeded] = useState<readonly string[]>([]);
+  const [seededText, setSeededText] = useState<string | null>(null);
+  const ownText = seededText ?? (keep ? keptText : localText);
+  const setOwnText = (next: string) => {
+    setSeededText(null);
+    (keep ? setKeptText : setLocalText)(next);
+  };
+  const fresh = box ? [] : freshSeeds(facts.seeds, seeded);
+  if (fresh.length > 0) {
+    setSeeded([...seeded, ...fresh.map((s) => s.id)]);
+    const missing = fresh.filter((s) => !ownText.includes(s.text));
+    if (missing.length > 0) setSeededText(withSeeds(ownText, missing));
+  }
+  // Kept text lives in a store outside React, which learns the comments once the box is on screen.
+  useEffect(() => {
+    if (keep && seededText !== null) setKeptText(seededText);
+  }, [keep, seededText, setKeptText]);
   const [ownMail, setOwnMail] = useState<MailAddressing | null>(null);
   const [ownBusy, setBusy] = useState(false);
   const [ownError, setError] = useState<string | null>(null);
   const [lineOpen, setLineOpen] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
-  const fresh = box ? [] : freshSeeds(facts.seeds, ownSeeded);
-  if (fresh.length > 0) {
-    // Taken in as the card renders, the way React adjusts state to new props: no effect copies them in a frame later.
-    setOwnSeeded([...ownSeeded, ...fresh.map((s) => s.id)]);
-    setOwnText(withSeeds(ownText, fresh));
-  }
   const text = box ? box.text : ownText;
   const setText = box ? box.onText : setOwnText;
   const mail = box ? box.mail : ownMail;
@@ -529,7 +646,7 @@ export function OutsideReply({
     }
   };
   // The recipients line says who a mail goes to, so the box says only what is written in it.
-  const hint = !isMail ? replyPlace(facts) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
+  const hint = !isMail ? replyPlace(facts, inThread) : shown?.mode === "forward" ? "add a note" : compose ? "reply" : replyPlace(facts);
   const sendKey = isMail ? "cmd+enter" : undefined;
   const signature = shown?.signature !== false ? (compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature ?? "") : "";
   const hasSignature = !!compose?.from.find((f) => f.address === (shown?.from ?? compose.default_from))?.signature;
@@ -822,6 +939,53 @@ function OutsideMoves({
   );
 }
 
+/** The addresses a mail card's account sends from, so its own mails read as the person's; none for Slack. */
+function ownAddresses(facts: OutsideFacts, compose: MailCompose | null): string[] {
+  if (facts.provider !== "gmail") return [];
+  return [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])];
+}
+
+/** The reply box the deck holds on a desktop card: with the card's moves, its people to mention and its opened thread. */
+function DeckReply({
+  current,
+  facts,
+  thread,
+  source,
+  box,
+  replyRef,
+  onTyping,
+  onEscapeEmpty,
+  row,
+  compose,
+}: {
+  current: AttentionItem;
+  facts: OutsideFacts;
+  thread: ThreadState;
+  source: OutsideThreadSource | null;
+  box: ReplyBoxControl;
+  replyRef?: RefObject<HTMLTextAreaElement | null>;
+  onTyping?: (typing: boolean) => void;
+  onEscapeEmpty?: () => void;
+  row: ReactNode;
+  compose: MailCompose | null;
+}) {
+  const people = source?.searchPeople;
+  return (
+    <OutsideReply
+      facts={facts}
+      box={box}
+      inputRef={replyRef}
+      onTyping={onTyping}
+      onEscapeEmpty={onEscapeEmpty}
+      actions={row}
+      compose={compose}
+      quote={quoteOf(facts, thread)}
+      searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+      inThread={thread.kind === "read" && !!thread.opened}
+    />
+  );
+}
+
 /**
  * The desktop card for an outside thread: the header (who, where and when, and the badge's flash), the whole thread,
  * the reply box, and the deck's moves. Read marks the thread read out there, later keeps it unread and brings it back,
@@ -844,7 +1008,6 @@ export function OutsideCard({
   onTyping,
   onEscapeEmpty,
   compose = null,
-  sent = 0,
 }: {
   current: AttentionItem;
   facts: OutsideFacts;
@@ -867,27 +1030,24 @@ export function OutsideCard({
   onEscapeEmpty?: () => void;
   /** What a mail card's recipients line starts from (plan 076), as the deck read it. */
   compose?: MailCompose | null;
-  /** How many of the person's sends went this visit, so a Jira card reads its ticket again to show their comment. */
-  sent?: number;
 }) {
-  const thread = useOutsideThread(current, source, sent);
-  const people = source?.searchPeople;
-  const peopleSearch = people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined;
+  const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
-  const own = facts.provider === "gmail" ? [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])] : [];
+  const own = ownAddresses(facts, compose);
   const reply = box ? (
-    <OutsideReply
+    <DeckReply
+      current={current}
       facts={facts}
+      thread={thread}
+      source={source}
       box={box}
-      inputRef={replyRef}
+      replyRef={replyRef}
       onTyping={onTyping}
       onEscapeEmpty={onEscapeEmpty}
-      actions={row}
+      row={row}
       compose={compose}
-      quote={quoteOf(facts, thread)}
-      searchPeople={peopleSearch}
     />
   ) : null;
   return (

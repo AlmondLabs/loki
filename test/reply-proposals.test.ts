@@ -682,7 +682,7 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
 
   test("a comment for a ticket that never had a card is refused with the reason", async () => {
     const s = await site();
-    expect(await s.call("reply_propose", { account: SITE, thread: "OPS-99", text: "Hello." })).toMatch(/^refused: OPS-99 has never had a card in the Inbox/);
+    expect(await s.call("reply_propose", { account: SITE, thread: "OPS-99", text: "Hello." })).toMatch(/^refused: OPS-99 has never had a card in Flow/);
     expect(s.replies.list(s.chat)).toEqual([]);
   });
 
@@ -765,7 +765,7 @@ describe("the reply card (plan 067, U10)", () => {
     const desk = html({ source: source([jira]), rt });
     expect(desk).toContain("on OPS-7");
     expect(desk).toContain(">comment<");
-    expect(desk).toContain("goes in the ticket&#x27;s comment box in the Inbox; you post it from there");
+    expect(desk).toContain("goes in the ticket&#x27;s comment box in Flow; you post it from there");
     expect(html({ source: source([{ ...jira, status: "drafting" }]), rt })).toContain("putting the comment on the card");
   });
 

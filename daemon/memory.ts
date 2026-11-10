@@ -159,7 +159,21 @@ function inside(root: string, path: unknown): string {
  * conversion: Windows' git turns LF into CRLF on checkout by default, and a revert checks files out, so a reverted
  * file came back with CRLF and the agent's memory_edit of an LF passage no longer matched it.
  */
-const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", ...args]);
+// Git's tidying after a commit runs inside the call (`autoDetach=false`), so no process of git's outlives it in the repo.
+const git = (root: string, ...args: string[]) =>
+  run("git", [
+    "-C",
+    root,
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "core.autocrlf=false",
+    "-c",
+    "maintenance.autoDetach=false",
+    "-c",
+    "gc.autoDetach=false",
+    ...args,
+  ]);
 
 export { serial } from "./repo-queue.ts";
 

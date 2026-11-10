@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
-import { Accounts } from "../mod/accounts.ts";
+import { Accounts, PeerAccounts } from "../mod/accounts.ts";
 import type { OutsideChange, OutsideMessageChange } from "../core/frame-types.ts";
 import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
 import { accountFrames, type AccountConnectDeps } from "../mod/frames/accounts.ts";
@@ -41,7 +41,12 @@ const fakeSource = (more: Partial<OutsideSource> = {}): OutsideSource => ({
 });
 
 /** A bridge with only the account frames, over two accounts of the work agent. */
-async function fixture(source?: OutsideSource, connect?: AccountConnectDeps, handoffOf?: (accounts: Accounts, threads: AccountThreads) => Handoff) {
+async function fixture(
+  source?: OutsideSource,
+  connect?: AccountConnectDeps,
+  handoffOf?: (accounts: Accounts, threads: AccountThreads) => Handoff,
+  peers?: PeerAccounts,
+) {
   const dir = mkdtempSync(join(tmpdir(), "loki-frames-accounts-"));
   dirs.push(dir);
   const secrets = memorySecrets();
@@ -52,7 +57,17 @@ async function fixture(source?: OutsideSource, connect?: AccountConnectDeps, han
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
   if (source) threads.register("gmail", source);
   const handoff = handoffOf?.(accounts, threads);
-  const bridge = bridgeOf({ modules: [accountFrames({ accounts, threads, ...(connect ? { connect } : {}), ...(handoff ? { handoff } : {}) })] });
+  const bridge = bridgeOf({
+    modules: [
+      accountFrames({
+        accounts,
+        threads,
+        ...(connect ? { connect } : {}),
+        ...(handoff ? { handoff } : {}),
+        ...(peers ? { otherMacs: () => peers.everywhere() } : {}),
+      }),
+    ],
+  });
   const ask = async (frame: Record<string, unknown>, peerId?: string) => {
     const c = client("d1", undefined, peerId);
     bridge.onMessage(c, { request_id: "r1", ...frame });
@@ -88,8 +103,58 @@ describe("the account frames", () => {
           connected_at: "2026-11-04T09:00:00.000Z",
         },
       ],
+      other_macs: [],
     });
     expect(JSON.stringify(answer)).not.toContain("token-1");
+  });
+
+  test("account_list adds each paired Mac's accounts, marked with that Mac, beside this Mac's own (plan 087, U4)", async () => {
+    const slack = {
+      account_id: "slack:T09:U07",
+      provider: "slack",
+      address: "Studio",
+      owner_agent_id: "agent-home",
+      status: "connected",
+      connected_at: "2026-11-03T08:00:00.000Z",
+    };
+    const peers = new PeerAccounts({
+      link: () => ({ request: () => Promise.resolve({ accounts: [slack] }) }),
+      name: (id) => (id === "mac-mini" ? "Mac mini" : "another Mac"),
+    });
+    await peers.pull("mac-mini");
+    const { ask, accounts } = await fixture(undefined, undefined, undefined, peers);
+    await accounts.disconnect("slack:T01:U02");
+    const answer = await ask({ type: "account_list" });
+    expect(answer).toMatchObject({ type: "accounts", accounts: [{ account_id: "gmail:ada@acme.com" }] });
+    expect((answer.accounts as unknown[]).length).toBe(1);
+    expect(answer.other_macs).toEqual([{ ...slack, mac_id: "mac-mini", mac_name: "Mac mini" }]);
+  });
+
+  test("with no paired Macs, account_list's other-Macs list is empty; a paired Mac asking gets only this Mac's", async () => {
+    const peers = new PeerAccounts({ link: () => null, name: () => "Mac mini" });
+    const { ask } = await fixture(undefined, undefined, undefined, peers);
+    expect((await ask({ type: "account_list" })).other_macs).toEqual([]);
+    const held = new PeerAccounts({
+      link: () => ({
+        request: () =>
+          Promise.resolve({
+            accounts: [
+              {
+                account_id: "slack:T09:U07",
+                provider: "slack",
+                address: "Studio",
+                owner_agent_id: "agent-home",
+                status: "connected",
+                connected_at: "2026-11-03T08:00:00.000Z",
+              },
+            ],
+          }),
+      }),
+      name: () => "Mac mini",
+    });
+    await held.pull("mac-mini");
+    const peerAsk = (await fixture(undefined, undefined, undefined, held)).ask;
+    expect(await peerAsk({ type: "peer_accounts_get" })).not.toHaveProperty("other_macs");
   });
 
   test("account_move gives the account to another agent and answers with the list", async () => {
@@ -211,7 +276,7 @@ describe("the account frames", () => {
       const c = client("d1");
       bare.onMessage(c, { request_id: "r1", ...frame });
       await settled();
-      expect(c.sent.at(-1), frame.type).toMatchObject({ type: "error", message: "Inbox accounts are not available in this mod" });
+      expect(c.sent.at(-1), frame.type).toMatchObject({ type: "error", message: "Flow accounts are not available in this mod" });
     }
   });
 

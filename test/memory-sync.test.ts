@@ -11,9 +11,27 @@ const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
 
 /** git in a repo, as a person would, with a fixed author. */
 const git = (root: string, ...args: string[]) =>
-  execFileSync("git", ["-C", root, "-c", "user.name=Friday", "-c", "user.email=friday@loki.local", "-c", "core.autocrlf=false", ...args], {
-    encoding: "utf8",
-  });
+  execFileSync(
+    "git",
+    [
+      "-C",
+      root,
+      "-c",
+      "user.name=Friday",
+      "-c",
+      "user.email=friday@loki.local",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "maintenance.autoDetach=false",
+      "-c",
+      "gc.autoDetach=false",
+      ...args,
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
 
 /** A note written and committed. */
 function write(root: string, path: string, text: string): void {

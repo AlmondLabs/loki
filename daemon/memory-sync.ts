@@ -15,8 +15,16 @@ import { onRepoSettled, serial } from "./repo-queue.ts";
  */
 
 const run = promisify(execFile);
+// Git tidies a repo after a fetch, merge or commit in a process of its own that outlives the call; kept in the call
+// (`autoDetach=false`), it is done before loki's next git step on the repo, and never writes under it afterwards.
 const git = (root: string, ...args: string[]) =>
-  run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", ...args], { maxBuffer: 64 * 1024 * 1024 });
+  run(
+    "git",
+    ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", "-c", "maintenance.autoDetach=false", "-c", "gc.autoDetach=false", ...args],
+    {
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
 
 /** Where the other side of a clash is kept for reflection, relative to the memory root. */
 export const CONFLICTS_PATH = "conflicts/sync.md";

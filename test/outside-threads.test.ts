@@ -13,9 +13,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideChange, OutsideFacts, OutsideWindow, OutsideWindowAsk } from "../core/frame-types.ts";
 import { ownerAgentOf } from "../core/attention/model.ts";
 import { withoutQuoted } from "../core/mail-quote.ts";
+import { agentLanes } from "../core/attention/lanes.ts";
 import { OutsideCard, OutsideHeader, OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
 import { outsideTitle, replyPlace } from "../app/src/desk/outside-words.ts";
-import { KeysHint, agentPills } from "../app/src/desk/catch-up-parts.tsx";
+import { KeysHint } from "../app/src/desk/catch-up-parts.tsx";
 import { Decisions } from "../app/src/phone/inbox.tsx";
 import { senderName } from "../app/src/desk/mail-thread.tsx";
 import type { AccountRecord } from "../mod/accounts.ts";
@@ -84,6 +85,9 @@ function threads(
     thenFails?: string;
     sendAs?: GmailSendAs[];
     extra?: Partial<ConstructorParameters<typeof OutsideThreads>[0]>;
+    /** The person's most-used emoji as Slack keeps them, and whether reading them fails (plan 084). */
+    frequent?: string[];
+    frequentFails?: boolean;
   } = {},
 ) {
   /** What each card-view read was given: the record's facts and the ask. */
@@ -91,6 +95,7 @@ function threads(
   const sentMail: GmailDraftInput[] = [];
   const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
   const emojiReads = { n: 0 };
+  const frequentReads = { n: 0 };
   const posted: Array<SlackDraftInput & { mentions?: ReadonlyMap<string, string> }> = [];
   /** Each Jira comment posted, as `[ticket, text]`. */
   const commented: Array<[string, string]> = [];
@@ -182,11 +187,15 @@ function threads(
                   emojiReads.n++;
                   return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
                 },
+                frequentEmoji: () => {
+                  frequentReads.n++;
+                  return opts.frequentFails ? Promise.reject(new Error("ratelimited")) : Promise.resolve(opts.frequent ?? []);
+                },
               },
             },
     ...opts.extra,
   });
-  return { t, sentMail, posted, commented, archived, moves, viewed, reacted, emojiReads };
+  return { t, sentMail, posted, commented, archived, moves, viewed, reacted, emojiReads, frequentReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -328,7 +337,12 @@ describe("reading a card's whole thread", () => {
       },
       clientFor: () => ({
         provider: "slack",
-        client: { postReply: () => Promise.resolve({ ts: "1" }), react: () => Promise.resolve(), emojiList: () => Promise.resolve({}) },
+        client: {
+          postReply: () => Promise.resolve({ ts: "1" }),
+          react: () => Promise.resolve(),
+          emojiList: () => Promise.resolve({}),
+          frequentEmoji: () => Promise.resolve([]),
+        },
       }),
       sleep: (ms) => {
         waits.push(ms);
@@ -425,6 +439,17 @@ describe("the person's reply", () => {
     expect(sentMail).toHaveLength(1);
     expect(moves).toEqual([`dealt ${MAIL}/t1`, `archive ${MAIL}/t1`]);
   });
+  test("a reply goes into the thread the person opened on the card, in the card's conversation (plan 085)", async () => {
+    const { t, posted } = threads();
+    await t.reply(SLACK, "D1", "on it", "stay", null, null, "5.0");
+    await t.reply(SLACK, "C1:1.0", "looking", "stay", null, null, "7.0");
+    expect(posted.map((p) => [p.channel, p.thread_ts, p.text])).toEqual([
+      ["D1", "5.0", "on it"],
+      ["C1", "7.0", "looking"],
+    ]);
+    await expect(t.reply(MAIL, "t1", "ok", "stay", null, null, "7.0")).rejects.toThrow("only a Slack reply goes into a thread the card opened");
+  });
+
   test("with stay, the reply is sent and nothing else moves (plan 083)", async () => {
     const { t, posted, moves } = threads();
     expect(await t.reply(SLACK, "D1", "on it", "stay")).toEqual({ sent: true, then_error: null, change: null });
@@ -610,6 +635,31 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
     expect((await t.searchEmoji(SLACK, "shipit")).map((c) => c.name)).toEqual(["shipit"]);
     await t.searchEmoji(SLACK, "eyes");
     expect(emojiReads.n).toBe(1);
+  });
+
+  test("an empty search is the person's most used in Slack, drawn, at most five; read again after ten minutes (plan 084)", async () => {
+    let at = Date.parse("2026-11-10T10:00:00Z");
+    const frequent = ["100", "ship_it", "not_an_emoji_anywhere", "+1::skin-tone-2", "eyes", "pray", "fire"];
+    const { t, frequentReads } = threads({ frequent, extra: { now: () => new Date(at) } });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([
+      { name: "100", emoji: { kind: "emoji", text: "💯" } },
+      { name: "ship_it", emoji: { kind: "emoji", text: ":shipit:", image: "https://example.test/shipit.png" } },
+      { name: "+1::skin-tone-2", emoji: { kind: "emoji", text: "👍\u{1F3FB}" } },
+      { name: "eyes", emoji: { kind: "emoji", text: "👀" } },
+      { name: "pray", emoji: { kind: "emoji", text: "🙏" } },
+    ]);
+    await t.searchEmoji(SLACK, " ");
+    expect(frequentReads.n).toBe(1);
+    at += 11 * 60_000;
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
+  });
+
+  test("most used that cannot be read are none, and asked again next time", async () => {
+    const { t, frequentReads } = threads({ frequentFails: true });
+    expect(await t.searchEmoji(SLACK, "")).toEqual([]);
+    await t.searchEmoji(SLACK, "");
+    expect(frequentReads.n).toBe(2);
   });
 });
 
@@ -805,6 +855,8 @@ describe("the card", () => {
       "reply in the thread",
       "reply to all",
     ]);
+    // A thread opened on a DM card is where the reply goes (plan 085).
+    expect(replyPlace(FACTS, true)).toBe("reply in the thread");
   });
   test("the thread draws each message with its sender, and the person's own as you; while it loads, the last lines stand in", () => {
     const read = renderToStaticMarkup(
@@ -969,12 +1021,12 @@ describe("a Jira card's comment box (plan 2026-11-10-1451, U7)", () => {
   });
 });
 
-describe("the Inbox's tabs file outside cards under their owner", () => {
-  test("a card from friday's Slack counts on friday's pill, not one of its own", () => {
+describe("Flow's agent lanes file outside cards under their owner", () => {
+  test("a card from friday's Slack counts in friday's lane, not one of its own", () => {
     const chat = attentionItem("c", { agent_id: "agent-work", agent_name: "friday" });
     const card = attentionItem("o", { agent_id: `account:${SLACK}`, agent_name: "farmart (Slack)", outside: FACTS });
     expect(ownerAgentOf(card)).toBe("agent-work");
-    expect(agentPills([chat, card]).map((p) => [p.agentId, p.name, p.count])).toEqual([["agent-work", "friday", 2]]);
-    expect(agentPills([card]).map((p) => p.name)).toEqual(["friday"]);
+    expect(agentLanes([chat, card]).map((l) => [l.agent_id, l.name, l.count])).toEqual([["agent-work", "friday", 2]]);
+    expect(agentLanes([card]).map((l) => l.name)).toEqual(["friday"]);
   });
 });

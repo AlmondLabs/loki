@@ -43,13 +43,13 @@ export interface Binding {
 }
 
 /** The menus of the menu bar that the keymap fills, in order. */
-export const MENUS = ["Go", "Chat", "Inbox", "Learn", "View"] as const;
+export const MENUS = ["Go", "Chat", "Flow", "Learn", "View"] as const;
 
 /** Every shortcut in loki, grouped by where it fires. */
 export const KEYMAP: Binding[] = [
   // --- anywhere ------------------------------------------------------
   { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
-  { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
+  { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Preferences…", typing: true, menu: "View/segments" },
@@ -121,18 +121,18 @@ export const KEYMAP: Binding[] = [
 
   // --- inbox (the reply box usually has focus: chords) -------------------
   // The same moves on every card, a chat, an email or a Slack message (plan 070): ⌘] read, ⌘[ later, ⌘E archive.
-  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Mark as Read", typing: true, menu: "Inbox" },
-  { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later", typing: true, menu: "Inbox" },
-  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive", typing: true, menu: "Inbox" },
-  { id: "inbox.label", keys: ["l"], where: "inbox", label: "Add a Label", menu: "Inbox", menuAccel: false },
-  { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Inbox/decide" },
-  { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Inbox/decide" },
-  { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Inbox/go" },
+  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Mark as Read", typing: true, menu: "Flow" },
+  { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later", typing: true, menu: "Flow" },
+  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive", typing: true, menu: "Flow" },
+  { id: "inbox.label", keys: ["l"], where: "inbox", label: "Add a Label", menu: "Flow", menuAccel: false },
+  { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Flow/decide" },
+  { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Flow/decide" },
+  { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Flow/go" },
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
   { id: "inbox.reply_sender", keys: ["shift+r"], where: "inbox", label: "reply to the sender only (mail)" },
   { id: "inbox.forward", keys: ["f"], where: "inbox", label: "forward (mail)" },
   { id: "inbox.react", keys: ["cmd+shift+\\"], where: "inbox", label: "react with an emoji (Slack)" },
-  { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
+  { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Flow/go", menuAccel: false },
 
   // --- learn: one card at a time; the two answers only once the answer shows -------------------------
   { id: "recall.reveal", keys: ["space", "enter", "down"], where: "learn", label: "show the answer (then: got it)" },
@@ -155,7 +155,7 @@ export const KEYMAP: Binding[] = [
 
   // --- global --------------------------------------------------------
   // The Mac's alone: Alt+Space is the window menu on Windows and Linux.
-  { id: "global.inbox", keys: ["alt+space"], keysOn: { windows: [], linux: [] }, where: "global", label: "bring loki up on the inbox", note: "the OS" },
+  { id: "global.inbox", keys: ["alt+space"], keysOn: { windows: [], linux: [] }, where: "global", label: "bring loki up on Flow", note: "the OS" },
 ];
 
 /** The Mac's key symbols: the one place in the app they are written. */

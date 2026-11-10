@@ -100,7 +100,7 @@ const TITLE: Partial<Record<Where, string>> = {
   anywhere: "Everywhere in loki",
   chat: "The message box",
   desk: "In a chat",
-  inbox: "In the inbox",
+  inbox: "In Flow",
   learn: "In Learn",
   agents: "In Agents",
   settings: "In Settings",

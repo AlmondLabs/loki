@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { OUTSIDE_ENDS, ownerAgentOf, type AttentionItem } from "../../../core/attention/model.ts";
+import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
+import { inLane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
@@ -20,6 +21,29 @@ export interface ReplyBox {
    * rather than on a decision. Null or absent once it went.
    */
   held?: { outbox_id: string; text: string; mail: MailAddressing | null } | null;
+  /**
+   * The thread the person opened on a Slack card (plan 085), for the card as it was then (`key`, cardKey): the view
+   * shows it, and the reply goes into it. A newer message on the card makes it stale, and the card's own place is used.
+   */
+  thread?: OpenedThread | null;
+}
+
+/** A thread opened on a Slack card (plan 085): the card it was opened on, as cardKey says, and the thread's first message. */
+export interface OpenedThread {
+  key: string;
+  ts: string;
+}
+
+/** A card as its thread view knows it: its account, thread and newest message, so a newer message is another card. */
+export function cardKey(item: AttentionItem): string {
+  const o = item.outside;
+  return o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
+}
+
+/** The thread a reply on this card goes into (plan 085): the one opened on it as it is now, else none. */
+export function openedThreadOf(item: AttentionItem, reply: Pick<ReplyBox, "thread">): string | null {
+  const key = cardKey(item);
+  return key && reply.thread?.key === key ? reply.thread.ts : null;
 }
 
 /** An empty reply box: what a card starts with, and what a sent reply leaves. */
@@ -49,9 +73,10 @@ export interface DeckMoveApi {
 /** What the deck's moves read and write: the card on top, the visit's queue and decisions, the badge's flash, the pickers and the reply box. */
 export interface DeckMovesHost {
   current: AttentionItem | undefined;
-  /** Every decision this visit; `agent` narrows which one undo takes back. */
+  /** Every decision this visit, across lane switches; `lane` narrows which one undo takes back. */
   decided: Decision[];
-  agent: string | null;
+  /** The lane Flow is in on this device, null for Everything (plan 087, KTD6). */
+  lane: ResolvedLane | null;
   /** The reply box of the card on top. */
   reply: ReplyBox;
   setReply: (id: string, patch: Partial<ReplyBox>) => void;
@@ -177,7 +202,8 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setReply(id, { busy: true, error: null });
     let r: OutsideReplyResult;
     try {
-      r = await send(item, host.reply.text, then, { mail: host.reply.mail });
+      const threadTs = openedThreadOf(item, host.reply);
+      r = await send(item, host.reply.text, then, { mail: host.reply.mail, ...(threadTs ? { thread_ts: threadTs } : {}) });
     } finally {
       host.setReply(id, { busy: false });
     }
@@ -292,7 +318,10 @@ export function createDeckMoves(host: DeckMovesHost) {
     host.setQueue((q) => [last.item, ...q.filter((i) => idOf(i) !== idOf(last.item))]);
   };
 
-  /** Undo (⌘Z, Z): the last move of this visit (the pill's agent's, when one is on) is taken back, out there too (R14). */
+  /**
+   * Undo (⌘Z, Z): the last move of this visit on a card in the active lane is taken back, out there too (R14). A move
+   * made on a card another lane holds waits until the person is back in a lane that holds it (KTD6).
+   */
   const undo = () => {
     // A mail reply sent alone and still held (plan 083): stopped before it goes, and the words come back to the box.
     const waiting = host.reply.held;
@@ -305,8 +334,9 @@ export function createDeckMoves(host: DeckMovesHost) {
       });
       return;
     }
+    const { lane } = host;
     let at = host.decided.length - 1;
-    while (at >= 0 && host.agent && ownerAgentOf(host.decided[at].item) !== host.agent) at--;
+    while (at >= 0 && lane && !inLane(host.decided[at].item, lane)) at--;
     const last = at >= 0 ? host.decided[at] : undefined;
     if (!last) return;
     // A mail reply still held (plan 076): stopped before it goes, and the card comes back with the words in its box.

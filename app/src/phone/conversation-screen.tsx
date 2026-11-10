@@ -80,7 +80,7 @@ export function ConversationScreen({
   item = null,
   waiting,
   banner,
-  backLabel = "inbox",
+  backLabel = "flow",
   prefill = null,
   pinned = null,
   onPin,

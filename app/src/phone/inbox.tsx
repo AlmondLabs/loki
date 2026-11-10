@@ -5,7 +5,8 @@ import { LabelChips } from "../chat/labels";
 import { archivable, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
-import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
+import { useConversation, type ChatViews, type FlowLane, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
+import { otherLanesCount } from "../../../core/attention/lanes.ts";
 import { OpenChat, type TranscriptRow } from "../chat/transcript";
 import { openConversation } from "./router";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
@@ -19,6 +20,7 @@ import { Icon } from "./icons";
 import { Avatar, SkeletonCard } from "./rows";
 import { useMessageActions } from "./use-message-actions";
 import { draftKey, useDraft } from "../shared/drafts";
+import { useOutsideReply } from "../shared/outside-replies";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
@@ -56,6 +58,7 @@ import {
   undoCard,
   makeMove,
   undoMove,
+  otherLanesLine,
   type CardMoves,
   type DeckState,
   type Move,
@@ -68,6 +71,7 @@ import type { CardVia } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 import { ReturnTimeSheet } from "./return-time-sheet";
 import { MailLabelsSheet } from "./mail-labels-sheet";
+import { LaneSheet, LaneTitle } from "./lane-sheet";
 import { newId } from "../shared/new-id";
 
 /**
@@ -132,13 +136,16 @@ export interface Deck {
   resting: boolean;
 }
 
-/** The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight. */
-export function useDeck(items: AttentionItem[]): Deck {
+/**
+ * The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight: over the active
+ * lane's cards (`items`), with every card (`all`) beside them so the visit carries across a lane switch (plan 087, KTD6).
+ */
+export function useDeck(items: AttentionItem[], all: AttentionItem[] = items): Deck {
   const [state, setState] = useState<DeckState>(EMPTY_DECK);
   const visible = useMemo(() => deckQueue(items, state), [items, state]);
   const current = visible.at(0);
   // Pin whatever is on top, drop dismissals the live list has outgrown (the same state when nothing moved).
-  const reconciled = useMemo(() => reconcileDeck(state, items), [state, items]);
+  const reconciled = useMemo(() => reconcileDeck(state, items, all), [state, items, all]);
   if (reconciled !== state) setState(reconciled);
   return {
     visible,
@@ -455,7 +462,9 @@ export function takeSeeds(now: SeedsTaken, card: string | null, seeds: readonly 
 
 /**
  * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
- * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing.
+ * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 087, U7) the title names
+ * it and opens the lane sheet; the deck, its counts and the caught-up state are the lane's, and a quiet line counts
+ * what waits in other lanes.
  */
 export function Inbox({
   items,
@@ -487,9 +496,12 @@ export function Inbox({
   hidden?: boolean;
   /** "Mac unreachable · last seen …", or null while the link is fine. In a pass it takes the card's notice line. */
   banner?: ReactNode;
-  /** The live threads behind the cards (useAttention's), read through useConversation, and an outside card's hand-off. */
-  chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource>;
-  /** The pass, from `useDeck` in the parent. */
+  /**
+   * The live threads behind the cards (useAttention's), read through useConversation, an outside card's hand-off, and
+   * the phone's lane (`flow`); without one, Flow is Everything with no sheet.
+   */
+  chats: ChatViews & Partial<HandoffSource> & Partial<OutsideSource> & { flow?: FlowLane };
+  /** The pass, from `useDeck` in the parent, over the lane's cards. */
   deck: Deck;
   /** Where the top bar's back chevron goes, as a word ("Home"). */
   backLabel: string;
@@ -511,13 +523,21 @@ export function Inbox({
   const reduced = useReducedMotion();
   const { visible, current } = deck;
   const { deckRef, width } = useDeckWidth(!!current);
+  // The phone's lane: Flow's counts are its cards', and the quiet line counts the rest from every card (KTD5).
+  const flow = chats.flow;
+  const lane = flow?.lane ?? null;
+  const laneCards = flow?.laneItems ?? items;
+  const others = otherLanesLine(otherLanesCount(items, lane));
+  const [pickingLane, setPickingLane] = useState(false);
 
-  const running = items.filter((i) => i.status === "running").length;
+  const running = laneCards.filter((i) => i.status === "running").length;
   const approval = !!current?.pendingApproval;
   const currentId = current ? idOf(current) : null;
-  // The card whose reply box holds text: its swipes spring back until it is sent or the card is moved by a button.
+  // The card whose reply box holds text: its swipes spring back until it is sent or the card is moved by a button. An
+  // outside card's text is kept across its leaving the screen (KTD7), so a card back from another lane counts too.
   const [typedId, setTypedId] = useState<string | null>(null);
-  const typed = !!currentId && typedId === currentId;
+  const [keptReply] = useOutsideReply(current?.outside ? currentId : null);
+  const typed = !!currentId && (typedId === currentId || !!keptReply.trim());
   // The card whose reply is on its way: the reply reads it and takes it off, so its buttons and swipes wait until then.
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
@@ -567,7 +587,7 @@ export function Inbox({
   useEffect(() => shown(), [currentId, hidden]);
 
   // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.
-  const needYou = catchUpQueue(items).length;
+  const needYou = catchUpQueue(laneCards).length;
 
   // The last card going (or a new pass starting) takes the pressed button with it; focus would fall to the
   // page body, so it moves to the pass's heading instead, where the next thing to read or press starts.
@@ -592,7 +612,12 @@ export function Inbox({
             </button>
           ) : undefined
         }
-        title={current ? (needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`) : "Inbox"}
+        title={flow ? <LaneTitle lane={lane} onOpen={() => setPickingLane(true)} /> : "Flow"}
+        sub={
+          current
+            ? [needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`, others].filter(Boolean).join(" · ")
+            : undefined
+        }
         right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
@@ -605,9 +630,11 @@ export function Inbox({
           loaded={loaded}
           banner={banner}
           running={running}
-          passedOver={catchUpQueue(items).length}
+          passedOver={needYou}
           onAgain={deck.again}
-          resting={deck.resting ? 0 : restingCount(items)}
+          resting={deck.resting ? 0 : restingCount(laneCards)}
+          others={others}
+          onEverything={lane && flow ? () => flow.setLaneId("") : undefined}
           onResting={deck.restingToo}
           pass={deck.pass}
           backLabel={backLabel}
@@ -665,6 +692,7 @@ export function Inbox({
           }}
         />
       )}
+      {pickingLane && flow && <LaneSheet flow={flow} items={items} onClose={() => setPickingLane(false)} />}
       {labelling && (
         <MailLabelsSheet load={() => moves.labelsOf(labelling)} onAdd={(ids) => moves.label(labelling, ids, "tap")} onClose={() => setLabelling(null)} />
       )}
@@ -689,7 +717,13 @@ function EmptyDeck({
   backLabel,
   onClose,
   onConnection,
+  others = null,
+  onEverything,
 }: {
+  /** The quiet line in a lane: how many cards wait in other lanes, or null. */
+  others?: string | null;
+  /** Back to Everything, while a lane is on (R20); absent in Everything. */
+  onEverything?: () => void;
   available: boolean;
   loaded: boolean;
   banner?: ReactNode;
@@ -709,7 +743,7 @@ function EmptyDeck({
   if (!loaded && !macProblem)
     return (
       <div className="loki-phone-scroll loki-phone-scroll--flush">
-        <SkeletonCard label="Reading the inbox…" />
+        <SkeletonCard label="Reading Flow…" />
       </div>
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
@@ -724,7 +758,7 @@ function EmptyDeck({
   const line = !available
     ? "Open loki on the Mac."
     : banner
-      ? "Cards come back when it reconnects; nothing in the Inbox is lost."
+      ? "Cards come back when it reconnects; nothing in Flow is lost."
       : again
         ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
         : resting > 0
@@ -745,6 +779,7 @@ function EmptyDeck({
           <p className="loki-phone-headline">{title}</p>
           <p>{line}</p>
           {summary && <p className="loki-phone-meta">This visit: {summary}</p>}
+          {!macProblem && others && <p className="loki-phone-meta">{others}</p>}
           {macProblem ? (
             <Button size="touch" tone="paper" onClick={onConnection}>
               Connection details
@@ -759,6 +794,11 @@ function EmptyDeck({
               {!again && resting > 0 && (
                 <Button size="touch" tone="paper" onClick={onResting}>
                   Go through them
+                </Button>
+              )}
+              {onEverything && (
+                <Button size="touch" tone="paper" onClick={onEverything}>
+                  Back to Everything
                 </Button>
               )}
               <Button size="touch" tone="paper" onClick={onClose}>
@@ -920,6 +960,7 @@ function Stack({
                       composeOutside: chats.composeOutside,
                       unsendOutside: chats.unsendOutside,
                       searchPeople: chats.searchPeople,
+                      sentReplies: chats.sentReplies,
                     }
                   : null
               }
@@ -1161,9 +1202,7 @@ function OutsideBody({
   onSending?: (on: boolean) => void;
 }) {
   const [picking, setPicking] = useState(false);
-  // The person's sends from this card, so a Jira card reads its ticket again to show their comment.
-  const [sent, setSent] = useState(0);
-  const thread = useOutsideThread(item, outside, sent);
+  const thread = useOutsideThread(item, outside);
   // A mail's recipients line (plan 076), and the id of the reply held for its undo while it waits.
   const compose = useMailCompose(item, outside);
   const held = useRef<string | null>(null);
@@ -1188,10 +1227,12 @@ function OutsideBody({
         >
           <OutsideReply
             facts={facts}
+            keep={idOf(item)}
             touch
             compose={compose}
             quote={quoteOf(facts, thread)}
             searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
+            inThread={thread.kind === "read" && !!thread.opened}
             onUndo={
               facts.provider === "gmail" && unsend
                 ? () => {
@@ -1205,12 +1246,11 @@ function OutsideBody({
               held.current = outboxId;
               try {
                 // A reply goes alone and the card stays for the person's next swipe (plan 083).
-                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId });
+                // A thread opened on the card is where the reply goes (plan 085).
+                const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
+                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) });
                 // A sent reply clears the box, which fires no input: the swipes come back here.
-                if (r.sent) {
-                  onTyped?.(false);
-                  setSent((n) => n + 1);
-                }
+                if (r.sent) onTyped?.(false);
                 return r;
               } finally {
                 held.current = null;

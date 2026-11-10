@@ -7,7 +7,7 @@
 <p align="center">
   <b>A memory palace your agent builds.</b><br>
   Your own AI agents on macOS, with Windows and Linux in preview, each chat with a canvas:
-  live widgets the agent writes as files, an inbox of everything waiting on you, suggestions an agent writes for
+  live widgets the agent writes as files, Flow: one deck of everything waiting on you, suggestions an agent writes for
   your other chats, flashcards from your conversations, and your phone as a remote.
 </p>
 
@@ -52,11 +52,11 @@ including the Homebrew install of the finished app, is under [Install](#install)
 | | | |
 |---|---|---|
 | **Chats** | ⌘1 | One chat per conversation, its canvas furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Canvas** holds the widgets, to pan, zoom, arrange, undo. ⌘K finds any chat, agent or page. |
-| **Inbox** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Read** sets a card aside for a while, **Later** keeps it unread and brings it back in a day, and **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
+| **Flow** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Read** sets a card aside for a while, **Later** keeps it unread and brings it back in a day, and **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, its reflection settings, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations — only concepts and knowledge that last, never the details of a task — and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how many cards a day is yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
 | **Suggestions** | | When a piece of work fits another chat better — a side finding for your themed infra chat, a hand-off to another agent, a part to run in parallel in a new chat — the agent suggests a message for it. The suggestion waits in the chat screen until you send it now, save it as a draft in that chat's box, point it at another chat, or reject it; an agent never sends one. A one-line purpose you write on a chat tells agents what it is for. |
-| **Phone** | | The inbox, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and read agree with the Mac. Mac only for now. |
+| **Phone** | | Flow, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and read agree with the Mac. Mac only for now. |
 
 Keys are written the Mac's way. On Windows and Linux ⌘ is Ctrl and ⌥ is Alt, and loki shows them that way; the
 phone, ⌥Space, dictation and the menu-bar item are not there yet ([the manual](docs/manual.md#windows-and-linux)
@@ -162,7 +162,7 @@ the agent reads is the whole contract.
 
 ```mermaid
 flowchart LR
-  you([you]) <--> app[loki.app<br/>chats, inbox, learn]
+  you([you]) <--> app[loki.app<br/>chats, flow, learn]
   app <-->|"/ws frames"| daemon[loki daemon<br/>agents, memory, tools, loki's mod]
   daemon <-->|HTTPS| provider[(model provider)]
   daemon --> files[("~/.loki/widgets/<br/>.json and .tsx")]

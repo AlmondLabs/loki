@@ -7,7 +7,7 @@ import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } fro
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
 import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
+import { QUICK_EMOJI, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
 /** A Slack card's body as a window around what is new (plan 077), and as Slack draws it (plan 074, plan 075). */
 
@@ -464,13 +464,32 @@ describe("reactions on a Slack card (plan 079)", () => {
     expect(html).toContain("👀</span><span>2</span>");
     expect(html).toContain('src="https://example.test/shipit.png"');
     expect(html).toContain("<span>:mystery:</span>");
-    expect(html).toContain('class="loki-slack-react"');
+    expect(html).toContain('class="loki-slack-hoverbar"');
   });
 
-  test("where the card cannot react, the pills show but do nothing and there is no react button", () => {
+  test("where the card cannot react, the pills show but do nothing and there is no hover bar", () => {
     const html = draw([m("a", "Ravi", 0, { reactions })], { load: () => {}, openThread: () => {}, busy: null });
     expect(html.match(/disabled=""/g)).toHaveLength(3);
-    expect(html).not.toContain('class="loki-slack-react"');
+    expect(html).not.toContain('class="loki-slack-hoverbar"');
+  });
+
+  test("the hover bar shows the person's first three quick reactions and the add-reaction mark (plan 084)", () => {
+    const shipit = { name: "shipit", emoji: { kind: "emoji" as const, text: ":shipit:", image: "https://example.test/shipit.png" } };
+    const quick = quickChoices([{ name: "100", emoji: { kind: "emoji", text: "💯" } }, shipit]);
+    const html = draw([m("a", "Ravi", 0)], { load: () => {}, openThread: () => {}, busy: null, react: () => {}, quick });
+    const bar = html.slice(html.indexOf("loki-slack-hoverbar"));
+    expect([...bar.matchAll(/title="react with :([^:]+):"/g)].map((x) => x[1])).toEqual(["100", "shipit", "eyes"]);
+    expect(bar).toContain('aria-label="add a reaction"');
+  });
+
+  test("quick reactions are the person's most used, filled to five with loki's own not among them", () => {
+    expect(quickChoices([]).map((c) => c.name)).toEqual(QUICK_EMOJI.map((c) => c.name));
+    expect(
+      quickChoices([
+        { name: "eyes", emoji: eyes.emoji },
+        { name: "100", emoji: { kind: "emoji", text: "💯" } },
+      ]).map((c) => c.name),
+    ).toEqual(["eyes", "100", "white_check_mark", "+1", "pray"]);
   });
 });
 

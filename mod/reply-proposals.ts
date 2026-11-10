@@ -465,9 +465,7 @@ export class ReplyProposals {
     const found =
       this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
     if (!found)
-      throw new Error(
-        `${ticket} has never had a card in the Inbox, so there is no comment box for a comment to wait in: comment on a ticket from account_list`,
-      );
+      throw new Error(`${ticket} has never had a card in Flow, so there is no comment box for a comment to wait in: comment on a ticket from account_list`);
     return found;
   }
 
@@ -559,7 +557,7 @@ function whoWords(p: ReplyProposal): string {
 function draftedNotice(p: ReplyProposal): string {
   if (p.provider === "jira")
     return [
-      `The person approved your comment ${whoWords(p)} in ${p.account_label}, and loki put it in the comment box of the ticket's card in the Inbox, waiting on the card for the person to send.`,
+      `The person approved your comment ${whoWords(p)} in ${p.account_label}, and loki put it in the comment box of the ticket's card in Flow, waiting on the card for the person to send.`,
       "Nothing was posted: only the person posts it, from the card. The comment says:",
       inert(p.text),
     ].join("\n");
@@ -598,7 +596,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
       "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
       "conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a ticket that has " +
-      "had a card in the Inbox (by key or id): approved, it waits in that card's comment box for the person to post. " +
+      "had a card in Flow (by key or id): approved, it waits in that card's comment box for the person to post. " +
       "You hear what became of it with the next message.",
     parameters: {
       type: "object",

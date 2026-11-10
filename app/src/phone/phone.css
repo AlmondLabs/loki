@@ -449,6 +449,25 @@ html:has(.loki-phone-shell) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Flow's title in the Inbox names the lane and opens the lane sheet (lane-sheet.tsx): the heading's own type, touch-sized. */
+.loki-phone-lane-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--phone-space-1);
+  max-width: 100%;
+  min-height: var(--phone-touch);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.loki-phone-lane-title-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .loki-phone-topbar-sub {
   display: flex;
   align-items: center;

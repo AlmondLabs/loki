@@ -36,7 +36,7 @@ export interface ReplyProposalsProps {
 const WORDS: Record<ReplyProposal["provider"], { kicker: string; after: string; writing: string }> = {
   gmail: { kicker: "reply", after: "saved as a draft in Gmail; you send it from there", writing: "writing the draft in Gmail…" },
   slack: { kicker: "reply", after: "saved as a draft in Slack; you send it from there", writing: "writing the draft in Slack…" },
-  jira: { kicker: "comment", after: "goes in the ticket's comment box in the Inbox; you post it from there", writing: "putting the comment on the card…" },
+  jira: { kicker: "comment", after: "goes in the ticket's comment box in Flow; you post it from there", writing: "putting the comment on the card…" },
 };
 
 /** The words of a control: lowercase on the desktop, sentence case on the phone. */

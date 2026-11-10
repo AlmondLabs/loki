@@ -13,7 +13,7 @@ export const GROUPS: readonly SettingsGroup[] = [
   { title: "General", pages: ["appearance", "chat", "keys"] },
   { title: "Models and tools", pages: ["providers", "engines", "mcp", "skills"] },
   { title: "Your devices", pages: ["macs", "phone"] },
-  { title: "Inbox and Learn", pages: ["inbox", "accounts", "learn"] },
+  { title: "Flow and Learn", pages: ["inbox", "accounts", "learn"] },
   { title: "Labels", pages: ["labels"] },
   { title: "loki", pages: ["loki", "usage"] },
 ];
@@ -28,7 +28,7 @@ export const PAGES: Array<{ id: SettingsPage }> = GROUPS.flatMap((g) => g.pages.
 const TITLES: Record<SettingsPage, string> = {
   loki: "About",
   usage: "Usage",
-  inbox: "Inbox",
+  inbox: "Flow",
   accounts: "Accounts",
   providers: "Providers",
   engines: "Engines",
@@ -49,7 +49,7 @@ export const pageTitle = (p: SettingsPage): string => TITLES[p];
 export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
-  inbox: ["order", "score", "focus", "archive"],
+  inbox: ["inbox", "order", "score", "focus", "archive", "lane", "lanes"],
   accounts: ["gmail", "email", "mail", "slack", "connect", "google", "jira", "atlassian", "token"],
   providers: ["models", "api key", "openai", "anthropic"],
   engines: ["claude code", "acp", "agents"],

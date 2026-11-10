@@ -40,7 +40,7 @@ export function Site() {
         </a>
         <nav aria-label="sections">
           <a href="#canvas">canvas</a>
-          <a href="#inbox">inbox</a>
+          <a href="#inbox">flow</a>
           <a href="#suggestions">suggestions</a>
           <a href="#phone">phone</a>
           <a href="#learn">learn</a>
@@ -77,13 +77,13 @@ export function Site() {
 
         <section className="site-section" id="inbox">
           <div className="site-section-text">
-            <h2>One inbox for everything waiting on you</h2>
+            <h2>One flow for everything waiting on you</h2>
             <p>
-              Run five chats at once and the work comes back in five places. The Inbox puts it in one: a card per chat, an agent stopped on an approval or a
-              question first, then whatever is new. Reply, approve or answer on the card itself; press next and the chat rests for an hour, so the one in front
-              of you gets your whole attention.
+              Run five chats at once and the work comes back in five places. Flow puts it in one: a card per chat, an agent stopped on an approval or a question
+              first, then whatever is new. Reply, approve or answer on the card itself; press next and the chat rests for an hour, so the one in front of you
+              gets your whole attention.
             </p>
-            <ul className="site-keys" aria-label="the Inbox's keys">
+            <ul className="site-keys" aria-label="Flow's keys">
               <li>
                 <kbd>→</kbd> next
               </li>
@@ -122,8 +122,8 @@ export function Site() {
           <div className="site-section-text">
             <h2>Your phone is the remote</h2>
             <p>
-              The Inbox, every chat, your agents and Learn on your phone, laid out for a thumb. Scan a code on your Mac, over Wi‑Fi or Tailscale, and add it to
-              your home screen; there is nothing to install. What you read on one, the other knows.
+              Flow, every chat, your agents and Learn on your phone, laid out for a thumb. Scan a code on your Mac, over Wi‑Fi or Tailscale, and add it to your
+              home screen; there is nothing to install. What you read on one, the other knows.
             </p>
             <ul className="site-keys" aria-label="the phone's gestures">
               <li>swipe right: next</li>

@@ -4,37 +4,58 @@ import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
 /**
- * The window title: the desk's name on the desk, the inbox with its count, Learn with its due cards,
- * agents, Preferences (while its sheet is up). The native title bar is hidden, so macOS no longer draws it, but it still names
- * the window in the Window menu, Mission Control and to screen readers; a browser tab shows it as the tab
- * title. A waiting count prefixes the tab title everywhere but the inbox.
+ * The window title, as `name` for the window and `document` for a browser tab: the desk's name on the desk, Flow with
+ * its count, Learn with its due cards, agents, Preferences (while its sheet is up). With a lane active Flow names it
+ * ("Flow · Work · 3 waiting", plan 087 KTD10), so the person can tell which lane the count and the dock badge are of;
+ * `waiting` is already that lane's. A waiting count prefixes the tab title everywhere but Flow.
  */
-export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "agentName">, segment: Segment, waiting: number, dueCards = 0): void {
+export function windowTitle(
+  desk: Pick<Desk, "title" | "status" | "scope" | "agentName">,
+  segment: Segment,
+  waiting: number,
+  dueCards = 0,
+  laneName: string | null = null,
+): { name: string; document: string } {
+  const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
+  // "agent · title", the way a main chat is named ("ira · main chat"); no repeat when the title already leads with it.
+  const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
+  const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
+  const flow = ["Flow", ...(laneName ? [laneName] : []), ...(waiting > 0 ? [`${waiting} waiting`] : [])].join(" · ");
+  const name =
+    segment === "inbox"
+      ? flow
+      : segment === "learn"
+        ? dueCards > 0
+          ? `Learn · ${dueCards} due`
+          : "Learn"
+        : segment === "agents"
+          ? "Agents"
+          : segment === "settings"
+            ? "Preferences"
+            : `${who}${deskName}${state}`;
+  return { name, document: waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name };
+}
+
+/**
+ * Keeps the window title (windowTitle) current. The native title bar is hidden, so macOS no longer draws it, but it
+ * still names the window in the Window menu, Mission Control and to screen readers; a browser tab shows it as the tab
+ * title.
+ */
+export function useWindowTitle(
+  desk: Pick<Desk, "title" | "status" | "scope" | "agentName">,
+  segment: Segment,
+  waiting: number,
+  dueCards = 0,
+  laneName: string | null = null,
+): void {
+  const { name, document: tabTitle } = windowTitle(desk, segment, waiting, dueCards, laneName);
   useEffect(() => {
-    const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
-    // "agent · title", the way a main chat is named ("ira · main chat"); no repeat when the title already leads with it.
-    const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
-    const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
-    const name =
-      segment === "inbox"
-        ? waiting > 0
-          ? `Inbox · ${waiting} waiting`
-          : "Inbox"
-        : segment === "learn"
-          ? dueCards > 0
-            ? `Learn · ${dueCards} due`
-            : "Learn"
-          : segment === "agents"
-            ? "Agents"
-            : segment === "settings"
-              ? "Preferences"
-              : `${who}${deskName}${state}`;
-    document.title = waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name;
+    document.title = tabTitle;
     if (inTauri)
       void import("@tauri-apps/api/window")
         .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name))
         .catch((e: unknown) => console.warn("loki: window title", e));
-  }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, dueCards]);
+  }, [name, tabTitle]);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { homeDeskSections, homeSections } from "../app/src/phone/model.ts";
+import { homeDeskSections, homeLists, homeSections } from "../app/src/phone/model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
@@ -59,5 +59,43 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
     expect(homeDeskSections(desks, [], [], "kai", agents).map((g) => g.id)).toEqual(["pinned", "agent:kai"]);
     expect(homeDeskSections(desks, [], [], "a1", agents).flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["a1"]);
     expect(homeSections(desks, [], null, "").desks.length).toBeGreaterThan(0); // the attention half still comes from homeSections
+  });
+});
+
+describe("Home under the phone's lane (plan 087, R15, R16)", () => {
+  const desk = (scope: string, agentId: string): DeskSummary => ({
+    scope,
+    title: scope,
+    status: "live",
+    agent_name: agentId,
+    agent_id: agentId,
+    conversation_id: scope,
+    model: null,
+    reasoning_effort: null,
+    pinned: false,
+    widgets: 0,
+    active: false,
+    last_active: "2026-09-25T10:00:00Z",
+  });
+  const asks = (id: string, agentId: string) =>
+    ({ agent_id: agentId, id, status: "question", unread: true, title: id, last_message_at: "2026-09-25T12:00:00Z" }) as unknown as AttentionItem;
+  const desks = [desk("w1", "ada"), desk("h1", "bo")];
+  const agents = [
+    { id: "ada", name: "ada" },
+    { id: "bo", name: "bo" },
+  ];
+  const items = [asks("w1", "ada"), asks("h1", "bo")];
+
+  test("Needs your attention and its count hold only the lane's cards; the chat groups still list a chat outside it", () => {
+    const home = homeLists({ desks, items, laneItems: [items[0]], query: "", agents, due: 0 });
+    expect(home.attention.map((a) => a.item.id)).toEqual(["w1"]);
+    expect(home.counts.inbox).toBe(1);
+    expect(home.groups.flatMap((g) => g.rows.map((r) => r.desk.scope))).toEqual(["h1"]);
+  });
+  test("in Everything both cards need the person and neither repeats below", () => {
+    const home = homeLists({ desks, items, laneItems: items, query: "", agents, due: 0 });
+    expect(home.attention.map((a) => a.item.id).sort()).toEqual(["h1", "w1"]);
+    expect(home.counts.inbox).toBe(2);
+    expect(home.groups).toEqual([]);
   });
 });

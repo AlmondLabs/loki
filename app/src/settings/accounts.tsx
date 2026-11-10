@@ -296,7 +296,7 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
     <>
       <Block
         title="Accounts"
-        help="mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as Inbox cards; each account belongs to one agent, which gets its hand-offs and its tools."
+        help="mail and Slack messages addressed to you, and events on the Jira tickets you watch, arrive as cards in Flow; each account belongs to one agent, which gets its hand-offs and its tools."
       >
         {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
         {!accounts && !error && <Setting label="Accounts" help="asking loki…" />}

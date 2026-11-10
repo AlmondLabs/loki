@@ -62,13 +62,16 @@ export function ticketAddress(o: OutsideFacts, link: string | null = null): stri
   return link ?? (o.place ? `https://${o.account_label}/browse/${encodeURIComponent(o.place)}` : null);
 }
 
-/** Where the person's reply goes, in words: reply-all in a mail thread, the DM or a Slack thread, or a comment on the ticket. */
-export function replyPlace(o: OutsideFacts): string {
+/**
+ * Where the person's reply goes, in words: reply-all in a mail thread, the DM or a Slack thread (the card's own, or one
+ * opened on it, plan 085), or a comment on the ticket.
+ */
+export function replyPlace(o: OutsideFacts, inThread = false): string {
   switch (o.provider) {
     case "gmail":
       return "reply to all";
     case "slack":
-      return o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
+      return inThread || o.thread_id.includes(":") ? "reply in the thread" : "reply in the DM";
     case "jira":
       return "comment on the ticket";
   }
@@ -142,8 +145,8 @@ export const READ_TITLE: Record<AccountProvider, string> = {
  * draws none (KTD12).
  */
 export const ARCHIVE_TITLE: Record<AccountProvider, string | null> = {
-  gmail: "done with this thread: it leaves the Inbox and is archived in Gmail",
-  slack: "done with this thread: it leaves the Inbox and is marked read in Slack",
+  gmail: "done with this thread: it leaves Flow and is archived in Gmail",
+  slack: "done with this thread: it leaves Flow and is marked read in Slack",
   jira: null,
 };
 
