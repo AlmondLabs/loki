@@ -14,6 +14,7 @@ import type { AccountStatus } from "../core/frame-types.ts";
 import { messageOf } from "../core/errors.ts";
 import { log } from "./log.ts";
 import type { SlackSession } from "./slack-session.ts";
+import { withMentions } from "./slack-people.ts";
 
 /**
  * A thin Slack client over fetch for one connected workspace (plan 067, U6, KTD4), calling as the person through the
@@ -35,6 +36,7 @@ export const SLACK_METHODS = [
   "conversations.replies",
   "conversations.info",
   "users.info",
+  "users.list",
   "emoji.list",
   "conversations.mark",
   "drafts.list",
@@ -385,6 +387,30 @@ export class SlackClient {
   }
 
   /**
+   * A page of the workspace's people (plan 082), with the cursor to the next page; null when it is the last. People
+   * who left the workspace are left out.
+   */
+  async usersList(cursor: string | null): Promise<{ users: SlackUser[]; next_cursor: string | null }> {
+    const r = await this.call("users.list", { limit: 200, ...(cursor ? { cursor } : {}) });
+    const users: SlackUser[] = [];
+    for (const raw of Array.isArray(r.members) ? (r.members as unknown[]) : []) {
+      const u = rec(raw);
+      if (!str(u.id) || u.deleted === true) continue;
+      const profile = rec(u.profile);
+      users.push({
+        id: str(u.id),
+        name: str(u.name),
+        real_name: str(u.real_name) || str(profile.real_name),
+        display_name: str(profile.display_name),
+        is_bot: u.is_bot === true || str(u.id) === "USLACKBOT",
+        image: str(profile.image_72) || str(profile.image_48),
+      });
+    }
+    const next = str(rec(r.response_metadata).next_cursor);
+    return { users, next_cursor: next || null };
+  }
+
+  /**
    * Mark a DM or group DM read up to `ts`, as archiving its card does (R12). Any other conversation is refused before
    * anything is marked: a channel's read marker never moves, since that would hide messages the person has not seen (R13).
    */
@@ -425,9 +451,10 @@ export class SlackClient {
    * Post the person's own reply (plan 068): in the thread when `thread_ts` names one, else in the conversation. Only the
    * person's reply frame calls this; no agent tool is given it.
    */
-  async postReply(input: SlackDraftInput): Promise<{ ts: string }> {
-    // Slack reads <, > and & as its markup, so the person's own text is escaped to arrive as they typed it.
-    const text = input.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  async postReply(input: SlackDraftInput & { mentions?: ReadonlyMap<string, string> }): Promise<{ ts: string }> {
+    // Slack reads <, > and & as its markup, so the person's own text is escaped to arrive as they typed it; only an
+    // @handle loki knows becomes Slack's mention (plan 082).
+    const text = withMentions(input.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), input.mentions ?? new Map());
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
   }

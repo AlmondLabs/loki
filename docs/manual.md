@@ -996,6 +996,12 @@ when you press the key once more. A send that fails keeps your text, moves nothi
 takes back the move only; the reply stays sent. On the phone, **Send** is Enter's move: sent, then read. Only you send
 this way: no agent can, and an agent's own reply still becomes a draft once you approve it.
 
+**Mention people.** Type @ and a few letters in the reply box to see the people who match; ↑ and ↓ move, Enter or Tab
+takes one, and Esc puts the list away. On a Slack card the list is your workspace's people, and a pick writes their
+handle (`@ravi.kumar`): when the reply goes, each handle of someone in the workspace becomes a Slack mention, so Slack
+tells them. On an email card the list is the people you have mail with, as Gmail's is: a pick writes their name and
+adds them to To when they are not already on the reply. Both work on the phone too.
+
 **How an email card reads.** On the Mac an email card is laid out the way Gmail lays out a thread. The subject is
 the card's title. With more than one mailbox connected, the header ends with the one it came to ("in
 you@work.example"). Each mail has its own header line with the sender's face, name and address, whom it went to ("to

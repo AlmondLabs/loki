@@ -299,6 +299,37 @@ describe("what the client reads", () => {
   });
 });
 
+describe("the workspace's people and mentions in a reply (plan 082)", () => {
+  test("a page of people with the next page's cursor; people who left are left out and Slackbot is a bot", async () => {
+    const { c, sent } = client(() => ({
+      body: {
+        ok: true,
+        members: [
+          { id: "U1", name: "ravi.kumar", real_name: "Ravi Kumar", profile: { display_name: "Ravi", image_72: "https://example.test/r.png" } },
+          { id: "U2", name: "gone", deleted: true, profile: {} },
+          { id: "USLACKBOT", name: "slackbot", profile: {} },
+        ],
+        response_metadata: { next_cursor: "dXNlcjpVMg==" },
+      },
+    }));
+    const page = await c.usersList(null);
+    expect(page.users.map((u) => [u.id, u.name, u.display_name, u.is_bot])).toEqual([
+      ["U1", "ravi.kumar", "Ravi", false],
+      ["USLACKBOT", "slackbot", "", true],
+    ]);
+    expect(page.next_cursor).toBe("dXNlcjpVMg==");
+    expect(sent[0]?.params).toMatchObject({ limit: "200" });
+    await c.usersList("dXNlcjpVMg==");
+    expect(sent[1]?.params.cursor).toBe("dXNlcjpVMg==");
+  });
+
+  test("a reply's known @handles go as Slack's mentions, the rest of its words escaped as typed", async () => {
+    const { c, sent } = client(() => ({ body: { ok: true, ts: "1.0" } }));
+    await c.postReply({ channel: "D1", text: "@ravi.kumar <b> & @nobody, ask ravi@example.test", mentions: new Map([["ravi.kumar", "U1"]]) });
+    expect(sent[0]?.params.text).toBe("<@U1> &lt;b&gt; &amp; @nobody, ask ravi@example.test");
+  });
+});
+
 describe("the person's reactions (plan 079)", () => {
   test("a reaction is added or taken back on its message; one already there, or already gone, is what was asked", async () => {
     const { c, sent } = client((method) => (method === "reactions.add" ? { body: { ok: false, error: "already_reacted" } } : { body: { ok: true } }));

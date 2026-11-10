@@ -38,6 +38,7 @@ import type {
   AccountLabel,
   HandoffProposal,
   EmojiChoice,
+  SlackPerson,
   MailAddressing,
   MailCompose,
   OutsideChange,
@@ -174,6 +175,8 @@ export interface OutsideSource {
   reactOutside?: (item: AttentionItem, messageId: string, name: string, on: boolean) => Promise<string | null>;
   /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
   searchEmoji?: (item: AttentionItem, query: string) => Promise<EmojiChoice[] | string>;
+  /** The people a Slack card's account can mention whose handle or name holds `query` (plan 082), or why not. */
+  searchPeople?: (item: AttentionItem, query: string) => Promise<SlackPerson[] | string>;
 }
 
 /** What a mail reply carries beside its text (plan 076): how it is addressed (null for reply all) and the id its hold is undone by. */
@@ -918,6 +921,7 @@ export function useAttention(opts: UseAttentionOptions) {
     unsendOutside: store.unsendOutside,
     reactOutside: store.reactOutside,
     searchEmoji: store.searchEmoji,
+    searchPeople: store.searchPeople,
     replyOutside,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,

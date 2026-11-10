@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
-import type { ThreadControls } from "../app/src/desk/outside-card.tsx";
+import { threadSourceOf, type ThreadControls } from "../app/src/desk/outside-card.tsx";
 import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
@@ -571,5 +571,16 @@ describe("files on a Slack card (plan 080)", () => {
       null,
     ]);
     expect(asked).toEqual([`${ACCOUNT} https://files.slack.com/p_360.png`, `${ACCOUNT} https://files.slack.com/q_360.png`]);
+  });
+});
+
+describe("the source a card's thread is read through (plan 079)", () => {
+  test("reacting and the emoji search come with reading, so the card can react wherever its source can", () => {
+    const readOutside = () => Promise.resolve("not read");
+    const reactOutside = () => Promise.resolve(null);
+    const searchEmoji = () => Promise.resolve([]);
+    expect(threadSourceOf({ readOutside, reactOutside, searchEmoji })).toEqual({ readOutside, reactOutside, searchEmoji });
+    expect(threadSourceOf({ readOutside })).toEqual({ readOutside });
+    expect(threadSourceOf({ reactOutside })).toBeNull();
   });
 });

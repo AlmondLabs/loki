@@ -1770,6 +1770,11 @@ button.loki-label-chip:focus-visible {
   border-radius: var(--loki-radius-lg);
   box-shadow: var(--loki-shadow-float);
 }
+/* The people to mention (plan 082) open above the reply box, so the box and what is typed stay in sight. */
+.loki-mention-list {
+  top: auto;
+  bottom: 100%;
+}
 .loki-mail-suggest-row {
   display: flex;
   align-items: baseline;
