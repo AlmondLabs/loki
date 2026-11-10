@@ -4,7 +4,7 @@ import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import type { ChatEngineView } from "../models.ts";
-import type { OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
+import type { AccountProvider, OutsideFacts, ReplyProposal, Suggestion } from "../frame-types.ts";
 import type { ChatLink } from "../chat-links.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
@@ -57,7 +57,7 @@ export interface ConversationInfo {
   cwd?: string | null;
   /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9), as the list has them. */
   reply_proposals?: ReplyProposal[];
-  /** An outside card: a Gmail or Slack thread, not a chat (plan 067, KTD1); absent on a chat. */
+  /** An outside card: a Gmail or Slack thread or a Jira ticket, not a chat (plan 067, KTD1); absent on a chat. */
   kind?: "outside";
   /** The outside card's own facts, present exactly when `kind` is `outside`. */
   outside?: OutsideFacts;
@@ -158,6 +158,21 @@ export interface AttentionItem extends ConversationInfo {
  * that owns its account, so mail and Slack file under the agent that handles them.
  */
 export const ownerAgentOf = (i: Pick<AttentionItem, "agent_id" | "outside">): string => i.outside?.owner_agent_id ?? i.agent_id;
+
+/**
+ * Which moves end an outside card besides read (plan 2026-11-10-1451, R19, KTD12, KTD13): ⌘E archives a mail in Gmail
+ * and marks a Slack message read, and a hand-off ends either card. A Jira card ends only with read, since loki changes
+ * nothing on a ticket but the person's own comment: ⌘E is refused, and a hand-off leaves the card where it is.
+ */
+export const OUTSIDE_ENDS: Record<AccountProvider, { archive: boolean; handoff: boolean }> = {
+  gmail: { archive: true, handoff: true },
+  slack: { archive: true, handoff: true },
+  jira: { archive: false, handoff: false },
+};
+
+/** Whether ⌘E can take a card off: a chat that is not a main chat, or an outside card whose service archives. */
+export const archivable = (item: Pick<AttentionItem, "id" | "outside">): boolean =>
+  item.outside ? OUTSIDE_ENDS[item.outside.provider].archive : item.id !== "default";
 
 /** The key a chat goes by in the maps of live state, seen markers and focus: "agentId/conversationId". */
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
@@ -504,13 +519,26 @@ export function waitingReplies(c: Pick<ConversationInfo, "reply_proposals">, l: 
 }
 
 /**
- * An outside card before its score (plan 067, KTD1): never blocked, so it scores like a chat with a new reply (R9). An
+ * Whether an outside card is unread (plan 067, KTD1): never blocked, it scores like a chat with a new reply (R9). An
  * email card is unread exactly while Gmail says so (plan 070, KTD2): a mail read there keeps its card, one marked unread
  * there comes back, and a read in loki reaches Gmail through its write-back. A Slack card is new until its own mark is
- * newer than its newest message. It has no live half; its preview is its last line.
+ * newer than its newest message, and so is a Jira card, since Jira keeps no read state for a ticket; a comment the
+ * person approved since they last read it counts as new too, so its card comes up with the comment in its box (KTD18).
  */
+function outsideUnread(o: OutsideFacts, seenAt: string | null): boolean {
+  switch (o.provider) {
+    case "gmail":
+      return o.unread_out_there !== false;
+    case "slack":
+      return !seenAt || seenAt < o.newest_at;
+    case "jira":
+      return !seenAt || seenAt < o.newest_at || (o.seeds ?? []).some((s) => seenAt < s.at);
+  }
+}
+
+/** An outside card as an item before its score. It has no live half; its preview is its last line. */
 function outsideItem(c: ConversationInfo, o: OutsideFacts, seenAt: string | null, viewedAt: string | null): Unscored {
-  const unread = o.provider === "gmail" ? o.unread_out_there !== false : !seenAt || seenAt < o.newest_at;
+  const unread = outsideUnread(o, seenAt);
   return {
     ...c,
     status: unread ? "done" : "idle",

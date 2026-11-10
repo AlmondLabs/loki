@@ -5,11 +5,15 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { Card, CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
+import { Card, CardConversation, Decisions, takeSeeds, type CardActions } from "../app/src/phone/inbox.tsx";
 import { CardHeader } from "../app/src/desk/catch-up-parts.tsx";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
 import type { SuggestionSource } from "../app/src/chat/suggestion-card.tsx";
 import type { Suggestion } from "../core/frame-types.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
+import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { freshSeeds, withSeeds } from "../app/src/desk/outside-words.ts";
+import { must } from "./fixtures/must.ts";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
@@ -178,5 +182,67 @@ describe("the phone's decisions under a card", () => {
     const disabled = [...out.matchAll(/<button[^>]*disabled=""[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
     expect(disabled).toEqual(["Later", "Archive", "Read"]);
     expect(html({}, true)).not.toContain("disabled");
+  });
+});
+
+describe("a Jira card on the phone (plan 2026-11-10-1451, U5, R21)", () => {
+  const base = outsideItem("Rotate the keys");
+  const jira = (): AttentionItem => ({
+    ...base,
+    agent_id: "account:jira:acme.atlassian.net:acc-me",
+    outside: base.outside && {
+      ...base.outside,
+      account_id: "jira:acme.atlassian.net:acc-me",
+      provider: "jira",
+      account_label: "acme.atlassian.net",
+      sender: "Ada Lovelace",
+      sender_address: null,
+      place: "OPS-7",
+      reach: "watching",
+    },
+  });
+
+  test("is titled by the ticket's key and title, names its site and agent after, and shows no tag", () => {
+    const html = inPage(createElement(Card, { item: jira(), role: "top", style: {} }));
+    expect(html).toContain("OPS-7 · Rotate the keys");
+    expect(html).toContain("acme.atlassian.net · Jira · ira");
+    expect(html).toContain("Ada Lovelace");
+    expect(html).not.toContain("watching");
+    expect(html).not.toContain("loki-reach");
+  });
+});
+
+describe("an approved comment in a Jira card's box (plan 2026-11-10-1451, U8, KTD18)", () => {
+  const SEED = { id: "reply-1", text: "Rotating tonight.", at: "2026-11-10T12:00:00.000Z" };
+  const OTHER = { id: "reply-2", text: "And the backups.", at: "2026-11-10T12:05:00.000Z" };
+
+  test("the box shows the seed; text already typed keeps it, after a blank line; the same seed is not added twice", () => {
+    expect(withSeeds("", freshSeeds([SEED], []))).toBe("Rotating tonight.");
+    expect(withSeeds("Thanks Ada.\n", freshSeeds([SEED], []))).toBe("Thanks Ada.\n\nRotating tonight.");
+    expect(freshSeeds([SEED], ["reply-1"])).toEqual([]);
+    expect(freshSeeds([SEED, OTHER], ["reply-1"])).toEqual([OTHER]);
+    expect(withSeeds("Rotating tonight.", freshSeeds([SEED, OTHER], ["reply-1"]))).toBe("Rotating tonight.\n\nAnd the backups.");
+    expect(freshSeeds(undefined, [])).toEqual([]);
+  });
+
+  test("the phone's comment box opens with the approved comment in it", () => {
+    const item = jiraItem();
+    const facts = { ...must(item.outside, "facts"), seeds: [SEED] };
+    const html = inPage(createElement(OutsideReply, { facts, touch: true, onSend: () => Promise.resolve({ sent: false, error: null }) }));
+    expect(html).toContain(">Rotating tonight.</textarea>");
+  });
+
+  test("the phone's deck locks the swipes when the top card's box takes in a comment, which fires no input", () => {
+    const none = { card: null, taken: [] };
+    // A card drawn with an approved comment: the box holds text, so the swipes spring back as for typed text.
+    const first = must(takeSeeds(none, "jira:OPS-7", [SEED]), "first");
+    expect(first).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1"] }, lock: true });
+    // Drawn again with the same comment: nothing changes, so the person's own edit of the box keeps its say.
+    expect(takeSeeds(first.next, "jira:OPS-7", [SEED])).toBeNull();
+    // A second comment approved while the card is up locks it again.
+    expect(takeSeeds(first.next, "jira:OPS-7", [SEED, OTHER])).toEqual({ next: { card: "jira:OPS-7", taken: ["reply-1", "reply-2"] }, lock: true });
+    // Another card without comments starts its own count and locks nothing.
+    expect(takeSeeds(first.next, "jira:OPS-8", undefined)).toEqual({ next: { card: "jira:OPS-8", taken: [] }, lock: false });
+    expect(takeSeeds(none, null, undefined)).toBeNull();
   });
 });

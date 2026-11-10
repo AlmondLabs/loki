@@ -50,7 +50,7 @@ export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
   inbox: ["inbox", "order", "score", "focus", "archive", "lane", "lanes"],
-  accounts: ["gmail", "email", "mail", "slack", "connect", "google"],
+  accounts: ["gmail", "email", "mail", "slack", "connect", "google", "jira", "atlassian", "token"],
   providers: ["models", "api key", "openai", "anthropic"],
   engines: ["claude code", "acp", "agents"],
   mcp: ["tools"],

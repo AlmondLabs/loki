@@ -6,7 +6,7 @@ import type { SecretBackend } from "../daemon/credentials.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 
 /**
- * The Gmail mailboxes and Slack workspaces connected on this Mac (plan 067, U2, KTD2, KTD14). Each has exactly one
+ * The Gmail mailboxes, Slack workspaces and Jira sites connected on this Mac (plan 067, U2, KTD2, KTD14). Each has exactly one
  * owning agent, which gets its hand-offs and its tools. The records live in `state/accounts.json`; what an account
  * signs in with lives in the keychain under `account:<account_id>`, with an index entry naming those accounts, since a
  * keychain cannot be listed. Agents can read files under ~/.loki, so no token ever goes in the state file.
@@ -50,20 +50,42 @@ export interface AccountsOptions {
 
 /** The keychain entry naming every account with a secret there. */
 const INDEX = "accounts";
-const PROVIDERS: readonly AccountProvider[] = ["gmail", "slack"];
+const PROVIDERS: readonly AccountProvider[] = ["gmail", "slack", "jira"];
 const CAUSES: readonly AccountDisconnectCause[] = ["sign_in_again", "admin_blocks", "slack_signed_out", "temporarily_failing"];
 
 /**
  * An account's id: the provider and the id it keeps across sign-ins (KTD14). A mailbox is its address, in lower case
- * since Gmail ignores case; a Slack workspace is its team and the person's user in it.
+ * since Gmail ignores case; a Slack workspace is its team and the person's user in it; a Jira site is the host its API
+ * answers on, in lower case as host names are, and the person's Atlassian account id.
  */
-export function accountIdOf(a: { provider: "gmail"; address: string } | { provider: "slack"; team_id: string; user_id: string }): string {
-  return a.provider === "gmail" ? `gmail:${a.address.trim().toLowerCase()}` : `slack:${a.team_id}:${a.user_id}`;
+export function accountIdOf(
+  a: { provider: "gmail"; address: string } | { provider: "slack"; team_id: string; user_id: string } | { provider: "jira"; host: string; account_id: string },
+): string {
+  switch (a.provider) {
+    case "gmail":
+      return `gmail:${a.address.trim().toLowerCase()}`;
+    case "slack":
+      return `slack:${a.team_id}:${a.user_id}`;
+    case "jira":
+      return `jira:${a.host.trim().toLowerCase()}:${a.account_id}`;
+  }
 }
 
-/** An account as the person reads it in a message: a mailbox by its address, a workspace by its name and "(Slack)". */
+/** Each service by the name the person knows it by, for messages that name where something is or failed. */
+export const SERVICE_NAME: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
+
+/**
+ * An account as the person reads it in a message: a mailbox by its address, a workspace by its name and "(Slack)", a
+ * Jira site by its host and "(Jira)".
+ */
 export function accountLabel(a: Pick<AccountView, "provider" | "address">): string {
-  return a.provider === "slack" ? `${a.address} (Slack)` : a.address;
+  switch (a.provider) {
+    case "gmail":
+      return a.address;
+    case "slack":
+    case "jira":
+      return `${a.address} (${SERVICE_NAME[a.provider]})`;
+  }
 }
 
 /** An account as the frames send it: everything but the watcher's cursor. */

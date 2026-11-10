@@ -1,11 +1,11 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
 import { keyedQueue } from "../core/serial.ts";
-import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
+import { SERVICE_NAME, accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
 
@@ -75,6 +75,14 @@ export interface ThreadRecord {
   dealt_was: string | null;
   /** The Slack messages that brought the card into the Inbox (plan 077, KTD2), oldest first; empty for mail. */
   brought_ids: string[];
+  /**
+   * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
+   * first: they wait for the card's comment box until the person sends a comment, ends the card without sending one, or
+   * the agent takes one back. Empty for every other kind of card and for records from before.
+   */
+  seeds: OutsideSeed[];
+  /** The approved comments the last move that ended the card let go, so an undo of that move puts them back. */
+  seeds_was: OutsideSeed[];
 }
 
 /** A thread as a watcher saw it, with its newest message. */
@@ -102,7 +110,7 @@ export interface ObservedMessage {
 }
 
 /**
- * A provider's write-backs (plan 067, R12; plan 070, KTD3): each move on an outside card written to Gmail or Slack.
+ * A provider's write-backs (plan 067, R12; plan 070, KTD3): each move on an outside card written to its service.
  * Each write answers what it changed, so `restore` can put back exactly that for an undo (R14). Each throws why when it
  * could not, and the record stays as it was.
  */
@@ -150,6 +158,16 @@ const newer = (m: { at: string; message_id: string }, r: ThreadRecord): boolean 
 
 const trimLines = (lines: string[]): string[] => lines.slice(-LINES).map((l) => (l.length > LINE_MAX ? `${l.slice(0, LINE_MAX - 1)}…` : l));
 
+/** The approved comments a file keeps on a record; anything that is not one is left out. */
+function parseSeeds(v: unknown): OutsideSeed[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x: unknown): OutsideSeed[] => {
+    if (typeof x !== "object" || x === null) return [];
+    const r = x as Record<string, unknown>;
+    return typeof r.id === "string" && typeof r.text === "string" && typeof r.at === "string" ? [{ id: r.id, text: r.text, at: r.at }] : [];
+  });
+}
+
 /** A record as a file gives it, or null when it is not one. */
 function parseRecord(v: unknown): ThreadRecord | null {
   if (typeof v !== "object" || v === null) return null;
@@ -181,11 +199,35 @@ function parseRecord(v: unknown): ThreadRecord | null {
     dealt_message_id: s("dealt_message_id"),
     dealt_was: s("dealt_was"),
     brought_ids: Array.isArray(r.brought_ids) ? r.brought_ids.filter((l): l is string => typeof l === "string") : [],
+    seeds: parseSeeds(r.seeds),
+    seeds_was: parseSeeds(r.seeds_was),
   };
 }
 
 /** A record marked as dealt with at its newest message (plan 077, KTD1), keeping the mark it had for an undo. */
 const dealt = (r: ThreadRecord): ThreadRecord => ({ ...r, dealt_message_id: r.newest_message_id, dealt_was: r.dealt_message_id });
+
+/** The sender's address a card carries: mail's only, since email focus is learned by it and the others have none. */
+function senderAddressOf(provider: AccountProvider, r: ThreadRecord): string | null {
+  switch (provider) {
+    case "gmail":
+      return r.sender_address;
+    case "slack":
+    case "jira":
+      return null;
+  }
+}
+
+/** A card's reach: the one its watcher recorded; a mail's is read from its traits when none was. */
+function reachOf(provider: AccountProvider, r: ThreadRecord): OutsideReach | null {
+  switch (provider) {
+    case "gmail":
+      return r.reach ?? mailReach(r.traits);
+    case "slack":
+    case "jira":
+      return r.reach;
+  }
+}
 
 /** The thread records of every account on this Mac, and the outside cards they make. */
 export class AccountThreads {
@@ -247,6 +289,9 @@ export class AccountThreads {
       dealt_message_id: prev?.dealt_message_id ?? null,
       dealt_was: prev?.dealt_was ?? null,
       brought_ids: (m.brought_ids ?? prev?.brought_ids ?? []).slice(-BROUGHT_MAX),
+      // An approved comment waits for the person whatever happens on the ticket meanwhile (KTD18).
+      seeds: prev?.seeds ?? [],
+      seeds_was: prev?.seeds_was ?? [],
     });
     this.save(accountId);
     return true;
@@ -318,6 +363,38 @@ export class AccountThreads {
   }
 
   /**
+   * An approved comment for a Jira ticket's card (plan 2026-11-10-1451, KTD18): it waits on the record for the card's
+   * comment box, and a card that had ended opens again as the same card, so the person finds it there. Nothing is
+   * written out there. Returns whether there was a record to put it on; a ticket that never had a card has none (R28).
+   */
+  seed(accountId: string, threadId: string, seed: OutsideSeed): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    const seeds = [...r.seeds.filter((s) => s.id !== seed.id), seed];
+    this.records(accountId).set(threadId, { ...r, state: r.state === "archived" ? "open" : r.state, seeds });
+    this.save(accountId);
+    return true;
+  }
+
+  /** The agent took back an approved comment (reply_withdraw): it leaves the record. Returns whether it was there. */
+  dropSeed(accountId: string, threadId: string, seedId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r?.seeds.some((s) => s.id === seedId)) return false;
+    this.records(accountId).set(threadId, { ...r, seeds: r.seeds.filter((s) => s.id !== seedId) });
+    this.save(accountId);
+    return true;
+  }
+
+  /** The person sent a comment from the card: every approved comment waiting on it is done with. Returns whether any was. */
+  clearSeeds(accountId: string, threadId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r?.seeds.length) return false;
+    this.records(accountId).set(threadId, { ...r, seeds: [] });
+    this.save(accountId);
+    return true;
+  }
+
+  /**
    * Archive from the Inbox (R12): written back to the account first, then the card leaves. Throws why when the account
    * refused or cannot be reached, and the card stays. A message that came while the write-back ran keeps the card open.
    * Answers what the write-back changed, for an undo, or null when the card was not open and nothing was written.
@@ -368,8 +445,19 @@ export class AccountThreads {
       const keptOpen = reopened || now.kept_open;
       // The move being undone set the dealt-with mark; it goes back to what it was, so the card's new messages stay new.
       const mark = reopened ? now.dealt_was : now.dealt_message_id;
-      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open && mark === now.dealt_message_id) return;
-      this.records(accountId).set(threadId, { ...now, state, unread_out_there: unread, kept_open: keptOpen, dealt_message_id: mark });
+      // The comments that move let go come back to the box, beside any the agent proposed since.
+      const back = change.ended ? now.seeds_was.filter((s) => !now.seeds.some((x) => x.id === s.id)) : [];
+      if (state === now.state && unread === now.unread_out_there && keptOpen === now.kept_open && mark === now.dealt_message_id && back.length === 0) return;
+      const seeds = back.length > 0 ? [...back, ...now.seeds] : now.seeds;
+      this.records(accountId).set(threadId, {
+        ...now,
+        state,
+        unread_out_there: unread,
+        kept_open: keptOpen,
+        dealt_message_id: mark,
+        seeds,
+        seeds_was: change.ended ? [] : now.seeds_was,
+      });
       this.save(accountId);
     });
   }
@@ -392,7 +480,7 @@ export class AccountThreads {
       const now = this.records(accountId).get(threadId);
       if (now?.state !== "open" || now.newest_message_id !== r.newest_message_id) return change;
       const next = change.ended
-        ? { ...dealt(now), state: "archived" as const }
+        ? { ...dealt(now), state: "archived" as const, ...this.letSeedsGo(accountId, now) }
         : change.move === "read" || change.move === "unread"
           ? { ...now, unread_out_there: change.move === "unread" }
           : now;
@@ -404,12 +492,22 @@ export class AccountThreads {
     });
   }
 
+  /**
+   * The approved comments a move that ends a Jira card lets go (plan 2026-11-10-1451, KTD18): the person ended it without
+   * sending, so the comment is not wanted, and a later event must not put it back in the box. They are kept aside for an
+   * undo. Other providers' records have no seeds and are left as they are.
+   */
+  private letSeedsGo(accountId: string, r: ThreadRecord): Pick<ThreadRecord, "seeds" | "seeds_was"> {
+    if (this.opts.accounts.get(accountId)?.provider !== "jira") return { seeds: r.seeds, seeds_was: r.seeds_was };
+    return { seeds: [], seeds_was: r.seeds };
+  }
+
   /** The write-back of an account's provider; throws why when the account is not here or its provider has none yet. */
   private sourceOf(accountId: string, what: string): OutsideSource {
     const account = this.opts.accounts.get(accountId);
     if (!account) throw new Error("that account is not connected on this Mac");
     const source = this.sources.get(account.provider);
-    if (!source) throw new Error(`loki cannot ${what} in ${account.provider === "gmail" ? "Gmail" : "Slack"} yet`);
+    if (!source) throw new Error(`loki cannot ${what} in ${SERVICE_NAME[account.provider]} yet`);
     return source;
   }
 
@@ -428,6 +526,20 @@ export class AccountThreads {
         ? { ...r, state: "open", generation: r.generation + 1, handoff_conversation_id: conversationId }
         : { ...dealt(r), state: "handed_off", handoff_conversation_id: conversationId },
     );
+    this.save(accountId);
+    return true;
+  }
+
+  /**
+   * A Jira ticket went to its owner's chat (plan 2026-11-10-1451, KTD13): only the chat is noted, so the card names it
+   * and the next hand-off proposes it again. The card stays open and unread, its new events stay new, and nothing is
+   * written out there, since a hand-off does not end a Jira card.
+   */
+  handedOffStaying(accountId: string, threadId: string, conversationId: string): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    if (r.handoff_conversation_id === conversationId) return true;
+    this.records(accountId).set(threadId, { ...r, handoff_conversation_id: conversationId });
     this.save(accountId);
     return true;
   }
@@ -492,7 +604,7 @@ export class AccountThreads {
         owner_agent_id: account.owner_agent_id,
         owner_name: this.opts.agentName?.(account.owner_agent_id) ?? null,
         sender: r.sender,
-        sender_address: account.provider === "gmail" ? r.sender_address : null,
+        sender_address: senderAddressOf(account.provider, r),
         subject: r.subject_or_first_line,
         lines: [...r.lines],
         newest_message_id: r.newest_message_id,
@@ -500,10 +612,11 @@ export class AccountThreads {
         handoff_conversation_id: r.handoff_conversation_id,
         disconnected: account.status === "connected" ? null : account.status.disconnected,
         unread_out_there: r.unread_out_there,
-        reach: r.reach ?? (account.provider === "gmail" ? mailReach(r.traits) : null),
+        reach: reachOf(account.provider, r),
         place: r.place,
         sender_avatar: r.sender_avatar,
         only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,
+        ...(r.seeds.length > 0 ? { seeds: r.seeds.map((s) => ({ ...s })) } : {}),
       },
     };
   }

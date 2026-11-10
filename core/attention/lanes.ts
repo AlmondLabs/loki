@@ -21,7 +21,7 @@ export interface Lane {
   name: string;
   /** Agent ids whose chats the lane holds. */
   chats: LaneSide;
-  /** Account ids (`gmail:<address>`, `slack:<team>:<user>`) whose cards the lane holds. */
+  /** Account ids (`gmail:<address>`, `slack:<team>:<user>`, `jira:<site>:<user>`) whose cards the lane holds. */
   accounts: LaneSide;
 }
 

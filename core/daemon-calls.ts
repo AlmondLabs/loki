@@ -76,9 +76,10 @@ export function daemonCalls(request: FrameRequest) {
       },
     },
     /**
-     * Preferences › Accounts (plan 067, U11): each Gmail mailbox or Slack workspace on this Mac and the agent that
-     * owns it. Listing, moving and disconnecting answer with the accounts as they now stand; connecting Gmail answers with
-     * Google's page to open, and connecting Slack with the desktop app's workspaces, or the account once one is picked.
+     * Preferences › Accounts (plan 067, U11): each Gmail mailbox, Slack workspace or Jira site on this Mac and the agent
+     * that owns it. Listing, moving, disconnecting and connecting Jira answer with the accounts as they now stand;
+     * connecting Gmail answers with Google's page to open, and connecting Slack with the desktop app's workspaces, or the
+     * account once one is picked.
      */
     accounts: {
       list: () => attempt(request, "account_list", {}).then(listed),
@@ -95,6 +96,8 @@ export function daemonCalls(request: FrameRequest) {
       },
       connectSlack: (ownerAgentId: string, teamId?: string) =>
         attempt(request, "account_connect_slack", { owner_agent_id: ownerAgentId, team_id: teamId ?? null }),
+      /** Connect a Jira site with the person's API token, or with `account_id` connect that one again; Jira checks the token first. */
+      connectJira: (input: InputOf<"account_connect_jira">) => attempt(request, "account_connect_jira", input).then(listed),
     },
   };
 }

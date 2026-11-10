@@ -2,6 +2,7 @@ import type { OutsideChange } from "../../core/frame-types.ts";
 import type { MacAccountView } from "../../core/frames.ts";
 import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
+import { JiraClient, JiraError, type JiraSecret } from "../jira.ts";
 import type { Handoff } from "../handoff.ts";
 import type { InboxLedger } from "../inbox-ledger.ts";
 import type { OutsideThreads } from "../outside-threads.ts";
@@ -10,13 +11,18 @@ import type { SlackSessions } from "../slack-session.ts";
 import { SlackClient } from "../slack.ts";
 import { errorMessage, fail, reply, type FrameHandlers } from "./context.ts";
 
-/** What connecting an account takes (plan 067, U5): whether an owner exists, Google's sign-in, and the Slack desktop app's sessions. */
+/**
+ * What connecting an account takes (plan 067, U5): whether an owner exists, Google's sign-in, and the Slack desktop
+ * app's sessions. A Jira site needs nothing kept here: it is asked with what the person typed.
+ */
 export interface AccountConnectDeps {
   agentExists: (agentId: string) => boolean;
   googleSignIn: Pick<GoogleSignIn, "start">;
   slackSessions: Pick<SlackSessions, "available" | "workspaces" | "get">;
   /** The fetch Slack's auth.test goes through; default fetch. */
   slackFetch?: typeof fetch;
+  /** The fetch a Jira site is asked through while connecting; default fetch. */
+  jiraFetch?: typeof fetch;
 }
 
 /** The moves on a card's thread written back to its account (mod/account-threads.ts; plan 070, U3). */
@@ -27,7 +33,7 @@ export type ThreadWrites = Pick<AccountThreads, "archive" | "markRead" | "markUn
  * (mod/account-threads.ts) and the ways to connect one; without them every frame fails.
  */
 export interface AccountsDeps {
-  accounts?: Pick<Accounts, "list" | "get" | "add" | "setStatus" | "moveOwner" | "disconnect">;
+  accounts?: Pick<Accounts, "list" | "get" | "add" | "setSecret" | "setStatus" | "moveOwner" | "disconnect">;
   threads?: ThreadWrites;
   /** Handing a card's thread to its owner's chat (mod/handoff.ts). */
   handoff?: Pick<Handoff, "propose" | "handOff">;
@@ -46,10 +52,28 @@ export interface AccountsDeps {
 const NO_OWNER = "an account needs an owner: pick the agent it belongs to";
 const NO_THREADS = "Flow accounts are not available in this mod";
 
+/** Where every Jira Cloud site's API lives: a name under atlassian.net, with no port of its own. */
+const JIRA_CLOUD_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.atlassian\.net$/;
+
+/**
+ * The host in a site address as a person gives it: a bare host, a whole URL or a link to a page of the site, in any
+ * case; null when there is none. A Jira account is named by its host (KTD4), so every spelling must come to one.
+ */
+function hostOf(address: string): string | null {
+  const typed = address.trim();
+  if (!typed) return null;
+  try {
+    return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`).host || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Preferences › Accounts on the mod's socket (plan 067, U2, U5): the accounts here and their owners, connecting
- * a Gmail account (a sign-in) or a Slack workspace (the desktop app's session), moving one to another agent, and
- * disconnecting one, with the paired Macs' accounts beside them for Flow's lanes (plan 087, KTD9); and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
+ * a Gmail account (a sign-in), a Slack workspace (the desktop app's session) or a Jira site (an API token), moving one
+ * to another agent, and disconnecting one, with the paired Macs' accounts beside them for Flow's lanes (plan 087, KTD9);
+ * and a paired Mac asking which accounts this Mac holds (KTD14). Every list answer is the list as it
  * now stands, without secrets or the watcher's cursor; the host tells every client when it changed. Archiving an
  * outside card (U3) writes back to its account here, on the Mac the account lives on, and answers with the reason when
  * that failed, so the card comes back. Handing a card off (U8) is proposed and carried out on that Mac too.
@@ -110,6 +134,44 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
         return fail(errorMessage(err));
       }
     },
+    account_connect_jira: async ({ owner_agent_id: ownerAgentId, site, email, token, account_id: reconnecting }) => {
+      const connect = deps.connect;
+      if (!connect) return fail("connecting Jira is not available in this mod");
+      if (!connect.agentExists(ownerAgentId)) return fail(NO_OWNER);
+      const typed = hostOf(site);
+      if (!typed) return fail("that is not a site address: enter it as in acme.atlassian.net");
+      const asking = (secret: JiraSecret) =>
+        new JiraClient({ secret: () => Promise.resolve(secret), setStatus: () => {}, ...(connect.jiraFetch ? { fetch: connect.jiraFetch } : {}) });
+      try {
+        const accounts = need();
+        // The address typed is not yet known to be the person's site, so it is asked only where the site lives, by a
+        // client that holds no token. The host Jira names is the account's (KTD4), and the only one the token goes to.
+        const info = await asking({ site: typed, email: "", token: "" })
+          .serverInfo()
+          .catch(() => null);
+        const host = info ? hostOf(info.base_url) : null;
+        // Jira Cloud's API lives under atlassian.net even for a site with its own domain, so an answer naming any other
+        // host is not a Cloud site, and the token must not go there.
+        if (!info || !host || !JIRA_CLOUD_HOST.test(host)) return fail(`${typed} did not answer as a Jira Cloud site: check the site address`);
+        // A custom domain is where people browse the site, so a card's link opens there (R14); the token never goes to it.
+        const linkHost = hostOf(info.display_url);
+        const secret: JiraSecret = { site: host, email, token, ...(linkHost && linkHost !== host ? { link_host: linkHost } : {}) };
+        const me = await asking(secret).myself();
+        const accountId = accountIdOf({ provider: "jira", host, account_id: me.account_id });
+        if (reconnecting && reconnecting !== accountId)
+          return fail("that site and API token belong to another Jira account than the one being reconnected: nothing was changed");
+        const existing = accounts.get(accountId);
+        // A site here whose token Jira rejected (R3) takes the new one and is connected again, keeping its owner and
+        // where its watcher stands.
+        if (existing && existing.status !== "connected") {
+          await accounts.setSecret(accountId, JSON.stringify(secret));
+          accounts.setStatus(accountId, "connected");
+        } else await accounts.add({ account_id: accountId, provider: "jira", address: host, owner_agent_id: ownerAgentId }, JSON.stringify(secret));
+        return listed();
+      } catch (err) {
+        return fail(err instanceof JiraError && err.code === "rejected" ? "Jira did not accept that email and API token" : errorMessage(err));
+      }
+    },
     account_move: ({ account_id: accountId, owner_agent_id: ownerAgentId }) => {
       try {
         need().moveOwner(accountId, ownerAgentId);
@@ -150,7 +212,13 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       try {
         const ask = { ...(view ? { view } : {}), ...(threadTs ? { thread_ts: threadTs } : {}), ...(direction ? { direction } : {}), ...(from ? { from } : {}) };
         const read = await deps.outside.read(accountId, threadId, ask);
-        return reply({ account_id: accountId, thread_id: threadId, messages: read.messages, ...(read.window ? { window: read.window } : {}) });
+        return reply({
+          account_id: accountId,
+          thread_id: threadId,
+          messages: read.messages,
+          ...(read.window ? { window: read.window } : {}),
+          ...(read.link ? { link: read.link } : {}),
+        });
       } catch (err) {
         return fail(errorMessage(err));
       }

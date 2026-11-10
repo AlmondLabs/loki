@@ -31,3 +31,36 @@ export const outsideItem = (title: string, over: Partial<AttentionItem> = {}): A
     },
     ...over,
   });
+
+/**
+ * An open Jira card (plan 2026-11-10-1451): ticket OPS-7 of a watched site, its thread the ticket's numeric id and its
+ * newest event someone else's comment.
+ */
+export const jiraItem = (over: Partial<AttentionItem> = {}): AttentionItem =>
+  attentionItem("10001#1", {
+    kind: "outside",
+    agent_id: "account:jira:acme.atlassian.net:acc-me",
+    agent_name: "acme.atlassian.net",
+    title: "OPS-7 · Rotate the keys",
+    outside: {
+      account_id: "jira:acme.atlassian.net:acc-me",
+      provider: "jira",
+      account_label: "acme.atlassian.net",
+      thread_id: "10001",
+      generation: 1,
+      owner_agent_id: "a1",
+      owner_name: "ira",
+      sender: "Ada Lovelace",
+      sender_address: null,
+      subject: "Rotate the keys",
+      place: "OPS-7",
+      reach: "watching",
+      lines: ["Can you look at the rotation?"],
+      newest_message_id: "2026-11-10T09:00:00.000Z:c000000030001",
+      newest_at: "2026-11-10T09:00:00.000Z",
+      handoff_conversation_id: null,
+      disconnected: null,
+      unread_out_there: true,
+    },
+    ...over,
+  });

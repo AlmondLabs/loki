@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -7,12 +7,14 @@ import { Accounts, PeerAccounts } from "../mod/accounts.ts";
 import type { OutsideChange, OutsideMessageChange } from "../core/frame-types.ts";
 import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
 import { accountFrames, type AccountConnectDeps } from "../mod/frames/accounts.ts";
-import { Handoff } from "../mod/handoff.ts";
+import { causeWords, Handoff } from "../mod/handoff.ts";
+import { jiraAccountClient } from "../mod/jira.ts";
 import type { ChatCall } from "../mod/suggestions.ts";
 import type { SlackSession } from "../mod/slack-session.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";
 import { bridgeOf, client, settled } from "./fixtures/frames.ts";
+import { fakeJira, JIRA_ADA, JIRA_ME } from "./fixtures/jira.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -48,7 +50,8 @@ async function fixture(
   const dir = mkdtempSync(join(tmpdir(), "loki-frames-accounts-"));
   dirs.push(dir);
   const secrets = memorySecrets();
-  const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets, now: () => new Date("2026-11-04T09:00:00Z"), agentExists: () => true });
+  const file = join(dir, "accounts.json");
+  const accounts = new Accounts({ file, secrets, now: () => new Date("2026-11-04T09:00:00Z"), agentExists: () => true });
   await accounts.add({ account_id: "gmail:ada@acme.com", provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-work" }, "token-1");
   await accounts.add({ account_id: "slack:T01:U02", provider: "slack", address: "Acme", owner_agent_id: "agent-work" });
   const threads = new AccountThreads({ dir: join(dir, "account-threads"), accounts });
@@ -72,7 +75,7 @@ async function fixture(
     await settled();
     return c.sent.at(-1) ?? {};
   };
-  return { accounts, secrets, threads, ask };
+  return { accounts, secrets, threads, ask, file };
 }
 
 describe("the account frames", () => {
@@ -297,7 +300,11 @@ describe("the account frames", () => {
           threads,
           chats: () => [{ agent_id: "agent-work", conversation_id: "c-plan", title: "Planning", status: "live", last_active: null }],
           call: (frame) => (calls.push(frame), Promise.resolve({ ok: true, reply: { accepted: true } })),
-          threadText: { gmail: () => Promise.resolve([{ sender: "Grace", at: "2026-11-04T09:00:00.000Z", text: "hi" }]), slack: () => Promise.resolve([]) },
+          threadText: {
+            gmail: () => Promise.resolve([{ sender: "Grace", at: "2026-11-04T09:00:00.000Z", text: "hi" }]),
+            slack: () => Promise.resolve([]),
+            jira: () => Promise.resolve([]),
+          },
         }),
     );
     threads.observe("gmail:ada@acme.com", { thread_id: "t1", message_id: "m1", at: "2026-11-04T09:00:00.000Z", sender: "Grace", subject: "hi", lines: ["hi"] });
@@ -443,5 +450,173 @@ describe("connecting an account (plan 067, U5)", () => {
     expect(await ask({ type: "account_connect_slack", owner_agent_id: "agent-home", team_id: "T01" })).toMatchObject({
       account: { account_id: "slack:T01:U02", owner_agent_id: "agent-work", status: "connected" },
     });
+  });
+});
+
+const NOW = () => new Date("2026-11-10T09:00:00Z");
+const JIRA_ID = "jira:acme.atlassian.net:acc-me";
+
+/** The ways to connect with a Jira site behind them: Acme's, which accepts one email and token. */
+function connectingJira(site = fakeJira({ now: NOW })) {
+  const connect: AccountConnectDeps = { ...connecting().connect, jiraFetch: site.fetch };
+  const details = { type: "account_connect_jira", owner_agent_id: "agent-home", site: site.host, email: site.state.email, token: site.state.token };
+  return { connect, site, details };
+}
+
+describe("connecting a Jira site (plan 2026-11-10-1451, U3)", () => {
+  test("F1: a good site, email and token make a connected account of the chosen agent, the token in the keychain and in no file", async () => {
+    const { connect, site, details } = connectingJira();
+    const { ask, accounts, secrets, file } = await fixture(undefined, connect);
+    const answer = await ask(details);
+    expect(answer.type).toBe("accounts");
+    expect(accounts.get(JIRA_ID)).toMatchObject({ provider: "jira", address: "acme.atlassian.net", owner_agent_id: "agent-home", status: "connected" });
+    expect(JSON.parse(secrets.entries.get(`account:${JIRA_ID}`) ?? "null")).toEqual({
+      site: "acme.atlassian.net",
+      email: "mina@example.com",
+      token: "fixture-jira-token",
+    });
+    expect(readFileSync(file, "utf8")).not.toContain(site.state.token);
+    expect(JSON.stringify(answer)).not.toContain(site.state.token);
+  });
+
+  test("the token goes only to the host the site names as its own, after the site said where it lives", async () => {
+    const { connect, site, details } = connectingJira();
+    const { ask } = await fixture(undefined, connect);
+    await ask(details);
+    expect(site.requests.map((r) => [r.url.host + r.url.pathname, r.authorization !== ""])).toEqual([
+      ["acme.atlassian.net/rest/api/3/serverInfo", false],
+      ["acme.atlassian.net/rest/api/3/myself", true],
+    ]);
+  });
+
+  test("a token Jira does not accept is refused with the reason, and no account or keychain entry is made", async () => {
+    const { connect, details } = connectingJira();
+    const { ask, accounts, secrets } = await fixture(undefined, connect);
+    expect(await ask({ ...details, token: "not-the-token" })).toEqual({
+      type: "error",
+      request_id: "r1",
+      message: "Jira did not accept that email and API token",
+    });
+    expect(accounts.list().map((a) => a.account_id)).toEqual(["gmail:ada@acme.com", "slack:T01:U02"]);
+    expect([...secrets.entries.keys()].filter((k) => k.includes("jira"))).toEqual([]);
+  });
+
+  test("an address that is not a Jira site is refused with the reason, and the token is never sent", async () => {
+    const { connect, site, details } = connectingJira();
+    const { ask, accounts } = await fixture(undefined, connect);
+    expect(await ask({ ...details, site: "elsewhere.example.com" })).toMatchObject({
+      type: "error",
+      message: "elsewhere.example.com did not answer as a Jira Cloud site: check the site address",
+    });
+    expect(site.requests.filter((r) => r.authorization !== "")).toEqual([]);
+    expect(accounts.get(JIRA_ID)).toBeNull();
+  });
+
+  test("a site that names its API somewhere other than atlassian.net is refused, and the token is never sent", async () => {
+    const { connect, site, details } = connectingJira(fakeJira({ now: NOW, host: "jira.elsewhere.example" }));
+    const { ask, accounts } = await fixture(undefined, connect);
+    expect(await ask(details)).toMatchObject({
+      type: "error",
+      message: "jira.elsewhere.example did not answer as a Jira Cloud site: check the site address",
+    });
+    expect(site.requests.length).toBeGreaterThan(0);
+    expect(site.requests.filter((r) => r.authorization !== "")).toEqual([]);
+    expect(accounts.list().filter((a) => a.provider === "jira")).toEqual([]);
+  });
+
+  test("a site address given as a full URL, with a path or in mixed case is the same account as its bare host", async () => {
+    for (const typed of [
+      "https://acme.atlassian.net",
+      "acme.atlassian.net/jira/software/projects/OPS/boards/1",
+      "  HTTPS://Acme.Atlassian.NET/browse/OPS-1 ",
+    ]) {
+      const { connect, details } = connectingJira();
+      const { ask, accounts } = await fixture(undefined, connect);
+      await ask({ ...details, site: typed });
+      expect([typed, accounts.get(JIRA_ID)?.address]).toEqual([typed, "acme.atlassian.net"]);
+    }
+  });
+
+  test("a site reached by its custom domain and by its atlassian.net name is one account", async () => {
+    const { connect, site, details } = connectingJira();
+    site.state.display_url = "https://jira.acme.example";
+    const { ask, accounts, secrets } = await fixture(undefined, connect);
+    expect((await ask({ ...details, site: "jira.acme.example" })).type).toBe("accounts");
+    expect(accounts.list().filter((a) => a.provider === "jira")).toMatchObject([{ account_id: JIRA_ID, address: "acme.atlassian.net" }]);
+    // The custom domain is kept beside the token, so the card's link opens there (R14).
+    expect(JSON.parse(secrets.entries.get(`account:${JIRA_ID}`) ?? "null")).toMatchObject({ site: "acme.atlassian.net", link_host: "jira.acme.example" });
+    expect(await ask(details)).toMatchObject({ type: "error", message: "acme.atlassian.net (Jira) is already connected" });
+  });
+
+  test("connecting for an agent that does not exist is refused before Jira is asked anything", async () => {
+    const { connect, site, details } = connectingJira();
+    const { ask } = await fixture(undefined, connect);
+    expect(await ask({ ...details, owner_agent_id: "agent-gone" })).toMatchObject({
+      type: "error",
+      message: "an account needs an owner: pick the agent it belongs to",
+    });
+    expect(await ask({ ...details, owner_agent_id: "" })).toMatchObject({ type: "error" });
+    expect(site.requests).toEqual([]);
+  });
+
+  test("AE6: a site whose token expired says so, keeps its owner and watermark, and works again once reconnected with a new token", async () => {
+    const { connect, site, details } = connectingJira();
+    const { ask, accounts } = await fixture(undefined, connect);
+    await ask(details);
+    accounts.setBackfill(JIRA_ID, { watermark: "2026-11-10T08:00:00.000Z" });
+    const changes: string[] = [];
+    accounts.onChange((c) => changes.push(c.kind));
+    const jira = jiraAccountClient(accounts, JIRA_ID, { fetch: site.fetch, now: NOW });
+    expect((await jira.myself()).account_id).toBe("acc-me");
+
+    site.state.token = "second-token";
+    await expect(jira.myself()).rejects.toMatchObject({ code: "rejected" });
+    await expect(jira.myself()).rejects.toMatchObject({ code: "rejected" });
+    expect(accounts.get(JIRA_ID)?.status).toEqual({ disconnected: "sign_in_again" });
+    // The account is told once: a second rejection finds it already saying so.
+    expect(changes).toEqual(["status"]);
+
+    const answer = await ask({ ...details, owner_agent_id: "agent-work", token: "second-token", account_id: JIRA_ID });
+    expect(answer.type).toBe("accounts");
+    expect(accounts.get(JIRA_ID)).toMatchObject({ status: "connected", owner_agent_id: "agent-home", backfill: { watermark: "2026-11-10T08:00:00.000Z" } });
+    expect((await jira.myself()).account_id).toBe("acc-me");
+  });
+
+  test("a reconnect with another Atlassian account's token is refused and the account stays as it was", async () => {
+    const { connect, details } = connectingJira();
+    const { ask, accounts, secrets } = await fixture(undefined, connect);
+    await ask(details);
+    accounts.setStatus(JIRA_ID, { disconnected: "sign_in_again" });
+    const before = { record: accounts.get(JIRA_ID), keys: [...secrets.entries.keys()], secret: secrets.entries.get(`account:${JIRA_ID}`) };
+
+    const other = fakeJira({ now: NOW, me: JIRA_ADA, email: "ada@example.com", token: "ada-token" });
+    connect.jiraFetch = other.fetch;
+    expect(await ask({ ...details, email: "ada@example.com", token: "ada-token", account_id: JIRA_ID })).toMatchObject({
+      type: "error",
+      message: "that site and API token belong to another Jira account than the one being reconnected: nothing was changed",
+    });
+    expect({ record: accounts.get(JIRA_ID), keys: [...secrets.entries.keys()], secret: secrets.entries.get(`account:${JIRA_ID}`) }).toEqual(before);
+    expect(JIRA_ME.account_id).not.toBe(JIRA_ADA.account_id);
+  });
+
+  test("R3: a hand-off refused by a rejected token says Jira wants a new one; Gmail's words stay", () => {
+    expect(causeWords("sign_in_again", "jira")).toBe("Jira wants a new API token: Preferences › Accounts");
+    expect(causeWords("sign_in_again", "gmail")).toBe("Gmail wants a new sign-in: Preferences › Accounts");
+    expect(causeWords("temporarily_failing", "jira")).toBe("Jira keeps failing for now: try again once loki reaches it");
+  });
+
+  test("the connect frame carries a token, so a phone may not send it", () => {
+    expect(PHONE_FRAMES.has("account_connect_jira")).toBe(false);
+  });
+
+  test("account_disconnect forgets a Jira account and its keychain entry", async () => {
+    const { connect, details } = connectingJira();
+    const { ask, accounts, secrets } = await fixture(undefined, connect);
+    await ask(details);
+    expect(secrets.entries.has(`account:${JIRA_ID}`)).toBe(true);
+    await ask({ type: "account_disconnect", account_id: JIRA_ID });
+    expect(accounts.get(JIRA_ID)).toBeNull();
+    expect(secrets.entries.has(`account:${JIRA_ID}`)).toBe(false);
+    expect(JSON.parse(secrets.entries.get("accounts") ?? "[]")).not.toContain(JIRA_ID);
   });
 });

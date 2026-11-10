@@ -412,16 +412,23 @@ function LoadButton({
   );
 }
 
+/**
+ * The red New line before the first message the person has not read (plan 074), with the day when one starts there;
+ * a Jira card's thread draws it too (plan 2026-11-10-1451, KTD14).
+ */
+export function NewLine({ day = null }: { day?: string | null }) {
+  return (
+    <div className="loki-msg-divider" role="separator" aria-label="New since you last read">
+      {day && <span className="loki-msg-divider-day">{day}</span>}
+      <span className="loki-msg-divider-rule" />
+      <span className="loki-msg-divider-new">New</span>
+    </div>
+  );
+}
+
 /** The day pill and the red New line before a message, as its row plan says. */
 function RowMarks({ p }: { p: SlackRowPlan }) {
-  if (p.divider)
-    return (
-      <div className="loki-msg-divider" role="separator" aria-label="New since you last read">
-        {p.day && <span className="loki-msg-divider-day">{p.day}</span>}
-        <span className="loki-msg-divider-rule" />
-        <span className="loki-msg-divider-new">New</span>
-      </div>
-    );
+  if (p.divider) return <NewLine day={p.day} />;
   if (!p.day) return null;
   return (
     <div className="loki-msg-day-pill-wrap loki-slack-day">

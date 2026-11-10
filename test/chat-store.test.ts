@@ -486,4 +486,58 @@ describe("the chat store (plan 052)", () => {
     expect(d.handoffs).toEqual([["gmail:ada@acme.com", "t1", "c1", "mac-mini"]]);
     expect(d.store.getSnapshot().conversations.map((c) => c.id)).not.toContain("t1#1");
   });
+
+  /** An open Jira card (plan 2026-11-10-1451) on the Mac its site lives on. */
+  const ticket = (): ConversationInfo & Digest => ({
+    ...row("10001#1", "2026-11-10T09:00:00Z"),
+    kind: "outside",
+    agent_id: "account:jira:acme.atlassian.net:acc-me",
+    home: "mac-mini",
+    outside: {
+      account_id: "jira:acme.atlassian.net:acc-me",
+      provider: "jira",
+      account_label: "acme.atlassian.net",
+      thread_id: "10001",
+      generation: 1,
+      owner_agent_id: "ada",
+      owner_name: "Ada",
+      sender: "Ada Lovelace",
+      sender_address: null,
+      subject: "Rotate the keys",
+      place: "OPS-7",
+      lines: ["Can you look?"],
+      newest_message_id: "2026-11-10T09:00:00.000Z:c000000030001",
+      newest_at: "2026-11-10T09:00:00Z",
+      handoff_conversation_id: null,
+      disconnected: null,
+      unread_out_there: true,
+    },
+  });
+
+  test("a Jira card is never archived: the store refuses before asking its Mac, and the card stays (R19, KTD12)", async () => {
+    const card = ticket();
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    expect(await d.store.archiveOutside(card)).toEqual({ change: null, error: "a jira card ends with read" });
+    expect(d.outside).toEqual([]);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("10001#1");
+  });
+
+  test("a comment sent alone on a Jira card keeps it in the list (plan 2026-11-10-1451, U7)", async () => {
+    const card = ticket();
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    expect(await d.store.replyOutside(card, "On it", "stay")).toMatchObject({ sent: true, error: null });
+    expect(d.replies).toEqual([["jira:acme.atlassian.net:acc-me", "10001", "On it", "stay", "mac-mini"]]);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("10001#1");
+  });
+
+  test("Covers AE8. a Jira card handed off stays in the list", async () => {
+    const card = ticket();
+    const d = daemon([row("c1", "2026-10-29T10:00:00Z"), card]);
+    await flush();
+    expect(await d.store.handoff(card, "c1")).toBeNull();
+    expect(d.handoffs).toEqual([["jira:acme.atlassian.net:acc-me", "10001", "c1", "mac-mini"]]);
+    expect(d.store.getSnapshot().conversations.map((c) => c.id)).toContain("10001#1");
+  });
 });

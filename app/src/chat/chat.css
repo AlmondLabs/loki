@@ -1642,6 +1642,9 @@ button.loki-label-chip:focus-visible {
 .loki-card-mark--mail {
   color: var(--loki-mark-mail);
 }
+.loki-card-mark--jira {
+  color: var(--loki-mark-jira);
+}
 /* How directly a card is meant for the person: the top of the scale reads in full ink, the bottom steps back. */
 .loki-reach {
   white-space: nowrap;

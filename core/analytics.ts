@@ -14,8 +14,8 @@ import { scopeFor } from "./desk-core.ts";
  * Where an Inbox card comes from and who it is about, for its events: a chat by its desk and agent; an outside card
  * (plan 067) by its provider and owning agent, with no desk, and never its account, sender, subject or text.
  */
-export function inboxCardSource(item: { agent_id: string; id: string; outside?: { provider: "gmail" | "slack"; owner_agent_id: string } }): {
-  source: "chat" | "gmail" | "slack";
+export function inboxCardSource(item: { agent_id: string; id: string; outside?: { provider: "gmail" | "slack" | "jira"; owner_agent_id: string } }): {
+  source: "chat" | "gmail" | "slack" | "jira";
   desk: string | null;
   agent: string;
 } {
@@ -74,9 +74,10 @@ export const EVENTS: Record<string, string> = {
   mode_set: "a conversation's permission mode set { mode }",
   folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
-  inbox_card_shown: "a card came to the top of the inbox { source: chat | gmail | slack, desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
+  inbox_card_shown:
+    "a card came to the top of the inbox { source: chat | gmail | slack | jira, desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
   inbox_card_decided:
-    "an inbox card decided { action: next | later | archive | label | approve | deny | reply | answer | open | handoff, via: key | click | swipe | tap, source: chat | gmail | slack, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+    "an inbox card decided { action: next | later | archive | label | approve | deny | reply | answer | open | handoff, via: key | click | swipe | tap, source: chat | gmail | slack | jira, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, source, desk, agent }",
   inbox_filtered: "a lane chosen in Flow's title { kind: everything | own | agent, agent (an agent lane's, else null) }; before lanes, an agent pill { agent }",
   chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",

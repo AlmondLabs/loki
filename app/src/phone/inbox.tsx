@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
+import type { AccountProvider, OutsideSeed } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
-import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import { archivable, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type FlowLane, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -23,17 +24,8 @@ import { useOutsideReply } from "../shared/outside-replies";
 import { TopBar } from "./ui";
 import { ThreadNotice, replyPlaceholder, useThreadLayout } from "./thread-parts";
 import { openFromCard } from "./transitions";
-import {
-  OutsideReply,
-  OutsideThread,
-  disconnectedText,
-  outsideTitle,
-  outsideWho,
-  quoteOf,
-  useMailCompose,
-  useOutsideThread,
-  wentTo,
-} from "../desk/outside-card";
+import { OutsideReply, OutsideThread, quoteOf, useMailCompose, useOutsideThread, wentTo } from "../desk/outside-card";
+import { disconnectedText, freshSeeds, outsideTitle, outsideWho } from "../desk/outside-words";
 import { senderName } from "../desk/mail-thread";
 import { HandoffPicker } from "../desk/handoff-picker";
 import { spring } from "../kit/spring";
@@ -237,10 +229,11 @@ const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(
 const isMove = (via: Via): via is Move => via === "seen" || via === "later" || via === "archive";
 
 /** Why a card refused to go: the reason a screen reader hears. */
-type Refusal = "approval" | "main" | "typed" | "sending";
+type Refusal = "approval" | "main" | "jira" | "typed" | "sending";
 const REFUSED: Record<Refusal, string> = {
   approval: "This one needs Approve or Deny.",
   main: "A main chat cannot be archived.",
+  jira: "A Jira card ends only with Read.",
   typed: "Send the reply first, or use the buttons.",
   sending: "The reply is still sending.",
 };
@@ -294,7 +287,7 @@ function usePass({
     const held = deck.heldId === idOf(item);
     onCommit(item);
     if (!deck.commit(item, via)) {
-      flashRefused(item.pendingApproval ? "approval" : "main");
+      flashRefused(item.pendingApproval ? "approval" : item.outside ? "jira" : "main");
       return;
     }
     const move = ledger.made(idOf(item));
@@ -448,6 +441,25 @@ export interface CardModel {
   onPick?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
 }
 
+/** The approved comments the top card's reply box has taken in (KTD18), and for which card. */
+export interface SeedsTaken {
+  card: string | null;
+  taken: readonly string[];
+}
+
+/**
+ * What the deck holds once the top card is drawn with `seeds`: its box takes in each approved comment it has not had
+ * yet, as `OutsideReply` does, and that fires no input event. `lock` says the box now holds text, so the deck's swipes
+ * spring back as they do for typed text; null when nothing changed, so the person's own edit of the box keeps its say.
+ */
+export function takeSeeds(now: SeedsTaken, card: string | null, seeds: readonly OutsideSeed[] | undefined): { next: SeedsTaken; lock: boolean } | null {
+  const same = now.card === card;
+  const taken = same ? now.taken : [];
+  const fresh = freshSeeds(seeds, taken);
+  if (same && fresh.length === 0) return null;
+  return { next: { card, taken: [...taken, ...fresh.map((s) => s.id)] }, lock: fresh.length > 0 };
+}
+
 /**
  * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
  * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing. In a lane (plan 087, U7) the title names
@@ -529,6 +541,15 @@ export function Inbox({
   // The card whose reply is on its way: the reply reads it and takes it off, so its buttons and swipes wait until then.
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = !!currentId && sendingId === currentId;
+  // An approved Jira comment goes into the top card's box as it is drawn (KTD18), which fires no input: the box holds
+  // text all the same, so its swipes spring back as for typed text. Adjusted as the deck renders, as the box takes it in.
+  const [seedsTaken, setSeedsTaken] = useState<SeedsTaken>({ card: null, taken: [] });
+  const boxSeeds = current?.outside && chats.readOutside && chats.replyOutside ? current.outside.seeds : undefined;
+  const took = takeSeeds(seedsTaken, currentId, boxSeeds);
+  if (took) {
+    setSeedsTaken(took.next);
+    if (took.lock) setTypedId(currentId);
+  }
   // A Later that asks when first, and the email card whose labels are being picked: each in its sheet.
   const [asking, setAsking] = useState<{ item: AttentionItem; how: "swipe" | "tap" } | null>(null);
   const [labelling, setLabelling] = useState<AttentionItem | null>(null);
@@ -650,7 +671,8 @@ export function Inbox({
             sending={sending}
             onRead={() => commit(current, "seen")}
             onLater={() => later(current, "tap")}
-            onArchive={() => commit(current, "archive")}
+            // A main chat keeps its button and refuses with why; a Jira card has none (KTD12).
+            onArchive={!current.outside || archivable(current) ? () => commit(current, "archive") : undefined}
             onLabel={current.outside?.provider === "gmail" ? () => setLabelling(current) : undefined}
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
@@ -971,6 +993,9 @@ function Stack({
   });
 }
 
+/** Whether an outside card has a title of its own, a mail's subject or a Jira ticket's key and title, beside its account. */
+const OUTSIDE_NAMED: Record<AccountProvider, boolean> = { gmail: true, slack: false, jira: true };
+
 /**
  * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
  * the ones behind are its frame and head under a veil, and the one flying off is inert.
@@ -1004,8 +1029,10 @@ export function Card({
 }) {
   const top = role === "top";
   // An outside card names who wrote it, and its account and agent where a chat names its folder (plan 067, R10); a mail
-  // has its subject for a title, a Slack message only its sender (plan 068).
-  const title = item.outside ? (item.outside.provider === "gmail" ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
+  // has its subject for a title and a Jira card its ticket's key and title, each with the account after it, and a Slack
+  // message only its sender, so its title is the account (plan 068).
+  const named = item.outside ? OUTSIDE_NAMED[item.outside.provider] : false;
+  const title = item.outside ? (named ? outsideTitle(item.outside) : outsideWho(item.outside)) : (item.title ?? item.id);
   const who = item.outside ? senderName(item.outside.sender) : (item.agent_name ?? "agent");
   return (
     <article
@@ -1034,7 +1061,7 @@ export function Card({
           <span className="loki-phone-ellipsis">{title}</span>
           <span aria-hidden>·</span>
           <span className="loki-phone-card-when">{waitingSince(item)}</span>
-          {item.outside?.provider === "gmail" && (
+          {item.outside && named && (
             <>
               <span aria-hidden>·</span>
               <span className="loki-phone-ellipsis">{outsideWho(item.outside)}</span>
@@ -1235,7 +1262,7 @@ function OutsideBody({
       )}
       {handoff &&
         (picking ? (
-          // The card leaves the Inbox once the thread went, so there is nothing to do on done but close.
+          // The card leaves the Inbox once the thread went, or stays for a Jira card (KTD13): either way done only closes.
           <HandoffPicker item={item} source={handoff} touch onCancel={() => setPicking(false)} onDone={() => setPicking(false)} />
         ) : (
           <Button
@@ -1273,7 +1300,7 @@ function ReadOnlyThread({ item, chats }: { item: AttentionItem; chats: ChatViews
 
 /**
  * The big buttons under the card, laid out as the swipes go: Later on the left, then Label (an email card only,
- * `onLabel`) and Archive (a button only), and Read on the right, under the thumb; or — for an approval, which leaves
+ * `onLabel`) and Archive (a button only, and none on a Jira card), and Read on the right, under the thumb; or — for an approval, which leaves
  * only by its decision — Deny and Approve. The card's conversation opens from its head.
  */
 export function Decisions({
@@ -1290,7 +1317,8 @@ export function Decisions({
   sending?: boolean;
   onRead: () => void;
   onLater: () => void;
-  onArchive: () => void;
+  /** Absent on a Jira card, which ends only with Read (KTD12). */
+  onArchive?: () => void;
   onLabel?: () => void;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
 }) {
@@ -1329,9 +1357,11 @@ export function Decisions({
           Label
         </button>
       )}
-      <button type="button" className="loki-phone-decide-btn" onClick={onArchive} disabled={sending}>
-        Archive
-      </button>
+      {onArchive && (
+        <button type="button" className="loki-phone-decide-btn" onClick={onArchive} disabled={sending}>
+          Archive
+        </button>
+      )}
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={onRead} disabled={sending}>
         Read
       </button>

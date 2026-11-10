@@ -9,7 +9,7 @@ import { log, rotateIfLarge } from "./log.ts";
 
 /**
  * The ledger of the person's moves on outside cards (plans 069 and 070): every read, later, archive, label, reply,
- * hand-off and undo on a Gmail or Slack card, with when its rest brings it back, the labels put on, whether the person
+ * hand-off and undo on a Gmail, Slack or Jira card, with when its rest brings it back, the labels put on, whether the person
  * picked the time and the key that followed a reply; with what the thread was (its sender, subject, and for mail what
  * kind it is) and how long the card was on top first. It is the data a later step learns the person's preferences from, and in time acts on them; nothing
  * reads it yet. It lives on the Mac the account lives on, in `state/inbox-ledger.jsonl`, one line a move, and never
@@ -37,9 +37,9 @@ export interface LedgerEntry {
   sender: string;
   sender_address: string | null;
   subject: string;
-  /** Mail's kind (core/mail-filter.ts); null for Slack. */
+  /** Mail's kind (core/mail-filter.ts); null for Slack and Jira. */
   traits: MailTraits | null;
-  /** For Slack, a DM or a thread (an Activity item); null for mail. */
+  /** For Slack, a DM or a thread (an Activity item); null for mail and Jira. */
   slack_kind: "dm" | "thread" | null;
   from_backfill: boolean;
   /** When the move's rest brings the card back; this and the three facts below are absent on lines from before plan 070. */

@@ -5,6 +5,7 @@ import type { MailAddressing } from "../../../core/frame-types.ts";
 import { idOf, type Decision } from "../../../core/attention/queue.ts";
 import { outsideReplies } from "../shared/outside-replies";
 import { EMPTY_REPLY, createDeckMoves, type DeckMoveApi, type OpenedThread, type PickerKind, type ReplyBox } from "./deck-moves";
+import { freshSeeds, withSeeds } from "./outside-words";
 
 /** How long a word stays on the badge. */
 export const FLASH_MS = 900;
@@ -40,7 +41,8 @@ export function createFlash(set: (word: string | null) => void, ms = FLASH_MS): 
  * card: read (⌘]) marks it read and it rests, later (⌘[) keeps it unread and brings it back, archive (⌘E) is done. The
  * queue and the decisions are the deck's (useDeckQueue); this hook only writes to them. Every move pops the head and
  * re-orders the rest by score at that moment (popHead), the way a scheduler picks its next process when one leaves
- * the CPU.
+ * the CPU. A Jira comment the person approved for the agent goes into the box of its card once, when the card is on top,
+ * after whatever is typed there, and waits for them to send it (plan 2026-11-10-1451, KTD18).
  */
 export function useDeckActions({
   current,
@@ -66,12 +68,22 @@ export function useDeckActions({
   /** The picker open, and on which card; another card on top closes it. */
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
   /**
-   * The reply box of one outside card; another card on top starts with an empty one, but for the words the person left
-   * unsent in that card's box, which are kept for the session (plan 087, KTD7) so a lane switch does not lose them.
+   * The reply box of one outside card, and the approved comments it took in by proposal id; another card on top starts
+   * with an empty one, but for the words the person left unsent in that card's box, which are kept for the session
+   * (plan 087, KTD7) so a lane switch does not lose them, and the comments still waiting on that card, taken in again
+   * unless the kept words already hold them.
    */
-  const [box, setBox] = useState<{ id: string } & ReplyBox>({ id: "", ...EMPTY_REPLY });
+  const [box, setBox] = useState<{ id: string; seeded: readonly string[] } & ReplyBox>({ id: "", seeded: [], ...EMPTY_REPLY });
 
   const currentId = current ? idOf(current) : "";
+  const own = box.id === currentId ? box : { id: currentId, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
+  const fresh = currentId ? freshSeeds(current?.outside?.seeds, own.seeded) : [];
+  if (fresh.length > 0) {
+    // Taken in as the deck renders, the way React adjusts state to new props: no effect copies them in a frame later.
+    // The kept words learn them once the person edits the box, so nothing outside React changes during render.
+    const missing = fresh.filter((s) => !own.text.includes(s.text));
+    setBox({ ...own, text: withSeeds(own.text, missing), seeded: [...own.seeded, ...fresh.map((s) => s.id)] });
+  }
   const reply: ReplyBox = box.id === currentId ? box : { ...EMPTY_REPLY, text: outsideReplies.get(currentId) };
   const picker = picking?.id === currentId ? picking.kind : null;
 
@@ -81,7 +93,7 @@ export function useDeckActions({
   const say = flasher.say;
   const setReply = (id: string, patch: Partial<ReplyBox>) => {
     if (patch.text !== undefined) outsideReplies.set(id, patch.text);
-    setBox((b) => ({ ...(b.id === id ? b : { id, ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
+    setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
   };
   const deck = createDeckMoves({
     current,

@@ -23,6 +23,7 @@
  * setting, kept on the daemon beside the rests (ReturnTimes, KTD8); a press stores its absolute end, so changing a
  * setting moves later presses only.
  */
+import type { OutsideSeed } from "../frame-types.ts";
 import type { AttentionItem } from "./model.ts";
 import { isBlocked } from "./priority.ts";
 import { outsideStamp, stampOf } from "./queue.ts";
@@ -58,15 +59,24 @@ const isRestFirstValue = (raw: unknown): raw is RestFirst => typeof raw === "str
 /** The kinds of Inbox card that keep their own return times (R15). */
 export type CardKind = "chat" | "email" | "slack";
 
-/** A card's kind for its return times: a chat, or an outside card by its provider. */
+/**
+ * A card's kind for its return times: a chat, or an outside card by its provider. A Jira card rests as the Slack kind
+ * (plan 2026-11-10-1451, KTD17): read has no rest of its own and later uses Slack's time, so Jira needs no setting.
+ */
 export function cardKindOf(item: Pick<AttentionItem, "outside">): CardKind {
   if (!item.outside) return "chat";
-  return item.outside.provider === "slack" ? "slack" : "email";
+  switch (item.outside.provider) {
+    case "gmail":
+      return "email";
+    case "slack":
+    case "jira":
+      return "slack";
+  }
 }
 
 /**
  * The person's return times for each kind of card, as the daemon keeps them (plan 070, R15, KTD8): ⌘]'s first rest for
- * chats and email (a Slack card read is finished, so it has none), and ⌘['s return for every kind.
+ * chats and email (a Slack or Jira card read is finished, so it has none), and ⌘['s return for every kind.
  */
 export interface ReturnTimes {
   read_first: { chat: RestFirst; email: RestFirst };
@@ -193,15 +203,23 @@ export function restUndone(prev: Rest | undefined, now = Date.now()): Rest {
 /** Whether `rest` still hides `item` at `now`: not for a stopped agent, not once something new came, not after it ends. */
 export function isResting(item: AttentionItem, rest: Rest | undefined, now = Date.now()): boolean {
   if (!rest || isBlocked(item)) return false;
-  return rest.stamp === stampOf(item) && Date.parse(rest.until) > now;
+  return rest.stamp === stampOf(item) && Date.parse(rest.until) > now && !seededSince(item.outside?.seeds, rest);
 }
 
 /**
- * Whether an outside card rests at `now`, judged from its newest message alone, as the mod knows it: the same test as
- * isResting, which an outside card meets the same way, since it never waits on an approval or a question.
+ * Whether a Jira comment was approved after the card was rested (plan 2026-11-10-1451, KTD18): that is something new,
+ * so the card comes back with it in its box. It is judged by time, not the stamp, so the comment leaving the card when
+ * the person sends it does not end a rest they set after.
  */
-export function outsideResting(rest: Rest | undefined, newestMessageId: string, now: number): boolean {
-  return !!rest && rest.stamp === outsideStamp(newestMessageId) && Date.parse(rest.until) > now;
+const seededSince = (seeds: readonly OutsideSeed[] | undefined, rest: Rest): boolean => (seeds ?? []).some((s) => s.at > rest.at);
+
+/**
+ * Whether an outside card rests at `now`, judged from its newest message and its approved comments, as the mod knows
+ * them: the same test as isResting, which an outside card meets the same way, since it never waits on an approval or a
+ * question.
+ */
+export function outsideResting(rest: Rest | undefined, newestMessageId: string, now: number, seeds: readonly OutsideSeed[] = []): boolean {
+  return !!rest && rest.stamp === outsideStamp(newestMessageId) && Date.parse(rest.until) > now && !seededSince(seeds, rest);
 }
 
 /**

@@ -41,7 +41,7 @@ import { createCardMoves, type CardMovesHost } from "../core/attention/use-atten
 import { keyOf } from "../core/attention/model.ts";
 import { RETURN_TIMES_DEFAULT, type Rest, type ReturnTimes } from "../core/attention/rest.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
-import { outsideItem } from "./fixtures/outside-item.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 
 /**
  * The phone deck's pure half (app/src/phone/deck.ts): when a drag commits and which way, how the
@@ -295,6 +295,15 @@ describe("the review pass: Next, Archive, undo, approvals", () => {
     expect(commitCard(s, main, "archive")).toBe(s);
     expect(canCommit(main, "seen")).toBe(true);
     expect(commitCard(s, main, "seen").pass.seen).toBe(1);
+  });
+  test("a Jira card refuses Archive, so its swipe or button springs back; Read and Later take it (R19, R21)", () => {
+    const ticket = jiraItem();
+    const s = EMPTY_DECK;
+    expect(canCommit(ticket, "archive")).toBe(false);
+    expect(commitCard(s, ticket, "archive")).toBe(s);
+    expect(canCommit(ticket, "seen")).toBe(true);
+    expect(canCommit(ticket, "later")).toBe(true);
+    expect(canCommit(outsideItem("Lunch"), "archive")).toBe(true);
   });
   test("only approve or deny takes an approval off; a plain card cannot be approved", () => {
     expect(canCommit(ask, "approve")).toBe(true);

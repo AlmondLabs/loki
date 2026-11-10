@@ -138,7 +138,7 @@ export interface InboxRow extends LocalDigest, ChatHome {
   /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9): the card is blocked. */
   reply_proposals?: ReplyProposal[];
   /**
-   * An outside card (plan 067, KTD1): a Gmail or Slack thread, not a chat. Its `agent_id` is `account:<account_id>` and
+   * An outside card (plan 067, KTD1): a Gmail or Slack thread or a Jira ticket, not a chat. Its `agent_id` is `account:<account_id>` and
    * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a
    * hand-off starts clean. Absent on a chat's row.
    */
@@ -191,14 +191,34 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
+  /**
+   * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
+   * first, waiting for the card's comment box until the person sends one or the agent takes it back. Absent when there
+   * are none, and on every other kind of card.
+   */
+  seeds?: OutsideSeed[];
+}
+
+/**
+ * An approved comment waiting for a Jira card's comment box (plan 2026-11-10-1451, KTD18): the proposal it came from,
+ * its text, and when it was approved, which is what makes a card that had been read come up again. Nothing is posted
+ * until the person sends it from the box.
+ */
+export interface OutsideSeed {
+  /** The reply proposal's id, so a box adds the same seed once. */
+  id: string;
+  text: string;
+  /** ISO time of the approval. */
+  at: string;
 }
 
 /**
  * How directly a card's newest message is meant for the person (plan 073): a Slack DM or a mail to them, a mention of
- * them, a reply in their thread, a mention of a user group they are in or a mail not addressed to them, @channel or a
- * mailing list, a mail sent by a machine. `core/outside-reach.ts` orders them.
+ * them, a reply in their thread or a Jira ticket assigned to them, a mention of a user group they are in, a mail not
+ * addressed to them or a Jira ticket they only watch, @channel or a mailing list, a mail sent by a machine.
+ * `core/outside-reach.ts` orders them.
  */
-export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "group" | "not_to_you" | "channel" | "list" | "automated";
+export type OutsideReach = "dm" | "to_you" | "mention" | "thread" | "assigned" | "group" | "not_to_you" | "watching" | "channel" | "list" | "automated";
 
 /**
  * One of the person's moves on an outside card, for the ledger (plans 069 and 070): read (⌘]), later (⌘[), archive,
@@ -377,6 +397,8 @@ export interface OutsideRead {
   messages: OutsideMessage[];
   /** Null for mail, and from a Mac on a loki older than plan 077, which reads the whole view at once. */
   window: OutsideWindow | null;
+  /** A Jira ticket's address in the browser (R14), on the site's own domain; absent for mail and Slack. */
+  link?: string;
 }
 
 /** Which of a Slack card's two views a window is (plan 077, R10): one thread alone, or the channel or DM around it. */
@@ -540,7 +562,7 @@ export interface ReplyProposal {
   /** Gmail: who the draft is addressed to and copied to, as the newest message names them; empty for Slack. */
   to: string[];
   cc: string[];
-  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); null for Gmail. */
+  /** Slack: where the draft sits, in words ("the DM with Grace", "the thread in #ops"); Jira: the ticket's key; null for Gmail. */
   place: string | null;
   text: string;
   status: ReplyProposalStatus;
@@ -549,7 +571,7 @@ export interface ReplyProposal {
   created_at: string;
   decided_by?: string | null;
   decided_at?: string | null;
-  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack or before. */
+  /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack, for Jira (the card's box) or before. */
   draft_url?: string | null;
 }
 
@@ -757,8 +779,8 @@ export interface McpView {
   config_path: string;
 }
 
-/** The services an Inbox account connects (plan 067): a Gmail mailbox or a Slack workspace. */
-export type AccountProvider = "gmail" | "slack";
+/** The services an Inbox account connects (plan 067): a Gmail mailbox, a Slack workspace or a Jira site. */
+export type AccountProvider = "gmail" | "slack" | "jira";
 /**
  * Why an account stopped working, as an id the app turns into words and a way back (plan 067, R22): Google wants a new
  * sign-in, a workspace admin blocks the app, the Slack desktop app signed out, or the service keeps failing for now.
@@ -768,11 +790,14 @@ export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_s
 export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
 
 /**
- * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, or
- * a Slack workspace's name), and the one agent that owns it. It never carries a token.
+ * One connected account as the app sees it (plan 067, KTD2): which service, the address it shows (an email address, a
+ * Slack workspace's name, or a Jira site's host), and the one agent that owns it. It never carries a token.
  */
 export interface AccountView {
-  /** The provider and its stable id: `gmail:<address>` or `slack:<team_id>:<user_id>` (mod/accounts.ts accountIdOf). */
+  /**
+   * The provider and its stable id: `gmail:<address>`, `slack:<team_id>:<user_id>` or `jira:<host>:<account id>`
+   * (mod/accounts.ts accountIdOf).
+   */
   account_id: string;
   provider: AccountProvider;
   address: string;

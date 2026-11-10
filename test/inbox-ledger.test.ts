@@ -12,6 +12,7 @@ import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 
 const MAIL = "gmail:ada@acme.com";
 const SLACK = "slack:T1:U1";
+const JIRA = "jira:acme.atlassian.net:acc-me";
 const dirs: string[] = [];
 
 afterEach(() => {
@@ -20,8 +21,8 @@ afterEach(() => {
 
 const account = (accountId: string): AccountRecord => ({
   account_id: accountId,
-  provider: accountId.startsWith("gmail:") ? "gmail" : "slack",
-  address: accountId.startsWith("gmail:") ? "ada@acme.com" : "Acme",
+  provider: accountId.startsWith("gmail:") ? "gmail" : accountId.startsWith("jira:") ? "jira" : "slack",
+  address: accountId.startsWith("gmail:") ? "ada@acme.com" : accountId.startsWith("jira:") ? "acme.atlassian.net" : "Acme",
   owner_agent_id: "agent-work",
   status: "connected",
   connected_at: "2026-11-01T00:00:00.000Z",
@@ -50,6 +51,8 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   dealt_message_id: null,
   dealt_was: null,
   brought_ids: [],
+  seeds: [],
+  seeds_was: [],
   ...over,
 });
 
@@ -58,7 +61,7 @@ function ledgerWith(records: Array<[string, ThreadRecord]>, maxBytes?: number) {
   const dir = mkdtempSync(join(tmpdir(), "loki-ledger-"));
   dirs.push(dir);
   const path = join(dir, "state", "inbox-ledger.jsonl");
-  const accounts = [account(MAIL), account(SLACK)];
+  const accounts = [account(MAIL), account(SLACK), account(JIRA)];
   const ledger = new InboxLedger({
     path,
     accounts: { get: (id) => accounts.find((a) => a.account_id === id) ?? null },
@@ -137,6 +140,22 @@ describe("the ledger of moves", () => {
     expect(lines().map((l) => [l.thread_id, l.action, l.slack_kind, l.traits])).toEqual([
       ["D1", "next", "dm", null],
       ["C1:1.0", "reply", "thread", null],
+    ]);
+  });
+
+  test("read, later, hand-off and a comment sent with ⌘] on a Jira card are each a line, as on any outside card (R22)", () => {
+    const { ledger, lines } = ledgerWith([
+      [JIRA, record("10001", { sender_address: null, traits: null, place: "OPS-7", subject_or_first_line: "Rotate the keys" })],
+    ]);
+    ledger.record(JIRA, "10001", { action: "next", via: "key", dwell_ms: 1200 });
+    ledger.record(JIRA, "10001", { action: "later", via: "swipe", dwell_ms: 800, return_at: "2026-11-11T09:00:00.000Z" });
+    ledger.record(JIRA, "10001", { action: "handoff", via: null, dwell_ms: null });
+    ledger.record(JIRA, "10001", { action: "reply", via: null, dwell_ms: 4000, after_reply: "read" });
+    expect(lines().map((l) => [l.provider, l.thread_id, l.action, l.slack_kind, l.subject, l.after_reply])).toEqual([
+      ["jira", "10001", "next", null, "Rotate the keys", null],
+      ["jira", "10001", "later", null, "Rotate the keys", null],
+      ["jira", "10001", "handoff", null, "Rotate the keys", null],
+      ["jira", "10001", "reply", null, "Rotate the keys", "read"],
     ]);
   });
 

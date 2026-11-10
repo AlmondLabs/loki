@@ -414,8 +414,9 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 
 Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
-keychain, under `account:<account id>`, never in a file, since agents can read `~/.loki`; a Slack session lives only
-in the mod's memory, read again from the Slack desktop app when it is needed.
+keychain, under `account:<account id>`, never in a file, since agents can read `~/.loki`; so does a Jira site's, as
+JSON of the site's API host, the person's email, the API token and, for a site on its own domain, the host its links
+use; a Slack session lives only in the mod's memory, read again from the Slack desktop app when it is needed.
 
 ## One way per job
 
@@ -455,14 +456,19 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    recent models for the picker; `tools.ts` holds the canvas, `chat_list` and suggestion tools; `requirements.ts` says
    what this Mac lacks to run a chat; `uploads.ts` and `chat-images.ts` serve attached files and the pictures in
    messages; `pairing.ts`, `devices.ts`, `tailscale.ts` and `static.ts` are the phone listener; `peer-group.ts` pairs
-   every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout. Email and Slack in the
-   Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
+   every paired Mac with every other; `boot.ts` re-bundles the mod on each reload in a checkout. Email, Slack and Jira
+   in the Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
    hold, so one account lives on one Mac), and `frames/accounts.ts` serves them to Preferences; `account-watcher.ts`
    is the one watcher, ticking every account's sync once a minute, each on its own; `gmail-sync.ts` and
    `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each no agent tool reaches;
    `google-signin.ts` and `google-app.ts` are Gmail's loopback sign-in and the shared Google app;
    `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
-   files); `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
+   files); Jira (plan 2026-11-10-1451) has `jira.ts`, the client over `fetch`, whose one write is the person's comment;
+   `jira-text.ts`, which turns Jira's document format into plain lines and back; `jira-sync.ts`, the sync of a site's
+   watched tickets (an account id `jira:<API host>:<Atlassian account id>`; its watermark, a memo of each ticket's
+   update time and the past fill's page token kept in the account record's backfill) and its write-back, which writes
+   nothing to Jira; and `jira-view.ts`, a card's window of events and the whole ticket for a hand-off and
+   `account_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
    each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
    recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
    for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM

@@ -530,6 +530,16 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
   });
 
+  test("connecting a Jira site names an owner, a site, an email and a token; the phone may not send it", () => {
+    const parse = FRAMES.account_connect_jira.parse;
+    const details = { owner_agent_id: "agent-local-a", site: " acme.atlassian.net ", email: " mina@example.com ", token: " tok " };
+    expect(parse(details)).toEqual({ owner_agent_id: "agent-local-a", site: "acme.atlassian.net", email: "mina@example.com", token: "tok", account_id: null });
+    expect(parse({ ...details, account_id: "jira:acme.atlassian.net:acc-me" })).toMatchObject({ account_id: "jira:acme.atlassian.net:acc-me" });
+    expect(parse({ ...details, token: "  " })).toBe("site, email and token required");
+    expect(parse({ ...details, owner_agent_id: undefined })).toBe("owner_agent_id required");
+    expect(FRAMES.account_connect_jira.phone).toBe(false);
+  });
+
   test("lanes are set on a Mac only: a phone is refused, and a malformed lane is dropped (plan 087, U3)", () => {
     expect(PHONE_FRAMES.has("lanes_set")).toBe(false);
     expect(

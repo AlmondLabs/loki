@@ -24,6 +24,11 @@ describe("how directly a card is meant for the person", () => {
     expect(slackReach(false, ["message_reaction"])).toBeNull();
   });
 
+  test("a Jira ticket assigned to the person sits with their own thread, and one they only watch with their group", () => {
+    expect([REACH_LEVEL.assigned, REACH_LABEL.assigned]).toEqual([3, "assigned to you"]);
+    expect([REACH_LEVEL.watching, REACH_LABEL.watching]).toEqual([4, "watching"]);
+  });
+
   test("every reach has a level and lowercase words", () => {
     for (const r of Object.keys(REACH_LEVEL) as OutsideReach[]) expect(REACH_LABEL[r]).toBe(REACH_LABEL[r].toLowerCase());
   });
@@ -47,6 +52,13 @@ describe("the header", () => {
     expect(html).toContain('class="loki-card-mark loki-card-mark--slack"');
     expect(html).toContain('aria-label="from Slack"');
     expect(html).toContain("@channel");
+  });
+
+  test("a Jira card's face carries its own mark", () => {
+    const html = renderToStaticMarkup(createElement(CardFace, { name: "Grace Hopper", src: null, mark: "jira" }));
+    expect(html).toContain('class="loki-card-mark loki-card-mark--jira"');
+    expect(html).toContain('aria-label="from Jira"');
+    expect(html).toContain("◆");
   });
 
   test("only the top of the scale takes the attention dot, and the bottom steps back", () => {

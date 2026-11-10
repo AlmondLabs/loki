@@ -124,7 +124,8 @@ describe("later (plan 070, U4)", () => {
   test("each kind of card keeps its own return times, and an unknown record is not one", () => {
     const mail = outsideItem("Quarterly numbers");
     const slack = outsideItem("hi", { outside: { ...must(mail.outside, "facts"), provider: "slack" } });
-    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack)]).toEqual(["chat", "email", "slack"]);
+    const jira = outsideItem("OPS-7", { outside: { ...must(mail.outside, "facts"), provider: "jira" } });
+    expect([cardKindOf(stale()), cardKindOf(mail), cardKindOf(slack), cardKindOf(jira)]).toEqual(["chat", "email", "slack", "slack"]);
     expect(readFirstMs(RETURN_TIMES_DEFAULT, "email")).toBe(H);
     expect(laterMs(RETURN_TIMES_DEFAULT, "slack")).toBe(DAY);
     expect(isReturnTimes(RETURN_TIMES_DEFAULT)).toBe(true);
@@ -303,5 +304,18 @@ describe("an outside card's rest as the mod judges it (plan 078)", () => {
       expect(outsideResting(r, newest, at)).toBe(isResting(shown, r, at));
     }
     expect(outsideResting(rest, "m1", now)).toBe(true);
+  });
+
+  test("a Jira comment approved after the rest was set ends it, as the Inbox judges it (plan 2026-11-10-1451, U8)", () => {
+    const now = Date.parse("2026-11-09T10:00:00.000Z");
+    const rest: Rest = { n: 1, until: "2026-11-09T11:00:00.000Z", stamp: "outside|m1", at: "2026-11-09T09:00:00.000Z", kind: "later" };
+    const item = outsideItem("Budget");
+    for (const at of ["2026-11-09T08:00:00.000Z", "2026-11-09T09:30:00.000Z"]) {
+      const seeds = [{ id: "reply-1", text: "Rotating tonight.", at }];
+      const shown = { ...item, outside: { ...must(item.outside, "outside"), provider: "jira" as const, seeds } };
+      expect(outsideResting(rest, "m1", now, seeds)).toBe(isResting(shown, rest, now));
+    }
+    expect(outsideResting(rest, "m1", now, [{ id: "reply-1", text: "x", at: "2026-11-09T08:00:00.000Z" }])).toBe(true);
+    expect(outsideResting(rest, "m1", now, [{ id: "reply-1", text: "x", at: "2026-11-09T09:30:00.000Z" }])).toBe(false);
   });
 });

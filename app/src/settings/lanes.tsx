@@ -58,7 +58,7 @@ export interface LaneAccount {
   mac: string | null;
 }
 
-const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack" };
+const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
 
 const SIDE_CHOICES: readonly SideChoice[] = ["all", "pick", "none"];
 

@@ -176,6 +176,38 @@ describe("moves on a card and their undo (plan 070, U6)", () => {
     expect(restsFor(t.rests, item)).toBe(DAY);
   });
 
+  test("Covers AE1. a comment sent alone on a Jira card makes no move: no rest, no seen mark and no decision (plan 083, KTD11)", () => {
+    const t = host();
+    const ticket = email({ outside: facts({ provider: "jira", account_id: "jira:acme.atlassian.net:acc-me", thread_id: "10001" }) });
+    t.moves.replied(ticket, "stay", null);
+    expect(t.rests).toEqual({});
+    expect(t.marks).toEqual([]);
+    expect(t.reported).toEqual([]);
+  });
+
+  test("a reply sent alone on a mail or Slack card makes no move either: no rest, no seen mark and no decision (plan 083)", () => {
+    const t = host();
+    const mail = email();
+    const dm = email({ outside: facts({ provider: "slack", account_id: "slack:T1:U1", thread_id: "D1" }) });
+    t.moves.replied(mail, "stay", null);
+    t.moves.replied({ ...mail, unread: false }, "stay", null);
+    t.moves.replied(dm, "stay", null);
+    expect(t.rests).toEqual({});
+    expect(t.marks).toEqual([]);
+    expect(t.reported).toEqual([]);
+  });
+
+  test("a comment sent with ⌘] or ⌘[ on a Jira card is a reply decision followed by that move, as on any card", () => {
+    const t = host();
+    const ticket = email({ outside: facts({ provider: "jira", account_id: "jira:acme.atlassian.net:acc-me", thread_id: "10001" }) });
+    t.moves.replied(ticket, "later", { move: "unread", messages: [], ended: false, was_unread: true });
+    expect(restsFor(t.rests, ticket)).toBe(DAY);
+    t.moves.replied(ticket, "read", { move: "read", messages: [], ended: true, was_unread: true });
+    expect(t.marks.at(-1)).toBe(`seen ${keyOf(ticket.agent_id, ticket.id)}`);
+    expect(t.reported).toEqual(["reply", "reply"]);
+    expect(t.told.map((f) => f?.after_reply)).toEqual(["later", "read"]);
+  });
+
   test("⌘[ or ⌘] on a card waiting for approval moves past for the visit and sets no rest", async () => {
     const t = host();
     const blocked = attentionItem("c1", { status: "approval", pendingApproval: { requestId: "r1", toolName: "bash", input: {}, at: "2026-11-05T11:00:00Z" } });

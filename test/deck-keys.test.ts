@@ -11,7 +11,7 @@ import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/retur
 import { pickableLabels } from "../app/src/desk/label-picker.tsx";
 import { replyBoxKey } from "../app/src/desk/outside-card.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
-import { outsideItem } from "./fixtures/outside-item.ts";
+import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
 
 /** The desktop deck's keys (app/src/desk/use-deck-keys.ts, deck-moves.ts): what each press does to the card on top. */
@@ -313,6 +313,61 @@ describe("⌘E and L", () => {
         { id: "Label_2", name: "Accounts", type: "user" },
       ]).map((l) => l.name),
     ).toEqual(["Accounts", "Clients"]);
+  });
+});
+
+describe("⌘E and L on a Jira card (plan 2026-11-10-1451, U6)", () => {
+  test("Covers AE8. ⌘E leaves it on top, says why, and sends nothing, even with text in its box", async () => {
+    const d = deck([jiraItem(), attentionItem("c2")], { text: "on it" });
+    d.moves().archive();
+    await settle();
+    expect(d.calls).toEqual([]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["10001#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.box.text).toBe("on it");
+    expect(d.state.flash).toEqual(["a jira card ends with read"]);
+  });
+  test("L does nothing", () => {
+    const d = deck([jiraItem()]);
+    d.moves().label();
+    expect(d.state.picker).toBeNull();
+    expect(d.calls).toEqual([]);
+  });
+});
+
+describe("a comment from a Jira card's box (plan 2026-11-10-1451, U7)", () => {
+  test("Covers F3, AE1. Enter posts it alone: the card stays on top and nothing is decided", async () => {
+    const d = deck([jiraItem(), attentionItem("c2")], { text: "On it" });
+    d.moves().sendReply();
+    await settle();
+    expect(d.calls).toEqual([["reply", "10001#1", "On it", "stay"], ["sent"]]);
+    expect(d.state.box.text).toBe("");
+    expect(d.state.queue.map((i) => i.id)).toEqual(["10001#1", "c2"]);
+    expect(d.state.decided).toEqual([]);
+    expect(d.state.flash).toEqual(["sent"]);
+  });
+  test("⌘] with text posts it and then reads the card, which moves on", async () => {
+    const d = deck([jiraItem(), attentionItem("c2")], { text: "Done" });
+    d.moves().read();
+    await settle();
+    expect(d.calls).toEqual([["reply", "10001#1", "Done", "read"], ["sent"]]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["c2"]);
+    expect(d.state.decided.map((x) => x.action)).toEqual(["seen"]);
+  });
+  test("⌘[ with text posts it and then puts the card off, unread", async () => {
+    const d = deck([jiraItem(), attentionItem("c2")], { text: "Tomorrow" });
+    d.moves().later();
+    await settle();
+    expect(d.calls).toEqual([["reply", "10001#1", "Tomorrow", "later"], ["sent"]]);
+    expect(d.state.decided.map((x) => x.action)).toEqual(["later"]);
+  });
+  test("a post that fails keeps the text and the reason, and is not sent again", async () => {
+    const d = deck([jiraItem(), attentionItem("c2")], { text: "On it", reply: { sent: false, error: "Jira answered 500" } });
+    d.moves().sendReply();
+    await settle();
+    expect(d.calls).toEqual([["reply", "10001#1", "On it", "stay"]]);
+    expect(d.state.box).toMatchObject({ text: "On it", error: "Jira answered 500", busy: false });
+    expect(d.state.queue.map((i) => i.id)).toEqual(["10001#1", "c2"]);
   });
 });
 

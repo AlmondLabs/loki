@@ -355,7 +355,7 @@ export interface Replies {
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
-  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow };
+  account_thread: { account_id: string; thread_id: string; messages: OutsideMessage[]; window?: OutsideWindow; link?: string };
   /** A move on an outside card kept in the ledger of the Mac its account lives on (plan 069); `kept` is false when that Mac keeps none. */
   account_move_kept: { account_id: string; thread_id: string; kept: boolean };
   /** What handing an outside card's thread off proposes (plan 067, R15): loki's pick and the owner's other chats. */
@@ -1498,6 +1498,17 @@ export const FRAMES = {
     "the workspaces signed in to the Slack desktop app on this Mac; with `team_id`, connect that workspace for the given agent, or connect it again after it signed out",
     (m) =>
       isAgentId(m.owner_agent_id) ? { owner_agent_id: m.owner_agent_id, team_id: str(m.team_id) && m.team_id ? m.team_id : null } : "owner_agent_id required",
+  ),
+  // Desktop only: the frame carries the API token, as account_connect_gmail carries the person's own app secret.
+  account_connect_jira: request(
+    "accounts",
+    "connect a Jira Cloud site the given agent will own, with its address, the person's Atlassian email and an API token, which Jira checks before anything is kept (plan 2026-11-10-1451, R1, R5); with `account_id`, connect that site again with a new token",
+    (m) => {
+      if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
+      const [site, email, token] = [m.site, m.email, m.token].map((v) => (str(v) ? v.trim() : ""));
+      if (!site || !email || !token) return "site, email and token required";
+      return { owner_agent_id: m.owner_agent_id, site, email, token, account_id: str(m.account_id) && m.account_id ? m.account_id : null };
+    },
   ),
   peer_forget: send("forget a paired Mac, telling it when it can be reached", (m) => (str(m.mac_id) ? { mac_id: m.mac_id } : "expected {mac_id}"), {
     causes: ["peers"],

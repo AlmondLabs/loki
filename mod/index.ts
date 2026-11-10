@@ -57,12 +57,15 @@ import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
 import { SlackClient } from "./slack.ts";
 import { SlackSync } from "./slack-sync.ts";
-import { OutsideThreads } from "./outside-threads.ts";
+import { jiraAccountClient, parseJiraSecret, type JiraClient } from "./jira.ts";
+import { JiraSync, jiraOutsideSource } from "./jira-sync.ts";
+import { OutsideThreads, type SendClient } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
 import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
+import { jiraCardView, jiraThreadText } from "./jira-view.ts";
 import { serialQueue } from "../core/serial.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
@@ -70,8 +73,8 @@ import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
-import { registerAccountTools } from "./account-tools.ts";
-import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
+import { registerAccountTools, type AccountReader } from "./account-tools.ts";
+import { ReplyProposals, registerReplyTools, withRepliesOnOpen, type ReplyClient } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -270,8 +273,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     moveTasks: () => moveOpenTasks(),
   });
   peering = macs;
-  // Inbox accounts (plan 067, U2): each Gmail mailbox or Slack workspace here and the one agent that owns it. Its
-  // secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a change.
+  // Inbox accounts (plan 067, U2): each Gmail mailbox, Slack workspace or Jira site here and the one agent that owns
+  // it. Its secrets are in the keychain; a paired Mac's accounts are refused here, and every client and Mac hears a
+  // change.
   const accounts = new Accounts({
     file: join(paths.state, "accounts.json"),
     secrets: host.secrets,
@@ -286,7 +290,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   // The watchers (U5, U7) feed the threads and register their write-back; a change makes every list read again.
   threads.onChange(() => broadcast({ type: "chat_changed" }));
   // Connecting (U5): Gmail by a sign-in that comes back to the loopback server, Slack from the desktop app's sessions,
-  // read from this person's home and kept in memory only (KTD2, KTD7).
+  // read from this person's home and kept in memory only (KTD2, KTD7). A Jira site is connected by the account frames
+  // themselves, with the address, email and API token the person types.
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
   // One Gmail client per account, shared by its watcher and its archive so a refreshed token is used by both; an
@@ -315,11 +320,28 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     return client;
   };
+  // One Jira client per site, reading its token from the keychain for each call (plan 2026-11-10-1451, U3), and kept
+  // so the wait Jira asks for after a rate limit holds for everything that calls the site.
+  const jiraClients = {
+    made: new Map<string, JiraClient>(),
+    of: (accountId: string): JiraClient => {
+      let client = jiraClients.made.get(accountId);
+      if (!client) {
+        client = jiraAccountClient(accounts, accountId);
+        jiraClients.made.set(accountId, client);
+      }
+      return client;
+    },
+  };
   accounts.onChange((change) => {
     gmailClients.delete(change.account_id);
     slackClients.delete(change.account_id);
+    jiraClients.made.delete(change.account_id);
   });
   threads.register("gmail", gmailOutsideSource(gmailClient));
+  // Jira's write-back writes nothing to Jira (plan 2026-11-10-1451, KTD10), so it is registered once here rather than
+  // by a live sync: read and undo still work on a site whose token Jira has stopped taking.
+  threads.register("jira", jiraOutsideSource());
   // The people each mailbox has mail with (plan 076), from the headers the watcher reads, for the recipients line.
   const mailPeople = new MailPeople({ file: join(paths.state, "mail-people.json") });
   accounts.onChange((change) => {
@@ -327,7 +349,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // A card resting in the Inbox, by the rest every device sets here: the past's cap of 20 leaves it out (plan 078).
   const restingIn = (accountId: string) => (r: ThreadRecord) =>
-    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now());
+    outsideResting(seen.restsAll()[keyOf(`account:${accountId}`, outsideCardId(r))], r.newest_message_id, Date.now(), r.seeds);
   // The watcher (U5, KTD3): every account here polled once a minute, each on its own.
   const watcher = new AccountWatcher({
     accounts,
@@ -335,6 +357,8 @@ export default function activate(api: ModApi, host: Host): () => void {
       gmail: (account) =>
         new GmailSync({ accounts, threads, account, client: gmailClient(account.account_id), people: mailPeople, resting: restingIn(account.account_id) }),
       slack: (account) => new SlackSync({ accounts, threads, account, client: slackClient(account.account_id), resting: restingIn(account.account_id) }),
+      // The site's one client, so a rate limit's wait outlives a sync rebuilt when the account changes.
+      jira: (account) => new JiraSync({ accounts, threads, account, client: jiraClients.of(account.account_id), resting: restingIn(account.account_id) }),
     },
     report: log,
   });
@@ -355,6 +379,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         track: (event, properties) => analytics.capture("mod", event, properties),
       })
     : undefined;
+  // A Jira ticket read whole with its site's one client (plan 2026-11-10-1451, U5), for the hand-off and the card.
+  const jiraText = jiraThreadText(jiraClients.of);
   // Hand-off (plan 067, U8): a card's whole thread, read with the clients above, sent to its owner's chat through the
   // same chat caller suggestions use, so a new chat is made on the owner's Mac.
   const handoff = new Handoff({
@@ -364,7 +390,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     chats: () => macs.desks(),
     agentHome: (id) => readLocalAgent(id)?.home_mac ?? null,
     call: chatCaller({ route: macs.router, backend: chatBackend, blocked: (agentId, conversationId) => macs.chatBlocked(agentId, conversationId) }),
-    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
   });
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
   // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
@@ -378,12 +404,23 @@ export default function activate(api: ModApi, host: Host): () => void {
     outbox: { file: join(paths.state, "outbox.json"), key: outboxKey(host.secrets) },
     people: mailPeople,
     slackPeople,
-    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient) },
-    cardView: { slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)) },
-    clientFor: (account) =>
-      account.provider === "gmail"
-        ? { provider: "gmail", client: gmailClient(account.account_id) }
-        : { provider: "slack", client: slackClient(account.account_id) },
+    threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
+    cardView: {
+      slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)),
+      // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
+      jira: jiraCardView(jiraClients.of, async (accountId) => parseJiraSecret(await accounts.getSecret(accountId))),
+    },
+    // A Jira comment goes through the site's one client, so a wait Jira asked for holds for it too.
+    clientFor: (account): SendClient => {
+      switch (account.provider) {
+        case "gmail":
+          return { provider: "gmail", client: gmailClient(account.account_id) };
+        case "slack":
+          return { provider: "slack", client: slackClient(account.account_id) };
+        case "jira":
+          return { provider: "jira", client: jiraClients.of(account.account_id) };
+      }
+    },
   });
   // A mail reply held when the daemon last stopped goes now, or when its time comes.
   outside.resume();
@@ -395,10 +432,17 @@ export default function activate(api: ModApi, host: Host): () => void {
     file: join(paths.state, "reply-proposals.json"),
     accounts,
     threads,
-    clientFor: (account) =>
-      account.provider === "gmail"
-        ? { provider: "gmail", client: gmailClient(account.account_id) }
-        : { provider: "slack", client: slackClient(account.account_id) },
+    // A Jira site has no drafts: an approved comment waits on its card, so its proposals get no client (KTD18).
+    clientFor: (account): ReplyClient => {
+      switch (account.provider) {
+        case "gmail":
+          return { provider: "gmail", client: gmailClient(account.account_id) };
+        case "slack":
+          return { provider: "slack", client: slackClient(account.account_id) };
+        case "jira":
+          return { provider: "jira" };
+      }
+    },
     push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),
     changed: () => broadcast({ type: "chat_changed" }),
   });
@@ -729,10 +773,16 @@ export default function activate(api: ModApi, host: Host): () => void {
     ...registerAccountTools(api, {
       accounts,
       threads,
-      clientFor: (account) =>
-        account.provider === "gmail"
-          ? { provider: "gmail", client: gmailClient(account.account_id) }
-          : { provider: "slack", client: slackClient(account.account_id) },
+      clientFor: (account): AccountReader => {
+        switch (account.provider) {
+          case "gmail":
+            return { provider: "gmail", client: gmailClient(account.account_id) };
+          case "slack":
+            return { provider: "slack", client: slackClient(account.account_id) };
+          case "jira":
+            return { provider: "jira", client: jiraClients.of(account.account_id) };
+        }
+      },
     }),
     ...registerReplyTools(api, { accounts, replies }),
   );

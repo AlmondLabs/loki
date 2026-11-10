@@ -11,7 +11,8 @@ import { Button, Meta, TextArea, sentence } from "../components";
  * Reply proposals in a chat (plan 067, U10, KTD9): a reply the agent wrote for a thread the person handed it, as a card
  * above the message box, in the chat and on its Inbox card, on the desktop and the phone, whatever the chat's
  * permission mode. It names the account, the thread and who it goes to, as the thread decides; the text can be edited;
- * approve has loki write it as a draft there for the person to send, reject writes nothing.
+ * approve has loki write it as a draft there for the person to send, reject writes nothing. A Jira comment has no
+ * draft: approved, it waits in the ticket's card's comment box for the person to post (plan 2026-11-10-1451, KTD18).
  */
 
 /** What the cards read and call, all of it useAttention's; a host whose source lacks them shows no cards. */
@@ -31,15 +32,26 @@ export interface ReplyProposalsProps {
   touch?: boolean;
 }
 
-const SERVICE = { gmail: "Gmail", slack: "Slack" } as const;
+/** What each service's card says of a reply, in desktop words: what it is, where approving puts it, and what is under way. */
+const WORDS: Record<ReplyProposal["provider"], { kicker: string; after: string; writing: string }> = {
+  gmail: { kicker: "reply", after: "saved as a draft in Gmail; you send it from there", writing: "writing the draft in Gmail…" },
+  slack: { kicker: "reply", after: "saved as a draft in Slack; you send it from there", writing: "writing the draft in Slack…" },
+  jira: { kicker: "comment", after: "goes in the ticket's comment box in Flow; you post it from there", writing: "putting the comment on the card…" },
+};
 
 /** The words of a control: lowercase on the desktop, sentence case on the phone. */
 const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
 
-/** Who a reply goes to, as its card says it: Gmail's people, or Slack's place. */
+/** Who a reply goes to, as its card says it: Gmail's people, Slack's place, or the Jira ticket. */
 function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" | "place">): string {
-  if (p.provider === "slack") return `in ${p.place ?? "that conversation"}`;
-  return [p.to.length ? `to ${p.to.join(", ")}` : "", p.cc.length ? `cc ${p.cc.join(", ")}` : ""].filter(Boolean).join(" · ") || "to no one";
+  switch (p.provider) {
+    case "slack":
+      return `in ${p.place ?? "that conversation"}`;
+    case "jira":
+      return `on ${p.place ?? "the ticket"}`;
+    case "gmail":
+      return [p.to.length ? `to ${p.to.join(", ")}` : "", p.cc.length ? `cc ${p.cc.join(", ")}` : ""].filter(Boolean).join(" · ") || "to no one";
+  }
 }
 
 /** The replies proposed in a chat that wait on the person or are being drafted; nothing when there are none. */
@@ -97,7 +109,7 @@ function ReplyProposalCard({
   return (
     <div className="loki-suggestion" data-reply={p.id} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent}>
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
-        <span className="loki-suggestion-kicker">{say(touch, "reply")}</span>
+        <span className="loki-suggestion-kicker">{say(touch, WORDS[p.provider].kicker)}</span>
         <span className="loki-suggestion-title">
           {p.subject || "a thread"} · {p.account_label}
         </span>
@@ -115,7 +127,7 @@ function ReplyProposalCard({
         />
         {drafting && (
           <div className="loki-suggestion-note" role="status">
-            {say(touch, `writing the draft in ${SERVICE[p.provider]}…`)}
+            {say(touch, WORDS[p.provider].writing)}
           </div>
         )}
         {!drafting && reason && (
@@ -132,7 +144,7 @@ function ReplyProposalCard({
             <Button size={size} tone="negative" disabled={off} onClick={() => void act("reject")} data-action="reject">
               {say(touch, "reject")}
             </Button>
-            <Meta wrap>{say(touch, `saved as a draft in ${SERVICE[p.provider]}; you send it from there`)}</Meta>
+            <Meta wrap>{say(touch, WORDS[p.provider].after)}</Meta>
           </div>
         )}
       </div>
