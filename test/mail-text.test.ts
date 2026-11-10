@@ -32,6 +32,20 @@ describe("HTML mail as text", () => {
     expect(htmlToText("<table><tr><td>Fund</td><td>Units</td></tr><tr><td>Index&#x2122;</td><td>12.5</td></tr></table>")).toBe("Fund Units\nIndex™ 12.5");
     expect(htmlToText("it&rsquo;s &#8220;fine&#8221; &unknown;")).toBe("it’s “fine” &unknown;");
   });
+  test("what never closes: a comment or a tag hides the rest, an element hides nothing, and a second like it is not searched for again", () => {
+    expect(htmlToText("Hello<!-- and then nothing")).toBe("Hello");
+    expect(htmlToText("Hello <b")).toBe("Hello");
+    expect(htmlToText("<style>p{}</STYLE >one<style>two<style>three")).toBe("onetwothree");
+    expect(htmlToText('<div style="display:none">preview</div>shown<span style="display: none">kept')).toBe("shownkept");
+  });
+  test("a mail of openers that never close is read in the time its length takes, not its square", () => {
+    for (const unit of ["<!--", "<style>", '<div style="display:none">', "<li", "<", "<!-- x --><style>a"]) {
+      const started = performance.now();
+      htmlToText(unit.repeat(Math.ceil(400_000 / unit.length)));
+      // The old patterns took over a minute here; a second leaves room for the slowest runner.
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+  });
 });
 
 describe("plain mail tidied", () => {

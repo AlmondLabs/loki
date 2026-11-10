@@ -61,6 +61,13 @@ const CURSOR_VERSION = 2;
 /** The reasons Gmail gives, with a 403, for a call that is fine but came too often. */
 const RATE_LIMITS = ["rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded"];
 
+/**
+ * Gmail's labels no card move puts on or takes off: loki never moves mail to the trash or to spam, and where a message
+ * was sent from or drafted is Gmail's own to say. A label picked for a thread and the change an undo carries both come
+ * in a frame, from a phone or a paired Mac as well, so they are held to this whatever they name.
+ */
+const NEVER_MOVED: ReadonlySet<string> = new Set(["TRASH", "SPAM", "SENT", "DRAFT", "CHAT"]);
+
 /** The calls Gmail's write-backs make; GmailClient has them. */
 export type GmailWriteClient = Pick<GmailClient, "getThread" | "batchModify" | "labels">;
 
@@ -120,7 +127,7 @@ export function gmailOutsideSource(clientOf: (accountId: string) => GmailWriteCl
         return newest ? plan([newest], ["UNREAD"], []) : [];
       }),
     addLabels: (accountId, record, labels) => {
-      const wanted = [...new Set(labels)].filter((l) => l && l !== "INBOX" && l !== "UNREAD");
+      const wanted = [...new Set(labels)].filter((l) => l && l !== "INBOX" && l !== "UNREAD" && !NEVER_MOVED.has(l));
       if (wanted.length === 0) return Promise.reject(new Error("pick a label to add: read, later and archive move INBOX and UNREAD"));
       return write(accountId, record, "label", (messages) => plan(messages, wanted, []));
     },
@@ -132,7 +139,12 @@ export function gmailOutsideSource(clientOf: (accountId: string) => GmailWriteCl
         client,
         change.messages
           .filter((c) => ids.has(c.message_id))
-          .map((c) => ({ message_id: c.message_id, labels_added: c.labels_removed, labels_removed: c.labels_added })),
+          .map((c) => ({
+            message_id: c.message_id,
+            labels_added: c.labels_removed.filter((l) => !NEVER_MOVED.has(l)),
+            labels_removed: c.labels_added.filter((l) => !NEVER_MOVED.has(l)),
+          }))
+          .filter((c) => c.labels_added.length > 0 || c.labels_removed.length > 0),
       );
     },
     labels: (accountId) => clientOf(accountId).labels(),

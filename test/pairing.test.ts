@@ -29,4 +29,13 @@ describe("pairing codes", () => {
     now += 61_000;
     expect(codes.redeem(code)).toBe(false);
   });
+
+  test("spend: the code works once, for pairing a Mac", () => {
+    const codes = new PairingCodes();
+    const { code } = codes.mint();
+    expect(codes.spend("ZZZZZZ")).toBe(false);
+    expect(codes.spend(code.toLowerCase())).toBe(true);
+    expect(codes.spend(code)).toBe(false);
+    expect(codes.redeem(code)).toBe(false);
+  });
 });

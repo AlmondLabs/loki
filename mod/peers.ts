@@ -355,9 +355,10 @@ export class Peers {
     const invite = this.invites.get(body.code);
     this.invites.delete(body.code);
     const invited = !!invite && invite.mac_id === hello.mac_id && invite.expires > this.now();
-    if (!invited && !this.opts.codes.redeem(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
     const me = this.hello();
     if (hello.mac_id === me.mac_id) return { status: 409, body: { error: "that code is this Mac's own" } };
+    // A code is spent by the Mac it lets in: whoever else saw it cannot pair a second Mac with it.
+    if (!invited && !this.opts.codes.spend(body.code)) return { status: 404, body: { error: "unknown or expired code" } };
     const mine = mintPeerToken();
     await this.opts.keys.set(hello.mac_id, token);
     this.opts.store.add(hello, mine);

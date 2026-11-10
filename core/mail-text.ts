@@ -58,17 +58,66 @@ export function tidyMail(text: string): string {
     .trim();
 }
 
+/** Elements whose whole content is no part of the text. */
+const UNSEEN = /^<(head|style|script|title|noscript)\b/i;
+/** Preheaders: a line of text hidden from the reader, written for the inbox list's preview. */
+const HIDDEN = /^<(span|div|p|td)\b[^>]*style\s*=\s*["'][^"']*display\s*:\s*none[^"']*["']/i;
+/** The longest opening tag read for a hidden style; a longer one is some generator's data, and is kept as a tag. */
+const HIDDEN_TAG_MAX = 2000;
+
+/**
+ * Mail's HTML without what a browser never shows: comments, the content of `<head>`, `<style>`, `<script>` and the
+ * like, and hidden preheaders. One pass from the start, so its time grows with the mail's length and no faster: mail
+ * comes from strangers, and a pattern that looks ahead for each closing tag takes minutes on a few hundred kilobytes
+ * of openers that never close. As in a browser, a comment or a tag that never ends hides the rest; an element that
+ * never closes hides nothing.
+ */
+function shownHtml(html: string): string {
+  const out: string[] = [];
+  /** Elements with no closing tag from here on, so the search for one is made once. */
+  const unclosed = new Set<string>();
+  let at = 0;
+  while (at < html.length) {
+    const open = html.indexOf("<", at);
+    if (open < 0) break;
+    out.push(html.slice(at, open));
+    if (html.startsWith("<!--", open)) {
+      const end = html.indexOf("-->", open + 4);
+      at = end < 0 ? html.length : end + 3;
+      continue;
+    }
+    const close = html.indexOf(">", open);
+    if (close < 0) {
+      at = html.length;
+      break;
+    }
+    const tag = html.slice(open, close + 1);
+    at = close + 1;
+    const name = (UNSEEN.exec(tag) ?? (tag.length <= HIDDEN_TAG_MAX ? HIDDEN.exec(tag) : null))?.[1]?.toLowerCase();
+    if (name === undefined || unclosed.has(name)) {
+      out.push(tag);
+      continue;
+    }
+    const closing = new RegExp(`</${name}\\s*>`, "gi");
+    closing.lastIndex = at;
+    const end = closing.exec(html);
+    if (end) at = end.index + end[0].length;
+    else {
+      unclosed.add(name);
+      out.push(tag);
+    }
+  }
+  out.push(html.slice(at));
+  return out.join("");
+}
+
 /**
  * HTML mail as plain text, the way a browser lays it out: source whitespace collapsed, a line break at each block and
  * `<br>`, list items as bullets, table cells side by side, hidden preheader text and comments dropped, and entities
  * decoded; then tidied. Links keep their text only, as a mail client shows them.
  */
 export function htmlToText(html: string): string {
-  const text = html
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<(head|style|script|title|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
-    // Preheaders: a line of text hidden from the reader, written for the inbox list's preview.
-    .replace(/<(span|div|p|td)\b[^>]*style\s*=\s*["'][^"']*display\s*:\s*none[^"']*["'][^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+  const text = shownHtml(html)
     .replace(/\s+/g, " ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<li\b[^>]*>/gi, "\n• ")

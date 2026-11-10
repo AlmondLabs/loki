@@ -405,6 +405,21 @@ describe("writing moves back to Gmail and putting them back (plan 070, U3)", () 
     expect([first, second].map((m) => box.labelsOfMessage(m))).toEqual([["INBOX"], ["INBOX", "UNREAD"]]);
   });
 
+  test("no label move or undo trashes mail: TRASH and SPAM in a picked label or an undo's change are left out", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    const only = box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    await sync().tick();
+    await expect(threads.addLabels(id(), "t1", ["TRASH", "SPAM"])).rejects.toThrow("pick a label");
+    // An undo whose change a client wrote itself: what it names is not trusted.
+    await threads.restore(id(), "t1", {
+      move: "label",
+      messages: [{ message_id: only, labels_added: ["INBOX"], labels_removed: ["TRASH", "SPAM"] }],
+      ended: false,
+      was_unread: true,
+    });
+    expect(box.labelsOfMessage(only)).toEqual(["UNREAD"]);
+  });
+
   test("a Gmail refusal answers the reason in words, and the record is unchanged", async () => {
     const { box, sync, ago, threads, id } = await setup();
     box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });

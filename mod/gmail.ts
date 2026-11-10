@@ -1,3 +1,4 @@
+import { headerMailboxes } from "../core/mail-header.ts";
 import type { Accounts } from "./accounts.ts";
 import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
@@ -215,6 +216,19 @@ const oneLine = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
 /** A header in RFC 2047's encoded form when it is not plain ASCII, as a subject in another language needs. */
 const encodedWord = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 
+/**
+ * One To, Cc or Bcc entry as the header carries it: each person in it written out again from their name and address,
+ * the name quoted where it holds a comma, a quote or the like, and encoded where it is not plain ASCII. An entry is
+ * never copied into the header as it came, since a name taken from a stranger's From could close its own quote and
+ * name a second recipient; one with no address in it adds nobody.
+ */
+const mailboxes = (entry: string): string[] =>
+  headerMailboxes(oneLine(entry)).map(({ name, address }) => {
+    if (!name) return address;
+    if (!/^[\x20-\x7e]*$/.test(name)) return `${encodedWord(name)} <${address}>`;
+    return /^[\w !#$%&'*+/=?^`{|}~-]+$/.test(name) ? `${name} <${address}>` : `"${name.replace(/[\\"]/g, "\\$&")}" <${address}>`;
+  });
+
 /** Bytes as base64 in lines of 76, as MIME wants them. */
 const base64Lines = (data: Buffer): string => (data.toString("base64").match(/.{1,76}/g) ?? []).join("\r\n");
 /** Text as a base64 MIME body, its lines ended the way mail ends them. */
@@ -232,13 +246,15 @@ const fileParam = (name: string): string => `filename*=UTF-8''${encodeURICompone
  */
 export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
   const references = [...d.references, d.inReplyTo].map(oneLine).filter(Boolean);
-  const bcc = d.bcc ?? [];
+  const to = d.to.flatMap(mailboxes);
+  const cc = d.cc.flatMap(mailboxes);
+  const bcc = (d.bcc ?? []).flatMap(mailboxes);
   const headers = [
     d.from ? `From: ${oneLine(d.from)}` : "",
-    d.to.length ? `To: ${d.to.map(oneLine).join(", ")}` : "",
-    d.cc.length ? `Cc: ${d.cc.map(oneLine).join(", ")}` : "",
+    to.length ? `To: ${to.join(", ")}` : "",
+    cc.length ? `Cc: ${cc.join(", ")}` : "",
     // Gmail takes Bcc from the message it sends and leaves it off what the others get.
-    bcc.length ? `Bcc: ${bcc.map(oneLine).join(", ")}` : "",
+    bcc.length ? `Bcc: ${bcc.join(", ")}` : "",
     `Subject: ${encodedWord(oneLine(d.subject))}`,
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
     references.length ? `References: ${[...new Set(references)].join(" ")}` : "",

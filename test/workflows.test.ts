@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { must } from "./fixtures/must.ts";
 
 /** The CI workflows' shape (docs/CONTRIBUTING.md, Checks): each check once, where the system matters, and only when it can say something. */
 
@@ -100,5 +101,20 @@ describe("supply chain", () => {
       .sort();
     expect(writers).toEqual(["attach", "build", "preview-pr-after-stable", "release-prs"]);
     for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
+  });
+
+  test("a release job that installs dependencies keeps no token in its checkout, and no Apple secret past the build", () => {
+    const rel = workflow("release");
+    const installers = Object.entries(rel.jobs).filter(([, j]) => /\bnpm ci\b/.test(runs(j)));
+    expect(installers.map(([k]) => k).sort()).toEqual(["build", "linux", "windows"]);
+    for (const [k, j] of installers) {
+      const checkout = j.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+      expect(checkout?.with?.["persist-credentials"], k).toBe(false);
+    }
+    const steps = must(rel.jobs.build, "the build job").steps;
+    const built = steps.findIndex((s) => s.uses?.startsWith("tauri-apps/tauri-action@"));
+    const dropped = steps.findIndex((s) => /APPLE_CERTIFICATE[^\n]*\n\s*echo "\$v=" >> "\$GITHUB_ENV"/.test(s.run ?? ""));
+    expect(built).toBeGreaterThan(-1);
+    expect(dropped).toBe(built + 1);
   });
 });

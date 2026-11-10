@@ -90,8 +90,9 @@ export function darkRulesOff(css: string): string {
 }
 
 /**
- * The frame's document for a mail: its head's styles and its body, its quoted thread folded unless `quoteOpen`, with scripts, embedded frames and objects, base
- * and refresh tags taken out, under MAIL_POLICY, opening links in a new window. The sandbox already stops scripts;
+ * The frame's document for a mail: its head's styles and its body, its quoted thread folded unless `quoteOpen`, with
+ * scripts, embedded frames and objects, base and refresh tags taken out, under MAIL_POLICY, opening links in a new
+ * window, and sending no referrer with what it loads. The sandbox already stops scripts;
  * taking them out keeps their text from showing and keeps the document small.
  */
 export function mailDocument(html: string, quoteOpen = false): string {
@@ -99,10 +100,13 @@ export function mailDocument(html: string, quoteOpen = false): string {
   for (const name of DROPPED) body = body.replace(new RegExp(`<${name}\\b[\\s\\S]*?(?:<\\/${name}\\s*>|\\/>|$)`, "gi"), "");
   for (const name of DROPPED_VOID) body = body.replace(new RegExp(`<${name}\\b[^>]*>`, "gi"), "");
   body = body.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
+  // The frame's own referrer rule (below) is the only one: a mail that brought its own could have the page's address,
+  // which carries the daemon's token in a browser tab, sent to whoever hosts its images.
+  body = body.replace(/<meta\b[^>]*name\s*=\s*["']?referrer[^>]*>/gi, "").replace(/\sreferrerpolicy\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
   return [
     "<!doctype html><html><head>",
     `<meta http-equiv="Content-Security-Policy" content="${MAIL_POLICY}">`,
-    '<meta charset="utf-8"><base target="_blank">',
+    '<meta charset="utf-8"><meta name="referrer" content="no-referrer"><base target="_blank">',
     `<style>${MAIL_STYLE}${quoteFolds(body) && !quoteOpen ? QUOTE_HIDDEN : ""}</style>`,
     darkRulesOff(stylesOf(html)).replace(/<\/?script\b[^>]*>/gi, ""),
     "</head><body>",
