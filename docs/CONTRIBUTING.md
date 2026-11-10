@@ -34,9 +34,9 @@ How code, comments, docs, tests and commits are written is [style.md](style.md);
 ```bash
 npm test                                          # mod, shared, app logic, and the style tests: file names, design tokens (vitest, on Node)
 npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
-npm run typecheck
+npm run typecheck                                 # tsc; repeat runs re-check only what changed
 npm run format:check                              # Prettier; npm run format fixes it
-npm run lint
+npm run lint                                      # uncached; npm run lint:fast caches results while you work
 npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 npm run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
