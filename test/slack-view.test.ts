@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
@@ -6,7 +6,8 @@ import type { ThreadControls } from "../app/src/desk/outside-card.tsx";
 import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
-import { SlackThread, planSlackRows } from "../app/src/desk/slack-thread.tsx";
+import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
+import { QUICK_EMOJI, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
 
 /** A Slack card's body as a window around what is new (plan 077), and as Slack draws it (plan 074, plan 075). */
 
@@ -399,5 +400,176 @@ describe("drawing a Slack card's body", () => {
     const html = draw([m("a", "Ravi", 0)], { view: "channel", thread_ts: null, more_before: true, more_after: true }, { busy: "before" });
     expect(html).toContain("loading…");
     expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+});
+
+describe("reactions on a Slack card (plan 079)", () => {
+  const m = (id: string, sender: string, min: number, extra: Partial<OutsideMessage> = {}): OutsideMessage => ({
+    id,
+    sender,
+    at: new Date(Date.UTC(2026, 10, 9, 9, min)).toISOString(),
+    text: id,
+    mine: false,
+    ...extra,
+  });
+  test("a message carries its reactions with their counts, whether the person is among them, and how each draws", async () => {
+    const post = msg(ts(1000), "U1", "the plan", {
+      raw: {
+        reactions: [{ name: "eyes", users: ["UME", "U2"], count: 2 }, { name: "not_an_emoji_anywhere", users: ["U2"], count: 1 }, { name: "broken" }],
+      },
+    });
+    const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: [post, msg(ts(1001), "U2", "ok")] } });
+    const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1001)]), {});
+    expect(w.messages.find((m) => m.id === ts(1000))?.reactions).toEqual([
+      { name: "eyes", count: 2, mine: true, emoji: { kind: "emoji", text: "👀" } },
+      { name: "not_an_emoji_anywhere", count: 1, mine: false, emoji: null },
+    ]);
+    expect(w.messages.find((m) => m.id === ts(1001))?.reactions).toBeUndefined();
+  });
+
+  const eyes = QUICK_EMOJI[0];
+  test("reacting adds a pill or joins one; taking it back leaves the pill to others, or takes it away", () => {
+    const others = [{ name: "eyes", count: 2, mine: false, emoji: eyes.emoji }];
+    expect(toggleReaction([], eyes, true)).toEqual([{ name: "eyes", count: 1, mine: true, emoji: eyes.emoji }]);
+    expect(toggleReaction(others, eyes, true)).toEqual([{ name: "eyes", count: 3, mine: true, emoji: eyes.emoji }]);
+    expect(toggleReaction(toggleReaction(others, eyes, true), eyes, false)).toEqual(others);
+    expect(toggleReaction([{ name: "eyes", count: 1, mine: true, emoji: eyes.emoji }], eyes, false)).toEqual([]);
+    // Reacting with what is already theirs, or taking back what is not, changes nothing.
+    expect(toggleReaction([{ name: "eyes", count: 1, mine: true, emoji: eyes.emoji }], eyes, true)).toEqual([
+      { name: "eyes", count: 1, mine: true, emoji: eyes.emoji },
+    ]);
+    expect(toggleReaction(others, eyes, false)).toEqual(others);
+  });
+
+  test("the main message is the newest that brought the card, else the card's newest, else the last shown", () => {
+    expect(mainMessage([m("a", "R", 0, { brought: true }), m("b", "R", 1, { brought: true }), m("c", "R", 2)], "c")).toBe("b");
+    expect(mainMessage([m("a", "R", 0), m("c", "R", 2)], "a")).toBe("a");
+    expect(mainMessage([m("a", "R", 0), m("c", "R", 2)], "gone")).toBe("c");
+    expect(mainMessage([], "gone")).toBeNull();
+  });
+
+  const WINDOW: OutsideWindow = { view: "channel", thread_ts: null, more_before: false, more_after: false };
+  const draw = (messages: OutsideMessage[], controls: ThreadControls | null) =>
+    renderToStaticMarkup(createElement(SlackThread, { messages, newest: messages.at(-1)?.id ?? "", window: WINDOW, controls }));
+  const reactions = [
+    { name: "eyes", count: 2, mine: true, emoji: eyes.emoji },
+    { name: "shipit", count: 1, mine: false, emoji: { kind: "emoji" as const, text: ":shipit:", image: "https://example.test/shipit.png" } },
+    { name: "mystery", count: 1, mine: false, emoji: null },
+  ];
+
+  test("pills show each emoji and its count, the person's own marked, and a react button where the card can react", () => {
+    const html = draw([m("a", "Ravi", 0, { reactions })], { load: () => {}, openThread: () => {}, busy: null, react: () => {} });
+    expect(html).toContain('aria-pressed="true"');
+    expect(html.match(/class="loki-slack-reaction"/g)).toHaveLength(3);
+    expect(html).toContain("👀</span><span>2</span>");
+    expect(html).toContain('src="https://example.test/shipit.png"');
+    expect(html).toContain("<span>:mystery:</span>");
+    expect(html).toContain('class="loki-slack-react"');
+  });
+
+  test("where the card cannot react, the pills show but do nothing and there is no react button", () => {
+    const html = draw([m("a", "Ravi", 0, { reactions })], { load: () => {}, openThread: () => {}, busy: null });
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
+    expect(html).not.toContain('class="loki-slack-react"');
+  });
+});
+
+describe("files on a Slack card (plan 080)", () => {
+  const WINDOW: OutsideWindow = { view: "channel", thread_ts: null, more_before: false, more_after: false };
+  const post = (extra: Partial<OutsideMessage>): OutsideMessage => ({
+    id: "a",
+    sender: "Ravi",
+    at: new Date(Date.UTC(2026, 10, 9, 9, 0)).toISOString(),
+    text: "",
+    mine: false,
+    body: [],
+    ...extra,
+  });
+  const draw = (m: OutsideMessage) => renderToStaticMarkup(createElement(SlackThread, { messages: [m], newest: "a", window: WINDOW, controls: null }));
+
+  test("a file's chip names it with its kind and size, as far as Slack gave them", () => {
+    expect(fileFacts({ name: "a", kind: "PDF", size: 120_000, link: null })).toBe("PDF · 117 KB");
+    expect(fileFacts({ name: "a", kind: null, size: 900, link: null })).toBe("900 B");
+    expect(fileFacts({ name: "a", kind: null, size: null, link: null })).toBe("");
+  });
+
+  test("a message of only a file draws the file, which opens in Slack, and a deleted one says so", () => {
+    const html = draw(
+      post({
+        slack_files: [
+          { name: "invoice.pdf", kind: "PDF", size: 2048, link: "https://acme.slack.test/files/F1" },
+          { name: "", kind: null, size: null, link: null, gone: "deleted" },
+        ],
+      }),
+    );
+    expect(html).toContain('class="loki-slack-files"');
+    expect(html).toContain('title="open invoice.pdf in Slack"');
+    expect(html).toContain("PDF · 2.0 KB");
+    expect(html).toContain("file deleted");
+  });
+
+  test("the card reads a message's files from Slack", async () => {
+    const shared = msg(ts(1000), "U1", "", { raw: { files: [{ name: "q3.xlsx", pretty_type: "Excel Spreadsheet", size: 10 }] } });
+    const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: [shared, msg(ts(1001), "U2", "thanks")] } });
+    const w = await slackChannelView(() => client)(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1001)]), {});
+    expect(w.messages.find((m) => m.id === ts(1000))?.slack_files).toEqual([{ name: "q3.xlsx", kind: "Excel Spreadsheet", size: 10, link: null }]);
+  });
+
+  test("a picture's preview fits 360 by 240, kept to its shape and never grown", () => {
+    expect(previewSize({ width: 360, height: 200 })).toEqual({ width: 360, height: 200 });
+    expect(previewSize({ width: 270, height: 360 })).toEqual({ width: 180, height: 240 });
+    expect(previewSize({ width: 100, height: 50 })).toEqual({ width: 100, height: 50 });
+  });
+
+  test("a picture with a saved thumbnail draws as itself at its size, its name under it", () => {
+    // The picture's address is the mod's, as a browser tab finds it.
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("location", { origin: "http://127.0.0.1:5173" });
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    const html = draw(
+      post({
+        slack_files: [
+          {
+            name: "site.png",
+            kind: "PNG",
+            size: 2048,
+            link: "https://acme.slack.test/files/F1",
+            preview: { name: `${"a".repeat(32)}.png`, width: 360, height: 200 },
+          },
+        ],
+      }),
+    );
+    vi.unstubAllGlobals();
+    expect(html).toContain(`/chat-images/${"a".repeat(32)}.png`);
+    expect(html).toContain('width="360" height="200"');
+    expect(html).toContain("<figcaption>site.png</figcaption>");
+    expect(html).not.toContain("loki-chip");
+  });
+
+  test("the card asks for a picture's thumbnail and carries what it is given; a file with none stays a chip", async () => {
+    const thumb = { thumb_360: "https://files.slack.com/p_360.png", thumb_360_w: 360, thumb_360_h: 200 };
+    const shared = msg(ts(1000), "U1", "", {
+      raw: {
+        files: [
+          { name: "p.png", mimetype: "image/png", ...thumb },
+          { name: "q.png", mimetype: "image/png", ...thumb, thumb_360: "https://files.slack.com/q_360.png" },
+        ],
+      },
+    });
+    const { client } = fakeSlack({ history: [], threads: { [ts(1000)]: [shared, msg(ts(1001), "U2", "nice")] } });
+    const asked: string[] = [];
+    const view = slackChannelView(
+      () => client,
+      (accountId, t) => {
+        asked.push(`${accountId} ${t.url}`);
+        return Promise.resolve(t.url.includes("/p_") ? { name: `${"b".repeat(32)}.png`, width: t.width, height: t.height } : null);
+      },
+    );
+    const w = await view(ACCOUNT, `C1:${ts(1000)}`, facts([ts(1001)]), {});
+    expect(w.messages.find((m) => m.id === ts(1000))?.slack_files?.map((f) => f.preview ?? null)).toEqual([
+      { name: `${"b".repeat(32)}.png`, width: 360, height: 200 },
+      null,
+    ]);
+    expect(asked).toEqual([`${ACCOUNT} https://files.slack.com/p_360.png`, `${ACCOUNT} https://files.slack.com/q_360.png`]);
   });
 });

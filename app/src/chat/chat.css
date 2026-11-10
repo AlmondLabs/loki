@@ -2016,6 +2016,39 @@ button.loki-label-chip:focus-visible {
   font-size: 13.5px;
   font-weight: 600;
 }
+.loki-slack-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.loki-slack-preview {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+.loki-slack-preview button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  align-self: flex-start;
+  max-width: 100%;
+}
+.loki-slack-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-well);
+}
+.loki-slack-preview figcaption {
+  color: var(--loki-muted);
+  font-size: 12px;
+}
 .loki-mail-files {
   display: flex;
   flex-wrap: wrap;
@@ -2047,4 +2080,106 @@ button.loki-label-chip:focus-visible {
 /* The framed box's head draws the line under its last recipients row. */
 .loki-mail-compose-head .loki-mail-row:last-child {
   border-bottom: none;
+}
+/* Emoji reactions on a Slack card (plan 079): pills under a message as Slack draws them, the person's own outlined in
+   the link colour; a react button that shows on the row under the pointer; and the picker under the message. */
+.loki-slack-row {
+  position: relative;
+}
+.loki-slack-react {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+  background: var(--loki-panel);
+  color: var(--loki-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+}
+.loki-slack-row:hover > .loki-slack-react,
+.loki-slack-react:focus-visible {
+  opacity: 1;
+}
+.loki-slack-react:hover {
+  color: var(--loki-fg);
+}
+.loki-slack-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.loki-slack-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-hover);
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.loki-slack-reaction[data-mine] {
+  border-color: var(--loki-accent);
+  background: var(--loki-accent-soft);
+}
+.loki-slack-reaction:disabled {
+  cursor: default;
+}
+.loki-emoji-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+}
+.loki-emoji-search {
+  padding: 4px 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+  background: none;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: 12px;
+}
+.loki-emoji-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.loki-emoji-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.loki-emoji-choice:hover,
+.loki-emoji-choice:focus-visible {
+  background: var(--loki-hover);
+}
+.loki-emoji-choice kbd {
+  color: var(--loki-muted);
+  font-family: inherit;
+  font-size: 11px;
+}
+.loki-emoji-note {
+  color: var(--loki-muted);
+  font-size: 12px;
 }

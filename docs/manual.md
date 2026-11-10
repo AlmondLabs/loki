@@ -934,7 +934,15 @@ are left. New means new since you last dealt with the card in loki (archived it,
 off; later does not count), so a mention you already handled shows as an ordinary message when it comes back, even
 though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
 @mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
-reply from a later day shows that day beside its time. A hand-off still sends the thread alone, now with each link's
+reply from a later day shows that day beside its time. **Reactions** show under each message as Slack shows them,
+with their counts and yours outlined; press one to add or take back yours. **react** on the message under the pointer,
+or ⌘⇧\ for the card's main message (what brought it, else its newest), opens a picker: 1 to 5 pick 👀 ✅ 👍 🙏 🙌,
+and typing searches every emoji, the workspace's own too. A reaction tells the sender you saw it without a reply; the
+card stays until you read, put off or archive it. **Files** shared in a Slack message show as chips under it, with
+their name, kind and size; press one to open it in Slack, which holds the file. A picture shows as itself, up to 360
+by 240, with its name under it: the Mac that holds the account fetches Slack's small copy once and keeps it with your
+chats' pictures. A file deleted since says so, and a
+message of only a file names the file on its card. A hand-off still sends the thread alone, now with each link's
 address and what apps attached. In a mail thread, each mail before the newest starts folded to its
 sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past fills each account up to 20 cards**: connecting brings what came in the last 3 days,
 and while a Gmail account or Slack workspace has fewer than 20 open cards waiting on you (read or unread, but not resting after read or later), older mail and

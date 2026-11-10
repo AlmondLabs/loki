@@ -38,6 +38,7 @@ interface FakeMessage {
   user: string;
   text: string;
   thread_ts?: string;
+  files?: unknown[];
 }
 
 interface FakeItem {
@@ -65,7 +66,7 @@ function fakeWorkspace() {
   const refuse = { mark: null as string | null, feedAt: null as string | null };
   let posts = 0;
   const mainStream = (c: string) => (messages.get(c) ?? []).filter((m) => !m.thread_ts || m.thread_ts === m.ts);
-  const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts });
+  const toMessage = (m: FakeMessage) => ({ type: "message", ts: m.ts, user: m.user, text: m.text, thread_ts: m.thread_ts, files: m.files });
   const toItem = (i: FakeItem) =>
     i.type === "thread_v2"
       ? {
@@ -268,6 +269,14 @@ describe("DMs", () => {
     slack.post("D0GRACE", { ts: at(30), user: "U0GRACE", text: "one more thing" });
     await sync.tick();
     expect(open().map((r) => [r.thread_id, r.lines])).toEqual([["D0GRACE", ["one more thing"]]]);
+  });
+
+  test("a message of only a file names the file on its card (plan 080)", async () => {
+    const { slack, sync, open } = await fixture();
+    slack.dm("D0GRACE");
+    slack.post("D0GRACE", { ts: at(20), user: "U0GRACE", text: "", files: [{ name: "invoice.pdf", pretty_type: "PDF", size: 10 }] });
+    await sync.tick();
+    expect(open().map((r) => [r.lines, r.subject_or_first_line])).toEqual([[["file: invoice.pdf"], "file: invoice.pdf"]]);
   });
 
   test("a DM read in Slack past the card's last message leaves the Inbox at the next tick", async () => {

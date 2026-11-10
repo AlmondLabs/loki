@@ -1,7 +1,7 @@
-import type { OutsideWindow, OutsideWindowAsk, SlackCardView } from "../core/frame-types.ts";
+import type { OutsideWindow, OutsideWindowAsk, SlackCardView, SlackFile, SlackReaction } from "../core/frame-types.ts";
 import { senderOf, tsIso, type ThreadMessage } from "./handoff.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
-import { readSlackMessage, type SlackNames } from "./slack-markup.ts";
+import { reactionEmoji, readSlackMessage, slackFileParts, type SlackNames, type SlackThumb } from "./slack-markup.ts";
 import { SlackError } from "./slack.ts";
 import { tsAfter, tsKey } from "./slack-sync.ts";
 
@@ -55,9 +55,13 @@ export type CardView = (accountId: string, threadId: string, facts: CardFacts, a
  * 20 more before or after a message when the card asks; and a post's whole thread when the person opens it. Each message carries its sender's photo, whether it is new,
  * whether it brought the card, and its words read as Slack draws them (plan 075). People, channels and the workspace's
  * own emoji are remembered across reads of one account, so opening another card asks Slack only about what it has not
- * seen yet; the emoji are read once per account while loki runs.
+ * seen yet; the emoji are read once per account while loki runs. `preview` gives a shared picture its thumbnail (plan
+ * 080); without it every file is a chip.
  */
-export function slackChannelView(client: (accountId: string) => ViewClient): CardView {
+export function slackChannelView(
+  client: (accountId: string) => ViewClient,
+  preview: (accountId: string, thumb: SlackThumb) => Promise<SlackFile["preview"] | null> = () => Promise.resolve(null),
+): CardView {
   const people = new Map<string, Map<string, Promise<Person>>>();
   const channels = new Map<string, Map<string, Promise<string | null>>>();
   const emoji = new Map<string, Promise<Record<string, string>>>();
@@ -104,6 +108,14 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Car
     // The account is the workspace and the person it calls as (`slack:<team>:<user>`), so a message by that user is theirs.
     const me = accountId.split(":").at(2) ?? "";
     const mine = (m: SlackMessage) => me !== "" && m.user === me;
+    // A picture's thumbnail is fetched beside the rest of the card; one that cannot be had leaves its file a chip.
+    const withPreviews = (m: SlackMessage): Promise<SlackFile[]> =>
+      Promise.all(
+        slackFileParts(m).map(async ({ file, thumb }) => {
+          const shown = thumb ? await preview(accountId, thumb) : null;
+          return shown ? { ...file, preview: shown } : file;
+        }),
+      );
     const draw = async (m: SlackMessage, extra: Partial<ThreadMessage> = {}): Promise<ThreadMessage> => {
       const image = m.user ? (await person(m.user)).image : null;
       const words = await readSlackMessage(m, names);
@@ -115,7 +127,9 @@ export function slackChannelView(client: (accountId: string) => ViewClient): Car
         mine: mine(m),
         body: words.body,
         ...(words.attachments.length ? { attachments: words.attachments } : {}),
+        ...(words.files.length ? { slack_files: await withPreviews(m) } : {}),
         ...(image ? { avatar: image } : {}),
+        ...reactionsOf(m, me, names),
         ...extra,
       };
     };
@@ -313,4 +327,22 @@ async function after(slack: ViewClient, channel: string, ts: string, count: numb
 
 function byTime(messages: readonly SlackMessage[]): SlackMessage[] {
   return [...messages].sort((a, b) => tsKey(a.ts).localeCompare(tsKey(b.ts)));
+}
+
+/**
+ * A message's reactions as the card draws them (plan 079): Slack's `reactions`, each with its count, whether the
+ * person is among those who reacted, and its emoji; nothing when it has none.
+ */
+function reactionsOf(m: SlackMessage, me: string, names: Pick<SlackNames, "emoji">): { reactions?: SlackReaction[] } {
+  const raw = m.raw.reactions;
+  if (!Array.isArray(raw)) return {};
+  const reactions: SlackReaction[] = [];
+  for (const r of raw as unknown[]) {
+    if (typeof r !== "object" || r === null) continue;
+    const { name, count, users } = r as Record<string, unknown>;
+    if (typeof name !== "string" || !name || typeof count !== "number" || count < 1) continue;
+    const mine = me !== "" && Array.isArray(users) && users.includes(me);
+    reactions.push({ name, count, mine, emoji: reactionEmoji(name, names) });
+  }
+  return reactions.length ? { reactions } : {};
 }

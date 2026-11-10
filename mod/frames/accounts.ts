@@ -34,7 +34,7 @@ export interface AccountsDeps {
    * Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068), and what a
    * mail card's recipients line starts from, with the undo of a held mail reply (plan 076).
    */
-  outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend">;
+  outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend" | "react" | "searchEmoji">;
   /** The ledger of the person's moves on outside cards (mod/inbox-ledger.ts, plan 069). */
   ledger?: Pick<InboxLedger, "record">;
   connect?: AccountConnectDeps;
@@ -163,6 +163,23 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
       if (!deps.outside) return fail("replying is not available in this mod");
       try {
         return reply({ account_id: accountId, thread_id: threadId, ...(await deps.outside.compose(accountId, threadId)) });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+    },
+    account_thread_react: async ({ account_id: accountId, thread_id: threadId, message_id: messageId, name, on }) => {
+      if (!deps.outside) return fail("reacting is not available in this mod");
+      try {
+        await deps.outside.react(accountId, threadId, messageId, name, on);
+        return reply({ account_id: accountId, thread_id: threadId, message_id: messageId, name, on });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+    },
+    account_emoji_search: async ({ account_id: accountId, query }) => {
+      if (!deps.outside) return fail("reacting is not available in this mod");
+      try {
+        return reply({ account_id: accountId, emoji: await deps.outside.searchEmoji(accountId, query) });
       } catch (err) {
         return fail(errorMessage(err));
       }

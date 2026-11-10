@@ -71,6 +71,8 @@ function threads(
   /** What each card-view read was given: the record's facts and the ask. */
   const viewed: Array<{ facts: CardFacts; ask: OutsideWindowAsk }> = [];
   const sentMail: GmailDraftInput[] = [];
+  const reacted: Array<{ channel: string; ts: string; name: string; on: boolean }> = [];
+  const emojiReads = { n: 0 };
   const posted: SlackDraftInput[] = [];
   const archived: string[] = [];
   /** Every write-back after a send, in order, as `<move> <account>/<thread>`. */
@@ -140,11 +142,19 @@ function threads(
                 posted.push(r);
                 return Promise.resolve({ ts: "2.0" });
               },
+              react: (r) => {
+                reacted.push(r);
+                return Promise.resolve();
+              },
+              emojiList: () => {
+                emojiReads.n++;
+                return Promise.resolve({ shipit: "https://example.test/shipit.png", ship_it: "alias:shipit" });
+              },
             },
           },
     ...opts.extra,
   });
-  return { t, sentMail, posted, archived, moves, viewed };
+  return { t, sentMail, posted, archived, moves, viewed, reacted, emojiReads };
 }
 
 describe("an email's own words, without the thread quoted under them", () => {
@@ -229,7 +239,10 @@ describe("reading a card's whole thread", () => {
             ? Promise.reject(new SlackError(`Slack asked loki to wait ${String(waitMs / 1000)} s`, "ratelimited", waitMs))
             : Promise.resolve([{ sender: "Grace", at: "", text: "anyone with crm access?", id: "1" }]),
       },
-      clientFor: () => ({ provider: "slack", client: { postReply: () => Promise.resolve({ ts: "1" }) } }),
+      clientFor: () => ({
+        provider: "slack",
+        client: { postReply: () => Promise.resolve({ ts: "1" }), react: () => Promise.resolve(), emojiList: () => Promise.resolve({}) },
+      }),
       sleep: (ms) => {
         waits.push(ms);
         return Promise.resolve();
@@ -344,7 +357,39 @@ describe("the person's reply", () => {
 });
 
 /** The mail parts of the reply frames' fake, for tests about something else. */
-const NO_MAIL = { compose: () => Promise.reject(new Error("not a mail")), unsend: () => false };
+/** What a fake reader that is about neither mail nor reactions answers. */
+describe("the person's reactions on a Slack card (plan 079)", () => {
+  test("a reaction goes to the message in the card's channel, and moves nothing on the card", async () => {
+    const { t, reacted, moves } = threads();
+    await t.react(SLACK, "C1:1.0", "1.5", "eyes", true);
+    await t.react(SLACK, "D1", "2.0", "+1", false);
+    expect(reacted).toEqual([
+      { channel: "C1", ts: "1.5", name: "eyes", on: true },
+      { channel: "D1", ts: "2.0", name: "+1", on: false },
+    ]);
+    expect(moves).toEqual([]);
+  });
+
+  test("a mail takes no reaction", async () => {
+    const { t, reacted } = threads();
+    await expect(t.react(MAIL, "t1", "m1", "eyes", true)).rejects.toThrow("only a Slack message takes a reaction");
+    expect(reacted).toEqual([]);
+  });
+
+  test("the emoji search reaches the workspace's own, read once", async () => {
+    const { t, emojiReads } = threads();
+    expect((await t.searchEmoji(SLACK, "shipit")).map((c) => c.name)).toEqual(["shipit"]);
+    await t.searchEmoji(SLACK, "eyes");
+    expect(emojiReads.n).toBe(1);
+  });
+});
+
+const NO_MAIL = {
+  compose: () => Promise.reject(new Error("not a mail")),
+  unsend: () => false,
+  react: () => Promise.resolve(),
+  searchEmoji: () => Promise.resolve([]),
+};
 
 describe("the reply frames", () => {
   /** The account frames on a bridge, with a fake reader; each frame's last answer. */

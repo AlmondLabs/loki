@@ -299,6 +299,66 @@ describe("what the client reads", () => {
   });
 });
 
+describe("the person's reactions (plan 079)", () => {
+  test("a reaction is added or taken back on its message; one already there, or already gone, is what was asked", async () => {
+    const { c, sent } = client((method) => (method === "reactions.add" ? { body: { ok: false, error: "already_reacted" } } : { body: { ok: true } }));
+    await c.react({ channel: "C0GEN", ts: "1.0", name: "eyes", on: true });
+    await c.react({ channel: "C0GEN", ts: "1.0", name: "eyes", on: false });
+    expect(sent.map((s) => [new URL(s.url).pathname, s.params.channel, s.params.timestamp, s.params.name])).toEqual([
+      ["/api/reactions.add", "C0GEN", "1.0", "eyes"],
+      ["/api/reactions.remove", "C0GEN", "1.0", "eyes"],
+    ]);
+  });
+
+  test("any other refusal is the reaction's failure", async () => {
+    const { c } = client(() => ({ body: { ok: false, error: "message_not_found" } }));
+    await expect(c.react({ channel: "C0GEN", ts: "1.0", name: "eyes", on: true })).rejects.toMatchObject({ code: "message_not_found" });
+  });
+});
+
+describe("a shared picture's thumbnail (plan 080)", () => {
+  const THUMB = "https://files.slack.com/files-tmb/T0ACME-F1-abc/photo_360.png";
+  /** A client whose fetch answers every address with `answer`, recording what was asked and with which headers. */
+  const thumbs = (answer: () => Response, session: SlackSession | null = SESSION) => {
+    const asked: Array<{ url: string; headers: Record<string, string> }> = [];
+    const statuses: AccountStatus[] = [];
+    const c = new SlackClient({
+      session: () => Promise.resolve(session),
+      setStatus: (s) => statuses.push(s),
+      fetch: (input, init) => {
+        asked.push({
+          url: typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+          headers: (init?.headers ?? {}) as Record<string, string>,
+        });
+        return Promise.resolve(answer());
+      },
+    });
+    return { c, asked, statuses };
+  };
+
+  test("a thumbnail on files.slack.com is fetched as the person", async () => {
+    const { c, asked } = thumbs(() => new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } }));
+    expect(await c.fileThumb(THUMB)).toEqual({ data: Buffer.from([1, 2, 3]), type: "image/png" });
+    expect(asked).toEqual([{ url: THUMB, headers: { authorization: `Bearer ${SESSION.token}`, cookie: `d=${encodeURIComponent(SESSION.cookie)}` } }]);
+  });
+
+  test("an address anywhere else is never asked, so the session goes nowhere else", async () => {
+    const { c, asked } = thumbs(() => new Response(""));
+    expect(await c.fileThumb("https://files.slack.com.example.test/x.png")).toBeNull();
+    expect(await c.fileThumb("http://files.slack.com/x.png")).toBeNull();
+    expect(asked).toEqual([]);
+  });
+
+  test("a refusal or a page that is not a picture is no thumbnail, and the account stays connected", async () => {
+    const refused = thumbs(() => new Response("", { status: 403 }));
+    expect(await refused.c.fileThumb(THUMB)).toBeNull();
+    expect(refused.statuses).toEqual([]);
+    const page = thumbs(() => new Response("<html>sign in</html>", { headers: { "content-type": "text/html" } }));
+    expect(await page.c.fileThumb(THUMB)).toBeNull();
+    expect(await thumbs(() => new Response(""), null).c.fileThumb(THUMB)).toBeNull();
+  });
+});
+
 describe("only the person's own reply posts on Slack (plan 068)", () => {
   const SEND = /send|post|update|delete|schedule|share|chat\./i;
   /**

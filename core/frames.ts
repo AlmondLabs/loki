@@ -13,6 +13,7 @@ import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
   AccountLabel,
+  EmojiChoice,
   AccountView,
   HandoffProposal,
   OutsideChange,
@@ -336,6 +337,8 @@ export interface Replies {
   account_compose: { account_id: string; thread_id: string } & MailCompose;
   /** Whether a held mail reply was stopped before it went (plan 076); false when it had already gone or was never held. */
   account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
+  account_thread_reacted: { account_id: string; thread_id: string; message_id: string; name: string; on: boolean };
+  account_emoji: { account_id: string; emoji: EmojiChoice[] };
   /** An account's Gmail labels, for the label picker (plan 070, R12). */
   account_labels: { account_id: string; labels: AccountLabel[] };
   /** An outside card's whole thread (plan 068), read from its account on the Mac the account lives on. */
@@ -1357,6 +1360,30 @@ export const FRAMES = {
         : "account_id and thread_id required",
     PHONE,
     { ...BY_HOME, timeout_ms: 30_000 },
+  ),
+  account_thread_react: request(
+    "account_thread_reacted",
+    "add the person's emoji reaction to a message on a Slack card, or take it back with `on: false` (plan 079); `name` is Slack's name for the emoji; only the person's devices send this, and no agent tool reaches it; sent to the Mac the account lives on by `home`",
+    (m) => {
+      if (!str(m.account_id) || !m.account_id || !str(m.thread_id) || !m.thread_id || !str(m.message_id) || !m.message_id)
+        return "account_id, thread_id and message_id required";
+      // Slack's emoji names are lowercase words with - _ + ' and a skin tone after `::`.
+      if (!str(m.name) || !/^[\w+'-]{1,100}(::skin-tone-[2-6])?$/.test(m.name)) return "name must be an emoji name";
+      if (typeof m.on !== "boolean") return "on must be true or false";
+      return { account_id: m.account_id, thread_id: m.thread_id, message_id: m.message_id, name: m.name, on: m.on, home: strOr(m.home, null) };
+    },
+    PHONE,
+    BY_HOME,
+  ),
+  account_emoji_search: request(
+    "account_emoji",
+    "the emoji a Slack account can react with whose names hold `query` (plan 079), the workspace's own included, best matches first; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.query) && m.query.length <= 100
+        ? { account_id: m.account_id, query: m.query, home: strOr(m.home, null) }
+        : "account_id and query required",
+    PHONE,
+    BY_HOME,
   ),
   account_thread_unsend: request(
     "account_thread_unsent",

@@ -41,6 +41,8 @@ export const SLACK_METHODS = [
   "drafts.create",
   "drafts.delete",
   "chat.postMessage",
+  "reactions.add",
+  "reactions.remove",
 ] as const;
 
 /** One of the methods this client may call. */
@@ -51,6 +53,9 @@ const AUTH_ERRORS = ["invalid_auth", "not_authed", "token_revoked", "token_expir
 /** How long to hold back after a rate limit that names no wait. */
 const DEFAULT_RETRY_MS = 60_000;
 const TIMEOUT_MS = 20_000;
+
+/** The largest thumbnail loki keeps (plan 080); Slack's 360-pixel ones are tens of kilobytes. */
+const PREVIEW_MAX_BYTES = 1_000_000;
 
 /** A Slack call that failed, with Slack's error code (`invalid_auth`, `ratelimited`, `channel_not_found`, `http_500` …). */
 export class SlackError extends Error {
@@ -425,6 +430,38 @@ export class SlackClient {
     const text = input.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const r = await this.call("chat.postMessage", { channel: input.channel, text, ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}) });
     return { ts: typeof r.ts === "string" ? r.ts : "" };
+  }
+
+  /**
+   * Add the person's emoji reaction to a message, or take it back (plan 079). Only the person's react frame calls
+   * this; no agent tool is given it. Reacting twice, or taking back what is not there, is already what was asked.
+   */
+  async react(input: { channel: string; ts: string; name: string; on: boolean }): Promise<void> {
+    try {
+      await this.call(input.on ? "reactions.add" : "reactions.remove", { channel: input.channel, timestamp: input.ts, name: input.name });
+    } catch (err) {
+      if (err instanceof SlackError && (err.code === "already_reacted" || err.code === "no_reaction")) return;
+      throw err;
+    }
+  }
+
+  /**
+   * A file's thumbnail (plan 080), fetched as the person: Slack serves it only to a signed-in session. Only an address
+   * on files.slack.com is asked, so the session never goes anywhere else; anything but a picture under
+   * PREVIEW_MAX_BYTES, or a refusal, is null and never marks the account signed out.
+   */
+  async fileThumb(url: string): Promise<{ data: Buffer; type: string } | null> {
+    if (!url.startsWith("https://files.slack.com/")) return null;
+    const session = this.current ?? (await this.readSession(false));
+    if (!session) return null;
+    const res = await (this.opts.fetch ?? fetch)(url, {
+      headers: { authorization: `Bearer ${session.token}`, cookie: `d=${encodeURIComponent(session.cookie)}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (!res.ok || !type.startsWith("image/")) return null;
+    const data = Buffer.from(await res.arrayBuffer());
+    return data.length <= PREVIEW_MAX_BYTES ? { data, type } : null;
   }
 
   // --- the session and requests ------------------------------------------------------------------------------------

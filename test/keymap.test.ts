@@ -532,3 +532,12 @@ describe("Hide loki and the system-wide key off the Mac (plan 014 U3, KTD4)", ()
     expect(keysSheetNote("linux")).not.toContain("system-wide");
   });
 });
+
+describe("reacting on a Slack card (plan 079)", () => {
+  test("⌘⇧\\ reacts, as in Slack, whether the key arrives as \\ or as the shifted |", () => {
+    const spec = must(KEYMAP.find((b) => b.id === "inbox.react")).keys[0];
+    expect(matches(ev("\\", { meta: true, shift: true }), spec)).toBe(true);
+    expect(matches(ev("|", { meta: true, shift: true }), spec)).toBe(true);
+    expect(matches(ev("|", { meta: true }), spec)).toBe(false);
+  });
+});
