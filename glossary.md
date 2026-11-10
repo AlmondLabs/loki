@@ -169,8 +169,8 @@ account moves them. An account never has no owner, so an agent that owns one can
 disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
-an account rather than a chat: every thread in the Gmail inbox, read or unread, and every unread Slack DM or Activity
-item. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
+an account rather than a chat: every thread in the Gmail inbox, read or unread (the inbox is the list of email
+cards, plan 088), and every unread Slack DM or Activity item. It ranks like a chat with something new and rests like one. Its moves write back out there (`OutsideSource`,
 plan 070): read marks the thread read, later leaves it unread, archive archives the email in Gmail or marks a Slack DM
 read, label adds Gmail labels, and undo puts the thread back as it was. It shows the whole thread, read from its
 account when it comes up, and takes the person's own reply, which the key they press sends before its own move
