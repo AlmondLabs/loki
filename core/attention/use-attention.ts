@@ -50,6 +50,7 @@ import type {
   Suggestion,
 } from "../frame-types.ts";
 import { ChatStore, type ChatStoreHost } from "./chat-store.ts";
+import type { SentReplies } from "./sent-replies.ts";
 import { Listeners } from "../listeners.ts";
 import { inboxCardSource } from "../analytics.ts";
 
@@ -171,6 +172,8 @@ export interface OutsideSource {
   composeOutside?: (item: AttentionItem) => Promise<MailCompose | string>;
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped. */
   unsendOutside?: (item: AttentionItem, outboxId: string) => Promise<boolean>;
+  /** The replies sent alone from cards, which a card's thread shows until it is read again (plan 086). */
+  sentReplies?: SentReplies;
   /** Add or take back the person's reaction on a Slack card's message (plan 079): null when done, else why not. */
   reactOutside?: (item: AttentionItem, messageId: string, name: string, on: boolean) => Promise<string | null>;
   /** The emoji a Slack card's account can react with whose names hold `query` (plan 079), or why they could not be read. */
@@ -924,6 +927,7 @@ export function useAttention(opts: UseAttentionOptions) {
     composeOutside: store.composeOutside,
     unsendOutside: store.unsendOutside,
     reactOutside: store.reactOutside,
+    sentReplies: store.sent,
     searchEmoji: store.searchEmoji,
     searchPeople: store.searchPeople,
     replyOutside,
