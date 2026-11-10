@@ -164,7 +164,8 @@ export function LaneMenu({
       role="menu"
       aria-label="lanes"
       width={240}
-      style={{ padding: 4 }}
+      // It hangs from the title's own small wrapper, so the popover's usual cap (its parent's width) would crush it.
+      style={{ padding: 4, maxWidth: "none" }}
       onKeyDown={(e) => {
         if (e.key === "Tab") return;
         e.stopPropagation();
