@@ -14,6 +14,7 @@ import type { UsageReply } from "../../../core/usage.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
 import { RETURN_TIMES_DEFAULT, type Rest, type ReturnTimes } from "../../../core/attention/rest.ts";
+import type { Lane } from "../../../core/attention/lanes.ts";
 import { moveRestFirst } from "../shared/rest-first";
 import type { TranscriptRow } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
@@ -103,6 +104,7 @@ export function useDesk() {
     focusMap,
     restMap,
     returnTimes,
+    lanes,
     recallVersion,
     usageVersion,
     lanStatus,
@@ -354,6 +356,9 @@ export function useDesk() {
     /** How long ⌘] and ⌘[ rest each kind of card (the mod's, plan 070), the defaults while none are set, and new ones. */
     returnTimes: returnTimes ?? RETURN_TIMES_DEFAULT,
     setReturnTimes: (times: ReturnTimes) => send({ type: "return_times_set", return_times: times }),
+    /** The lanes the person made (the mod's, plan 082), null until the mod says; and a new whole list, from a Mac only. */
+    lanes,
+    setLanes: (next: Lane[]) => send({ type: "lanes_set", lanes: next }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agent_id: agentId, conversation_id: conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */

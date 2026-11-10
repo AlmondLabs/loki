@@ -9,6 +9,7 @@ import type { UsageReply } from "./usage.ts";
 import { isLinkDuration, parseLink, type ChatLink, type LinkDuration, type LokiMode } from "./chat-links.ts";
 import type { ToolStep, TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
+import { parseLanes, type Lane } from "./attention/lanes.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "./attention/rest.ts";
 import { LABEL_COLORS, chatLabels, labelName, type LabelView } from "./labels.ts";
 import type {
@@ -424,7 +425,8 @@ export interface Pushes {
   desks: { desks: DeskSummary[] };
   /**
    * `viewed`, `focus`, `rests` and `return_times` are missing from older mods; `return_times` is null while the person
-   * has set none (plan 070), and the Mac then moves its own old first-rest choice there.
+   * has set none (plan 070), and the Mac then moves its own old first-rest choice there. `lanes` is missing from a mod
+   * from before plan 082, and the client then keeps what it has.
    */
   seen: {
     seen: Record<string, string>;
@@ -432,6 +434,7 @@ export interface Pushes {
     focus?: Record<string, FocusEntry>;
     rests?: Record<string, Rest>;
     return_times?: ReturnTimes | null;
+    lanes?: Lane[];
   };
   /** One chat's marks as they now stand, after a change to that chat alone (plan 055); null where it has none. */
   seen_chat: { key: string; seen: string | null; viewed: string | null; focus: FocusEntry | null; rest: Rest | null };
@@ -686,6 +689,12 @@ export const FRAMES = {
     "how long ⌘] and ⌘[ rest each kind of card (core/attention/rest.ts ReturnTimes, plan 070)",
     (m) => (isReturnTimes(m.return_times) ? { return_times: m.return_times } : "return_times must be { read_first, later } of known choices"),
     { phone: PHONE, causes: ["seen"] },
+  ),
+  // Not for the phone: lanes are made and edited on a Mac (plan 082, R8); the phone only reads them from the push.
+  lanes_set: send(
+    "the person's whole list of lanes, replacing the one kept (core/attention/lanes.ts, plan 082)",
+    (m) => (Array.isArray(m.lanes) ? { lanes: parseLanes(m.lanes) } : "lanes must be a list of lanes"),
+    { causes: ["seen"] },
   ),
 
   // Analytics

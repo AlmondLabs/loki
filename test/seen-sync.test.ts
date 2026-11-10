@@ -1,11 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decayed } from "../core/attention/focus.ts";
 import { LabelColors } from "../daemon/labels.ts";
 import { SeenStore } from "../mod/seen.ts";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
+import type { Lane } from "../core/attention/lanes.ts";
+import { seenFrames } from "../mod/frames/seen.ts";
+import { must } from "./fixtures/must.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -94,6 +97,82 @@ describe("later rests and return times on two Macs (plan 070, U4)", () => {
       // A Mac from before return times sends none, and nothing moves.
       const { return_times: _, ...old } = mini.store.snapshot();
       expect(book.store.applyRemote(MINI, old)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("lanes on two Macs (plan 082, U3)", () => {
+  const work: Lane = { id: "l-work", name: "Work", chats: ["agent-ira"], accounts: ["gmail:me@work.example"] };
+  const home: Lane = { id: "l-home", name: "Home", chats: [], accounts: "all" };
+
+  test("lanes set on one Mac reach the other through its marks", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const mini = marks(dir, "mini");
+      const book = marks(dir, "book");
+      expect(book.store.lanes()).toEqual([]);
+      expect(mini.store.setLanes([work, home])).toBe(true);
+      expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
+      expect(book.store.lanes()).toEqual([work, home]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a lane deleted later stays deleted on both Macs, and an older list arriving again changes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const mini = marks(dir, "mini");
+      const book = marks(dir, "book");
+      book.store.setLanes([work, home]); // t1
+      mini.store.applyRemote(BOOK, book.store.snapshot());
+      const older = book.store.snapshot();
+      mini.clock.at = "2026-10-18T10:05:00.000Z"; // t2 > t1
+      mini.store.setLanes([home]);
+      expect(book.store.applyRemote(MINI, mini.store.snapshot())).toBe(true);
+      expect(mini.store.applyRemote(BOOK, book.store.snapshot())).toBe(false);
+      expect(book.store.lanes()).toEqual([home]);
+      expect(mini.store.lanes()).toEqual([home]);
+      expect(mini.store.applyRemote(BOOK, older)).toBe(false);
+      expect(mini.store.lanes()).toEqual([home]);
+      // A Mac from before lanes sends none, and nothing moves.
+      const { lanes: _, ...old } = mini.store.snapshot();
+      expect(book.store.applyRemote(MINI, old)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the same lanes again report no change and push nothing; new ones push the whole marks", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const { store } = marks(dir, "mini");
+      const pushed: unknown[] = [];
+      const ctx = { broadcast: (f: unknown) => pushed.push(f) } as never;
+      const set = must(seenFrames({ seen: store }).lanes_set, "the lanes_set handler");
+      await set({ lanes: [work] }, ctx);
+      expect(pushed).toEqual([expect.objectContaining({ type: "seen", lanes: [work] })]);
+      expect(store.setLanes([work])).toBe(false);
+      await set({ lanes: [work] }, ctx);
+      expect(pushed).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a marks file from before lanes loads with none, and lanes set are written and read back", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-sync-"));
+    try {
+      const path = join(dir, "attention.json");
+      writeFileSync(path, JSON.stringify({ seen: { "agent-ira/c1": "2026-10-18T09:00:00.000Z" } }));
+      const old = new SeenStore(path, { debounceMs: 0 });
+      expect(old.lanes()).toEqual([]);
+      expect(old.snapshot().lanes).toBeNull();
+      old.setLanes([home]);
+      old.flush();
+      expect(new SeenStore(path, { debounceMs: 0 }).lanes()).toEqual([home]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

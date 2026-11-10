@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { addFocus, combineFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
+import { parseLanes, type Lane } from "../core/attention/lanes.ts";
 import { isRest, isReturnTimes, type Rest, type ReturnTimes } from "../core/attention/rest.ts";
 import type { Pushes } from "../core/frames.ts";
 import { coalesce, type Burst } from "../core/timers.ts";
@@ -15,13 +16,15 @@ import { writeJsonAtomic } from "./json-file.ts";
  *            inbox ranks by its share; your messages, answers, decisions and reads add to it
  *  - rests:  how long Next has rested each chat's Inbox card, and on which rung (core/attention/rest.ts)
  *  - return times: how long ⌘] and ⌘[ rest each kind of card, the person's setting (plan 070, KTD8)
+ *  - lanes: the lanes the person made (core/attention/lanes.ts, plan 082, KTD1), one whole list
  * The browser decides what these mean; the mod only remembers them.
  *
  * Shared with paired Macs (plan 023, U8, KTD9): a mark is a time, so the later one wins wherever it was made, and
  * "not done" is a time too (`unseen`), so a later "not done" beats an earlier "done". Focus is engagement, which adds
  * up rather than overwrites: each Mac keeps its own entries, this Mac holds the others' last known (`remoteFocus`), and
  * the Inbox reads their sum. A rest is set at a time too, so the later one wins wherever Next was pressed, and so are
- * the return times, as one setting.
+ * the return times, as one setting. The lanes are one list set at a time in the same way, so deleting a lane is a later
+ * list without it, and an offline Mac's older list cannot bring it back.
  */
 
 /** What one Mac sends another of its marks: its done, not-done and viewed times, its own focus, and its rests. */
@@ -34,6 +37,8 @@ export interface MarksSnapshot {
   rests?: Record<string, Rest>;
   /** The person's return times and when they were set; missing from a Mac from before plan 070, null where none are set. */
   return_times?: ReturnTimesMark | null;
+  /** The person's lanes and when they were set; missing from a Mac from before plan 082, null where none were ever set. */
+  lanes?: LanesMark | null;
 }
 
 /** The return times as one setting, with when it was set: between Macs the later one wins. */
@@ -44,6 +49,19 @@ export interface ReturnTimesMark {
 
 const isReturnTimesMark = (v: unknown): v is ReturnTimesMark =>
   !!v && typeof v === "object" && isReturnTimes((v as Partial<ReturnTimesMark>).times) && typeof (v as Partial<ReturnTimesMark>).at === "string";
+
+/** The lanes as one list, with when it was set: between Macs the later one wins, so a delete is a newer list. */
+export interface LanesMark {
+  lanes: Lane[];
+  at: string;
+}
+
+/** A lanes mark from a file or a paired Mac, its malformed lanes dropped; null when it is not one. */
+function parseLanesMark(v: unknown): LanesMark | null {
+  if (!v || typeof v !== "object") return null;
+  const { lanes, at } = v as Partial<Record<keyof LanesMark, unknown>>;
+  return Array.isArray(lanes) && typeof at === "string" ? { lanes: parseLanes(lanes), at } : null;
+}
 
 /**
  * Rests set longer ago than this are dropped when the next is set, unless they have not ended yet: a month on the rung
@@ -69,6 +87,8 @@ export class SeenStore {
   private rests: Record<string, Rest> = {};
   /** The person's return times for each kind of card (plan 070), null until they set any. */
   private returns: ReturnTimesMark | null = null;
+  /** The person's lanes (plan 082), null until any are set on some Mac. */
+  private laneMark: LanesMark | null = null;
   private readonly path: string;
   private readonly now: () => string;
   /** One write per burst of marks. */
@@ -91,6 +111,7 @@ export class SeenStore {
         if (parsed.rests && typeof parsed.rests === "object")
           this.rests = Object.fromEntries(Object.entries(parsed.rests as Record<string, unknown>).filter((e): e is [string, Rest] => isRest(e[1])));
         if (isReturnTimesMark(parsed.return_times)) this.returns = parsed.return_times;
+        this.laneMark = parseLanesMark(parsed.lanes);
       } else {
         this.seen = parsed as Record<string, string>; // v1 file: a flat map of markers
       }
@@ -160,7 +181,20 @@ export class SeenStore {
     return true;
   }
 
-  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, the rests and the return times. */
+  /** The person's lanes, from any Mac; none while none were set. */
+  lanes(): Lane[] {
+    return this.laneMark?.lanes ?? [];
+  }
+
+  /** A new list of lanes, from a Mac: false when it is the list kept already, so nothing is broadcast. */
+  setLanes(lanes: Lane[]): boolean {
+    if (this.laneMark && JSON.stringify(this.laneMark.lanes) === JSON.stringify(lanes)) return false;
+    this.laneMark = { lanes, at: this.now() };
+    this.persist();
+    return true;
+  }
+
+  /** This Mac's marks for a paired Mac: done and not-done times, looks, its own focus, the rests, the return times and the lanes. */
   snapshot(): MarksSnapshot {
     return {
       seen: { ...this.seen },
@@ -169,6 +203,7 @@ export class SeenStore {
       focus: { ...this.focus },
       rests: { ...this.rests },
       return_times: this.returns,
+      lanes: this.laneMark,
     };
   }
 
@@ -193,6 +228,11 @@ export class SeenStore {
     const theirs = snap.return_times;
     if (isReturnTimesMark(theirs) && !(this.returns && this.returns.at >= theirs.at)) {
       this.returns = theirs;
+      moved = true;
+    }
+    const lanes = parseLanesMark(snap.lanes);
+    if (lanes && !(this.laneMark && this.laneMark.at >= lanes.at)) {
+      this.laneMark = lanes;
       moved = true;
     }
     if (JSON.stringify(this.remoteFocus[macId] ?? {}) !== JSON.stringify(snap.focus)) {
@@ -272,6 +312,7 @@ export class SeenStore {
           ...(Object.keys(this.remoteFocus).length ? { remote_focus: this.remoteFocus } : {}),
           ...(Object.keys(this.rests).length ? { rests: this.rests } : {}),
           ...(this.returns ? { return_times: this.returns } : {}),
+          ...(this.laneMark ? { lanes: this.laneMark } : {}),
         },
         { pretty: true },
       );

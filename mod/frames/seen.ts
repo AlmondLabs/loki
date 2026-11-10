@@ -7,7 +7,7 @@ export interface SeenDeps {
   seen?: SeenStore;
 }
 
-/** The done and viewed marks, the focus weights, the rests and the return times, as one push: the one place it is built (the turn-start mark too). */
+/** The done and viewed marks, the focus weights, the rests, the return times and the lanes, as one push: the one place it is built (the turn-start mark too). */
 export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   const { seen } = deps;
   return {
@@ -17,6 +17,7 @@ export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
     focus: seen?.focusAll() ?? {},
     rests: seen?.restsAll() ?? {},
     return_times: seen?.returnTimes() ?? null,
+    lanes: seen?.lanes() ?? [],
   };
 }
 
@@ -58,6 +59,10 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
     // A setting, changed now and then: the whole push carries it, and it reaches paired Macs as every seen push does.
     return_times_set: ({ return_times: times }, ctx) => {
       if (seen?.setReturnTimes(times)) ctx.broadcast(seenFrame(deps));
+    },
+    // Lanes are made on a Mac (the phone cannot send this); the whole push carries them to every client and paired Mac.
+    lanes_set: ({ lanes }, ctx) => {
+      if (seen?.setLanes(lanes)) ctx.broadcast(seenFrame(deps));
     },
   };
 }

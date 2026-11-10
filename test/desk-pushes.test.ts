@@ -63,6 +63,16 @@ describe("what the mod's pushes leave in a tab (plan 058)", () => {
     expect(cleared.focusMap).toBe(s.focusMap);
   });
 
+  test("lanes are null until a push carries them; a push without them keeps them (plan 082, U3)", () => {
+    const seen = { type: "seen", seen: {}, viewed: {}, focus: {}, rests: {} } as const;
+    expect(fold([seen]).lanes).toBeNull();
+    const lanes = [{ id: "l-work", name: "Work", chats: "all" as const, accounts: [] }];
+    const s = fold([{ ...seen, lanes }]);
+    expect(s.lanes).toEqual(lanes);
+    expect(applyPush(s, seen, ctx)).toBe(s);
+    expect(applyPush(s, { ...seen, lanes: [] }, ctx).lanes).toEqual([]);
+  });
+
   test("the agent's camera waits for the person: a move just after they touched the canvas is dropped", () => {
     const camera = { type: "camera", widget_id: "w1" } as const;
     expect(applyPush(EMPTY_DESK_SOCKET, camera, { now: NOW, lastInteraction: NOW - 100 })).toBe(EMPTY_DESK_SOCKET);
