@@ -52,7 +52,15 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
   const messages = new Map<string, Stored>();
   const history: HistoryEntry[] = [];
   const requests: Array<{ method: string; url: URL }> = [];
-  const state = { historyId: 100, oldestHistoryId: 0, seq: 0, failing: false, unreadable: new Set<string>(), refuseModify: null as string | null };
+  const state = {
+    historyId: 100,
+    oldestHistoryId: 0,
+    seq: 0,
+    failing: false,
+    unreadable: new Set<string>(),
+    refuseModify: null as string | null,
+    inboxListings: 0,
+  };
 
   const json = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
   const view = (m: Stored) => ({ id: m.id, threadId: m.threadId, labelIds: [...m.labels] });
@@ -126,6 +134,18 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       const next = from + PAGE < found.length ? String(from + PAGE) : undefined;
       return json(200, { messages: found.slice(from, from + PAGE).map((m) => ({ id: m.id, threadId: m.threadId })), ...(next ? { nextPageToken: next } : {}) });
     }
+    if (path === "/threads" && q.get("labelIds") === "INBOX") {
+      // The inbox's threads, newest first by their newest message, as Gmail lists them (plan 088).
+      const newest = new Map<string, number>();
+      for (const m of messages.values()) newest.set(m.threadId, Math.max(newest.get(m.threadId) ?? 0, m.at));
+      const inbox = [...new Set([...messages.values()].filter((m) => m.labels.has("INBOX")).map((m) => m.threadId))].sort(
+        (a, b) => (newest.get(b) ?? 0) - (newest.get(a) ?? 0) || b.localeCompare(a),
+      );
+      state.inboxListings++;
+      const from = Number(q.get("pageToken") ?? "0");
+      const next = from + PAGE < inbox.length ? String(from + PAGE) : undefined;
+      return json(200, { threads: inbox.slice(from, from + PAGE).map((id) => ({ id })), ...(next ? { nextPageToken: next } : {}) });
+    }
     const thread = /^\/threads\/([^/]+)$/.exec(path);
     if (thread && method === "GET") {
       const id = decodeURIComponent(thread[1]);
@@ -192,6 +212,10 @@ export function fakeMailbox(opts: { email?: string; sendAs?: string[] } = {}) {
       state.oldestHistoryId = ++state.historyId;
       history.length = 0;
     },
+    /** The mailbox's newest history id, as its profile says it. */
+    historyId: () => String(state.historyId),
+    /** How many inbox listings loki asked for (plan 088), so a test can tell a tick that listed from one that did not. */
+    inboxListings: () => state.inboxListings,
     /** One message's labels, sorted. */
     labelsOfMessage: (id: string) => [...(messages.get(id)?.labels ?? [])].sort(),
     labelsOf: (thread: string) => [...new Set([...messages.values()].filter((m) => m.threadId === thread).flatMap((m) => [...m.labels]))].sort(),

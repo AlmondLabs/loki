@@ -335,4 +335,19 @@ describe("label changes in a mailbox that keeps its history", () => {
     ]);
     expect((await client.labels()).filter((l) => l.type === "user").map((l) => l.name)).toEqual(["Receipts", "Travel"]);
   });
+
+  test("the inbox lists its threads by label, newest first, and leaves out a thread with no mail in it (plan 088)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-gmail-box-"));
+    dirs.push(dir);
+    const clock = () => new Date("2026-11-04T09:00:00Z");
+    const accounts = new Accounts({ file: join(dir, "accounts.json"), secrets: memorySecrets(), now: clock });
+    const secret = JSON.stringify({ access_token: "access-1", refresh_token: "refresh-1", expires_at: "2099-01-01T00:00:00.000Z" });
+    await accounts.add({ account_id: ACCOUNT, provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-work" }, secret);
+    const box = fakeMailbox();
+    const client = new GmailClient({ accounts, account_id: ACCOUNT, fetch: box.fetch, now: clock });
+    box.deliver({ thread: "t-old", at: new Date("2026-11-02T08:00:00Z"), from: "bob@acme.com" });
+    box.deliver({ thread: "t-archived", at: new Date("2026-11-03T08:00:00Z"), from: "bob@acme.com", labels: [] });
+    box.deliver({ thread: "t-new", at: new Date("2026-11-04T08:00:00Z"), from: "bob@acme.com", labels: ["INBOX"] });
+    expect(await client.listInbox()).toEqual({ threads: ["t-new", "t-old"] });
+  });
 });

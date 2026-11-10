@@ -979,12 +979,12 @@ by 240, with its name under it: the Mac that holds the account fetches Slack's s
 chats' pictures. A file deleted since says so, and a
 message of only a file names the file on its card. A hand-off still sends the thread alone, now with each link's
 address and what apps attached. In a mail thread, each mail before the newest starts folded to its
-sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **The past fills each account up to 20 cards**: connecting brings what came in the last 3 days,
-and while a Gmail account or Slack workspace has fewer than 20 open cards waiting on you (read or unread, but not resting after read or later), older mail and
-Slack fill it up to 20, newest first, a week back, then two, then a month, then a month more each time, until nothing
-older is left. Closing cards makes room for more, so the whole backlog comes in time, however old. Mail counts every
-thread still in the inbox, read or not; Slack counts DMs and what its Activity lists. Anything new comes at once,
-even past 20.
+sender, time and first line, as a mail client shows it; press one to open it. While the thread is read, or if it cannot be, the card shows its last few lines. **Your Gmail inbox is the list of email cards**: every thread in it, read or unread, in every tab, is a card until
+you archive it, here or in Gmail. Connecting brings the newest of them, and while the account has fewer than 20 open
+cards waiting on you (not resting after read or later), the rest of the inbox fills it up to 20, newest first;
+closing cards makes room for more, so the whole inbox comes in time. A Slack workspace fills the same way from its
+DMs and what its Activity lists, a week back, then two, then a month, then a month more each time. Anything new comes
+at once, even past 20.
 
 **Ranking, read, later and archive.** An outside card ranks like a chat with something new, and gains focus as you
 work with that thread, or for mail that sender; an agent waiting on you still comes first. An email card already read

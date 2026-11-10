@@ -87,6 +87,12 @@ export interface GmailMessagePage {
   nextPageToken?: string;
 }
 
+/** One page of the inbox's threads (plan 088): their ids, newest first, and where the next page starts. */
+export interface GmailThreadPage {
+  threads: string[];
+  nextPageToken?: string;
+}
+
 /** The mailbox: its address and its newest history id. */
 export interface GmailProfile {
   emailAddress: string;
@@ -374,6 +380,21 @@ export class GmailClient {
     const next = str(r.nextPageToken);
     return {
       messages: list(r.messages).map((m) => ({ id: str(rec(m).id), threadId: str(rec(m).threadId) })),
+      ...(next ? { nextPageToken: next } : {}),
+    };
+  }
+
+  /**
+   * One page of the threads in the inbox, newest first (plan 088), by the INBOX label rather than a search, since a
+   * search can lag behind the mailbox and the label cannot.
+   */
+  async listInbox(pageToken?: string): Promise<GmailThreadPage> {
+    const r = rec(await this.call("GET", "/threads", { labelIds: "INBOX", maxResults: "500", ...(pageToken ? { pageToken } : {}) }));
+    const next = str(r.nextPageToken);
+    return {
+      threads: list(r.threads)
+        .map((t) => str(rec(t).id))
+        .filter(Boolean),
       ...(next ? { nextPageToken: next } : {}),
     };
   }
