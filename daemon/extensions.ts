@@ -24,12 +24,15 @@ export interface BuiltinDeps {
   background: BackgroundTasks;
   schedules: Schedules;
   history: ChatHistory;
+  /** The script tool and its confinement (daemon/scripts.ts), installed last; absent, chats have no scripts. */
+  scripts?: readonly Extension[];
 }
 
 /**
  * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
  * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools, memory, skills,
- * helpers (subagents), web search, background tasks, schedules, the chat's own history and the quick-replies prompt. The mods install after these;
+ * helpers (subagents), web search, background tasks, schedules, the chat's own history, the quick-replies prompt and
+ * scripts. The mods install after these;
  * loki.mcp installs before them, from McpTools' constructor, and has no hooks.
  */
 export function builtinExtensions(deps: BuiltinDeps): Extension[] {
@@ -40,12 +43,13 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     fileToolsExtension(),
     memoryExtension(deps.backendDir),
     skillsExtension(deps.backendDir),
-    subagentExtension(),
+    subagentExtension(deps.scripts),
     webSearchExtension(),
     backgroundExtension(deps.background),
     scheduleExtension(deps.schedules),
     historyExtension(deps.history),
     repliesExtension(),
+    ...(deps.scripts ?? []),
   ];
 }
 

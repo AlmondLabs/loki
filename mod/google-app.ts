@@ -3,6 +3,8 @@
  * sign-in rather than building a Google Cloud project; a person may use an app of their own instead (Preferences ›
  * Inbox), whose id and secret are kept in the keychain with the account they signed in.
  */
+import type { GoogleService } from "../core/frame-types.ts";
+import { GOOGLE_SERVICES } from "./accounts.ts";
 
 /** A Google OAuth client: what a sign-in and every token refresh present to Google. */
 export interface GoogleApp {
@@ -45,6 +47,23 @@ export interface GmailSecret {
   /** ISO time the access token expires. */
   expires_at: string;
   own_app?: GoogleApp;
+  /** The scopes Google granted, space-separated as its token answer gives them; absent before loki kept them. */
+  scopes?: string;
+}
+
+/** The scope loki asks Google for, for each service (plan 2026-11-11 scripts, R16). */
+export const SERVICE_SCOPES: Readonly<Record<GoogleService, string>> = {
+  gmail: "https://www.googleapis.com/auth/gmail.modify",
+  drive: "https://www.googleapis.com/auth/drive",
+  sheets: "https://www.googleapis.com/auth/spreadsheets",
+  docs: "https://www.googleapis.com/auth/documents",
+  calendar: "https://www.googleapis.com/auth/calendar",
+};
+
+/** The services a grant's scopes cover, in the app's order. */
+export function grantedServices(scopes: string): GoogleService[] {
+  const granted = new Set(scopes.split(/\s+/));
+  return GOOGLE_SERVICES.filter((s) => granted.has(SERVICE_SCOPES[s]));
 }
 
 /** A Gmail account's secret as the keychain gives it back, or null when it is not one. */
@@ -64,5 +83,11 @@ export function parseGmailSecret(raw: string | null): GmailSecret | null {
     own && typeof own.client_id === "string" && typeof own.client_secret === "string"
       ? { client_id: own.client_id, client_secret: own.client_secret }
       : undefined;
-  return { access_token: r.access_token, refresh_token: r.refresh_token, expires_at: r.expires_at, ...(ownApp ? { own_app: ownApp } : {}) };
+  return {
+    access_token: r.access_token,
+    refresh_token: r.refresh_token,
+    expires_at: r.expires_at,
+    ...(ownApp ? { own_app: ownApp } : {}),
+    ...(typeof r.scopes === "string" ? { scopes: r.scopes } : {}),
+  };
 }

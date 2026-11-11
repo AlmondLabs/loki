@@ -878,6 +878,8 @@ export type AccountProvider = "gmail" | "slack" | "jira";
  * sign-in, a workspace admin blocks the app, the Slack desktop app signed out, or the service keeps failing for now.
  */
 export type AccountDisconnectCause = "sign_in_again" | "admin_blocks" | "slack_signed_out" | "temporarily_failing";
+/** The Google services a Google account can let loki use (plan 2026-11-11 scripts, R16), as the app names them. */
+export type GoogleService = "gmail" | "drive" | "sheets" | "docs" | "calendar";
 /** Whether an account is watched: connected, or disconnected with its cause. */
 export type AccountStatus = "connected" | { disconnected: AccountDisconnectCause };
 
@@ -896,6 +898,11 @@ export interface AccountView {
   owner_agent_id: string;
   status: AccountStatus;
   connected_at: string;
+  /**
+   * The Google services a Gmail account's sign-in granted (plan 2026-11-11 scripts, R17). Absent on an account signed
+   * in before loki asked for more than Gmail, which reads as Gmail only; absent on Slack and Jira accounts.
+   */
+  services?: GoogleService[];
 }
 
 /** A workspace signed in to the Slack desktop app on this Mac, as the person picks one to connect (plan 067, R21). */

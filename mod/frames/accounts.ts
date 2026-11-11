@@ -97,11 +97,19 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
     // Only the list carries the other Macs' accounts: a paired Mac asking wants what this Mac holds.
     account_list: () => reply({ accounts: need().list().map(accountView), other_macs: deps.otherMacs?.() ?? [] }),
     peer_accounts_get: listed,
-    account_connect_gmail: ({ owner_agent_id: ownerAgentId, own_app: ownApp }) => {
+    account_connect_gmail: ({ owner_agent_id: ownerAgentId, own_app: ownApp, account_id: accountId }) => {
       if (!deps.connect) return fail("connecting Gmail is not available in this mod");
       if (!deps.connect.agentExists(ownerAgentId)) return fail(NO_OWNER);
+      // Signing an account in again is for one connected on this Mac; the sign-in checks it comes back as that one.
+      if (accountId && need().get(accountId)?.provider !== "gmail") return fail("that Google account is not connected on this Mac");
       try {
-        return reply({ url: deps.connect.googleSignIn.start({ owner_agent_id: ownerAgentId, ...(ownApp ? { own_app: ownApp } : {}) }) });
+        return reply({
+          url: deps.connect.googleSignIn.start({
+            owner_agent_id: ownerAgentId,
+            ...(ownApp ? { own_app: ownApp } : {}),
+            ...(accountId ? { account_id: accountId } : {}),
+          }),
+        });
       } catch (err) {
         return fail(errorMessage(err));
       }

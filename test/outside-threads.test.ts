@@ -865,16 +865,20 @@ describe("the reply frames", () => {
   });
 });
 
-describe("agents never send", () => {
+describe("only the person's reply and a script's Gmail tool send (plan 2026-11-11 scripts, KTD15)", () => {
   test("the person's Jira comment is posted from the reply module alone (plan 2026-11-10-1451, U7)", () => {
     expect(readFileSync(join(import.meta.dirname, "..", "mod", "outside-threads.ts"), "utf8")).toMatch(/\.postComment\(/);
   });
-  test("the send calls are called from the person's reply module and nowhere else in the mod", () => {
+  test("the send calls are called from the person's reply module and the scripts' Gmail tool, nowhere else in the mod", () => {
     const dir = join(import.meta.dirname, "..", "mod");
     const callers = readdirSync(dir, { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /\.(sendReply|postReply|postComment)\(/.test(readFileSync(join(dir, f), "utf8")));
-    expect(callers).toEqual(["outside-threads.ts"]);
+      .filter((f) => /\.(sendReply|postReply|postComment)\(/.test(readFileSync(join(dir, f), "utf8")))
+      .map((f) => f.split("\\").join("/"))
+      .sort();
+    expect(callers).toEqual(["google-tools/gmail.ts", "outside-threads.ts"]);
+    // The scripts' tool sends Gmail only: Slack and Jira still post nothing an agent wrote.
+    expect(readFileSync(join(dir, "google-tools", "gmail.ts"), "utf8")).not.toMatch(/\.(postReply|postComment)\(/);
   });
 });
 

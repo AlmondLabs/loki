@@ -74,9 +74,14 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         service: "Gmail",
         owner_agent_id: "agent-work",
         owner: "Work",
-        state: "connected",
+        // Signed in before loki asked for more than Gmail: the row offers the sign-in for the rest (plan 2026-11-11, R17).
+        state: "connected; scripts cannot use drive, sheets, docs and calendar until it signs in again",
         problem: false,
         reconnect: null,
+        more: {
+          reconnect: { provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null },
+          services: "drive, sheets, docs and calendar",
+        },
       },
       {
         account_id: "slack:T01:U02",
@@ -87,8 +92,21 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         state: "connected",
         problem: false,
         reconnect: null,
+        more: null,
       },
     ]);
+  });
+
+  test("a Google account that granted every service is just connected; one that left some unticked names them", () => {
+    const [all, some] = accountRows(
+      [
+        { ...MAIL, services: ["gmail", "drive", "sheets", "docs", "calendar"] },
+        { ...MAIL, account_id: "gmail:bo@acme.com", services: ["gmail", "sheets"] },
+      ],
+      AGENTS,
+    );
+    expect([all.state, all.more]).toEqual(["connected", null]);
+    expect(some.more?.services).toBe("drive, docs and calendar");
   });
 
   test("AE8: a workspace whose Slack app signed out shows that state and a reconnect with its team", () => {
@@ -106,7 +124,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
       ],
       AGENTS,
     );
-    expect(stale.reconnect).toEqual({ provider: "gmail", owner_agent_id: "agent-work", team_id: null });
+    expect(stale.reconnect).toEqual({ provider: "gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com", team_id: null });
     expect(failing.problem).toBe(true);
     expect(failing.reconnect).toBeNull();
   });
@@ -137,8 +155,8 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
     expect(await calls.disconnect(MAIL.account_id)).toBe("no account_disconnect here");
     expect(sent).toEqual([
       { type: "account_list", payload: {} },
-      { type: "account_connect_gmail", payload: { owner_agent_id: "agent-work", own_app: null } },
-      { type: "account_connect_gmail", payload: { owner_agent_id: "agent-work", own_app: { client_id: "id", client_secret: "secret" } } },
+      { type: "account_connect_gmail", payload: { owner_agent_id: "agent-work", own_app: null, account_id: null } },
+      { type: "account_connect_gmail", payload: { owner_agent_id: "agent-work", own_app: { client_id: "id", client_secret: "secret" }, account_id: null } },
       { type: "account_connect_slack", payload: { owner_agent_id: "agent-work", team_id: null } },
       { type: "account_connect_slack", payload: { owner_agent_id: "agent-work", team_id: "T01" } },
       { type: "account_disconnect", payload: { account_id: "gmail:ada@acme.com" } },
@@ -160,7 +178,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
   test("a row's reconnect goes the way of its own service: Jira opens its form with the site filled in and never starts Slack's", () => {
     const went: unknown[] = [];
     const ways = {
-      gmail: (owner: string) => went.push(["gmail", owner]),
+      gmail: (owner: string, account: string) => went.push(["gmail", owner, account]),
       slack: (owner: string, team?: string) => went.push(["slack", owner, team]),
       jira: (form: unknown) => went.push(["jira", form]),
     };
@@ -180,7 +198,7 @@ describe("Preferences › Accounts (plan 067, U11)", () => {
         { reconnecting: { account_id: "jira:acme.atlassian.net:acc-me", owner_agent_id: "agent-home" }, site: "acme.atlassian.net", email: "", token: "" },
       ],
       ["slack", "agent-work", "T01"],
-      ["gmail", "agent-work"],
+      ["gmail", "agent-work", "gmail:ada@acme.com"],
     ]);
   });
 

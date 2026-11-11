@@ -23,6 +23,14 @@ describe("the release bundle's build", () => {
     );
   });
 
+  test("the script sandbox's worker and QuickJS wasm ship beside the daemon, where daemon/scripts.ts and the package look", () => {
+    expect(src).toContain("outfile: `${out}/daemon/codemode-worker.mjs`");
+    expect(src).toContain("pi-codemode/dist/runtime/worker.js");
+    expect(src).toMatch(/\["package\.json", "quickjs\.wasm"\]/);
+    expect(src).toContain("`${out}/daemon/node_modules/quickjs-wasi/${file}`");
+    expect(readFileSync(new URL("../daemon/scripts.ts", import.meta.url), "utf8")).toContain('new URL("./codemode-worker.mjs", import.meta.url)');
+  });
+
   test("the mod takes ws from one module, the package esbuild inlines", () => {
     const ws = readFileSync(new URL("../mod/ws.ts", import.meta.url), "utf8");
     expect(ws).toContain('export { WebSocket, WebSocketServer } from "ws";');

@@ -225,8 +225,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
         (its QR and code) and the paired phones. Mac only for now.
   4. **Flow and Learn**
      1. **Flow**: **Accounts**, each Gmail mailbox, Slack workspace and Jira site connected on this Mac with its
-        service, owner and state, **move to** and **disconnect** on each, and **reconnect gmail**, **reconnect slack**
-        or **reconnect jira** when it needs it; **Connect an account**, where you choose the owner, then **connect
+        service, owner and state, **move to** and **disconnect** on each, **reconnect gmail**, **reconnect slack**
+        or **reconnect jira** when it needs it, and **sign in again for …** on a Google account that has not allowed
+        every service scripts use; **Connect an account**, where you choose the owner, then **connect
         gmail**, **connect slack** or **connect jira** (a form for the site, your email and an API token), with **Use
         your own Google app** folded below it (see "Email, Slack and Jira"); what read, later, archive, label and a
         reply do, a Jira card included (read ends it; archive and label do not apply); **Read rests a card for**, for
@@ -920,8 +921,12 @@ first ("Google hasn't verified this app"; choose Advanced, then go on to loki), 
 100 people over its whole life. A Google Workspace admin may also block unverified apps or the Gmail API for their
 people. In either case, fold open **Use your own Google app**, fill in the client id and secret of an OAuth client of
 your own in Google Cloud (a desktop app), and **connect gmail** signs in with it instead; its id and secret are kept
-in the keychain with the account. loki asks Google to read mail, change its labels, write drafts and send; it sends
-only a reply you write yourself on a card.
+in the keychain with the account. One sign-in asks Google for five services: Gmail, Drive, Sheets, Docs and Calendar,
+for the owner's scripts (see Scripts). Google's page may let you untick some; loki keeps what you allowed, and the
+row says which services scripts cannot use yet, with **sign in again for …** to add them. A mailbox connected before
+loki asked for more than Gmail shows that line too. Signing in again keeps the account's owner and its cards, must be
+the same Google account, and leaves the old sign-in working if you cancel or untick Gmail. Full Drive access is a
+scope Google treats as sensitive, so its warning screen says more than it did for Gmail alone.
 
 **Connecting Slack.** **connect slack** reads the workspaces signed in to the Slack desktop app on this Mac and lists
 them; **connect** on one connects it, and each workspace is its own account. There is no Slack app to create and no
@@ -1172,18 +1177,19 @@ then stands. A hand-off cannot be undone. When someone writes in that thread aga
 that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
 while the account is disconnected.
 
-**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts, all reads:
+**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts that read:
 `account_list` (its accounts and the threads waiting in each, with no message text; a Jira site's open tickets with
 their key and title), `account_read` (a whole thread, or a Jira ticket by its key or id, oldest first) and
 `account_search` (a mailbox, in Gmail's search syntax; Slack and Jira cannot be searched yet). No other agent has them,
 and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
-even if you ask it to.
+even if you ask it to. For a Google account the owner's scripts can do more, sending included (see Scripts).
 
 **Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
 one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
 The reply always asks you first, in every permission
 mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
-draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. No agent sends.
+draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card
+never sends; an owner's script may send mail and calendar invites from a Google account (see Scripts).
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
 On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
 card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
@@ -1200,8 +1206,32 @@ proposal back, an approved comment you have not sent included.
    open cards stay and can still be read.
 5. "… keeps failing for now": loki tries again on its own; nothing to do.
 
-**What reaches your model provider.** Only what you hand off and what the owner reads with its tools. Showing a card,
-ranking it and archiving it send nothing to any model.
+**What reaches your model provider.** Only what you hand off, what the owner reads with its tools, and what its
+scripts read and return. Showing a card, ranking it and archiving it send nothing to any model.
+
+## Scripts
+
+An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
+tools only scripts may call: today, the Google tools for the Google accounts it owns on this Mac. A script runs in a
+sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
+file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`), never `bash`. So one script can page through every Drive
+file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
+browser. Claude Code and other ACP agents do not get scripts.
+
+1. **Asking first.** A script asks as a command does, in the chat's permission mode, and its card shows the script.
+   What it does inside does not ask again, except in strict mode, which asks for each call. "always allow" is never
+   offered for a script: each one is new code.
+2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
+   limit it reached. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
+3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
+   move, copy, trash and delete Drive files; read and write Sheets; read Docs and edit them; list, create, change and
+   delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
+   use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
+   Mac, connected, and allowed that service.
+4. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
+   does counts as your own pick. A reply a script sends does not mark its card as waiting.
+5. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
+   a change that was under way fails in the script with that reason, for it to check and retry.
 
 ## Scheduled tasks
 

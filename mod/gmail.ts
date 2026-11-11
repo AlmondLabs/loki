@@ -1,24 +1,18 @@
 import { headerMailboxes } from "../core/mail-header.ts";
 import type { Accounts } from "./accounts.ts";
-import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
+import type { GoogleApp } from "./google-app.ts";
+import { GoogleAuth, GoogleError } from "./google-auth.ts";
 
 /**
  * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
- * create a draft, and send the person's own reply (plan 068). Agents never send (R18): no agent tool is given
- * `sendReply`, which only the reply frame the person's own devices send reaches (mod/outside-threads.ts). Tokens come from the account's keychain secret and are
- * refreshed there; a refresh Google refuses marks the account disconnected, so the Inbox can say how to reconnect (R22).
+ * create a draft, and send. `sendReply` is reached by the reply frame the person's own devices send
+ * (mod/outside-threads.ts) and by the scripts' Gmail tool (mod/google-tools/gmail.ts, plan 2026-11-11 scripts); no tool
+ * the model calls directly sends. Its calls go through the account's sign-in (mod/google-auth.ts), which refreshes the
+ * tokens in the keychain and marks the account disconnected when Google refuses them, so the Inbox can say how to
+ * reconnect (R22).
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
-/** An access token this close to its expiry is refreshed first, so a call does not start with one about to lapse. */
-const EXPIRY_MARGIN_MS = 60 * 1000;
-/**
- * How long one call to Google may take, as SlackClient allows: a call that hangs past it fails that tick, which the
- * next tick tries again, instead of holding the account's sync until loki restarts.
- */
-const TIMEOUT_MS = 20_000;
-/** The reasons Google gives when a Workspace admin has not allowed the app. */
-const ADMIN_REASONS = ["admin_policy_enforced"];
 
 /** One message header, as Gmail names it. */
 export interface GmailHeader {
@@ -28,6 +22,8 @@ export interface GmailHeader {
 
 /** A part of a message's MIME tree, in Gmail's own names; `body.data` is base64url, present with format full. */
 export interface GmailMessagePart {
+  /** The part's place in the tree ("0", "1.2"), which stays the same each time the message is read. */
+  partId?: string;
   mimeType: string;
   filename: string;
   headers: GmailHeader[];
@@ -135,23 +131,12 @@ export interface GmailSendAs {
   isDefault: boolean;
 }
 
-/** A Gmail call that failed: the HTTP status and Google's reason, for callers that treat some failures as answers. */
-export class GmailError extends Error {
-  readonly status: number;
-  readonly reason: string | null;
-
-  constructor(message: string, status: number, reason: string | null) {
-    super(message);
-    this.name = "GmailError";
-    this.status = status;
-    this.reason = reason;
-  }
-}
-
 /** What GmailClient is built from; fetch and the clock are injected so tests own them. */
 export interface GmailClientOptions {
   accounts: Accounts;
   account_id: string;
+  /** The account's sign-in, shared with the Google tools (mod/index.ts); one of its own is made when left out. */
+  auth?: GoogleAuth;
   /** The app to refresh with when the account was signed in with the shared one (SHARED_GOOGLE_APP). */
   sharedApp?: GoogleApp;
   fetch?: typeof fetch;
@@ -168,6 +153,7 @@ function parsePart(v: unknown): GmailMessagePart {
   const r = rec(v);
   const body = rec(r.body);
   return {
+    ...(typeof r.partId === "string" ? { partId: r.partId } : {}),
     mimeType: str(r.mimeType),
     filename: str(r.filename),
     headers: list(r.headers).map((h) => ({ name: str(rec(h).name), value: str(rec(h).value) })),
@@ -208,14 +194,6 @@ function parseHistoryRecord(v: unknown): GmailHistoryRecord {
     labelsRemoved: list(r.labelsRemoved).map(parseLabelChange),
   };
 }
-
-/** Google's reason for a failure, from a token answer (`error`) or an API answer (`error.errors[].reason`, `error.details[].reason`, `error.status`). */
-function reasonsOf(body: Record<string, unknown>): string[] {
-  if (typeof body.error === "string") return [body.error];
-  const e = rec(body.error);
-  return [...list(e.errors).map((x) => str(rec(x).reason)), ...list(e.details).map((x) => str(rec(x).reason)), str(e.status)].filter(Boolean);
-}
-const isAdminBlock = (reasons: string[]) => reasons.some((r) => ADMIN_REASONS.includes(r.toLowerCase()));
 
 /** A header value on one line: an agent-written subject or address must never add a header (a Bcc) of its own. */
 const oneLine = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
@@ -303,11 +281,16 @@ const SEND_AS_KEEP_MS = 10 * 60 * 1000;
 /** One connected Gmail account's calls. */
 export class GmailClient {
   private readonly opts: GmailClientOptions;
-  private secret: GmailSecret | null = null;
+  private readonly auth: GoogleAuth;
   private sendAsKept: { at: number; list: GmailSendAs[] } | null = null;
 
   constructor(opts: GmailClientOptions) {
     this.opts = opts;
+    this.auth = opts.auth ?? new GoogleAuth(opts);
+  }
+
+  private now(): number {
+    return (this.opts.now?.() ?? new Date()).getTime();
   }
 
   /** The mailbox's address and newest history id. */
@@ -341,7 +324,8 @@ export class GmailClient {
         })
         .filter((s) => s.address);
     } catch (error) {
-      if (!(error instanceof GmailError) || error.status !== 403 || isAdminBlock(error.reason ? [error.reason] : [])) throw error;
+      // Settings Gmail will not show (a 403 that is not an admin's block) leave the mailbox's own address.
+      if (!(error instanceof GoogleError) || error.status !== 403 || error.reason?.toLowerCase() === "admin_policy_enforced") throw error;
     }
     if (!found.length) found = [{ address: (await this.profile()).emailAddress, name: "", signature: "", isDefault: true }];
     this.sendAsKept = { at: this.now(), list: found };
@@ -364,7 +348,7 @@ export class GmailClient {
       try {
         r = rec(await this.call("GET", "/history", { startHistoryId: historyId, ...(pageToken ? { pageToken } : {}) }));
       } catch (error) {
-        if (error instanceof GmailError && error.status === 404) return { kind: "expired" };
+        if (error instanceof GoogleError && error.status === 404) return { kind: "expired" };
         throw error;
       }
       history.push(...list(r.history).map(parseHistoryRecord));
@@ -397,6 +381,11 @@ export class GmailClient {
         .filter(Boolean),
       ...(next ? { nextPageToken: next } : {}),
     };
+  }
+
+  /** One message with every part (format full), for the attachment a script saves (mod/google-tools/gmail.ts). */
+  async getMessage(messageId: string): Promise<GmailMessage> {
+    return parseMessage(await this.call("GET", `/messages/${encodeURIComponent(messageId)}`, { format: "full" }));
   }
 
   /** A thread with its messages: their headers only (metadata), or every part (full). */
@@ -435,124 +424,19 @@ export class GmailClient {
   }
 
   /**
-   * Send the person's own reply in its thread (plan 068): the message `createDraft` would keep, sent now. Only the
-   * person's reply frame calls this; no agent tool is given it.
+   * Send a message now: the person's own reply in its thread (plan 068), the message `createDraft` would keep, or a
+   * script's mail (mod/google-tools/gmail.ts, plan 2026-11-11 scripts). Those two are its only callers; no tool the model
+   * calls directly sends. Answers with the sent message's id and the thread Gmail put it in.
    */
-  async sendReply(reply: GmailDraftInput): Promise<{ id: string }> {
+  async sendReply(reply: GmailDraftInput): Promise<{ id: string; threadId?: string }> {
     const raw = Buffer.from(rfc2822(reply), "utf8").toString("base64url");
-    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, threadId: reply.threadId }));
-    return { id: str(r.id) };
+    // A new message (a script's, plan 2026-11-11) has no thread yet: Gmail starts one.
+    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, ...(reply.threadId ? { threadId: reply.threadId } : {}) }));
+    return { id: str(r.id), ...(typeof r.threadId === "string" ? { threadId: r.threadId } : {}) };
   }
 
-  // --- tokens and requests -----------------------------------------------------------------------------------------
-
-  private now(): number {
-    return (this.opts.now?.() ?? new Date()).getTime();
-  }
-
-  private get fetch(): typeof fetch {
-    return this.opts.fetch ?? fetch;
-  }
-
-  private signal(): AbortSignal {
-    return this.opts.timeout?.() ?? AbortSignal.timeout(TIMEOUT_MS);
-  }
-
-  /** A Gmail call with a good access token; a 401 refreshes the token once and tries again. */
-  private async call(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown): Promise<unknown> {
-    const url = `${API}${path}${query ? `?${new URLSearchParams(query).toString()}` : ""}`;
-    const request = async (token: string) =>
-      this.fetch(url, {
-        method,
-        headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: this.signal(),
-      });
-    let res = await request(await this.accessToken());
-    if (res.status === 401) res = await request(await this.refresh());
-    const answer = rec(await res.json().catch(() => ({})));
-    if (res.ok) return answer;
-    const reasons = reasonsOf(answer);
-    if (res.status === 403 && isAdminBlock(reasons)) this.disconnect("admin_blocks");
-    const message = str(rec(answer.error).message) || `Gmail answered ${res.status}`;
-    throw new GmailError(
-      res.status === 403 && isAdminBlock(reasons) ? "your Google admin blocks this app: use your own Google app in Preferences › Accounts" : message,
-      res.status,
-      reasons[0] ?? null,
-    );
-  }
-
-  private async load(): Promise<GmailSecret> {
-    if (this.secret) return this.secret;
-    const secret = parseGmailSecret(await this.opts.accounts.getSecret(this.opts.account_id));
-    if (!secret) {
-      this.disconnect("sign_in_again");
-      throw new GmailError("this Gmail account keeps no sign-in: sign in again", 401, null);
-    }
-    this.secret = secret;
-    return secret;
-  }
-
-  /** The access token, refreshed first when it has lapsed or is about to. */
-  private async accessToken(): Promise<string> {
-    const secret = await this.load();
-    if (Date.parse(secret.expires_at) - EXPIRY_MARGIN_MS <= this.now() || !secret.access_token) return this.refresh();
-    return secret.access_token;
-  }
-
-  /**
-   * A new access token from the refresh token, kept in the keychain. Google refusing the refresh token (`invalid_grant`:
-   * revoked, expired, or the password changed) means only a new sign-in helps, and the account says so.
-   */
-  private async refresh(): Promise<string> {
-    const secret = await this.load();
-    const app = secret.own_app ?? this.opts.sharedApp ?? SHARED_GOOGLE_APP;
-    const res = await this.fetch(GOOGLE_TOKEN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: secret.refresh_token,
-        client_id: app.client_id,
-        client_secret: app.client_secret,
-      }).toString(),
-      signal: this.signal(),
-    });
-    const answer = rec(await res.json().catch(() => ({})));
-    if (!res.ok) {
-      const reasons = reasonsOf(answer);
-      if (isAdminBlock(reasons)) {
-        this.disconnect("admin_blocks");
-        throw new GmailError("your Google admin blocks this app: use your own Google app in Preferences › Accounts", res.status, reasons[0] ?? null);
-      }
-      if (reasons.includes("invalid_grant")) {
-        this.disconnect("sign_in_again");
-        throw new GmailError("Gmail asks you to sign in again", res.status, "invalid_grant");
-      }
-      throw new GmailError(`Google would not refresh the sign-in (${res.status})`, res.status, reasons[0] ?? null);
-    }
-    const access = str(answer.access_token);
-    const expiresIn = typeof answer.expires_in === "number" ? answer.expires_in : 0;
-    if (!access) throw new GmailError("Google gave no access token", res.status, null);
-    // Google may hand out a new refresh token; the newest one is the one that keeps working.
-    const next: GmailSecret = {
-      ...secret,
-      access_token: access,
-      refresh_token: str(answer.refresh_token) || secret.refresh_token,
-      expires_at: new Date(this.now() + expiresIn * 1000).toISOString(),
-    };
-    await this.opts.accounts.setSecret(this.opts.account_id, JSON.stringify(next));
-    this.secret = next;
-    return access;
-  }
-
-  /** Mark the account disconnected with why, unless it already says so; an account no longer here is left alone. */
-  private disconnect(cause: "sign_in_again" | "admin_blocks"): void {
-    // A sign-in made again later writes new tokens to the keychain: read them then, not the ones that stopped working.
-    this.secret = null;
-    const account = this.opts.accounts.get(this.opts.account_id);
-    if (!account) return;
-    if (typeof account.status === "object" && account.status.disconnected === cause) return;
-    this.opts.accounts.setStatus(this.opts.account_id, { disconnected: cause });
+  /** A Gmail call through the account's sign-in (GoogleAuth): its JSON answer, `{}` for an empty one. */
+  private call(method: "GET" | "POST", path: string, query?: Record<string, string>, body?: unknown): Promise<unknown> {
+    return this.auth.json({ service: "gmail", method, url: `${API}${path}`, ...(query ? { query } : {}), ...(body === undefined ? {} : { json: body }) });
   }
 }

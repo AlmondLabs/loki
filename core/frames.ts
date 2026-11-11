@@ -1486,13 +1486,14 @@ export const FRAMES = {
   ),
   account_connect_gmail: request(
     "account_signin",
-    "start connecting a Gmail account the given agent will own: Google's page to open, with the person's own Google app when `own_app` names one",
+    "start connecting a Gmail account the given agent will own: Google's page to open, with the person's own Google app when `own_app` names one; with `account_id`, sign that account in again, for more Google services or fresh tokens",
     (m) => {
       if (!isAgentId(m.owner_agent_id)) return "owner_agent_id required";
-      if (m.own_app === undefined || m.own_app === null) return { owner_agent_id: m.owner_agent_id, own_app: null };
+      const accountId = str(m.account_id) && m.account_id ? m.account_id : null;
+      if (m.own_app === undefined || m.own_app === null) return { owner_agent_id: m.owner_agent_id, own_app: null, account_id: accountId };
       const app = typeof m.own_app === "object" ? (m.own_app as Raw) : {};
       return str(app.client_id) && str(app.client_secret)
-        ? { owner_agent_id: m.owner_agent_id, own_app: { client_id: app.client_id, client_secret: app.client_secret } }
+        ? { owner_agent_id: m.owner_agent_id, own_app: { client_id: app.client_id, client_secret: app.client_secret }, account_id: accountId }
         : "own_app needs client_id and client_secret";
     },
   ),

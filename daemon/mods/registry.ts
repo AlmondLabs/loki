@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context, JsonValue } from "@earendil-works/chord";
 import {
   configure,
   createRegistry,
@@ -17,6 +17,7 @@ import {
 } from "@earendil-works/pi-durable";
 import { kindOf } from "../approvals.ts";
 import { piTool, type ChatTool } from "../chat-tools.ts";
+import { isScriptOnly, SCRIPT_TOOL } from "../scripts.ts";
 import { AgentInfoDoc, ChatDoc, type AgentStore } from "../kernel/index.ts";
 import {
   MOD_API_VERSION,
@@ -84,10 +85,16 @@ function modChatTool(tool: ModTool, report: (message: string) => void): ChatTool
     parameters: tool.parameters,
     kind: kindOf(tool.name, tool.annotations),
     ...(forAgent ? { forAgent: (agentId: string) => listedFor(tool.name, forAgent, agentId, report) } : {}),
+    ...(tool.callers ? { callers: tool.callers } : {}),
+    ...(tool.replay ? { replay: tool.replay } : {}),
+    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     run: async (args, call, context) => {
       const ref = await chatRef(call.read, call.conversationId, context);
-      const text = resultText(await tool.execute(args, { ...ref, signal: call.signal, output: call.output }));
-      return text === undefined ? {} : { output: [{ type: "text", text }] };
+      const value = await tool.execute(args, { ...ref, signal: call.signal, output: call.output, ...(call.cwd === undefined ? {} : { cwd: call.cwd }) });
+      const text = resultText(value);
+      if (text === undefined) return {};
+      // A typed tool's value goes to scripts as JSON: the text round-trips it, so what a script gets is what the model would read.
+      return { output: [{ type: "text", text }], ...(tool.outputSchema ? { structuredOutput: JSON.parse(text) as JsonValue } : {}) };
     },
   };
 }
@@ -210,17 +217,20 @@ export class ModRegistry {
   /**
    * Set a chat's tool filter before it runs on loki's engine (plan 067, KTD10): the mod tools whose `forAgent` says no
    * for the chat's agent are hidden, the rest shown, and the names others hid (MCP's, daemon/mcp/) are kept. Asked
-   * before each turn, so the list follows what `forAgent` answers now. A chat that names its tools outright (a
-   * background pass's) is left alone. Writes only when something changed.
+   * before each turn, so the list follows what `forAgent` answers now. The script tool is hidden too when none of the
+   * tools left is script-only: a script could then call only the file tools the model has already (plan 2026-11-11
+   * scripts, R1). A chat that names its tools outright (a background pass's) is left alone. Writes only when something
+   * changed.
    */
   async prepare(store: AgentStore, chat: Conversation, context: Context): Promise<void> {
     const settings = (await store.agentSettings(chat.id, context)) as { tools?: string[] | { remove: string[] } } | undefined;
     if (Array.isArray(settings?.tools)) return;
     const agentId = (await store.harness.snapshot(AgentInfoDoc, context))?.id ?? "";
     const tools = this.chatTools();
-    const ours = new Set(tools.map((t) => t.name));
+    const ours = new Set([...tools.map((t) => t.name), SCRIPT_TOOL]);
     const removed = settings?.tools?.remove ?? [];
-    const hide = tools.filter((t) => t.forAgent && !t.forAgent(agentId)).map((t) => t.name);
+    const shown = tools.filter((t) => !t.forAgent || t.forAgent(agentId));
+    const hide = [...tools.filter((t) => !shown.includes(t)).map((t) => t.name), ...(shown.some(isScriptOnly) ? [] : [SCRIPT_TOOL])];
     const next = [...removed.filter((n) => !ours.has(n)), ...hide];
     if (sameSet(next, removed)) return;
     const registered = new Map(

@@ -1,7 +1,19 @@
 import { createHash, randomBytes } from "node:crypto";
 import { messageOf } from "../core/errors.ts";
 import { accountIdOf, type Accounts, type AccountRecord } from "./accounts.ts";
-import { GOOGLE_AUTH_URL, GOOGLE_TOKEN_URL, SHARED_APP_MISSING, SHARED_GOOGLE_APP, isUsableApp, type GmailSecret, type GoogleApp } from "./google-app.ts";
+import type { GoogleService } from "../core/frame-types.ts";
+import { GOOGLE_TIMEOUT_MS } from "./google-auth.ts";
+import {
+  GOOGLE_AUTH_URL,
+  GOOGLE_TOKEN_URL,
+  SERVICE_SCOPES,
+  SHARED_APP_MISSING,
+  SHARED_GOOGLE_APP,
+  grantedServices,
+  isUsableApp,
+  type GmailSecret,
+  type GoogleApp,
+} from "./google-app.ts";
 import { DEFAULT_MOD_PORT } from "./paths.ts";
 
 /**
@@ -18,21 +30,28 @@ export const GOOGLE_OAUTH_CALLBACK = "/accounts/google/callback";
 /** The redirect a sign-in names: the loopback server's port, as MCP's callbackUrl works it out. */
 export const googleCallbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT)): string => `http://127.0.0.1:${port}${GOOGLE_OAUTH_CALLBACK}`;
 
-/** What loki asks Google for: Gmail read, label and draft (modify), and who the person is. */
-export const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify", "openid", "https://www.googleapis.com/auth/userinfo.email"];
+/**
+ * What loki asks Google for: Gmail, Drive, Sheets, Docs and Calendar for scripts (plan 2026-11-11 scripts, R16), and
+ * who the person is. Google may let the person untick a service; what was granted is kept (grantedServices).
+ */
+export const GOOGLE_SCOPES = [...Object.values(SERVICE_SCOPES), "openid", "https://www.googleapis.com/auth/userinfo.email"];
 
 /** How long a sign-in may take between opening Google's page and coming back. */
 export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
 
-/** How long one call to Google may take before the sign-in says it did not connect, as the Gmail client allows. */
-const TIMEOUT_MS = 20_000;
-const PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
+/** Who signed in, from Google's own account service: it answers whichever services were ticked. */
+const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const START_AGAIN = "Start it again from Preferences › Accounts.";
 
-/** What starting a sign-in takes: the agent that will own the account, and the person's own Google app when they use one. */
+/**
+ * What starting a sign-in takes: the agent that will own the account, and the person's own Google app when they use
+ * one. `account_id` signs in an account already here again, for more services or fresh tokens (R18): the sign-in must
+ * then come back as that same address, and the account keeps its owner.
+ */
 export interface GoogleSignInStart {
   owner_agent_id: string;
   own_app?: GoogleApp;
+  account_id?: string;
 }
 
 /** How a sign-in ended, as the page the browser shows says it; the account when one was connected. */
@@ -57,6 +76,7 @@ export interface GoogleSignInOptions {
 
 interface Pending {
   owner_agent_id: string;
+  account_id?: string;
   app: GoogleApp;
   own: boolean;
   verifier: string;
@@ -77,7 +97,7 @@ export class GoogleSignIn {
   }
 
   private signal(): AbortSignal {
-    return this.opts.timeout?.() ?? AbortSignal.timeout(TIMEOUT_MS);
+    return this.opts.timeout?.() ?? AbortSignal.timeout(GOOGLE_TIMEOUT_MS);
   }
 
   private get redirect(): string {
@@ -96,13 +116,22 @@ export class GoogleSignIn {
     this.prune();
     const state = randomBytes(16).toString("hex");
     const verifier = randomBytes(32).toString("base64url");
-    this.pending.set(state, { owner_agent_id: input.owner_agent_id, app, own, verifier, started: this.now() });
+    this.pending.set(state, {
+      owner_agent_id: input.owner_agent_id,
+      ...(input.account_id ? { account_id: input.account_id } : {}),
+      app,
+      own,
+      verifier,
+      started: this.now(),
+    });
     const url = new URL(GOOGLE_AUTH_URL);
     url.search = new URLSearchParams({
       client_id: app.client_id,
       redirect_uri: this.redirect,
       response_type: "code",
-      scope: GMAIL_SCOPES.join(" "),
+      scope: GOOGLE_SCOPES.join(" "),
+      // What the person granted before stays granted, so a sign-in for more never takes back Gmail (R18).
+      include_granted_scopes: "true",
       // A refresh token, every time: Google gives one only on a consent, and the watcher needs it to keep reading.
       access_type: "offline",
       prompt: "consent",
@@ -128,7 +157,9 @@ export class GoogleSignIn {
       const tokens = await this.redeem(params.code, pending);
       const address = await this.address(tokens.access_token);
       const secret: GmailSecret = { ...tokens, ...(pending.own ? { own_app: pending.app } : {}) };
-      const account = await this.connect(address, pending.owner_agent_id, JSON.stringify(secret));
+      // An answer without its scopes is read as Gmail alone, never as more than was asked for.
+      const services = tokens.scopes === undefined ? (["gmail"] satisfies GoogleService[]) : grantedServices(tokens.scopes);
+      const account = await this.connect(address, pending, JSON.stringify(secret), services);
       return { ok: true, message: `Connected ${address}. You can close this tab and go back to loki.`, account };
     } catch (error) {
       return { ok: false, message: `Gmail did not connect: ${messageOf(error)}` };
@@ -160,30 +191,47 @@ export class GoogleSignIn {
       throw new Error(
         typeof body.error_description === "string" ? body.error_description : typeof body.error === "string" ? body.error : `Google answered ${res.status}`,
       );
-    const { access_token: access, refresh_token: refresh, expires_in: expiresIn } = body;
+    const { access_token: access, refresh_token: refresh, expires_in: expiresIn, scope } = body;
     if (typeof access !== "string" || typeof refresh !== "string" || typeof expiresIn !== "number") throw new Error("Google gave no tokens to keep");
-    return { access_token: access, refresh_token: refresh, expires_at: new Date(this.now() + expiresIn * 1000).toISOString() };
+    return {
+      access_token: access,
+      refresh_token: refresh,
+      expires_at: new Date(this.now() + expiresIn * 1000).toISOString(),
+      ...(typeof scope === "string" ? { scopes: scope } : {}),
+    };
   }
 
-  /** The mailbox's own address, from Gmail itself, so the account is the mailbox the tokens read. */
+  /**
+   * The account's own address, from Google's account service, so the account is the one the tokens act for. Not from
+   * Gmail: a person who unticked Gmail still gets a message naming the account.
+   */
   private async address(accessToken: string): Promise<string> {
-    const res = await (this.opts.fetch ?? fetch)(PROFILE_URL, { headers: { authorization: `Bearer ${accessToken}` }, signal: this.signal() });
+    const res = await (this.opts.fetch ?? fetch)(USERINFO_URL, { headers: { authorization: `Bearer ${accessToken}` }, signal: this.signal() });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok || typeof body.emailAddress !== "string" || !body.emailAddress) throw new Error(`Gmail would not say which mailbox this is (${res.status})`);
-    return body.emailAddress;
+    if (!res.ok || typeof body.email !== "string" || !body.email) throw new Error(`Google would not say which account this is (${res.status})`);
+    return body.email;
   }
 
   /**
    * A new mailbox is added with its owner; Accounts refuses one connected already. A mailbox here that lost its
-   * sign-in (R22) takes the new tokens and is connected again, keeping its owner and where its watcher stands.
+   * sign-in (R22), or one signed in again on purpose (`account_id`, R18), takes the new tokens and services and is
+   * connected, keeping its owner and where its watcher stands. Nothing is written when the sign-in came back as another
+   * address than the account it was for, or without Gmail, which loki needs to read the mailbox at all.
    */
-  private async connect(address: string, ownerAgentId: string, secret: string): Promise<AccountRecord> {
+  private async connect(address: string, pending: Pending, secret: string, services: GoogleService[]): Promise<AccountRecord> {
     const accountId = accountIdOf({ provider: "gmail", address });
+    const wanted = pending.account_id;
+    if (wanted && wanted !== accountId)
+      throw new Error(`you signed in as ${address.toLowerCase()}, not ${wanted.replace(/^gmail:/, "")}: nothing was changed. Sign in again as that account.`);
+    if (!services.includes("gmail"))
+      throw new Error(
+        "Gmail was unticked on Google's page, and loki needs it to read this mailbox: nothing was changed. Sign in again and leave Gmail ticked.",
+      );
     const existing = this.opts.accounts.get(accountId);
-    if (existing && existing.status !== "connected") {
-      await this.opts.accounts.setSecret(accountId, secret);
-      return this.opts.accounts.setStatus(accountId, "connected");
-    }
-    return this.opts.accounts.add({ account_id: accountId, provider: "gmail", address: address.toLowerCase(), owner_agent_id: ownerAgentId }, secret);
+    if (existing && (existing.status !== "connected" || wanted)) return this.opts.accounts.signedIn(accountId, secret, services);
+    return this.opts.accounts.add(
+      { account_id: accountId, provider: "gmail", address: address.toLowerCase(), owner_agent_id: pending.owner_agent_id, services },
+      secret,
+    );
   }
 }

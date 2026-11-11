@@ -20,6 +20,8 @@ export interface ChatRef {
 /** What a mod tool's `execute` gets besides its arguments: the chat it runs in, the turn's abort signal, and a way to stream output. */
 export type ToolContext = ChatRef & {
   signal: AbortSignal;
+  /** The folder the chat works in, where a tool reads and writes the chat's files; absent when it has none (an ACP chat's call). */
+  cwd?: string;
   /** Stream running output; the returned text, when there is any, replaces it as the result. */
   output(text: string): void;
 };
@@ -38,6 +40,21 @@ export interface ModTool {
    * comes, so a tool that guards something checks again in `execute`. A predicate that throws hides the tool.
    */
   forAgent?: (agentId: string) => boolean;
+  /**
+   * Who may call the tool (plan 2026-11-11 scripts, R10); absent, the model and scripts both. `["tools"]` makes it
+   * script-only: never offered to the model, nor to a Claude Code or other ACP chat, only to scripts.
+   */
+  callers?: ReadonlyArray<"model" | "tools">;
+  /**
+   * `"safe"` when the tool only reads, so a script resumed after a restart may run the call again; absent, a call cut
+   * off by a restart fails in the script as interrupted and is never run twice.
+   */
+  replay?: "safe";
+  /**
+   * JSON Schema of what `execute` returns, for a tool scripts call: a script then gets the value as an object, not as
+   * text to parse. The value must be JSON.
+   */
+  outputSchema?: object;
   execute(args: Record<string, unknown>, ctx: ToolContext): unknown;
 }
 

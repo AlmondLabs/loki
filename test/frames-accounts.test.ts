@@ -388,6 +388,20 @@ describe("connecting an account (plan 067, U5)", () => {
     expect(started).toEqual([{ owner_agent_id: "agent-home", own_app: ownApp }]);
   });
 
+  test("account_connect_gmail with an account here signs that one in again; one not here, or not Google's, is refused (plan 2026-11-11, R18)", async () => {
+    const { connect, started } = connecting();
+    const { ask } = await fixture(undefined, connect);
+    expect(await ask({ type: "account_connect_gmail", owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com" })).toMatchObject({
+      type: "account_signin",
+    });
+    for (const accountId of ["gmail:bo@acme.com", "slack:T01:U02"])
+      expect(await ask({ type: "account_connect_gmail", owner_agent_id: "agent-work", account_id: accountId })).toMatchObject({
+        type: "error",
+        message: "that Google account is not connected on this Mac",
+      });
+    expect(started).toEqual([{ owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com" }]);
+  });
+
   test("connecting for an agent that does not exist is refused before any sign-in starts", async () => {
     const { connect, started, slackCalls } = connecting();
     const { ask } = await fixture(undefined, connect);

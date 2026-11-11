@@ -282,7 +282,7 @@ describe("only the person's own reply sends from Gmail (plan 068)", () => {
         subject: "Re: Lunch",
         body: "Friday.",
       }),
-    ).toEqual({ id: "s1" });
+    ).toEqual({ id: "s1", threadId: "t1" });
     const sent = must(google.sentMail[0], "a sent message");
     expect(sent.threadId).toBe("t1");
     const raw = Buffer.from(sent.raw, "base64url").toString("utf8");

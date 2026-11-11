@@ -10,7 +10,8 @@ import { Approvals, asks, type PermissionMode } from "../daemon/approvals.ts";
 import { askExtension } from "../daemon/ask.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
-import type { ChatEvent } from "../core/attention/model.ts";
+import { offersAlways, type ChatEvent } from "../core/attention/model.ts";
+import { scriptExtensions, scriptSandbox } from "../daemon/scripts.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -309,5 +310,134 @@ describe("approvals in a chat", () => {
     } finally {
       await s.store.close(ctx);
     }
+  });
+});
+
+/**
+ * Scripts (plan 2026-11-11, U3): a store whose chats run through the gate and run scripts, with `write` (an edit) and
+ * `bash` (a command) recording their runs. `mayCall` is the gate's list of what scripts may call; the daemon's is
+ * daemon/scripts.ts's scriptMayCall.
+ */
+async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => boolean = (name) => name === "write") {
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : "command"), scriptMayCall: mayCall });
+  const pushed: ChatEvent[] = [];
+  approvals.attach((_a, _c, events) => pushed.push(...events));
+  const ran: string[] = [];
+  const registry = createRegistry();
+  const sandbox = scriptSandbox();
+  registry.install(approvals.extension());
+  registry.install(
+    defineExtension({
+      name: "tools",
+      tools: ["bash", "write"].map((name) =>
+        defineTool({
+          name,
+          description: name,
+          parameters: { type: "object", properties: { x: { type: "string" } } } as never,
+          execute: (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), Promise.resolve({ output: [{ type: "text", text: "ok" }] })),
+        }),
+      ),
+    }),
+  );
+  for (const e of scriptExtensions(sandbox)) registry.install(e);
+  const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
+  await store.setAgent({ id: "agent-local-a", name: "Ada" }, ctx);
+  const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+  await store.updateChat("c", { mode }, ctx);
+  const script = (code: string, id: string) => fauxAssistantMessage(fauxToolCall("codemode", { code }, { id }), { stopReason: "toolUse" });
+  const close = async () => {
+    await sandbox.close();
+    await store.close(ctx);
+  };
+  const entries = () => store.entries(chat, ctx);
+  return { faux, approvals, pushed, ran, chat, script, close, entries };
+}
+
+const approvalTools = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.tool_name] : []));
+
+describe("approvals for scripts", () => {
+  test("AE9: in standard mode a script asks once, as a command, and its own write runs without a second card", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      s.faux.setResponses([s.script("await tools.write({ x: 'a' }); return 'wrote'", "s1"), fauxAssistantMessage("done")]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
+      expect(s.ran).toEqual([]);
+      s.approvals.decide("approval-s1", true);
+      await run;
+      expect(s.ran).toEqual(["write:a"]);
+      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("AE9: in unrestricted mode the same script runs at once", async () => {
+    const s = await scriptSetup("unrestricted");
+    try {
+      s.faux.setResponses([s.script("await tools.write({ x: 'a' }); return 'wrote'", "s1"), fauxAssistantMessage("done")]);
+      await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      expect(s.ran).toEqual(["write:a"]);
+      expect(approvalIds(s.pushed)).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("strict mode asks for the script and again for each call it makes", async () => {
+    const s = await scriptSetup("strict");
+    try {
+      s.faux.setResponses([s.script("await tools.write({ x: 'a' }); return 'wrote'", "s1"), fauxAssistantMessage("done")]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      s.approvals.decide("approval-s1", true);
+      await until(() => approvalIds(s.pushed).length === 2);
+      expect(approvalTools(s.pushed)).toEqual(["codemode", "write"]);
+      s.approvals.decide(approvalIds(s.pushed)[1] ?? "", true);
+      await run;
+      expect(s.ran).toEqual(["write:a"]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("an always-allow answer on a script's card allows that script only: the next one asks again", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      s.faux.setResponses([s.script("return 1", "s1"), s.script("return 2", "s2"), fauxAssistantMessage("done")]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      s.approvals.decide("approval-s1", true, undefined, true);
+      await until(() => approvalIds(s.pushed).length === 2);
+      expect(s.approvals.always()).toEqual([]);
+      s.approvals.decide("approval-s2", true);
+      await run;
+      expect(s.approvals.setAlways("codemode", true)).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("a script's call of a tool scripts may not call is blocked, even in unrestricted mode", async () => {
+    const s = await scriptSetup("unrestricted", () => false);
+    try {
+      s.faux.setResponses([s.script("try { await tools.write({ x: 'a' }) } catch (e) { return e.message }", "s1"), fauxAssistantMessage("done")]);
+      await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      expect(s.ran).toEqual([]);
+      // Blocked by the gate, with its reason, not failed some other way.
+      const results = (await s.entries()).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
+      expect(results.join("\n")).toContain("A script may not call write.");
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("a script's card offers no always-allow; a command's does", () => {
+    expect(offersAlways({ toolName: "codemode" })).toBe(false);
+    expect(offersAlways({ toolName: "write" })).toBe(true);
   });
 });
