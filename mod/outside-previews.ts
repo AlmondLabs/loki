@@ -23,10 +23,22 @@ import type { SlackThumb } from "./slack-markup.ts";
 const EXTENSIONS: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
+  // Spellings some servers send for a JPEG; the old store named Slack's by address and never saw the type.
+  "image/jpg": "jpg",
+  "image/pjpeg": "jpg",
   "image/gif": "gif",
   "image/webp": "webp",
   "image/heic": "heic",
 };
+
+/** The extension a content type is saved under, read without regard to case or parameters; undefined for any other. */
+const extensionOf = (type: string): string | undefined => EXTENSIONS[type.split(";")[0].trim().toLowerCase()];
+
+/**
+ * How long a thumbnail that could not be had is not asked again: long enough that reading a card again does not wait on
+ * the same refusal, short enough that one made later (a picture still being processed) shows the same day.
+ */
+const MISS_MS = 30 * 60_000;
 
 /** A thumbnail's bytes and their content type, as its service answered; null when it gave no picture. */
 export type FetchPreview = () => Promise<{ data: Buffer; type: string } | null>;
@@ -38,9 +50,13 @@ export class OutsidePreviews {
   private readonly known = new Map<string, string>();
   /** Thumbnails being fetched, by key, so two cards read at once ask once. */
   private readonly pending = new Map<string, Promise<string | null>>();
+  /** When each key last gave no thumbnail, so a card read again within MISS_MS does not ask or wait again. */
+  private readonly missed = new Map<string, number>();
+  private readonly now: () => number;
 
-  constructor(opts: { dir: string }) {
+  constructor(opts: { dir: string; now?: () => number }) {
     this.dir = opts.dir;
+    this.now = opts.now ?? Date.now;
   }
 
   /**
@@ -51,17 +67,20 @@ export class OutsidePreviews {
     const had = this.known.get(key) ?? this.pending.get(key);
     if (had !== undefined) return typeof had === "string" ? Promise.resolve(had) : had;
     const stem = createHash("sha256").update(key).digest("hex").slice(0, 32);
-    const saved = Object.values(EXTENSIONS)
-      .map((ext) => `${stem}.${ext}`)
-      .find((name) => existsSync(join(this.dir, name)));
+    const saved = [...new Set(Object.values(EXTENSIONS))].map((ext) => `${stem}.${ext}`).find((name) => existsSync(join(this.dir, name)));
     if (saved) {
       this.known.set(key, saved);
       return Promise.resolve(saved);
     }
+    const missedAt = this.missed.get(key);
+    if (missedAt !== undefined && this.now() - missedAt < MISS_MS) return Promise.resolve(null);
     const p = fetch()
       .then((got) => {
-        const ext = got && EXTENSIONS[got.type];
-        if (!got || !ext) return null;
+        const ext = got && extensionOf(got.type);
+        if (!got || !ext) {
+          this.missed.set(key, this.now());
+          return null;
+        }
         const name = `${stem}.${ext}`;
         // Written beside it, then renamed: a window asking meanwhile finds the whole file or none.
         writeFileAtomic(join(this.dir, name), got.data);
@@ -70,6 +89,7 @@ export class OutsidePreviews {
       })
       .catch((err: unknown) => {
         log("outside:preview-failed", { error: messageOf(err) });
+        this.missed.set(key, this.now());
         return null;
       })
       .finally(() => this.pending.delete(key));

@@ -472,11 +472,11 @@ describe("a Jira comment's files on its card (plan 092)", () => {
     content: [{ type: "mediaGroup", content: [{ type: "media", attrs: { id: "uuid-2", type: "file", collection: "", alt } }] }],
   });
   /** A site whose previews are recorded and named after the attachment. */
-  function withPreviews(over: { link_host?: string } = {}) {
+  function withPreviews(over: { link_host?: string } = {}, gives = true) {
     const asked: string[] = [];
     const s = site(over, (accountId, attachmentId) => {
       asked.push(`${accountId}|${attachmentId}`);
-      return Promise.resolve(`${"a".repeat(31)}${attachmentId.slice(-1)}.png`);
+      return Promise.resolve(gives ? `${"a".repeat(31)}${attachmentId.slice(-1)}.png` : null);
     });
     const say = (minute: number, body: unknown) => eid(at(minute), "c", s.jira.comment("OPS-7", { at: at(minute), author: JIRA_ADA, body }));
     const lists = () => s.jira.requests.filter((r) => r.url.searchParams.get("fields") === "attachment").length;
@@ -526,6 +526,33 @@ describe("a Jira comment's files on its card (plan 092)", () => {
     expect(files(twice)).toEqual([{ name: "shot.png", kind: null, size: null, link: ticket }]);
     expect(files(gone)).toEqual([{ name: "old.txt", kind: null, size: null, link: ticket }]);
     expect(files(unnamed)).toEqual([{ name: "attachment", kind: null, size: null, link: ticket }]);
+    expect(s.asked).toEqual([]);
+  });
+
+  test("a picture whose thumbnail cannot be had, or whose size the document left out, stays a chip", async () => {
+    const s = withPreviews({}, false);
+    s.jira.edit("OPS-7", { attachments: [SHOT, { ...SHOT, id: "10045", filename: "plain.png" }] });
+    const noThumb = s.say(1, picture("shot.png"));
+    const noSize = s.say(2, file("plain.png"));
+    const { messages } = await s.read({ brought_ids: [noThumb, noSize] });
+    const files = (id: string) => messages.find((x) => x.id === id)?.slack_files;
+    const content = (id: string) => `https://${s.jira.host}/rest/api/3/attachment/content/${id}`;
+    expect(files(noThumb)).toEqual([{ name: "shot.png", kind: "PNG", size: 48_000, link: content("10042") }]);
+    expect(files(noSize)).toEqual([{ name: "plain.png", kind: "PNG", size: 48_000, link: content("10045") }]);
+    // Only the picture with a size is asked for; the one without is never fetched.
+    expect(s.asked).toEqual([`${ID}|10042`]);
+  });
+
+  test("an external file opens its own address", async () => {
+    const s = withPreviews();
+    const external = {
+      version: 1,
+      type: "doc",
+      content: [{ type: "mediaSingle", content: [{ type: "media", attrs: { type: "external", url: "https://example.com/cat.gif", alt: "cat.gif" } }] }],
+    };
+    const id = s.say(1, external);
+    const { messages } = await s.read({ brought_ids: [id] });
+    expect(messages.find((x) => x.id === id)?.slack_files).toEqual([{ name: "cat.gif", kind: null, size: null, link: "https://example.com/cat.gif" }]);
     expect(s.asked).toEqual([]);
   });
 

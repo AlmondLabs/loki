@@ -120,4 +120,32 @@ describe("the thumbnails of pictures in Jira comments (plan 092)", () => {
     expect(a).not.toBe(b);
     expect(readdirSync(dir).sort()).toEqual([a, b].sort());
   });
+
+  test("a type in capitals or spelled image/jpg is still saved, under jpg", async () => {
+    for (const type of ["IMAGE/JPEG", "image/jpg; charset=binary"]) {
+      rmSync(dir, { recursive: true, force: true });
+      dir = mkdtempSync(join(tmpdir(), "loki-outside-previews-"));
+      const { previews, fetch } = jira({ data: Buffer.from("jpeg bytes"), type });
+      expect(await previews.preview(KEY, fetch)).toMatch(/\.jpg$/);
+    }
+  });
+
+  test("a thumbnail that gave none is not asked again for half an hour, then is", async () => {
+    let now = 0;
+    let asked = 0;
+    let answer: { data: Buffer; type: string } | null = null;
+    const previews = new OutsidePreviews({ dir, now: () => now });
+    const fetch = () => {
+      asked += 1;
+      return Promise.resolve(answer);
+    };
+    expect(await previews.preview(KEY, fetch)).toBeNull();
+    now += 29 * 60_000;
+    expect(await previews.preview(KEY, fetch)).toBeNull();
+    expect(asked).toBe(1);
+    answer = { data: Buffer.from("png bytes"), type: "image/png" };
+    now += 2 * 60_000;
+    expect(await previews.preview(KEY, fetch)).toMatch(/\.png$/);
+    expect(asked).toBe(2);
+  });
 });
