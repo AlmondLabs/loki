@@ -43,6 +43,7 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { readTurnError, retryMessage } from "./turn-error";
+import { threadPreview } from "./thread/preview";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -310,6 +311,7 @@ export function Conversation({
       <StepsTouch.Provider value={touch}>
         <Thread
           ref={threadRef}
+          previewable={!touch}
           rows={view.rows}
           status={status}
           error={view.error ?? null}
@@ -539,35 +541,51 @@ function ThreadError({ error, rows, onRetry }: { error: string; rows: Transcript
   );
 }
 
+/** What a thread draws and how it reaches its host; today's thread and the new one take the same (plan 094, KTD7). */
+export interface ThreadProps {
+  rows: TranscriptRow[] | undefined;
+  status?: ChatStatus;
+  error?: string | null;
+  agentName?: string | null;
+  waiting?: boolean;
+  dim?: boolean;
+  onCancelQueued?: (text: string) => void;
+  onRetry?: (text: string) => void;
+  older?: (() => void) | null;
+  loadFailed?: (() => void) | null;
+  loadStep?: (row: number) => Promise<WholeRow | null>;
+  home?: string | null;
+  layout?: MessageLayout;
+  /**
+   * Drawn after the last row, inside the scroll (the agent's quick replies): going away it leaves the thread's height
+   * alone, so a message sent in its place is followed as any other.
+   */
+  tail?: ReactNode;
+  style?: CSSProperties;
+  /** False where the thread must stay today's whatever Preferences say: the phone, until its own plan. */
+  previewable?: boolean;
+}
+
+/**
+ * The thread, today's or the one on loki's new components, by Preferences › Appearance › New thread (preview). The chat
+ * pane and the Flow card switch together; a host that passes `previewable={false}` keeps today's.
+ */
+export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
+  const [preview] = threadPreview.use();
+  return preview === "on" && previewable ? <NewThread ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
+});
+
+/** The new thread's place until it is built (plan 094, U5): today's. */
+const NewThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function NewThread(props, ref) {
+  return <TodayThread ref={ref} {...props} />;
+});
+
 /**
  * What scrolls: a note while the thread loads or when it is empty, the rows, then the thinking marker or
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<
-  ThreadHandle,
-  {
-    rows: TranscriptRow[] | undefined;
-    status?: ChatStatus;
-    error?: string | null;
-    agentName?: string | null;
-    waiting?: boolean;
-    dim?: boolean;
-    onCancelQueued?: (text: string) => void;
-    onRetry?: (text: string) => void;
-    older?: (() => void) | null;
-    loadFailed?: (() => void) | null;
-    loadStep?: (row: number) => Promise<WholeRow | null>;
-    home?: string | null;
-    layout?: MessageLayout;
-    /**
-     * Drawn after the last row, inside the scroll (the agent's quick replies): going away it leaves the thread's height
-     * alone, so a message sent in its place is followed as any other.
-     */
-    tail?: ReactNode;
-    style?: CSSProperties;
-  }
->(function Thread(
+const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function TodayThread(
   {
     rows,
     status = "idle",

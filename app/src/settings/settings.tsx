@@ -36,6 +36,7 @@ import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
+import { threadPreview } from "../chat/thread/preview";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -263,6 +264,7 @@ export function Settings({
 /** Preferences › Appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
+  const [preview, setPreview] = threadPreview.use();
   return (
     <Block>
       <Setting
@@ -275,6 +277,9 @@ function AppearancePage() {
       </Setting>
       <Setting label="Palette" help="The colour family, in light and in dark.">
         <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={theme.setPalette} labels={PALETTE_LABEL} />
+      </Setting>
+      <Setting label="New thread (preview)" help="Draw chats on loki's new components. Turn it off to go back.">
+        <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new thread (preview)" hideLabel />
       </Setting>
     </Block>
   );
