@@ -454,7 +454,7 @@ function Message({
 export const OpenChat = createContext<((agentId: string, conversationId: string) => void) | null>(null);
 
 /** The row a message sent from a suggestion leaves (core/harness.ts extractHarnessEvents). */
-const SUGGESTED = "suggested in another chat";
+export const SUGGESTED = "suggested in another chat";
 
 /**
  * The chat a "suggested in another chat" row came from (plan 049, KTD6), when the row carries it as `link`; null when
@@ -671,11 +671,12 @@ const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
 });
 
 /** A message's words as the thread shows and copies them: an agent's quick replies (plan 066) are buttons, not words. */
-function shownText(m: TranscriptRow): string {
+export function shownText(m: TranscriptRow): string {
   return m.role === "assistant" ? withoutReplies(m.text) : m.text;
 }
 
-function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
+/** An agent's reply as markdown; while it streams, block by block with its words fading in, and the cursor after it. */
+export function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   const text = withoutReplies(m.text);
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>

@@ -31,7 +31,7 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
     return listeners.add(l);
   };
   const get = () => value;
-  /** The value and its setter, re-rendering on every change. */
-  const use = (): [T, (next: T) => void] => [useSyncExternalStore(subscribe, get), set];
+  /** The value and its setter, re-rendering on every change; a render outside the window (a test) reads the same value. */
+  const use = (): [T, (next: T) => void] => [useSyncExternalStore(subscribe, get, get), set];
   return { get, set, subscribe, use };
 }

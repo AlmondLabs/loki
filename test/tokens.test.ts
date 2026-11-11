@@ -201,7 +201,8 @@ describe("design tokens: definitions and uses agree", () => {
     const named = new Set(
       code.flatMap((f) =>
         [...f.text.matchAll(f.path.startsWith("ui/") ? /"(loki-[a-z0-9-]+)"/g : /className=(?:"[^"]*"|\{[^}]*\})/g)].flatMap((m) =>
-          [...m[0].matchAll(/loki-[a-z0-9-]+/g)].map((c) => c[0]),
+          // A class starts with loki-; text-loki-muted is a Tailwind utility and --loki-bg a variable, neither a class.
+          [...m[0].matchAll(/(?<![\w-])loki-[a-z0-9-]+/g)].map((c) => c[0]),
         ),
       ),
     );

@@ -42,8 +42,9 @@ import { useModelAndMode } from "./use-model-and-mode";
 import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
-import { readTurnError, retryMessage } from "./turn-error";
+import { ThreadError } from "./thread-error";
 import { threadPreview } from "./thread/preview";
+import { NewThread } from "./thread/thread";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -519,28 +520,6 @@ export interface ThreadHandle {
   reveal: (query: string) => void;
 }
 
-/** A failed turn: one readable sentence, the harness's own words behind a disclosure, and a way to try again. */
-function ThreadError({ error, rows, onRetry }: { error: string; rows: TranscriptRow[]; onRetry?: (text: string) => void }) {
-  const e = readTurnError(error);
-  const retry = onRetry ? retryMessage(rows) : null;
-  return (
-    <div className="loki-thread-error" role="alert">
-      <span>{e.text}</span>
-      {retry && (
-        <Button size="sm" onClick={() => onRetry?.(retry.text)}>
-          {retry.label}
-        </Button>
-      )}
-      {e.raw && (
-        <details className="loki-thread-error-raw">
-          <summary>details</summary>
-          <pre>{e.raw}</pre>
-        </details>
-      )}
-    </div>
-  );
-}
-
 /** What a thread draws and how it reaches its host; today's thread and the new one take the same (plan 094, KTD7). */
 export interface ThreadProps {
   rows: TranscriptRow[] | undefined;
@@ -573,11 +552,6 @@ export interface ThreadProps {
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
   const [preview] = threadPreview.use();
   return preview === "on" && previewable ? <NewThread ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
-});
-
-/** The new thread's place until it is built (plan 094, U5): today's. */
-const NewThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function NewThread(props, ref) {
-  return <TodayThread ref={ref} {...props} />;
 });
 
 /**
