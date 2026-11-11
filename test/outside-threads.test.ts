@@ -274,7 +274,7 @@ describe("reading a card's whole thread", () => {
   });
   /**
    * What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it
-   * mentions the person; and its files as chips (plan 092).
+   * mentions the person; and its files as chips (plan 093).
    */
   const DRAWN = {
     avatar: "https://avatar-management.example/ada/48",
@@ -1338,7 +1338,7 @@ describe("Flow's agent lanes file outside cards under their owner", () => {
   });
 });
 
-describe("a Jira card's files say jira where Slack's say Slack (plan 092, U5)", () => {
+describe("a Jira card's files say jira where Slack's say Slack (plan 093, U5)", () => {
   const comment = (files: OutsideMessage["slack_files"]): OutsideMessage => ({
     id: "c1",
     sender: "Ada Lovelace",

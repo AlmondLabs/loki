@@ -205,7 +205,7 @@ yourself.
   card shares a file, it reads the ticket's attachment list, and for a picture it fetches Jira's thumbnail once, asked
   with `redirect=false` and with redirects not followed, so the token goes only to the site and never to Jira's media
   host; a refused thumbnail is none and never marks the account as wanting a new token. The thumbnail is kept with your
-  chats' pictures in `~/.loki/chat-images/`, as Slack's are (plan 092, `mod/jira.ts`, `mod/outside-previews.ts`).
+  chats' pictures in `~/.loki/chat-images/`, as Slack's are (plan 093, `mod/jira.ts`, `mod/outside-previews.ts`).
   It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
   `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` (a test checks there is no other). Read, later,
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other

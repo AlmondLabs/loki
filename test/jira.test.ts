@@ -407,7 +407,7 @@ describe("the person's comment", () => {
   });
 });
 
-describe("a ticket's files (plan 092)", () => {
+describe("a ticket's files (plan 093)", () => {
   const SHOT = { id: "10001", filename: "shot.png", mime_type: "image/png", size: 48_000 };
   const REPORT = { id: "10002", filename: "report.pdf", mime_type: "application/pdf", size: 120_500 };
   const basic = `Basic ${Buffer.from("mina@example.com:fixture-jira-token").toString("base64")}`;

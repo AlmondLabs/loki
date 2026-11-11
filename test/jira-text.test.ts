@@ -187,7 +187,7 @@ describe("a Jira document as the Slack card's blocks (plan 091)", () => {
   });
 });
 
-describe("a Jira document's files (plan 092)", () => {
+describe("a Jira document's files (plan 093)", () => {
   const media = (attrs: Record<string, unknown>) => ({ type: "media", attrs: { id: "m1", type: "file", collection: "", ...attrs } });
   const single = (...content: unknown[]) => ({ type: "mediaSingle", attrs: { layout: "center" }, content });
 

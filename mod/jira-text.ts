@@ -35,7 +35,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
 
 /**
- * A file a Jira document shares, as the document names it (plan 092, KTD6). The card matches `name`, the file's
+ * A file a Jira document shares, as the document names it (plan 093, KTD6). The card matches `name`, the file's
  * `alt`, to the ticket's attachment list, and opens `url` for an `external` file, so only an https address is kept.
  * `type` is Jira's kind of media (`file`, `link` or `external`); any of the three is null when the document leaves it
  * out. `width` and `height` are a picture's size in pixels as Jira's editor records it, which the card fits its preview
@@ -93,7 +93,7 @@ function linkOf(node: Record<string, unknown>): string {
 /**
  * A Jira document as plain lines, top to bottom: a line for each paragraph and each line break in it, list items with
  * their mark, code as written, a link as its text and address, a mention as the person's name, and each file on a line
- * of its own as `file: <name>`, or `file: attachment` when it has none (plan 092). A node type this does not know is
+ * of its own as `file: <name>`, or `file: attachment` when it has none (plan 093). A node type this does not know is
  * read for the text inside it, so a new kind of block never empties a comment. `mentions` lists each mentioned account
  * id once, so a caller can tell whether the person was mentioned.
  */
@@ -201,7 +201,7 @@ const visible = (spans: readonly SlackSpan[]) => spans.some((s) => s.kind !== "t
  * bullet or number and a list inside an item indented under it, since Slack's shape has no list. Bold, italics,
  * strikethrough and code marks style their text; a link is drawn by its label and keeps its address; a mention is
  * Slack's mention pill with the name Jira wrote; an emoji is its character. Anything the shape has no place for keeps
- * its words as `adfText` reads them. A file draws nothing here, since the card shows it under the comment (plan 092),
+ * its words as `adfText` reads them. A file draws nothing here, since the card shows it under the comment (plan 093),
  * but a picture's caption keeps its words as a block.
  */
 export function adfBlocks(doc: unknown): SlackBlock[] {

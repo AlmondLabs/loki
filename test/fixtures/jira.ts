@@ -2,7 +2,7 @@
  * A stand-in for one Jira Cloud site, driven through an injected fetch (plan 2026-11-10-1451, U2). It keeps tickets, who
  * watches each, their fields and description (plan 089), their comments and their history, a list of fields with a
  * Sprint custom field unless `state.has_sprints` is off, and the one email and API token it accepts. Tickets may
- * carry attachments, listed under the issue's `attachment` field and served as thumbnails (plan 092). Every request is
+ * carry attachments, listed under the issue's `attachment` field and served as thumbnails (plan 093). Every request is
  * recorded, so a test can say which endpoints were reached and with what, and every comment posted is kept in `posted`.
  * Switches in `state` make it answer as Jira does when the token is refused or the site asks for a wait.
  */

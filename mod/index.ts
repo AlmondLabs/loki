@@ -395,7 +395,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
   // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
   // Thumbnails of pictures shared in Slack and Jira, saved beside a message's pictures so windows and paired Macs load
-  // them (plans 080, 092).
+  // them (plans 080, 093).
   const previews = new OutsidePreviews({ dir: paths.chatImages });
   // The people in each Slack workspace, read when a reply first asks, for @ suggestions and mentions (plan 082).
   const slackPeople = new SlackPeople({ client: slackClient });
@@ -412,7 +412,7 @@ export default function activate(api: ModApi, host: Host): () => void {
         slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
       ),
       // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
-      // A picture in a comment is fetched once and saved beside Slack's, keyed by its account and attachment (plan 092).
+      // A picture in a comment is fetched once and saved beside Slack's, keyed by its account and attachment (plan 093).
       jira: jiraCardView(
         jiraClients.of,
         async (accountId) => parseJiraSecret(await accounts.getSecret(accountId)),

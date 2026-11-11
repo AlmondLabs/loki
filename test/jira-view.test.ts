@@ -450,7 +450,7 @@ describe("a Jira ticket read whole, for a hand-off", () => {
   });
 });
 
-describe("a Jira comment's files on its card (plan 092)", () => {
+describe("a Jira comment's files on its card (plan 093)", () => {
   const SHOT = { id: "10042", filename: "shot.png", mime_type: "image/png", size: 48_000 };
   const REPORT = { id: "10043", filename: "report.pdf", mime_type: "application/pdf", size: 2048 };
   /** A comment whose document is words and then a picture of `alt`, sized as Jira's editor sizes one. */

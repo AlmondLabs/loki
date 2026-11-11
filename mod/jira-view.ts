@@ -30,11 +30,11 @@ import { VIEW_AROUND, VIEW_LOAD, type CardView } from "./slack-view.ts";
 /** The calls reading a ticket's whole text makes, for a hand-off and the owner's tools; JiraClient has them. */
 export type JiraTextClient = Pick<JiraClient, "issue" | "comments" | "history">;
 
-/** The calls a card's reading of a ticket makes, which also reads its attachment list (plan 092); JiraClient has them. */
+/** The calls a card's reading of a ticket makes, which also reads its attachment list (plan 093); JiraClient has them. */
 export type JiraViewClient = JiraTextClient & Pick<JiraClient, "attachments">;
 
 /**
- * The saved name of an attachment's thumbnail on an account (plan 092), fetched once by the account's Mac; null when
+ * The saved name of an attachment's thumbnail on an account (plan 093), fetched once by the account's Mac; null when
  * there is none. Without one every file is a chip.
  */
 export type JiraPreview = (accountId: string, attachmentId: string) => Promise<string | null>;
@@ -45,7 +45,7 @@ function kindOf(filename: string): string | null {
 }
 
 /**
- * A comment's file as its card draws it (plan 092): matched by name to one of the ticket's attachments (KTD1), with
+ * A comment's file as its card draws it (plan 093): matched by name to one of the ticket's attachments (KTD1), with
  * its kind, size, the address that opens it in a signed-in browser on the Atlassian site (KTD5), and a picture's
  * thumbnail when the document gave its size. A file no single attachment is named as opens the ticket instead (R3);
  * an external file opens its own address.

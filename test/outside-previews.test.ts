@@ -75,7 +75,7 @@ describe("the thumbnails of pictures shared in Slack (plan 080)", () => {
   });
 });
 
-describe("the thumbnails of pictures in Jira comments (plan 092)", () => {
+describe("the thumbnails of pictures in Jira comments (plan 093)", () => {
   const KEY = "jira:jira:acme:u1:10001";
 
   /** The store over the test's folder, with a fetch that counts its calls and gives `answer`. */

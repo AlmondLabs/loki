@@ -196,7 +196,7 @@ function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullabl
 /**
  * The files shared in a message as chips (plan 080), by name, kind and size, and a picture as itself when its account's
  * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
- * A Jira comment's files ride the same shape (plan 092), so `where` names the place they open: "Slack", or "jira" on a Jira card.
+ * A Jira comment's files ride the same shape (plan 093), so `where` names the place they open: "Slack", or "jira" on a Jira card.
  */
 function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
   return (

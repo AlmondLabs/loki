@@ -9,7 +9,7 @@ execution: code
 
 # Jira comment files - Plan
 
-Plan 092 · follows plan 091 (Jira comments drawn as Slack messages) and plan 080 (Slack files)
+Plan 093 · follows plan 091 (Jira comments drawn as Slack messages) and plan 080 (Slack files)
 
 ---
 

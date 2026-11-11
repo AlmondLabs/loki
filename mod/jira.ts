@@ -9,7 +9,7 @@ import { log } from "./log.ts";
  * A thin Jira Cloud client over fetch for one connected site (plan 2026-11-10-1451, U2), calling as the person with
  * their email and a classic API token as basic auth against the site's own API host (KTD3). It reads who the token
  * belongs to, where the site lives, the tickets the person watches, and a ticket's fields, comments and history, and it posts
- * the person's own comment, and it reads a ticket's attachment list and a picture's thumbnail (plan 092). Nothing else
+ * the person's own comment, and it reads a ticket's attachment list and a picture's thumbnail (plan 093). Nothing else
  * here can change a ticket (R20): `postComment` is the only request that is not a GET, and no agent tool is given it.
  *
  * Every call goes through one wrapper that tells three answers apart (KTD5). Jira rejecting the token marks the
@@ -154,7 +154,7 @@ export interface JiraIssue {
   created: string;
 }
 
-/** A file attached to a ticket, as its attachment list gives it (plan 092): enough to match, label and open it. */
+/** A file attached to a ticket, as its attachment list gives it (plan 093): enough to match, label and open it. */
 export interface JiraAttachment {
   /** Jira's REST id for the file, which its thumbnail and content addresses take. */
   id: string;
@@ -420,7 +420,7 @@ export class JiraClient {
   }
 
   /**
-   * The files attached to a ticket (plan 092, KTD2), named by its id or its key, for matching a comment's files to
+   * The files attached to a ticket (plan 093, KTD2), named by its id or its key, for matching a comment's files to
    * what can be opened. A ticket without files gives an empty list.
    */
   async attachments(ticket: string): Promise<JiraAttachment[]> {
@@ -429,7 +429,7 @@ export class JiraClient {
   }
 
   /**
-   * A picture's thumbnail by its attachment id (plan 092, KTD3), or null when there is none to be had. The address is
+   * A picture's thumbnail by its attachment id (plan 093, KTD3), or null when there is none to be had. The address is
    * built from the id on the site's own host, never taken from Jira, and asks for the bytes themselves with
    * `redirect=false`; a redirect is never followed, since Jira's goes to a media host with a token in its address, so
    * the API token reaches only the site (R7). Only a picture of at most THUMBNAIL_MAX_BYTES is kept. A thumbnail is

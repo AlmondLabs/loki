@@ -8,7 +8,7 @@ import { log } from "./log.ts";
 import type { SlackThumb } from "./slack-markup.ts";
 
 /**
- * The thumbnails of pictures shared in Slack (plan 080) and in Jira comments (plan 092), saved where a message's
+ * The thumbnails of pictures shared in Slack (plan 080) and in Jira comments (plan 093), saved where a message's
  * pictures are (daemon/chat-images.ts, plan 029) so every window and paired Mac loads them the same way. Each service
  * serves a thumbnail only to a signed-in session, so the account's Mac fetches it once, as the person, and the card
  * names the file.
