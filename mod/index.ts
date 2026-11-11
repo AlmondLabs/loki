@@ -5,7 +5,8 @@ import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
 import { ScopeDebouncer } from "./lifecycle-events.ts";
-import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, paths } from "./paths.ts";
+import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, lokiDir, paths } from "./paths.ts";
+import { registerGoogleTools } from "./google-tools/index.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
@@ -806,6 +807,15 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
     }),
     ...registerReplyTools(api, { accounts, replies }),
+    // The Google tools scripts call (plan 2026-11-11 scripts): the owner's Google accounts on this Mac, through the
+    // account's shared sign-in; full listings go where every chat's too-big results go (daemon/tool-results.ts).
+    ...registerGoogleTools(api, {
+      accounts,
+      auth: googleAuth,
+      gmail: gmailClient,
+      heldElsewhere: (id) => macs.accountHeldBy(id),
+      resultsDir: (chatId) => join(lokiDir(), "tool-results", chatId.replace(/[^A-Za-z0-9_.-]+/g, "_")),
+    }),
   );
 
   // --- lifecycle -------------------------------------------------------

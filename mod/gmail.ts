@@ -419,7 +419,8 @@ export class GmailClient {
    */
   async sendReply(reply: GmailDraftInput): Promise<{ id: string }> {
     const raw = Buffer.from(rfc2822(reply), "utf8").toString("base64url");
-    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, threadId: reply.threadId }));
+    // A new message (a script's, plan 2026-11-11) has no thread yet: Gmail starts one.
+    const r = rec(await this.call("POST", "/messages/send", undefined, { raw, ...(reply.threadId ? { threadId: reply.threadId } : {}) }));
     return { id: str(r.id) };
   }
 

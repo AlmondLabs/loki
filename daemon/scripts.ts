@@ -43,11 +43,12 @@ export const SCRIPT_MEMORY_BYTES = 64 * 1024 * 1024;
 export const SCRIPTS_AT_ONCE = 4;
 
 /**
- * Estimated tokens the prompt's script section may spend listing tools; past it, a script finds tools with
- * `searchTools()` and reads one with `describeTool()`. Kept small so the section costs an owning agent little on
- * every turn (plan, Success Criteria).
+ * Estimated tokens the prompt's script section may spend listing tools one by one: none. The section names each
+ * namespace and what it is for, and a script finds a tool with `searchTools()` and reads it with `describeTool()`.
+ * Measured on 2026-11-11 (test/scripts-prompt.test.ts): an owning agent's prompt gains about 985 tokens a turn with
+ * this (576 the section, 409 the script tool), 1,119 with 150 and 1,460 with 600, against a 1,000-token target.
  */
-export const SCRIPT_LISTING_TOKENS = 600;
+export const SCRIPT_LISTING_TOKENS = 0;
 
 /** The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools. */
 export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [

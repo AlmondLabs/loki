@@ -135,7 +135,8 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     await run(d, other, "hello");
     const [ownerRequest, otherRequest] = sent;
     expect(ownerRequest).toContain("<codemode>");
-    expect(ownerRequest).toContain("google_echo");
+    // The section names the namespace the tool is in; a script finds the tool itself with searchTools().
+    expect(ownerRequest).toContain("Gmail, Drive, Sheets, Docs and Calendar");
     expect(otherRequest).not.toContain("<codemode>");
     expect(otherRequest).not.toContain("google_echo");
   });
@@ -170,6 +171,16 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     expect(result).toContain("tea at four / hi");
     expect(d.echo.calls).toEqual(["hi"]);
     expect(d.echo.cwd).toBe(dir);
+  });
+
+  test("R11: a script finds a tool the section does not list, and reads how to call it", async () => {
+    const d = await daemon();
+    const owner = await chatOf(d, OWNER, folder());
+    d.faux.setResponses([script("return JSON.stringify([await searchTools('echo'), await describeTool('google_echo')])"), reply(fauxAssistantMessage("done"))]);
+    await run(d, owner, "find");
+    const [result] = await scriptResults(d, owner);
+    expect(result).toContain("google_echo");
+    expect(result).toContain("Echo some text back");
   });
 
   test("R5: a value one script stores, the next script of the chat loads", async () => {
