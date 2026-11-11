@@ -155,12 +155,13 @@ describe("the new thread's pieces", () => {
     const html = renderToStaticMarkup(createElement(ThreadSteps, { rows: [bash(), bash(true)], running: false, arrived: false }));
     expect(html).toContain("Ran 2 commands · 1 failed");
     expect(html).toContain("ls failed");
-    expect(html).toContain('data-slot="trace"');
+    expect(html).toContain('data-row="tool"');
   });
 
   test("a running stretch shimmers and names no failure", () => {
     const html = renderToStaticMarkup(createElement(ThreadSteps, { rows: [bash(), bash(true, "")], running: true, arrived: false }));
-    expect(html).toContain('data-status="running"');
+    expect(html).toContain("Working");
+    expect(html).toContain("shimmer");
     expect(html).not.toContain("failed</button>");
   });
 

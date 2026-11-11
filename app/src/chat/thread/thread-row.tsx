@@ -4,24 +4,23 @@ import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon, FileIcon } from "lucide-react";
 import type { FileRef, TranscriptRow } from "../../../../core/attention/transcript.ts";
 import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, AttachmentTrigger } from "@/ui/attachment";
-import { Bubble, BubbleContent } from "@/ui/bubble";
 import { Button } from "@/ui/button";
-import { Message, MessageContent, MessageFooter } from "@/ui/message";
+import { Message, MessageActions, MessageContent, MessageResponse } from "@/ui/ai-elements/message";
 import { cn } from "cn";
 import { chatImageUrl, inTauri } from "../../desk/env";
 import { clockLabel } from "../../shared/thread";
 import { fileSize } from "../attachments";
 import { MARKDOWN_COMPONENTS } from "../markdown-image";
-import { AssistantBody, shownText } from "../transcript";
+import { shownText } from "../transcript";
 
 const REMARK_PLUGINS = [remarkGfm];
 
 /**
- * One message in the new thread, as Turns draws it (plan 094, U6). Yours is a block across the column, "You" and its time
- * over your words; the agent's is plain prose inside its turn, whose header names it. Under the agent's words, the copy
- * button (as markdown, once a reply has finished) and the time; on yours they sit in its label line. A queued message
- * says so there and offers its take-back. Memoised like today's rows: a long thread is not parsed again on every
- * keystroke.
+ * One message in the new thread (plan 094), on AI Elements' Message, laid out as Turns: yours is a block across the
+ * column, "You" and its time over your words; the agent's words are MessageResponse (streamdown, which fades words in
+ * while a reply streams) inside its turn, whose header names it, with its copy button (as markdown, once a reply has
+ * finished) and time under them. A queued message says so in its label line and offers its take-back. Memoised like
+ * today's rows: a long thread is not parsed again on every keystroke.
  */
 export const ThreadRow = memo(function ThreadRow({
   row: m,
@@ -39,51 +38,47 @@ export const ThreadRow = memo(function ThreadRow({
 }) {
   const time = clockLabel(m.at);
   const text = shownText(m);
-  const copyable = !!text && !(last && streaming);
+  const writing = last && streaming;
+  const copyable = !!text && !writing;
   if (m.role === "user")
     return (
-      <div
-        data-row="user"
-        data-queued={m.queued ? "true" : undefined}
-        data-arrived={arrived || undefined}
-        className={cn("group/row flex flex-col gap-1 rounded-lg bg-accent px-3.5 py-2.5", m.queued && "border border-dashed border-ring")}
-      >
-        <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
-          <span className="font-semibold text-foreground">You</span>
-          {time && <time dateTime={m.at}>{time}</time>}
-          {m.queued && (
-            <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
-              queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
-            </Button>
-          )}
-          {copyable && (
-            <span className="ml-auto">
-              <CopyAsMarkdown text={text} />
-            </span>
-          )}
-        </div>
-        <UserContent row={m} />
-      </div>
+      <Message from="user" data-row="user" data-queued={m.queued ? "true" : undefined} data-arrived={arrived || undefined} className="group/row max-w-full">
+        <MessageContent className={cn("w-full gap-1 bg-accent! px-3.5! py-2.5!", m.queued && "border border-dashed border-ring")}>
+          <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
+            <span className="font-semibold text-foreground">You</span>
+            {time && <time dateTime={m.at}>{time}</time>}
+            {m.queued && (
+              <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
+                queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+              </Button>
+            )}
+            {copyable && (
+              <span className="ml-auto">
+                <CopyAsMarkdown text={text} />
+              </span>
+            )}
+          </div>
+          <UserContent row={m} />
+        </MessageContent>
+      </Message>
     );
   return (
-    <Message data-row={m.role} data-arrived={arrived || undefined} className="group/row">
-      <MessageContent>
-        <Bubble variant="ghost">
-          <BubbleContent className="text-body">
-            <AssistantBody row={m} cursor={last && streaming} />
-          </BubbleContent>
-        </Bubble>
-        {(copyable || time) && (
-          <MessageFooter className="gap-1 px-0">
-            {copyable && <CopyAsMarkdown text={text} />}
-            {time && (
-              <time dateTime={m.at} className="text-meta font-normal text-muted-foreground">
-                {time}
-              </time>
-            )}
-          </MessageFooter>
-        )}
+    <Message from="assistant" data-row={m.role} data-arrived={arrived || undefined} className="group/row max-w-full">
+      <MessageContent className="text-body">
+        <MessageResponse className="loki-md" isAnimating={writing} animated components={MARKDOWN_COMPONENTS}>
+          {text}
+        </MessageResponse>
       </MessageContent>
+      {(copyable || time) && (
+        <MessageActions>
+          {copyable && <CopyAsMarkdown text={text} />}
+          {time && (
+            <time dateTime={m.at} className="text-meta text-muted-foreground">
+              {time}
+            </time>
+          )}
+        </MessageActions>
+      )}
     </Message>
   );
 });
