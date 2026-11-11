@@ -391,7 +391,10 @@ export interface OutsideMessage {
   new_replies?: number | true;
   /** A Slack message's reactions as Slack shows them under it (plan 079), in Slack's order; absent when it has none. */
   reactions?: SlackReaction[];
-  /** The files shared in a Slack message (plan 080), shown as chips under it; absent when it has none. */
+  /**
+   * The files shared in a Slack message (plan 080) or a Jira comment (plan 092), shown as chips under it; absent when
+   * it has none.
+   */
   slack_files?: SlackFile[];
   /** A mail's To and Cc headers as written (plan 078), for its header line; absent for Slack and from an older loki. */
   to?: string;
@@ -564,7 +567,8 @@ export interface SlackAttachment {
 /**
  * A file shared in a Slack message (plan 080): its title, the kind Slack names it ("PDF", "PNG"), its size in bytes and
  * its page in Slack, each null when Slack gave none, and a picture's thumbnail. A file deleted since, or hidden by the
- * workspace's plan, keeps only that `gone` reason.
+ * workspace's plan, keeps only that `gone` reason. A Jira comment's file takes the same shape (plan 092), its link the
+ * file on the Jira site, or the ticket when it could not be matched to one of the ticket's attachments.
  */
 export interface SlackFile {
   name: string;

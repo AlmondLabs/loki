@@ -1,10 +1,11 @@
 import { messageOf as errorText } from "../core/errors.ts";
-import type { JiraCardTicket, JiraFieldChange } from "../core/frame-types.ts";
+import type { JiraCardTicket, JiraFieldChange, SlackFile } from "../core/frame-types.ts";
 import type { ThreadMessage, ThreadText } from "./handoff.ts";
 import {
   JiraError,
   jiraPersonOf,
   jiraTicketUrl,
+  type JiraAttachment,
   type JiraClient,
   type JiraEvent,
   type JiraEventPage,
@@ -13,7 +14,7 @@ import {
   type JiraSecret,
 } from "./jira.ts";
 import { eventLines } from "./jira-sync.ts";
-import { adfBlocks, adfText } from "./jira-text.ts";
+import { adfBlocks, adfFiles, adfText, type JiraFileRef } from "./jira-text.ts";
 import { log } from "./log.ts";
 import { VIEW_AROUND, VIEW_LOAD, type CardView } from "./slack-view.ts";
 
@@ -26,8 +27,56 @@ import { VIEW_AROUND, VIEW_LOAD, type CardView } from "./slack-view.ts";
  * read from its newest end. Nothing here changes a ticket: only the reading calls are asked for.
  */
 
-/** The calls reading a ticket makes; JiraClient has them. */
-export type JiraViewClient = Pick<JiraClient, "issue" | "comments" | "history">;
+/** The calls reading a ticket's whole text makes, for a hand-off and the owner's tools; JiraClient has them. */
+export type JiraTextClient = Pick<JiraClient, "issue" | "comments" | "history">;
+
+/** The calls a card's reading of a ticket makes, which also reads its attachment list (plan 092); JiraClient has them. */
+export type JiraViewClient = JiraTextClient & Pick<JiraClient, "attachments">;
+
+/**
+ * The saved name of an attachment's thumbnail on an account (plan 092), fetched once by the account's Mac; null when
+ * there is none. Without one every file is a chip.
+ */
+export type JiraPreview = (accountId: string, attachmentId: string) => Promise<string | null>;
+
+/** The kind a file's chip names: its name's extension in capitals, as "PNG" or "PDF"; null when it has none. */
+function kindOf(filename: string): string | null {
+  return /\.([a-z0-9]{1,5})$/i.exec(filename)?.[1]?.toUpperCase() ?? null;
+}
+
+/**
+ * A comment's file as its card draws it (plan 092): matched by name to one of the ticket's attachments (KTD1), with
+ * its kind, size, the address that opens it in a signed-in browser on the Atlassian site (KTD5), and a picture's
+ * thumbnail when the document gave its size. A file no single attachment is named as opens the ticket instead (R3);
+ * an external file opens its own address.
+ */
+async function fileOf(
+  ref: JiraFileRef,
+  attachments: readonly JiraAttachment[],
+  places: { site: string | null; ticket: string | null },
+  preview: (attachmentId: string) => Promise<string | null>,
+): Promise<SlackFile> {
+  if (ref.type === "external" && ref.url) return { name: ref.name ?? ref.url, kind: null, size: null, link: ref.url };
+  const named = ref.name ? attachments.filter((a) => a.filename === ref.name) : [];
+  const a = named.length === 1 ? named[0] : null;
+  if (!a || !places.site) return { name: ref.name ?? "attachment", kind: null, size: null, link: places.ticket };
+  const file: SlackFile = {
+    name: a.filename,
+    kind: kindOf(a.filename),
+    size: a.size || null,
+    link: `https://${places.site}/rest/api/3/attachment/content/${encodeURIComponent(a.id)}`,
+  };
+  if (!a.mime_type.startsWith("image/") || ref.width === null || ref.height === null) return file;
+  const name = await preview(a.id);
+  return name ? { ...file, preview: { name, width: ref.width, height: ref.height } } : file;
+}
+
+/** A ticket's attachment list that could not be read leaves its comments' files as chips that open the ticket. */
+function unreadAttachments(err: unknown): JiraAttachment[] {
+  if (err instanceof JiraError && err.code === "rejected") throw err;
+  log("jira:attachments-unread", { error: errorText(err) });
+  return [];
+}
 
 /** One of a ticket's two lists of events, read a page at a time. */
 type EventList = (opts: JiraEventPageOptions) => Promise<JiraEventPage>;
@@ -127,7 +176,7 @@ function ticketMessage(issue: JiraIssue): ThreadMessage {
 }
 
 /** A ticket's whole text for a hand-off and the owner's tools: the ticket itself, then every comment, then every history entry, oldest first. */
-export function jiraThreadText(client: (accountId: string) => JiraViewClient): ThreadText {
+export function jiraThreadText(client: (accountId: string) => JiraTextClient): ThreadText {
   return async (accountId, threadId) => {
     const me = jiraPersonOf(accountId);
     const c = client(accountId);
@@ -158,7 +207,11 @@ export function jiraThreadText(client: (accountId: string) => JiraViewClient): T
  * window says the ticket's address in the browser, on the site's own domain when it has one (R14), from the account's
  * keychain entry.
  */
-export function jiraCardView(client: (accountId: string) => JiraViewClient, secret: (accountId: string) => Promise<JiraSecret | null>): CardView {
+export function jiraCardView(
+  client: (accountId: string) => JiraViewClient,
+  secret: (accountId: string) => Promise<JiraSecret | null>,
+  preview: JiraPreview = () => Promise.resolve(null),
+): CardView {
   return async (accountId, threadId, facts, ask) => {
     const me = jiraPersonOf(accountId);
     const mark = facts.dealt_message_id;
@@ -177,9 +230,22 @@ export function jiraCardView(client: (accountId: string) => JiraViewClient, secr
     ]);
     // The ticket could not be read: its comments alone would hide its changes, so the card gets the one log instead.
     const { shown, moreBefore } = opening && !ticket ? await windowOf(merged, mark, facts.brought_ids, ask) : read;
-    const link = kept && facts.place ? { link: jiraTicketUrl(kept, facts.place) } : {};
+    const ticketUrl = kept && facts.place ? jiraTicketUrl(kept, facts.place) : null;
+    const link = ticketUrl ? { link: ticketUrl } : {};
+    // The ticket's attachment list is read only when a comment shown has a file (KTD2), once for the window.
+    const refs = new Map(shown.map((e) => [e.id, e.kind === "comment" ? adfFiles(e.body) : []]));
+    const attachments = [...refs.values()].some((r) => r.length) ? await c.attachments(threadId).catch(unreadAttachments) : [];
+    const places = { site: kept?.site ?? null, ticket: ticketUrl };
+    const messages = await Promise.all(
+      shown.map(async (e) => {
+        const files = refs.get(e.id) ?? [];
+        if (!files.length) return draw(e);
+        const slackFiles = await Promise.all(files.map((ref) => fileOf(ref, attachments, places, (id) => preview(accountId, id))));
+        return { ...draw(e), slack_files: slackFiles };
+      }),
+    );
     return {
-      messages: shown.map(draw),
+      messages,
       window: { view: "channel", thread_ts: null, more_before: moreBefore, more_after: false },
       ...link,
       ...(ticket ? { ticket: { ...ticket, comment_count: read.total } } : {}),

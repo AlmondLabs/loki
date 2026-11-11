@@ -412,7 +412,12 @@ export default function activate(api: ModApi, host: Host): () => void {
         slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
       ),
       // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
-      jira: jiraCardView(jiraClients.of, async (accountId) => parseJiraSecret(await accounts.getSecret(accountId))),
+      // A picture in a comment is fetched once and saved beside Slack's, keyed by its account and attachment (plan 092).
+      jira: jiraCardView(
+        jiraClients.of,
+        async (accountId) => parseJiraSecret(await accounts.getSecret(accountId)),
+        (accountId, attachmentId) => previews.preview(`jira:${accountId}:${attachmentId}`, () => jiraClients.of(accountId).thumbnail(attachmentId)),
+      ),
     },
     // A Jira comment goes through the site's one client, so a wait Jira asked for holds for it too.
     clientFor: (account): SendClient => {

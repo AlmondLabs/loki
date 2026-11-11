@@ -193,7 +193,7 @@ describe("a Jira document's files (plan 092)", () => {
 
   test("a comment that is only a picture lists its file and reads as its name", () => {
     const body = doc(single(media({ alt: "shot.png" })));
-    expect(adfFiles(body)).toEqual([{ name: "shot.png", type: "file", url: null }]);
+    expect(adfFiles(body)).toEqual([{ name: "shot.png", type: "file", url: null, width: null, height: null }]);
     expect(adfText(body).lines).toEqual(["file: shot.png"]);
     expect(adfBlocks(body)).toEqual([]);
   });
@@ -207,18 +207,18 @@ describe("a Jira document's files (plan 092)", () => {
 
   test("a file without a name reads as an attachment", () => {
     const body = doc(single(media({})));
-    expect(adfFiles(body)).toEqual([{ name: null, type: "file", url: null }]);
+    expect(adfFiles(body)).toEqual([{ name: null, type: "file", url: null, width: null, height: null }]);
     expect(adfText(body).lines).toEqual(["file: attachment"]);
   });
 
   test("an external file carries its https address, and only an https one", () => {
     const body = doc(
-      single(media({ type: "external", url: "https://example.com/cat.gif", alt: "cat.gif" })),
+      single(media({ type: "external", url: "https://example.com/cat.gif", alt: "cat.gif", width: 480, height: 270 })),
       single(media({ type: "external", url: "http://example.com/dog.gif" })),
     );
     expect(adfFiles(body)).toEqual([
-      { name: "cat.gif", type: "external", url: "https://example.com/cat.gif" },
-      { name: null, type: "external", url: null },
+      { name: "cat.gif", type: "external", url: "https://example.com/cat.gif", width: 480, height: 270 },
+      { name: null, type: "external", url: null, width: null, height: null },
     ]);
   });
 
@@ -233,7 +233,7 @@ describe("a Jira document's files (plan 092)", () => {
 
   test("a file inside a paragraph is listed and gets a line of its own, and draws nothing in the paragraph", () => {
     const body = doc(paragraph(text("see "), { type: "mediaInline", attrs: { id: "m3", type: "file", alt: "log.txt" } }, text(" here")));
-    expect(adfFiles(body)).toEqual([{ name: "log.txt", type: "file", url: null }]);
+    expect(adfFiles(body)).toEqual([{ name: "log.txt", type: "file", url: null, width: null, height: null }]);
     expect(adfText(body).lines).toEqual(["see", "file: log.txt", "here"]);
     expect(adfBlocks(body)).toEqual([{ kind: "text", spans: [{ kind: "text", text: "see  here" }] }]);
   });

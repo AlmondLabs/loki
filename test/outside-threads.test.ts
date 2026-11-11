@@ -272,11 +272,15 @@ describe("reading a card's whole thread", () => {
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
-  /** What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it mentions the person. */
+  /**
+   * What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it
+   * mentions the person; and its files as chips (plan 092).
+   */
   const DRAWN = {
     avatar: "https://avatar-management.example/ada/48",
     body: [{ kind: "text" as const, spans: [{ kind: "mention" as const, text: "@Mina Example" }] }],
     mentions_me: true,
+    slack_files: [{ name: "shot.png", kind: "PNG", size: 48_000, link: "https://acme.atlassian.net/rest/api/3/attachment/content/10042" }],
   };
   test("a Jira card reads its window with the record's key, and the ticket's address and the ticket come back with it (KTD14, R14, plan 089, 091)", async () => {
     const viewed: CardFacts[] = [];

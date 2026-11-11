@@ -19,7 +19,7 @@ const at = (minutes: number) => new Date(START + minutes * MIN);
 const eid = (when: Date, kind: "c" | "h", jiraId: string) => `${when.toISOString()}:${kind}${jiraId.padStart(12, "0")}`;
 
 /** One site with one ticket, OPS-7, and the readers over it; `link_host` stands for a custom domain kept at connect. */
-function site(over: { link_host?: string } = {}) {
+function site(over: { link_host?: string } = {}, preview?: (accountId: string, attachmentId: string) => Promise<string | null>) {
   const clock = () => at(1000);
   const jira = fakeJira({ now: clock, me: ME });
   const ticket = jira.addTicket({
@@ -41,6 +41,7 @@ function site(over: { link_host?: string } = {}) {
   const view = jiraCardView(
     () => client,
     () => Promise.resolve(secret),
+    preview,
   );
   const facts = (f: Partial<CardFacts> = {}): CardFacts => ({ dealt_message_id: null, brought_ids: [], newest_message_id: null, place: "OPS-7", ...f });
   /** A read as an app on plan 089 asks it, with the ticket. */
@@ -446,5 +447,125 @@ describe("a Jira ticket read whole, for a hand-off", () => {
     expect(messages.slice(1).map((m) => m.id)).toEqual([...comments, ...changes]);
     expect(messages.filter((m) => m.mine).map((m) => m.id)).toEqual([comments[7]]);
     expect(messages[61]).toEqual({ id: changes[0], sender: "Ada Lovelace", at: at(1).toISOString(), text: "status: To Do → In Progress", mine: false });
+  });
+});
+
+describe("a Jira comment's files on its card (plan 092)", () => {
+  const SHOT = { id: "10042", filename: "shot.png", mime_type: "image/png", size: 48_000 };
+  const REPORT = { id: "10043", filename: "report.pdf", mime_type: "application/pdf", size: 2048 };
+  /** A comment whose document is words and then a picture of `alt`, sized as Jira's editor sizes one. */
+  const picture = (alt: string | null, words = "Here it is") => ({
+    version: 1,
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: words }] },
+      {
+        type: "mediaSingle",
+        content: [{ type: "media", attrs: { id: "uuid-1", type: "file", collection: "", width: 1200, height: 800, ...(alt ? { alt } : {}) } }],
+      },
+    ],
+  });
+  /** A comment of only a file of `alt`, as a group of files holds one. */
+  const file = (alt: string) => ({
+    version: 1,
+    type: "doc",
+    content: [{ type: "mediaGroup", content: [{ type: "media", attrs: { id: "uuid-2", type: "file", collection: "", alt } }] }],
+  });
+  /** A site whose previews are recorded and named after the attachment. */
+  function withPreviews(over: { link_host?: string } = {}) {
+    const asked: string[] = [];
+    const s = site(over, (accountId, attachmentId) => {
+      asked.push(`${accountId}|${attachmentId}`);
+      return Promise.resolve(`${"a".repeat(31)}${attachmentId.slice(-1)}.png`);
+    });
+    const say = (minute: number, body: unknown) => eid(at(minute), "c", s.jira.comment("OPS-7", { at: at(minute), author: JIRA_ADA, body }));
+    const lists = () => s.jira.requests.filter((r) => r.url.searchParams.get("fields") === "attachment").length;
+    return { ...s, asked, say, lists };
+  }
+
+  test("a picture matched by its name is a chip with its kind, size, file address and preview", async () => {
+    const s = withPreviews();
+    s.jira.edit("OPS-7", { attachments: [SHOT] });
+    const id = s.say(1, picture("shot.png"));
+    const { messages } = await s.read({ brought_ids: [id] });
+    const m = messages.find((x) => x.id === id);
+    expect(m?.slack_files).toEqual([
+      {
+        name: "shot.png",
+        kind: "PNG",
+        size: 48_000,
+        link: `https://${s.jira.host}/rest/api/3/attachment/content/10042`,
+        preview: { name: `${"a".repeat(31)}2.png`, width: 1200, height: 800 },
+      },
+    ]);
+    expect(s.asked).toEqual([`${ID}|10042`]);
+    expect(m?.text).toBe("Here it is\nfile: shot.png");
+    expect(m?.body).toEqual([{ kind: "text", spans: [{ kind: "text", text: "Here it is" }] }]);
+  });
+
+  test("a PDF is matched without asking for a preview", async () => {
+    const s = withPreviews();
+    s.jira.edit("OPS-7", { attachments: [SHOT, REPORT] });
+    const id = s.say(1, file("report.pdf"));
+    const { messages } = await s.read({ brought_ids: [id] });
+    expect(messages.find((x) => x.id === id)?.slack_files).toEqual([
+      { name: "report.pdf", kind: "PDF", size: 2048, link: `https://${s.jira.host}/rest/api/3/attachment/content/10043` },
+    ]);
+    expect(s.asked).toEqual([]);
+  });
+
+  test("a name two attachments share, or none has, is a chip that opens the ticket, on the site's own domain", async () => {
+    const s = withPreviews({ link_host: "jira.acme.example" });
+    s.jira.edit("OPS-7", { attachments: [SHOT, { ...SHOT, id: "10044" }] });
+    const twice = s.say(1, picture("shot.png"));
+    const gone = s.say(2, file("old.txt"));
+    const unnamed = s.say(3, picture(null));
+    const { messages } = await s.read({ brought_ids: [twice, gone, unnamed] });
+    const files = (id: string) => messages.find((x) => x.id === id)?.slack_files;
+    const ticket = "https://jira.acme.example/browse/OPS-7";
+    expect(files(twice)).toEqual([{ name: "shot.png", kind: null, size: null, link: ticket }]);
+    expect(files(gone)).toEqual([{ name: "old.txt", kind: null, size: null, link: ticket }]);
+    expect(files(unnamed)).toEqual([{ name: "attachment", kind: null, size: null, link: ticket }]);
+    expect(s.asked).toEqual([]);
+  });
+
+  test("a window without files reads no attachment list, and one with files reads it once", async () => {
+    const s = withPreviews();
+    s.jira.edit("OPS-7", { attachments: [SHOT, REPORT] });
+    const plainOnly = s.comment(1);
+    await s.read({ brought_ids: [plainOnly] });
+    expect(s.lists()).toBe(0);
+    const a = s.say(2, picture("shot.png"));
+    const b = s.say(3, file("report.pdf"));
+    await s.read({ brought_ids: [a, b] });
+    expect(s.lists()).toBe(1);
+  });
+
+  test("an attachment list that cannot be read leaves the files as ticket chips, and the card still reads", async () => {
+    const s = withPreviews();
+    s.jira.edit("OPS-7", { attachments: [SHOT] });
+    const id = s.say(1, picture("shot.png"));
+    // A failed issue read fails the attachment list, which is read from the issue; the card falls back to its log.
+    s.jira.state.broken = { read: "issue", status: 500 };
+    const { messages } = await s.read({ brought_ids: [id] });
+    expect(messages.find((x) => x.id === id)?.slack_files).toEqual([{ name: "shot.png", kind: null, size: null, link: `https://${s.jira.host}/browse/OPS-7` }]);
+  });
+
+  test("a load of earlier comments and the older merged log match their files too", async () => {
+    const s = withPreviews();
+    s.jira.edit("OPS-7", { attachments: [REPORT] });
+    const early = s.say(1, file("report.pdf"));
+    const later = Array.from({ length: 30 }, (_, i) => s.comment(i + 2));
+    const earlier = await s.read({ brought_ids: later.slice(-1) }, { direction: "before", from: later[0] });
+    expect(earlier.messages.find((x) => x.id === early)?.slack_files?.[0]?.link).toBe(`https://${s.jira.host}/rest/api/3/attachment/content/10043`);
+    const merged = await s.plain({ brought_ids: [early] });
+    expect(merged.messages.find((x) => x.id === early)?.slack_files?.[0]?.kind).toBe("PDF");
+  });
+
+  test("a hand-off names the file in the comment's text", async () => {
+    const s = withPreviews();
+    s.say(1, file("report.pdf"));
+    const all = await s.text(ID, "OPS-7");
+    expect(all.some((m) => m.text === "file: report.pdf")).toBe(true);
   });
 });

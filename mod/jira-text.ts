@@ -38,13 +38,19 @@ const list = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : [
  * A file a Jira document shares, as the document names it (plan 092, KTD6). The card matches `name`, the file's
  * `alt`, to the ticket's attachment list, and opens `url` for an `external` file, so only an https address is kept.
  * `type` is Jira's kind of media (`file`, `link` or `external`); any of the three is null when the document leaves it
- * out.
+ * out. `width` and `height` are a picture's size in pixels as Jira's editor records it, which the card fits its preview
+ * to; null when the document leaves them out.
  */
 export interface JiraFileRef {
   name: string | null;
   type: string | null;
   url: string | null;
+  width: number | null;
+  height: number | null;
 }
+
+/** A positive pixel size from a node's attributes, or null. */
+const pixels = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
 
 /** Jira's nodes that stand for a file: one in a picture or a group of files, and one inside a line of text. */
 const isFile = (node: Record<string, unknown>) => node.type === "media" || node.type === "mediaInline";
@@ -67,6 +73,8 @@ export function adfFiles(doc: unknown): JiraFileRef[] {
         name: str(attrs.alt) || null,
         type: str(attrs.type) || null,
         url: attrs.type === "external" && url.startsWith("https://") ? url : null,
+        width: pixels(attrs.width),
+        height: pixels(attrs.height),
       });
       return;
     }
