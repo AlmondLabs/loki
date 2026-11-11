@@ -445,8 +445,9 @@ describe("writing moves back to Gmail and putting them back (plan 070, U3)", () 
     box.deliver({ thread: "t2", at: ago(HOUR), from: GRACE, to: "ada@acme.com", labels: ["INBOX"] });
     await sync().tick();
     const before = threads.list(id());
-    const words = "Request had insufficient authentication scopes.";
-    box.state.refuseModify = words;
+    box.state.refuseModify = "Request had insufficient authentication scopes.";
+    // A refusal for a scope the sign-in lacks says how to get it back (plan 2026-11-11 scripts, R17).
+    const words = "this Google account has not let loki use Gmail: sign in again for it in Preferences › Accounts";
     await expect(threads.markRead(id(), "t1")).rejects.toThrow(words);
     await expect(threads.archive(id(), "t1")).rejects.toThrow(words);
     await expect(threads.addLabels(id(), "t1", ["Label_2"])).rejects.toThrow(words);

@@ -52,6 +52,7 @@ import { outsideResting } from "../core/attention/rest.ts";
 import { keyOf } from "../core/attention/model.ts";
 import { AccountWatcher } from "./account-watcher.ts";
 import { GmailClient } from "./gmail.ts";
+import { GoogleAuth } from "./google-auth.ts";
 import { GmailSync, gmailOutsideSource } from "./gmail-sync.ts";
 import { GoogleSignIn, googleCallbackUrl } from "./google-signin.ts";
 import { SlackSessions } from "./slack-session.ts";
@@ -294,13 +295,23 @@ export default function activate(api: ModApi, host: Host): () => void {
   // themselves, with the address, email and API token the person types.
   const googleSignIn = new GoogleSignIn({ accounts, redirect: googleCallbackUrl(modPort) });
   const slackSessions = new SlackSessions({ home: homedir() });
-  // One Gmail client per account, shared by its watcher and its archive so a refreshed token is used by both; an
-  // account that changed gets a new one, which reads its sign-in from the keychain again.
+  // One sign-in per Google account (plan 2026-11-11 scripts, KTD8), shared by its Gmail client and the Google tools so
+  // one refresh serves them all; and one Gmail client per account, shared by its watcher and its archive. An account
+  // that changed (signed in again, moved, disconnected) gets new ones, which read its sign-in from the keychain again.
+  const googleAuths = new Map<string, GoogleAuth>();
+  const googleAuth = (accountId: string): GoogleAuth => {
+    let auth = googleAuths.get(accountId);
+    if (!auth) {
+      auth = new GoogleAuth({ accounts, account_id: accountId });
+      googleAuths.set(accountId, auth);
+    }
+    return auth;
+  };
   const gmailClients = new Map<string, GmailClient>();
   const gmailClient = (accountId: string): GmailClient => {
     let client = gmailClients.get(accountId);
     if (!client) {
-      client = new GmailClient({ accounts, account_id: accountId });
+      client = new GmailClient({ accounts, account_id: accountId, auth: googleAuth(accountId) });
       gmailClients.set(accountId, client);
     }
     return client;
@@ -334,6 +345,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     },
   };
   accounts.onChange((change) => {
+    googleAuths.delete(change.account_id);
     gmailClients.delete(change.account_id);
     slackClients.delete(change.account_id);
     jiraClients.made.delete(change.account_id);

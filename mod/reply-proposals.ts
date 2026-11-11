@@ -10,7 +10,8 @@ import { ownedAccount } from "./account-tools.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import { GmailError, type GmailClient, type GmailMessage } from "./gmail.ts";
+import { type GmailClient, type GmailMessage } from "./gmail.ts";
+import { GoogleError } from "./google-auth.ts";
 import { causeWords, inert } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
@@ -442,7 +443,7 @@ export class ReplyProposals {
     if (reader.provider === "jira") return { subject, to: [], cc: [], place: this.opts.threads.get(account.account_id, threadId)?.place ?? null };
     if (reader.provider === "gmail") {
       const thread = await reader.client.getThread(threadId, "metadata").catch((err: unknown) => {
-        if (err instanceof GmailError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
+        if (err instanceof GoogleError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
         throw err;
       });
       const newest = replyTarget(thread.messages);

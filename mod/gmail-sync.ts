@@ -5,7 +5,8 @@ import type { OutsideChange, OutsideMessageChange, OutsideWrite } from "../core/
 import type { AccountThreads, OutsideSource, ThreadRecord } from "./account-threads.ts";
 import type { AccountSync } from "./account-watcher.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
-import { GmailError, type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
+import { type GmailClient, type GmailHistoryRecord, type GmailMessage } from "./gmail.ts";
+import { GoogleError } from "./google-auth.ts";
 import { log } from "./log.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
@@ -320,7 +321,7 @@ export class GmailSync implements AccountSync {
     try {
       return (await this.opts.client.getThread(threadId, "metadata")).messages.sort((a, b) => timeOf(a) - timeOf(b));
     } catch (error) {
-      if (!(error instanceof GmailError)) throw error;
+      if (!(error instanceof GoogleError)) throw error;
       if (error.status === 404) {
         this.opts.threads.markGoneOutThere(this.accountId, threadId);
         return null;
@@ -377,7 +378,7 @@ export class GmailSync implements AccountSync {
    * Whether Gmail refused one thread rather than the account: a client error that is not a sign-in, an admin's block or
    * a rate limit. Those, a server error, and no answer at all fail the tick instead, so the thread is read again.
    */
-  private unreadable(error: GmailError): boolean {
+  private unreadable(error: GoogleError): boolean {
     if (error.status < 400 || error.status >= 500 || error.status === 401 || error.status === 429) return false;
     if (error.reason !== null && RATE_LIMITS.includes(error.reason)) return false;
     return this.opts.accounts.get(this.accountId)?.status === "connected";
