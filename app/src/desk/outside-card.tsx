@@ -177,6 +177,48 @@ export function withLoaded(now: Shown, out: OutsideRead, w: OutsideWindow, direc
   };
 }
 
+/** A Slack message time as text that sorts in time order, so two compare as strings. */
+const tsOrder = (ts: string): string => {
+  const [s = "", f = ""] = ts.split(".");
+  return `${s.padStart(12, "0")}.${f.padEnd(6, "0")}`;
+};
+
+/**
+ * What a Slack card reads when a newer message comes while it shows window `w` (plan 090): the view it shows, never
+ * the one the Mac would open on now. A thread is read whole, as an opened one is; a channel or DM reads on from the last
+ * message shown. Null when the channel or DM has more after what was loaded: load later reaches the new message.
+ */
+export function refreshAsk(messages: readonly OutsideMessage[], w: OutsideWindow): OutsideWindowAsk | null {
+  if (w.view === "thread") return w.thread_ts ? { view: "thread", thread_ts: w.thread_ts } : null;
+  const last = messages.at(-1)?.id;
+  return last && !w.more_after ? { view: "channel", direction: "after", from: last } : null;
+}
+
+/**
+ * What a refresh of a Slack card adds (plan 090): the messages newer than the last one shown go at the end, and each
+ * shown message takes its reactions as they are now. Nothing above moves: the rows, the New line and the mention look
+ * stay as they were drawn. A thread with replies after what was loaded keeps that gap and counts the replies in it.
+ */
+export function withNewer(now: Shown, out: OutsideRead): Shown {
+  const w = now.window;
+  if (!w) return now;
+  const fresh = new Map(out.messages.map((m) => [m.id, m]));
+  const messages = now.messages.map((m) => {
+    const f = fresh.get(m.id);
+    if (!f) return m;
+    const next = { ...m };
+    if (f.reactions) next.reactions = f.reactions;
+    else delete next.reactions;
+    return next;
+  });
+  const last = tsOrder(now.messages.at(-1)?.id ?? "");
+  const shown = new Set(now.messages.map((m) => m.id));
+  const newer = out.messages.filter((m) => !shown.has(m.id) && tsOrder(m.id) > last);
+  const more = out.window?.more_after ?? false;
+  if (w.more_after) return { ...now, messages, window: { ...w, more_after: more === true ? true : newer.length } };
+  return { ...now, messages: [...messages, ...newer], window: { ...w, more_after: more } };
+}
+
 /**
  * What a Slack card's thread reacts with (plans 079, 084): reacting, which shows at once on what the card holds and
  * goes back if Slack refuses; the emoji search; and the person's quick reactions. Empty where the source cannot react.
@@ -258,9 +300,9 @@ export const ticketAsk = (o: OutsideFacts | undefined, showsTicket: boolean): Ou
 /**
  * The card's thread (plan 068), read from its account when the card comes up and again when a new message arrives in
  * it; without a source (a demo, an old daemon) it stays loading and the card shows its last lines. A Slack card's
- * window (plan 077) loads more on either side and opens a post's thread; what was loaded is dropped when the card or
- * its newest message changes (R15). A reply the person sent alone shows at the end at once, and the thread is read
- * again once it went (plan 086), in the view it went to: the card's own, or a post's thread opened on it.
+ * window (plan 077) loads more on either side and opens a post's thread. A newer message keeps the view and what was
+ * loaded (plan 090): it is added at the end, and only another card on top starts afresh (R15). A reply the person sent
+ * alone shows at the end at once, and the view is read again once it went (plan 086).
  */
 export function useOutsideThread(
   item: AttentionItem,
@@ -276,8 +318,11 @@ export function useOutsideThread(
   const setOpened = hold ? hold.setOpened : setOwnOpened;
   const threadTs = opened?.key === key ? opened.ts : null;
   const ask: OutsideWindowAsk = threadTs ? { view: "thread", thread_ts: threadTs } : {};
-  const view = o ? `${o.account_id}/${o.thread_id}/${threadTs ?? ""}` : "";
-  const tag = `${key}/${threadTs ?? ""}`;
+  const view = key ? `${key}/${threadTs ?? ""}` : "";
+  const newest = o?.newest_message_id ?? "";
+  // A Slack card keeps what it shows while new messages come (plan 090); mail and Jira are read whole again.
+  const steady = o?.provider === "slack";
+  const tag = steady ? view : `${view}/${newest}`;
   const [shown, setShown] = useState<Shown | null>(null);
   const sent = useSentStandIns(source, o, threadTs);
   const went = sent.went;
@@ -285,9 +330,29 @@ export function useOutsideThread(
   // when the person's own reply went.
   const read = useEffectEvent((more: OutsideWindowAsk) => source?.readOutside(item, { ...ask, ...ticketAsk(item.outside, true), ...more }) ?? null);
   const settle = useEffectEvent((upTo: number) => sent.settle(upTo));
+  // A Slack card already showing this view reads only what is newer (plan 090): the read, none when it has nothing to
+  // read, or null when the card reads afresh. One from a Mac older than plan 077 has no window and reads afresh.
+  const readNewer = useEffectEvent(() => {
+    if (!steady || shown?.tag !== tag || shown.failed !== null || !shown.window) return null;
+    const again = refreshAsk(shown.messages, shown.window);
+    return { pending: again ? read(again) : null };
+  });
   useEffect(() => {
     if (!key) return;
     let live = true;
+    const stop = () => {
+      live = false;
+    };
+    const newer = readNewer();
+    if (newer) {
+      // What is newer goes at the end and the rest stays (plan 090).
+      void newer.pending?.then((out) => {
+        if (!live || typeof out === "string") return;
+        setShown((s) => (s?.tag === tag ? withNewer(s, out) : s));
+        if (out.window?.more_after !== true) settle(went);
+      });
+      return stop;
+    }
     void read({})?.then((out) => {
       if (!live) return;
       if (typeof out !== "string") {
@@ -300,10 +365,8 @@ export function useOutsideThread(
         now?.tag === tag && now.failed === null ? now : { view, tag, messages: [], window: null, busy: null, failed: out, link: null, ticket: null },
       );
     });
-    return () => {
-      live = false;
-    };
-  }, [key, tag, view, went]);
+    return stop;
+  }, [key, tag, view, newest, went]);
   const reacting = useReactControls(item, source, setShown, tag);
   // A newer message reads the thread again; meanwhile the card keeps what it shows.
   if (!key || shown?.view !== view) return { kind: "loading" };
@@ -428,7 +491,7 @@ export function OutsideThread({
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [newest]);
   // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to. On the
-  // desktop a Jira card's comments are drawn by the Slack card's rows (plan 090); the phone keeps the plain list.
+  // desktop a Jira card's comments are drawn by the Slack card's rows (plan 091); the phone keeps the plain list.
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
       <JiraTicket ticket={state.ticket} touch={touch}>
@@ -448,7 +511,7 @@ export function OutsideThread({
 }
 
 /**
- * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 090); a Jira card's
+ * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 091); a Jira card's
  * without what only Slack has, and under its ticket without scrolling away from the ticket's top (`stays`).
  */
 function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state: Extract<ThreadState, { kind: "read" }>; stays?: boolean }) {

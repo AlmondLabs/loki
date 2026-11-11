@@ -1,4 +1,4 @@
-# Plan 090: Jira comments look like Slack messages
+# Plan 091: Jira comments look like Slack messages
 
 2026-11-10 · follows plan 089
 

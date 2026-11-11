@@ -162,7 +162,7 @@ export interface JiraPerson {
   account_id: string;
   display_name: string;
   /**
-   * Their picture: the 48 px one of Jira's `avatarUrls`, which the card draws as Slack draws a photo (plan 090); absent
+   * Their picture: the 48 px one of Jira's `avatarUrls`, which the card draws as Slack draws a photo (plan 091); absent
    * when Jira gave none or one that is not a web address.
    */
   avatar?: string;
@@ -224,7 +224,7 @@ export function jiraEventId(created: string, kind: "c" | "h", jiraId: string): s
   return `${jiraTime(created)}:${kind}${jiraId.padStart(ID_DIGITS, "0")}`;
 }
 
-/** Someone as Jira gives them: their id, their name, and their 48 px picture when it is a web address (plan 090). */
+/** Someone as Jira gives them: their id, their name, and their 48 px picture when it is a web address (plan 091). */
 function parsePerson(v: unknown): JiraPerson {
   const r = rec(v);
   const avatar = str(rec(r.avatarUrls)["48x48"]);

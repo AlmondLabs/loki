@@ -85,7 +85,7 @@ function messageOf(event: JiraEvent, me: string, extra: Partial<ThreadMessage> =
 }
 
 /**
- * What a card draws of a comment beyond its plain text (plan 090): its author's picture, its document as the Slack
+ * What a card draws of a comment beyond its plain text (plan 091): its author's picture, its document as the Slack
  * card's blocks, and whether it mentions the person. A field change on the merged log carries its author's picture
  * too, since it can start a run that the comments under it join, but no blocks or mention: it is drawn by its text.
  */

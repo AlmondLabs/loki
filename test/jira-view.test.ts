@@ -166,7 +166,7 @@ describe("a Jira card's window of comments (KTD14)", () => {
     ]);
   });
 
-  test("a comment carries its author's picture, its words as the Slack card draws them, and whether it mentions the person (plan 090)", async () => {
+  test("a comment carries its author's picture, its words as the Slack card draws them, and whether it mentions the person (plan 091)", async () => {
     const s = site();
     const avatar = "https://avatar-management.example/ada/48";
     const mention = (who: FakeJiraPerson) => ({ type: "mention", attrs: { id: who.account_id, text: `@${who.display_name}` } });
@@ -207,7 +207,7 @@ describe("a Jira card's window of comments (KTD14)", () => {
     expect(messages[1]).not.toHaveProperty("mentions_me");
   });
 
-  test("a field change in the older merged log carries its author's picture, to start a run, but no blocks or mention flag (plan 090)", async () => {
+  test("a field change in the older merged log carries its author's picture, to start a run, but no blocks or mention flag (plan 091)", async () => {
     const s = site();
     const avatar = "https://avatar-management.example/ada/48";
     const h = s.change(1, STATUS("To Do", "Done"), { ...JIRA_ADA, avatar });

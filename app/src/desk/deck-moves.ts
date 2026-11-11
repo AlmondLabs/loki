@@ -22,8 +22,8 @@ export interface ReplyBox {
    */
   held?: { outbox_id: string; text: string; mail: MailAddressing | null } | null;
   /**
-   * The thread the person opened on a Slack card (plan 085), for the card as it was then (`key`, cardKey): the view
-   * shows it, and the reply goes into it. A newer message on the card makes it stale, and the card's own place is used.
+   * The thread the person opened on a Slack card (plan 085), for the card it was opened on (`key`, cardKey): the view
+   * shows it, and the reply goes into it. A newer message keeps it open (plan 090); another card on top starts afresh.
    */
   thread?: OpenedThread | null;
 }
@@ -34,10 +34,13 @@ export interface OpenedThread {
   ts: string;
 }
 
-/** A card as its thread view knows it: its account, thread and newest message, so a newer message is another card. */
+/**
+ * A card as its thread view knows it: its account and thread. A newer message is the same card (plan 090), so what the
+ * person opened and loaded on it stays while they read.
+ */
 export function cardKey(item: AttentionItem): string {
   const o = item.outside;
-  return o ? `${o.account_id}/${o.thread_id}/${o.newest_message_id}` : "";
+  return o ? `${o.account_id}/${o.thread_id}` : "";
 }
 
 /** The thread a reply on this card goes into (plan 085): the one opened on it as it is now, else none. */

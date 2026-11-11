@@ -56,7 +56,7 @@ export interface ThreadMessage {
   attachments?: SlackAttachment[];
   /** What a Slack card's window marks on a message (plan 077). */
   brought?: boolean;
-  /** A Jira comment that mentions the person, which its card draws with the mention look (plan 090). */
+  /** A Jira comment that mentions the person, which its card draws with the mention look (plan 091). */
   mentions_me?: boolean;
   new_replies?: number | true;
   /** A Slack message's reactions (plan 079) and the files shared in it (plan 080). */

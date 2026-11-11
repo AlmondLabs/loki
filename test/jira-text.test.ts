@@ -73,7 +73,7 @@ describe("a Jira document as plain lines", () => {
   });
 });
 
-describe("a Jira document as the Slack card's blocks (plan 090)", () => {
+describe("a Jira document as the Slack card's blocks (plan 091)", () => {
   const mark = (type: string, attrs?: Record<string, unknown>) => ({ type, ...(attrs ? { attrs } : {}) });
 
   test("marks, a link by its label, a mention, an emoji, a hard break, a heading, a quote and a code block draw as Slack's blocks and spans", () => {

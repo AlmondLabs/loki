@@ -143,7 +143,7 @@ function joined(spans: readonly SlackSpan[]): SlackSpan[] {
 const visible = (spans: readonly SlackSpan[]) => spans.some((s) => s.kind !== "text" || s.text.trim() !== "");
 
 /**
- * A Jira document as the blocks and spans the Slack card draws (plan 090, Decision 1): a paragraph is a block of
+ * A Jira document as the blocks and spans the Slack card draws (plan 091, Decision 1): a paragraph is a block of
  * lines, a heading a bold one, a quote and a code block Slack's own, and a list a block of lines, each item after its
  * bullet or number and a list inside an item indented under it, since Slack's shape has no list. Bold, italics,
  * strikethrough and code marks style their text; a link is drawn by its label and keeps its address; a mention is

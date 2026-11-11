@@ -355,7 +355,7 @@ export interface OutsideMessage {
    */
   html?: string;
   /**
-   * The sender's photo: a Slack profile image (plan 074) or a Jira comment author's 48 px avatar (plan 090); absent for
+   * The sender's photo: a Slack profile image (plan 074) or a Jira comment author's 48 px avatar (plan 091); absent for
    * mail, for a sender with none, and from an older loki.
    */
   avatar?: string;
@@ -368,7 +368,7 @@ export interface OutsideMessage {
   /** The channel has more messages after this one than the card shows (plan 074). */
   more_after?: boolean;
   /**
-   * A Slack message read the way Slack draws it (plan 075), or a Jira comment's document in the same shape (plan 090);
+   * A Slack message read the way Slack draws it (plan 075), or a Jira comment's document in the same shape (plan 091);
    * absent for mail, for a Jira field change, and from an older loki, which draw `text`.
    */
   body?: SlackBlock[];
@@ -376,11 +376,11 @@ export interface OutsideMessage {
   attachments?: SlackAttachment[];
   /**
    * One of the messages that brought the card into the Inbox (plan 077, R12), which a Slack card draws with Slack's
-   * mention look; a Jira card gives that look to `mentions_me` instead (plan 090).
+   * mention look; a Jira card gives that look to `mentions_me` instead (plan 091).
    */
   brought?: boolean;
   /**
-   * A Jira comment that mentions the person (plan 090, Decision 4), drawn with Slack's mention look: any event brings a
+   * A Jira comment that mentions the person (plan 091, Decision 4), drawn with Slack's mention look: any event brings a
    * Jira card, so a look on every new comment would say nothing. Absent for mail and Slack, and from an older loki.
    */
   mentions_me?: boolean;

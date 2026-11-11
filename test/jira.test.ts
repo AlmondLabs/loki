@@ -226,7 +226,7 @@ describe("a ticket's events", () => {
     expect((await c.comments(id)).events).toEqual(expected);
   });
 
-  test("a comment's author carries their 48 px picture when Jira gives one, and only a web address (plan 090)", async () => {
+  test("a comment's author carries their 48 px picture when Jira gives one, and only a web address (plan 091)", async () => {
     const { c, jira } = setup();
     jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
     const avatar = "https://avatar-management.example/ada/48";

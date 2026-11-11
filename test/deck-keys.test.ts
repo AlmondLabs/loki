@@ -167,7 +167,7 @@ describe("⌘] and ⌘[ on a card", () => {
     expect(d.state.decided).toEqual([]);
     expect(d.state.flash).toEqual(["sent"]);
   });
-  test("a reply on a Slack card goes into the thread opened on it, and not once a newer message made it another card (plan 085)", async () => {
+  test("a reply on a Slack card goes into the thread opened on it, after a newer message too, and not on another card (plans 085, 090)", async () => {
     const lunch = outsideItem("Lunch");
     const slack = { ...lunch, outside: lunch.outside ? { ...lunch.outside, provider: "slack" as const, account_id: "slack:T1:U1" } : undefined };
     const d = deck([slack], { text: "on it" });
@@ -175,7 +175,10 @@ describe("⌘] and ⌘[ on a card", () => {
     d.moves().sendReply();
     await settle();
     expect(d.calls[0]).toEqual(["reply", "t1#1", "on it", "stay", { mail: null, thread_ts: "7.0" }]);
-    d.state.box = { ...d.state.box, text: "again", thread: { key: "an older card", ts: "7.0" } };
+    // A newer message, the person's own reply among them, is the same card: the thread stays open.
+    const newer = { ...slack, outside: slack.outside ? { ...slack.outside, newest_message_id: "9.0" } : undefined };
+    expect(cardKey(newer)).toBe(cardKey(slack));
+    d.state.box = { ...d.state.box, text: "again", thread: { key: "another card", ts: "7.0" } };
     d.moves().read();
     await settle();
     expect(d.calls.filter((c) => c[0] === "reply")[1]).toEqual(["reply", "t1#1", "again", "read"]);

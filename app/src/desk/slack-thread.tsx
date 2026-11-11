@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type {
   EmojiChoice,
   OutsideMessage,
@@ -356,7 +356,7 @@ function SlackRow({
   dayNote: string | null;
   onOpen?: () => void;
   reacting?: RowReacting;
-  /** A Jira comment (plan 090): it has no reactions or replies, so neither is drawn. */
+  /** A Jira comment (plan 091): it has no reactions or replies, so neither is drawn. */
   jira?: boolean;
 }) {
   return (
@@ -442,7 +442,7 @@ function RowMarks({ p }: { p: SlackRowPlan }) {
 
 /**
  * Which messages get the mention look: on a Slack card those that brought it (plan 077), on a Jira card the comments
- * that mention the person (plan 090, Decision 4), since any event brings a Jira card.
+ * that mention the person (plan 091, Decision 4), since any event brings a Jira card.
  */
 const washed = (m: OutsideMessage, jira: boolean) => (jira ? m.mentions_me === true : m.brought === true);
 
@@ -479,6 +479,61 @@ function useThreadScroll(opening: string, firstId: string, busy: ThreadControls[
     load?.();
   };
   return { focus, top, loadEarlier };
+}
+
+/** How near the bottom the person counts as reading the newest, in pixels: a row's worth less than the very end. */
+const AT_BOTTOM_PX = 24;
+
+/** Whether a scroll box is at its bottom, or near enough that the newest message is in view. */
+export function atBottom(box: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">): boolean {
+  return box.scrollHeight - box.scrollTop - box.clientHeight <= AT_BOTTOM_PX;
+}
+
+/**
+ * Following new messages (plan 090), as Slack does: a message added at the end of the view brings the box down to it
+ * when the person was at the bottom already, or when it is their own; anywhere else the box stays where they are
+ * reading. Rows that load later are the person's own doing and are not followed. Returns the call that loads later.
+ * A Jira card under its ticket (`stays`) opens at the ticket's top, so it counts as not at the bottom until scrolled.
+ */
+function useFollowNewest(
+  top: RefObject<HTMLDivElement | null>,
+  opening: string,
+  messages: readonly OutsideMessage[],
+  controls: ThreadControls | null,
+  stays: boolean,
+) {
+  const last = messages.at(-1);
+  const lastId = last?.id ?? "";
+  const lastMine = last?.mine === true;
+  const busy = controls?.busy ?? null;
+  const bottom = useRef(!stays);
+  useEffect(() => {
+    const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
+    if (!box) return;
+    const onScroll = () => {
+      bottom.current = atBottom(box);
+    };
+    box.addEventListener("scroll", onScroll, { passive: true });
+    return () => box.removeEventListener("scroll", onScroll);
+  }, [top]);
+  const loading = useRef(false);
+  const seen = useRef({ opening, lastId });
+  useLayoutEffect(() => {
+    const was = seen.current;
+    seen.current = { opening, lastId };
+    // While a load is out, rows it brings are the person's; once it is back, failed or not, following resumes.
+    if (busy !== null) return;
+    const manual = loading.current;
+    loading.current = false;
+    // A view that just opened is placed by its opening; only a newer last row in the same view is followed.
+    if (was.opening !== opening || was.lastId === lastId || manual || !(bottom.current || lastMine)) return;
+    const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [top, opening, lastId, lastMine, busy]);
+  return () => {
+    loading.current = true;
+    controls?.load("after");
+  };
 }
 
 /**
@@ -527,7 +582,7 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
  * the card. Buttons load more on either side and open a post's new replies. The card opens on the New line, else on the
  * message the card is about (`newest`); a load keeps what the person is reading where it is.
  *
- * A Jira card's comments are drawn by the same rows (plan 090, Decision 2) with `jira`: without reactions, the hover
+ * A Jira card's comments are drawn by the same rows (plan 091, Decision 2) with `jira`: without reactions, the hover
  * bar or replies, and with the mention look on the comments that mention the person. Under its ticket the card opens
  * at the ticket's top (plan 089), so `stays` keeps the box where it is when the thread opens.
  */
@@ -559,6 +614,7 @@ export function SlackThread({
     controls ? () => controls.load("before") : null,
     stays,
   );
+  const loadLater = useFollowNewest(top, opening, messages, controls, stays);
   const reactingOn = useReacting(messages, newest, jira ? null : controls);
   return (
     <div className="loki-slack-thread" ref={top}>
@@ -588,7 +644,7 @@ export function SlackThread({
           </div>
         </Fragment>
       ))}
-      <LoadButton direction="after" window={window} controls={controls} onLoad={() => controls?.load("after")} />
+      <LoadButton direction="after" window={window} controls={controls} onLoad={loadLater} />
       {messages.at(-1)?.more_after === true && <div className="loki-slack-more">more messages in the channel since</div>}
     </div>
   );
