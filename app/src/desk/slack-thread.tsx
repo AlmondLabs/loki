@@ -349,12 +349,15 @@ function SlackRow({
   dayNote,
   onOpen,
   reacting,
+  jira = false,
 }: {
   m: OutsideMessage;
   first: boolean;
   dayNote: string | null;
   onOpen?: () => void;
   reacting?: RowReacting;
+  /** A Jira comment (plan 091): it has no reactions or replies, so neither is drawn. */
+  jira?: boolean;
 }) {
   return (
     <div className="loki-msg loki-slack-row" data-first={first ? "true" : undefined}>
@@ -373,9 +376,9 @@ function SlackRow({
           </div>
         )}
         {m.slack_files && <SlackFiles files={m.slack_files} />}
-        <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />
+        {!jira && <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />}
         {reacting?.picker}
-        <SlackReplies m={m} onOpen={onOpen} />
+        {!jira && <SlackReplies m={m} onOpen={onOpen} />}
       </div>
     </div>
   );
@@ -437,22 +440,30 @@ function RowMarks({ p }: { p: SlackRowPlan }) {
   );
 }
 
-/** A row's classes: indented under its post when it is a reply, and the mention look when it brought the card. */
-const rowClass = (m: OutsideMessage) => [m.in_thread ? "loki-slack-reply" : "", m.brought ? "loki-slack-brought" : ""].filter(Boolean).join(" ") || undefined;
+/**
+ * Which messages get the mention look: on a Slack card those that brought it (plan 077), on a Jira card the comments
+ * that mention the person (plan 091, Decision 4), since any event brings a Jira card.
+ */
+const washed = (m: OutsideMessage, jira: boolean) => (jira ? m.mentions_me === true : m.brought === true);
+
+/** A row's classes: indented under its post when it is a reply, and the mention look when `washed` says so. */
+const rowClass = (m: OutsideMessage, jira: boolean) =>
+  [m.in_thread ? "loki-slack-reply" : "", washed(m, jira) ? "loki-slack-brought" : ""].filter(Boolean).join(" ") || undefined;
 
 /**
- * Where the card's box scrolls: to the focused row when a view opens, and, when earlier messages load above what is
- * being read, down by what they added, from wherever the person has scrolled meanwhile, so it stays. A load that brings
- * nothing leaves the box alone. Returns the refs to attach and the call that loads earlier.
+ * Where the card's box scrolls: to the focused row when a view opens, unless it `stays`, and, when earlier messages
+ * load above what is being read, down by what they added, from wherever the person has scrolled meanwhile, so it
+ * stays. A load that brings nothing leaves the box alone. Returns the refs to attach and the call that loads earlier.
  */
-function useThreadScroll(opening: string, firstId: string, busy: ThreadControls["busy"] | null, load: (() => void) | null) {
+function useThreadScroll(opening: string, firstId: string, busy: ThreadControls["busy"] | null, load: (() => void) | null, stays: boolean) {
   const focus = useRef<HTMLDivElement>(null);
   const top = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (stays) return;
     const el = focus.current ?? top.current;
     const box = el?.closest<HTMLElement>("[data-thread-scroll]");
     if (el && box) scrollWithin(box, el, "center");
-  }, [opening]);
+  }, [opening, stays]);
   const kept = useRef<{ box: HTMLElement; height: number } | null>(null);
   useLayoutEffect(() => {
     const k = kept.current;
@@ -482,13 +493,20 @@ export function atBottom(box: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "
  * Following new messages (plan 090), as Slack does: a message added at the end of the view brings the box down to it
  * when the person was at the bottom already, or when it is their own; anywhere else the box stays where they are
  * reading. Rows that load later are the person's own doing and are not followed. Returns the call that loads later.
+ * A Jira card under its ticket (`stays`) opens at the ticket's top, so it counts as not at the bottom until scrolled.
  */
-function useFollowNewest(top: RefObject<HTMLDivElement | null>, opening: string, messages: readonly OutsideMessage[], controls: ThreadControls | null) {
+function useFollowNewest(
+  top: RefObject<HTMLDivElement | null>,
+  opening: string,
+  messages: readonly OutsideMessage[],
+  controls: ThreadControls | null,
+  stays: boolean,
+) {
   const last = messages.at(-1);
   const lastId = last?.id ?? "";
   const lastMine = last?.mine === true;
   const busy = controls?.busy ?? null;
-  const bottom = useRef(true);
+  const bottom = useRef(!stays);
   useEffect(() => {
     const box = top.current?.closest<HTMLElement>("[data-thread-scroll]");
     if (!box) return;
@@ -563,17 +581,25 @@ function useReacting(messages: readonly OutsideMessage[], newest: string, contro
  * Slack's day pills, its red New line before the first new message, and the mention look on the messages that brought
  * the card. Buttons load more on either side and open a post's new replies. The card opens on the New line, else on the
  * message the card is about (`newest`); a load keeps what the person is reading where it is.
+ *
+ * A Jira card's comments are drawn by the same rows (plan 091, Decision 2) with `jira`: without reactions, the hover
+ * bar or replies, and with the mention look on the comments that mention the person. Under its ticket the card opens
+ * at the ticket's top (plan 089), so `stays` keeps the box where it is when the thread opens.
  */
 export function SlackThread({
   messages,
   newest,
   window = null,
   controls = null,
+  jira = false,
+  stays = false,
 }: {
   messages: readonly OutsideMessage[];
   newest: string;
   window?: OutsideWindow | null;
   controls?: ThreadControls | null;
+  jira?: boolean;
+  stays?: boolean;
 }) {
   const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;
   const rows = pinned ? messages.slice(1) : messages;
@@ -581,9 +607,15 @@ export function SlackThread({
   const newAt = plan.findIndex((p) => p.divider);
   const focusAt = newAt >= 0 ? newAt : rows.findIndex((m) => m.id === newest);
   const opening = `${window?.view ?? ""}/${window?.thread_ts ?? ""}`;
-  const { focus, top, loadEarlier } = useThreadScroll(opening, rows[0]?.id ?? "", controls?.busy ?? null, controls ? () => controls.load("before") : null);
-  const loadLater = useFollowNewest(top, opening, messages, controls);
-  const reactingOn = useReacting(messages, newest, controls);
+  const { focus, top, loadEarlier } = useThreadScroll(
+    opening,
+    rows[0]?.id ?? "",
+    controls?.busy ?? null,
+    controls ? () => controls.load("before") : null,
+    stays,
+  );
+  const loadLater = useFollowNewest(top, opening, messages, controls, stays);
+  const reactingOn = useReacting(messages, newest, jira ? null : controls);
   return (
     <div className="loki-slack-thread" ref={top}>
       {controls?.back && (
@@ -592,7 +624,7 @@ export function SlackThread({
         </button>
       )}
       {pinned && (
-        <div className={pinned.brought ? "loki-slack-brought" : undefined}>
+        <div className={washed(pinned, jira) ? "loki-slack-brought" : undefined}>
           <SlackRow m={pinned} first dayNote={null} reacting={reactingOn(pinned)} />
         </div>
       )}
@@ -600,13 +632,14 @@ export function SlackThread({
       {rows.map((m, i) => (
         <Fragment key={m.id}>
           <RowMarks p={plan[i]} />
-          <div ref={i === focusAt ? focus : undefined} className={rowClass(m)}>
+          <div ref={i === focusAt ? focus : undefined} className={rowClass(m, jira)}>
             <SlackRow
               m={m}
               first={plan[i].first}
               dayNote={plan[i].dayNote}
-              onOpen={controls && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
+              onOpen={controls && !jira && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
               reacting={reactingOn(m)}
+              jira={jira}
             />
           </div>
         </Fragment>

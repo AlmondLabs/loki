@@ -426,11 +426,11 @@ export const quoteOf = (facts: OutsideFacts, state: ThreadState): string | null 
  * client shows a thread, so a run of near-identical mails (a bill sent again) does not draw the same page three times;
  * a press opens it.
  */
-function MessageRow({ m, touch, folded }: { m: OutsideMessage; touch: boolean; folded: boolean }) {
+function MessageRow({ m, folded }: { m: OutsideMessage; folded: boolean }) {
   // Only the press is kept; whether it is folded is the thread's to say, so a mail a newer one arrives under folds.
   const [opened, setOpened] = useState(false);
   const open = !folded || opened;
-  const size = touch ? "var(--phone-text-body)" : 13.5;
+  const size = "var(--phone-text-body)";
   const who = (
     <span style={{ fontSize: size, fontWeight: 600, color: m.mine ? "var(--loki-positive)" : undefined }}>{m.mine ? "you" : senderName(m.sender)}</span>
   );
@@ -490,24 +490,41 @@ export function OutsideThread({
     if (box) scrollWithin(box, el, "end");
     else el.scrollIntoView({ block: "end" }); // the phone's card scrolls with its page
   }, [newest]);
-  // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to.
+  // A Jira card drawn as its ticket (plan 089) opens at the ticket's top, so it marks no end to scroll to. On the
+  // desktop a Jira card's comments are drawn by the Slack card's rows (plan 091); the phone keeps the plain list.
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
       <JiraTicket ticket={state.ticket} touch={touch}>
-        <ThreadList facts={facts} state={state} touch={touch} />
+        {touch ? <ThreadList facts={facts} state={state} /> : <SlackRows facts={facts} state={state} stays />}
       </JiraTicket>
     );
   if (state.kind !== "read" || state.messages.length === 0) return <ThreadStandIn facts={facts} state={state} touch={touch} />;
-  if (facts.provider === "slack" && !touch)
-    return <SlackThread messages={state.messages} newest={facts.newest_message_id} window={state.window ?? null} controls={state.controls ?? null} />;
-  if (facts.provider === "gmail" && !touch)
+  if (touch) return <ThreadList facts={facts} state={state} endRef={end} />;
+  if (facts.provider === "gmail")
     return (
       <>
         <MailThread messages={state.messages} own={own} />
         <div ref={end} />
       </>
     );
-  return <ThreadList facts={facts} state={state} touch={touch} endRef={end} />;
+  return <SlackRows facts={facts} state={state} />;
+}
+
+/**
+ * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 091); a Jira card's
+ * without what only Slack has, and under its ticket without scrolling away from the ticket's top (`stays`).
+ */
+function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state: Extract<ThreadState, { kind: "read" }>; stays?: boolean }) {
+  return (
+    <SlackThread
+      messages={state.messages}
+      newest={facts.newest_message_id}
+      window={state.window ?? null}
+      controls={state.controls ?? null}
+      jira={facts.provider === "jira"}
+      stays={stays}
+    />
+  );
 }
 
 /** The card's own last lines while its thread is read, or when it could not be, with a line saying which. */
@@ -524,19 +541,16 @@ function ThreadStandIn({ facts, state, touch }: { facts: OutsideFacts; state: Th
 }
 
 /**
- * The thread as a plain list, oldest first, with the mark `OutsideThread` scrolls to at its end. A Jira card draws the
- * New line before its first unread event, and loads earlier events (KTD14); the phone's Slack and mail cards keep the
- * plain list they had.
+ * The thread as a plain list, oldest first, with the mark `OutsideThread` scrolls to at its end, as the phone draws
+ * every card. A Jira card draws the New line before its first unread event, and loads earlier events (KTD14).
  */
 function ThreadList({
   facts,
   state,
-  touch,
   endRef,
 }: {
   facts: OutsideFacts;
   state: Extract<ThreadState, { kind: "read" }>;
-  touch: boolean;
   /** The mark at the end the thread scrolls to; absent under a Jira ticket, which stays at its top. */
   endRef?: RefObject<HTMLDivElement | null>;
 }) {
@@ -546,16 +560,16 @@ function ThreadList({
   const earlier = jira && w && controls && w.more_before !== false && w.more_before !== 0 ? controls : null;
   const earlierLabel = earlier ? loadLabel("before", true, earlier.busy === "before") : "";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-4)" : 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--phone-space-4)" }}>
       {earlier && (
-        <Button size={touch ? "touch" : "sm"} bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} style={{ alignSelf: "center" }}>
-          {touch ? `${earlierLabel[0].toUpperCase()}${earlierLabel.slice(1)}` : earlierLabel}
+        <Button size="touch" bare disabled={earlier.busy !== null} onClick={() => earlier.load("before")} style={{ alignSelf: "center" }}>
+          {`${earlierLabel[0].toUpperCase()}${earlierLabel.slice(1)}`}
         </Button>
       )}
       {state.messages.map((m, i) => (
         <Fragment key={m.id}>
           {i === newAt && <NewLine />}
-          <MessageRow m={m} touch={touch} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
+          <MessageRow m={m} folded={facts.provider === "gmail" && i < state.messages.length - 1} />
         </Fragment>
       ))}
       {endRef && <div ref={endRef} />}

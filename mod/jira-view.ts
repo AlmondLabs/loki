@@ -13,7 +13,7 @@ import {
   type JiraSecret,
 } from "./jira.ts";
 import { eventLines } from "./jira-sync.ts";
-import { adfText } from "./jira-text.ts";
+import { adfBlocks, adfText } from "./jira-text.ts";
 import { log } from "./log.ts";
 import { VIEW_AROUND, VIEW_LOAD, type CardView } from "./slack-view.ts";
 
@@ -85,6 +85,21 @@ function messageOf(event: JiraEvent, me: string, extra: Partial<ThreadMessage> =
 }
 
 /**
+ * What a card draws of a comment beyond its plain text (plan 091): its author's picture, its document as the Slack
+ * card's blocks, and whether it mentions the person. A field change on the merged log carries its author's picture
+ * too, since it can start a run that the comments under it join, but no blocks or mention: it is drawn by its text.
+ */
+function commentLook(event: JiraEvent, me: string): Partial<ThreadMessage> {
+  const face = event.author.avatar ? { avatar: event.author.avatar } : {};
+  if (event.kind !== "comment") return face;
+  return {
+    ...face,
+    body: adfBlocks(event.body),
+    ...(me && adfText(event.body).mentions.includes(me) ? { mentions_me: true } : {}),
+  };
+}
+
+/**
  * A ticket's own text for a hand-off and the owner's tools: its key and summary, each field it has, and its
  * description, as from its reporter at the time it was made.
  */
@@ -149,7 +164,8 @@ export function jiraCardView(client: (accountId: string) => JiraViewClient, secr
     const mark = facts.dealt_message_id;
     const brought = new Set(facts.brought_ids);
     const isNew = (e: JiraEvent) => e.author.account_id !== me && (mark !== null ? e.id > mark : brought.has(e.id));
-    const draw = (e: JiraEvent) => messageOf(e, me, { ...(isNew(e) ? { unread: true } : {}), ...(brought.has(e.id) ? { brought: true } : {}) });
+    const draw = (e: JiraEvent) =>
+      messageOf(e, me, { ...(isNew(e) ? { unread: true } : {}), ...(brought.has(e.id) ? { brought: true } : {}), ...commentLook(e, me) });
     const c = client(accountId);
     const comments: ReadEvents = (enough) => readBack((opts) => c.comments(threadId, opts), enough);
     const merged: ReadEvents = (enough) => readTicket(c, threadId, enough);

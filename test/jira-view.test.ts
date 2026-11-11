@@ -158,8 +158,64 @@ describe("a Jira card's window of comments (KTD14)", () => {
         mine: false,
         unread: true,
         brought: true,
+        body: [
+          { kind: "text", spans: [{ kind: "text", text: "Two things:" }] },
+          { kind: "text", spans: [{ kind: "text", text: "• the keys\n• the docs" }] },
+        ],
       },
     ]);
+  });
+
+  test("a comment carries its author's picture, its words as the Slack card draws them, and whether it mentions the person (plan 091)", async () => {
+    const s = site();
+    const avatar = "https://avatar-management.example/ada/48";
+    const mention = (who: FakeJiraPerson) => ({ type: "mention", attrs: { id: who.account_id, text: `@${who.display_name}` } });
+    const doc = (...content: unknown[]) => ({ version: 1, type: "doc", content: [{ type: "paragraph", content }] });
+    const toMe = s.jira.comment("OPS-7", { at: at(1), author: { ...JIRA_ADA, avatar }, body: doc({ type: "text", text: "Over to " }, mention(ME)) });
+    const toBob = s.jira.comment("OPS-7", {
+      at: at(2),
+      author: JIRA_ADA,
+      body: doc(mention(JIRA_BOB), { type: "text", text: " can you?", marks: [{ type: "strong" }] }),
+    });
+    const { messages } = await s.read({ brought_ids: [eid(at(1), "c", toMe), eid(at(2), "c", toBob)] });
+    expect(messages[0]).toMatchObject({
+      avatar,
+      text: "Over to @Mina Example",
+      body: [
+        {
+          kind: "text",
+          spans: [
+            { kind: "text", text: "Over to " },
+            { kind: "mention", text: "@Mina Example" },
+          ],
+        },
+      ],
+      mentions_me: true,
+    });
+    expect(messages[1]).toMatchObject({
+      body: [
+        {
+          kind: "text",
+          spans: [
+            { kind: "mention", text: "@Bob Stone" },
+            { kind: "text", text: " can you?", bold: true },
+          ],
+        },
+      ],
+    });
+    expect(messages[1]).not.toHaveProperty("avatar");
+    expect(messages[1]).not.toHaveProperty("mentions_me");
+  });
+
+  test("a field change in the older merged log carries its author's picture, to start a run, but no blocks or mention flag (plan 091)", async () => {
+    const s = site();
+    const avatar = "https://avatar-management.example/ada/48";
+    const h = s.change(1, STATUS("To Do", "Done"), { ...JIRA_ADA, avatar });
+    const { messages } = await s.plain({ brought_ids: [h] });
+    const change = messages.find((m) => m.id === h);
+    expect(change).toMatchObject({ avatar });
+    expect(change).not.toHaveProperty("body");
+    expect(change).not.toHaveProperty("mentions_me");
   });
 
   test("the window carries the ticket's address, on the site's own domain when it has one (R14)", async () => {

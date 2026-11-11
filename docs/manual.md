@@ -1117,7 +1117,10 @@ ticket in your browser. Under the header, in order:
 3. **Description**, as plain text, folded after six lines with **show more**; an edit to it is marked new under its
    heading ("edited · Ada Lovelace · 1h").
 4. **Comments** with their count, oldest first: Slack's red **New** line sits before the first comment you have not
-   read, **load earlier** brings older ones, and the comment box comes last. Field changes are not lines here.
+   read, **load earlier** brings older ones, and the comment box comes last. Field changes are not lines here. On the
+   Mac the comments look like a Slack card's messages: each author's Jira picture and name over a run of their
+   comments, the time beside the name and Slack's day pills, Jira's formatting (bold, lists, quotes, code, links by
+   their words), mentions as pills, and a comment that mentions you on Slack's mention wash; there are no reactions.
 
 The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. When the
 Jira site lives on a paired Mac still on an older loki, or an app on an older loki shows a card from this Mac, the card

@@ -354,7 +354,10 @@ export interface OutsideMessage {
    * Slack, for mail with only a plain part, and from a Mac on a loki older than this field.
    */
   html?: string;
-  /** The sender's Slack photo (plan 074); absent for mail, for a sender with none, and from an older loki. */
+  /**
+   * The sender's photo: a Slack profile image (plan 074) or a Jira comment author's 48 px avatar (plan 091); absent for
+   * mail, for a sender with none, and from an older loki.
+   */
   avatar?: string;
   /** A reply under the card's thread's first message, drawn indented as an open thread (plan 074). */
   in_thread?: boolean;
@@ -364,12 +367,23 @@ export interface OutsideMessage {
   replies?: number;
   /** The channel has more messages after this one than the card shows (plan 074). */
   more_after?: boolean;
-  /** A Slack message read the way Slack draws it (plan 075); absent for mail and from an older loki, which draw `text`. */
+  /**
+   * A Slack message read the way Slack draws it (plan 075), or a Jira comment's document in the same shape (plan 091);
+   * absent for mail, for a Jira field change, and from an older loki, which draw `text`.
+   */
   body?: SlackBlock[];
   /** What a Slack app attached under its message (plan 075). */
   attachments?: SlackAttachment[];
-  /** One of the messages that brought the card into the Inbox (plan 077, R12), drawn with Slack's mention look. */
+  /**
+   * One of the messages that brought the card into the Inbox (plan 077, R12), which a Slack card draws with Slack's
+   * mention look; a Jira card gives that look to `mentions_me` instead (plan 091).
+   */
   brought?: boolean;
+  /**
+   * A Jira comment that mentions the person (plan 091, Decision 4), drawn with Slack's mention look: any event brings a
+   * Jira card, so a look on every new comment would say nothing. Absent for mail and Slack, and from an older loki.
+   */
+  mentions_me?: boolean;
   /**
    * New replies in this channel message's own thread (plan 077, R11): how many, or true when there are some but they
    * could not be counted. The card offers to open that thread.

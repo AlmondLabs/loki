@@ -161,6 +161,11 @@ export interface JiraTicketPage {
 export interface JiraPerson {
   account_id: string;
   display_name: string;
+  /**
+   * Their picture: the 48 px one of Jira's `avatarUrls`, which the card draws as Slack draws a photo (plan 091); absent
+   * when Jira gave none or one that is not a web address.
+   */
+  avatar?: string;
 }
 
 /**
@@ -219,7 +224,12 @@ export function jiraEventId(created: string, kind: "c" | "h", jiraId: string): s
   return `${jiraTime(created)}:${kind}${jiraId.padStart(ID_DIGITS, "0")}`;
 }
 
-const parsePerson = (v: unknown): JiraPerson => ({ account_id: str(rec(v).accountId), display_name: str(rec(v).displayName) });
+/** Someone as Jira gives them: their id, their name, and their 48 px picture when it is a web address (plan 091). */
+function parsePerson(v: unknown): JiraPerson {
+  const r = rec(v);
+  const avatar = str(rec(r.avatarUrls)["48x48"]);
+  return { account_id: str(r.accountId), display_name: str(r.displayName), ...(avatar.startsWith("https://") ? { avatar } : {}) };
+}
 
 function parseComment(v: unknown): JiraEvent {
   const r = rec(v);
