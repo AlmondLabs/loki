@@ -2,7 +2,7 @@
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/ui/collapsible";
 import { cn } from "cn";
-import { ChevronDownIcon, SearchIcon } from "lucide-react";
+import { ChevronDownIcon, type LucideIcon, SearchIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 export type TaskItemFileProps = ComponentProps<"div">;
@@ -25,17 +25,19 @@ export type TaskProps = ComponentProps<typeof Collapsible>;
 
 export const Task = ({ defaultOpen = true, className, ...props }: TaskProps) => <Collapsible className={cn(className)} defaultOpen={defaultOpen} {...props} />;
 
+// loki: the mark is the caller's (a sub-agent's, a background task's), as ChainOfThoughtHeader takes one.
 export type TaskTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
   title: string;
+  icon?: LucideIcon;
 };
 
-export const TaskTrigger = ({ children, className, title, ...props }: TaskTriggerProps) => (
+export const TaskTrigger = ({ children, className, title, icon: Icon = SearchIcon, ...props }: TaskTriggerProps) => (
   <CollapsibleTrigger className={cn("group", className)} {...props}>
     {children ?? (
       <div className="flex w-full cursor-pointer items-center gap-2 text-muted-foreground text-body hover:text-foreground">
-        <SearchIcon className="size-4" />
+        <Icon className="size-4" />
         <p className="text-body">{title}</p>
-        <ChevronDownIcon className="size-4 transition-transform group-data-[state=open]:rotate-180" />
+        <ChevronDownIcon className="size-4 transition-transform group-data-[panel-open]:rotate-180" />
       </div>
     )}
   </CollapsibleTrigger>

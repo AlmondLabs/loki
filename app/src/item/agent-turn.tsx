@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/ui/badge";
+import { Loader } from "@/ui/ai-elements/loader";
 import type { TurnPart, TurnState } from "./entries";
 
 /** How each state reads in the header, and the role its colour comes from. */
@@ -11,10 +12,10 @@ const STATE: Record<TurnState, { words: (failed: number) => string; className: s
 };
 
 /**
- * One turn of the agent's (plan 096, U6, the Turns direction): a header with its name, how long it worked and where it
+ * One turn of the agent's (plan 097, AgentTurn; plan 096, U6): a header with its name, how long it worked and where it
  * stands, then everything it did between two of your messages in the order it happened, its words, its stretches of
  * work, its events and the widgets it changed. The header is where a turn says it is working, waits on you or failed,
- * so that reads without opening anything.
+ * so that reads without opening anything; a working turn's badge carries AI Elements' Loader and its words shimmer.
  */
 export function AgentTurn({
   agentName,
@@ -38,6 +39,7 @@ export function AgentTurn({
         <span className="font-semibold text-foreground">{agentName}</span>
         {took && <span>worked {took}</span>}
         <Badge variant="outline" data-state={state} className={look.className}>
+          {state === "working" && <Loader size={12} aria-hidden />}
           {look.words(failed)}
         </Badge>
       </header>

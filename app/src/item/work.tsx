@@ -27,7 +27,11 @@ import {
   workSummary,
   type StepKind,
 } from "../shared/tool-steps";
-import { StepDetail } from "../chat/tool-steps";
+import { Button } from "@/ui/button";
+import { Shimmer } from "@/ui/ai-elements/shimmer";
+import { Task, TaskContent, TaskItem, TaskTrigger } from "@/ui/ai-elements/task";
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/ui/ai-elements/tool";
+import { useWhole } from "../chat/tool-steps";
 
 /** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
@@ -122,7 +126,11 @@ export const Work = memo(
   (a, b) => a.running === b.running && a.arrived === b.arrived && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
 );
 
-/** One tool call: what it was done to, what it did, and its detail under it once opened; housekeeping reads quieter. */
+/**
+ * One tool call: what it was done to, what it did, and its detail under it once opened (plan 097, Work): a sub-agent or
+ * a background task as AI Elements' Task, what it was asked and what it reported; any other step as Tool, its state, its
+ * input and its output. Housekeeping reads quieter; the running step shimmers.
+ */
 function Step({ row, active, open, onToggle }: { row: TranscriptRow; active: boolean; open: boolean; onToggle: () => void }) {
   const failed = stepFailed(row);
   const target = stepTarget(row);
@@ -134,13 +142,81 @@ function Step({ row, active, open, onToggle }: { row: TranscriptRow; active: boo
       className={failed ? "text-loki-negative" : undefined}
       label={
         <button type="button" aria-expanded={open} onClick={onToggle} className="cursor-pointer text-left hover:text-foreground">
-          {target ?? verb}
-          {failed && " · failed"}
+          {active ? (
+            <Shimmer as="span">{target ?? verb}</Shimmer>
+          ) : (
+            <>
+              {target ?? verb}
+              {failed && " · failed"}
+            </>
+          )}
         </button>
       }
       description={target ? verb : undefined}
     >
-      {open && <StepDetail row={row} />}
+      {open && <StepOpened row={row} running={active} />}
     </ChainOfThoughtStep>
+  );
+}
+
+/** What an opened step shows, fetched first for a lean row; a sub-agent's or background task's work reads as a Task. */
+export function StepOpened({ row, running }: { row: TranscriptRow; running: boolean }) {
+  const { whole, state, retry } = useWhole(row);
+  if (state === "loading") return <p className="m-0 text-meta text-muted-foreground">loading this step…</p>;
+  if (state === "failed")
+    return (
+      <p className="m-0 flex items-center gap-2 text-meta text-muted-foreground">
+        could not load this step
+        <Button size="xs" variant="outline" onClick={retry}>
+          try again
+        </Button>
+      </p>
+    );
+  const kind = stepKind(row);
+  const failed = stepFailed(row);
+  if (row.role === "event" || kind === "agent" || kind === "background") {
+    const t = whole?.step ?? null;
+    const asked = t?.description ?? t?.input ?? null;
+    const said = whole?.detail ?? t?.output ?? null;
+    return (
+      <Task defaultOpen>
+        <TaskTrigger title={stepTarget(row) ?? stepName(row)} icon={ICON[kind]} />
+        <TaskContent>
+          {asked && <TaskItem>asked: {asked}</TaskItem>}
+          {said ? (
+            <TaskItem>
+              <pre className={failed ? "m-0 font-mono text-meta whitespace-pre-wrap text-loki-negative" : "m-0 font-mono text-meta whitespace-pre-wrap"}>
+                {said}
+              </pre>
+            </TaskItem>
+          ) : (
+            <TaskItem>{running ? "still working" : "nothing more was recorded"}</TaskItem>
+          )}
+        </TaskContent>
+      </Task>
+    );
+  }
+  const t = whole?.step;
+  const shell = kind === "command";
+  return (
+    <Tool open className="mb-0">
+      <ToolHeader
+        chevron={false}
+        title={stepName(row)}
+        type={`tool-${kind}`}
+        state={running ? "input-available" : failed ? "output-error" : "output-available"}
+      />
+      <ToolContent>
+        {t?.description && <p className="m-0 px-4 pt-3 text-meta text-muted-foreground">{t.description}</p>}
+        {t?.input && <ToolInput input={t.input} label={shell ? "command" : "input"} />}
+        {t?.output ? (
+          <ToolOutput output={failed ? undefined : t.output} errorText={failed ? t.output : undefined} />
+        ) : (
+          <p className="m-0 px-4 pb-3 text-meta text-muted-foreground">
+            {running ? "nothing came back yet" : failed ? "it failed without saying why" : "no output was recorded"}
+          </p>
+        )}
+      </ToolContent>
+    </Tool>
   );
 }

@@ -12,7 +12,9 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => <Collapsible className={cn("not-prose mb-4 w-full rounded-md border", className)} {...props} />;
 
+// loki: `chevron={false}` where something else opens and closes the tool, as a step's own line does in Work.
 export interface ToolHeaderProps {
+  chevron?: boolean;
   title?: string;
   type: ToolUIPart["type"];
   state: ToolUIPart["state"];
@@ -21,13 +23,13 @@ export interface ToolHeaderProps {
 
 const getStatusBadge = (status: ToolUIPart["state"]) => {
   const labels: Record<ToolUIPart["state"], string> = {
-    "input-streaming": "Pending",
-    "input-available": "Running",
-    "approval-requested": "Awaiting Approval",
-    "approval-responded": "Responded",
-    "output-available": "Completed",
-    "output-error": "Error",
-    "output-denied": "Denied",
+    "input-streaming": "pending",
+    "input-available": "running",
+    "approval-requested": "awaiting approval",
+    "approval-responded": "answered",
+    "output-available": "done",
+    "output-error": "failed",
+    "output-denied": "denied",
   };
 
   const icons: Record<ToolUIPart["state"], ReactNode> = {
@@ -48,14 +50,14 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
   );
 };
 
-export const ToolHeader = ({ className, title, type, state, ...props }: ToolHeaderProps) => (
+export const ToolHeader = ({ className, title, type, state, chevron = true, ...props }: ToolHeaderProps) => (
   <CollapsibleTrigger className={cn("flex w-full items-center justify-between gap-4 p-3", className)} {...props}>
     <div className="flex items-center gap-2">
       <WrenchIcon className="size-4 text-muted-foreground" />
       <span className="font-semibold text-body">{title ?? type.split("-").slice(1).join("-")}</span>
       {getStatusBadge(state)}
     </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    {chevron && <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />}
   </CollapsibleTrigger>
 );
 
@@ -71,14 +73,18 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   />
 );
 
+// loki: the heading is the caller's ("input", "command"), and an input loki already holds as text shows as written.
 export type ToolInputProps = ComponentProps<"div"> & {
   input: ToolUIPart["input"];
+  label?: string;
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
+export const ToolInput = ({ className, input, label = "input", ...props }: ToolInputProps) => (
   <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-    <h4 className="font-semibold text-muted-foreground text-meta">Parameters</h4>
-    <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-meta whitespace-pre-wrap">{JSON.stringify(input, null, 2)}</pre>
+    <h4 className="font-semibold text-muted-foreground text-meta">{label}</h4>
+    <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-meta whitespace-pre-wrap">
+      {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
+    </pre>
   </div>
 );
 
@@ -102,14 +108,14 @@ export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutpu
 
   return (
     <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-semibold text-muted-foreground text-meta">{errorText ? "Error" : "Result"}</h4>
+      <h4 className="font-semibold text-muted-foreground text-meta">{errorText ? "output · failed" : "output"}</h4>
       <div
         className={cn(
           "overflow-x-auto rounded-md text-meta [&_table]:w-full",
           errorText ? "bg-destructive/10 text-destructive" : "bg-muted/50 text-foreground",
         )}
       >
-        {errorText && <div>{errorText}</div>}
+        {errorText && <pre className="p-3 font-mono whitespace-pre-wrap">{errorText}</pre>}
         {Output}
       </div>
     </div>
