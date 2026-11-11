@@ -995,7 +995,7 @@ the thread" and what you send goes into that thread, as in Slack; back in the co
 **load earlier** and **load later** each bring 20 more; in a thread they say how many replies
 are left. New means new since you last dealt with the card in loki (archived it, read it, replied from it or handed it
 off; later does not count), so a mention you already handled shows as an ordinary message when it comes back, even
-though Slack still lists it unread. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
+though Slack still lists it unread. While you read, a new message, your own reply too, is added at the end without moving anything above it: an open thread stays open, and what you loaded stays. The card scrolls down to a new message only when you were already at the bottom, or when it is yours, as Slack does. What you loaded is gone when you leave the card. Each message is drawn as Slack draws it: emoji (the workspace's own too), links,
 @mentions, bold, italic, code, quotes, and what an app attached under its message. Day pills follow the channel; a
 reply from a later day shows that day beside its time. **Reactions** show under each message as Slack shows them,
 with their counts and yours outlined; press one to add or take back yours. Hovering over a message shows Slack's bar
