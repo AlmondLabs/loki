@@ -34,7 +34,7 @@ import { join } from "node:path";
 import { attachWs, oauthCallbackRoute, startServer, tokenAuth, type LokiServer } from "./server.ts";
 import { Sockets } from "./sockets.ts";
 import { chatImageRoute } from "./chat-images.ts";
-import { SlackPreviews } from "./slack-previews.ts";
+import { OutsidePreviews, slackPreviews } from "./outside-previews.ts";
 import { SlackPeople } from "./slack-people.ts";
 import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
@@ -394,8 +394,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   });
   // A card's whole thread and the person's own reply (plan 068), with the same readers and clients; no agent tool uses it.
   // A mail reply waits in the outbox for its undo, and whom the person writes to feeds their suggestions (plan 076).
-  // Thumbnails of pictures shared in Slack, saved beside a message's pictures so windows and paired Macs load them (plan 080).
-  const slackPreviews = new SlackPreviews({ dir: paths.chatImages, fetchThumb: (accountId, url) => slackClient(accountId).fileThumb(url) });
+  // Thumbnails of pictures shared in Slack and Jira, saved beside a message's pictures so windows and paired Macs load
+  // them (plans 080, 092).
+  const previews = new OutsidePreviews({ dir: paths.chatImages });
   // The people in each Slack workspace, read when a reply first asks, for @ suggestions and mentions (plan 082).
   const slackPeople = new SlackPeople({ client: slackClient });
   const outside = new OutsideThreads({
@@ -406,7 +407,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     slackPeople,
     threadText: { gmail: gmailThreadText(gmailClient), slack: slackThreadText(slackClient), jira: jiraText },
     cardView: {
-      slack: slackChannelView(slackClient, (accountId, thumb) => slackPreviews.preview(accountId, thumb)),
+      slack: slackChannelView(
+        slackClient,
+        slackPreviews(previews, (accountId, url) => slackClient(accountId).fileThumb(url)),
+      ),
       // The ticket's link is on the site's own domain, which the keychain entry keeps beside the token (R14).
       jira: jiraCardView(jiraClients.of, async (accountId) => parseJiraSecret(await accounts.getSecret(accountId))),
     },
