@@ -45,6 +45,7 @@ import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
 import { useThreadPreview } from "../item/preview";
 import { Composer } from "../item/composer";
+import { ModelDialog } from "../item/model-dialog";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
 
@@ -285,20 +286,34 @@ export function Conversation({
     sendReply(option);
     return true;
   };
-  const picker = hasModelPicker && (
-    <ModelPicker
-      open={controls.pickerOpen}
-      touch={touch}
-      current={model}
-      currentEffort={reasoningEffort}
-      entries={models}
-      started={started}
-      loading={!models}
-      onPick={(selection) => void controls.pickModel(selection)}
-      onClose={controls.closePicker}
-      pillRef={pillRef}
-    />
-  );
+  // The new pane picks a model in AI Elements' ModelSelector dialog; today's box keeps its popover (plan 097, U6).
+  const picker =
+    hasModelPicker &&
+    (proposals ? (
+      <ModelDialog
+        open={controls.pickerOpen}
+        current={model}
+        currentEffort={reasoningEffort}
+        entries={models}
+        started={started}
+        loading={!models}
+        onPick={(selection) => void controls.pickModel(selection)}
+        onClose={controls.closePicker}
+      />
+    ) : (
+      <ModelPicker
+        open={controls.pickerOpen}
+        touch={touch}
+        current={model}
+        currentEffort={reasoningEffort}
+        entries={models}
+        started={started}
+        loading={!models}
+        onPick={(selection) => void controls.pickModel(selection)}
+        onClose={controls.closePicker}
+        pillRef={pillRef}
+      />
+    ));
 
   return (
     <>
