@@ -13,6 +13,8 @@ import { accountFor, count, flag, listing, md5, optText, readInChat, rec, str, t
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
+/** How many threads google_gmail_modify reads at once when it is named whole threads. */
+const THREAD_READS_AT_ONCE = 10;
 
 const header = (m: GmailMessage, name: string): string => m.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 
@@ -120,11 +122,20 @@ const modify: GoogleToolDef = {
     if (call.args.read === true) remove.push("UNREAD");
     if (call.args.read === false) add.push("UNREAD");
     const ids = [...textList(call.args, "messages")];
-    for (const thread of textList(call.args, "threads")) ids.push(...(await client.getThread(thread, "metadata")).messages.map((m) => m.id));
+    // The threads' messages, read ten at a time: independent reads, kept within what one account's quota takes at once.
+    const threads = textList(call.args, "threads");
+    for (let i = 0; i < threads.length; i += THREAD_READS_AT_ONCE) {
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
+      const read = await Promise.all(threads.slice(i, i + THREAD_READS_AT_ONCE).map((thread) => client.getThread(thread, "metadata")));
+      ids.push(...read.flatMap((t) => t.messages.map((m) => m.id)));
+    }
     if (!ids.length) throw new Error("name `messages` or `threads` to change");
     if (!add.length && !remove.length) throw new Error("say what to change: archive, read, add_labels or remove_labels");
-    // Gmail takes up to 1000 messages a call.
-    for (let i = 0; i < ids.length; i += 1000) await client.batchModify(ids.slice(i, i + 1000), { addLabels: add, removeLabels: remove });
+    // Gmail takes up to 1000 messages a call; the calls go one after another, so a failure stops before the rest and
+    // the per-user rate limit is not hit by a burst.
+    for (let i = 0; i < ids.length; i += 1000)
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
+      await client.batchModify(ids.slice(i, i + 1000), { addLabels: add, removeLabels: remove });
     return { changed: ids.length, added: add, removed: remove };
   },
 };
