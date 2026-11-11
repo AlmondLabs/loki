@@ -87,8 +87,9 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     if (form.get("grant_type") === "refresh_token") {
       if (state.adminBlocked) return json(400, { error: "admin_policy_enforced" });
       const held = refresh.get(form.get("refresh_token") ?? "");
-      if (!held || held.client_id !== form.get("client_id"))
-        return json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
+      const revoked = json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
+      if (held === undefined) return revoked;
+      if (held.client_id !== form.get("client_id")) return revoked;
       return json(200, { access_token: issue(held.client_id), expires_in: 3600, token_type: "Bearer", scope: held.scope });
     }
     return json(400, { error: "unsupported_grant_type" });
