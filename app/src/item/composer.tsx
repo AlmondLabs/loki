@@ -5,7 +5,7 @@ import { isFileAttachment } from "../../../core/attention/content.ts";
 import { InputGroup, InputGroupTextarea } from "@/ui/input-group";
 import { PromptInputButton, PromptInputFooter, PromptInputSubmit, PromptInputTools } from "@/ui/ai-elements/prompt-input";
 import { Queue, QueueItem, QueueItemAction, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/ui/ai-elements/queue";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { useMessageBox, type MessageBoxProps } from "../chat/chat-input";
 import { dictateTitle } from "../chat/use-dictation";
 import { fileSize } from "../chat/attachments";

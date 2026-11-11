@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/ui/hover-card";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeftIcon, ImageIcon, Loader2Icon, PaperclipIcon, PlusIcon, SquareIcon, XIcon } from "lucide-react";
 import {

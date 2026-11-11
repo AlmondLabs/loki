@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { type CSSProperties, type ElementType, memo } from "react";
 
 // loki: drawn with shadcn's `shimmer` utility (shadcn/tailwind.css) instead of motion, which this one component

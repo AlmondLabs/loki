@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import type { GeneratedFile } from "ai";
 
 export type ImageProps = GeneratedFile & {

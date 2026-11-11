@@ -1,6 +1,6 @@
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/ui/command";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/ui/dialog";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import type { ComponentProps, ReactNode } from "react";
 
 export type ModelSelectorProps = ComponentProps<typeof Dialog>;

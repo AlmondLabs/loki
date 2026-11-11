@@ -7,7 +7,7 @@ import type { SlackReaction } from "../../../core/frame-types.ts";
 import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, AttachmentTrigger } from "@/ui/attachment";
 import { Button } from "@/ui/button";
 import { Message, MessageActions, MessageContent, MessageResponse } from "@/ui/ai-elements/message";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { chatImageUrl, inTauri } from "../desk/env";
 import { clockLabel } from "../shared/thread";
 import { fileSize } from "../chat/attachments";

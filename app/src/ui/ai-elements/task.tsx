@@ -1,7 +1,7 @@
 "use client";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/ui/collapsible";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { ChevronDownIcon, type LucideIcon, SearchIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 

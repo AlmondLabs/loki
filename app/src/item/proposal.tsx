@@ -12,7 +12,7 @@ import { Textarea } from "@/ui/textarea";
 import { Confirmation, ConfirmationActions, ConfirmationRequest } from "@/ui/ai-elements/confirmation";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput } from "@/ui/ai-elements/tool";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
 
 /*

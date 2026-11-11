@@ -3,7 +3,7 @@
 import { Button } from "@/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/ui/hover-card";
 import { Progress } from "@/ui/progress";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import type { LanguageModelUsage } from "ai";
 import { type ComponentProps, createContext, useContext } from "react";
 

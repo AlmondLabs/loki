@@ -3,7 +3,7 @@
 import { Button } from "@/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/ui/button-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/ui/tooltip";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import type { FileUIPart, UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon, PaperclipIcon, XIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
