@@ -376,15 +376,6 @@ export class AccountThreads {
     return true;
   }
 
-  /** The agent took back an approved comment (reply_withdraw): it leaves the record. Returns whether it was there. */
-  dropSeed(accountId: string, threadId: string, seedId: string): boolean {
-    const r = this.records(accountId).get(threadId);
-    if (!r?.seeds.some((s) => s.id === seedId)) return false;
-    this.records(accountId).set(threadId, { ...r, seeds: r.seeds.filter((s) => s.id !== seedId) });
-    this.save(accountId);
-    return true;
-  }
-
   /** The person sent a comment from the card: every approved comment waiting on it is done with. Returns whether any was. */
   clearSeeds(accountId: string, threadId: string): boolean {
     const r = this.records(accountId).get(threadId);

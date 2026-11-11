@@ -36,6 +36,13 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
   (below); `open`, `xdg-open` or `rundll32` open an ACP agent's sign-in page, and `taskkill` stops a task on Windows.
   An ACP chat reaches loki's own tools through one MCP endpoint on a random loopback port, with a key per chat, kept
   in memory only, that names the chat.
+- **Read-only shell commands.** In the standard and accept-edits modes, a bash command made only of `ls`, `find`,
+  `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd`, perhaps piped one into the next, runs without asking, as a read
+  tool does (`daemon/read-only-command.ts`). The check reads the command without running it and asks whenever it is not
+  sure: any `;`, `&`, redirect or bracket outside quotes, any `$`, backquote or backslash outside single quotes, any
+  other program, and
+  `find -exec`, `-delete` or `-fprint` or `rg --pre` all make it a command. Like `read`, such a command may read any file
+  you can, inside the chat's folder or not.
 - **Provider sign-ins.** While you sign in to a provider in the browser, its sign-in code listens on loopback for the
   redirect (127.0.0.1:1455 for ChatGPT and Codex, 1456 for Radius, a random port for OpenRouter) for up to ten
   minutes.
@@ -153,8 +160,8 @@ server or account is involved.
 ## Suggestions
 
 An agent can suggest a message for any chat, of any agent, on any of your Macs, but it never sends one: you send it,
-save it as a draft, or reject it, and that decision is the approval. So `chat_list`, `suggestion_create`,
-`suggestion_list` and `suggestion_withdraw` never ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
+save it as a draft, or reject it, and that decision is the approval. So `chat_list` and `suggestion_create` never
+ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
 on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names, folders, labels and purpose lines of
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
@@ -165,7 +172,7 @@ An agent on loki's own engine may run a short JavaScript program with its `codem
 `daemon/scripts.ts`), when it owns a Google account on this Mac. The program runs in pi-durable's Code Mode: a QuickJS
 virtual machine on a worker thread, with no file, network or process access, no `fetch`, `require`, timers or
 modules. It reaches anything only by calling tools, and the `loki.scripts` extension hands it only the script-only
-tools and loki's file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`); `bash`, background runs, helpers and the
+tools (loki's `ls`, `find` and `grep` among them) and pi-durable's file tools (`read`, `write`, `edit`); `bash`, background runs, helpers and the
 rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well.
 
 - **Asking.** A script asks as a command does, in the chat's mode; "always allow" is never offered or kept for it. Its

@@ -11,7 +11,7 @@ import { messageOf } from "../core/errors.ts";
 /**
  * Suggestions (plan 049, U2): messages agents suggest for other chats, kept on the record of the chat they were made
  * in, on the Mac that chat lives on (KTD1). That Mac carries out every action on them (KTD2): it moves each one from
- * pending to sending to sent, drafted, rejected or withdrawn in one step under the chat's lock, so the first action
+ * pending to sending to sent, drafted or rejected in one step under the chat's lock, so the first action
  * wins and a second is told what already happened (R17). A send to a chat on another Mac is a request that waits for
  * that Mac's reply (KTD3), and the suggestion's id is the message's `send_id`, so a retry never sends twice.
  */
@@ -57,7 +57,7 @@ export interface SuggestionsOptions {
   call(frame: ChatCall): Promise<CallOutcome>;
   /** Tell every client what happened in a chat, as the daemon's chat events do. */
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
-  /** An analytics event the suggestions caused on their own (made, withdrawn by its agent). */
+  /** An analytics event the suggestions caused on their own (one made). */
   track?(event: string, properties: Record<string, unknown>): void;
   now?(): Date;
   newId?(): string;
@@ -113,6 +113,7 @@ function settledWords(s: Suggestion): string {
     case "rejected":
       return `already rejected from ${byWords(s.decided_by)}`;
     case "withdrawn":
+      // Kept for suggestions an agent took back before it lost the tool to (plan 094).
       return "the agent took this suggestion back";
     case "pending":
       return "still waiting";
@@ -176,13 +177,6 @@ export class Suggestions {
     return (await this.list(source)).filter(isOpen);
   }
 
-  /** The agent takes back a suggestion the person has not acted on (U3's suggestion_withdraw). */
-  async withdraw(source: ChatKey, id: string): Promise<Decided> {
-    const out = await this.settle(source, id, "withdrawn", "agent");
-    this.opts.track?.("suggestion_decided", { action: "withdraw", outcome: out.done ? "done" : "refused", by: "agent" });
-    return out;
-  }
-
   /** The person points a pending suggestion at another chat (R4); a new chat made for the old target is left as it is. */
   async retarget(source: ChatKey, id: string, target: SuggestionTarget): Promise<Decided> {
     return this.change(source, id, (s) => {
@@ -194,7 +188,7 @@ export class Suggestions {
 
   /** The person's action on a suggestion: send it now, save it as a draft in its target's box, or reject it (R3). */
   async decide(source: ChatKey, id: string, action: SuggestionAction, by: string): Promise<Decided> {
-    if (action === "reject") return this.settle(source, id, "rejected", by);
+    if (action === "reject") return this.reject(source, id, by);
     const flight = `${source.agent_id}/${source.conversation_id}/${id}`;
     // A field rather than a local, as the claim sets it inside the change.
     const mine = { claimed: false };
@@ -283,11 +277,11 @@ export class Suggestions {
     ].join("\n");
   }
 
-  /** Settle a pending suggestion as rejected or withdrawn, by whom; anything else is told what already happened. */
-  private settle(source: ChatKey, id: string, status: "rejected" | "withdrawn", by: string): Promise<Decided> {
+  /** Reject a pending suggestion, by whom; anything else is told what already happened. */
+  private reject(source: ChatKey, id: string, by: string): Promise<Decided> {
     return this.change(source, id, (s) =>
       s.status === "pending"
-        ? { done: true, message: null, next: { ...s, status, reason: null, decided_by: by, decided_at: this.now() } }
+        ? { done: true, message: null, next: { ...s, status: "rejected", reason: null, decided_by: by, decided_at: this.now() } }
         : { done: false, message: settledWords(s) },
     );
   }

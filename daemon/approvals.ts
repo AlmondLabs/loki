@@ -5,6 +5,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
+import { isReadOnlyCommand } from "./read-only-command.ts";
 import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
@@ -31,17 +32,7 @@ export type { ToolKind } from "./tool-kinds.ts";
  * "always allow" may stand in for (plan 067). A reply proposal's card is its approval in every mode, and nothing is
  * written before it (plan 067, KTD9), so it is never asked about, nor ever "always allowed".
  */
-const NEVER_ASK = new Set([
-  "user_ask",
-  "chat_list",
-  "suggestion_create",
-  "suggestion_list",
-  "suggestion_withdraw",
-  "chat_message",
-  "reply_propose",
-  "reply_list",
-  "reply_withdraw",
-]);
+const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "chat_message", "reply_propose"]);
 
 /**
  * A tool's kind for the mode table, when it is not one of loki's own (those declare theirs; daemon/extensions.ts
@@ -61,11 +52,12 @@ export function kindOf(name: string, annotations?: { readOnly?: boolean; destruc
  *   standard      edits and commands; reads run freely
  *   acceptEdits   commands; edits and reads run freely
  *   unrestricted  nothing
- * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish.
+ * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish. A `bash` command made only of
+ * read-only programs is a read (daemon/read-only-command.ts, plan 094).
  */
 export function asks(mode: PermissionMode, name: string, args: Record<string, unknown>, opts: { cwd?: string; widgetsDir?: string; kind?: ToolKind }): boolean {
   if (NEVER_ASK.has(name) || mode === "unrestricted") return false;
-  const kind = opts.kind ?? kindOf(name);
+  const kind = name === "bash" && isReadOnlyCommand(args.command) ? "read" : (opts.kind ?? kindOf(name));
   if (kind === "edit" && opts.widgetsDir && insideFolder(args.path ?? args.file_path, opts.widgetsDir, opts.cwd)) return false;
   if (mode === "strict") return true;
   if (kind === "read") return false;

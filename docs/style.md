@@ -89,7 +89,7 @@ the one to run before pushing.
 **Agent tools** **checked** (`test/extensions.test.ts`, `test/tools.test.ts`):
 
 - A tool's name and its arguments are snake_case: `background_watch`, `canvas_focus { widget_id }`. A name of two
-  words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `suggestion_withdraw`, `user_ask`), so tools of
+  words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `suggestion_create`, `user_ask`), so tools of
   one family share its prefix (`memory_`, `schedule_`, `background_`, `canvas_`, `suggestion_`). One tool per action, not
   one tool with an `action` argument.
 - Every built-in tool declares its kind (read, edit or command) on its definition with `withKind`

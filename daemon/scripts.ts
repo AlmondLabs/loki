@@ -2,8 +2,8 @@
  * Scripts (docs/plans/2026-11-11-1011-feat-scripts-google-tools-plan.md): pi-durable's Code Mode on loki's own engine.
  * The agent writes a short JavaScript program, and it runs in a QuickJS sandbox on a worker thread with no file,
  * network or process access of its own: it reaches anything outside only by calling the tools this module lets it.
- * Those are the script-only tools (a mod's tool with `callers: ["tools"]`, which the model is never offered) and loki's
- * file tools; bash, background runs, helpers and the rest stay with the model, so a script never starts a process.
+ * Those are the script-only tools (a tool with `callers: ["tools"]`, which the model is never offered: a mod's, and
+ * loki's `ls`, `find` and `grep`) and pi-durable's file tools; bash, background runs, helpers and the rest stay with the model, so a script never starts a process.
  *
  * Everything a script may cost is a constant here, in one place, so the trade between what a script can do and what
  * the daemon spends on it stays visible.
@@ -18,10 +18,11 @@ import { withKind } from "./tool-kinds.ts";
 export const SCRIPT_TOOL = CODEMODE_TOOL_NAME;
 
 /**
- * loki's file tools a script may call besides the script-only tools: reads and edits in the chat's folder, which the
- * approval gate already knows how to weigh. bash is not here, nor anything else that starts a process (plan, R3).
+ * The model's file tools a script may call besides the script-only tools (loki's `ls`, `find` and `grep` are among
+ * those): reads and edits in the chat's folder, which the approval gate already knows how to weigh. bash is not here,
+ * nor anything else that starts a process (plan, R3).
  */
-export const SCRIPT_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit", "ls", "find", "grep"]);
+export const SCRIPT_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit"]);
 
 /**
  * How long one script may run, waiting on its tools included. Long enough to move a few hundred Drive files one at a
@@ -65,7 +66,7 @@ export function isScriptOnly(tool: Pick<ToolRegistration, "callers">): boolean {
   return tool.callers !== undefined && tool.callers.includes("tools") && !tool.callers.includes("model");
 }
 
-/** Whether a script may call a tool: a script-only tool or one of loki's file tools. */
+/** Whether a script may call a tool: a script-only tool or one of SCRIPT_FILE_TOOLS. */
 export function scriptMayCall(tool: Pick<ToolRegistration, "name" | "callers">): boolean {
   return isScriptOnly(tool) || SCRIPT_FILE_TOOLS.has(tool.name);
 }

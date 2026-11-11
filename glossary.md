@@ -264,10 +264,12 @@ others are files in `~/.loki/mods`.
 
 Each of loki's tools declares its kind on its own definition (`withKind`, or `kind` on a `ChatTool`); a mod's tool
 or an MCP server's says so with a `readOnly` annotation, and `daemon/tool-kinds.ts` names only pi-durable's coding
-tools, which loki cannot annotate. A tool that says nothing is a command. Reads are `read`, `grep`, `find`, `ls`,
-`image_view`, `canvas_read`, `canvas_focus`, `web_search`, `skill`, `background_output`, `background_watch`,
+tools, which loki cannot annotate. A tool that says nothing is a command. Reads are `read`, scripts' `grep`, `find`
+and `ls`, `canvas_read`, `canvas_focus`, `web_search`, `background_output`, `background_watch`,
 `schedule_list`, `history_search`, `history_read`, `user_ask`, `mcp_search`, and a mod's or an MCP server's tools
 marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked about) count as reads too.
-Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget folder never asks, and
-`user_ask`, `chat_list` and the suggestion tools never ask in any mode (`NEVER_ASK`): a question card is not a
+Edits are `write` and `edit`; anything else is a command, but a `bash` command made only of read-only programs
+(`ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc`, `pwd`, perhaps piped, with no flag that writes or runs
+another program) is a read (`daemon/read-only-command.ts`). An edit inside loki's widget folder never asks, and
+`user_ask`, `chat_list`, `suggestion_create`, `chat_message` and `reply_propose` never ask in any mode (`NEVER_ASK`): a question card is not a
 permission, and what you do with a suggestion is already your decision.

@@ -1,23 +1,24 @@
-import { defineExtension, defineTool, section, type Extension } from "@earendil-works/pi-durable";
+import { defineExtension, section, type Extension } from "@earendil-works/pi-durable";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { briefDescription, listGlobalSkills, skillDescription } from "../mod/skills.ts";
+import { briefDescription, globalSkillsDir, listGlobalSkills, skillDescription } from "../mod/skills.ts";
 import { AgentInfoDoc } from "./kernel/index.ts";
 import { memoryRoot } from "./memory.ts";
 import { sections } from "./section-cache.ts";
-import { withKind } from "./tool-kinds.ts";
 
 /**
  * Skills and project instructions on loki's daemon (plan 017, U10, KTD19). The agent's prompt lists every skill it
- * has, its own (in its memory, `skills/<name>/SKILL.md`) and the global ones (mod/skills.ts), by name and description;
- * the Skill tool hands it a skill's whole text when it needs it (`<skill_content>`). The chat's folder
- * brings its AGENTS.md (or CLAUDE.md) as a section of its own.
+ * has, its own (in its memory, `skills/<name>/SKILL.md`) and the global ones (mod/skills.ts), by name and description,
+ * and says which folder each group is in; the agent reads a skill's whole text with `read` when it needs it (plan 094).
+ * The chat's folder brings its AGENTS.md (or CLAUDE.md) as a section of its own.
  */
 
 interface Skill {
   name: string;
   description: string | null;
   file: string;
+  /** Whether it is the agent's own, in its memory, rather than a global one. */
+  own: boolean;
 }
 
 /** An agent's skills, its own before the global ones of the same name. */
@@ -34,29 +35,48 @@ export function skillsOf(backendDir: string, agentId: string | undefined, global
     for (const name of names.sort()) {
       const file = join(dir, name, "SKILL.md");
       if (!existsSync(file)) continue;
-      out.set(name, { name, description: skillDescription(readFileSync(file, "utf8")), file });
+      out.set(name, { name, description: skillDescription(readFileSync(file, "utf8")), file, own: true });
     }
   }
   for (const g of listGlobalSkills(globalDir))
-    if (!out.has(g.name)) out.set(g.name, { name: g.name, description: g.description, file: join(g.path, "SKILL.md") });
+    if (!out.has(g.name)) out.set(g.name, { name: g.name, description: g.description, file: join(g.path, "SKILL.md"), own: false });
   return [...out.values()];
 }
 
 const PROJECT_FILES = ["AGENTS.md", "CLAUDE.md"];
 const PROJECT_LIMIT = 32 * 1024;
 
-/** The `skills` and `project` sections and the Skill tool, as an extension over the agents in `backendDir`; `globalDir` stands in for the global skills folder (tests). A project file is cut to its first PROJECT_LIMIT characters. */
+/**
+ * The skills section's text: each group of skills under the folder it is in, so a skill's file is named once per
+ * folder rather than once per skill (plan 094, KTD4). Undefined when the agent has none.
+ */
+function skillsText(skills: readonly Skill[], ownDir: string, globalDir: string): string | undefined {
+  if (!skills.length) return undefined;
+  const line = (s: Skill) => `- ${s.name}${s.description ? `: ${briefDescription(s.description)}` : ""}`;
+  const group = (own: boolean, dir: string, title: string) => {
+    const mine = skills.filter((s) => s.own === own);
+    return mine.length ? `${title}, each at ${join(dir, "<name>", "SKILL.md")}:\n${mine.map(line).join("\n")}` : null;
+  };
+  return [
+    "Skills you have. Before doing the kind of work one describes, read its SKILL.md with `read`.",
+    group(true, ownDir, "Your own"),
+    group(false, globalDir, "Global"),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** The `skills` and `project` sections, as an extension over the agents in `backendDir`; `globalDir` stands in for the global skills folder (tests). A project file is cut to its first PROJECT_LIMIT characters. */
 export function skillsExtension(backendDir: string, globalDir?: string): Extension {
   return defineExtension({
     name: "loki.skills",
     sections: [
       section("skills", async (input, context) => {
         const agent = await input.read.snapshot(AgentInfoDoc, context);
-        return sections.get(`skills\u0000${backendDir}\u0000${agent?.id ?? ""}\u0000${globalDir ?? ""}`, () => {
-          const skills = skillsOf(backendDir, agent?.id, globalDir);
-          if (!skills.length) return undefined;
-          return `Skills you have. Before doing the kind of work one describes, load its instructions with the Skill tool.\n${skills.map((s) => `- ${s.name}${s.description ? `: ${briefDescription(s.description)}` : ""}`).join("\n")}`;
-        });
+        const id = agent?.id ?? "";
+        return sections.get(`skills\u0000${backendDir}\u0000${id}\u0000${globalDir ?? ""}`, () =>
+          skillsText(skillsOf(backendDir, agent?.id, globalDir), join(memoryRoot(backendDir, id), "skills"), globalDir ?? globalSkillsDir()),
+        );
       }),
       section("project", (input) => {
         const cwd = input.agent.cwd;
@@ -67,23 +87,6 @@ export function skillsExtension(backendDir: string, globalDir?: string): Extensi
         }
         return undefined;
       }),
-    ],
-    tools: [
-      withKind(
-        "read",
-        defineTool({
-          name: "skill",
-          description: "Load a skill's full instructions by its name, from the skills listed in your prompt.",
-          parameters: { type: "object", properties: { skill: { type: "string" } }, required: ["skill"] } as never,
-          execute: async (args, api, context) => {
-            const name = (args as { skill: string }).skill;
-            const agent = await api.snapshot(AgentInfoDoc, context);
-            const skill = skillsOf(backendDir, agent?.id, globalDir).find((s) => s.name === name);
-            if (!skill) throw new Error(`no skill named ${name}`);
-            return { output: [{ type: "text", text: `<skill_content name="${name}">\n${readFileSync(skill.file, "utf8")}\n</skill_content>` }] };
-          },
-        }),
-      ),
     ],
   });
 }
