@@ -5,7 +5,7 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Requirements
 
-- **macOS 13 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
+- **macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
   shortcut.
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under

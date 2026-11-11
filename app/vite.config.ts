@@ -150,7 +150,7 @@ export default defineConfig({
   define: { __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify(repo) },
   resolve: {
     // Authored widgets import the kit by this name; keep it stable in docs.
-    alias: { "@loki/kit": here("./src/kit/index.tsx") },
+    alias: { "@loki/kit": here("./src/kit/index.tsx"), "@": here("./src") },
   },
   server: {
     // Not the widgets folder: widget code reaches the page only through /@loki-widget/, into a sandboxed frame.

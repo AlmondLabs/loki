@@ -18,6 +18,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // The app's modules read these at build time; the site has no update check, so the repository is left empty.
   define: { __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify("") },
-  resolve: { alias: { "@loki/kit": here("../app/src/kit/index.tsx") } },
+  resolve: { alias: { "@loki/kit": here("../app/src/kit/index.tsx"), "@": here("../app/src") } },
   server: { host: "127.0.0.1", port: 5180, strictPort: true, fs: { allow: [here("..")] } },
 });

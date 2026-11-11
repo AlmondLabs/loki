@@ -5,7 +5,7 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13+, Node 22.19 or newer (it runs npm, Vite, the Tauri CLI, the tests and loki's daemon), Rust (stable, via rustup — `npm start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools.
+macOS 13.3+, Node 22.19 or newer (it runs npm, Vite, the Tauri CLI, the tests and loki's daemon), Rust (stable, via rustup — `npm start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools.
 
 ```bash
 npm install
