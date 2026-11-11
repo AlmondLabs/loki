@@ -44,6 +44,7 @@ import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
 import { useThreadPreview } from "../item/preview";
+import { Composer } from "../item/composer";
 import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
 
@@ -200,6 +201,8 @@ export function Conversation({
   // The new chat pane (plan 097, U5) draws what the agent asks of the person as Proposals; the phone keeps today's cards.
   const [preview] = useThreadPreview();
   const proposals = preview === "on" && !touch;
+  // The new pane shows what waits to send in the Composer's queue rather than at the end of the thread.
+  const queuedRows = proposals ? (view.rows ?? EMPTY).filter((r) => r.queued) : EMPTY;
   const approval = view.approval ?? null;
   const question = view.question ?? null;
   // A link card (plan 067) comes as a question whose input is the link asked for.
@@ -374,57 +377,69 @@ export function Conversation({
 
           {/* The message box; a draft that starts with "/" opens the command palette above. */}
           <div
-            className="loki-composer"
-            style={{ padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}
+            className={proposals ? "relative" : "loki-composer"}
+            style={proposals ? undefined : { padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}
           >
-            {palette.open && (
-              <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
-            )}
-            <ChatInput
-              ref={inputRef}
-              value={draft}
-              onChange={setDraft}
-              onSubmit={submit}
-              onKeyDown={onBoxKey}
-              onEscape={() => {
-                inputRef.current?.blur();
-                if (!draft.trim()) onEscapeEmpty?.();
-              }}
-              onFocus={() => onTyping?.(true)}
-              onBlur={() => onTyping?.(false)}
-              images={images}
-              onImages={setImages}
-              placeholder={placeholder ?? composerPlaceholder({ status, approval, question }, agentName)}
-              touch={touch}
-              tools={
-                (hasModelPicker || hasModeMenu || suggestions) && (
-                  <>
-                    {hasModelPicker && (
-                      <ModelPill
-                        ref={pillRef}
-                        name={modelName(models, model)}
-                        effort={effort}
-                        busy={controls.switching}
-                        open={controls.pickerOpen}
-                        onClick={controls.togglePicker}
-                      />
-                    )}
-                    {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
-                    {!touch && picker}
-                    {/* The permission mode beside the model: both say how this conversation's agent works. */}
-                    {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
-                    {/* After the chat's own pills, never beside send: it shows only while suggestions wait, and must not move send. */}
-                    {suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} />}
-                  </>
-                )
-              }
-              canSend={hasContent}
-              onStop={running ? stop : undefined}
-              stopping={stopping}
-              sendLabel={status === "idle" ? "Send" : "Queue: sends when this turn ends"}
-              sendTitle={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
-              {...palette.aria}
-            />
+            {palette.open &&
+              (() => {
+                const list = (
+                  <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
+                );
+                // In the new pane the palette rises from the Composer's column, not the pane's edge.
+                return proposals ? <div className="relative mx-auto w-full max-w-3xl px-6">{list}</div> : list;
+              })()}
+            {(() => {
+              // The new pane's Composer takes the same props as today's box, plus the queue it shows above the field.
+              const Box = proposals ? Composer : ChatInput;
+              return (
+                <Box
+                  ref={inputRef}
+                  value={draft}
+                  onChange={setDraft}
+                  onSubmit={submit}
+                  onKeyDown={onBoxKey}
+                  onEscape={() => {
+                    inputRef.current?.blur();
+                    if (!draft.trim()) onEscapeEmpty?.();
+                  }}
+                  onFocus={() => onTyping?.(true)}
+                  onBlur={() => onTyping?.(false)}
+                  images={images}
+                  onImages={setImages}
+                  placeholder={placeholder ?? composerPlaceholder({ status, approval, question }, agentName)}
+                  touch={touch}
+                  tools={
+                    (hasModelPicker || hasModeMenu || suggestions) && (
+                      <>
+                        {hasModelPicker && (
+                          <ModelPill
+                            ref={pillRef}
+                            name={modelName(models, model)}
+                            effort={effort}
+                            busy={controls.switching}
+                            open={controls.pickerOpen}
+                            onClick={controls.togglePicker}
+                          />
+                        )}
+                        {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
+                        {!touch && picker}
+                        {/* The permission mode beside the model: both say how this conversation's agent works. */}
+                        {hasModeMenu && <ModeSwitch mode={currentMode} modes={modes} controls={controls} />}
+                        {/* After the chat's own pills, never beside send: it shows only while suggestions wait, and must not move send. */}
+                        {suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} />}
+                      </>
+                    )
+                  }
+                  canSend={hasContent}
+                  onStop={running ? stop : undefined}
+                  stopping={stopping}
+                  sendLabel={status === "idle" ? "Send" : "Queue: sends when this turn ends"}
+                  sendTitle={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
+                  {...palette.aria}
+                  {...(proposals ? { queued: queuedRows, onCancelQueued: actions.onCancelQueued } : {})}
+                />
+              );
+            })()}
           </div>
           {touch && picker}
 

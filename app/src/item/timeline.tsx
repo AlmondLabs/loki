@@ -88,10 +88,13 @@ function ThreadBody({
   const stableLoadStep = useCallback((row: number) => stepRef.current?.(row) ?? Promise.resolve(null), []);
 
   const who = layout?.people?.assistant.name ?? agentName ?? "the agent";
-  const entries: ItemEntry[] = rows
+  // Messages queued mid-turn wait in the Composer's queue (plan 097, U6), not at the end of the thread.
+  // The agent's live reply can follow a queued message, so every queued row is left out, not only a trailing run.
+  const shown = rows?.some((r) => r.queued) ? rows.filter((r) => !r.queued) : rows;
+  const entries: ItemEntry[] = shown
     ? chatEntries(
         threadTurns(
-          threadEntries({ rows, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
+          threadEntries({ rows: shown, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
           { busy: status !== "idle", waiting },
         ),
       )
