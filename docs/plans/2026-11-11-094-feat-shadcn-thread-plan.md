@@ -28,7 +28,9 @@ Plan 094 · first step of the component overhaul in `docs/research/2026-11-11-de
   rather than add to them; (2) a shadcn chat component cannot keep a behaviour R6 lists without forking it beyond
   styling; (3) the new thread redraws more than the old one on the render measurement (Verification), or the app's
   JavaScript grows by more than 120 KB gzipped; (4) before U6, the person has not yet picked an anatomy on the rendered
-  U5 result.
+  U5 result. Condition (3)'s weight was met on 2026-11-11, when the thread moved to Vercel's AI Elements: the shared
+  chunk grew 296 → 408 KB gzipped, mostly streamdown, +158 KB JavaScript in all. The person chose to accept it over
+  drawing markdown with loki's own renderer.
 - **Execution profile:** one branch (`feat/shadcn-thread`) in its own worktree off fresh `main`, units in order, one PR
   the person raises and merges. Each unit lands as its own commit, so a unit can be reverted alone.
 
@@ -89,6 +91,8 @@ switch, and decides its look on the rendered result.
 - **Lucide icons.** loki's own icon set retires surface by surface. Governs R7.
 - **The shadcn folder is exempt from the doc-comment rule,** so upstream updates diff and merge cleanly. Governs KTD2.
 - **The thread moves first.** Governs scope.
+- **The thread's pieces are Vercel's AI Elements** (Message, MessageResponse, MessageActions, ChainOfThought), on top of
+  shadcn, with streamdown drawing the agent's markdown; the bundle weight that brings is accepted (2026-11-11).
 - **Phone bottom sheets take shadcn's Drawer as it is.** Not in this plan (R8); recorded here so the phone's plan
   inherits it.
 
