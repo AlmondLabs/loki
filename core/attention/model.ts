@@ -29,6 +29,16 @@ export interface PendingApproval {
   at: string;
 }
 
+/**
+ * Tools an approval never offers "always allow" for: a script is new code at every call, so allowing the script tool
+ * once for all would allow any script (plan 2026-11-11 scripts, R7). The daemon refuses the answer too
+ * (daemon/approvals.ts).
+ */
+export const NEVER_ALWAYS_TOOLS: ReadonlySet<string> = new Set(["codemode"]);
+
+/** Whether an approval card may offer "always allow" for its tool. */
+export const offersAlways = (approval: Pick<PendingApproval, "toolName">): boolean => !NEVER_ALWAYS_TOOLS.has(approval.toolName);
+
 /** The agent is waiting on answers (the user_ask tool), not a permission. */
 export interface PendingQuestion {
   requestId: string;

@@ -12,7 +12,7 @@ import {
   type RefObject,
 } from "react";
 import "./chat.css";
-import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import { offersAlways, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
@@ -431,8 +431,10 @@ export function Conversation({
                       always allow
                     </Button>
                   );
+                  // A script's card has no "always allow": each script is new code (offersAlways).
+                  const more = approval && offersAlways(approval) ? [always] : [];
                   // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
-                  return touch ? [deny, always, approve] : [approve, always, deny];
+                  return touch ? [deny, ...more, approve] : [approve, ...more, deny];
                 })()}
               {footer}
             </div>

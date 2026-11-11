@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSPropertie
 import type { LabelView } from "../../../core/labels.ts";
 import type { AccountProvider, OutsideSeed } from "../../../core/frame-types.ts";
 import { LabelChips } from "../chat/labels";
-import { archivable, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
+import { archivable, offersAlways, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf, restingCount } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type FlowLane, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -1342,9 +1342,11 @@ export function Decisions({
         >
           Approve
         </button>
-        <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${approval.toolName}`}>
-          Always allow {approval.toolName}
-        </button>
+        {offersAlways(approval) && (
+          <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${approval.toolName}`}>
+            Always allow {approval.toolName}
+          </button>
+        )}
       </div>
     );
   return (

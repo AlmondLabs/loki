@@ -59,7 +59,7 @@ import { AcpChats } from "./acp/chats.ts";
 import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
-import { checkScripts, scriptExtensions, scriptSandbox } from "./scripts.ts";
+import { checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -145,6 +145,12 @@ const approvals = new Approvals({
   widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
+  // A script's calls are checked against what scripts may call, among the tools registered now (daemon/scripts.ts).
+  scriptMayCall: (name) =>
+    mods.registry
+      .snapshot()
+      .tools()
+      .some(({ tool }) => tool.name === name && scriptMayCall(tool)),
 });
 // The person's pictures as files a window loads (plan 029), named as each message is read.
 const chatImages = new ChatImages(join(args.dir, "chat-images"));

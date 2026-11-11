@@ -2,7 +2,7 @@ import type { Context } from "@earendil-works/chord";
 import { AgentDoc as PiAgentDoc, defineExtension, hook, ToolTask, type Extension, type HookApi } from "@earendil-works/pi-durable";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type { ChatEvent } from "../core/attention/model.ts";
+import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
 import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
@@ -107,12 +107,19 @@ export class Approvals {
   private readonly alwaysPath: string | null;
   private readonly alwaysAllowed: Set<string>;
 
-  constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string } = {}) {
+  /**
+   * Whether a script may call a tool (daemon/scripts.ts, scriptMayCall), for a nested call: one a running script made.
+   * Absent, nested calls are weighed as the model's are.
+   */
+  private readonly scriptMayCall: ((name: string) => boolean) | undefined;
+
+  constructor(opts: { widgetsDir?: string; kindOfTool?: (name: string) => ToolKind; alwaysPath?: string; scriptMayCall?: (name: string) => boolean } = {}) {
     this.widgetsDir = opts.widgetsDir;
+    this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
     // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools), written back once.
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
-    this.alwaysAllowed = new Set(stored.flatMap(renamedTools));
+    this.alwaysAllowed = new Set(stored.flatMap(renamedTools).filter((name) => !NEVER_ALWAYS_TOOLS.has(name)));
     if (stored.some((name) => name in RENAMED_TOOLS || name in SPLIT_TOOLS)) this.saveAlways();
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
@@ -143,8 +150,9 @@ export class Approvals {
     return [...this.alwaysAllowed].sort();
   }
 
-  /** Remember (or forget) a tool as always allowed. */
+  /** Remember (or forget) a tool as always allowed; a tool in NEVER_ALWAYS_TOOLS (the script tool) is never remembered. */
   setAlways(toolName: string, on: boolean): string[] {
+    if (on && NEVER_ALWAYS_TOOLS.has(toolName)) return this.always();
     if (on) this.alwaysAllowed.add(toolName);
     else this.alwaysAllowed.delete(toolName);
     this.saveAlways();
@@ -209,9 +217,13 @@ export class Approvals {
       hooks: [
         hook(ToolTask, {
           beforeTool: async (call, api, context) => {
+            // A script's call of a tool scripts may not call is blocked whatever the mode: a backstop to the script's
+            // own tool list (daemon/scripts.ts), which leaves such a tool out.
+            const mayCall = call.parent === undefined ? undefined : this.scriptMayCall;
+            if (mayCall && !mayCall(call.name)) return { block: `A script may not call ${call.name}.` };
             const memoName = `approval:${call.id}`;
             const decided = await api.memo<Decision>(memoName, context);
-            const decision = decided ?? (await this.decideCall(call.name, call.arguments, call.id, api, context));
+            const decision = decided ?? (await this.decideCall(call.name, call.arguments, call.id, api, context, mayCall !== undefined));
             if (!decision) return undefined;
             if (!decided) await api.memo(memoName, decision, context);
             return decision.allow ? undefined : { block: decision.message || "The person declined this tool call." };
@@ -221,8 +233,19 @@ export class Approvals {
     });
   }
 
-  /** null when the mode lets the call run without asking. */
-  private async decideCall(name: string, args: Record<string, unknown>, callId: string, api: HookApi, context: Context): Promise<Decision | null> {
+  /**
+   * null when the mode lets the call run without asking. A script's own call (`nested`) asks only in strict mode: its
+   * script was approved, or ran without asking, under the same mode, and one card per call would make a forty-file
+   * move forty cards (plan 2026-11-11 scripts, KTD4). Strict asks for everything, by choice.
+   */
+  private async decideCall(
+    name: string,
+    args: Record<string, unknown>,
+    callId: string,
+    api: HookApi,
+    context: Context,
+    nested = false,
+  ): Promise<Decision | null> {
     const [own, agent, settings] = await Promise.all([
       api.snapshot(ChatDoc, api.conversationId, context),
       api.snapshot(AgentInfoDoc, context),
@@ -232,6 +255,7 @@ export class Approvals {
     const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     // A turn another chat's message started runs with no more power than that chat has (plan 067).
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
+    if (nested && mode !== "strict") return null;
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
