@@ -87,7 +87,7 @@ way back to it; delete them once you are happy. Each Mac copies and rewrites its
 Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. When a store
 first opens on a loki that changed those shapes, its saved entries are rewritten once, after a whole copy of the store
 to `~/.loki/stores/backup-letta-<date>/` (only when something changes); `~/.loki/stores/migrations.json` notes how far
-each store has come, and the older `tool-names.json` is deleted. There are two steps so far. The first takes loki's
+each store has come, and the older `tool-names.json` is deleted. There are three steps so far. The first takes loki's
 new tool names: in October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became `canvas_read` and
 `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and `view_image` became
 `image_view`. Tasks and its four tools went later that month, replaced by [suggestions](#suggestions); old chats that
@@ -97,8 +97,11 @@ what each did (see [Scripts](#scripts) for where `ls`, `find` and `grep` remain)
 were. Older names from before then (`Agent`, `Skill`, `bash_background`,
 `TaskOutput`, `loki_camera` and the like) take today's names the same way, and so does the "always allow" list; the
 whole map is `RENAMED_TOOLS` in `daemon/tool-kinds.ts`. The second rewrites what chats imported from Letta still carried: its tool
-arguments, notices and paths. A chat on Claude Code, Cursor or another ACP agent is left as it is, with its agent's
-own tool names.
+arguments, notices and paths. The third, also in November 2026, folds the background task's tools into two:
+`background_output`, `background_write` and `background_stop` calls become `background_watch` calls (a read with no
+wait, one that types its `input` first, one with `stop`). An "always allow" for `background_write` or `background_stop`
+carries to `background_watch`; one for `background_output` does not, since it was only ever a read. A chat on Claude
+Code, Cursor or another ACP agent is left as it is, with its agent's own tool names.
 
 Leaving Letta behind also changed a few things once on each Mac (noted in `~/.loki/state/migrations.json`): agent
 records take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named

@@ -91,9 +91,7 @@ describe("the line for a run of tools", () => {
 describe("loki's tools, and Claude Code's names for the same steps", () => {
   test("each reads the same under either name; loki's own old names are gone, saved chats renamed (plan 044)", () => {
     for (const [loki, claude, verb] of [
-      ["background_output", "TaskOutput", "Read a command's output"],
       ["background_watch", "Monitor", "Waited on a command"],
-      ["background_stop", "TaskStop", "Stopped a command"],
       ["subagent", "Agent", "Asked an agent"],
       ["skill", "Skill", "Loaded skill"],
       ["user_ask", "AskUserQuestion", "Asked you"],
@@ -103,6 +101,9 @@ describe("loki's tools, and Claude Code's names for the same steps", () => {
       expect(stepIcon(loki), loki).toBe(stepIcon(claude));
     }
     expect(stepVerb("background_run")).toBe("Started in background");
+    expect(stepVerb("TaskOutput")).toBe("Read a command's output");
+    expect(stepVerb("TaskStop")).toBe("Stopped a command");
+    expect(stepVerb("background_output")).toBe("Used background_output"); // merged into background_watch (plan 095)
     expect(stepVerb("bash_background")).toBe("Used bash_background");
     expect(stepVerb("ask_user")).toBe("Used ask_user");
   });

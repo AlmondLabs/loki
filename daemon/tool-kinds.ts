@@ -39,9 +39,6 @@ export const RENAMED_TOOLS: Readonly<Partial<Record<string, string>>> = {
   AskUserQuestion: "user_ask",
   ask_user: "user_ask",
   bash_background: "background_run",
-  write_stdin: "background_write",
-  TaskOutput: "background_output",
-  TaskStop: "background_stop",
   Monitor: "background_watch",
   loki_camera: "canvas_focus",
   desk_camera: "canvas_focus",
@@ -55,16 +52,56 @@ const TASK_TOOLS: Readonly<Partial<Record<string, string>>> = { create: "task_cr
 /** Old tools that became one tool per action: their `action` argument names the tool now (plan 044). */
 export const SPLIT_TOOLS: Readonly<Partial<Record<string, Readonly<Partial<Record<string, string>>>>>> = { tasks: TASK_TOOLS, loki_task: TASK_TOOLS };
 
-/** The tools an old name is now: one for a rename, each action's tool for a split one, itself for a name still in use. */
+/** An old tool now done by another tool's call (plan 095): which tool, and its call's arguments from the old ones. */
+export interface MergedTool {
+  readonly into: string;
+  readonly args: (old: Record<string, unknown>) => Record<string, unknown>;
+  /**
+   * Whether "always allow" for the old tool carries over to the one it is now: only when the old tool could ask
+   * outside strict mode (a command), so a carried allow never lets more through than the person allowed.
+   */
+  readonly carriesAlways: boolean;
+}
+
+const WATCH_OUTPUT: MergedTool = { into: "background_watch", args: (a) => ({ ...a, timeout_ms: 0 }), carriesAlways: false };
+const WATCH_WRITE: MergedTool = {
+  into: "background_watch",
+  args: ({ text, ...rest }) => ({ ...rest, ...(text === undefined ? {} : { input: text }), timeout_ms: 0 }),
+  carriesAlways: true,
+};
+const WATCH_STOP: MergedTool = { into: "background_watch", args: (a) => ({ ...a, stop: true }), carriesAlways: true };
+
+/**
+ * Old tools merged into another (plan 095): the background task's output, input and stop are `background_watch`
+ * calls now, under loki's names and the older ones they had (`TaskOutput`, `write_stdin`, `TaskStop`).
+ */
+export const MERGED_TOOLS: Readonly<Partial<Record<string, MergedTool>>> = {
+  background_output: WATCH_OUTPUT,
+  TaskOutput: WATCH_OUTPUT,
+  background_write: WATCH_WRITE,
+  write_stdin: WATCH_WRITE,
+  background_stop: WATCH_STOP,
+  TaskStop: WATCH_STOP,
+};
+
+/** Whether a tool name is an old one: renamed, split or merged. */
+export const isOldTool = (name: string): boolean => name in RENAMED_TOOLS || name in SPLIT_TOOLS || name in MERGED_TOOLS;
+
+/**
+ * The tools an "always allow" under a name carries to now: one for a rename, each action's tool for a split one, the
+ * merged tool when the old one was a command (else none), itself for a name still in use.
+ */
 export const renamedTools = (name: string): string[] => {
   const split = SPLIT_TOOLS[name];
   if (split) return Object.values(split).filter((n): n is string => !!n);
+  const merged = MERGED_TOOLS[name];
+  if (merged) return merged.carriesAlways ? [merged.into] : [];
   return [RENAMED_TOOLS[name] ?? name];
 };
 
 /**
- * A call under an old name as it is now: renamed, or for a split tool the action's own tool without its `action`
- * argument. Null when the name is current, or a split tool's action is not one it had.
+ * A call under an old name as it is now: renamed, for a split tool the action's own tool without its `action`
+ * argument, or for a merged one the tool it is now with its arguments carried over. Null when the name is current, or a split tool's action is not one it had.
  */
 export function renamedCall(name: string, args: Record<string, unknown>): { name: string; args: Record<string, unknown> } | null {
   const split = SPLIT_TOOLS[name];
@@ -73,6 +110,8 @@ export function renamedCall(name: string, args: Record<string, unknown>): { name
     const now = typeof action === "string" ? split[action] : undefined;
     return now ? { name: now, args: rest } : null;
   }
+  const merged = MERGED_TOOLS[name];
+  if (merged) return { name: merged.into, args: merged.args(args) };
   const now = RENAMED_TOOLS[name];
   return now ? { name: now, args } : null;
 }
@@ -100,7 +139,7 @@ export function renameToolsIn(messages: readonly unknown[], calls: Map<string, s
         changed = true;
       }
     } else if (m.role === "toolResult" && typeof m.toolName === "string") {
-      const now = (typeof m.toolCallId === "string" ? calls.get(m.toolCallId) : undefined) ?? RENAMED_TOOLS[m.toolName];
+      const now = (typeof m.toolCallId === "string" ? calls.get(m.toolCallId) : undefined) ?? RENAMED_TOOLS[m.toolName] ?? MERGED_TOOLS[m.toolName]?.into;
       if (now && now !== m.toolName) {
         m.toolName = now;
         changed = true;

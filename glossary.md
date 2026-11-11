@@ -265,7 +265,7 @@ others are files in `~/.loki/mods`.
 Each of loki's tools declares its kind on its own definition (`withKind`, or `kind` on a `ChatTool`); a mod's tool
 or an MCP server's says so with a `readOnly` annotation, and `daemon/tool-kinds.ts` names only pi-durable's coding
 tools, which loki cannot annotate. A tool that says nothing is a command. Reads are `read`, scripts' `grep`, `find`
-and `ls`, `canvas_read`, `canvas_focus`, `web_search`, `background_output`, `background_watch`,
+and `ls`, `canvas_read`, `canvas_focus`, `web_search`, `background_watch` (but one that types into its task or stops it is a command),
 `schedule_list`, `history_search`, `history_read`, `user_ask`, `mcp_search`, and a mod's or an MCP server's tools
 marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked about) count as reads too.
 Edits are `write` and `edit`; anything else is a command, but a `bash` command made only of read-only programs
