@@ -233,10 +233,9 @@ function partsOf(m: OutsideMessage): ItemPart[] {
   return parts;
 }
 
-/** A Slack thread, an email or a Jira ticket as an item (R2–R4). */
-export function outsideItem({ facts, messages, ticket = null, unread, replies = [] }: OutsideSource): ItemView {
-  const jira = facts.provider === "jira";
-  const entries: Array<Extract<ItemEntry, { kind: "message" | "event" }>> = messages.map((m) => ({
+/** One outside message as a MessageEntry reads it: whose, its parts, its reactions where the source has them, its marks. */
+export function outsideMessageEntry(m: OutsideMessage, provider: AccountProvider): Extract<ItemEntry, { kind: "message" }> {
+  return {
     kind: "message",
     key: `m-${m.id}`,
     from: m.mine ? "you" : "person",
@@ -244,10 +243,15 @@ export function outsideItem({ facts, messages, ticket = null, unread, replies = 
     avatar: m.avatar ?? null,
     at: m.at,
     parts: partsOf(m),
-    reactions: facts.provider === "slack" ? (m.reactions ?? []) : [],
-    mentions_you: jira ? m.mentions_me === true : m.brought === true,
+    reactions: provider === "slack" ? (m.reactions ?? []) : [],
+    mentions_you: provider === "jira" ? m.mentions_me === true : m.brought === true,
     in_thread: m.in_thread === true,
-  }));
+  };
+}
+
+/** A Slack thread, an email or a Jira ticket as an item (R2–R4). */
+export function outsideItem({ facts, messages, ticket = null, unread, replies = [] }: OutsideSource): ItemView {
+  const entries: Array<Extract<ItemEntry, { kind: "message" | "event" }>> = messages.map((m) => outsideMessageEntry(m, facts.provider));
   for (const c of ticket?.changed ?? []) entries.push({ kind: "event", key: `e-${c.field}-${c.at}`, who: c.by, text: changeText(c), at: c.at });
   // In time order; an entry with no time keeps its place after those before it (a stable sort on a missing time).
   const time = (e: { at: string }) => (e.at ? Date.parse(e.at) : Number.NaN);

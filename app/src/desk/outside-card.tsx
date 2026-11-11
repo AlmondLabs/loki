@@ -1,3 +1,5 @@
+import { useThreadPreview } from "../item/preview";
+import { ItemMailThread, itemSlackRow } from "../item/outside-rows";
 import type {
   EmojiChoice,
   JiraCardTicket,
@@ -473,12 +475,15 @@ export function OutsideThread({
   state,
   touch = false,
   own = NO_ADDRESSES,
+  items = false,
 }: {
   facts: OutsideFacts;
   state: ThreadState;
   touch?: boolean;
   /** The person's own addresses, which a mail's header line says as "you" (plan 078). */
   own?: readonly string[];
+  /** Draw the messages with the new chat pane's item components (plan 097, U7), keeping the thread's own behaviour. */
+  items?: boolean;
 }) {
   const end = useRef<HTMLDivElement>(null);
   // Scrolled when the newest message changes, so events a Jira card loads above what is read leave it where it is.
@@ -495,7 +500,7 @@ export function OutsideThread({
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
       <JiraTicket ticket={state.ticket} touch={touch}>
-        {touch ? <ThreadList facts={facts} state={state} /> : <SlackRows facts={facts} state={state} stays />}
+        {touch ? <ThreadList facts={facts} state={state} /> : <SlackRows facts={facts} state={state} stays items={items} />}
       </JiraTicket>
     );
   if (state.kind !== "read" || state.messages.length === 0) return <ThreadStandIn facts={facts} state={state} touch={touch} />;
@@ -503,18 +508,28 @@ export function OutsideThread({
   if (facts.provider === "gmail")
     return (
       <>
-        <MailThread messages={state.messages} own={own} />
+        {items ? <ItemMailThread messages={state.messages} own={own} /> : <MailThread messages={state.messages} own={own} />}
         <div ref={end} />
       </>
     );
-  return <SlackRows facts={facts} state={state} />;
+  return <SlackRows facts={facts} state={state} items={items} />;
 }
 
 /**
  * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 091); a Jira card's
  * without what only Slack has, and under its ticket without scrolling away from the ticket's top (`stays`).
  */
-function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state: Extract<ThreadState, { kind: "read" }>; stays?: boolean }) {
+function SlackRows({
+  facts,
+  state,
+  stays = false,
+  items = false,
+}: {
+  facts: OutsideFacts;
+  state: Extract<ThreadState, { kind: "read" }>;
+  stays?: boolean;
+  items?: boolean;
+}) {
   return (
     <SlackThread
       messages={state.messages}
@@ -523,6 +538,7 @@ function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state
       controls={state.controls ?? null}
       jira={facts.provider === "jira"}
       stays={stays}
+      {...(items ? { row: itemSlackRow(facts.provider) } : {})}
     />
   );
 }
@@ -1144,6 +1160,8 @@ export function OutsideCard({
   compose?: MailCompose | null;
 }) {
   const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
+  // The new chat pane's preview draws the thread's messages with the item components (plan 097, U7).
+  const [preview] = useThreadPreview();
   const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
@@ -1171,7 +1189,7 @@ export function OutsideCard({
             {disconnectedText(facts.disconnected, facts.provider)}
           </Meta>
         )}
-        <OutsideThread facts={facts} state={thread} own={own} />
+        <OutsideThread facts={facts} state={thread} own={own} items={preview === "on"} />
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}

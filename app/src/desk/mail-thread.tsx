@@ -41,7 +41,7 @@ export function snippet(text: string): string {
 }
 
 /** The bare address in a From header, lower case; "" when it has none. */
-function addressIn(sender: string): string {
+export function addressIn(sender: string): string {
   return headerPeople(sender).at(0)?.address ?? "";
 }
 

@@ -288,7 +288,7 @@ function repliesLabel(m: OutsideMessage, canOpen: boolean): string | null {
  * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are; without
  * a way to open it (a Mac on an older loki), how many replies it has.
  */
-function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
+export function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
   const label = repliesLabel(m, onOpen !== undefined);
   if (!label) return null;
   if (!onOpen) return <div className="loki-slack-replies">{label}</div>;
@@ -304,7 +304,7 @@ function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void })
  * What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, react with one of the
  * person's quick reactions from its hover bar (plan 084), and the picker when open.
  */
-interface RowReacting {
+export interface RowReacting {
   open: () => void;
   toggle: (r: SlackReaction) => void;
   quick: readonly EmojiChoice[];
@@ -329,7 +329,7 @@ function AddReactionMark() {
 }
 
 /** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
-function HoverBar({ reacting }: { reacting: RowReacting }) {
+export function HoverBar({ reacting }: { reacting: RowReacting }) {
   return (
     <div className="loki-slack-hoverbar" role="toolbar" aria-label="react">
       {reacting.quick.slice(0, BAR_QUICK).map((c) => (
@@ -343,6 +343,18 @@ function HoverBar({ reacting }: { reacting: RowReacting }) {
     </div>
   );
 }
+
+/** Where a message sits in the thread, as its row is drawn: the first of a run, the day it moved to, its thread, its reacting. */
+export interface SlackRowAt {
+  first: boolean;
+  dayNote: string | null;
+  onOpen?: () => void;
+  reacting?: RowReacting;
+  jira: boolean;
+}
+
+/** The Slack card's own row, today's look. */
+const defaultRow = (m: OutsideMessage, at: SlackRowAt) => <SlackRow m={m} {...at} />;
 
 function SlackRow({
   m,
@@ -594,6 +606,7 @@ export function SlackThread({
   controls = null,
   jira = false,
   stays = false,
+  row = defaultRow,
 }: {
   messages: readonly OutsideMessage[];
   newest: string;
@@ -601,6 +614,8 @@ export function SlackThread({
   controls?: ThreadControls | null;
   jira?: boolean;
   stays?: boolean;
+  /** How one message draws; the new chat pane draws it with its item components (plan 097, U7), keeping all else here. */
+  row?: (m: OutsideMessage, at: SlackRowAt) => ReactNode;
 }) {
   const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;
   const rows = pinned ? messages.slice(1) : messages;
@@ -626,7 +641,7 @@ export function SlackThread({
       )}
       {pinned && (
         <div className={washed(pinned, jira) ? "loki-slack-brought" : undefined}>
-          <SlackRow m={pinned} first dayNote={null} reacting={reactingOn(pinned)} />
+          {row(pinned, { first: true, dayNote: null, reacting: reactingOn(pinned), jira })}
         </div>
       )}
       <LoadButton direction="before" window={window} controls={controls} onLoad={loadEarlier} />
@@ -634,14 +649,13 @@ export function SlackThread({
         <Fragment key={m.id}>
           <RowMarks p={plan[i]} />
           <div ref={i === focusAt ? focus : undefined} className={rowClass(m, jira)}>
-            <SlackRow
-              m={m}
-              first={plan[i].first}
-              dayNote={plan[i].dayNote}
-              onOpen={controls && !jira && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
-              reacting={reactingOn(m)}
-              jira={jira}
-            />
+            {row(m, {
+              first: plan[i].first,
+              dayNote: plan[i].dayNote,
+              onOpen: controls && !jira && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined,
+              reacting: reactingOn(m),
+              jira,
+            })}
           </div>
         </Fragment>
       ))}

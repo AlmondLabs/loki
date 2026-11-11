@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon, FileIcon } from "lucide-react";
@@ -30,12 +30,21 @@ export function MessageEntry({
   source,
   status = null,
   onReact,
+  first = true,
+  note = null,
+  children,
 }: {
   entry: Extract<ItemEntry, { kind: "message" }>;
   source: ItemSource;
   /** Where your message went, said in its label line: "in thread", "to billing@…", "internal comment". */
   status?: string | null;
   onReact?: (r: SlackReaction) => void;
+  /** The first of a run from one sender, which shows their picture and name; the rest of the run sits under it. */
+  first?: boolean;
+  /** The day beside the time, when the run moved to a new one. */
+  note?: string | null;
+  /** What follows the reactions: a post's replies, the emoji picker. */
+  children?: ReactNode;
 }) {
   const time = clockLabel(m.at);
   const parts = <ContentParts parts={m.parts} source={source} title={`${m.who}'s message`} />;
@@ -51,6 +60,7 @@ export function MessageEntry({
           {parts}
         </MessageContent>
         <Reactions reactions={m.reactions} onToggle={onReact} />
+        {children}
       </Message>
     );
   return (
@@ -59,14 +69,18 @@ export function MessageEntry({
       data-mentions={m.mentions_you || undefined}
       className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
     >
-      <Avatar who={m.who} src={m.avatar} />
+      {first ? <Avatar who={m.who} src={m.avatar} /> : <span aria-hidden />}
       <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex items-baseline gap-2 text-meta text-muted-foreground">
-          <span className="text-body font-semibold text-foreground">{m.who}</span>
-          {time && <time dateTime={m.at}>{time}</time>}
-        </div>
+        {first && (
+          <div className="flex items-baseline gap-2 text-meta text-muted-foreground">
+            <span className="text-body font-semibold text-foreground">{m.who}</span>
+            {time && <time dateTime={m.at}>{time}</time>}
+            {note && <span>{note}</span>}
+          </div>
+        )}
         {parts}
         <Reactions reactions={m.reactions} onToggle={onReact} />
+        {children}
       </div>
     </div>
   );
