@@ -19,10 +19,11 @@ import { ThreadError } from "../thread-error";
 import { StepsLoad } from "../tool-steps";
 import { useArrivedFrom } from "../transcript";
 import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../transcript-window";
-import { threadEntries, type ThreadEntry } from "./entries";
+import { threadEntries, threadTurns, type TurnEntry, type TurnPart } from "./entries";
 import { DayMarker, EventMarker, NewMarker, WidgetMarker } from "./thread-markers";
 import { ThreadRow } from "./thread-row";
 import { ThreadSteps } from "./thread-steps";
+import { ThreadTurn } from "./thread-turn";
 
 const EMPTY: TranscriptRow[] = [];
 
@@ -86,38 +87,48 @@ function ThreadBody({
 
   const who = layout?.people?.assistant.name ?? agentName ?? "the agent";
   const entries = rows
-    ? threadEntries({ rows, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom })
+    ? threadTurns(
+        threadEntries({ rows, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
+        { busy: status !== "idle", waiting },
+      )
     : [];
-  const draw = (e: ThreadEntry) => {
+  const message = (e: Extract<TurnPart, { kind: "message" }>) => (
+    <ThreadRow
+      row={e.row}
+      last={e.last}
+      streaming={status === "streaming" && e.last}
+      arrived={e.arrived}
+      onCancelQueued={e.row.queued && onCancelQueued ? cancelQueued : undefined}
+    />
+  );
+  const part = (p: TurnPart) => {
+    switch (p.kind) {
+      case "widget":
+        return <WidgetMarker mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
+      case "steps":
+        return <ThreadSteps rows={p.rows} running={p.running} arrived={p.arrived} />;
+      case "event":
+        return <EventMarker row={p.row} arrived={p.arrived} />;
+      case "message":
+        return message(p);
+    }
+  };
+  const draw = (e: TurnEntry) => {
     switch (e.kind) {
       case "day":
         return <DayMarker label={e.label} />;
       case "new":
         return <NewMarker day={e.day} />;
-      case "widget":
-        return <WidgetMarker mark={e.mark} live={e.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
-      case "steps":
-        return <ThreadSteps rows={e.rows} running={e.running} arrived={e.arrived} />;
-      case "event":
-        return <EventMarker row={e.row} arrived={e.arrived} />;
       case "message":
-        return (
-          <ThreadRow
-            row={e.row}
-            last={e.last}
-            streaming={status === "streaming" && e.last}
-            first={e.first}
-            arrived={e.arrived}
-            agentName={who}
-            onCancelQueued={e.row.queued && onCancelQueued ? cancelQueued : undefined}
-          />
-        );
+        return message(e);
+      case "turn":
+        return <ThreadTurn agentName={who} state={e.state} failed={e.failed} took={e.took} parts={e.parts} draw={part} />;
     }
   };
   return (
     <MessageScroller data-new-thread className="flex-1">
       <MessageScrollerViewport preserveScrollOnPrepend onScroll={(ev: UIEvent<HTMLDivElement>) => nearTop(ev.currentTarget)} data-thread-scroll style={style}>
-        <MessageScrollerContent className="gap-4 px-5 py-4 text-body text-foreground">
+        <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-5 px-6 py-5 text-body text-foreground">
           {!rows && !loadFailed && <p className="m-0 text-meta text-muted-foreground">{home ? `loading from ${home}…` : "loading the thread…"}</p>}
           {!rows && loadFailed && (
             <div role="alert" className="flex items-center gap-2 text-meta text-destructive">

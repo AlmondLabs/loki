@@ -1,6 +1,6 @@
 import type { TranscriptRow } from "../../../../core/attention/transcript.ts";
 import { dayPills } from "../../shared/thread";
-import { isWorkRow, toolRuns } from "../../shared/tool-steps";
+import { isWorkRow, stepFailed, toolRuns, workDuration } from "../../shared/tool-steps";
 import type { WidgetMark } from "../transcript";
 
 /**
@@ -108,5 +108,49 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
     out.push({ kind: "message", key, row: m, last: i === rows.length - 1, first: speaks && m.role !== author, arrived });
     if (speaks) author = m.role;
   });
+  return out;
+}
+
+/** A part of the agent's turn: its words, a stretch of its work, an event, a widget it changed. */
+export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "widget" }>;
+
+/** What the turn header says about where the turn stands. */
+export type TurnState = "working" | "needs you" | "failed" | "done";
+
+/**
+ * The thread as Turns draws it (plan 094, U6): your messages and the day and New markers stand alone; everything the
+ * agent did between them (its words, stretches of work, events, widget changes) is one turn, keyed by its first part
+ * so it keeps its key as it grows.
+ */
+export type TurnEntry =
+  | Extract<ThreadEntry, { kind: "day" | "new" }>
+  | Extract<ThreadEntry, { kind: "message" }>
+  | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
+
+/**
+ * Groups the entries into turns. Only the last turn can be working (the agent is busy) or waiting on you (an approval or
+ * a question is open); before that a turn with a failed step says how many failed, else it is done. How long it took
+ * comes from the times on its rows.
+ */
+export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: boolean; waiting: boolean }): TurnEntry[] {
+  const out: TurnEntry[] = [];
+  let open: TurnPart[] | null = null;
+  const close = () => {
+    const parts: TurnPart[] | null = open;
+    if (!parts || parts.length === 0) return;
+    const rows = parts.flatMap((p) => (p.kind === "steps" ? p.rows : p.kind === "widget" ? [] : [p.row]));
+    const failed = parts.reduce((n, p) => n + (p.kind === "steps" ? p.rows.filter(stepFailed).length : 0), 0);
+    out.push({ kind: "turn", key: `turn-${parts[0].key}`, parts, state: failed ? "failed" : "done", failed, took: workDuration(rows) });
+    open = null;
+  };
+  for (const e of entries) {
+    if (e.kind === "day" || e.kind === "new" || (e.kind === "message" && e.row.role === "user")) {
+      close();
+      out.push(e);
+    } else (open ??= []).push(e);
+  }
+  close();
+  const last = out.at(-1);
+  if (last?.kind === "turn" && (busy || waiting)) out[out.length - 1] = { ...last, state: waiting ? "needs you" : "working" };
   return out;
 }

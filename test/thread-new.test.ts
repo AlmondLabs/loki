@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { threadEntries, type EntryInput, type ThreadEntry } from "../app/src/chat/thread/entries.ts";
+import { threadEntries, threadTurns, type EntryInput, type ThreadEntry } from "../app/src/chat/thread/entries.ts";
+import { ThreadTurn } from "../app/src/chat/thread/thread-turn.tsx";
 import { ThreadSteps } from "../app/src/chat/thread/thread-steps.tsx";
 import { ThreadRow } from "../app/src/chat/thread/thread-row.tsx";
 import { NewMarker, WidgetMarker } from "../app/src/chat/thread/thread-markers.tsx";
@@ -109,6 +110,46 @@ describe("the new thread's reading order", () => {
   });
 });
 
+describe("turns: everything the agent did between two of your messages", () => {
+  const turnKinds = (rows: TranscriptRow[], o = { busy: false, waiting: false }, extra: Partial<EntryInput> = {}) =>
+    threadTurns(threadEntries(input(rows, extra)), o).map((e) =>
+      e.kind === "turn" ? `turn(${e.parts.map((p) => p.kind).join(",")}):${e.state}` : e.kind === "message" ? e.row.role : e.kind,
+    );
+
+  test("the agent's words and work between your messages are one turn", () => {
+    expect(turnKinds([user("go"), agent("on it"), bash(), agent("done"), user("thanks"), agent("welcome")])).toEqual([
+      "user",
+      "turn(message,steps,message):done",
+      "user",
+      "turn(message):done",
+    ]);
+  });
+
+  test("a turn with a failed step says how many failed", () => {
+    const [, turn] = threadTurns(threadEntries(input([user("go"), bash(true), bash(true), agent("sorry")])), { busy: false, waiting: false });
+    expect(turn.kind === "turn" && [turn.state, turn.failed]).toEqual(["failed", 2]);
+  });
+
+  test("only the last turn works or waits on you", () => {
+    const rows = [user("a"), agent("b"), user("c"), agent("d")];
+    expect(turnKinds(rows, { busy: true, waiting: false })).toEqual(["user", "turn(message):done", "user", "turn(message):working"]);
+    expect(turnKinds(rows, { busy: true, waiting: true })).toEqual(["user", "turn(message):done", "user", "turn(message):needs you"]);
+  });
+
+  test("a day or the New line ends a turn, and a turn keeps its key as it grows", () => {
+    expect(turnKinds([user("a"), agent("b"), agent("c")], undefined, { dividerAt: 2 })).toEqual(["user", "turn(message):done", "new", "turn(message):done"]);
+    const short = threadTurns(threadEntries(input([user("a"), agent("b")])), { busy: false, waiting: false });
+    const long = threadTurns(threadEntries(input([user("a"), agent("b"), bash()])), { busy: false, waiting: false });
+    expect(short[1].key).toBe(long[1].key);
+  });
+
+  test("how long a turn took comes from the times on its rows", () => {
+    const rows = [user("a", "2026-11-11T09:00:00Z"), agent("b", "2026-11-11T09:01:00Z"), agent("c", "2026-11-11T09:05:00Z")];
+    const turn = threadTurns(threadEntries(input(rows)), { busy: false, waiting: false }).find((e) => e.kind === "turn");
+    expect(turn?.kind === "turn" && turn.took).toBe("4 min");
+  });
+});
+
 describe("the new thread's pieces", () => {
   test("a stretch of work is one closed line in today's wording, with the failed step named under it", () => {
     const html = renderToStaticMarkup(createElement(ThreadSteps, { rows: [bash(), bash(true)], running: false, arrived: false }));
@@ -123,36 +164,35 @@ describe("the new thread's pieces", () => {
     expect(html).not.toContain("failed</button>");
   });
 
-  test("your message is a bubble on the right; the agent's opens its run with its name", () => {
-    const mine = renderToStaticMarkup(
-      createElement(ThreadRow, { row: user("hello", "2026-11-11T09:00:00Z"), last: false, streaming: false, first: true, arrived: false, agentName: "friday" }),
-    );
-    expect(mine).toContain('data-align="end"');
+  test("your message is a block labelled You with its time and copy; the agent's words carry their copy and time", () => {
+    const mine = renderToStaticMarkup(createElement(ThreadRow, { row: user("hello", "2026-11-11T09:00:00Z"), last: false, streaming: false, arrived: false }));
+    expect(mine).toContain('data-row="user"');
+    expect(mine).toContain(">You<");
     expect(mine).toContain("copy as markdown");
-    const theirs = renderToStaticMarkup(
-      createElement(ThreadRow, { row: agent("hi"), last: true, streaming: false, first: true, arrived: false, agentName: "friday" }),
-    );
-    expect(theirs).toContain('data-align="start"');
-    expect(theirs).toContain("friday");
+    const theirs = renderToStaticMarkup(createElement(ThreadRow, { row: agent("hi", "2026-11-11T09:01:00Z"), last: true, streaming: false, arrived: false }));
+    expect(theirs).toContain('data-row="assistant"');
+    expect(theirs).toContain("copy as markdown");
   });
 
   test("a streaming reply offers no copy until it is done, and a queued message offers its take-back", () => {
-    const live = renderToStaticMarkup(
-      createElement(ThreadRow, { row: agent("writing"), last: true, streaming: true, first: true, arrived: false, agentName: "friday" }),
-    );
+    const live = renderToStaticMarkup(createElement(ThreadRow, { row: agent("writing"), last: true, streaming: true, arrived: false }));
     expect(live).not.toContain("copy as markdown");
     const queued = renderToStaticMarkup(
-      createElement(ThreadRow, {
-        row: { ...user("later"), queued: true },
-        last: true,
-        streaming: false,
-        first: true,
-        arrived: false,
-        agentName: "friday",
-        onCancelQueued: () => {},
-      }),
+      createElement(ThreadRow, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
     );
     expect(queued).toContain("queued · sends when this turn ends · take back");
+  });
+
+  test("a turn's header names the agent, how long it worked and where it stands", () => {
+    const html = renderToStaticMarkup(
+      createElement(ThreadTurn, { agentName: "friday", state: "failed", failed: 1, took: "4 min", parts: [], draw: () => null }),
+    );
+    expect(html).toContain("friday");
+    expect(html).toContain("worked 4 min");
+    expect(html).toContain("1 failed");
+    expect(
+      renderToStaticMarkup(createElement(ThreadTurn, { agentName: "friday", state: "needs you", failed: 0, took: null, parts: [], draw: () => null })),
+    ).toContain("needs you");
   });
 
   test("the New line and a widget row read as today's", () => {

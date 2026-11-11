@@ -6,7 +6,8 @@ import type { FileRef, TranscriptRow } from "../../../../core/attention/transcri
 import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, AttachmentTrigger } from "@/ui/attachment";
 import { Bubble, BubbleContent } from "@/ui/bubble";
 import { Button } from "@/ui/button";
-import { Message, MessageContent, MessageFooter, MessageHeader } from "@/ui/message";
+import { Message, MessageContent, MessageFooter } from "@/ui/message";
+import { cn } from "cn";
 import { chatImageUrl, inTauri } from "../../desk/env";
 import { clockLabel } from "../../shared/thread";
 import { fileSize } from "../attachments";
@@ -16,51 +17,62 @@ import { AssistantBody, shownText } from "../transcript";
 const REMARK_PLUGINS = [remarkGfm];
 
 /**
- * One message in the new thread (plan 094, U5), in shadcn's chat anatomy: the agent's words as plain prose on the left,
- * yours in a bubble on the right; the speaker's name opens a run of the agent's messages. Under each, its copy button
- * (as markdown; there once a reply has finished) and its time. A queued message carries its take-back. Memoised like
- * today's rows: a long thread is not parsed again on every keystroke.
+ * One message in the new thread, as Turns draws it (plan 094, U6). Yours is a block across the column, "You" and its time
+ * over your words; the agent's is plain prose inside its turn, whose header names it. Under the agent's words, the copy
+ * button (as markdown, once a reply has finished) and the time; on yours they sit in its label line. A queued message
+ * says so there and offers its take-back. Memoised like today's rows: a long thread is not parsed again on every
+ * keystroke.
  */
 export const ThreadRow = memo(function ThreadRow({
   row: m,
   last,
   streaming,
-  first,
   arrived,
-  agentName,
   onCancelQueued,
 }: {
   row: TranscriptRow;
   last: boolean;
   /** The agent is writing this reply now (only ever the last row). */
   streaming: boolean;
-  first: boolean;
   arrived: boolean;
-  agentName: string;
   onCancelQueued?: (row: TranscriptRow) => void;
 }) {
-  const mine = m.role === "user";
   const time = clockLabel(m.at);
   const text = shownText(m);
   const copyable = !!text && !(last && streaming);
+  if (m.role === "user")
+    return (
+      <div
+        data-row="user"
+        data-queued={m.queued ? "true" : undefined}
+        data-arrived={arrived || undefined}
+        className={cn("group/row flex flex-col gap-1 rounded-lg bg-accent px-3.5 py-2.5", m.queued && "border border-dashed border-ring")}
+      >
+        <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
+          <span className="font-semibold text-foreground">You</span>
+          {time && <time dateTime={m.at}>{time}</time>}
+          {m.queued && (
+            <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="h-auto px-0">
+              queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+            </Button>
+          )}
+          {copyable && (
+            <span className="ml-auto">
+              <CopyAsMarkdown text={text} />
+            </span>
+          )}
+        </div>
+        <UserContent row={m} />
+      </div>
+    );
   return (
-    <Message
-      align={mine ? "end" : "start"}
-      data-row={m.role}
-      data-queued={m.queued ? "true" : undefined}
-      data-arrived={arrived || undefined}
-      className="group/row"
-    >
+    <Message data-row={m.role} data-arrived={arrived || undefined} className="group/row">
       <MessageContent>
-        {!mine && first && <MessageHeader className="px-0 text-foreground">{agentName}</MessageHeader>}
-        <Bubble variant={mine ? "secondary" : "ghost"} align={mine ? "end" : "start"} className={m.queued ? "opacity-70" : undefined}>
-          <BubbleContent className="text-body">{mine ? <UserContent row={m} /> : <AssistantBody row={m} cursor={last && streaming} />}</BubbleContent>
+        <Bubble variant="ghost">
+          <BubbleContent className="text-body">
+            <AssistantBody row={m} cursor={last && streaming} />
+          </BubbleContent>
         </Bubble>
-        {m.queued && (
-          <Button variant="link" size="xs" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="self-end">
-            queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
-          </Button>
-        )}
         {(copyable || time) && (
           <MessageFooter className="gap-1 px-0">
             {copyable && <CopyAsMarkdown text={text} />}
