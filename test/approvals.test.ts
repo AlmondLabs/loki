@@ -352,7 +352,8 @@ async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => bool
     await sandbox.close();
     await store.close(ctx);
   };
-  return { faux, approvals, pushed, ran, chat, script, close };
+  const entries = () => store.entries(chat, ctx);
+  return { faux, approvals, pushed, ran, chat, script, close, entries };
 }
 
 const approvalTools = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.tool_name] : []));
@@ -427,6 +428,9 @@ describe("approvals for scripts", () => {
       s.faux.setResponses([s.script("try { await tools.write({ x: 'a' }) } catch (e) { return e.message }", "s1"), fauxAssistantMessage("done")]);
       await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       expect(s.ran).toEqual([]);
+      // Blocked by the gate, with its reason, not failed some other way.
+      const results = (await s.entries()).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
+      expect(results.join("\n")).toContain("A script may not call write.");
     } finally {
       await s.close();
     }

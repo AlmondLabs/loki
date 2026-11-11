@@ -21,17 +21,6 @@ function partsOf(part: GmailMessagePart | null): GmailMessagePart[] {
   return part ? [part, ...part.parts.flatMap(partsOf)] : [];
 }
 
-/** The part of a message's MIME tree (as Gmail answers it) that holds an attachment. */
-function attachmentPart(part: unknown, attachmentId: string): { filename: string; mimeType: string } | undefined {
-  const p = rec(part);
-  if (str(rec(p.body).attachmentId) === attachmentId) return { filename: str(p.filename), mimeType: str(p.mimeType) };
-  for (const child of Array.isArray(p.parts) ? p.parts : []) {
-    const found = attachmentPart(child, attachmentId);
-    if (found) return found;
-  }
-  return undefined;
-}
-
 const decode = (data: string | undefined): string => (data ? Buffer.from(data, "base64url").toString("utf8") : "");
 
 /** A message's text: its plain part, or its HTML part made plain. */
@@ -57,7 +46,7 @@ function messageOf(m: GmailMessage): Record<string, unknown> {
     text: textOf(m),
     attachments: partsOf(m.payload)
       .filter((p) => p.filename && p.body.attachmentId)
-      .map((p) => ({ id: p.body.attachmentId, filename: p.filename, mime_type: p.mimeType, size: p.body.size })),
+      .map((p) => ({ id: p.body.attachmentId, part: p.partId, filename: p.filename, mime_type: p.mimeType, size: p.body.size })),
   };
 }
 
@@ -185,7 +174,7 @@ const send: GoogleToolDef = {
       ...(html ? { html } : {}),
       ...(files.length ? { attachments: files } : {}),
     });
-    return { id: sent.id, thread_id: last?.threadId ?? null, to, subject };
+    return { id: sent.id, thread_id: sent.threadId || last?.threadId || null, to, subject };
   },
 };
 
@@ -196,6 +185,7 @@ const attachment: GoogleToolDef = {
   properties: {
     message: { type: "string" },
     attachment: { type: "string" },
+    part: { type: "string", description: "The attachment's `part` from google_gmail_read, which names it reliably" },
     path: { type: "string" },
     drive_folder: { type: "string" },
     name: { type: "string" },
@@ -210,12 +200,16 @@ const attachment: GoogleToolDef = {
     const folder = optText(call.args, "drive_folder");
     if (!path && !folder) throw new Error("say where it goes: `path` or `drive_folder`");
     const client = call.deps.gmail(call.account.account_id);
-    // Its name and type, from the part of the message that holds it.
-    const part = attachmentPart(
-      rec(await call.auth.json({ service: "gmail", method: "GET", url: `${API}/messages/${encodeURIComponent(messageId)}`, query: { format: "full" } }))
-        .payload,
-      attachmentId,
-    );
+    // Its name and type, from the part of the message that holds it. Gmail gives an attachment a new id each time the
+    // message is read, so the part is found by its place in the tree (`part`, from google_gmail_read), then by that id,
+    // then as the message's only attachment.
+    const message = await client.getMessage(messageId);
+    const files = partsOf(message.payload).filter((p) => p.filename && p.body.attachmentId);
+    const partId = optText(call.args, "part");
+    const part =
+      files.find((p) => partId !== undefined && p.partId === partId) ??
+      files.find((p) => p.body.attachmentId === attachmentId) ??
+      (files.length === 1 ? files[0] : undefined);
     const name = optText(call.args, "name") ?? (part?.filename || (path ? basename(path) : "attachment"));
     const data = new Uint8Array(await client.attachment(messageId, attachmentId));
     const out: Record<string, unknown> = { name, size: data.byteLength, md5: md5(data) };

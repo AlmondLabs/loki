@@ -22,6 +22,8 @@ export interface GmailHeader {
 
 /** A part of a message's MIME tree, in Gmail's own names; `body.data` is base64url, present with format full. */
 export interface GmailMessagePart {
+  /** The part's place in the tree ("0", "1.2"), which stays the same each time the message is read. */
+  partId?: string;
   mimeType: string;
   filename: string;
   headers: GmailHeader[];
@@ -151,6 +153,7 @@ function parsePart(v: unknown): GmailMessagePart {
   const r = rec(v);
   const body = rec(r.body);
   return {
+    ...(typeof r.partId === "string" ? { partId: r.partId } : {}),
     mimeType: str(r.mimeType),
     filename: str(r.filename),
     headers: list(r.headers).map((h) => ({ name: str(rec(h).name), value: str(rec(h).value) })),
@@ -380,6 +383,11 @@ export class GmailClient {
     };
   }
 
+  /** One message with every part (format full), for the attachment a script saves (mod/google-tools/gmail.ts). */
+  async getMessage(messageId: string): Promise<GmailMessage> {
+    return parseMessage(await this.call("GET", `/messages/${encodeURIComponent(messageId)}`, { format: "full" }));
+  }
+
   /** A thread with its messages: their headers only (metadata), or every part (full). */
   async getThread(threadId: string, format: "metadata" | "full"): Promise<GmailThread> {
     const r = rec(await this.call("GET", `/threads/${encodeURIComponent(threadId)}`, { format }));
@@ -416,14 +424,15 @@ export class GmailClient {
   }
 
   /**
-   * Send the person's own reply in its thread (plan 068): the message `createDraft` would keep, sent now. Only the
-   * person's reply frame calls this; no agent tool is given it.
+   * Send a message now: the person's own reply in its thread (plan 068), the message `createDraft` would keep, or a
+   * script's mail (mod/google-tools/gmail.ts, plan 2026-11-11 scripts). Those two are its only callers; no tool the model
+   * calls directly sends. Answers with the sent message's id and the thread Gmail put it in.
    */
-  async sendReply(reply: GmailDraftInput): Promise<{ id: string }> {
+  async sendReply(reply: GmailDraftInput): Promise<{ id: string; threadId?: string }> {
     const raw = Buffer.from(rfc2822(reply), "utf8").toString("base64url");
     // A new message (a script's, plan 2026-11-11) has no thread yet: Gmail starts one.
     const r = rec(await this.call("POST", "/messages/send", undefined, { raw, ...(reply.threadId ? { threadId: reply.threadId } : {}) }));
-    return { id: str(r.id) };
+    return { id: str(r.id), ...(typeof r.threadId === "string" ? { threadId: r.threadId } : {}) };
   }
 
   /** A Gmail call through the account's sign-in (GoogleAuth): its JSON answer, `{}` for an empty one. */

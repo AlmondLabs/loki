@@ -117,7 +117,6 @@ describe("one Google account's sign-in (plan 2026-11-11, U6)", () => {
     f.advance(3600_000);
     await f.auth.json({ service: "drive", method: "GET", url: `${DRIVE}/files` });
     expect(f.accounts.get(ACCOUNT)?.services).toEqual(["gmail", "drive"]);
-    expect(f.auth.services()).toEqual(["gmail", "drive"]);
   });
 
   test("a download's bytes come back exactly; a 204 delete answers nothing; Google's own error message is kept", async () => {

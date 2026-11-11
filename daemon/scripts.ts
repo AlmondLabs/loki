@@ -45,8 +45,8 @@ export const SCRIPTS_AT_ONCE = 4;
 /**
  * Estimated tokens the prompt's script section may spend listing tools one by one: none. The section names each
  * namespace and what it is for, and a script finds a tool with `searchTools()` and reads it with `describeTool()`.
- * Measured on 2026-11-11 (test/scripts-prompt.test.ts): an owning agent's prompt gains about 985 tokens a turn with
- * this (576 the section, 409 the script tool), 1,119 with 150 and 1,460 with 600, against a 1,000-token target.
+ * Measured on 2026-11-11 (test/scripts-prompt.test.ts): an owning agent's prompt gains about 991 tokens a turn with
+ * this (582 the section, 409 the script tool), 1,119 with 150 and 1,460 with 600, against a 1,000-token target.
  */
 export const SCRIPT_LISTING_TOKENS = 0;
 
@@ -56,7 +56,7 @@ export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
     name: "google",
     prefix: "google_",
     description:
-      "Gmail, Drive, Sheets, Docs and Calendar for the Google accounts this agent owns on this Mac. Each tool takes `account` (an address), which may be left out when the agent owns one Google account.",
+      "Gmail, Drive, Sheets, Docs and Calendar of the Google accounts this agent owns on this Mac; `account` (an address) may be left out when it owns one. Changes happen at once. Send mail or invites only when the person asks.",
   },
 ];
 

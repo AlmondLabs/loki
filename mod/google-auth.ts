@@ -1,5 +1,5 @@
 import type { GoogleService } from "../core/frame-types.ts";
-import type { Accounts } from "./accounts.ts";
+import { servicesOf, type Accounts } from "./accounts.ts";
 import { GOOGLE_TOKEN_URL, SHARED_GOOGLE_APP, grantedServices, parseGmailSecret, type GmailSecret, type GoogleApp } from "./google-app.ts";
 
 /**
@@ -103,11 +103,6 @@ export class GoogleAuth {
   /** The account this signs in, as `accountIdOf` names it. */
   get accountId(): string {
     return this.opts.account_id;
-  }
-
-  /** The services the account granted, as its record says; Gmail alone for one signed in before loki asked for more. */
-  services(): GoogleService[] {
-    return this.opts.accounts.get(this.opts.account_id)?.services ?? ["gmail"];
   }
 
   /**
@@ -249,7 +244,7 @@ export class GoogleAuth {
   private keepServices(services: GoogleService[]): void {
     const account = this.opts.accounts.get(this.opts.account_id);
     if (!account) return;
-    const had = account.services ?? ["gmail"];
+    const had = servicesOf(account);
     if (had.length === services.length && had.every((s) => services.includes(s))) return;
     this.opts.accounts.setServices(this.opts.account_id, services);
   }

@@ -28,6 +28,8 @@ afterEach(async () => {
 /** Calls of the test's script-only tool, in order, and a way to hold one open until released. */
 interface Echo {
   calls: string[];
+  /** Called when the held call is reached, so a test waits on the event rather than on time. */
+  reached?: () => void;
   /** The chat folder the last call was told. */
   cwd?: string;
   hold?: { at: number; released: Promise<void> };
@@ -60,6 +62,7 @@ async function daemon(opts: { sandbox?: CodemodeSandbox; timeLimitMs?: number; f
           echo.calls.push(text);
           if (c.cwd !== undefined) echo.cwd = c.cwd;
           const hold = echo.hold?.at === echo.calls.length ? echo.hold.released : undefined;
+          if (hold) echo.reached?.();
           if (hold)
             await Promise.race([hold, new Promise((_, reject) => c.signal.addEventListener("abort", () => reject(new Error("stopped")), { once: true }))]);
           return { said: text };
@@ -268,7 +271,9 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
 
   test("R8: a script cut off by a restart resumes without repeating its finished calls; the call in flight fails as interrupted", async () => {
     let release = () => {};
-    const echo: Echo = { calls: [], hold: { at: 3, released: new Promise<void>((r) => (release = r)) } };
+    let reached = () => {};
+    const atThird = new Promise<void>((r) => (reached = r));
+    const echo: Echo = { calls: [], reached, hold: { at: 3, released: new Promise<void>((r) => (release = r)) } };
     const file = join(folder(), "store.db");
     const first = await daemon({ echo, file });
     const owner = await chatOf(first, OWNER, folder());
@@ -279,25 +284,23 @@ describe("scripts on loki's engine (plan 2026-11-11, U2)", () => {
     ]);
     const turn = await owner.submit({ type: "input", content: "echo four" }, ctx);
     // The third call is in flight: stop the daemon as a restart would, the sandbox before the store.
-    while (echo.calls.length < 3) await new Promise((r) => setImmediate(r));
+    await atThird;
     await first.close();
     release();
     void turn.wait(ctx).catch(() => {});
 
     const resumed = { calls: [] as string[] };
     const second = await daemon({ file, echo: resumed });
-    second.faux.setResponses([reply(fauxAssistantMessage("done"))]);
+    // The model is asked again only once the resumed script's result is in the chat: that request is the event.
+    let answered = () => {};
+    const asked = new Promise<void>((r) => (answered = r));
+    second.faux.setResponses([() => (answered(), fauxAssistantMessage("done"))]);
     const chat = await second.store.chat(`local-conv-${OWNER}`, ctx);
     if (!chat) throw new Error("the chat is gone after the restart");
-    // The daemon resumes each store it opens (daemon/kernel/stores.ts); the cut-off turn then runs on. Wait for the
-    // script's result to land.
+    // The daemon resumes each store it opens (daemon/kernel/stores.ts); the cut-off turn then runs on.
     second.store.harness.resume();
-    const deadline = Date.now() + 10_000;
-    let result = (await scriptResults(second, chat)).at(0);
-    while (result === undefined && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 10));
-      result = (await scriptResults(second, chat)).at(0);
-    }
+    await asked;
+    const result = (await scriptResults(second, chat)).at(0);
     if (result === undefined) throw new Error("the script did not finish after the restart");
     expect(resumed.calls).toEqual(["d"]);
     expect(result).toContain("a b failed: ");

@@ -190,12 +190,19 @@ export async function saveListing(call: GoogleCall, name: string, items: unknown
   return file;
 }
 
+/**
+ * The most items one listing gathers before it stops, so a call over a huge mailbox or Drive cannot grow the daemon
+ * without bound; the answer then says it was cut and where the next page starts.
+ */
+export const MAX_LISTING_ITEMS = 50_000;
+
 /** How many items a listing's short copy keeps. */
 export const SHORT_LISTING = 20;
 
 /**
  * Every page of a listing, or one: `page` fetches one page by its token, and each answer names the next. With
- * `allPages` the whole listing is saved to a file and the answer keeps its first SHORT_LISTING items.
+ * `allPages` the whole listing, up to MAX_LISTING_ITEMS, is saved to a file and the answer keeps its first
+ * SHORT_LISTING items.
  */
 export async function listing(
   call: GoogleCall,
@@ -211,10 +218,12 @@ export async function listing(
   const items: unknown[] = [];
   let token: string | undefined = firstToken;
   do {
+    // A stopped turn or a script past its deadline stops the listing too.
+    call.ctx.signal.throwIfAborted();
     const one = await page(token);
     items.push(...one.items);
     token = one.next;
-  } while (token);
+  } while (token && items.length < MAX_LISTING_ITEMS);
   const file = await saveListing(call, name, items);
-  return { count: items.length, items: items.slice(0, SHORT_LISTING), file };
+  return { count: items.length, items: items.slice(0, SHORT_LISTING), file, ...(token ? { truncated: true, next_page: token } : {}) };
 }

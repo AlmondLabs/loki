@@ -38,6 +38,8 @@ export function fakeWorkspace() {
     sent: [] as Array<{ raw: string; threadId?: string }>,
     modified: [] as Array<Record<string, unknown>>,
     nextId: 1,
+    /** Answer each read of message m1 with a new attachment id, as Gmail does. */
+    freshAttachmentIds: false,
   };
   const json = (status: number, v: unknown) => new Response(JSON.stringify(v), { status, headers: { "content-type": "application/json" } });
   const fileJson = (f: { id: string; name: string; mimeType: string; parents: string[]; data?: Uint8Array; trashed?: boolean }) => ({
@@ -88,8 +90,15 @@ export function fakeWorkspace() {
       ],
       body: { size: 0 },
       parts: [
-        { mimeType: "text/plain", filename: "", headers: [], body: { size: 12, data: Buffer.from("see attached").toString("base64url") }, parts: [] },
-        { mimeType: "application/pdf", filename: "invoice.pdf", headers: [], body: { size: 9, attachmentId: "att1" }, parts: [] },
+        {
+          partId: "0",
+          mimeType: "text/plain",
+          filename: "",
+          headers: [],
+          body: { size: 12, data: Buffer.from("see attached").toString("base64url") },
+          parts: [],
+        },
+        { partId: "1", mimeType: "application/pdf", filename: "invoice.pdf", headers: [], body: { size: 9, attachmentId: "att1" }, parts: [] },
       ],
     },
   };
@@ -105,8 +114,13 @@ export function fakeWorkspace() {
         return json(200, { threads: page, ...(from + 50 < state.threads.length ? { nextPageToken: String(from + 50) } : {}) });
       }
       if (/^\/threads\/[^/]+$/.test(gmail)) return json(200, { id: "t1", historyId: "1", messages: [MESSAGE] });
-      if (gmail === "/messages/m1") return json(200, MESSAGE);
-      if (gmail === "/messages/m1/attachments/att1") return json(200, { data: Buffer.from("%PDF-1.4\n").toString("base64url") });
+      // Gmail gives an attachment a new id each time the message is read, as the real API does (state.freshAttachmentIds).
+      if (gmail === "/messages/m1")
+        return json(
+          200,
+          state.freshAttachmentIds ? JSON.parse(JSON.stringify(MESSAGE).replace('"attachmentId":"att1"', `"attachmentId":"att1-${state.nextId++}"`)) : MESSAGE,
+        );
+      if (gmail.startsWith("/messages/m1/attachments/att1")) return json(200, { data: Buffer.from("%PDF-1.4\n").toString("base64url") });
       if (gmail === "/messages/batchModify") {
         state.modified.push(JSON.parse(req.body) as Record<string, unknown>);
         return new Response(null, { status: 204 });

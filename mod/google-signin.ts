@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { messageOf } from "../core/errors.ts";
 import { accountIdOf, type Accounts, type AccountRecord } from "./accounts.ts";
 import type { GoogleService } from "../core/frame-types.ts";
+import { GOOGLE_TIMEOUT_MS } from "./google-auth.ts";
 import {
   GOOGLE_AUTH_URL,
   GOOGLE_TOKEN_URL,
@@ -38,8 +39,6 @@ export const GOOGLE_SCOPES = [...Object.values(SERVICE_SCOPES), "openid", "https
 /** How long a sign-in may take between opening Google's page and coming back. */
 export const PENDING_SIGN_IN_MS = 10 * 60 * 1000;
 
-/** How long one call to Google may take before the sign-in says it did not connect, as the Gmail client allows. */
-const TIMEOUT_MS = 20_000;
 /** Who signed in, from Google's own account service: it answers whichever services were ticked. */
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const START_AGAIN = "Start it again from Preferences › Accounts.";
@@ -98,7 +97,7 @@ export class GoogleSignIn {
   }
 
   private signal(): AbortSignal {
-    return this.opts.timeout?.() ?? AbortSignal.timeout(TIMEOUT_MS);
+    return this.opts.timeout?.() ?? AbortSignal.timeout(GOOGLE_TIMEOUT_MS);
   }
 
   private get redirect(): string {

@@ -73,7 +73,7 @@ describe("what scripts cost an agent's prompt (plan 2026-11-11, U9, Success Crit
     expect(other.prompt).not.toContain("<codemode>");
     expect(other.tools).not.toContain("codemode");
     // The section names the google namespace; a script finds its tools with searchTools() (SCRIPT_LISTING_TOKENS).
-    expect(owner.prompt).toContain("Gmail, Drive, Sheets, Docs and Calendar");
-    expect(added).toBeLessThan(1000);
+    expect(owner.prompt).toContain("Gmail, Drive, Sheets, Docs and Calendar of the Google accounts");
+    expect(added, `scripts add ${added} tokens a turn`).toBeLessThan(1000);
   });
 });

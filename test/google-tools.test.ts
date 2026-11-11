@@ -151,7 +151,7 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
         from: "Billing <billing@example.com>",
         subject: "Your invoice",
         text: "see attached",
-        attachments: [{ id: "att1", filename: "invoice.pdf", mime_type: "application/pdf", size: 9 }],
+        attachments: [{ id: "att1", part: "1", filename: "invoice.pdf", mime_type: "application/pdf", size: 9 }],
       }),
     ]);
   });
@@ -164,6 +164,31 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
     expect(r.drive_file).toMatchObject({ name: "invoice.pdf", parents: ["folder-1"], md5_matches: true });
     expect(JSON.stringify(r)).not.toContain("PDF-1.4");
     expect(f.ws.requests.filter((q) => q.url.pathname.startsWith("/upload/drive"))).toHaveLength(1);
+  });
+
+  test("an attachment keeps its name and type when Gmail hands out a new attachment id on each read", async () => {
+    const f = await fixture();
+    f.ws.state.freshAttachmentIds = true;
+    const byPart = await f.call(WORK, "google_gmail_attachment", { message: "m1", attachment: "att1", part: "1", drive_folder: "root" });
+    expect(byPart).toMatchObject({ name: "invoice.pdf", drive_file: { name: "invoice.pdf" } });
+    // Without `part`, the message's only attachment is the one meant.
+    expect(await f.call(WORK, "google_gmail_attachment", { message: "m1", attachment: "att1", drive_folder: "root" })).toMatchObject({ name: "invoice.pdf" });
+  });
+
+  test("a listing over every page stops when the turn is stopped, and at its cap says where the next page starts", async () => {
+    const f = await fixture();
+    const stopped = new AbortController();
+    stopped.abort(new Error("the turn was stopped"));
+    const tool = must(f.tools.get("google_gmail_search"), "search");
+    await expect(
+      Promise.resolve(
+        tool.execute(
+          { query: "invoice", all_pages: true },
+          { chatId: "local-conv-x", agentId: WORK, agentName: WORK, signal: stopped.signal, output: () => {}, cwd: f.cwd },
+        ),
+      ),
+    ).rejects.toThrow("the turn was stopped");
+    expect(f.ws.requests).toEqual([]);
   });
 
   test("an attachment saved to a path lands in the chat's folder; a path outside it is refused and nothing is written", async () => {
@@ -199,7 +224,7 @@ describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
       await f.call(WORK, "google_gmail_send", { to: ["bob@example.com"], subject: "Numbers", body: "attached", attachments: ["notes.txt"] }),
     ).toMatchObject({
       id: "s1",
-      thread_id: null,
+      thread_id: "new1",
     });
     expect(await f.call(WORK, "google_gmail_send", { to: ["billing@example.com"], body: "thanks", reply_to: "t1" })).toMatchObject({
       thread_id: "t1",
@@ -321,7 +346,13 @@ describe("Sheets, Docs, Calendar and the request tool (plan 2026-11-11, U9)", ()
       replies: [{}],
     });
     expect(f.ws.requests.at(-1)?.url.href).toBe("https://sheets.googleapis.com/v4/spreadsheets/s1:batchUpdate");
-    for (const path of ["https://evil.example.com/x", "/v4/../../x", "/drive/v3/files"])
+    for (const path of [
+      "https://evil.example.com/x",
+      "/v4/../../x",
+      "/drive/v3/files",
+      "/v4/spreadsheets/%2e%2e/%2E%2e/drive/v3/files",
+      "/v4/spreadsheets\\..\\x",
+    ])
       expect((await f.call(WORK, "google_api", { service: "sheets", method: "GET", path })).refused).toMatch(/is not a path of the sheets API/);
     expect((await f.call(OLD, "google_api", { service: "calendar", method: "GET", path: "/calendar/v3/users/me/calendarList" })).refused).toBe(
       "this Google account has not let loki use Calendar: sign in again for it in Preferences › Accounts",

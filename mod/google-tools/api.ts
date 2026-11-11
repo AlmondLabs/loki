@@ -43,7 +43,8 @@ const api: GoogleToolDef = {
     if (!isService(service)) throw new Error(`\`service\` must be one of ${SERVICES.join(", ")}`);
     if (!isMethod(method)) throw new Error(`\`method\` must be one of ${METHODS.join(", ")}`);
     const host = HOSTS[service];
-    if (!path.startsWith("/") || path.includes("://") || path.split(/[/?#]/).includes("..") || !host.paths.test(path))
+    // Encoded dots and backslashes are refused too: URL parsing would turn them into a step out of the service's path.
+    if (!path.startsWith("/") || path.includes("://") || /%2e|%5c|\\/i.test(path) || path.split(/[/?#]/).includes("..") || !host.paths.test(path))
       throw new Error(`${path} is not a path of the ${service} API: start it as ${String(host.paths).slice(2, -2).replace(/\\\//g, "/")}`);
     const query = Object.fromEntries(Object.entries(rec(call.args.query)).filter((e): e is [string, string] => typeof e[1] === "string"));
     accountFor(call.deps, call.ctx, call.account.address, service);

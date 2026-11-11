@@ -78,7 +78,7 @@ const events: GoogleToolDef = {
 const change: GoogleToolDef = {
   name: "google_calendar_change",
   description:
-    "Create, update or delete an event on `calendar` (default primary). `action`: create (summary, start, end), update (event, any field), delete (event). `start`/`end` are ISO times, or days for all-day; `time_zone` an IANA zone; `guests` email addresses, who are invited and told unless `notify` is false. Answers with the event as stored.",
+    "Create, update or delete an event on `calendar` (default primary). `action`: create (summary, start, end), update (event, any field), delete (event). `start`/`end` are ISO times, or days for all-day; `time_zone` an IANA zone; `guests` email addresses, who are invited and told unless `notify` is false; on update, `guests` is the whole new list. Answers with the event as stored.",
   properties: {
     action: { type: "string", enum: ["create", "update", "delete"] },
     calendar: { type: "string" },

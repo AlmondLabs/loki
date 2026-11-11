@@ -673,7 +673,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Send mail yourself, with a script's google_gmail_send, only when the person asked you to send it; never post Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );
