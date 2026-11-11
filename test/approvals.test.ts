@@ -21,14 +21,53 @@ describe("the permission modes", () => {
     editInside: asks(mode, "edit", { path: "a.ts" }, { cwd: "/work" }),
     command: asks(mode, "bash", { command: "rm a.ts" }, { cwd: "/work" }),
     readCommand: asks(mode, "bash", { command: "rg -n answer src | head" }, { cwd: "/work" }),
+    watch: asks(mode, "background_watch", { task_id: "bg-1", pattern: "ready" }, { kind: "read" }),
+    watchStop: asks(mode, "background_watch", { task_id: "bg-1", stop: true }, { kind: "read" }),
+    watchInput: asks(mode, "background_watch", { task_id: "bg-1", input: "y\n" }, { kind: "read" }),
     widget: asks(mode, "write", { path: "/home/x/.loki/widgets/c/w.json" }, { cwd: "/work", widgetsDir: "/home/x/.loki/widgets" }),
   });
 
   test("each mode asks as the app describes it, a read-only shell command is a read, and loki's widget folder never asks", () => {
-    expect(table("strict")).toEqual({ read: true, editInside: true, command: true, readCommand: true, widget: false });
-    expect(table("standard")).toEqual({ read: false, editInside: true, command: true, readCommand: false, widget: false });
-    expect(table("acceptEdits")).toEqual({ read: false, editInside: false, command: true, readCommand: false, widget: false });
-    expect(table("unrestricted")).toEqual({ read: false, editInside: false, command: false, readCommand: false, widget: false });
+    expect(table("strict")).toEqual({
+      read: true,
+      editInside: true,
+      command: true,
+      readCommand: true,
+      watch: true,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("standard")).toEqual({
+      read: false,
+      editInside: true,
+      command: true,
+      readCommand: false,
+      watch: false,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("acceptEdits")).toEqual({
+      read: false,
+      editInside: false,
+      command: true,
+      readCommand: false,
+      watch: false,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("unrestricted")).toEqual({
+      read: false,
+      editInside: false,
+      command: false,
+      readCommand: false,
+      watch: false,
+      watchStop: false,
+      watchInput: false,
+      widget: false,
+    });
   });
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {

@@ -1,7 +1,7 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { RENAMED_TOOLS, SPLIT_TOOLS, isRecord, renameToolsIn } from "./tool-kinds.ts";
+import { MERGED_TOOLS, RENAMED_TOOLS, SPLIT_TOOLS, isRecord, renameToolsIn } from "./tool-kinds.ts";
 import { copyStore } from "./store-backup.ts";
 import type { Context } from "@earendil-works/chord";
 import type { ConversationId } from "@earendil-works/pi-durable";
@@ -14,9 +14,11 @@ import { ChatIndex, type AgentStore } from "./kernel/index.ts";
  *
  * Version 1 renamed loki's old tool names. Version 2 rewrites what chats imported from Letta still carried: the
  * Codex-style `cmd` argument, Letta's notes in user messages, its background-task notices, `multiSelect` in questions
- * and paths under `~/.letta/loki`. Every step is idempotent, so a store at any older version runs them all.
+ * and paths under `~/.letta/loki`. Version 3 makes the background task's output, input and stop calls the
+ * `background_watch` calls they are now (plan 095). Every step is idempotent, so a store at any older version runs
+ * them all.
  */
-export const STORE_VERSION = 2;
+export const STORE_VERSION = 3;
 
 /** Letta's notes inside a user message: kept for the model as loki's own reminder, which the window hides. */
 const LETTA_NOTES: ReadonlyArray<[RegExp, (block: string) => string]> = [
@@ -103,7 +105,7 @@ export function migrateMessages(record: Record<string, unknown>, calls: Map<stri
 
 /** What a saved entry may hold that needs rewriting, for the first pass's filter: an old tool name or a Letta shape. */
 const NEEDLES = [
-  ...[...Object.keys(RENAMED_TOOLS), ...Object.keys(SPLIT_TOOLS)].map((n) => `"${n}"`),
+  ...[...Object.keys(RENAMED_TOOLS), ...Object.keys(SPLIT_TOOLS), ...Object.keys(MERGED_TOOLS)].map((n) => `"${n}"`),
   '"cmd"',
   "multiSelect",
   "system-alert",

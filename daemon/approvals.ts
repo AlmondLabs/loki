@@ -6,7 +6,7 @@ import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
-import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
+import { CODING_TOOL_KINDS, isOldTool, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
  * Approvals (plan 017, U7, KTD8): before a tool runs, the chat's permission mode decides whether the person is asked.
@@ -52,17 +52,28 @@ export function kindOf(name: string, annotations?: { readOnly?: boolean; destruc
  *   standard      edits and commands; reads run freely
  *   acceptEdits   commands; edits and reads run freely
  *   unrestricted  nothing
- * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish. A `bash` command made only of
- * read-only programs is a read (daemon/read-only-command.ts, plan 094).
+ * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish. Some calls' kind is in their
+ * arguments (callKind).
  */
 export function asks(mode: PermissionMode, name: string, args: Record<string, unknown>, opts: { cwd?: string; widgetsDir?: string; kind?: ToolKind }): boolean {
   if (NEVER_ASK.has(name) || mode === "unrestricted") return false;
-  const kind = name === "bash" && isReadOnlyCommand(args.command) ? "read" : (opts.kind ?? kindOf(name));
+  const kind = callKind(name, args) ?? opts.kind ?? kindOf(name);
   if (kind === "edit" && opts.widgetsDir && insideFolder(args.path ?? args.file_path, opts.widgetsDir, opts.cwd)) return false;
   if (mode === "strict") return true;
   if (kind === "read") return false;
   if (mode === "acceptEdits") return kind === "command";
   return true;
+}
+
+/**
+ * A call's kind when its arguments decide it: a `bash` command made only of read-only programs is a read
+ * (daemon/read-only-command.ts, plan 094), and a `background_watch` that types into its task or stops it is a command
+ * (plan 095), though the tool reads.
+ */
+function callKind(name: string, args: Record<string, unknown>): ToolKind | undefined {
+  if (name === "bash" && isReadOnlyCommand(args.command)) return "read";
+  if (name === "background_watch" && (args.input !== undefined || args.stop === true)) return "command";
+  return undefined;
 }
 
 function insideFolder(path: unknown, folder: string, cwd: string | undefined): boolean {
@@ -109,10 +120,11 @@ export class Approvals {
     this.widgetsDir = opts.widgetsDir;
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
-    // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools), written back once.
+    // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools, a merged one's
+    // to the tool it is in when it was a command), written back once.
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
     this.alwaysAllowed = new Set(stored.flatMap(renamedTools).filter((name) => !NEVER_ALWAYS_TOOLS.has(name)));
-    if (stored.some((name) => name in RENAMED_TOOLS || name in SPLIT_TOOLS)) this.saveAlways();
+    if (stored.some(isOldTool)) this.saveAlways();
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 

@@ -91,7 +91,9 @@ the one to run before pushing.
 - A tool's name and its arguments are snake_case: `background_watch`, `canvas_focus { widget_id }`. A name of two
   words is `<subject>_<verb>`, the thing then what is done to it (`memory_read`, `suggestion_create`, `user_ask`), so tools of
   one family share its prefix (`memory_`, `schedule_`, `background_`, `canvas_`, `suggestion_`). One tool per action, not
-  one tool with an `action` argument.
+  one tool with an `action` argument. The exception is a tool whose calls all answer with the same thing and differ
+  only in what they do first: `background_watch` reads a task's output, and may type into it or stop it before it does
+  (plan 095). Its approval kind then follows its arguments (`callKind` in `daemon/approvals.ts`).
 - Every built-in tool declares its kind (read, edit or command) on its definition with `withKind`
   (`daemon/tool-kinds.ts`); a mod's tools say so in their annotations. A tool with no kind is a command.
 - Names loki does not choose stay as their owners write them: pi-durable's `read`, `write`, `edit` and `bash`, and MCP's

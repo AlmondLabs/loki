@@ -81,6 +81,30 @@ void test("calls and results take the names now, a split tool's by its action; a
   }
 });
 
+void test("the background task's output, input and stop calls become background_watch calls (plan 095)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "loki-store-migration-"));
+  try {
+    const file = join(dir, "agent.sqlite");
+    table(file, [
+      [1, call("o1", "background_output", { task_id: "bg-1" })],
+      [1, result("o1", "background_output")],
+      [1, call("w1", "background_write", { task_id: "bg-1", text: "y\n" })],
+      [1, call("s1", "background_stop", { task_id: "bg-1" })],
+      [2, call("s2", "TaskStop", { task_id: "b2" })],
+    ]);
+    assert.equal(migrateStoredEntries(file, new Set([2]), join(dir, "backup")).entries, 4);
+    const after = records(file);
+    assert.equal(after[0], call("o1", "background_watch", { task_id: "bg-1", timeout_ms: 0 }));
+    assert.equal(after[1], result("o1", "background_watch"));
+    assert.equal(after[2], call("w1", "background_watch", { task_id: "bg-1", input: "y\n", timeout_ms: 0 }));
+    assert.equal(after[3], call("s1", "background_watch", { task_id: "bg-1", stop: true }));
+    // Claude Code's own TaskStop, in its chat, is its own.
+    assert.equal(after[4], call("s2", "TaskStop", { task_id: "b2" }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 void test("the daemon's store manager renames a store once as it opens it, and leaves its Claude Code chats as they are", async () => {
   const dir = mkdtempSync(join(tmpdir(), "loki-store-migration-"));
   const options = { models: createModels(), registry: trialRegistry() };
