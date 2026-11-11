@@ -1,8 +1,9 @@
 import type { Extension } from "@earendil-works/pi-durable";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { createCodingTools } from "@earendil-works/pi-durable/tools";
 import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, type BackgroundTasks } from "./background.ts";
+import { shrinkingProcessor } from "./image-shrink.ts";
 import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
 import { repliesExtension } from "./replies.ts";
@@ -30,7 +31,7 @@ export interface BuiltinDeps {
 
 /**
  * Every chat's built-in extensions, in the order they are installed: the permission gate first, so it sees every tool
- * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools, memory, skills,
+ * call, then the question card, pi-durable's coding tools (read, write, edit, bash), loki's file tools for scripts, memory, skills,
  * helpers (subagents), web search, background tasks, schedules, the chat's own history, the quick-replies prompt and
  * scripts. The mods install after these;
  * loki.mcp installs before them, from McpTools' constructor, and has no hooks.
@@ -39,7 +40,8 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
   return [
     deps.approvals.extension(),
     askExtension(deps.approvals),
-    CodingTools,
+    // `read` shrinks the pictures it shows, as they are kept in the chat's store for good (plan 094).
+    createCodingTools({ images: shrinkingProcessor() }),
     fileToolsExtension(),
     memoryExtension(deps.backendDir),
     skillsExtension(deps.backendDir),

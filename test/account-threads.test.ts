@@ -514,14 +514,12 @@ describe("an approved Jira comment waits on the record (plan 2026-11-10-1451, U8
     expect(threads.rows()[0]?.outside?.seeds).toEqual([SEED]);
   });
 
-  test("a seed goes on its own or with the rest; a record from before seeds has none", async () => {
+  test("seeds go with the rest; a record from before seeds has none", async () => {
     const { dir, threads, again } = await site();
     threads.observe(SITE, event());
     threads.seed(SITE, "10001", SEED);
     threads.seed(SITE, "10001", { ...SEED, id: "reply-2", text: "And the backups." });
-    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(true);
-    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(false);
-    expect(threads.get(SITE, "10001")?.seeds.map((s) => s.id)).toEqual(["reply-2"]);
+    expect(threads.get(SITE, "10001")?.seeds.map((s) => s.id)).toEqual(["reply-1", "reply-2"]);
     expect(threads.clearSeeds(SITE, "10001")).toBe(true);
     expect(threads.get(SITE, "10001")?.seeds).toEqual([]);
     expect(threads.rows()[0]?.outside?.seeds).toBeUndefined();

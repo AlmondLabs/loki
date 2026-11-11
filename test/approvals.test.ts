@@ -19,21 +19,22 @@ describe("the permission modes", () => {
   const table = (mode: PermissionMode) => ({
     read: asks(mode, "read", { path: "/work/a" }, { cwd: "/work" }),
     editInside: asks(mode, "edit", { path: "a.ts" }, { cwd: "/work" }),
-    command: asks(mode, "bash", { command: "ls" }, { cwd: "/work" }),
+    command: asks(mode, "bash", { command: "rm a.ts" }, { cwd: "/work" }),
+    readCommand: asks(mode, "bash", { command: "rg -n answer src | head" }, { cwd: "/work" }),
     widget: asks(mode, "write", { path: "/home/x/.loki/widgets/c/w.json" }, { cwd: "/work", widgetsDir: "/home/x/.loki/widgets" }),
   });
 
-  test("each mode asks as the app describes it, and loki's widget folder never asks", () => {
-    expect(table("strict")).toEqual({ read: true, editInside: true, command: true, widget: false });
-    expect(table("standard")).toEqual({ read: false, editInside: true, command: true, widget: false });
-    expect(table("acceptEdits")).toEqual({ read: false, editInside: false, command: true, widget: false });
-    expect(table("unrestricted")).toEqual({ read: false, editInside: false, command: false, widget: false });
+  test("each mode asks as the app describes it, a read-only shell command is a read, and loki's widget folder never asks", () => {
+    expect(table("strict")).toEqual({ read: true, editInside: true, command: true, readCommand: true, widget: false });
+    expect(table("standard")).toEqual({ read: false, editInside: true, command: true, readCommand: false, widget: false });
+    expect(table("acceptEdits")).toEqual({ read: false, editInside: false, command: true, readCommand: false, widget: false });
+    expect(table("unrestricted")).toEqual({ read: false, editInside: false, command: false, readCommand: false, widget: false });
   });
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
     // A suggestion is already the person's decision (plan 049, KTD4): finding chats and suggesting never ask, strict included.
-    for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]) expect(asks("strict", name, {}, {})).toBe(false);
+    for (const name of ["chat_list", "suggestion_create"]) expect(asks("strict", name, {}, {})).toBe(false);
     // A chat message asks on its own link card (plan 067), which no mode stands in for.
     expect(asks("strict", "chat_message", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);

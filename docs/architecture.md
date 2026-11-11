@@ -107,10 +107,10 @@ every chat gets, the chats, then the mods.
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
    crash never asks twice. `user_ask` shows a question card the same way. A script's own calls ask only in strict
    mode, and a call of a tool scripts may not call is blocked in every mode.
-5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
-   (`daemon/tools.ts`, which shrinks an image to the size of a pasted one before the model gets it,
-   `daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
-   `daemon/store-images.ts`); web search over DuckDuckGo's plain HTML results, which need no key
+5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`, with `read` given loki's image processor, which
+   shrinks an image to the size of a pasted one before the model gets it (`daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
+   `daemon/store-images.ts`); loki's `ls`, `find` and `grep` for scripts only (`daemon/tools.ts`), since the model
+   runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
    compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one
@@ -122,8 +122,8 @@ every chat gets, the chats, then the mods.
    except that `bash` output past its limits is saved to the chat's `tool-results` folder, where MCP's big results go
    too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
-   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `skill` tool hands over a
-   skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
+   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder, each group under its folder, and
+   the agent reads a skill's `SKILL.md` with `read` when it needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
    own.
 7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
    with the parent's model, tools and folder; it asks under the parent chat's permission mode as that mode is at each
@@ -236,7 +236,7 @@ so each bundle has its own copy and both see the same files. Anything that holds
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
    `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
-   links), `suggestion_create`, `suggestion_list` and `suggestion_withdraw`, and `chat_message`. These are marked
+   links), `suggestion_create` and `chat_message`. These are marked
    read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
    background pass fails; `chat_message` asks on its own link card instead.
 4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,

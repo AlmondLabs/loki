@@ -271,8 +271,6 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     });
     expect(JSON.stringify(out.content)).toContain("sugg-1");
     expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
-    expect(tools.readOnly()).toEqual(
-      expect.arrayContaining(["mcp__loki__chat_list", "mcp__loki__suggestion_create", "mcp__loki__suggestion_list", "mcp__loki__suggestion_withdraw"]),
-    );
+    expect(tools.readOnly()).toEqual(expect.arrayContaining(["mcp__loki__chat_list", "mcp__loki__suggestion_create"]));
   });
 });

@@ -51,7 +51,7 @@ export interface ReplyProposalsOptions {
   /** `state/reply-proposals.json`. */
   file: string;
   accounts: Pick<Accounts, "get" | "onChange">;
-  threads: Pick<AccountThreads, "get" | "list" | "seed" | "dropSeed">;
+  threads: Pick<AccountThreads, "get" | "list" | "seed">;
   clientFor(account: AccountRecord): ReplyClient;
   /** Tell every client following a chat what its open proposals now are. */
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
@@ -306,19 +306,6 @@ export class ReplyProposals {
   /** A chat's proposals that still show on its card, as a client opening it and the Inbox list read them. */
   open(chat: ChatKey): ReplyProposal[] {
     return this.list(chat).filter(isOpen);
-  }
-
-  /**
-   * The agent takes back a reply the person has not acted on (reply_withdraw). Nothing is written. An approved Jira
-   * comment the person has not sent yet can be taken back too: it leaves the card's record, and whatever the card's box
-   * already holds stays as the person has it.
-   */
-  withdraw(chat: ChatKey, id: string): Promise<ReplyDecided> {
-    return this.change(chat, id, (p) => {
-      const waiting = p.provider === "jira" && p.status === "drafted" && this.opts.threads.dropSeed(p.account_id, p.thread_id, p.id);
-      if (p.status !== "pending" && !waiting) return { done: false, message: settledWords(p) };
-      return { done: true, message: null, next: { ...p, status: "withdrawn", reason: null, decided_by: "agent", decided_at: this.now() } };
-    });
   }
 
   /**
@@ -578,9 +565,9 @@ function proposalLine(p: ReplyProposal): string {
 }
 
 /**
- * Register reply_propose, reply_list and reply_withdraw for the agents that own an account, the notices that tell an
- * agent what became of its replies with the next message in its chat, and the prompt line about them; returns the
- * functions that take them back. Each call checks again that the account is the calling agent's (R17).
+ * Register reply_propose for the agents that own an account, the notices that tell an agent what became of its replies
+ * with the next message in its chat, and the prompt line about them; returns the functions that take them back. The
+ * notices are how the agent learns each reply's fate, so it has no tool to list or take one back (plan 094). Each call checks again that the account is the calling agent's (R17).
  */
 export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts, "ownedBy">; replies: ReplyProposals }): Array<() => void> {
   const tools = toolRegistrar(api);
@@ -628,41 +615,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     },
   };
 
-  const list: LokiTool = {
-    name: "reply_list",
-    annotations: { readOnly: true },
-    forAgent,
-    description: "List the replies you proposed in this chat: id, account, thread, who it goes to, and whether it waits, was drafted, rejected or withdrawn.",
-    parameters: { type: "object", properties: {}, additionalProperties: false },
-    run(ctx) {
-      const all = deps.replies.list(chatOf(ctx));
-      return all.length ? all.map(proposalLine).join("\n") : "no replies proposed in this chat";
-    },
-  };
-
-  const withdraw: LokiTool = {
-    name: "reply_withdraw",
-    forAgent,
-    description:
-      "Take back a reply you proposed in this chat that the person has not acted on yet, or a Jira comment they approved " +
-      "that still waits in the card's box unsent. Nothing is written.",
-    parameters: {
-      type: "object",
-      properties: { id: { type: "string", description: "The reply's id, from reply_propose or reply_list." } },
-      required: ["id"],
-      additionalProperties: false,
-    },
-    async run(ctx) {
-      try {
-        const out = await deps.replies.withdraw(chatOf(ctx), argText(ctx.args.id));
-        return out.done ? `Withdrew ${out.proposal.id}.` : failed(out.message ?? "it could not be withdrawn");
-      } catch (err) {
-        return failed(messageOf(err));
-      }
-    },
-  };
-
-  const disposers = [propose, list, withdraw].map((tool) => tools.register(tool));
+  const disposers = [propose].map((tool) => tools.register(tool));
   disposers.push(
     // What became of the agent's replies rides with the next message in its chat, as canvas gestures do.
     api.message.transform((m) => {

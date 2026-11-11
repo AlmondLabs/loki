@@ -91,7 +91,10 @@ each store has come, and the older `tool-names.json` is deleted. There are two s
 new tool names: in October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became `canvas_read` and
 `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and `view_image` became
 `image_view`. Tasks and its four tools went later that month, replaced by [suggestions](#suggestions); old chats that
-called them still read as they did. Older names from before then (`Agent`, `Skill`, `bash_background`,
+called them still read as they did. In November 2026 `image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`,
+`suggestion_withdraw`, `reply_list` and `reply_withdraw` went too, since another tool or the chat itself already does
+what each did (see [Scripts](#scripts) for where `ls`, `find` and `grep` remain); old chats show their calls as they
+were. Older names from before then (`Agent`, `Skill`, `bash_background`,
 `TaskOutput`, `loki_camera` and the like) take today's names the same way, and so does the "always allow" list; the
 whole map is `RENAMED_TOOLS` in `daemon/tool-kinds.ts`. The second rewrites what chats imported from Letta still carried: its tool
 arguments, notices and paths. A chat on Claude Code, Cursor or another ACP agent is left as it is, with its agent's
@@ -156,7 +159,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking") and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
+  ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking"; a shell command made only of
+  `ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd` counts as a read, so it asks only in strict) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
   any agent added in Preferences › Engines; ←→ move between them), that harness's models (loki's lately used and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
@@ -179,7 +183,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, and the Skill tool gives the rest. **Skills**:
+  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
@@ -462,8 +466,8 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
 - tools: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
-- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list`,
-  `suggestion_create`, `suggestion_list` and `suggestion_withdraw` (see [Suggestions](#suggestions))
+- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` and
+  `suggestion_create` (see [Suggestions](#suggestions))
 
 ## Install (development)
 
@@ -647,7 +651,7 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
   the long edge before sending. The picture shows on your message in every window, after a reload too, on the Mac
   the chat lives on and the phone: the daemon keeps a copy of each in `~/.loki/chat-images/`, named by its content,
   and a Mac showing a chat that lives on another asks that Mac for its pictures.
-- **Images the agent looks at** with its `image_view` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
+- **Images the agent looks at** with its `read` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
   file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
   are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
@@ -1193,8 +1197,8 @@ never sends; an owner's script may send mail and calendar invites from a Google 
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
 On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
 card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
-approval. The owner can propose a comment only on a ticket that has had a card in Flow. `reply_withdraw` takes a
-proposal back, an approved comment you have not sent included.
+approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a
+proposal back: you reject the card, or clear an approved comment from the ticket card's box.
 
 **When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
 
@@ -1214,7 +1218,8 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
 tools only scripts may call: today, the Google tools for the Google accounts it owns on this Mac. A script runs in a
 sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
-file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`), never `bash`. So one script can page through every Drive
+file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
+`bash`. So one script can page through every Drive
 file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
 browser. Claude Code and other ACP agents do not get scripts.
 
@@ -1264,8 +1269,7 @@ phone, the spark icon and the count). The chip opens them, in a modal over the w
 phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, each its title and, under it, the chat it is for; the newest
 starts open, showing its message, written in markdown as an agent's reply is, and four actions. Esc, a click outside
 or close shuts it. On a card in Flow, the header says **3 suggestions** beside *draft*, and pressing it opens them for
-that card's chat. A suggestion stays until you act on it or its agent takes it back
-(`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
+that card's chat. A suggestion stays until you act on it; nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
 Flow, so it has a screen to show in.
 
 <img src="images/suggestion-chip.jpg" width="560" alt="The suggestions modal over a chat: a header saying 3 waiting, the newest open with its markdown message (a numbered list, bullets, code and a link) and send now, save as draft, change chat and reject, two more below as a title and the chat each is for">
@@ -1307,8 +1311,6 @@ suggestion is already yours to decide.
   chats are left out. An agent calls it when it needs to pick a chat; the list never rides along in its context.
 - `suggestion_create` makes a suggestion for an open chat or for a new chat with an agent in a folder; a target that
   is not in `chat_list` is refused with the valid choices.
-- `suggestion_list` lists the suggestions made in this chat, with each one's status and the chat it now points at.
-- `suggestion_withdraw` takes back one you have not acted on.
 
 Reflection and Learn cannot suggest: a background pass has no chat screen to show a suggestion in.
 

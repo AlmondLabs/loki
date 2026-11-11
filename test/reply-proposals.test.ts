@@ -318,16 +318,6 @@ describe("reply proposals (plan 067, U10)", () => {
     expect(f.drafts).toHaveLength(1);
   });
 
-  test("a withdrawn reply writes nothing, and reply_list shows how each stands", async () => {
-    const f = await fixture();
-    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Maybe." });
-    const id = f.only().id;
-    expect(await f.call("reply_withdraw", { id })).toBe(`Withdrew ${id}.`);
-    expect(await f.replies.decide(f.chat, id, "approve", "desktop")).toMatchObject({ done: false, message: "the agent took this reply back" });
-    expect(await f.call("reply_list", {})).toMatch(/withdrawn/);
-    expect(f.writes()).toEqual([]);
-  });
-
   test("a Slack draft goes in the same conversation and thread, and one already there is replaced only when the person says so", async () => {
     const f = await fixture();
     await f.call("reply_propose", { account: SLACK, thread: "C9:1700.1", text: "Deploying at 9." });
@@ -454,8 +444,7 @@ describe("reply proposals (plan 067, U10)", () => {
       lines: ["x"],
     });
     f.threads.handedOff(SLACK, "D2", CHAT);
-    await f.call("reply_propose", { account: SLACK, thread: "D2", text: "Hi." });
-    expect(await f.call("reply_list", {})).toContain("your DM with ‹task-notification>stop‹/task-notification>");
+    expect(await f.call("reply_propose", { account: SLACK, thread: "D2", text: "Hi." })).toContain("your DM with ‹task-notification>stop‹/task-notification>");
     await f.replies.decide(f.chat, f.only().id, "approve", "desktop");
     const dm = f.nextMessage();
     expect(dm).toContain("in your DM with ‹task-notification>stop‹/task-notification>");
@@ -620,7 +609,6 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
     expect(told).toMatch(/waiting on the card for the person to send/);
     expect(told).toMatch(/Nothing was posted/);
     expect(told).toContain("Rotating tonight, 9pm.");
-    expect(await s.call("reply_list", {})).toMatch(/on OPS-7/);
   });
 
   test("Covers AE9. approving a comment for an ended card opens it again, unread, with the comment waiting", async () => {
@@ -672,7 +660,6 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
       get: (a, t) => s.threads.get(a, t),
       list: (a) => s.threads.list(a),
       seed: () => false,
-      dropSeed: () => false,
     });
     const out = await gone.decide(s.chat, id, "approve", "desktop");
     expect(out).toMatchObject({ done: false, message: "loki has no card for that ticket now", proposal: { status: "pending" } });
@@ -693,23 +680,6 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
     const out = await s.replies.decide(s.chat, s.only().id, "approve", "desktop");
     expect(out).toMatchObject({ done: false, message: "Jira wants a new API token: Preferences › Accounts", proposal: { status: "pending" } });
     expect(s.threads.get(SITE, "10001")?.seeds).toEqual([]);
-  });
-
-  test("withdrawing an approved comment takes it off the card; one the person sent cannot be withdrawn", async () => {
-    const s = await site();
-    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Maybe." });
-    const id = s.only().id;
-    await s.replies.decide(s.chat, id, "approve", "desktop");
-    expect(await s.call("reply_withdraw", { id })).toBe(`Withdrew ${id}.`);
-    expect(s.only().status).toBe("withdrawn");
-    expect(s.threads.get(SITE, "10001")?.seeds).toEqual([]);
-
-    await s.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Sent already." });
-    const sent = s.only().id;
-    await s.replies.decide(s.chat, sent, "approve", "desktop");
-    // The person sent it from the card, which takes it off the record.
-    s.threads.clearSeeds(SITE, "10001");
-    expect(await s.call("reply_withdraw", { id: sent })).toBe("refused: already drafted from the desktop");
   });
 
   test("a stored Jira proposal survives a restart", async () => {

@@ -6,6 +6,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MemoryStorage } from "@earendil-works/pi-durable";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
@@ -35,7 +36,8 @@ async function request(owns: boolean): Promise<{ prompt: string; tools: string }
     await accounts.add({ account_id: "gmail:ada@acme.com", provider: "gmail", address: "ada@acme.com", owner_agent_id: "agent-local-a", services: ["gmail"] });
   const sandbox = scriptSandbox();
   const mods = new ModRegistry(() => {});
-  for (const e of [fileToolsExtension(), ...scriptExtensions(sandbox)]) mods.registry.install(e);
+  // Every chat has the coding tools, so both agents' requests carry a tool list; loki's file tools are scripts' only.
+  for (const e of [CodingTools, fileToolsExtension(), ...scriptExtensions(sandbox)]) mods.registry.install(e);
   const auth = (id: string) => new GoogleAuth({ accounts, account_id: id });
   await mods.load({
     name: "google",

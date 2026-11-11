@@ -57,13 +57,14 @@ describe("the built-in tools", () => {
           "schedule_create",
           "schedule_delete",
           "schedule_list",
-          "skill",
           "subagent",
-          "image_view",
           "web_search",
           "write",
         ].sort(),
       );
+      // ls, find and grep are there for scripts only; bash does their work for the model (plan 094).
+      const scriptsOnly = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.callers?.includes("model") === false);
+      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(["find", "grep", "ls"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

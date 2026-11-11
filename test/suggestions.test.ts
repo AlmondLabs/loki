@@ -270,7 +270,7 @@ describe("the first action wins (R17)", () => {
     expect(w.stored()[0].status).toBe("sent");
   });
 
-  test("a withdraw after sending began is refused", async () => {
+  test("a reject after sending began is refused", async () => {
     const w = world();
     const made = await suggest(w);
     let release = () => {};
@@ -281,18 +281,10 @@ describe("the first action wins (R17)", () => {
     });
     const sending = slow.decide(SOURCE, made.id, "send", "desktop");
     await settled();
-    expect(await slow.withdraw(SOURCE, made.id)).toMatchObject({ done: false, message: "already being sent" });
+    expect(await slow.decide(SOURCE, made.id, "reject", "phone")).toMatchObject({ done: false, message: "already being sent" });
     release();
     expect(await sending).toMatchObject({ done: true });
-    expect(await slow.withdraw(SOURCE, made.id)).toMatchObject({ done: false, message: "already sent from the desktop" });
-  });
-
-  test("a pending suggestion its agent withdraws is withdrawn, and a decision after that is told so", async () => {
-    const w = world();
-    const made = await suggest(w);
-    expect(await w.s.withdraw(SOURCE, made.id)).toMatchObject({ done: true, suggestion: { status: "withdrawn", decided_by: "agent" } });
-    expect((await w.s.decide(SOURCE, made.id, "send", "desktop")).message).toBe("the agent took this suggestion back");
-    expect(w.tracked.at(-1)).toEqual({ event: "suggestion_decided", properties: { action: "withdraw", outcome: "done", by: "agent" } });
+    expect(await slow.decide(SOURCE, made.id, "reject", "phone")).toMatchObject({ done: false, message: "already sent from the desktop" });
   });
 
   test("a re-point is only for a pending suggestion", async () => {

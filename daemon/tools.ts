@@ -1,17 +1,17 @@
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import type { Context } from "@earendil-works/chord";
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { withKind } from "./tool-kinds.ts";
-import { shrinkImage } from "./image-shrink.ts";
 
 /**
- * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find`, `grep` and `image_view`, beside its own
- * read, write, edit and bash. Paths are the chat's folder's, as the built-in tools' are. `grep` uses ripgrep when the
- * machine has it, and walks the folder itself otherwise.
+ * The file tools pi-durable does not ship (plan 017, U10): `ls`, `find` and `grep`, for scripts only (plan 094). The
+ * model does the same with `bash`, whose read-only commands ask nothing in the standard modes
+ * (daemon/read-only-command.ts); a script cannot start a process, so these are how it lists, finds and searches. Paths
+ * are the chat's folder's, as the built-in tools' are. `grep` uses ripgrep when the machine has it, and walks the folder
+ * itself otherwise.
  */
 
 const run = promisify(execFile);
@@ -72,14 +72,11 @@ export function globTest(glob: string): (rel: string) => boolean {
 
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 
-const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+/** Who may call the file tools: scripts only, never the model (daemon/scripts.ts, `isScriptOnly`). */
+const SCRIPTS_ONLY = ["tools"] as const;
 
-/**
- * The file tools above (`ls`, `find`, `grep`, `image_view`), as one extension every chat selects. `shrink` makes an
- * image the size it is kept at (daemon/image-shrink.ts); tests pass their own.
- */
-export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: string) => Promise<{ data: Buffer; mimeType: string }> } = {}): Extension {
-  const shrink = opts.shrink ?? shrinkImage;
+/** The file tools above (`ls`, `find`, `grep`), as one extension every chat selects, offered to its scripts. */
+export function fileToolsExtension(): Extension {
   return defineExtension({
     name: "loki.files",
     tools: [
@@ -87,6 +84,7 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
         "read",
         defineTool({
           name: "ls",
+          callers: SCRIPTS_ONLY,
           description: "List a folder: its files and folders (folders end with /).",
           parameters: { type: "object", properties: { path: { type: "string", description: "Default: the chat's folder" } } } as never,
           execute: async (args, api, context) => {
@@ -101,6 +99,7 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
         "read",
         defineTool({
           name: "find",
+          callers: SCRIPTS_ONLY,
           description: "Find files by a glob such as **/*.ts or README*, under a folder.",
           parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } as never,
           execute: async (args, api, context) => {
@@ -116,6 +115,7 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
         "read",
         defineTool({
           name: "grep",
+          callers: SCRIPTS_ONLY,
           description: "Search file contents with a regular expression, under a folder; optionally only files matching a glob.",
           parameters: {
             type: "object",
@@ -169,23 +169,6 @@ export function fileToolsExtension(opts: { shrink?: (file: string, mimeType: str
               });
             }
             return text(out.length ? out.join("\n") : "no matches");
-          },
-        }),
-      ),
-      withKind(
-        "read",
-        defineTool({
-          name: "image_view",
-          description: "Look at an image file (PNG, JPEG, GIF or WebP).",
-          parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
-          execute: async (args, api, context) => {
-            const file = at(await folderOf(api, context), (args as { path: string }).path);
-            const mimeType = IMAGE_TYPES[extname(file).toLowerCase()];
-            if (!mimeType) throw new Error("not an image this tool can show");
-            if (!existsSync(file)) throw new Error(`no such file: ${file}`);
-            // Shrunk as a pasted image is: the result is kept in the chat's store for good (plan 029).
-            const image = await shrink(file, mimeType);
-            return { output: [{ type: "image", data: image.data.toString("base64"), mimeType: image.mimeType }] };
           },
         }),
       ),

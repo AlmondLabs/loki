@@ -234,9 +234,9 @@ describe("chat_list and the suggestion tools", () => {
     return { run, records, suggestions, tools: h.tools };
   }
 
-  test("the four tools come with the chat listing; every name is <subject>_<verb>", () => {
+  test("suggestion_create comes with the chat listing, and nothing to list or take one back (plan 094); every name is <subject>_<verb>", () => {
     const names = [...suggesting().tools.keys()].sort();
-    expect(names).toEqual(["canvas_focus", "canvas_read", "chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]);
+    expect(names).toEqual(["canvas_focus", "canvas_read", "chat_list", "suggestion_create"]);
     expect(names.filter((n) => !/^[a-z][a-z0-9]*_[a-z0-9]+$/.test(n))).toEqual([]);
   });
 
@@ -310,33 +310,10 @@ describe("chat_list and the suggestion tools", () => {
     expect(records.get(`${FRIDAY}/conv-source`)).toEqual([]);
   });
 
-  test("suggestion_list shows a suggestion the person pointed at another chat with its final target", async () => {
-    const { run, suggestions } = suggesting();
-    await run("suggestion_create", { title: "Fix the runner", text: "x", target: { agent_id: FRIDAY, conversation_id: "conv-infra" } });
-    await suggestions.retarget({ agent_id: FRIDAY, conversation_id: "conv-source" }, "sugg-1", { agent_id: IRA, conversation_id: "conv-site" });
-    const out = String(await run("suggestion_list", {}));
-    expect(out).toContain("sugg-1");
-    expect(out).toContain("pending");
-    expect(out).toContain("conv-site");
-    expect(out).not.toContain("conv-infra");
-    expect(String(await run("suggestion_list", {}, "conv-infra"))).not.toContain("sugg-1");
-  });
-
-  test("suggestion_withdraw takes back this chat's pending suggestion; another chat's fails, and a decided one fails with its status", async () => {
-    const { run, records, suggestions } = suggesting();
-    await run("suggestion_create", { title: "one", text: "x", target: { agent_id: FRIDAY, conversation_id: "conv-infra" } });
-    await run("suggestion_create", { title: "two", text: "x", target: { agent_id: FRIDAY, conversation_id: "conv-infra" } });
-    await expect(run("suggestion_withdraw", { id: "sugg-1" }, "conv-infra")).rejects.toThrow(/no suggestion sugg-1/);
-    await suggestions.decide({ agent_id: FRIDAY, conversation_id: "conv-source" }, "sugg-2", "reject", "phone");
-    await expect(run("suggestion_withdraw", { id: "sugg-2" })).rejects.toThrow(/already rejected from the phone/);
-    expect(String(await run("suggestion_withdraw", { id: "sugg-1" }))).toContain("sugg-1");
-    expect(records.get(`${FRIDAY}/conv-source`)?.map((s) => s.status)).toEqual(["withdrawn", "rejected"]);
-  });
-
   test("a call from a background pass's chat fails", async () => {
     const { run } = suggesting();
-    for (const tool of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"])
-      await expect(run(tool, { title: "t", text: "x", target: { agent_id: FRIDAY, conversation_id: "conv-infra" }, id: "x" }, "reflection-1")).rejects.toThrow(
+    for (const tool of ["chat_list", "suggestion_create"])
+      await expect(run(tool, { title: "t", text: "x", target: { agent_id: FRIDAY, conversation_id: "conv-infra" } }, "reflection-1")).rejects.toThrow(
         /background pass/,
       );
   });
@@ -398,16 +375,15 @@ describe("chat_list and the suggestion tools", () => {
     expect(out).toContain('conv-infra "infra" (agent agent-local-friday): both ways');
   });
 
-  test("all four only read, so no mode asks; suggestion_create says when to suggest", () => {
+  test("both only read, so no mode asks; suggestion_create says when to suggest", () => {
     const { tools } = suggesting();
-    for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"])
+    for (const name of ["chat_list", "suggestion_create"])
       for (const mode of ["strict", "standard", "acceptEdits"] as const)
         expect(asks(mode, name, {}, { kind: kindOf(name, must(tools.get(name), name).annotations) })).toBe(false);
     const rule = must(tools.get("suggestion_create"), "suggestion_create").description;
     expect(rule).toMatch(/another chat/);
     expect(rule).toMatch(/never for work you can do in this chat/);
     expect(rule).toMatch(/chat_list/);
-    expect(rule).toMatch(/suggestion_list/);
     expect(rule).toMatch(/absolute paths/);
   });
 });
