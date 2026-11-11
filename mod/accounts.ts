@@ -1,4 +1,4 @@
-import type { AccountDisconnectCause, AccountProvider, AccountStatus, AccountView } from "../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, AccountStatus, AccountView, GoogleService } from "../core/frame-types.ts";
 import type { MacAccountView } from "../core/frames.ts";
 import { Listeners } from "../core/listeners.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -27,6 +27,8 @@ export interface NewAccount {
   provider: AccountProvider;
   address: string;
   owner_agent_id: string;
+  /** A Google account's granted services (AccountView.services). */
+  services?: GoogleService[];
 }
 
 /** What changed about an account, for the parts that follow its owner: the tools (U9) and reply proposals (U10). */
@@ -34,6 +36,8 @@ export type AccountChange =
   | { kind: "added"; account_id: string }
   | { kind: "moved"; account_id: string; from: string }
   | { kind: "status"; account_id: string }
+  /** The account signed in again: new tokens, maybe more services, so whatever holds the old tokens drops them. */
+  | { kind: "signed_in"; account_id: string }
   | { kind: "disconnected"; account_id: string };
 
 /** What Accounts is built from; the clock, the keychain and the lookups are injected so tests own them. */
@@ -52,6 +56,11 @@ export interface AccountsOptions {
 const INDEX = "accounts";
 const PROVIDERS: readonly AccountProvider[] = ["gmail", "slack", "jira"];
 const CAUSES: readonly AccountDisconnectCause[] = ["sign_in_again", "admin_blocks", "slack_signed_out", "temporarily_failing"];
+/** Every Google service loki asks for, in the order the app lists them. */
+export const GOOGLE_SERVICES: readonly GoogleService[] = ["gmail", "drive", "sheets", "docs", "calendar"];
+
+/** A Google account's services: what its sign-in granted, or Gmail alone for an account signed in before loki asked for more. */
+export const servicesOf = (a: Pick<AccountView, "services">): GoogleService[] => a.services ?? ["gmail"];
 
 /**
  * An account's id: the provider and the id it keeps across sign-ins (KTD14). A mailbox is its address, in lower case
@@ -97,6 +106,7 @@ export function accountView(a: AccountView): AccountView {
     owner_agent_id: a.owner_agent_id,
     status: a.status,
     connected_at: a.connected_at,
+    ...(a.services ? { services: [...a.services] } : {}),
   };
 }
 
@@ -110,7 +120,8 @@ function parseView(v: unknown): AccountView | null {
   const { account_id: id, provider, address, owner_agent_id: owner, connected_at: at, status } = r;
   if (typeof id !== "string" || !id || typeof address !== "string" || typeof owner !== "string" || !owner || typeof at !== "string") return null;
   if (!PROVIDERS.includes(provider as AccountProvider) || !isStatus(status)) return null;
-  return { account_id: id, provider: provider as AccountProvider, address, owner_agent_id: owner, status, connected_at: at };
+  const services = Array.isArray(r.services) ? GOOGLE_SERVICES.filter((s) => (r.services as unknown[]).includes(s)) : undefined;
+  return { account_id: id, provider: provider as AccountProvider, address, owner_agent_id: owner, status, connected_at: at, ...(services ? { services } : {}) };
 }
 
 function parseRecord(v: unknown): AccountRecord | null {
@@ -179,6 +190,7 @@ export class Accounts {
       owner_agent_id: input.owner_agent_id,
       status: "connected",
       connected_at: (this.opts.now?.() ?? new Date()).toISOString(),
+      ...(input.services ? { services: [...input.services] } : {}),
       backfill: {},
     };
     this.records = [...this.records, record];
@@ -199,6 +211,25 @@ export class Accounts {
   /** Mark an account connected again, or disconnected with why (R22). */
   setStatus(accountId: string, status: AccountStatus): AccountRecord {
     const changed = this.change(accountId, { status });
+    this.save({ kind: "status", account_id: accountId });
+    return changed;
+  }
+
+  /**
+   * An account here signed in again (plan 2026-11-11 scripts, R18): its new secret kept, its services as granted now,
+   * and connected; owner, cursor and cards stay. Everyone holding the old tokens hears `signed_in` and reads the new.
+   */
+  async signedIn(accountId: string, secret: string, services: GoogleService[]): Promise<AccountRecord> {
+    this.need(accountId);
+    await this.setSecret(accountId, secret);
+    const changed = this.change(accountId, { status: "connected", services: [...services] });
+    this.save({ kind: "signed_in", account_id: accountId });
+    return changed;
+  }
+
+  /** Keep a Google account's services as a token refresh reports them; the app's row follows. */
+  setServices(accountId: string, services: GoogleService[]): AccountRecord {
+    const changed = this.change(accountId, { services: [...services] });
     this.save({ kind: "status", account_id: accountId });
     return changed;
   }

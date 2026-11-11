@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import type { AccountProvider, AccountView, SlackWorkspaceView } from "../../../core/frame-types.ts";
+import type { AccountProvider, AccountView, GoogleService, SlackWorkspaceView } from "../../../core/frame-types.ts";
 import { Button, Dot, Field } from "../components";
 import { disconnectedText } from "../desk/outside-words";
 import { notYetOn, openExternal, platform, type Platform } from "../desk/env";
@@ -19,8 +19,11 @@ export interface AccountsApi {
   list: () => Promise<AccountView[] | string>;
   move: (accountId: string, ownerAgentId: string) => Promise<AccountView[] | string>;
   disconnect: (accountId: string) => Promise<AccountView[] | string>;
-  /** Google's sign-in page for a mailbox the agent will own, through loki's shared Google app or the person's own. */
-  connectGmail: (ownerAgentId: string, ownApp: OwnApp | null) => Promise<{ url: string } | string>;
+  /**
+   * Google's sign-in page for a mailbox the agent will own, through loki's shared Google app or the person's own; with
+   * `accountId`, for that account here signing in again.
+   */
+  connectGmail: (ownerAgentId: string, ownApp: OwnApp | null, accountId?: string | null) => Promise<{ url: string } | string>;
   /** Without a team, the workspaces signed in to the Slack desktop app; with one, that workspace connected. */
   connectSlack: (ownerAgentId: string, teamId?: string) => Promise<{ workspaces: SlackWorkspaceView[]; account: AccountView | null } | string>;
   /** A Jira site connected with the person's API token, or connected again when `account_id` names one; answers with the accounts as they now stand. */
@@ -40,11 +43,12 @@ export interface AgentName {
 }
 
 /**
- * How a disconnected account comes back: Gmail signs in again, Slack connects its workspace again, and Jira takes a
- * new API token for the same site. Each service has its own shape, so one can never be sent down another's way.
+ * How a disconnected account comes back: Gmail signs that account in again, Slack connects its workspace again, and
+ * Jira takes a new API token for the same site. Each service has its own shape, so one can never be sent down
+ * another's way.
  */
 export type Reconnect =
-  | { provider: "gmail"; owner_agent_id: string; team_id: null }
+  | { provider: "gmail"; owner_agent_id: string; account_id: string; team_id: null }
   /** `team_id` is the Slack workspace to connect again. */
   | { provider: "slack"; owner_agent_id: string; team_id: string | null }
   /** `site` is the host the form opens with. */
@@ -61,9 +65,26 @@ export interface AccountRow {
   state: string;
   problem: boolean;
   reconnect: Reconnect | null;
+  /**
+   * A connected Google account's sign-in again for the services it has not granted (plan 2026-11-11 scripts, R17), and
+   * their names; null when it has them all, or is not a Google account.
+   */
+  more: { reconnect: Reconnect; services: string } | null;
+}
+
+/** The Google services loki asks for, by the words the row uses. */
+const GOOGLE_SERVICE_WORDS: Record<GoogleService, string> = { gmail: "gmail", drive: "drive", sheets: "sheets", docs: "docs", calendar: "calendar" };
+
+/** Services as one phrase: "drive", "drive and docs", "drive, sheets and docs". */
+function servicesWords(services: readonly GoogleService[]): string {
+  const words = services.map((s) => GOOGLE_SERVICE_WORDS[s]);
+  return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}`;
 }
 
 const SERVICE: Record<AccountProvider, string> = { gmail: "Gmail", slack: "Slack", jira: "Jira" };
+
+/** Every Google service loki asks for, in the order Google's page and the row list them (mod/accounts.ts GOOGLE_SERVICES). */
+const GOOGLE_SERVICES: readonly GoogleService[] = ["gmail", "drive", "sheets", "docs", "calendar"];
 
 /** How often the list is asked again while the page shows: a Gmail sign-in finishes in the browser, and accounts can stop working. */
 const POLL_MS = 3000;
@@ -85,7 +106,7 @@ const teamOf = (accountId: string): string | null => /^slack:([^:]+):/.exec(acco
 function reconnectOf(a: AccountView): Reconnect {
   switch (a.provider) {
     case "gmail":
-      return { provider: "gmail", owner_agent_id: a.owner_agent_id, team_id: null };
+      return { provider: "gmail", owner_agent_id: a.owner_agent_id, account_id: a.account_id, team_id: null };
     case "slack":
       return { provider: "slack", owner_agent_id: a.owner_agent_id, team_id: teamOf(a.account_id) };
     case "jira":
@@ -95,7 +116,8 @@ function reconnectOf(a: AccountView): Reconnect {
 
 /** What a row's reconnect starts, one way for each service. */
 export interface ReconnectWays {
-  gmail: (ownerId: string) => void;
+  /** Sign the account in again (`accountId`), for its owner. */
+  gmail: (ownerId: string, accountId: string) => void;
   slack: (ownerId: string, teamId?: string) => void;
   /** Open the Jira form for the account, with its site filled in. */
   jira: (form: JiraForm) => void;
@@ -105,7 +127,7 @@ export interface ReconnectWays {
 export function reconnectVia(r: Reconnect, ways: ReconnectWays): void {
   switch (r.provider) {
     case "gmail":
-      return ways.gmail(r.owner_agent_id);
+      return ways.gmail(r.owner_agent_id, r.account_id);
     case "slack":
       return ways.slack(r.owner_agent_id, r.team_id ?? undefined);
     case "jira":
@@ -119,15 +141,19 @@ export function accountRows(accounts: readonly AccountView[], agents: readonly A
     const cause = a.status === "connected" ? null : a.status.disconnected;
     // A service failing for now comes back on its own; every other cause needs the person to connect again.
     const reconnect = cause && cause !== "temporarily_failing" ? reconnectOf(a) : null;
+    // An account signed in before loki asked for more than Gmail has granted Gmail alone.
+    const missing = a.provider === "gmail" ? GOOGLE_SERVICES.filter((s) => !(a.services ?? ["gmail"]).includes(s)) : [];
+    const more = !cause && missing.length > 0 ? { reconnect: reconnectOf(a), services: servicesWords(missing) } : null;
     return {
       account_id: a.account_id,
       label: a.address,
       service: SERVICE[a.provider],
       owner_agent_id: a.owner_agent_id,
       owner: agents.find((g) => g.id === a.owner_agent_id)?.name ?? "an agent no longer here",
-      state: cause ? disconnectedText(cause, a.provider) : "connected",
+      state: cause ? disconnectedText(cause, a.provider) : more ? `connected; scripts cannot use ${more.services} until it signs in again` : "connected",
       problem: cause !== null,
       reconnect,
+      more,
     };
   });
 }
@@ -227,8 +253,8 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   // The Jira form while it is open. The token lives here only until the form closes.
   const [jiraForm, setJiraForm] = useState<JiraForm | null>(null);
 
-  const gmail = async (ownerId: string) => {
-    const r = await api.connectGmail(ownerId, ownAppOf(clientId, clientSecret));
+  const gmail = async (ownerId: string, accountId?: string) => {
+    const r = await api.connectGmail(ownerId, ownAppOf(clientId, clientSecret), accountId ?? null);
     if (typeof r === "string") return setError(r);
     openExternal(r.url);
     setNotice("finish signing in to Google in your browser: the mailbox shows here once Google sends you back");
@@ -246,7 +272,11 @@ export function Accounts({ api, agents, os = platform }: { api: AccountsApi; age
   // A connect on its way: a second press would connect the site again and end in "already connected" under a success.
   const [connecting, setConnecting] = useState(false);
   const reconnect = (r: Reconnect) =>
-    reconnectVia(r, { gmail: (ownerId) => void gmail(ownerId), slack: (ownerId, teamId) => void slack(ownerId, teamId), jira: setJiraForm });
+    reconnectVia(r, {
+      gmail: (ownerId, accountId) => void gmail(ownerId, accountId),
+      slack: (ownerId, teamId) => void slack(ownerId, teamId),
+      jira: setJiraForm,
+    });
 
   const rows = accountRows(accounts ?? [], agents);
   const connectedTeams = new Set((accounts ?? []).filter((a) => a.status === "connected").map((a) => teamOf(a.account_id)));
@@ -339,7 +369,7 @@ function AccountLine({
   onReconnect: (r: Reconnect) => void;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const { reconnect } = row;
+  const { reconnect, more } = row;
   return (
     <div style={{ display: "grid", gap: 6, padding: "12px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -354,6 +384,11 @@ function AccountLine({
         {reconnect && (
           <Button tone="positive" onClick={() => onReconnect(reconnect)}>
             {`reconnect ${row.service.toLowerCase()}`}
+          </Button>
+        )}
+        {more && (
+          <Button tone="positive" onClick={() => onReconnect(more.reconnect)}>
+            {`sign in again for ${more.services}`}
           </Button>
         )}
         <label className="loki-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>

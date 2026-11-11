@@ -90,8 +90,13 @@ export function daemonCalls(request: FrameRequest) {
       },
       move: (accountId: string, ownerAgentId: string) => attempt(request, "account_move", { account_id: accountId, owner_agent_id: ownerAgentId }).then(listed),
       disconnect: (accountId: string) => attempt(request, "account_disconnect", { account_id: accountId }).then(listed),
-      connectGmail: async (ownerAgentId: string, ownApp: { client_id: string; client_secret: string } | null): Promise<{ url: string } | string> => {
-        const r = await request("account_connect_gmail", { owner_agent_id: ownerAgentId, own_app: ownApp }, WAIT_MS);
+      /** Google's sign-in page for a new Gmail account, or with `accountId` for one here signing in again (for more services). */
+      connectGmail: async (
+        ownerAgentId: string,
+        ownApp: { client_id: string; client_secret: string } | null,
+        accountId: string | null = null,
+      ): Promise<{ url: string } | string> => {
+        const r = await request("account_connect_gmail", { owner_agent_id: ownerAgentId, own_app: ownApp, account_id: accountId }, WAIT_MS);
         return r.ok ? { url: r.reply.url } : r.error;
       },
       connectSlack: (ownerAgentId: string, teamId?: string) =>

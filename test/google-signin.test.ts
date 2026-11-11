@@ -6,7 +6,7 @@ import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
 import { GOOGLE_OAUTH_CALLBACK, GoogleSignIn } from "../mod/google-signin.ts";
 import { startServer } from "../mod/server.ts";
-import { fakeGoogle } from "./fixtures/gmail.ts";
+import { ALL_SCOPES, fakeGoogle } from "./fixtures/gmail.ts";
 import { must } from "./fixtures/must.ts";
 
 /** A fetch's URL as text, whatever form it came in. */
@@ -38,12 +38,13 @@ function fixture(sharedApp = SHARED) {
 }
 
 describe("signing in to Gmail", () => {
-  test("the authorization page asks for Gmail modify and the address, offline, with consent and PKCE", () => {
+  test("the authorization page asks for the five Google services and the address, keeping earlier grants, offline, with consent and PKCE", () => {
     const { signIn } = fixture();
     const url = new URL(signIn.start({ owner_agent_id: "agent-work" }));
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
     const q = url.searchParams;
-    expect(q.get("scope")?.split(" ")).toEqual(["https://www.googleapis.com/auth/gmail.modify", "openid", "https://www.googleapis.com/auth/userinfo.email"]);
+    expect(q.get("scope")?.split(" ")).toEqual(ALL_SCOPES);
+    expect(q.get("include_granted_scopes")).toBe("true");
     expect([q.get("access_type"), q.get("prompt"), q.get("code_challenge_method"), q.get("redirect_uri"), q.get("client_id")]).toEqual([
       "offline",
       "consent",
@@ -61,11 +62,16 @@ describe("signing in to Gmail", () => {
     const result = await signIn.finish(back);
     expect(result.ok).toBe(true);
     expect(result.message).toContain("Connected ada@acme.com");
-    expect(accounts.list().map((a) => [a.account_id, a.address, a.owner_agent_id, a.status])).toEqual([
-      ["gmail:ada@acme.com", "ada@acme.com", "agent-work", "connected"],
+    expect(accounts.list().map((a) => [a.account_id, a.address, a.owner_agent_id, a.status, a.services])).toEqual([
+      ["gmail:ada@acme.com", "ada@acme.com", "agent-work", "connected", ["gmail", "drive", "sheets", "docs", "calendar"]],
     ]);
     const secret = JSON.parse(must(secrets.entries.get("account:gmail:ada@acme.com"), "the account's secret")) as Record<string, unknown>;
-    expect(secret).toEqual({ access_token: google.issued.access[0], refresh_token: google.issued.refresh[0], expires_at: "2026-11-04T10:00:00.000Z" });
+    expect(secret).toEqual({
+      access_token: google.issued.access[0],
+      refresh_token: google.issued.refresh[0],
+      expires_at: "2026-11-04T10:00:00.000Z",
+      scopes: ALL_SCOPES.join(" "),
+    });
     // The redemption carried the verifier the challenge was made from (the fake checks it) and the shared app.
     const form = new URLSearchParams(must(google.tokenRequests()[0], "a token request").body);
     expect([form.get("grant_type"), form.get("client_id"), form.get("client_secret")]).toEqual(["authorization_code", SHARED.client_id, SHARED.client_secret]);
@@ -131,7 +137,7 @@ describe("signing in to Gmail", () => {
     };
     const now = () => new Date("2026-11-04T09:00:00Z");
     const signIn = new GoogleSignIn({ accounts, fetch: hanging, now, redirect: REDIRECT, sharedApp: SHARED, timeout });
-    for (const url of ["https://oauth2.googleapis.com/token", "https://gmail.googleapis.com/gmail/v1/users/me/profile"]) {
+    for (const url of ["https://oauth2.googleapis.com/token", "https://openidconnect.googleapis.com/v1/userinfo"]) {
       hangOn = url;
       const at = new Promise<string>((resolve) => (reached = resolve));
       const result = signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" })));
@@ -141,6 +147,65 @@ describe("signing in to Gmail", () => {
     }
     expect(accounts.list()).toEqual([]);
     expect(secrets.entries.size).toBe(0);
+  });
+
+  test("a partial grant keeps the services the person left ticked; one without Gmail connects nothing", async () => {
+    const { accounts, secrets, google, signIn } = fixture();
+    const [gmail, drive] = ALL_SCOPES;
+    const partial = await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" }), [gmail, drive, "openid"]));
+    expect(partial.ok).toBe(true);
+    expect(accounts.get("gmail:ada@acme.com")?.services).toEqual(["gmail", "drive"]);
+
+    google.state.email = "bo@acme.com";
+    const noGmail = await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" }), [drive, "openid"]));
+    expect(noGmail).toMatchObject({ ok: false, message: expect.stringContaining("Gmail was unticked") as unknown });
+    expect(accounts.get("gmail:bo@acme.com")).toBeNull();
+    expect(secrets.entries.has("account:gmail:bo@acme.com")).toBe(false);
+  });
+
+  test("R18: a connected account signs in again for more services, keeping its owner; the change is heard", async () => {
+    const { secrets, accounts, google, signIn } = fixture();
+    const [gmail] = ALL_SCOPES;
+    await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" }), [gmail, "openid"]));
+    accounts.setBackfill("gmail:ada@acme.com", { cursor: "kept" });
+    expect(accounts.get("gmail:ada@acme.com")?.services).toEqual(["gmail"]);
+    const heard: string[] = [];
+    accounts.onChange((c) => heard.push(`${c.kind} ${c.account_id}`));
+    const before = secrets.entries.get("account:gmail:ada@acme.com");
+    // The row's sign-in names the account; the owner sent with it is the account's own, and a new one would be ignored.
+    const again = await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-home", account_id: "gmail:ada@acme.com" })));
+    expect(again.ok).toBe(true);
+    const record = must(accounts.get("gmail:ada@acme.com"), "the account");
+    expect([record.owner_agent_id, record.status, record.services, record.backfill]).toEqual([
+      "agent-work",
+      "connected",
+      ["gmail", "drive", "sheets", "docs", "calendar"],
+      { cursor: "kept" },
+    ]);
+    expect(secrets.entries.get("account:gmail:ada@acme.com")).not.toBe(before);
+    expect(heard).toEqual(["signed_in gmail:ada@acme.com"]);
+  });
+
+  test("R18: a sign-in again that comes back as another address, or without Gmail, or cancelled, leaves the old sign-in working", async () => {
+    const { secrets, accounts, google, signIn } = fixture();
+    await signIn.finish(google.authorize(signIn.start({ owner_agent_id: "agent-work" })));
+    const before = secrets.entries.get("account:gmail:ada@acme.com");
+    const again = () => signIn.start({ owner_agent_id: "agent-work", account_id: "gmail:ada@acme.com" });
+
+    google.state.email = "bo@acme.com";
+    expect(await signIn.finish(google.authorize(again()))).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("you signed in as bo@acme.com, not ada@acme.com: nothing was changed") as unknown,
+    });
+    google.state.email = "ada@acme.com";
+    const [, drive] = ALL_SCOPES;
+    expect(await signIn.finish(google.authorize(again(), [drive, "openid"]))).toMatchObject({ ok: false });
+    const state = must(new URL(again()).searchParams.get("state"), "a state");
+    expect(await signIn.finish({ state, error: "access_denied" })).toMatchObject({ ok: false });
+
+    expect(secrets.entries.get("account:gmail:ada@acme.com")).toBe(before);
+    expect(accounts.list().map((a) => [a.account_id, a.status, a.services?.length])).toEqual([["gmail:ada@acme.com", "connected", 5]]);
+    expect(accounts.list().filter((a) => a.account_id === "gmail:bo@acme.com")).toEqual([]);
   });
 
   test("a mailbox already connected is refused; one that lost its sign-in takes the new tokens and keeps its owner", async () => {

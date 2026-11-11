@@ -18,17 +18,31 @@ interface Code {
   challenge: string;
   client_id: string;
   redirect: string;
+  /** The scopes the person left ticked on Google's page. */
+  scope: string;
 }
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+
+/** Every scope loki asks for (mod/google-signin.ts GOOGLE_SCOPES), as a grant of all of them reads. */
+export const ALL_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/documents",
+  "https://www.googleapis.com/auth/calendar",
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+];
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 /** Google and one Gmail mailbox, on the test's clock. */
 export function fakeGoogle(opts: { now: () => Date; email?: string }) {
-  const email = opts.email ?? "ada@acme.com";
   const codes = new Map<string, Code>();
   const access = new Map<string, { expires: number; client_id: string }>();
-  const refresh = new Map<string, string>();
+  /** Each refresh token's client and the scopes it was granted. */
+  const refresh = new Map<string, { client_id: string; scope: string }>();
   const requests: FakeRequest[] = [];
   const drafts: Array<{ raw: string; threadId: string }> = [];
   const sentMail: Array<{ raw: string; threadId: string }> = [];
@@ -43,6 +57,8 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     sendAs: ["ada@acme.com", "ada@example.org"] as string[] | number,
     /** A Workspace admin has stopped the app: every call is refused with Google's reason. */
     adminBlocked: false,
+    /** The account the person signs in as: a test changes it to sign in as someone else. */
+    email: opts.email ?? "ada@acme.com",
   };
   /** Every token issued, in order, so a test can name the ones a sign-in kept. */
   const issued = { access: [] as string[], refresh: [] as string[] };
@@ -64,15 +80,16 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
       if (createHash("sha256").update(verifier).digest("base64url") !== code?.challenge) return json(400, { error: "invalid_grant" });
       if (code.client_id !== form.get("client_id") || code.redirect !== form.get("redirect_uri")) return json(400, { error: "invalid_client" });
       const refreshToken = `refresh-${++tokenSeq}`;
-      refresh.set(refreshToken, code.client_id);
+      refresh.set(refreshToken, { client_id: code.client_id, scope: code.scope });
       issued.refresh.push(refreshToken);
-      return json(200, { access_token: issue(code.client_id), refresh_token: refreshToken, expires_in: 3600, token_type: "Bearer" });
+      return json(200, { access_token: issue(code.client_id), refresh_token: refreshToken, expires_in: 3600, token_type: "Bearer", scope: code.scope });
     }
     if (form.get("grant_type") === "refresh_token") {
       if (state.adminBlocked) return json(400, { error: "admin_policy_enforced" });
-      const client = refresh.get(form.get("refresh_token") ?? "");
-      if (!client || client !== form.get("client_id")) return json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
-      return json(200, { access_token: issue(client), expires_in: 3600, token_type: "Bearer" });
+      const held = refresh.get(form.get("refresh_token") ?? "");
+      if (!held || held.client_id !== form.get("client_id"))
+        return json(400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
+      return json(200, { access_token: issue(held.client_id), expires_in: 3600, token_type: "Bearer", scope: held.scope });
     }
     return json(400, { error: "unsupported_grant_type" });
   };
@@ -86,7 +103,7 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
       });
     const path = req.url.pathname.replace("/gmail/v1/users/me", "");
     const q = req.url.searchParams;
-    if (path === "/profile") return json(200, { emailAddress: email, historyId: state.historyId });
+    if (path === "/profile") return json(200, { emailAddress: state.email, historyId: state.historyId });
     if (path === "/settings/sendAs")
       return typeof state.sendAs === "number"
         ? json(state.sendAs, { error: { code: state.sendAs, message: "Insufficient Permission", errors: [{ reason: "insufficientPermissions" }] } })
@@ -163,6 +180,10 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     const req: FakeRequest = { method: init?.method ?? "GET", url, body };
     requests.push(req);
     if (url.href === TOKEN_URL && req.method === "POST") return Promise.resolve(token(new URLSearchParams(body)));
+    if (url.href === USERINFO_URL) {
+      const bearer = new Headers(init?.headers).get("authorization")?.replace(/^Bearer /, "") ?? "";
+      return Promise.resolve(access.has(bearer) ? json(200, { sub: "1", email: state.email, email_verified: true }) : json(401, { error: "invalid_token" }));
+    }
     if (url.href.startsWith(API)) {
       const headers = new Headers(init?.headers);
       return Promise.resolve(gmail(req, (headers.get("authorization") ?? "").replace(/^Bearer /, "")));
@@ -178,14 +199,18 @@ export function fakeGoogle(opts: { now: () => Date; email?: string }) {
     sentMail,
     modified,
     state,
-    /** The person approves on Google's page: a code bound to the URL's challenge, client and redirect. */
-    authorize(authUrl: string): { code: string; state: string } {
+    /**
+     * The person approves on Google's page: a code bound to the URL's challenge, client and redirect, granting every
+     * scope the URL asked for, or only `granted` when the person unticked some.
+     */
+    authorize(authUrl: string, granted?: readonly string[]): { code: string; state: string } {
       const u = new URL(authUrl);
       const code = `code-${++tokenSeq}`;
       codes.set(code, {
         challenge: u.searchParams.get("code_challenge") ?? "",
         client_id: u.searchParams.get("client_id") ?? "",
         redirect: u.searchParams.get("redirect_uri") ?? "",
+        scope: (granted ?? (u.searchParams.get("scope") ?? "").split(" ")).join(" "),
       });
       return { code, state: u.searchParams.get("state") ?? "" };
     },
