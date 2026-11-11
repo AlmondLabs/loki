@@ -246,7 +246,7 @@
   --loki-label-7: oklch(54% 0.15 350);
 }
 
-/* shadcn's names for loki's roles (plan 094). shadcn's components read these; each one is a loki token, so every
+/* shadcn's names for loki's roles (plan 096). shadcn's components read these; each one is a loki token, so every
    family, side and the phone follow without a second definition. They are declared on .loki-phone as well as :root
    because a custom property resolves where it is declared: on :root alone, the phone's own roles would never reach
    them. shadcn's "primary" is loki's affirmative fill (the one go button), "accent" its hover, "ring" the link blue.

@@ -11,7 +11,7 @@ const STATE: Record<TurnState, { words: (failed: number) => string; className: s
 };
 
 /**
- * One turn of the agent's (plan 094, U6, the Turns direction): a header with its name, how long it worked and where it
+ * One turn of the agent's (plan 096, U6, the Turns direction): a header with its name, how long it worked and where it
  * stands, then everything it did between two of your messages in the order it happened, its words, its stretches of
  * work, its events and the widgets it changed. The header is where a turn says it is working, waits on you or failed,
  * so that reads without opening anything.

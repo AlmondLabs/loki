@@ -1,5 +1,5 @@
 @import "tailwindcss";
-/* shadcn's overlay animations and its variants and utilities (data-open, shimmer, scroll-fade), plan 094. */
+/* shadcn's overlay animations and its variants and utilities (data-open, shimmer, scroll-fade), plan 096. */
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /* AI Elements' MessageResponse draws markdown with streamdown: its word fade-in, and the classes its blocks use. */
@@ -36,7 +36,7 @@
   --radius-loki: var(--loki-radius);
 }
 
-/* shadcn's utilities (plan 094): its colour names read the roles in tokens.css, and loki's scales get names of their
+/* shadcn's utilities (plan 096): its colour names read the roles in tokens.css, and loki's scales get names of their
    own so a component says text-body, not a size. Tailwind's defaults stay, because the agents' widgets are told
    Tailwind classes work and receive this stylesheet; loki's own source is held to these names by tokens.test.ts. */
 @theme inline {

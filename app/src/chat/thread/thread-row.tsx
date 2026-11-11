@@ -16,7 +16,7 @@ import { shownText } from "../transcript";
 const REMARK_PLUGINS = [remarkGfm];
 
 /**
- * One message in the new thread (plan 094), on AI Elements' Message, laid out as Turns: yours is a block across the
+ * One message in the new thread (plan 096), on AI Elements' Message, laid out as Turns: yours is a block across the
  * column, "You" and its time over your words; the agent's words are MessageResponse (streamdown, which fades words in
  * while a reply streams) inside its turn, whose header names it, with its copy button (as markdown, once a reply has
  * finished) and time under them. A queued message says so in its label line and offers its take-back. Memoised like

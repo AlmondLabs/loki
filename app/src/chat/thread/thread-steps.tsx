@@ -57,7 +57,7 @@ const ICON: Record<StepKind, LucideIcon> = {
 };
 
 /**
- * A stretch of the agent's work on AI Elements' ChainOfThought (plan 094): its header is the one line in the wording of
+ * A stretch of the agent's work on AI Elements' ChainOfThought (plan 096): its header is the one line in the wording of
  * shared/tool-steps.ts ("Worked 14 min · 3 commands, 11 tools · 1 failed"), with the failed step named under it while
  * closed; opened, a step per tool call with its mark, what it was done to and what it did, the running one active, a
  * failed one in the negative colour. A step opens its description, input and output under it. Past 8 steps the filters

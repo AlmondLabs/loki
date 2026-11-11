@@ -11,7 +11,7 @@ import { Thread } from "../app/src/chat/conversation.tsx";
 import { threadPreview } from "../app/src/chat/thread/preview.ts";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 
-// Plan 094, U5: the new thread on shadcn. Its reading order is a pure function (entries.ts); its pieces render without a
+// Plan 096, U5: the new thread on shadcn. Its reading order is a pure function (entries.ts); its pieces render without a
 // browser. Scrolling, following and anchoring are MessageScroller's and are checked by hand in the app.
 
 const NOW = Date.parse("2026-11-11T15:00:00Z");

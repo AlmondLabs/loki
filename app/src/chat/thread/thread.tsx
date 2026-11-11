@@ -28,7 +28,7 @@ import { ThreadTurn } from "./thread-turn";
 const EMPTY: TranscriptRow[] = [];
 
 /**
- * The thread on loki's new components (plan 094, U5): shadcn's MessageScroller follows the bottom while you are there,
+ * The thread on loki's new components (plan 096, U5): shadcn's MessageScroller follows the bottom while you are there,
  * holds what you read when something above changes height or older rows arrive, and offers the way back to the latest.
  * Around it, loki's own window: a long thread mounts its newest rows and reveals older ones as you near the top, then
  * asks the Mac for older pages; find mounts what it needs before it searches. Behind Preferences › Appearance › New

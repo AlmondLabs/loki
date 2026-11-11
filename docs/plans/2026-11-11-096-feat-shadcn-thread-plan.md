@@ -9,7 +9,7 @@ execution: code
 
 # shadcn foundation and the thread on it - Plan
 
-Plan 094 · first step of the component overhaul in `docs/research/2026-11-11-design-language.md`, on the choices in
+Plan 096 · first step of the component overhaul in `docs/research/2026-11-11-design-language.md`, on the choices in
 `docs/research/2026-11-11-shadcn-inventory.md` · replaces, for the desktop thread, the Slack anatomy of plans 012 and 013
 
 ---

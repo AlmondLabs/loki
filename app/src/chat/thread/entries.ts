@@ -4,7 +4,7 @@ import { isWorkRow, stepFailed, toolRuns, workDuration } from "../../shared/tool
 import type { WidgetMark } from "../transcript";
 
 /**
- * One thing the new thread draws (plan 094, U5), in reading order. Rows keep their thread-wide index; a stretch of work
+ * One thing the new thread draws (plan 096, U5), in reading order. Rows keep their thread-wide index; a stretch of work
  * is one entry for all its rows. Keys count past `above`, the rows an older page put in front since the thread opened,
  * so an entry keeps its key, its memo and its own state (a stretch left open) when a page arrives above it.
  */
@@ -118,7 +118,7 @@ export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event
 export type TurnState = "working" | "needs you" | "failed" | "done";
 
 /**
- * The thread as Turns draws it (plan 094, U6): your messages and the day and New markers stand alone; everything the
+ * The thread as Turns draws it (plan 096, U6): your messages and the day and New markers stand alone; everything the
  * agent did between them (its words, stretches of work, events, widget changes) is one turn, keyed by its first part
  * so it keeps its key as it grows.
  */

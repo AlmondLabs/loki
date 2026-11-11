@@ -525,7 +525,7 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
 });
 
 /**
- * shadcn on loki's tokens (plan 094, U2). shadcn's colour names are loki's roles under other names, declared once in
+ * shadcn on loki's tokens (plan 096, U2). shadcn's colour names are loki's roles under other names, declared once in
  * tokens.css; the pairs shadcn draws text on meet AA in every family and side; its stacking repeats LAYER. Tailwind's
  * default theme stays for the agents' widgets, so loki's own class strings are fenced here instead: no default palette
  * colour, no default text size, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.

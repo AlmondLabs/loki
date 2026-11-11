@@ -520,7 +520,7 @@ export interface ThreadHandle {
   reveal: (query: string) => void;
 }
 
-/** What a thread draws and how it reaches its host; today's thread and the new one take the same (plan 094, KTD7). */
+/** What a thread draws and how it reaches its host; today's thread and the new one take the same (plan 096, KTD7). */
 export interface ThreadProps {
   rows: TranscriptRow[] | undefined;
   status?: ChatStatus;
