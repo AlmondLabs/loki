@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { AccountStatus } from "../core/frame-types.ts";
 import { JiraClient, JiraError } from "../mod/jira.ts";
 import type { JiraEvent, JiraEventPage, JiraSecret, JiraTicket } from "../mod/jira.ts";
-import { JIRA_ADA, JIRA_BOB, JIRA_ME, fakeJira } from "./fixtures/jira.ts";
+import { JIRA_ADA, JIRA_BOB, JIRA_MEDIA_HOST, JIRA_ME, JIRA_THUMBNAIL_BYTES, fakeJira } from "./fixtures/jira.ts";
 
 const T0 = Date.parse("2026-11-10T10:00:00.000Z");
 const at = (iso: string) => new Date(iso);
@@ -407,11 +407,127 @@ describe("the person's comment", () => {
   });
 });
 
+describe("a ticket's files (plan 093)", () => {
+  const SHOT = { id: "10001", filename: "shot.png", mime_type: "image/png", size: 48_000 };
+  const REPORT = { id: "10002", filename: "report.pdf", mime_type: "application/pdf", size: 120_500 };
+  const basic = `Basic ${Buffer.from("mina@example.com:fixture-jira-token").toString("base64")}`;
+
+  test("the attachment list gives each file's id, name, type and size, read from the issue's attachment field", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT, REPORT] });
+    expect(await c.attachments("OPS-1")).toEqual([
+      { id: "10001", filename: "shot.png", mime_type: "image/png", size: 48_000 },
+      { id: "10002", filename: "report.pdf", mime_type: "application/pdf", size: 120_500 },
+    ]);
+    expect(jira.requests.map((r) => [r.url.pathname, r.url.searchParams.get("fields"), r.authorization])).toEqual([
+      ["/rest/api/3/issue/OPS-1", "attachment", basic],
+    ]);
+  });
+
+  test("a ticket without files gives an empty list", async () => {
+    const { c, jira } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    expect(await c.attachments("OPS-1")).toEqual([]);
+  });
+
+  test("an entry without an id or a name is skipped", async () => {
+    const { jira, statuses } = setup();
+    const c = new JiraClient({
+      secret: () => Promise.resolve({ site: jira.host, email: jira.state.email, token: "fixture-jira-token" }),
+      setStatus: (s) => statuses.push(s),
+      fetch: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: "1",
+              key: "OPS-1",
+              fields: {
+                attachment: [null, "shot.png", { filename: "no-id.png" }, { id: "7" }, { id: "8", filename: "notes.txt", mimeType: "text/plain", size: 12 }],
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        ),
+    });
+    expect(await c.attachments("OPS-1")).toEqual([{ id: "8", filename: "notes.txt", mime_type: "text/plain", size: 12 }]);
+  });
+
+  test("a thumbnail is the picture's bytes and type, asked of the site with redirect=false, basic auth and no redirect followed", async () => {
+    const { c, jira, statuses } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT] });
+    expect(await c.thumbnail("10001")).toEqual({ data: JIRA_THUMBNAIL_BYTES, type: "image/png" });
+    expect(jira.requests.map((r) => [r.method, r.url.href, r.authorization, r.redirect])).toEqual([
+      ["GET", "https://acme.atlassian.net/rest/api/3/attachment/thumbnail/10001?redirect=false", basic, "manual"],
+    ]);
+    expect(statuses).toEqual([]);
+  });
+
+  test("a thumbnail answered with a redirect gives none, and nothing is asked of the redirect's host", async () => {
+    const { c, jira, statuses } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT] });
+    jira.state.thumbnail = "redirect";
+    expect(await c.thumbnail("10001")).toBeNull();
+    expect(jira.requests.map((r) => r.url.host)).toEqual(["acme.atlassian.net"]);
+    expect(jira.requests.some((r) => r.url.host === JIRA_MEDIA_HOST)).toBe(false);
+    expect(statuses).toEqual([]);
+  });
+
+  test("a refused thumbnail gives none and the account stays connected", async () => {
+    const { c, jira, statuses } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT] });
+    jira.state.thumbnail = "unauthorized";
+    expect(await c.thumbnail("10001")).toBeNull();
+    jira.state.thumbnail = "image";
+    jira.state.unauthorized = true;
+    expect(await c.thumbnail("10001")).toBeNull();
+    expect(statuses).toEqual([]);
+  });
+
+  test("an answer that is not a picture, or is over 1 MB, gives none", async () => {
+    const { c, jira, statuses } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT] });
+    jira.state.thumbnail = "not_image";
+    expect(await c.thumbnail("10001")).toBeNull();
+    jira.state.thumbnail = "oversize";
+    expect(await c.thumbnail("10001")).toBeNull();
+    expect(statuses).toEqual([]);
+  });
+
+  test("while the site asks for a wait no thumbnail is asked, and a thumbnail's own 429 holds every call", async () => {
+    const { c, jira, statuses, clock } = setup();
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [SHOT] });
+    jira.state.retry_after = 30;
+    expect((await refusal(c.myself())).code).toBe("rate_limited");
+    jira.state.retry_after = null;
+    expect(await c.thumbnail("10001")).toBeNull();
+    expect(jira.requests).toHaveLength(1);
+
+    clock.t = T0 + 30_000;
+    jira.state.retry_after = 30;
+    expect(await c.thumbnail("10001")).toBeNull();
+    jira.state.retry_after = null;
+    expect((await refusal(c.myself())).code).toBe("rate_limited");
+    expect(jira.requests).toHaveLength(2);
+    expect(statuses).toEqual([]);
+  });
+
+  test("a thumbnail whose request fails gives none", async () => {
+    const { jira, statuses } = setup();
+    const c = new JiraClient({
+      secret: () => Promise.resolve({ site: jira.host, email: jira.state.email, token: "fixture-jira-token" }),
+      setStatus: (s) => statuses.push(s),
+      fetch: () => Promise.reject(new TypeError("fetch failed")),
+    });
+    expect(await c.thumbnail("10001")).toBeNull();
+    expect(statuses).toEqual([]);
+  });
+});
+
 /** Names that would change something in Jira: the client may have none but the comment. */
 const WRITES = /post|send|add|create|update|edit|delete|remove|assign|transition|watch(?!ed)|set|put|move|mark/i;
 
 /** The client's own helpers, which make no request of their own choosing. */
-const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited"];
+const PRIVATE = ["now", "sprintField", "call", "request", "page", "rejected", "rateLimited", "hold"];
 
 describe("the only thing the client writes is the person's comment", () => {
   test("postComment is the only client method whose name suggests writing", () => {
@@ -422,7 +538,7 @@ describe("the only thing the client writes is the person's comment", () => {
 
   test("every other call is a GET, and the comment is the one request that is not", async () => {
     const { c, jira } = setup();
-    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys" });
+    jira.addTicket({ key: "OPS-1", summary: "Rotate the keys", attachments: [{ id: "10001", filename: "shot.png", mime_type: "image/png", size: 10 }] });
     await c.myself();
     await c.serverInfo();
     await c.searchWatched({ sinceMinutes: 10 });
@@ -430,13 +546,18 @@ describe("the only thing the client writes is the person's comment", () => {
     await c.history("OPS-1");
     await c.ticket("OPS-1");
     await c.issue("OPS-1");
+    await c.attachments("OPS-1");
+    await c.thumbnail("10001");
     expect(jira.writes()).toEqual([]);
     await c.postComment("OPS-1", "hello");
     expect(jira.writes().map((r) => [r.method, r.url.pathname])).toEqual([["POST", "/rest/api/3/issue/OPS-1/comment"]]);
     const called = Object.getOwnPropertyNames(JiraClient.prototype).filter((n) => !["constructor", "postComment"].includes(n));
     // Every public method was exercised above; a new one must be added here, where its requests are checked.
     expect(
-      called.filter((n) => !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue"].includes(n) && !PRIVATE.includes(n)),
+      called.filter(
+        (n) =>
+          !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue", "attachments", "thumbnail"].includes(n) && !PRIVATE.includes(n),
+      ),
     ).toEqual([]);
   });
 });

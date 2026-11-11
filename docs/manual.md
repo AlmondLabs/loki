@@ -1121,6 +1121,10 @@ ticket in your browser. Under the header, in order:
    Mac the comments look like a Slack card's messages: each author's Jira picture and name over a run of their
    comments, the time beside the name and Slack's day pills, Jira's formatting (bold, lists, quotes, code, links by
    their words), mentions as pills, and a comment that mentions you on Slack's mention wash; there are no reactions.
+   A comment's **files** show under it as chips with their kind and size, and a picture as itself, as on a Slack card;
+   press one to open it on your Jira site, where your own Jira sign-in reaches it. The Mac that holds the account fetches
+   a picture's small copy once and keeps it with your chats' pictures. A file loki cannot match to one of the ticket's
+   attachments by its name opens the ticket instead. On the phone, and in a hand-off, a file reads as `file: <name>`.
 
 The phone shows the same parts in the same order, in sentence case and with no tag, as no card there has one. When the
 Jira site lives on a paired Mac still on an older loki, or an app on an older loki shows a card from this Mac, the card

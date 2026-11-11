@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts } from "../mod/accounts.ts";
@@ -272,11 +272,15 @@ describe("reading a card's whole thread", () => {
     expect(read.window).toEqual(WINDOW);
     expect(read.messages[0]).toMatchObject({ brought: true, unread: true, new_replies: 3 });
   });
-  /** What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it mentions the person. */
+  /**
+   * What a Jira comment carries for the card to draw it as Slack's (plan 091): a picture, its blocks, and that it
+   * mentions the person; and its files as chips (plan 093).
+   */
   const DRAWN = {
     avatar: "https://avatar-management.example/ada/48",
     body: [{ kind: "text" as const, spans: [{ kind: "mention" as const, text: "@Mina Example" }] }],
     mentions_me: true,
+    slack_files: [{ name: "shot.png", kind: "PNG", size: 48_000, link: "https://acme.atlassian.net/rest/api/3/attachment/content/10042" }],
   };
   test("a Jira card reads its window with the record's key, and the ticket's address and the ticket come back with it (KTD14, R14, plan 089, 091)", async () => {
     const viewed: CardFacts[] = [];
@@ -1331,5 +1335,51 @@ describe("Flow's agent lanes file outside cards under their owner", () => {
     expect(ownerAgentOf(card)).toBe("agent-work");
     expect(agentLanes([chat, card]).map((l) => [l.agent_id, l.name, l.count])).toEqual([["agent-work", "friday", 2]]);
     expect(agentLanes([card]).map((l) => l.name)).toEqual(["friday"]);
+  });
+});
+
+describe("a Jira card's files say jira where Slack's say Slack (plan 093, U5)", () => {
+  const comment = (files: OutsideMessage["slack_files"]): OutsideMessage => ({
+    id: "c1",
+    sender: "Ada Lovelace",
+    at: "2026-11-10T09:00:00.000Z",
+    text: "See attached",
+    mine: false,
+    slack_files: files,
+  });
+  const draw = (m: OutsideMessage) => renderToStaticMarkup(createElement(OutsideThread, { facts: JIRA_FACTS, state: { kind: "read", messages: [m] } }));
+
+  test("a comment's PDF is a chip with its kind and size that opens in jira", () => {
+    const html = draw(comment([{ name: "report.pdf", kind: "PDF", size: 2048, link: "https://acme.atlassian.net/rest/api/3/attachment/content/1" }]));
+    expect(html).toContain('title="open report.pdf in jira"');
+    expect(html).toContain("PDF · 2.0 KB");
+    expect(html).not.toContain("in Slack");
+  });
+  test("a file with no link names jira as the place to open it", () => {
+    const html = draw(comment([{ name: "notes.txt", kind: "Text", size: 10, link: null }]));
+    expect(html).toContain('title="notes.txt: open it from jira"');
+    expect(html).not.toContain("Slack");
+  });
+  test("a picture draws as itself with its name, and pressing it opens it in jira", () => {
+    // The picture's address is the mod's, as a browser tab finds it.
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("location", { origin: "http://127.0.0.1:5173" });
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    const html = draw(
+      comment([
+        {
+          name: "shot.png",
+          kind: "PNG",
+          size: 4096,
+          link: "https://acme.atlassian.net/rest/api/3/attachment/content/2",
+          preview: { name: `${"b".repeat(32)}.png`, width: 360, height: 200 },
+        },
+      ]),
+    );
+    vi.unstubAllGlobals();
+    expect(html).toContain(`/chat-images/${"b".repeat(32)}.png`);
+    expect(html).toContain("<figcaption>shot.png</figcaption>");
+    expect(html).toContain('title="open shot.png in jira"');
+    expect(html).not.toContain("in Slack");
   });
 });

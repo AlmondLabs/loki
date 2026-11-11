@@ -175,14 +175,14 @@ export function previewSize(p: { width: number; height: number }): { width: numb
   return { width: Math.round(p.width * scale), height: Math.round(p.height * scale) };
 }
 
-/** A shared picture drawn as itself, its name under it; pressing it opens it in Slack. */
-function SlackPreview({ f, preview }: { f: SlackFile; preview: NonNullable<SlackFile["preview"]> }) {
+/** A shared picture drawn as itself, its name under it; pressing it opens it where it came from, named by `where`. */
+function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullable<SlackFile["preview"]>; where: string }) {
   const link = f.link;
   const picture = <img src={chatImageUrl(preview.name)} alt={f.name} loading="lazy" {...previewSize(preview)} />;
   return (
     <figure className="loki-slack-preview">
       {link ? (
-        <button type="button" title={`open ${f.name} in Slack`} onClick={() => openExternal(link)}>
+        <button type="button" title={`open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
           {picture}
         </button>
       ) : (
@@ -196,8 +196,9 @@ function SlackPreview({ f, preview }: { f: SlackFile; preview: NonNullable<Slack
 /**
  * The files shared in a message as chips (plan 080), by name, kind and size, and a picture as itself when its account's
  * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
+ * A Jira comment's files ride the same shape (plan 093), so `where` names the place they open: "Slack", or "jira" on a Jira card.
  */
-function SlackFiles({ files }: { files: readonly SlackFile[] }) {
+function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
   return (
     <div className="loki-slack-files">
       {keyed(files, () => 1).map(([key, f]) => {
@@ -207,7 +208,7 @@ function SlackFiles({ files }: { files: readonly SlackFile[] }) {
               <span style={{ color: "var(--loki-muted)" }}>{f.gone === "deleted" ? "file deleted" : "file hidden by the workspace's plan"}</span>
             </Chip>
           );
-        if (f.preview) return <SlackPreview key={key} f={f} preview={f.preview} />;
+        if (f.preview) return <SlackPreview key={key} f={f} preview={f.preview} where={where} />;
         const facts = fileFacts(f);
         const words = (
           <>
@@ -217,12 +218,12 @@ function SlackFiles({ files }: { files: readonly SlackFile[] }) {
         const link = f.link;
         if (!link)
           return (
-            <Chip key={key} static title={`${f.name}: open it from Slack`}>
+            <Chip key={key} static title={`${f.name}: open it from ${where}`}>
               {words}
             </Chip>
           );
         return (
-          <Chip key={key} title={`open ${f.name} in Slack`} onClick={() => openExternal(link)}>
+          <Chip key={key} title={`open ${f.name} in ${where}`} onClick={() => openExternal(link)}>
             {words}
           </Chip>
         );
@@ -375,7 +376,7 @@ function SlackRow({
             ))}
           </div>
         )}
-        {m.slack_files && <SlackFiles files={m.slack_files} />}
+        {m.slack_files && <SlackFiles files={m.slack_files} where={jira ? "jira" : "Slack"} />}
         {!jira && <Reactions reactions={m.reactions ?? []} onToggle={reacting?.toggle} />}
         {reacting?.picker}
         {!jira && <SlackReplies m={m} onOpen={onOpen} />}

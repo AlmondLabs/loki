@@ -1,7 +1,8 @@
 /**
  * A stand-in for one Jira Cloud site, driven through an injected fetch (plan 2026-11-10-1451, U2). It keeps tickets, who
  * watches each, their fields and description (plan 089), their comments and their history, a list of fields with a
- * Sprint custom field unless `state.has_sprints` is off, and the one email and API token it accepts. Every request is
+ * Sprint custom field unless `state.has_sprints` is off, and the one email and API token it accepts. Tickets may
+ * carry attachments, listed under the issue's `attachment` field and served as thumbnails (plan 093). Every request is
  * recorded, so a test can say which endpoints were reached and with what, and every comment posted is kept in `posted`.
  * Switches in `state` make it answer as Jira does when the token is refused or the site asks for a wait.
  */
@@ -14,13 +15,32 @@ export interface FakeJiraPerson {
   avatar?: string;
 }
 
-/** A request the fake received: its method, URL, body as text and authorization header. */
+/** A request the fake received: its method, URL, body as text, authorization header and redirect mode. */
 export interface FakeJiraRequest {
   method: string;
   url: URL;
   body: string;
   authorization: string;
+  /** The fetch's `redirect` option, `follow` when it was left out, as fetch's own default. */
+  redirect: RequestRedirect;
 }
+
+/** A file attached to a ticket on the fake site; its thumbnail is `thumbnail`, or a few made-up PNG bytes when left out. */
+export interface FakeJiraAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  thumbnail?: Buffer;
+}
+
+/** How the fake's thumbnail route answers: as Jira does with `redirect=false`, or one of the ways it may refuse. */
+export type FakeJiraThumbnailAnswer = "image" | "redirect" | "unauthorized" | "not_image" | "oversize";
+
+/** Where a redirected thumbnail points, a media host apart from the site, as Jira's own redirect does. */
+export const JIRA_MEDIA_HOST = "api.media.atlassian.com";
+/** The bytes a thumbnail answers with unless its attachment names its own. */
+export const JIRA_THUMBNAIL_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** When something happened: a Date, or the text Jira would give (`2026-11-10T19:35:27.259+0530`), served as written. */
 export type FakeJiraTime = Date | string;
@@ -65,6 +85,8 @@ export interface FakeJiraFields {
   sprints: FakeJiraSprint[];
   /** The description as plain text, served as a document of one paragraph per line; null for none. */
   description: string | null;
+  /** The files attached to the ticket, served under the `attachment` field. */
+  attachments: FakeJiraAttachment[];
 }
 
 /** The id the fake site gives its sprint field, as a real site gives a custom field. */
@@ -108,7 +130,17 @@ const lines = (text: string) => ({
   type: "doc",
   content: text.split("\n").map((t) => ({ type: "paragraph", content: [{ type: "text", text: t }] })),
 });
-const NO_FIELDS: FakeJiraFields = { type: null, project: null, status: null, reporter: null, priority: null, labels: [], sprints: [], description: null };
+const NO_FIELDS: FakeJiraFields = {
+  type: null,
+  project: null,
+  status: null,
+  reporter: null,
+  priority: null,
+  labels: [],
+  sprints: [],
+  description: null,
+  attachments: [],
+};
 
 /** One Jira Cloud site with one signed-in person, on the test's clock. */
 export function fakeJira(opts: { now: () => Date; host?: string; email?: string; token?: string; me?: FakeJiraPerson }) {
@@ -138,6 +170,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     has_sprints: true,
     /** One read that fails with this status: a ticket's fields (`issue`) or the site's list of fields (`field`); null for none. */
     broken: null as { read: "issue" | "field"; status: number } | null,
+    /** How the thumbnail route answers; a request without `redirect=false` is redirected whatever this says, as Jira does. */
+    thumbnail: "image" as FakeJiraThumbnailAnswer,
   };
   let ticketSeq = 10000;
   let commentSeq = 30000;
@@ -235,6 +269,17 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
         priority: named(ticket.priority),
         labels: ticket.labels,
         description: ticket.description === null ? null : lines(ticket.description),
+        attachment: ticket.attachments.map((a) => ({
+          self: `https://${host}/rest/api/3/attachment/${a.id}`,
+          id: a.id,
+          filename: a.filename,
+          author: person(me),
+          created: stamp(ticket.created),
+          size: a.size,
+          mimeType: a.mime_type,
+          content: `https://${host}/rest/api/3/attachment/content/${a.id}`,
+          ...(a.mime_type.startsWith("image/") ? { thumbnail: `https://${host}/rest/api/3/attachment/thumbnail/${a.id}` } : {}),
+        })),
         ...(state.has_sprints
           ? { [JIRA_SPRINT_FIELD]: ticket.sprints.length ? ticket.sprints.map((s, i) => ({ id: i + 1, name: s.name, state: s.state, boardId: 1 })) : null }
           : {}),
@@ -252,6 +297,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
           ...(state.has_sprints ? [{ id: JIRA_SPRINT_FIELD, name: "Sprint", custom: true }] : []),
         ])
       );
+    const thumb = /^\/rest\/api\/3\/attachment\/thumbnail\/([^/]+)$/.exec(path);
+    if (thumb && req.method === "GET") return thumbnail(decodeURIComponent(thumb[1]), q);
     const issue = /^\/rest\/api\/3\/issue\/([^/]+)\/(comment|changelog)$/.exec(path);
     if (issue) {
       const ticket = find(decodeURIComponent(issue[1]));
@@ -276,6 +323,18 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return json(404, { errorMessages: ["Not Found"] });
   };
 
+  /** A thumbnail's answer: Jira redirects to its media host, token in the address, unless asked with `redirect=false`. */
+  const thumbnail = (id: string, q: URLSearchParams): Response => {
+    const file = tickets.flatMap((t) => (t.hidden ? [] : t.attachments)).find((a) => a.id === id);
+    if (!file) return json(404, { errorMessages: ["The attachment does not exist."] });
+    if (state.thumbnail === "redirect" || q.get("redirect") !== "false")
+      return new Response(null, { status: 303, headers: { location: `https://${JIRA_MEDIA_HOST}/file/${id}/image?token=media-token` } });
+    if (state.thumbnail === "unauthorized") return new Response("Client must be authenticated to access this resource.", { status: 401 });
+    if (state.thumbnail === "not_image") return new Response("<html>a page</html>", { status: 200, headers: { "content-type": "text/html;charset=UTF-8" } });
+    const bytes = state.thumbnail === "oversize" ? Buffer.alloc(1_000_001) : (file.thumbnail ?? JIRA_THUMBNAIL_BYTES);
+    return new Response(new Uint8Array(bytes), { status: 200, headers: { "content-type": "image/png" } });
+  };
+
   function store(ticket: StoredTicket, at: FakeJiraTime, author: FakeJiraPerson, body: unknown, id?: string): StoredComment {
     const comment = { id: id ?? String(++commentSeq), author, created: written(at), ms: instant(at), body };
     ticket.comments.push(comment);
@@ -283,6 +342,8 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
     return comment;
   }
 
+  // A redirect is followed, as fetch follows one, unless the caller asked for `manual` or `error`, so a test sees any
+  // request that would have reached another host.
   const fetchFn = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const req: FakeJiraRequest = {
@@ -290,10 +351,14 @@ export function fakeJira(opts: { now: () => Date; host?: string; email?: string;
       url,
       body: typeof init?.body === "string" ? init.body : "",
       authorization: new Headers(init?.headers).get("authorization") ?? "",
+      redirect: init?.redirect ?? "follow",
     };
     requests.push(req);
     const here = url.protocol === "https:" && (url.host === host || (state.display_url !== null && url.origin === state.display_url));
-    return Promise.resolve(here ? site(req) : json(404, {}));
+    const res = here ? site(req) : json(404, {});
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location && req.redirect === "follow") return fetchFn(location, { ...init, method: "GET", body: undefined });
+    return Promise.resolve(res);
   };
 
   return {
