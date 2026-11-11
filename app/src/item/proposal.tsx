@@ -1,0 +1,223 @@
+import { useState, type KeyboardEvent, type ReactNode } from "react";
+import type { PendingApproval } from "../../../core/attention/model.ts";
+import { offersAlways } from "../../../core/attention/model.ts";
+import { formatInput } from "../../../core/attention/format.ts";
+import type { ReplyProposal } from "../../../core/frame-types.ts";
+import type { ReplyAction } from "../../../core/frames.ts";
+import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
+import { messageOf } from "../../../core/errors.ts";
+import { Button } from "@/ui/button";
+import { Kbd } from "@/ui/kbd";
+import { Textarea } from "@/ui/textarea";
+import { Confirmation, ConfirmationActions, ConfirmationRequest } from "@/ui/ai-elements/confirmation";
+import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
+import { Tool, ToolContent, ToolHeader, ToolInput } from "@/ui/ai-elements/tool";
+import { cn } from "cn";
+import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+
+/*
+ * Proposal (plan 097, R9): anything the agent asks the person to decide, drawn in one frame whatever its kind. The
+ * frame names the kind and where it applies, then shows what is proposed, then buttons that say what yes does. The
+ * kinds: an approval (a tool call paused for the person), a question, a reply for an outside thread, and quick replies.
+ * loki's Suggestion (a message for another chat) keeps its chip in the message box for now; AI Elements' Suggestion is
+ * imported as SuggestionChip, so the two words never meet in this file (KTD4).
+ */
+
+/** What kind of decision a Proposal holds, which names it and sets its tone. */
+export type ProposalKind = "approval" | "question" | "reply";
+
+/** The frame every Proposal shares: its kind and where it applies, what is proposed, and the answers. */
+export function ProposalFrame({ kind, where, children, className }: { kind: ProposalKind; where?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section
+      data-proposal={kind}
+      aria-label={kind === "approval" ? "needs your approval" : kind === "question" ? "a question for you" : "a reply waiting for you"}
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border bg-card p-3 text-body",
+        kind === "approval" && "border-loki-attention bg-loki-attention/5",
+        kind === "reply" && "border-dashed border-ring",
+        className,
+      )}
+    >
+      <header className="flex min-w-0 items-baseline gap-2 text-meta">
+        <span className={cn("font-semibold", kind === "approval" ? "text-loki-attention" : "text-ring")}>{kind}</span>
+        {where && <span className="min-w-0 truncate text-muted-foreground">{where}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** A button's key shown beside its words, as Flow's keys are. */
+const keyOf = (key: string | undefined) => (key ? <Kbd className="ml-1">{key}</Kbd> : null);
+
+/**
+ * The tool call the agent is paused on (KTD6): AI Elements' Tool in its "awaiting approval" state with Confirmation
+ * inside, its input, then approve, always allow (where the tool may be allowed for good) and deny. Flow's A and D are
+ * shown on the buttons when the host gives them.
+ */
+export function ApprovalProposal({
+  approval,
+  onApprove,
+  hints,
+}: {
+  approval: PendingApproval;
+  onApprove: (behavior: "allow" | "deny" | "always") => void;
+  hints?: { approve?: string; deny?: string };
+}) {
+  return (
+    <ProposalFrame kind="approval" where="the agent is paused on this step">
+      <Tool open className="mb-0 bg-background">
+        <ToolHeader chevron={false} title={approval.toolName} type={`tool-${approval.toolName}`} state="approval-requested" />
+        <ToolContent>
+          <ToolInput input={formatInput(approval.input)} />
+        </ToolContent>
+      </Tool>
+      <Confirmation approval={{ id: approval.requestId }} state="approval-requested" className="border-0 bg-transparent p-0">
+        <ConfirmationRequest>
+          <ConfirmationActions className="self-start">
+            <Button size="sm" onClick={() => onApprove("allow")} data-action="approve">
+              approve{keyOf(hints?.approve)}
+            </Button>
+            {offersAlways(approval) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onApprove("always")}
+                title="allow this tool from now on, in every chat (Preferences › Chat takes it back)"
+                data-action="always"
+              >
+                always allow
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => onApprove("deny")} data-action="deny">
+              deny{keyOf(hints?.deny)}
+            </Button>
+          </ConfirmationActions>
+        </ConfirmationRequest>
+      </Confirmation>
+    </ProposalFrame>
+  );
+}
+
+/** A question the agent asked, or a chat link it asks for: today's card for its answers, inside the Proposal frame. */
+export function QuestionProposal({ children, where }: { children: ReactNode; where?: string }) {
+  return (
+    <ProposalFrame kind="question" where={where}>
+      {children}
+    </ProposalFrame>
+  );
+}
+
+/**
+ * The replies the agent proposed from this chat for outside threads (plan 067), each a Proposal: where it goes, its
+ * text, approve (loki writes it as a draft there, or for Jira puts it in the ticket's comment box) and reject. The text
+ * is edited in place until the Composer can take a reply's target (plan 097, R10, U7).
+ */
+export function ReplyProposals({ source, rt, blocked = null }: Omit<ReplyProposalsProps, "touch">) {
+  const decide = source.replies?.decide;
+  const proposals = source.conversation?.(rt.agent_id, rt.conversation_id).replyProposals ?? [];
+  if (!decide || proposals.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {proposals.map((p) => (
+        <ReplyProposalView key={p.id} proposal={p} blocked={blocked} onDecide={(action, opts) => decide(rt, p.id, action, opts)} />
+      ))}
+    </div>
+  );
+}
+
+/** One reply proposal: a quiet quote of its text until edit opens it, then approve or reject; a refusal says why. */
+export function ReplyProposalView({
+  proposal: p,
+  blocked,
+  onDecide,
+}: {
+  proposal: ReplyProposal;
+  blocked: string | null;
+  onDecide: (action: ReplyAction, opts: { text?: string | null; replace?: boolean }) => Promise<ReplyOutcome>;
+}) {
+  const [text, setText] = useState(p.text);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [refused, setRefused] = useState<{ message: string | null; replace: boolean } | null>(null);
+  const drafting = p.status === "drafting";
+  const off = busy || drafting || !!blocked;
+  const words = REPLY_WORDS[p.provider];
+  const act = async (action: "approve" | "reject") => {
+    setBusy(true);
+    try {
+      const out = await onDecide(action, action === "approve" ? { text: text === p.text ? null : text, replace: refused?.replace === true } : {});
+      setRefused(out.done ? null : { message: out.message, replace: out.replace });
+    } catch (err: unknown) {
+      setRefused({ message: messageOf(err), replace: false });
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Flow's single keys are the deck's; inside the text they are the text's.
+  const keys = (e: KeyboardEvent) => e.stopPropagation();
+  const reason = refused?.message ?? p.reason;
+  return (
+    <ProposalFrame
+      kind="reply"
+      where={
+        <>
+          {p.subject || "a thread"} · {p.account_label} · {recipientsText(p)}
+        </>
+      }
+    >
+      <div data-reply={p.id} className="flex flex-col gap-2">
+        {editing ? (
+          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setText(e.target.value)} onKeyDown={keys} aria-label="reply text" />
+        ) : (
+          <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
+        )}
+        {drafting && (
+          <p role="status" className="m-0 text-meta text-muted-foreground">
+            {words.writing}
+          </p>
+        )}
+        {!drafting && reason && (
+          <p role="alert" className="m-0 text-meta text-destructive">
+            {reason}
+          </p>
+        )}
+        {blocked && <p className="m-0 text-meta text-muted-foreground">{blocked}</p>}
+        {!drafting && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={off || !text.trim()} onClick={() => void act("approve")} data-action="approve">
+              {refused?.replace ? "replace the draft" : "approve"}
+            </Button>
+            {!editing && (
+              <Button size="sm" variant="outline" disabled={off} onClick={() => setEditing(true)} data-action="edit">
+                edit
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" disabled={off} onClick={() => void act("reject")} data-action="reject">
+              reject
+            </Button>
+            <span className="text-meta text-muted-foreground">{words.after}</span>
+          </div>
+        )}
+      </div>
+    </ProposalFrame>
+  );
+}
+
+/**
+ * The agent's quick replies (plan 066) as AI Elements' Suggestion chips at the end of the thread: a press sends the
+ * option as the person's message; on the Mac each shows its key, 1 to 4, which sends it from an empty box.
+ */
+export function QuickReplyChips({ options, onPick }: { options: readonly string[]; onPick: (text: string) => void }) {
+  return (
+    <SuggestionChips role="group" aria-label="quick replies" className="py-1">
+      {options.map((option, i) => (
+        <SuggestionChip key={option} suggestion={option} onClick={onPick} title={`send "${option}"`} className="gap-1.5 px-3">
+          {option}
+          <Kbd>{String(i + 1)}</Kbd>
+        </SuggestionChip>
+      ))}
+    </SuggestionChips>
+  );
+}

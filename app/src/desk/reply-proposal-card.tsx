@@ -33,7 +33,7 @@ export interface ReplyProposalsProps {
 }
 
 /** What each service's card says of a reply, in desktop words: what it is, where approving puts it, and what is under way. */
-const WORDS: Record<ReplyProposal["provider"], { kicker: string; after: string; writing: string }> = {
+export const REPLY_WORDS: Record<ReplyProposal["provider"], { kicker: string; after: string; writing: string }> = {
   gmail: { kicker: "reply", after: "saved as a draft in Gmail; you send it from there", writing: "writing the draft in Gmail…" },
   slack: { kicker: "reply", after: "saved as a draft in Slack; you send it from there", writing: "writing the draft in Slack…" },
   jira: { kicker: "comment", after: "goes in the ticket's comment box in Flow; you post it from there", writing: "putting the comment on the card…" },
@@ -43,7 +43,7 @@ const WORDS: Record<ReplyProposal["provider"], { kicker: string; after: string; 
 const say = (touch: boolean, words: string) => (touch ? sentence(words) : words);
 
 /** Who a reply goes to, as its card says it: Gmail's people, Slack's place, or the Jira ticket. */
-function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" | "place">): string {
+export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" | "place">): string {
   switch (p.provider) {
     case "slack":
       return `in ${p.place ?? "that conversation"}`;
@@ -109,7 +109,7 @@ function ReplyProposalCard({
   return (
     <div className="loki-suggestion" data-reply={p.id} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent}>
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
-        <span className="loki-suggestion-kicker">{say(touch, WORDS[p.provider].kicker)}</span>
+        <span className="loki-suggestion-kicker">{say(touch, REPLY_WORDS[p.provider].kicker)}</span>
         <span className="loki-suggestion-title">
           {p.subject || "a thread"} · {p.account_label}
         </span>
@@ -127,7 +127,7 @@ function ReplyProposalCard({
         />
         {drafting && (
           <div className="loki-suggestion-note" role="status">
-            {say(touch, WORDS[p.provider].writing)}
+            {say(touch, REPLY_WORDS[p.provider].writing)}
           </div>
         )}
         {!drafting && reason && (
@@ -144,7 +144,7 @@ function ReplyProposalCard({
             <Button size={size} tone="negative" disabled={off} onClick={() => void act("reject")} data-action="reject">
               {say(touch, "reject")}
             </Button>
-            <Meta wrap>{say(touch, WORDS[p.provider].after)}</Meta>
+            <Meta wrap>{say(touch, REPLY_WORDS[p.provider].after)}</Meta>
           </div>
         )}
       </div>

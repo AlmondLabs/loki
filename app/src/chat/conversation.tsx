@@ -43,7 +43,8 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
-import { threadPreview } from "../item/preview";
+import { useThreadPreview } from "../item/preview";
+import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposals } from "../item/proposal";
 import { Timeline } from "../item/timeline";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
@@ -196,6 +197,9 @@ export function Conversation({
   // The box reads these fields, never `view` itself: `view` is new with every streamed piece (its rows), and the box
   // would be drawn again with each one (plan 032).
   const status = view.status;
+  // The new chat pane (plan 097, U5) draws what the agent asks of the person as Proposals; the phone keeps today's cards.
+  const [preview] = useThreadPreview();
+  const proposals = preview === "on" && !touch;
   const approval = view.approval ?? null;
   const question = view.question ?? null;
   // A link card (plan 067) comes as a question whose input is the link asked for.
@@ -249,7 +253,7 @@ export function Conversation({
   const hasModeMenu = !!actions.onPickMode && (!modes || modes.length > 0);
   const onApprove = approval ? actions.onApprove : undefined;
   const canApprove = !!onApprove;
-  const hasFooter = canApprove || !!footer;
+  const hasFooter = (canApprove && !proposals) || !!footer;
   const hasContent = !!draft.trim() || images.length > 0;
   // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
   const running = status !== "idle";
@@ -326,22 +330,46 @@ export function Conversation({
           loadStep={view.loadStep}
           home={view.home ?? null}
           layout={layout}
-          tail={composer && replies && <QuickReplies options={replies} onPick={sendReply} touch={touch} column={!!layout?.people} />}
+          tail={
+            composer &&
+            replies &&
+            (proposals ? (
+              <QuickReplyChips options={replies} onPick={sendReply} />
+            ) : (
+              <QuickReplies options={replies} onPick={sendReply} touch={touch} column={!!layout?.people} />
+            ))
+          }
           style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }}
         />
       </StepsTouch.Provider>
 
       {composer && (
         <>
-          {question &&
-            actions.onAnswer &&
-            (linkAsk ? (
-              <LinkCard requestId={question.requestId} ask={linkAsk} onAnswer={actions.onAnswer} touch={touch} />
-            ) : (
-              <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />
-            ))}
-          {approval && <ApprovalCard approval={approval} />}
-          {suggestions && <ReplyProposalCards source={suggestions.source} rt={suggestions.rt} blocked={suggestions.blocked ?? null} touch={touch} />}
+          {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
+          <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 empty:hidden" : "contents"}>
+            {question &&
+              actions.onAnswer &&
+              (() => {
+                const card = linkAsk ? (
+                  <LinkCard requestId={question.requestId} ask={linkAsk} onAnswer={actions.onAnswer} touch={touch} />
+                ) : (
+                  <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />
+                );
+                return proposals ? (
+                  <QuestionProposal where={linkAsk ? "a link to another chat" : `${agentName ?? "the agent"} asks`}>{card}</QuestionProposal>
+                ) : (
+                  card
+                );
+              })()}
+            {approval &&
+              (proposals && onApprove ? <ApprovalProposal approval={approval} onApprove={onApprove} hints={hints} /> : <ApprovalCard approval={approval} />)}
+            {suggestions &&
+              (proposals ? (
+                <ReplyProposals source={suggestions.source} rt={suggestions.rt} blocked={suggestions.blocked ?? null} />
+              ) : (
+                <ReplyProposalCards source={suggestions.source} rt={suggestions.rt} blocked={suggestions.blocked ?? null} touch={touch} />
+              ))}
+          </div>
           {notice}
 
           {/* The message box; a draft that starts with "/" opens the command palette above. */}
@@ -403,6 +431,7 @@ export function Conversation({
           {hasFooter && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
               {onApprove &&
+                !proposals &&
                 (() => {
                   const approve = (
                     <Button
@@ -550,7 +579,7 @@ export interface ThreadProps {
  * pane and the Flow card switch together; a host that passes `previewable={false}` keeps today's.
  */
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
-  const [preview] = threadPreview.use();
+  const [preview] = useThreadPreview();
   return preview === "on" && previewable ? <Timeline ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
 });
 

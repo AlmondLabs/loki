@@ -105,12 +105,18 @@ function ThreadBody({
       onCancelQueued={e.row.queued && onCancelQueued ? cancelQueued : undefined}
     />
   );
+  // The agent paused on the person (an approval or a question): its last call has not come back, and the chat reads
+  // idle while it waits, so the stretch is marked by that rather than by the status (plan 097, KTD6).
+  const paused = (stretch: TranscriptRow[]) => {
+    const tail = stretch.at(-1);
+    return waiting && tail?.role === "tool" && !tail.tool?.output;
+  };
   const part = (p: TurnPart) => {
     switch (p.kind) {
       case "widget":
         return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
-        return <Work rows={p.rows} running={p.running} arrived={p.arrived} />;
+        return <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} />;
       case "event":
         return <EventEntry row={p.row} arrived={p.arrived} />;
       case "message":

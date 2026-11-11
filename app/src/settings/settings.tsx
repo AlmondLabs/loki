@@ -36,7 +36,7 @@ import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
-import { threadPreview } from "../item/preview";
+import { useThreadPreview } from "../item/preview";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -264,7 +264,7 @@ export function Settings({
 /** Preferences › Appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
-  const [preview, setPreview] = threadPreview.use();
+  const [preview, setPreview] = useThreadPreview();
   return (
     <Block>
       <Setting

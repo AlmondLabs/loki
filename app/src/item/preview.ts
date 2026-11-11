@@ -10,3 +10,9 @@ export const threadPreview = createSessionValue<"on" | "off">(
   (raw) => (raw === "on" ? "on" : "off"),
   () => localStorage,
 );
+
+/**
+ * The preview's state and its setter, `[preview, setPreview]`, as a hook. Called through a `use…` name so the React
+ * Compiler knows it is one: `threadPreview.use()` read as a plain call, which it cached after the first render.
+ */
+export const useThreadPreview = threadPreview.use;

@@ -68,7 +68,7 @@ const ICON: Record<StepKind, LucideIcon> = {
  * appear; opened at a failure, they start on "failed".
  */
 export const Work = memo(
-  function Work({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived: boolean }) {
+  function Work({ rows: all, running, arrived, waiting = false }: { rows: TranscriptRow[]; running: boolean; arrived: boolean; waiting?: boolean }) {
     const rows = withoutSkillCalls(all);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
@@ -83,8 +83,8 @@ export const Work = memo(
     return (
       <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-1.5">
         <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
-          <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running ? "shimmer" : undefined}>
-            {workSummary(rows, running)}
+          <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
+            {waiting ? "Waiting on you" : workSummary(rows, running)}
           </ChainOfThoughtHeader>
           <ChainOfThoughtContent>
             {rows.length > FILTER_FROM && (
@@ -109,7 +109,14 @@ export const Work = memo(
               </ToggleGroup>
             )}
             {shown.map((k) => (
-              <Step key={k} row={rows[k]} active={running && k === rows.length - 1} open={at === k} onToggle={() => setAt(at === k ? null : k)} />
+              <Step
+                key={k}
+                row={rows[k]}
+                active={running && k === rows.length - 1}
+                waiting={waiting}
+                open={at === k}
+                onToggle={() => setAt(at === k ? null : k)}
+              />
             ))}
           </ChainOfThoughtContent>
         </ChainOfThought>
@@ -123,7 +130,8 @@ export const Work = memo(
     );
   },
   // The host slices a fresh array each render; the stretch is the same while its rows are.
-  (a, b) => a.running === b.running && a.arrived === b.arrived && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
+  (a, b) =>
+    a.running === b.running && a.arrived === b.arrived && a.waiting === b.waiting && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
 );
 
 /**
@@ -131,7 +139,7 @@ export const Work = memo(
  * a background task as AI Elements' Task, what it was asked and what it reported; any other step as Tool, its state, its
  * input and its output. Housekeeping reads quieter; the running step shimmers.
  */
-function Step({ row, active, open, onToggle }: { row: TranscriptRow; active: boolean; open: boolean; onToggle: () => void }) {
+function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; active: boolean; waiting: boolean; open: boolean; onToggle: () => void }) {
   const failed = stepFailed(row);
   const target = stepTarget(row);
   const verb = stepVerb(stepName(row));
@@ -142,7 +150,13 @@ function Step({ row, active, open, onToggle }: { row: TranscriptRow; active: boo
       className={failed ? "text-loki-negative" : undefined}
       label={
         <button type="button" aria-expanded={open} onClick={onToggle} className="cursor-pointer text-left hover:text-foreground">
-          {active ? (
+          {active && waiting ? (
+            // Paused on the person (KTD6): the step says so, and the Proposal above the box holds the answers.
+            <>
+              {target ?? verb}
+              <span className="text-loki-attention"> · waiting on you</span>
+            </>
+          ) : active ? (
             <Shimmer as="span">{target ?? verb}</Shimmer>
           ) : (
             <>
