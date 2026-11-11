@@ -166,8 +166,8 @@ whose threads addressed to the person (for Jira, the tickets they watch) become 
 integration, connector, source (a Source is where a thread's steps come from).
 
 **Owner** (`owner_agent_id` on an account): the one agent an account belongs to. It receives the account's hand-offs
-and is the only agent with its tools (`account_list`, `account_read`, `account_search`, `reply_propose`); moving the
-account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
+and is the only agent with its tools (`account_list`, `account_read`, `account_search`, `reply_propose`, and for a
+Google account the script-only `google_*` tools); moving the account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
 disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
@@ -199,8 +199,17 @@ Handoff above, which is a history page taking over tail rows. _Avoid_: forward, 
 **Reply proposal** (`mod/reply-proposals.ts`, plans 067 and 071): a reply the owner writes with `reply_propose` in any
 thread of its accounts, handed to its chat or found by search. It waits for the person, in the chat and as a card in Flow, in every permission mode; approved,
 perhaps edited, loki writes it as a draft in that thread in Gmail or Slack, and the person sends it from there. On a
-Jira ticket it is a comment, and approved it waits in the ticket card's comment box until the person sends it. loki
-never sends. _Avoid_: sent reply, outgoing message.
+Jira ticket it is a comment, and approved it waits in the ticket card's comment box until the person sends it. A reply
+proposal never sends; a script may send from a Google account (Script). _Avoid_: sent reply, outgoing message.
+
+**Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program an agent on loki's engine runs
+with its `codemode` tool, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
+scripts may call. It asks as a command does, never "always allow", and resumes after a restart. _Avoid_: code
+execution, exec.
+
+**Script-only tool** (`callers: ["tools"]` on a tool, `ModTool.callers`): a tool only scripts call, never offered to the
+model or to an ACP chat, grouped under a namespace the script section names (the `google_*` tools, in `google`). A
+script finds one with `searchTools()` and reads it with `describeTool()`. _Avoid_: hidden tool, internal tool.
 
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
 and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;

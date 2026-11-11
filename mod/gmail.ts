@@ -5,9 +5,11 @@ import { GoogleAuth, GoogleError } from "./google-auth.ts";
 
 /**
  * A thin Gmail client over fetch for one connected account (plan 067, U4, KTD4): read, list, history, labels and label changes,
- * create a draft, and send the person's own reply (plan 068). Agents never send (R18): no agent tool is given
- * `sendReply`, which only the reply frame the person's own devices send reaches (mod/outside-threads.ts). Tokens come from the account's keychain secret and are
- * refreshed there; a refresh Google refuses marks the account disconnected, so the Inbox can say how to reconnect (R22).
+ * create a draft, and send. `sendReply` is reached by the reply frame the person's own devices send
+ * (mod/outside-threads.ts) and by the scripts' Gmail tool (mod/google-tools/gmail.ts, plan 2026-11-11 scripts); no tool
+ * the model calls directly sends. Its calls go through the account's sign-in (mod/google-auth.ts), which refreshes the
+ * tokens in the keychain and marks the account disconnected when Google refuses them, so the Inbox can say how to
+ * reconnect (R22).
  */
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";

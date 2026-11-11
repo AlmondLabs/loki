@@ -159,27 +159,49 @@ on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
 
-## Accounts: Gmail, Slack and Jira
+## Scripts
+
+An agent on loki's own engine may run a short JavaScript program with its `codemode` tool (plan 2026-11-11 scripts,
+`daemon/scripts.ts`), when it owns a Google account on this Mac. The program runs in pi-durable's Code Mode: a QuickJS
+virtual machine on a worker thread, with no file, network or process access, no `fetch`, `require`, timers or
+modules. It reaches anything only by calling tools, and the `loki.scripts` extension hands it only the script-only
+tools and loki's file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`); `bash`, background runs, helpers and the
+rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well.
+
+- **Asking.** A script asks as a command does, in the chat's mode; "always allow" is never offered or kept for it. Its
+  own calls ask again only in strict mode. In unrestricted mode, the default, a script runs without asking, sends
+  included.
+- **Google tools.** The `google_*` tools (`mod/google-tools/`) act for the Google accounts the chat's agent owns on
+  this Mac, checked at every call: the owner, this Mac, connected, and the service granted. They read and change mail,
+  Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of
+  those five services on their own hosts, never a URL the script names. No tool returns a token. Files are read and
+  written only inside the chat's folder.
+- **Limits.** 10 minutes, a 64 MB memory cap and four scripts at once across every chat.
+
+
 
 The Inbox can show the mail, Slack threads and Jira tickets waiting for you (plan 067, plan 2026-11-10-1451). An account is connected in Preferences ›
-Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Agents never send.** loki sends
-one thing only: a reply you type yourself on an outside card (plan 068). That reply goes through the
-`account_thread_reply` frame, which only your own devices send, to `mod/outside-threads.ts`, the one caller of each
-client's send call (`GmailClient.sendReply`, `SlackClient.postReply`; a test checks there is no other). No agent tool
-is given those calls, so an agent's reply reaches Gmail or Slack only as a draft you approved, which you then send
-yourself.
+Accounts, belongs to one agent, its owner, and lives on the Mac that connected it. **Only you and the owner's scripts
+send.** Your own reply on an outside card (plan 068) goes through the `account_thread_reply` frame, which only your
+own devices send, to `mod/outside-threads.ts`. The owner's scripts may send mail and calendar invites from a Google
+account (plan 2026-11-11 scripts, see Scripts below), through `mod/google-tools/gmail.ts`. Those two are the only
+callers of each client's send call (`GmailClient.sendReply`, `SlackClient.postReply`; a test checks there is no
+other). No tool the model calls directly sends: a reply proposal reaches Gmail or Slack only as a draft you approved,
+and nothing an agent writes is posted to Slack or Jira.
 
-- **Gmail sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
+- **Google sign-in.** A loopback OAuth sign-in with PKCE, like an MCP server's: Google's page opens in your browser and
   comes back to `http://127.0.0.1:<port>/accounts/google/callback` on the loopback server only, which acts only on
   the one-time `state` of a sign-in loki started in the last 10 minutes (`mod/google-signin.ts`). loki asks for
-  `gmail.modify`, `openid` and `userinfo.email`. `gmail.modify` reads mail, changes labels, writes drafts and sends;
-  loki keeps agents from sending by giving no agent tool the send call in `mod/gmail.ts`, not by the scope.
-- **What loki changes in Gmail.** Only labels, and only on your move on a card (plan 070): read removes UNREAD,
+  `gmail.modify`, `drive`, `spreadsheets`, `documents`, `calendar`, `openid` and `userinfo.email`, keeps earlier
+  grants (`include_granted_scopes`), and records which you allowed. `drive` is Google's full Drive scope: a script can
+  read, change and delete any file in that Drive. Signing an account in again must come back as the same address and
+  with Gmail, or nothing is changed.
+- **What loki changes in Gmail on your moves.** Only labels, and only on your move on a card (plan 070): read removes UNREAD,
   later adds UNREAD to the thread's newest incoming message, archive and a hand-off remove INBOX and UNREAD, label
   adds a label of yours that you pick, and undo puts back exactly the labels the move changed. Each touches messages
   up to the card's newest only. loki lists the account's labels for the picker and never creates, renames or deletes
   one; nothing deletes or moves mail to the trash. A label move or an undo that names TRASH, SPAM, SENT, DRAFT or
-  CHAT leaves that label alone, whichever device sent it.
+  CHAT leaves that label alone, whichever device sent it. A script is not bound by this list (Scripts below).
 - **Whose Google app.** By default the shared Desktop client of loki's own Google Cloud project, whose id and secret
   ship in the source (`mod/google-app.ts`), as Google intends for a desktop client: they identify the app, not you, and
   grant nothing without your sign-in. You may use a Google app of your own instead; its id and secret are kept in the
@@ -211,8 +233,9 @@ yourself.
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
   comments. An agent's proposed comment, once you approve it, waits in the card's box for you to send.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
-  owner (`mod/handoff.ts`), or when the owning agent reads it with its account tools (`account_list`, `account_read`,
-  `account_search`), which only the owner's chats are offered and which check ownership on every call. Either way the
+  owner (`mod/handoff.ts`), when the owning agent reads it with its account tools (`account_list`, `account_read`,
+  `account_search`), which only the owner's chats are offered and which check ownership on every call, or when an
+  owner's script returns or prints what it read from Google. For the account tools and hand-offs the
   text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
   tags made inert. The Inbox card itself is drawn in the app and goes to no model.
 - **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts or forms and

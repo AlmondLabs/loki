@@ -17,7 +17,8 @@ import { fenceThread, inert, type ThreadMessage } from "./handoff.ts";
  * names is the calling agent's, so a chat opened before the account moved, or a call naming another agent's account,
  * is refused (R17, AE6). Mail, Slack and Jira text is a stranger's writing, so it reaches the model fenced as content
  * from its sender (KTD8), and the list holds only what a card shows, never message bodies (R23). All three only read;
- * a Jira site is read with its client's reading calls alone (plan 2026-11-10-1451, U8, R24).
+ * a Jira site is read with its client's reading calls alone (plan 2026-11-10-1451, U8, R24). A Google account's owner
+ * can also change and send through scripts, with the script-only tools in mod/google-tools/.
  */
 
 /** What account_read and account_search need of a Gmail mailbox's client. */

@@ -105,7 +105,8 @@ every chat gets, the chats, then the mods.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
    the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
-   crash never asks twice. `user_ask` shows a question card the same way.
+   crash never asks twice. `user_ask` shows a question card the same way. A script's own calls ask only in strict
+   mode, and a call of a tool scripts may not call is blocked in every mode.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
    (`daemon/tools.ts`, which shrinks an image to the size of a pasted one before the model gets it,
    `daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
@@ -127,7 +128,14 @@ every chat gets, the chats, then the mods.
 7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
    with the parent's model, tools and folder; it asks under the parent chat's permission mode as that mode is at each
    call. Aborting the call aborts the helper. Helpers are not
-   agent records, so they never appear in the Agents list.
+   agent records, so they never appear in the Agents list, and they run no scripts.
+   **Scripts (`daemon/scripts.ts`, plan 2026-11-11 scripts).** pi-durable's Code Mode on one daemon-wide QuickJS
+   sandbox, with its limits as constants there (time, memory, scripts at once, the section's listing budget). The
+   `loki.scripts` extension wraps the `codemode` tool so a script sees only the script-only tools (`callers:
+   ["tools"]`) and the file tools, runs one at a time in a round, and always has a deadline; its section shows only
+   where the tool is offered. The mod registry hides `codemode` from an agent with no script-only tool. The release
+   bundle carries the sandbox's worker (`codemode-worker.mjs`) and the QuickJS wasm beside `daemon.mjs`, and
+   `daemon.mjs --check-scripts` runs one script for the smoke test.
 8. **Background and scheduled tasks (`daemon/background.ts`, `daemon/schedule.ts`).** A background bash command
    keeps running after its turn; the agent reads its output, writes to it, waits on it or stops it, and its chat
    gets a `<task-notification>` when it ends. Scheduled prompts are kept in `~/.loki/state/crons.json` and checked
@@ -460,8 +468,14 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    in the Inbox (plan 067): `accounts.ts` keeps the connected accounts and their owners (and asks paired Macs which they
    hold, so one account lives on one Mac), and `frames/accounts.ts` serves them to Preferences; `account-watcher.ts`
    is the one watcher, ticking every account's sync once a minute, each on its own; `gmail-sync.ts` and
-   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each no agent tool reaches;
-   `google-signin.ts` and `google-app.ts` are Gmail's loopback sign-in and the shared Google app;
+   `slack-sync.ts` are those syncs, over the thin clients `gmail.ts` and `slack.ts`, whose one send call each only the
+   person's reply and the scripts' Gmail tool reach;
+   `google-signin.ts` and `google-app.ts` are the Google loopback sign-in (for Gmail, Drive, Sheets, Docs and Calendar)
+   and the shared Google app; `google-auth.ts` is one Google account's tokens, refreshed once for every caller, and its
+   request layer, shared by the Gmail client and the Google tools; `google-tools/` holds the script-only `google_*`
+   tools (plan 2026-11-11 scripts): `core.ts` checks the account at every call, keeps files in the chat's folder and
+   full listings in its tool-results folder, then one file each for Gmail, Drive, Sheets, Docs, Calendar and
+   `google_api`;
    `slack-session.ts` reads the Slack desktop app's session (with `slack-leveldb.ts` and `slack-snappy.ts` for its
    files); Jira (plan 2026-11-10-1451) has `jira.ts`, the client over `fetch`, whose one write is the person's comment;
    `jira-text.ts`, which turns Jira's document format into plain lines and back; `jira-sync.ts`, the sync of a site's
@@ -476,13 +490,13 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    mark, and its `markUnread` and `restore` write nothing); `AccountThreads.reopen` opens an archived thread again as
    the same card when it is back in the Gmail inbox, by undo or by hand in Gmail; `handoff.ts` gives a thread to its
    owner's chat, then ends it out there through `AccountThreads.archiveHandedOff`; `outside-threads.ts` reads a card's
-   whole thread and sends the person's own reply, then the move of the key that sent it (plans 068 and 070), the only
-   caller of the clients' send calls; for mail it also answers what the recipients line starts from (`compose`) and
+   whole thread and sends the person's own reply, then the move of the key that sent it (plans 068 and 070), with
+   `google-tools/gmail.ts` the only callers of the clients' send calls; for mail it also answers what the recipients line starts from (`compose`) and
    writes the reply as Gmail does (plan 076), with `mail-compose.ts` (the body: signature, quote, forward),
    `mail-outbox.ts` (the 10-second hold for undo send) and `mail-people.ts` (the people each mailbox has mail with, fed
    by `gmail-sync.ts` and by what the person sends, its address headers read by `core/mail-header.ts`, which the card's
    thread in `app/src/desk/mail-thread.tsx` reads too, plan 078); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
-   thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`; and
+   thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`, the three that read; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),
