@@ -19,22 +19,24 @@ import { ThreadError } from "../chat/thread-error";
 import { StepsLoad } from "../chat/tool-steps";
 import { useArrivedFrom } from "../chat/transcript";
 import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../chat/transcript-window";
-import { threadEntries, threadTurns, type TurnEntry, type TurnPart } from "./entries";
-import { DayMarker, EventMarker, NewMarker, WidgetMarker } from "./event-entry";
-import { ThreadRow } from "./message-entry";
-import { ThreadSteps } from "./work";
-import { ThreadTurn } from "./agent-turn";
+import { threadEntries, threadTurns, type TurnPart } from "./entries";
+import { WidgetArtifact } from "./content-parts";
+import { ChangeEntry, DayMarker, EventEntry, NewMarker } from "./event-entry";
+import { chatEntries, type ItemEntry } from "./item-view";
+import { ChatMessage } from "./message-entry";
+import { Work } from "./work";
+import { AgentTurn } from "./agent-turn";
 
 const EMPTY: TranscriptRow[] = [];
 
 /**
- * The thread on loki's new components (plan 096, U5): shadcn's MessageScroller follows the bottom while you are there,
+ * The Timeline (plan 097; plan 096, U5): every entry of the item in order, as Turns for a chat. shadcn's MessageScroller follows the bottom while you are there,
  * holds what you read when something above changes height or older rows arrive, and offers the way back to the latest.
  * Around it, loki's own window: a long thread mounts its newest rows and reveals older ones as you near the top, then
  * asks the Mac for older pages; find mounts what it needs before it searches. Behind Preferences › Appearance › New
  * thread (preview); today's thread stays the default.
  */
-export const NewThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function NewThread(props, ref) {
+export const Timeline = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(function Timeline(props, ref) {
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <ThreadBody {...props} handle={ref} />
@@ -86,14 +88,16 @@ function ThreadBody({
   const stableLoadStep = useCallback((row: number) => stepRef.current?.(row) ?? Promise.resolve(null), []);
 
   const who = layout?.people?.assistant.name ?? agentName ?? "the agent";
-  const entries = rows
-    ? threadTurns(
-        threadEntries({ rows, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
-        { busy: status !== "idle", waiting },
+  const entries: ItemEntry[] = rows
+    ? chatEntries(
+        threadTurns(
+          threadEntries({ rows, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
+          { busy: status !== "idle", waiting },
+        ),
       )
     : [];
   const message = (e: Extract<TurnPart, { kind: "message" }>) => (
-    <ThreadRow
+    <ChatMessage
       row={e.row}
       last={e.last}
       streaming={status === "streaming" && e.last}
@@ -104,25 +108,30 @@ function ThreadBody({
   const part = (p: TurnPart) => {
     switch (p.kind) {
       case "widget":
-        return <WidgetMarker mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
+        return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
-        return <ThreadSteps rows={p.rows} running={p.running} arrived={p.arrived} />;
+        return <Work rows={p.rows} running={p.running} arrived={p.arrived} />;
       case "event":
-        return <EventMarker row={p.row} arrived={p.arrived} />;
+        return <EventEntry row={p.row} arrived={p.arrived} />;
       case "message":
         return message(p);
     }
   };
-  const draw = (e: TurnEntry) => {
+  const draw = (e: ItemEntry) => {
     switch (e.kind) {
       case "day":
         return <DayMarker label={e.label} />;
       case "new":
         return <NewMarker day={e.day} />;
+      case "chat_message":
+        return message(e.entry);
+      // A chat has no outside messages or field changes; the outside item's own timeline draws them (plan 097, U7).
       case "message":
-        return message(e);
+        return null;
+      case "event":
+        return <ChangeEntry who={e.who} text={e.text} at={e.at} />;
       case "turn":
-        return <ThreadTurn agentName={who} state={e.state} failed={e.failed} took={e.took} parts={e.parts} draw={part} />;
+        return <AgentTurn agentName={who} state={e.state} failed={e.failed} took={e.took} parts={e.parts} draw={part} />;
     }
   };
   return (

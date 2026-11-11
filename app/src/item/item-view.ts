@@ -153,6 +153,10 @@ export interface ChatSource {
   turns: TurnEntry[];
 }
 
+/** A chat's Turns as the Timeline's entries: your messages stand alone, the agent's turns and the markers pass through. */
+export const chatEntries = (turns: readonly TurnEntry[]): ItemEntry[] =>
+  turns.map((t) => (t.kind === "message" ? { kind: "chat_message", key: t.key, entry: t } : t));
+
 /** An agent chat as an item: its name, its agent and state, folder and labels; its turns; what it waits on you for. */
 export function chatItem({ item, live, turns }: ChatSource): ItemView {
   const agent = item.agent_name ?? "agent";
@@ -164,7 +168,7 @@ export function chatItem({ item, live, turns }: ChatSource): ItemView {
   if (cwd) properties.push({ key: "folder", label: folderName(cwd), editable: true });
   properties.push({ key: "labels", label: item.labels?.length ? item.labels.join(", ") : "+ label", editable: true });
 
-  const entries: ItemEntry[] = turns.map((t) => (t.kind === "message" ? { kind: "chat_message", key: t.key, entry: t } : t));
+  const entries = chatEntries(turns);
 
   const proposals: ProposalView[] = [];
   const pending: PendingApproval | null = live?.pending ?? item.pendingApproval;

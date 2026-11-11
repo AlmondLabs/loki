@@ -16,7 +16,7 @@ const STATE: Record<TurnState, { words: (failed: number) => string; className: s
  * work, its events and the widgets it changed. The header is where a turn says it is working, waits on you or failed,
  * so that reads without opening anything.
  */
-export function ThreadTurn({
+export function AgentTurn({
   agentName,
   state,
   failed,

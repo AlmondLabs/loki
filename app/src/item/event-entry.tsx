@@ -1,11 +1,13 @@
-import { useContext, useState, type ReactNode } from "react";
-import { CornerUpLeftIcon, LayoutGridIcon, RefreshCwIcon } from "lucide-react";
+import { useContext, useState } from "react";
+import { CircleDotIcon, CornerUpLeftIcon, RefreshCwIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import { COMPACTED_TEXT } from "../../../core/attention/thread.ts";
+import { Checkpoint, CheckpointIcon, CheckpointTrigger } from "@/ui/ai-elements/checkpoint";
 import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 import { Trace, TraceCollapsible, TraceCollapsibleContent, TraceCollapsibleTrigger, TraceLine, TraceTitle } from "@/ui/trace";
 import { clockLabel } from "../shared/thread";
 import { EventDetail } from "../chat/tool-steps";
-import { OpenChat, SUGGESTED, suggestedSource, type WidgetMark } from "../chat/transcript";
+import { OpenChat, SUGGESTED, suggestedSource } from "../chat/transcript";
 
 /** A calendar day opening in the thread: "Today", "Yesterday", a date, between two hairlines. */
 export function DayMarker({ label }: { label: string }) {
@@ -31,55 +33,32 @@ export function NewMarker({ day }: { day: string | null }) {
 }
 
 /**
- * A widget change among the messages: who, what and the widget, with its time. While the widget is on the canvas the
- * line opens the Canvas tab framed on it; once it is gone it says so. The summary row only counts, and opens the canvas.
- * The live widget follows its latest row.
+ * Something that changed in an outside item (plan 097, EventEntry): a Jira field set, a status moved, as one quiet line
+ * with who did it and when.
  */
-export function WidgetMarker({
-  mark: w,
-  live,
-  inline,
-  onFrame,
-  onShowDesk,
-}: {
-  mark: WidgetMark;
-  live: boolean;
-  inline?: (widgetId: string) => ReactNode;
-  onFrame?: (widgetId: string) => void;
-  onShowDesk?: () => void;
-}) {
-  const time = w.earlier === undefined ? clockLabel(w.at) : null;
-  const words =
-    w.earlier !== undefined ? (
-      `${w.earlier} earlier widget change${w.earlier === 1 ? "" : "s"}`
-    ) : (
-      <>
-        <span className="font-semibold text-foreground">{w.who}</span> {w.change} <span className={w.gone ? undefined : "text-ring"}>{w.title}</span>
-        {w.gone && (w.change === "removed" ? " · it is gone from the canvas" : " · since removed from the canvas")}
-      </>
-    );
-  const open = w.earlier !== undefined ? onShowDesk : !w.gone && onFrame ? () => onFrame(w.widgetId) : undefined;
+export function ChangeEntry({ who, text, at }: { who: string | null; text: string; at: string }) {
+  const time = clockLabel(at);
   return (
-    <div className="flex flex-col gap-2" data-row="widget" data-gone={w.gone ? "true" : undefined}>
-      <Marker render={open ? <button type="button" onClick={open} title={w.earlier !== undefined ? "show the canvas" : "show it on the canvas"} /> : undefined}>
-        <MarkerIcon>
-          <LayoutGridIcon />
-        </MarkerIcon>
-        <MarkerContent>
-          {words}
-          {time && <time dateTime={w.at}> · {time}</time>}
-        </MarkerContent>
-      </Marker>
-      {live && inline?.(w.widgetId)}
-    </div>
+    <Marker data-row="event">
+      <MarkerIcon>
+        <CircleDotIcon />
+      </MarkerIcon>
+      <MarkerContent>
+        {who && <span className="font-semibold text-foreground">{who} </span>}
+        {text}
+        {time && <time dateTime={at}> · {time}</time>}
+      </MarkerContent>
+    </Marker>
   );
 }
 
 /**
- * A harness event as one quiet line (a background task finishing, a skill loaded, a compaction); with a detail, it opens
- * to it, a lean one's fetched only then. A message sent from a suggestion is a line that opens the chat it came from.
+ * A harness event as one quiet line (plan 097, EventEntry: a background task finishing, a skill loaded); with a detail,
+ * it opens to it, a lean one's fetched only then. A message sent from a suggestion is a line that opens the chat it came
+ * from. A finished compaction is a Checkpoint, a point in the chat marked across the column, whose summary opens under
+ * it; it offers no restore, since loki cannot go back to one yet (plan 097, KTD8).
  */
-export function EventMarker({ row: m, arrived }: { row: TranscriptRow; arrived: boolean }) {
+export function EventEntry({ row: m, arrived }: { row: TranscriptRow; arrived: boolean }) {
   const openChat = useContext(OpenChat);
   const [open, setOpen] = useState(false);
   if (m.text === SUGGESTED) {
@@ -107,6 +86,24 @@ export function EventMarker({ row: m, arrived }: { row: TranscriptRow; arrived: 
       {m.summary && <span className="text-muted-foreground"> · {m.summary}</span>}
     </>
   );
+  if (m.text === COMPACTED_TEXT)
+    return (
+      <div data-row="event" data-checkpoint data-arrived={arrived || undefined} className="flex flex-col gap-2">
+        <Checkpoint className="text-meta">
+          <CheckpointIcon />
+          <CheckpointTrigger
+            size="xs"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="text-muted-foreground"
+            disabled={!m.detail && m.row === undefined}
+          >
+            {m.text}
+          </CheckpointTrigger>
+        </Checkpoint>
+        {open && <EventDetail row={m} />}
+      </div>
+    );
   if (!m.detail && m.row === undefined)
     return (
       <Marker data-row="event" data-arrived={arrived || undefined}>

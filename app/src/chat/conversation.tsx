@@ -44,7 +44,7 @@ import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
 import { threadPreview } from "../item/preview";
-import { NewThread } from "../item/timeline";
+import { Timeline } from "../item/timeline";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -551,7 +551,7 @@ export interface ThreadProps {
  */
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
   const [preview] = threadPreview.use();
-  return preview === "on" && previewable ? <NewThread ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
+  return preview === "on" && previewable ? <Timeline ref={ref} {...props} /> : <TodayThread ref={ref} {...props} />;
 });
 
 /**

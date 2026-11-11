@@ -81,7 +81,7 @@ export function fileSize(bytes: number): string {
 }
 
 /** A mail's files as chips, by name and size; the card's Gmail link opens them. */
-function MailFiles({ files }: { files: readonly MailFile[] }) {
+export function MailFiles({ files }: { files: readonly MailFile[] }) {
   // Two files may share a name, so each is keyed by its name and how many of that name came before it.
   const seen = new Map<string, number>();
   const keyed = files.map((f) => {

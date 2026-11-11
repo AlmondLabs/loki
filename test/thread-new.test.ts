@@ -3,10 +3,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { threadEntries, threadTurns, type EntryInput, type ThreadEntry } from "../app/src/item/entries.ts";
-import { ThreadTurn } from "../app/src/item/agent-turn.tsx";
-import { ThreadSteps } from "../app/src/item/work.tsx";
-import { ThreadRow } from "../app/src/item/message-entry.tsx";
-import { NewMarker, WidgetMarker } from "../app/src/item/event-entry.tsx";
+import { AgentTurn } from "../app/src/item/agent-turn.tsx";
+import { Work } from "../app/src/item/work.tsx";
+import { ChatMessage } from "../app/src/item/message-entry.tsx";
+import { NewMarker } from "../app/src/item/event-entry.tsx";
+import { WidgetArtifact } from "../app/src/item/content-parts.tsx";
 import { Thread } from "../app/src/chat/conversation.tsx";
 import { threadPreview } from "../app/src/item/preview.ts";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
@@ -152,53 +153,55 @@ describe("turns: everything the agent did between two of your messages", () => {
 
 describe("the new thread's pieces", () => {
   test("a stretch of work is one closed line in today's wording, with the failed step named under it", () => {
-    const html = renderToStaticMarkup(createElement(ThreadSteps, { rows: [bash(), bash(true)], running: false, arrived: false }));
+    const html = renderToStaticMarkup(createElement(Work, { rows: [bash(), bash(true)], running: false, arrived: false }));
     expect(html).toContain("Ran 2 commands · 1 failed");
     expect(html).toContain("ls failed");
     expect(html).toContain('data-row="tool"');
   });
 
   test("a running stretch shimmers and names no failure", () => {
-    const html = renderToStaticMarkup(createElement(ThreadSteps, { rows: [bash(), bash(true, "")], running: true, arrived: false }));
+    const html = renderToStaticMarkup(createElement(Work, { rows: [bash(), bash(true, "")], running: true, arrived: false }));
     expect(html).toContain("Working");
     expect(html).toContain("shimmer");
     expect(html).not.toContain("failed</button>");
   });
 
   test("your message is a block labelled You with its time and copy; the agent's words carry their copy and time", () => {
-    const mine = renderToStaticMarkup(createElement(ThreadRow, { row: user("hello", "2026-11-11T09:00:00Z"), last: false, streaming: false, arrived: false }));
+    const mine = renderToStaticMarkup(
+      createElement(ChatMessage, { row: user("hello", "2026-11-11T09:00:00Z"), last: false, streaming: false, arrived: false }),
+    );
     expect(mine).toContain('data-row="user"');
     expect(mine).toContain(">You<");
     expect(mine).toContain("copy as markdown");
-    const theirs = renderToStaticMarkup(createElement(ThreadRow, { row: agent("hi", "2026-11-11T09:01:00Z"), last: true, streaming: false, arrived: false }));
+    const theirs = renderToStaticMarkup(createElement(ChatMessage, { row: agent("hi", "2026-11-11T09:01:00Z"), last: true, streaming: false, arrived: false }));
     expect(theirs).toContain('data-row="assistant"');
     expect(theirs).toContain("copy as markdown");
   });
 
   test("a streaming reply offers no copy until it is done, and a queued message offers its take-back", () => {
-    const live = renderToStaticMarkup(createElement(ThreadRow, { row: agent("writing"), last: true, streaming: true, arrived: false }));
+    const live = renderToStaticMarkup(createElement(ChatMessage, { row: agent("writing"), last: true, streaming: true, arrived: false }));
     expect(live).not.toContain("copy as markdown");
     const queued = renderToStaticMarkup(
-      createElement(ThreadRow, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
+      createElement(ChatMessage, { row: { ...user("later"), queued: true }, last: true, streaming: false, arrived: false, onCancelQueued: () => {} }),
     );
     expect(queued).toContain("queued · sends when this turn ends · take back");
   });
 
   test("a turn's header names the agent, how long it worked and where it stands", () => {
     const html = renderToStaticMarkup(
-      createElement(ThreadTurn, { agentName: "friday", state: "failed", failed: 1, took: "4 min", parts: [], draw: () => null }),
+      createElement(AgentTurn, { agentName: "friday", state: "failed", failed: 1, took: "4 min", parts: [], draw: () => null }),
     );
     expect(html).toContain("friday");
     expect(html).toContain("worked 4 min");
     expect(html).toContain("1 failed");
     expect(
-      renderToStaticMarkup(createElement(ThreadTurn, { agentName: "friday", state: "needs you", failed: 0, took: null, parts: [], draw: () => null })),
+      renderToStaticMarkup(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: null, parts: [], draw: () => null })),
     ).toContain("needs you");
   });
 
   test("the New line and a widget row read as today's", () => {
     expect(renderToStaticMarkup(createElement(NewMarker, { day: null }))).toContain("New since you last looked");
-    const html = renderToStaticMarkup(createElement(WidgetMarker, { mark: mark("one", 0, "2026-11-11T09:01:00Z"), live: false, onFrame: () => {} }));
+    const html = renderToStaticMarkup(createElement(WidgetArtifact, { mark: mark("one", 0, "2026-11-11T09:01:00Z"), live: false, onFrame: () => {} }));
     expect(html).toContain("friday");
     expect(html).toContain("Signups chart");
     expect(html).toContain("<button");

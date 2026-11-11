@@ -114,8 +114,8 @@ function Spans({ spans }: { spans: readonly SlackSpan[] }) {
   return keyed(spans, (s) => s.text.length).map(([key, s]) => <Span key={key} s={s} />);
 }
 
-/** A message's paragraphs: ordinary lines, a quote with Slack's bar, a code block. */
-function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
+/** A message's paragraphs: ordinary lines, a quote with Slack's bar, a code block; the item's ContentParts draws them too (plan 097). */
+export function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
   return keyed(blocks, (b) => b.spans.reduce((n, s) => n + s.text.length, 0)).map(([key, b]) => {
     if (b.kind === "code")
       return (
@@ -133,7 +133,7 @@ function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
 }
 
 /** What an app attached to its message (plan 075): a lead line, then a bar in the app's colour beside its title, text and fields. */
-function Attachment({ a }: { a: SlackAttachment }) {
+export function AppAttachment({ a }: { a: SlackAttachment }) {
   return (
     <>
       {a.pretext && <Blocks blocks={a.pretext} />}
@@ -198,7 +198,7 @@ function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullabl
  * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
  * A Jira comment's files ride the same shape (plan 093), so `where` names the place they open: "Slack", or "jira" on a Jira card.
  */
-function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
+export function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
   return (
     <div className="loki-slack-files">
       {keyed(files, () => 1).map(([key, f]) => {
@@ -372,7 +372,7 @@ function SlackRow({
         {m.attachments && (
           <div className="loki-msg-body loki-slack-text">
             {keyed(m.attachments, () => 1).map(([key, a]) => (
-              <Attachment key={key} a={a} />
+              <AppAttachment key={key} a={a} />
             ))}
           </div>
         )}

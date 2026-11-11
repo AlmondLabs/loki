@@ -63,8 +63,8 @@ const ICON: Record<StepKind, LucideIcon> = {
  * failed one in the negative colour. A step opens its description, input and output under it. Past 8 steps the filters
  * appear; opened at a failure, they start on "failed".
  */
-export const ThreadSteps = memo(
-  function ThreadSteps({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived: boolean }) {
+export const Work = memo(
+  function Work({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived: boolean }) {
     const rows = withoutSkillCalls(all);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
