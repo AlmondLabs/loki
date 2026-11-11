@@ -132,11 +132,14 @@ export class LokiTools {
 
   /**
    * One request's MCP server: loki's tools for the chat's agent (a tool's `forAgent`, plan 067, asked afresh with each
-   * request, so a listing follows its latest answer), each run as `chat`.
+   * request, so a listing follows its latest answer), each run as `chat`. A script-only tool is never served: an ACP
+   * chat has no scripts, and its model may not call the tool directly.
    */
   private server(chat: ChatKey): McpServer {
     const server = new McpServer({ name: LOKI_TOOLS_SERVER, version: this.deps.version });
-    const served = this.deps.tools().filter((t) => (!chat.only || chat.only.has(t.name)) && (!t.forAgent || t.forAgent(chat.agentId)));
+    const served = this.deps
+      .tools()
+      .filter((t) => (!t.callers || t.callers.includes("model")) && (!chat.only || chat.only.has(t.name)) && (!t.forAgent || t.forAgent(chat.agentId)));
     for (const tool of served)
       server.registerTool(
         tool.name,

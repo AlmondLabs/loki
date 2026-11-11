@@ -9,9 +9,9 @@ import { withKind } from "./tool-kinds.ts";
  * Aborting the call aborts the helper; a rerun after a crash finds the same child (the call is replay-safe). The child
  * carries the parent chat's id, so its approvals ask in the chat you are looking at and its tools act on that chat's
  * canvas, and it asks under the parent chat's permission mode as it is at each call. A helper cannot start helpers of
- * its own.
+ * its own, nor run scripts: `withoutAlso` (the script extensions) is dropped from the child with the subagent tool.
  */
-export function subagentExtension(): Extension {
+export function subagentExtension(withoutAlso: readonly Extension[] = []): Extension {
   const extension: Extension = defineExtension({
     name: "loki.subagents",
     tools: [
@@ -35,7 +35,7 @@ export function subagentExtension(): Extension {
               const existing = (await tx.scanConversations({ ownerTaskId: api.taskId }, 1)).items.at(0);
               if (existing) return existing.id;
               const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
-              await configure(tx, created.id, { extensions: { remove: [extension] } });
+              await configure(tx, created.id, { extensions: { remove: [extension, ...withoutAlso] } });
               // The chat's id and a pointer to its conversation, never a copy of its settings: a copy would keep the mode
               // the chat had when the helper started, and the approvals read it from the parent instead.
               const info = await tx.doc(ChatDoc, created.id);

@@ -7,8 +7,9 @@
 //   - an agent made now is still there after a restart
 //   - every provider that signs in names its page (a provider unreachable from here only warns; a missing module or
 //     any other error in loki's own code fails)
+//   - a script runs in the sandbox, which needs the worker and the QuickJS wasm the bundle carries beside daemon.mjs
 // Nothing outside the scratch folder is touched: HOME, USERPROFILE and LOKI_DIR point into it, analytics are off.
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -146,6 +147,18 @@ async function main(): Promise<void> {
   let daemon: Daemon | null = null;
   let earlier = "";
   try {
+    try {
+      const ran = execFileSync(process.execPath, [daemonEntry, "--check-scripts"], {
+        cwd: home,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: START_MS,
+      });
+      if (ran.includes("1 + 1 = 2")) ok("the bundled daemon runs a script in its sandbox");
+      else fail(`the bundled daemon's script check said: ${ran.trim()}`);
+    } catch (e) {
+      fail(`the bundled daemon could not run a script: ${e instanceof Error ? e.message : String(e)}`);
+    }
     daemon = await start(home);
     ok("the bundled daemon starts and serves /health");
     let sock = await connect(home, daemon.port);

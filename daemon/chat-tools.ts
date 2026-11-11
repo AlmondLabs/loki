@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context, JsonValue } from "@earendil-works/chord";
 import { defineTool, type ConversationId, type DocumentReader } from "@earendil-works/pi-durable";
 import { withKind, type KindedTool, type ToolKind } from "./tool-kinds.ts";
 
@@ -16,11 +16,15 @@ export interface ChatCall {
   signal: AbortSignal;
   /** Output streamed while the tool runs; dropped where the engine shows none. */
   output: (text: string) => void;
+  /** The chat's folder on loki's engine; an ACP chat's call has none. */
+  cwd?: string;
 }
 
 /** What a loki tool answers: text for the model, or nothing. */
 export interface ChatToolResult {
   output?: Array<{ type: "text"; text: string }>;
+  /** The value scripts get, for a tool with an `outputSchema`. */
+  structuredOutput?: JsonValue;
 }
 
 /**
@@ -35,6 +39,12 @@ export interface ChatTool {
   kind: ToolKind;
   /** Whether a chat of this agent is offered the tool (a mod's `forAgent`, plan 067); absent, every agent's. */
   forAgent?: (agentId: string) => boolean;
+  /** Who may call it (ModTool.callers); `["tools"]` is script-only and never listed for an ACP chat. */
+  callers?: ReadonlyArray<"model" | "tools">;
+  /** `"safe"`: a call cut off by a restart may run again (ModTool.replay). */
+  replay?: "safe";
+  /** JSON Schema of `structuredOutput` (ModTool.outputSchema). */
+  outputSchema?: object;
   run(args: Record<string, unknown>, call: ChatCall, context: Context): Promise<ChatToolResult>;
 }
 
@@ -48,12 +58,24 @@ export function piTool(tool: ChatTool): KindedTool {
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters as never,
-      execute: (args, api, context) =>
-        tool.run(
-          args as Record<string, unknown>,
-          { read: api, conversationId: api.conversationId, callId: api.callId, signal: context.abortSignal ?? NO_SIGNAL, output: (text) => api.output(text) },
+      ...(tool.callers ? { callers: tool.callers } : {}),
+      ...(tool.replay ? { replay: tool.replay } : {}),
+      ...(tool.outputSchema ? { structuredOutputSchema: tool.outputSchema } : {}),
+      execute: async (args, api, context) => {
+        const { cwd } = await api.agent(context);
+        return tool.run(
+          args,
+          {
+            read: api,
+            conversationId: api.conversationId,
+            callId: api.callId,
+            signal: context.abortSignal ?? NO_SIGNAL,
+            output: (text) => api.output(text),
+            ...(cwd === undefined ? {} : { cwd }),
+          },
           context,
-        ),
+        );
+      },
     }),
   );
 }

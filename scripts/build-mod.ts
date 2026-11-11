@@ -67,6 +67,20 @@ await build({
 for (const pkg of readdirSync(here("../node_modules/@napi-rs")).filter((p) => p === "keyring" || p.startsWith("keyring-"))) {
   cpSync(here(`../node_modules/@napi-rs/${pkg}`), `${out}/daemon/node_modules/@napi-rs/${pkg}`, { recursive: true, dereference: true });
 }
+// The script sandbox's worker thread (daemon/scripts.ts): its own entry, because the package finds its worker beside
+// its own module, which bundling moves. The QuickJS wasm it compiles goes where the package looks for it,
+// <data>/daemon/node_modules/quickjs-wasi, with the package file whose exports name it.
+await build({
+  entryPoints: [here("../node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js")],
+  outfile: `${out}/daemon/codemode-worker.mjs`,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  legalComments: "none",
+  logLevel: "warning",
+});
+for (const file of ["package.json", "quickjs.wasm"]) cpSync(here(`../node_modules/quickjs-wasi/${file}`), `${out}/daemon/node_modules/quickjs-wasi/${file}`);
 cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 
 // The canvas the LAN listener serves to phones (mod/static.ts); install.rs puts it at <data>/app beside the mod.

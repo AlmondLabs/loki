@@ -174,6 +174,23 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect(await names(bo)).toEqual(["everyone", "account_read"]);
   });
 
+  test("a script-only mod tool is never served to an ACP chat, which has no scripts (plan 2026-11-11, U4)", async () => {
+    const mods = new ModRegistry(() => {});
+    const plain = { description: "A tool.", parameters: { type: "object", properties: {} }, execute: () => "ok" };
+    await mods.load({
+      name: "google",
+      apiVersion: 1,
+      activate: (api) => {
+        api.tools.register({ name: "everyone", ...plain });
+        api.tools.register({ name: "google_drive_list", ...plain, callers: ["tools"] });
+        api.tools.register({ name: "both", ...plain, callers: ["model", "tools"] });
+      },
+    });
+    const { tools } = await setup(() => Promise.resolve(mods.chatTools()));
+    const ada = await connect(http(tools.serverFor("agent-local-ada", "local-conv-garden") ?? undefined));
+    expect((await ada.listTools()).tools.map((t) => t.name)).toEqual(["everyone", "both"]);
+  });
+
   test("an ordinary chat's calls are not kept: nothing would ever take them", async () => {
     const { tools, conversationId } = await setup();
     const loki = await connect(http(tools.serverFor("ada", conversationId) ?? undefined));

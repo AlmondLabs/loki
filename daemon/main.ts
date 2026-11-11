@@ -6,6 +6,7 @@
  *   node daemon.mjs --loki-daemon --dir <loki folder> --mod <mod entry> [--token-file <file>]
  *
  * `--loki-daemon` and the token file mark the command line as loki's, so a shell finds a leftover from a crash.
+ * `node daemon.mjs --check-scripts` runs one script in the sandbox and exits, for the release smoke test.
  * Exit code 3: another daemon holds this folder's lock; the shell then leaves that one serving.
  */
 import { existsSync, mkdirSync } from "node:fs";
@@ -58,6 +59,7 @@ import { AcpChats } from "./acp/chats.ts";
 import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
+import { checkScripts, scriptExtensions, scriptSandbox } from "./scripts.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -68,8 +70,13 @@ const { values: args } = parseArgs({
     dir: { type: "string" },
     mod: { type: "string" },
     "token-file": { type: "string" },
+    "check-scripts": { type: "boolean" },
   },
 });
+if (args["check-scripts"]) {
+  console.log(await checkScripts());
+  process.exit(0);
+}
 if (!args.dir || !args.mod) {
   console.error("loki-daemon: --dir and --mod are required");
   process.exit(2);
@@ -144,8 +151,11 @@ const chatImages = new ChatImages(join(args.dir, "chat-images"));
 const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
 // Made before the built-in tools: the history tools read it (plan 062).
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
+// Scripts (daemon/scripts.ts): one sandbox for the daemon, closed before the stores at shutdown, so a script cut off by
+// it counts as undecided and resumes on the next start.
+const sandbox = scriptSandbox();
 // Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
-const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules, history: chats });
+const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules, history: chats, scripts: scriptExtensions(sandbox) });
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
 // The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
@@ -428,10 +438,14 @@ function stop(signal: string) {
     void lokiTools.stop();
     for (const name of mods.names()) mods.unload(name);
   } finally {
-    void stores.closeAll().finally(() => {
-      lock.release();
-      process.exit(0);
-    });
+    void sandbox
+      .close()
+      .catch((error: unknown) => report(`the script sandbox did not close: ${String(error)}`))
+      .then(() => stores.closeAll())
+      .finally(() => {
+        lock.release();
+        process.exit(0);
+      });
   }
 }
 process.on("SIGTERM", () => stop("SIGTERM"));
