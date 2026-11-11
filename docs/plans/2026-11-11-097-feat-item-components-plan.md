@@ -27,7 +27,9 @@ Plan 097 · second step of the component overhaul in `docs/research/2026-11-11-d
 - **Stop conditions:** stop and ask if (1) the app's JavaScript grows by more than 80 KB gzipped over plan 096's build;
   (2) an AI Elements piece cannot keep a behaviour R9 or R12 lists without forking it beyond styling; (3) the new pane
   redraws more than today's on the render measurement; (4) a unit needs data the daemon or mod does not keep and this
-  plan does not list in U9; (5) before U8, the person has not looked at U3–U7 rendered on the demo daemons.
+  plan does not list in U9; (5) before U8, the person has not looked at U3–U7 rendered on the demo daemons. Condition
+  (1) was met in U1 on 2026-11-11: every piece pulled in at once adds 113 KB gzipped (PromptInput alone 80 KB,
+  ModelSelector 36 KB, the other fifteen 57 KB, sharing much). The person accepted 113 KB as the new cap.
 - **Execution profile:** continues on `feat/shadcn-thread`, since plan 096 is not merged and the pane builds on its
   thread; units in order, each its own commit. The person decides when to raise the one PR.
 
