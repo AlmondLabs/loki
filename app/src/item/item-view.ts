@@ -15,7 +15,7 @@ import type {
   SlackReaction,
   Suggestion,
 } from "../../../core/frame-types.ts";
-import type { TurnEntry } from "../chat/thread/entries";
+import type { TurnEntry } from "./entries";
 
 /*
  * The chat pane's one shape for every item (plan 097, KTD2): an agent chat, a Slack thread, an email or a Jira ticket

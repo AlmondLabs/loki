@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type UIEvent } from "react";
 import { flushSync } from "react-dom";
 import { ArrowDownIcon } from "lucide-react";
-import type { TranscriptRow } from "../../../../core/attention/transcript.ts";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button } from "@/ui/button";
 import {
   MessageScroller,
@@ -14,16 +14,16 @@ import {
   useMessageScrollerScrollable,
 } from "@/ui/message-scroller";
 import { Trace, TraceLine, TraceTitle } from "@/ui/trace";
-import type { ThreadHandle, ThreadProps } from "../conversation";
-import { ThreadError } from "../thread-error";
-import { StepsLoad } from "../tool-steps";
-import { useArrivedFrom } from "../transcript";
-import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../transcript-window";
+import type { ThreadHandle, ThreadProps } from "../chat/conversation";
+import { ThreadError } from "../chat/thread-error";
+import { StepsLoad } from "../chat/tool-steps";
+import { useArrivedFrom } from "../chat/transcript";
+import { REVEAL_PX, findStart, keepStart, openStart, revealStart, threadId } from "../chat/transcript-window";
 import { threadEntries, threadTurns, type TurnEntry, type TurnPart } from "./entries";
-import { DayMarker, EventMarker, NewMarker, WidgetMarker } from "./thread-markers";
-import { ThreadRow } from "./thread-row";
-import { ThreadSteps } from "./thread-steps";
-import { ThreadTurn } from "./thread-turn";
+import { DayMarker, EventMarker, NewMarker, WidgetMarker } from "./event-entry";
+import { ThreadRow } from "./message-entry";
+import { ThreadSteps } from "./work";
+import { ThreadTurn } from "./agent-turn";
 
 const EMPTY: TranscriptRow[] = [];
 

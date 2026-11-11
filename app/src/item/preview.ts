@@ -1,4 +1,4 @@
-import { createSessionValue } from "../../shared/session-value";
+import { createSessionValue } from "../shared/session-value";
 
 /**
  * Whether this Mac draws the desktop thread on loki's new components (plan 096), chosen in Preferences › Appearance.

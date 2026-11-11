@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { threadPreview } from "../app/src/chat/thread/preview.ts";
+import { threadPreview } from "../app/src/item/preview.ts";
 
 // Plan 096, U4: the new thread is a per-Mac preference, off unless chosen. Node has no localStorage, so these also
 // prove the value holds for the window when storage is unavailable.

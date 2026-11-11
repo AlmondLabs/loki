@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { emptyLive } from "../core/attention/model.ts";
 import type { JiraCardTicket, OutsideFacts, OutsideMessage, ReplyProposal, Suggestion } from "../core/frame-types.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { threadEntries, threadTurns } from "../app/src/chat/thread/entries.ts";
+import { threadEntries, threadTurns } from "../app/src/item/entries.ts";
 import { chatItem, outsideItem, type ItemEntry } from "../app/src/item/item-view.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 

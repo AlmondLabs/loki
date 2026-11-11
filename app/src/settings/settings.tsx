@@ -36,7 +36,7 @@ import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
-import { threadPreview } from "../chat/thread/preview";
+import { threadPreview } from "../item/preview";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];

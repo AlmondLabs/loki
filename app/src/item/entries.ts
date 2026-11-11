@@ -1,7 +1,7 @@
-import type { TranscriptRow } from "../../../../core/attention/transcript.ts";
-import { dayPills } from "../../shared/thread";
-import { isWorkRow, stepFailed, toolRuns, workDuration } from "../../shared/tool-steps";
-import type { WidgetMark } from "../transcript";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import { dayPills } from "../shared/thread";
+import { isWorkRow, stepFailed, toolRuns, workDuration } from "../shared/tool-steps";
+import type { WidgetMark } from "../chat/transcript";
 
 /**
  * One thing the new thread draws (plan 096, U5), in reading order. Rows keep their thread-wide index; a stretch of work

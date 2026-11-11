@@ -2,13 +2,13 @@ import { afterEach, describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { threadEntries, threadTurns, type EntryInput, type ThreadEntry } from "../app/src/chat/thread/entries.ts";
-import { ThreadTurn } from "../app/src/chat/thread/thread-turn.tsx";
-import { ThreadSteps } from "../app/src/chat/thread/thread-steps.tsx";
-import { ThreadRow } from "../app/src/chat/thread/thread-row.tsx";
-import { NewMarker, WidgetMarker } from "../app/src/chat/thread/thread-markers.tsx";
+import { threadEntries, threadTurns, type EntryInput, type ThreadEntry } from "../app/src/item/entries.ts";
+import { ThreadTurn } from "../app/src/item/agent-turn.tsx";
+import { ThreadSteps } from "../app/src/item/work.tsx";
+import { ThreadRow } from "../app/src/item/message-entry.tsx";
+import { NewMarker, WidgetMarker } from "../app/src/item/event-entry.tsx";
 import { Thread } from "../app/src/chat/conversation.tsx";
-import { threadPreview } from "../app/src/chat/thread/preview.ts";
+import { threadPreview } from "../app/src/item/preview.ts";
 import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 
 // Plan 096, U5: the new thread on shadcn. Its reading order is a pure function (entries.ts); its pieces render without a

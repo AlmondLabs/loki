@@ -12,7 +12,7 @@ import {
   XIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { TranscriptRow } from "../../../../core/attention/transcript.ts";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from "@/ui/ai-elements/chain-of-thought";
 import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
 import {
@@ -26,8 +26,8 @@ import {
   withoutSkillCalls,
   workSummary,
   type StepKind,
-} from "../../shared/tool-steps";
-import { StepDetail } from "../tool-steps";
+} from "../shared/tool-steps";
+import { StepDetail } from "../chat/tool-steps";
 
 /** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";

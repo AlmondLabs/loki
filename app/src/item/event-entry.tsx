@@ -1,11 +1,11 @@
 import { useContext, useState, type ReactNode } from "react";
 import { CornerUpLeftIcon, LayoutGridIcon, RefreshCwIcon } from "lucide-react";
-import type { TranscriptRow } from "../../../../core/attention/transcript.ts";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 import { Trace, TraceCollapsible, TraceCollapsibleContent, TraceCollapsibleTrigger, TraceLine, TraceTitle } from "@/ui/trace";
-import { clockLabel } from "../../shared/thread";
-import { EventDetail } from "../tool-steps";
-import { OpenChat, SUGGESTED, suggestedSource, type WidgetMark } from "../transcript";
+import { clockLabel } from "../shared/thread";
+import { EventDetail } from "../chat/tool-steps";
+import { OpenChat, SUGGESTED, suggestedSource, type WidgetMark } from "../chat/transcript";
 
 /** A calendar day opening in the thread: "Today", "Yesterday", a date, between two hairlines. */
 export function DayMarker({ label }: { label: string }) {

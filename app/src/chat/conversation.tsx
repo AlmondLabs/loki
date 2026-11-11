@@ -43,8 +43,8 @@ import { useSlashPalette } from "./use-slash-palette";
 import { useTranscriptScroll } from "./use-transcript-scroll";
 import { StepsLoad, StepsTouch } from "./tool-steps";
 import { ThreadError } from "./thread-error";
-import { threadPreview } from "./thread/preview";
-import { NewThread } from "./thread/thread";
+import { threadPreview } from "../item/preview";
+import { NewThread } from "../item/timeline";
 
 /** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";

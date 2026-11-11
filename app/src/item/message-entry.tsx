@@ -2,16 +2,16 @@ import { memo, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CheckIcon, CopyIcon, FileIcon } from "lucide-react";
-import type { FileRef, TranscriptRow } from "../../../../core/attention/transcript.ts";
+import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, AttachmentTrigger } from "@/ui/attachment";
 import { Button } from "@/ui/button";
 import { Message, MessageActions, MessageContent, MessageResponse } from "@/ui/ai-elements/message";
 import { cn } from "cn";
-import { chatImageUrl, inTauri } from "../../desk/env";
-import { clockLabel } from "../../shared/thread";
-import { fileSize } from "../attachments";
-import { MARKDOWN_COMPONENTS } from "../markdown-image";
-import { shownText } from "../transcript";
+import { chatImageUrl, inTauri } from "../desk/env";
+import { clockLabel } from "../shared/thread";
+import { fileSize } from "../chat/attachments";
+import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
+import { shownText } from "../chat/transcript";
 
 const REMARK_PLUGINS = [remarkGfm];
 
