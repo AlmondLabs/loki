@@ -1,5 +1,6 @@
 import { useThreadPreview } from "../item/preview";
 import { ItemMailThread, itemSlackRow } from "../item/outside-rows";
+import { ItemReplyBox } from "../item/reply-box";
 import type {
   EmojiChoice,
   JiraCardTicket,
@@ -20,9 +21,11 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
 } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -653,9 +656,12 @@ export function OutsideReply({
   keep,
   searchPeople,
   inThread = false,
+  items = false,
 }: {
   /** A thread is open on the card (plan 085): the reply goes into it, and the box says so. */
   inThread?: boolean;
+  /** Draw the box as the new chat pane's Composer (plan 097, U7); its behaviour is the same either way. */
+  items?: boolean;
   facts: OutsideFacts;
   /** The card's id (`idOf`), under which its unsent text is kept for the session (shared/outside-replies.ts); absent, the text goes with the box. */
   keep?: string;
@@ -776,6 +782,64 @@ export function OutsideReply({
     if (compose) setMail(startAddressing(compose));
     setLineOpen(false);
   };
+  if (items)
+    return (
+      <ItemReplyBox
+        isMail={isMail}
+        target={
+          isMail ? (
+            <MailAddressLine
+              compose={compose}
+              value={mail}
+              onChange={setMail}
+              open={lineOpen}
+              onOpen={setLineOpen}
+              onTyping={onTyping}
+              touch={false}
+              disabled={off}
+              full
+            />
+          ) : (
+            hint
+          )
+        }
+        mentions={mentions.list}
+        field={{
+          ref: (el: HTMLTextAreaElement | null) => {
+            ownRef.current = el;
+            if (inputRef) inputRef.current = el;
+          },
+          value: text,
+          disabled: off,
+          // The target line already says where it goes; the field says what to do.
+          placeholder: isMail ? hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
+          "aria-label": hint,
+          onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+            setText(e.target.value);
+            mentions.onCaret(e.target);
+          },
+          onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
+          onKeyDown: keys,
+          onFocus: () => onTyping?.(true),
+          onBlur: () => {
+            mentions.onCaret(null);
+            onTyping?.(false);
+          },
+        }}
+        signature={isMail && compose && hasSignature ? { text: signature, toggle: () => shown && setMail({ ...shown, signature: !signature }) } : null}
+        quote={isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null}
+        send={{
+          busy,
+          disabled: off || !text.trim(),
+          title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
+          keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
+          onSend: () => void send(),
+        }}
+        discard={isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null}
+        error={error}
+        actions={isMail ? null : actions}
+      />
+    );
   return (
     <div
       className={framed ? "loki-mail-compose" : undefined}
@@ -1085,7 +1149,9 @@ function DeckReply({
   onEscapeEmpty,
   row,
   compose,
+  items = false,
 }: {
+  items?: boolean;
   current: AttentionItem;
   facts: OutsideFacts;
   thread: ThreadState;
@@ -1110,6 +1176,7 @@ function DeckReply({
       quote={quoteOf(facts, thread)}
       searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
       inThread={thread.kind === "read" && !!thread.opened}
+      items={items}
     />
   );
 }
@@ -1178,6 +1245,7 @@ export function OutsideCard({
       onEscapeEmpty={onEscapeEmpty}
       row={row}
       compose={compose}
+      items={preview === "on"}
     />
   ) : null;
   return (

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { OutsideFacts, OutsideMessage } from "../core/frame-types.ts";
-import { OutsideThread } from "../app/src/desk/outside-card.tsx";
+import type { MailCompose, OutsideFacts, OutsideMessage } from "../core/frame-types.ts";
+import { OutsideReply, OutsideThread, type ReplyBoxControl } from "../app/src/desk/outside-card.tsx";
 import { ItemMailThread } from "../app/src/item/outside-rows.tsx";
 
 // Plan 097, U7: an outside card's thread drawn with the item components. The thread keeps its own window, loading,
@@ -100,5 +100,69 @@ describe("an email thread on the item components", () => {
   test("the seam draws it for a mail card with items on", () => {
     const out = html(createElement(OutsideThread, { facts: facts({ provider: "gmail", place: null }), state: read(mails), items: true }));
     expect(out).toContain("data-mail-thread");
+  });
+});
+
+describe("the outside reply box on the Composer", () => {
+  const box = (over: Partial<ReplyBoxControl> = {}): ReplyBoxControl => ({
+    text: "",
+    mail: null,
+    busy: false,
+    error: null,
+    onText: () => {},
+    onMail: () => {},
+    onSend: () => {},
+    ...over,
+  });
+  const compose: MailCompose = {
+    modes: { reply: { to: ["billing@northwind.example"], cc: [] }, reply_all: { to: ["billing@northwind.example"], cc: ["finance@example.com"] } },
+    from: [{ address: "ada@example.com", name: "Ada", signature: "Ada\nExample Co" }],
+    default_from: "ada@example.com",
+    subject: "Your invoice",
+    people: [],
+  };
+
+  test("today's box by default; the Composer with items, saying where a Slack reply goes, with the card's moves under it", () => {
+    const today = html(createElement(OutsideReply, { facts: facts(), box: box(), actions: createElement("span", null, "the moves") }));
+    expect(today).not.toContain("data-reply-box");
+    const items = html(
+      createElement(OutsideReply, {
+        facts: facts({ thread_id: "C1:1.0" }),
+        box: box({ text: "Thursday works." }),
+        actions: createElement("span", null, "the moves"),
+        items: true,
+      }),
+    );
+    expect(items).toContain("data-reply-box");
+    expect(items).toMatch(/data-target[^>]*>reply in the thread</);
+    expect(items).toContain("Thursday works.");
+    expect(items).toContain('aria-label="send"');
+    expect(items).toContain("the moves");
+  });
+
+  test("send waits for words, and a failed send says why", () => {
+    const empty = html(createElement(OutsideReply, { facts: facts(), box: box(), items: true }));
+    expect(empty).toMatch(/aria-label="send"[^>]*disabled|disabled[^>]*aria-label="send"/);
+    expect(html(createElement(OutsideReply, { facts: facts(), box: box({ text: "x", error: "Slack refused it" }), items: true }))).toContain(
+      "Slack refused it",
+    );
+  });
+
+  test("a mail's box has its recipients line on top, its signature, the quoted mail and discard; the moves stay on the card", () => {
+    const out = html(
+      createElement(OutsideReply, {
+        facts: facts({ provider: "gmail", place: null }),
+        box: box({ text: "Thanks." }),
+        compose,
+        quote: "Your invoice for November is attached.",
+        actions: createElement("span", null, "the moves"),
+        items: true,
+      }),
+    );
+    expect(out).toContain("billing@northwind.example");
+    expect(out).toContain("Example Co");
+    expect(out).toContain('aria-label="show the quoted mail"');
+    expect(out).toContain(">discard<");
+    expect(out).not.toContain("the moves");
   });
 });
