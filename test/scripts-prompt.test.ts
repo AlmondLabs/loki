@@ -56,14 +56,6 @@ async function request(owns: boolean): Promise<{ prompt: string; tools: string }
     await (await chat.submit({ type: "input", content: "hello" }, ctx)).wait(ctx);
     // The tool definitions the model is offered, as a provider sends them.
     const tools = JSON.stringify((await chat.agent(ctx)).tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })));
-    if (owns) {
-      const t = prompt.indexOf("codemode");
-      console.log(
-        "PROMPT",
-        JSON.parse(`"${prompt.slice(prompt.lastIndexOf("<codemode>"), prompt.lastIndexOf("</codemode>")).replace(/"/g, '\\"')}"`.replace(/\\\\"/g, '\\"')),
-        t,
-      );
-    }
     return { prompt, tools };
   } finally {
     await sandbox.close();
@@ -78,9 +70,6 @@ describe("what scripts cost an agent's prompt (plan 2026-11-11, U9, Success Crit
   test("an owning agent pays for the script tool and the google listing, under the 1,000-token target; any other agent pays nothing", async () => {
     const [owner, other] = [await request(true), await request(false)];
     const added = tokens(owner.prompt) - tokens(other.prompt) + (tokens(owner.tools) - tokens(other.tools));
-    console.log(
-      `scripts add ${added} tokens a turn: section ${tokens(owner.prompt) - tokens(other.prompt)}, tools ${tokens(owner.tools) - tokens(other.tools)}`,
-    );
     expect(other.prompt).not.toContain("<codemode>");
     expect(other.tools).not.toContain("codemode");
     // The section names the google namespace; a script finds its tools with searchTools() (SCRIPT_LISTING_TOKENS).
