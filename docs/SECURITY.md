@@ -201,7 +201,11 @@ yourself.
   the token leaves the Mac (`mod/frames/accounts.ts`, `mod/jira.ts`). The token is kept in the keychain with the site's host and your email, never in a state file. A
   token Jira refuses marks the account as wanting a new one; loki does not try it again until you reconnect.
 - **What loki calls in Jira.** It reads: who you are, the tickets you watch, each ticket's fields and description, the
-  site's list of fields (once, to find its Sprint field), and each ticket's comments and history.
+  site's list of fields (once, to find its Sprint field), and each ticket's comments and history. When a comment on a
+  card shares a file, it reads the ticket's attachment list, and for a picture it fetches Jira's thumbnail once, asked
+  with `redirect=false` and with redirects not followed, so the token goes only to the site and never to Jira's media
+  host; a refused thumbnail is none and never marks the account as wanting a new token. The thumbnail is kept with your
+  chats' pictures in `~/.loki/chat-images/`, as Slack's are (plan 092, `mod/jira.ts`, `mod/outside-previews.ts`).
   It writes one thing: a comment you type yourself on a Jira card, posted through `account_thread_reply` and
   `mod/outside-threads.ts`, the one caller of `JiraClient.postComment` (a test checks there is no other). Read, later,
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
