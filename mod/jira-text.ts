@@ -34,6 +34,48 @@ const rec = (v: unknown): Record<string, unknown> => (typeof v === "object" && v
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
 
+/**
+ * A file a Jira document shares, as the document names it (plan 092, KTD6). The card matches `name`, the file's
+ * `alt`, to the ticket's attachment list, and opens `url` for an `external` file, so only an https address is kept.
+ * `type` is Jira's kind of media (`file`, `link` or `external`); any of the three is null when the document leaves it
+ * out.
+ */
+export interface JiraFileRef {
+  name: string | null;
+  type: string | null;
+  url: string | null;
+}
+
+/** Jira's nodes that stand for a file: one in a picture or a group of files, and one inside a line of text. */
+const isFile = (node: Record<string, unknown>) => node.type === "media" || node.type === "mediaInline";
+
+/** A file node's line of plain text, as a Slack file's (`filePlain`), so the phone and a hand-off name it. */
+const fileLine = (node: Record<string, unknown>) => `file: ${str(rec(node.attrs).alt) || "attachment"}`;
+
+/**
+ * The files a Jira document shares, in the order it shows them, wherever they sit: in a picture, a group of files or
+ * a line of text. The card draws them under the comment, since its blocks leave them out.
+ */
+export function adfFiles(doc: unknown): JiraFileRef[] {
+  const out: JiraFileRef[] = [];
+  const walk = (value: unknown): void => {
+    const node = rec(value);
+    if (isFile(node)) {
+      const attrs = rec(node.attrs);
+      const url = str(attrs.url);
+      out.push({
+        name: str(attrs.alt) || null,
+        type: str(attrs.type) || null,
+        url: attrs.type === "external" && url.startsWith("https://") ? url : null,
+      });
+      return;
+    }
+    for (const child of list(node.content)) walk(child);
+  };
+  walk(doc);
+  return out;
+}
+
 /** The address a text node links to, when it carries a link mark. */
 function linkOf(node: Record<string, unknown>): string {
   for (const mark of list(node.marks)) if (rec(mark).type === "link") return str(rec(rec(mark).attrs).href);
@@ -42,9 +84,10 @@ function linkOf(node: Record<string, unknown>): string {
 
 /**
  * A Jira document as plain lines, top to bottom: a line for each paragraph and each line break in it, list items with
- * their mark, code as written, a link as its text and address, and a mention as the person's name. A node type this
- * does not know is read for the text inside it, so a new kind of block never empties a comment. `mentions` lists each
- * mentioned account id once, so a caller can tell whether the person was mentioned.
+ * their mark, code as written, a link as its text and address, a mention as the person's name, and each file on a line
+ * of its own as `file: <name>`, or `file: attachment` when it has none (plan 092). A node type this does not know is
+ * read for the text inside it, so a new kind of block never empties a comment. `mentions` lists each mentioned account
+ * id once, so a caller can tell whether the person was mentioned.
  */
 export function adfText(doc: unknown): JiraDocText {
   const lines: string[] = [];
@@ -72,7 +115,9 @@ export function adfText(doc: unknown): JiraDocText {
       case "blockCard":
         return str(attrs.url);
       case "media":
-        return "[attachment]";
+      case "mediaInline":
+        // Each file on a line of its own, even one inside a line of text, as a Slack message's files read.
+        return `\n${fileLine(node)}\n`;
       default:
         return list(node.content).map(inline).join("");
     }
@@ -148,7 +193,8 @@ const visible = (spans: readonly SlackSpan[]) => spans.some((s) => s.kind !== "t
  * bullet or number and a list inside an item indented under it, since Slack's shape has no list. Bold, italics,
  * strikethrough and code marks style their text; a link is drawn by its label and keeps its address; a mention is
  * Slack's mention pill with the name Jira wrote; an emoji is its character. Anything the shape has no place for keeps
- * its words as `adfText` reads them, and an attachment reads "[attachment]".
+ * its words as `adfText` reads them. A file draws nothing here, since the card shows it under the comment (plan 092),
+ * but a picture's caption keeps its words as a block.
  */
 export function adfBlocks(doc: unknown): SlackBlock[] {
   const inline = (value: unknown, style: SpanStyle): SlackSpan[] => {
@@ -181,7 +227,9 @@ export function adfBlocks(doc: unknown): SlackBlock[] {
         return url ? [{ kind: "link", text: url, url }] : [];
       }
       case "media":
-        return [{ kind: "text", text: "[attachment]", ...style }];
+      case "mediaInline":
+        // The card draws a file under the comment, from `adfFiles`, so it has no place among the words.
+        return [];
       default:
         return list(node.content).flatMap((child) => inline(child, style));
     }

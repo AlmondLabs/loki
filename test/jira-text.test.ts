@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { adfBlocks, adfText, historyLines, textToAdf } from "../mod/jira-text.ts";
+import { adfBlocks, adfFiles, adfText, historyLines, textToAdf } from "../mod/jira-text.ts";
 
 const text = (t: string, marks?: unknown[]) => ({ type: "text", text: t, ...(marks ? { marks } : {}) });
 const paragraph = (...content: unknown[]) => ({ type: "paragraph", content });
@@ -153,7 +153,7 @@ describe("a Jira document as the Slack card's blocks (plan 091)", () => {
     ]);
   });
 
-  test("a mention without a name, an emoji without its character, an attachment and a card keep their words", () => {
+  test("a mention without a name, an emoji without its character and a card keep their words, and a file draws no block", () => {
     const body = doc(
       paragraph({ type: "mention", attrs: { id: "acc-bob" } }, text(" "), { type: "emoji", attrs: { shortName: ":party-parrot:" } }),
       { type: "mediaSingle", content: [{ type: "media", attrs: { id: "m1", type: "file" } }] },
@@ -167,7 +167,6 @@ describe("a Jira document as the Slack card's blocks (plan 091)", () => {
           { kind: "text", text: " :party-parrot:" },
         ],
       },
-      { kind: "text", spans: [{ kind: "text", text: "[attachment]" }] },
       { kind: "text", spans: [{ kind: "link", text: "https://acme.atlassian.net/browse/OPS-7", url: "https://acme.atlassian.net/browse/OPS-7" }] },
     ]);
   });
@@ -185,6 +184,75 @@ describe("a Jira document as the Slack card's blocks (plan 091)", () => {
     ]);
     expect(adfBlocks(null)).toEqual([]);
     expect(adfBlocks("plain")).toEqual([]);
+  });
+});
+
+describe("a Jira document's files (plan 092)", () => {
+  const media = (attrs: Record<string, unknown>) => ({ type: "media", attrs: { id: "m1", type: "file", collection: "", ...attrs } });
+  const single = (...content: unknown[]) => ({ type: "mediaSingle", attrs: { layout: "center" }, content });
+
+  test("a comment that is only a picture lists its file and reads as its name", () => {
+    const body = doc(single(media({ alt: "shot.png" })));
+    expect(adfFiles(body)).toEqual([{ name: "shot.png", type: "file", url: null }]);
+    expect(adfText(body).lines).toEqual(["file: shot.png"]);
+    expect(adfBlocks(body)).toEqual([]);
+  });
+
+  test("a group of two files lists both in order, each on its own line", () => {
+    const body = doc({ type: "mediaGroup", content: [media({ id: "m1", alt: "report.pdf" }), media({ id: "m2", alt: "notes.txt" })] });
+    expect(adfFiles(body).map((f) => f.name)).toEqual(["report.pdf", "notes.txt"]);
+    expect(adfText(body).lines).toEqual(["file: report.pdf", "file: notes.txt"]);
+    expect(adfBlocks(body)).toEqual([]);
+  });
+
+  test("a file without a name reads as an attachment", () => {
+    const body = doc(single(media({})));
+    expect(adfFiles(body)).toEqual([{ name: null, type: "file", url: null }]);
+    expect(adfText(body).lines).toEqual(["file: attachment"]);
+  });
+
+  test("an external file carries its https address, and only an https one", () => {
+    const body = doc(
+      single(media({ type: "external", url: "https://example.com/cat.gif", alt: "cat.gif" })),
+      single(media({ type: "external", url: "http://example.com/dog.gif" })),
+    );
+    expect(adfFiles(body)).toEqual([
+      { name: "cat.gif", type: "external", url: "https://example.com/cat.gif" },
+      { name: null, type: "external", url: null },
+    ]);
+  });
+
+  test("words, then a picture, then words: the blocks hold the two paragraphs, the text has the file between them", () => {
+    const body = doc(paragraph(text("before")), single(media({ alt: "shot.png" })), paragraph(text("after")));
+    expect(adfBlocks(body)).toEqual([
+      { kind: "text", spans: [{ kind: "text", text: "before" }] },
+      { kind: "text", spans: [{ kind: "text", text: "after" }] },
+    ]);
+    expect(adfText(body).lines).toEqual(["before", "file: shot.png", "after"]);
+  });
+
+  test("a file inside a paragraph is listed and gets a line of its own, and draws nothing in the paragraph", () => {
+    const body = doc(paragraph(text("see "), { type: "mediaInline", attrs: { id: "m3", type: "file", alt: "log.txt" } }, text(" here")));
+    expect(adfFiles(body)).toEqual([{ name: "log.txt", type: "file", url: null }]);
+    expect(adfText(body).lines).toEqual(["see", "file: log.txt", "here"]);
+    expect(adfBlocks(body)).toEqual([{ kind: "text", spans: [{ kind: "text", text: "see  here" }] }]);
+  });
+
+  test("a picture's caption keeps its words as a block", () => {
+    const body = doc(single(media({ alt: "shot.png" }), { type: "caption", content: [text("the broken page")] }));
+    expect(adfBlocks(body)).toEqual([{ kind: "text", spans: [{ kind: "text", text: "the broken page" }] }]);
+    expect(adfText(body).lines).toEqual(["file: shot.png", "the broken page"]);
+  });
+
+  test("mentions beside a file are still collected", () => {
+    const body = doc(paragraph({ type: "mention", attrs: { id: "acc-ada", text: "@Ada" } }, text(" look")), single(media({ alt: "shot.png" })));
+    expect(adfText(body)).toEqual({ lines: ["@Ada look", "file: shot.png"], mentions: ["acc-ada"] });
+  });
+
+  test("no [attachment] remains for a named file, and something that is no document has no files", () => {
+    const body = doc(single(media({ alt: "shot.png" })), { type: "mediaGroup", content: [media({ alt: "a.pdf" })] });
+    expect(JSON.stringify([adfText(body), adfBlocks(body)])).not.toContain("[attachment]");
+    expect(adfFiles(null)).toEqual([]);
   });
 });
 
