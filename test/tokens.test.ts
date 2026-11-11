@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 import { must } from "./fixtures/must.ts";
+import { LAYER } from "../app/src/kit/layers.ts";
 
 /**
  * The design tokens are a contract: inline styles pick from the scales in app/src/kit/tokens.css
@@ -519,5 +520,108 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
   test("every shortcut a user reads is formatted by the keymap", () => {
     const hits = code.flatMap((f) => strings(f.path, f.text));
     expect(hits).toEqual([]);
+  });
+});
+
+/**
+ * shadcn on loki's tokens (plan 094, U2). shadcn's colour names are loki's roles under other names, declared once in
+ * tokens.css; the pairs shadcn draws text on meet AA in every family and side; its stacking repeats LAYER. Tailwind's
+ * default theme stays for the agents' widgets, so loki's own class strings are fenced here instead: no default palette
+ * colour, no default text size, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.
+ */
+describe("shadcn reads loki's tokens, and loki's class strings stay on its scales", () => {
+  const styles = readFileSync(join(APP, "styles.css"), "utf8");
+  const start = tokens.indexOf(":root,\n.loki-phone {");
+  const shadcnBlock = start < 0 ? "" : tokens.slice(start, tokens.indexOf("\n}", start));
+  const shadcn = new Map([...shadcnBlock.matchAll(/^\s*(--[a-z0-9-]+):\s*var\(--loki-([a-z0-9-]+)\);/gm)].map((m) => [m[1], m[2]]));
+
+  test("every shadcn variable is a loki token, declared on :root and the phone", () => {
+    expect(shadcnBlock).not.toBe("");
+    const lines = [...shadcnBlock.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)];
+    expect(lines.filter((m) => !/^var\(--loki-[a-z0-9-]+\)$/.test(m[2].trim())).map((m) => m[1])).toEqual([]);
+    const loki = new Set([...tokens.matchAll(/^\s*--loki-([a-z0-9-]+):/gm)].map((m) => m[1]));
+    expect([...shadcn].filter(([, role]) => !loki.has(role)).map(([name]) => name)).toEqual([]);
+  });
+
+  test("every shadcn colour utility names a declared shadcn variable", () => {
+    const utilities = [...styles.matchAll(/--color-([a-z0-9-]+):\s*var\((--[a-z0-9-]+)\)/g)].filter((m) => !m[2].startsWith("--loki-"));
+    expect(utilities.length).toBeGreaterThan(20);
+    expect(utilities.filter((m) => !shadcn.has(m[2])).map((m) => m[1])).toEqual([]);
+  });
+
+  /** The surfaces shadcn draws text on, each with the ink it draws there. */
+  const PAIRS: Array<[string, string]> = [
+    ["--foreground", "--background"],
+    ["--card-foreground", "--card"],
+    ["--popover-foreground", "--popover"],
+    ["--primary-foreground", "--primary"],
+    ["--secondary-foreground", "--secondary"],
+    ["--muted-foreground", "--muted"],
+    ["--muted-foreground", "--background"],
+    ["--muted-foreground", "--card"],
+    ["--accent-foreground", "--accent"],
+    ["--destructive", "--background"],
+    ["--destructive", "--card"],
+    ["--sidebar-foreground", "--sidebar"],
+    ["--sidebar-primary-foreground", "--sidebar-primary"],
+    ["--sidebar-accent-foreground", "--sidebar-accent"],
+  ];
+  for (const palette of PALETTES) {
+    for (const theme of THEMES) {
+      test(`${palette} ${theme}: every shadcn ink meets AA on its surface`, () => {
+        const color = (name: string) => themeColor(palette, theme, must(shadcn.get(name), name));
+        const failures = PAIRS.map(([ink, surface]) => ({ pair: `${ink} on ${surface}`, ratio: contrast(color(ink), color(surface)) })).filter(
+          ({ ratio }) => ratio < 4.5,
+        );
+        expect(failures).toEqual([]);
+      });
+    }
+  }
+
+  test("the layer variables repeat LAYER, and each has its z-* utility", () => {
+    const declared = Object.fromEntries([...tokens.matchAll(/--loki-layer-([a-z]+):\s*(\d+);/g)].map((m) => [m[1], Number(m[2])]));
+    expect(declared).toEqual({ ...LAYER });
+    for (const name of Object.keys(LAYER)) expect(styles).toContain(`@utility z-${name} {\n  z-index: var(--loki-layer-${name});`);
+  });
+
+  /** Class-shaped words that leave loki's scales; Tailwind still knows them, for the widgets. */
+  const OFF_SCALE: Array<[string, RegExp]> = [
+    [
+      "a default palette colour",
+      /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|placeholder|caret|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white)(?:-\d{2,3})?(?:\/\d+)?\b/,
+    ],
+    ["a default text size", /\btext-(?:xs|sm|base|lg|xl|[2-9]xl)\b/],
+    ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|rounded|z|font|leading|shadow)-\[/],
+    ["a numbered layer", /\bz-\d+\b/],
+    ["tracking", /\btracking-[a-z0-9[(]/],
+    ["a weight outside 400 · 600 · 700", /\bfont-(?:thin|extralight|light|medium|extrabold|black)\b/],
+    ["a default shadow", /\bshadow-(?:2xs|xs|sm|md|lg|xl|2xl)\b/],
+    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:xs|2xl|3xl|4xl)\b/],
+  ];
+  const classStrings = (path: string, text: string): Array<{ at: string; text: string }> => {
+    const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const out: Array<{ at: string; text: string }> = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) {
+        out.push({ at: `${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}`, text: n.text });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(src);
+    return out;
+  };
+  const offScale = (path: string, text: string) =>
+    classStrings(path, text).flatMap((s) => OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`));
+
+  test("the fence catches what it should and passes loki's names", () => {
+    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium" />;')).toHaveLength(5);
+    expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(2);
+    expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
+      [],
+    );
+  });
+
+  test("no class string in loki's source leaves the scales", () => {
+    expect(code.flatMap((f) => offScale(f.path, f.text))).toEqual([]);
   });
 });

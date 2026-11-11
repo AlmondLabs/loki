@@ -246,6 +246,55 @@
   --loki-label-7: oklch(54% 0.15 350);
 }
 
+/* shadcn's names for loki's roles (plan 094). shadcn's components read these; each one is a loki token, so every
+   family, side and the phone follow without a second definition. They are declared on .loki-phone as well as :root
+   because a custom property resolves where it is declared: on :root alone, the phone's own roles would never reach
+   them. shadcn's "primary" is loki's affirmative fill (the one go button), "accent" its hover, "ring" the link blue.
+   The layers repeat LAYER (kit/layers.ts) for the z-* utilities in styles.css; the tokens test keeps them equal. */
+:root,
+.loki-phone {
+  --background: var(--loki-bg);
+  --foreground: var(--loki-fg);
+  --card: var(--loki-panel);
+  --card-foreground: var(--loki-fg);
+  --popover: var(--loki-panel);
+  --popover-foreground: var(--loki-fg);
+  --primary: var(--loki-affirm);
+  --primary-foreground: var(--loki-on-affirm);
+  --secondary: var(--loki-selection);
+  --secondary-foreground: var(--loki-fg);
+  --muted: var(--loki-panel-header);
+  --muted-foreground: var(--loki-muted);
+  --accent: var(--loki-hover);
+  --accent-foreground: var(--loki-fg);
+  --destructive: var(--loki-negative);
+  --border: var(--loki-border);
+  --input: var(--loki-control-border);
+  --ring: var(--loki-accent);
+  --chart-1: var(--loki-accent);
+  --chart-2: var(--loki-label-1);
+  --chart-3: var(--loki-label-3);
+  --chart-4: var(--loki-label-5);
+  --chart-5: var(--loki-label-7);
+  --sidebar: var(--loki-panel);
+  --sidebar-foreground: var(--loki-fg);
+  --sidebar-primary: var(--loki-affirm);
+  --sidebar-primary-foreground: var(--loki-on-affirm);
+  --sidebar-accent: var(--loki-hover);
+  --sidebar-accent-foreground: var(--loki-fg);
+  --sidebar-border: var(--loki-border);
+  --sidebar-ring: var(--loki-accent);
+  --radius: var(--loki-radius-md);
+}
+:root {
+  --loki-layer-panel: 100;
+  --loki-layer-bubble: 101;
+  --loki-layer-rail: 110;
+  --loki-layer-modal: 200;
+  --loki-layer-strip: 250;
+  --loki-layer-toast: 300;
+}
+
 /* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in every theme and palette.
    The phone does the same for its own tokens (phone.css). */
 @media (prefers-contrast: more) {

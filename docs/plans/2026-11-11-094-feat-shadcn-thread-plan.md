@@ -61,8 +61,8 @@ switch, and decides its look on the rendered result.
 - R2. shadcn's colour variables follow loki's: day and night, both palettes (loki's own and Tokyo Night) and the phone's
   scope, switched by loki's existing `data-theme` and `data-palette` with no `.dark` class. Every foreground and
   background pair shadcn uses meets AA on both sides of both palettes.
-- R3. Tailwind offers only loki's scales: no default colour palette, loki's radii, loki's type sizes and a spacing step,
-  so a class off the scale does not exist rather than being caught later.
+- R3. loki's own source uses only loki's scales through Tailwind: its colours, radii, type sizes, shadows and layers by
+  name, and the tokens test fails anything else. Tailwind's defaults stay for the agents' widgets (KTD4).
 - R4. shadcn's components follow loki's rules for focus (the flash that settles), motion (transform and opacity, nothing
   animated from the keyboard, short fades under reduced motion), layers (`LAYER`) and hover (pointer only).
 
@@ -141,11 +141,16 @@ switch, and decides its look on the rendered result.
   `--sidebar-*` and `--chart-*` sets likewise, with `-foreground` pairs from the matching `--loki-on-*` or `--loki-fg`.
   Because they read loki's variables, every palette, side and the phone's scope follow with no second definition. A
   `@custom-variant dark` matches `[data-theme="dark"]`, so shadcn's few `dark:` classes work.
-- KTD4. **Tailwind's theme is the fence.** `@theme` resets the defaults (`--color-*: initial` and the same for radius,
-  text, shadow, font, tracking) and declares loki's: the colours as KTD3, radii `sm 6 · md 8 · lg 12 · full`, text
-  `9.5 · 10.5 · 11 · 12 · 13.5 · 15 · 17 · 22 · 28` (named `micro`, `fine`, `tag`, `sm`, `base`, `row`, `card`,
-  `display`, `hero`), `--spacing: 4px`, loki's shadows, the sans and mono faces, and the layers as `--z-*` from `LAYER`.
-  shadcn's component classes are rewritten to these names where they use others.
+- KTD4. **The fence is the tokens test, not a stripped theme** (revised in U2). The agents' widgets are told
+  "Tailwind classes work" and receive the app's stylesheet, so resetting Tailwind's default theme would break widgets
+  already written. The defaults stay; `@theme inline` adds loki's names: shadcn's colours as KTD3, radii `sm 6 · md 8
+  · lg 12` (and `xl` as 12, which shadcn's cards use), text `micro 9.5 · fine 10.5 · tag 11 · meta 12 · body 13.5 ·
+  row 15 · card 17 · display 22 · hero 28`, shadows `sheet · float · panel · low`, the sans and mono faces, and
+  `z-panel` … `z-toast` utilities from `LAYER`. `test/tokens.test.ts` then fails any string in loki's source that
+  uses a default palette colour, a default text size, an arbitrary size, radius, layer or weight, a numbered layer,
+  tracking, a weight other than 400 · 600 · 700, a default shadow or an off-scale radius. shadcn's component classes
+  are rewritten to loki's names where they use others. Overriding `--radius-sm/md/lg/xl` and `--font-sans` does reach
+  the widgets: their corners and face become loki's.
 - KTD5. **shadcn's components bend to loki's rules on the way in.** Each added file is reviewed (the shadcn skill's
   review step) and changed for: focus (no `focus-visible:ring-*`; loki's global focus rule in `tokens.css` draws it),
   motion (overlay `animate-in`/`animate-out` keyframes take loki's spring curves and durations; nothing animates when

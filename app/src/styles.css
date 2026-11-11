@@ -30,6 +30,86 @@
   --radius-loki: var(--loki-radius);
 }
 
+/* shadcn's utilities (plan 094): its colour names read the roles in tokens.css, and loki's scales get names of their
+   own so a component says text-body, not a size. Tailwind's defaults stay, because the agents' widgets are told
+   Tailwind classes work and receive this stylesheet; loki's own source is held to these names by tokens.test.ts. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: var(--loki-radius-sm);
+  --radius-md: var(--loki-radius-md);
+  --radius-lg: var(--loki-radius-lg);
+  --radius-xl: var(--loki-radius-lg);
+  --font-sans: var(--loki-font);
+  --font-mono: var(--loki-mono);
+  --text-micro: 9.5px;
+  --text-fine: 10.5px;
+  --text-tag: 11px;
+  --text-meta: 12px;
+  --text-body: 13.5px;
+  --text-row: 15px;
+  --text-card: 17px;
+  --text-display: 22px;
+  --text-hero: 28px;
+  --shadow-sheet: var(--loki-shadow-sheet);
+  --shadow-float: var(--loki-shadow-float);
+  --shadow-panel: var(--loki-shadow-panel);
+  --shadow-low: var(--loki-shadow-low);
+}
+
+/* Night is the bare :root and day is data-theme="light" (theme.tsx), so shadcn's dark: classes key on that, not on a
+   .dark class. */
+@custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
+
+/* Window-level stacking for shadcn's overlays, from LAYER (kit/layers.ts) by way of tokens.css: z-modal, never z-50. */
+@utility z-panel {
+  z-index: var(--loki-layer-panel);
+}
+@utility z-bubble {
+  z-index: var(--loki-layer-bubble);
+}
+@utility z-rail {
+  z-index: var(--loki-layer-rail);
+}
+@utility z-modal {
+  z-index: var(--loki-layer-modal);
+}
+@utility z-strip {
+  z-index: var(--loki-layer-strip);
+}
+@utility z-toast {
+  z-index: var(--loki-layer-toast);
+}
+
 html,
 body,
 #root {
