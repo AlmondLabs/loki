@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* shadcn's overlay animations and its variants and utilities (data-open, shimmer, scroll-fade), plan 094. */
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 /* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
 @source "__LOKI_WIDGETS_DIR__";
 @import "./kit/tokens.css";
@@ -84,6 +87,15 @@
   --shadow-float: var(--loki-shadow-float);
   --shadow-panel: var(--loki-shadow-panel);
   --shadow-low: var(--loki-shadow-low);
+}
+
+/* shadcn draws a bare `border` in the quiet divider, not in currentColor as Tailwind's reset would. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
 }
 
 /* Night is the bare :root and day is data-theme="light" (theme.tsx), so shadcn's dark: classes key on that, not on a

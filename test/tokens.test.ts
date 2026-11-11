@@ -591,10 +591,12 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
       /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|placeholder|caret|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white)(?:-\d{2,3})?(?:\/\d+)?\b/,
     ],
     ["a default text size", /\btext-(?:xs|sm|base|lg|xl|[2-9]xl)\b/],
-    ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|rounded|z|font|leading|shadow)-\[/],
-    ["a numbered layer", /\bz-\d+\b/],
+    ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|z|font|leading|shadow)-\[|\brounded(?:-[trblse]{1,2})?-\[(?!(?:1|3|4|9|24)px\])/],
+    // small numbers stack inside one component, which the design allows; 50 and up is window-level stacking
+    ["a numbered window layer", /\bz-(?:[5-9]\d|\d{3,})\b/],
     ["tracking", /\btracking-[a-z0-9[(]/],
     ["a weight outside 400 · 600 · 700", /\bfont-(?:thin|extralight|light|medium|extrabold|black)\b/],
+    ["outline-none, which hides the focus ring tokens.css draws", /(?:^|\s)(?:\S*:)?outline-none(?=\s|$)/],
     ["a default shadow", /\bshadow-(?:2xs|xs|sm|md|lg|xl|2xl)\b/],
     ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:xs|2xl|3xl|4xl)\b/],
   ];
@@ -614,7 +616,7 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     classStrings(path, text).flatMap((s) => OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`));
 
   test("the fence catches what it should and passes loki's names", () => {
-    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium" />;')).toHaveLength(5);
+    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
     expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(2);
     expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
