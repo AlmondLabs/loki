@@ -10,6 +10,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
   useMessageScrollerScrollable,
 } from "@/ui/message-scroller";
 import { Trace, TraceLine, TraceTitle } from "@/ui/trace";
@@ -63,6 +64,7 @@ function ThreadBody({
   const widgets = layout?.widgets ?? [];
   const { start, above, nearTop, reveal, fold } = useThreadWindow(list, dividerAt, widgets, older);
   const fresh = useFresh(list, above);
+  useFollowSend(list);
   useImperativeHandle(
     handle,
     () => ({
@@ -128,7 +130,7 @@ function ThreadBody({
           {rows?.length === 0 && <p className="m-0 text-meta text-muted-foreground">nothing here yet — everything you send lands in {who}'s transcript</p>}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
-              <MessageScrollerItem key={e.key} messageId={e.key} scrollAnchor={e.kind === "message" && e.anchor}>
+              <MessageScrollerItem key={e.key} messageId={e.key}>
                 {draw(e)}
               </MessageScrollerItem>
             ))}
@@ -209,4 +211,21 @@ function useFresh(list: TranscriptRow[], above: number): number {
   if (!left) return 0;
   const from = left.at + (above - left.above);
   return list.slice(from).filter((r) => r.role === "user" || r.role === "assistant").length;
+}
+
+/**
+ * Sending re-pins the thread to the bottom, as today's does, wherever the reader was. MessageScroller's own answer to a
+ * send (scrolling your message to the top) counts every message it has not yet seen on screen as new, and a thread opens
+ * at the bottom, so it jumped to the oldest one; no row is a scroll anchor, and this follows your message instead.
+ */
+function useFollowSend(list: TranscriptRow[]) {
+  const { scrollToEnd } = useMessageScroller();
+  const tail = list.length ? list[list.length - 1] : null;
+  const seen = useRef(tail);
+  useEffect(() => {
+    if (tail === seen.current) return;
+    const sent = tail?.role === "user" && seen.current !== null;
+    seen.current = tail;
+    if (sent) scrollToEnd({ behavior: "smooth" });
+  }, [tail, scrollToEnd]);
 }

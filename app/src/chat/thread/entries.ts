@@ -14,7 +14,7 @@ export type ThreadEntry =
   | { kind: "widget"; key: string; mark: WidgetMark; live: boolean }
   | { kind: "steps"; key: string; rows: TranscriptRow[]; running: boolean; arrived: boolean }
   | { kind: "event"; key: string; row: TranscriptRow; arrived: boolean }
-  | { kind: "message"; key: string; row: TranscriptRow; last: boolean; first: boolean; arrived: boolean; anchor: boolean };
+  | { kind: "message"; key: string; row: TranscriptRow; last: boolean; first: boolean; arrived: boolean };
 
 /** What the entries are built from: the thread's rows and where its window starts, and the marks laid among them. */
 export interface EntryInput {
@@ -105,7 +105,7 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
       return;
     }
     const speaks = m.role === "user" || m.role === "assistant";
-    out.push({ kind: "message", key, row: m, last: i === rows.length - 1, first: speaks && m.role !== author, arrived, anchor: m.role === "user" });
+    out.push({ kind: "message", key, row: m, last: i === rows.length - 1, first: speaks && m.role !== author, arrived });
     if (speaks) author = m.role;
   });
   return out;

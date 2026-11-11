@@ -103,13 +103,9 @@ describe("the new thread's reading order", () => {
     expect(busy.kind === "steps" && busy.running).toBe(true);
   });
 
-  test("your messages are the scroll anchors, and rows past arrivedFrom rise in", () => {
+  test("rows past arrivedFrom rise in", () => {
     const entries = threadEntries(input([user("a"), agent("b"), user("c")], { arrivedFrom: 2 }));
-    expect(entries.map((e) => e.kind === "message" && [e.anchor, e.arrived])).toEqual([
-      [true, false],
-      [false, false],
-      [true, true],
-    ]);
+    expect(entries.map((e) => e.kind === "message" && e.arrived)).toEqual([false, false, true]);
   });
 });
 

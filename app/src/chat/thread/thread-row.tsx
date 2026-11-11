@@ -99,7 +99,7 @@ function CopyAsMarkdown({ text }: { text: string }) {
       aria-label={copied ? "copied" : "copy as markdown"}
       title={copied ? "copied" : "copy as markdown"}
       onClick={() => void copy()}
-      className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100"
+      className="text-muted-foreground opacity-40 group-hover/row:opacity-100 focus-visible:opacity-100 data-[copied=true]:opacity-100"
       data-copied={copied ? "true" : undefined}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}
