@@ -32,6 +32,8 @@ export const SLACK_METHODS = [
   "auth.test",
   "client.counts",
   "activity.feed",
+  "activity.markRead",
+  "activity.markUnread",
   "conversations.history",
   "conversations.replies",
   "conversations.info",
@@ -126,6 +128,9 @@ export interface SlackActivityItem {
   author_user_id: string | null;
   item: Record<string, unknown>;
 }
+
+/** What names one Activity item when it is marked read or unread (plan 092). */
+export type SlackActivityEntry = Pick<SlackActivityItem, "type" | "key" | "feed_ts">;
 
 /** One page of the Activity feed, newest first, and where the next page starts. */
 export interface SlackActivityPage {
@@ -438,6 +443,17 @@ export class SlackClient {
     const info = await this.conversationsInfo(channel);
     if (!info.is_im && !info.is_mpim) throw new SlackError(`${channel} is not a DM or group DM: loki marks only those read`, "not_a_dm");
     await this.call("conversations.mark", { channel, ts });
+  }
+
+  /**
+   * Mark Activity items read, or unread again (plan 092), as Slack's own client does from its Activity view. Each item
+   * is named by its kind, key and feed time, as `activity.feed` gives them; only those items change, and no read marker
+   * moves. Slack does not document these calls: they were tried against a live workspace by another Slack client.
+   */
+  async markActivity(items: readonly SlackActivityEntry[], read: boolean): Promise<void> {
+    if (items.length === 0) return;
+    const entries = items.map((i) => ({ type: i.type, key: i.key, feed_ts: i.feed_ts }));
+    await this.call(read ? "activity.markRead" : "activity.markUnread", { entries });
   }
 
   /** The person's drafts, active ones unless told otherwise. */

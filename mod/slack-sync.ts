@@ -16,7 +16,8 @@ import { SLACK_ACTIVITY_TYPES, SlackError, type SlackActivityItem, type SlackCli
  * or per message when it has no thread, `<channel>:<ts>` (R7). What Slack no longer shows unread leaves the Inbox (R13).
  *
  * Archive marks a DM read up to the card's last message and never later; it never moves a channel's read marker (R12).
- * No endpoint for marking one Activity item read is verified yet, so archiving an Activity card closes it in loki only.
+ * Read and archive also mark the card's Activity items read in Slack, up to its last message, and an undo marks them
+ * unread again (plan 092).
  *
  * Items from before the account was connected fill it up to 20 open cards (R8, plan 078): while it has fewer, the
  * newest older items take the room left, stepping back through 3, 7, 14 and 30 days and then older, until none remain.
@@ -94,13 +95,6 @@ const firstLine = (text: string): string =>
     .find((l) => l.trim())
     ?.trim() ?? "";
 
-/**
- * Mark one Activity item read in Slack. The Slack desktop app's endpoint for this is not verified yet (plan 067 U7
- * step 6 is a by-hand check on a real workspace that it marks one item and moves no channel marker), so this calls
- * nothing and says so; once that endpoint is confirmed, its call goes here.
- */
-const markActivityItemRead = (): "marked" | "not_available" => "not_available";
-
 /** Each AccountThreads' Slack syncs by account: one write-back serves every workspace, since it is registered per provider. */
 const syncsByThreads = new WeakMap<AccountThreads, Map<string, SlackSync>>();
 
@@ -110,8 +104,8 @@ const NO_LABELS = "Slack has no labels: labels are for email";
 /**
  * The one Slack write-back for an AccountThreads, handing each move to the sync of the card's account (plan 070,
  * KTD3). Read and archive are the same mark in Slack, and both end the card. Unread writes nothing: a Slack card is
- * unread until it ends. An undo writes nothing either, since Slack cannot be marked unread again from here; the card
- * opens again in loki only.
+ * unread until it ends. An undo marks the card's Activity items unread again (plan 092); a DM stays read, since Slack
+ * cannot mark one unread from here, and the card opens again in loki.
  */
 function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
   const mark = async (accountId: string, record: ThreadRecord, move: "archive" | "read"): Promise<OutsideChange> => {
@@ -125,7 +119,9 @@ function slackSource(syncs: Map<string, SlackSync>): OutsideSource {
     markRead: (accountId, record) => mark(accountId, record, "read"),
     markUnread: (_accountId, record) => Promise.resolve({ move: "unread", messages: [], ended: false, was_unread: record.unread_out_there }),
     addLabels: () => Promise.reject(new Error(NO_LABELS)),
-    restore: () => Promise.resolve(),
+    restore: async (accountId, record, change) => {
+      if (change.ended) await syncs.get(accountId)?.restore(record);
+    },
     labels: () => Promise.reject(new Error(NO_LABELS)),
   };
 }
@@ -138,7 +134,13 @@ export class SlackSync {
   private readonly names = new Map<string, { name: string; image: string | null }>();
   /** Channels' names by id, `#name`, so each is asked for once; null when Slack would not say. */
   private readonly places = new Map<string, string | null>();
-  private toldNoActivityMark = false;
+  /**
+   * The unread Activity items the feed showed, by the card they make (plan 092): what read and archive mark read. A
+   * whole read of the feed replaces them; a read of its newest page adds to them.
+   */
+  private activity = new Map<string, SlackActivityItem[]>();
+  /** The items the last read or archive of each card marked read, so an undo can mark them unread again. */
+  private readonly marked = new Map<string, SlackActivityItem[]>();
   /** When the next whole walk of the Activity feed is due, in ms since the epoch: at once, at first. */
   private nextFullWalk = 0;
   /** A walk Slack stopped part way with a rate limit: it goes on from here on a later tick, not from the start. */
@@ -187,6 +189,8 @@ export class SlackSync {
       add(dm ? dm.id : `${item.channel}:${item.thread_ts ?? item.ts}`, item.ts, null, item);
     }
 
+    this.remember(candidates, feed.complete);
+
     const connectedAt = this.opts.account.connected_at;
     const older: Candidate[] = [];
     for (const c of candidates.values()) {
@@ -212,13 +216,56 @@ export class SlackSync {
     if (open < PAST_CAP) await this.refill(older, feed.complete, PAST_CAP - open);
   }
 
-  /** Write an archive back to Slack (R12): a DM is marked read up to the card's last message; nothing else is marked. */
+  /**
+   * Write a read or archive back to Slack (R12): a DM is marked read up to the card's last message, and the card's
+   * Activity items up to it are marked read (plan 092); no channel's read marker moves. Marking the items is a courtesy
+   * to Slack's own Activity view: when Slack refuses it, the card still ends in loki and the refusal is logged.
+   */
   async archive(record: ThreadRecord): Promise<void> {
-    if (!record.thread_id.includes(":")) return this.opts.client.markDm(record.thread_id, record.newest_message_id);
-    if (markActivityItemRead() === "not_available" && !this.toldNoActivityMark) {
-      this.toldNoActivityMark = true;
-      log("slack:activity-mark-unavailable", { account_id: this.accountId, detail: "Activity cards archive in loki only; Slack still shows them unread" });
+    if (!record.thread_id.includes(":")) await this.opts.client.markDm(record.thread_id, record.newest_message_id);
+    const items = (this.activity.get(record.thread_id) ?? []).filter((i) => !i.ts || !tsAfter(i.ts, record.newest_message_id));
+    if (items.length === 0) return;
+    try {
+      await this.opts.client.markActivity(items, true);
+    } catch (err) {
+      log("slack:activity-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, read: true, error: messageOf(err) });
+      return;
     }
+    const keys = new Set(items.map((i) => i.key));
+    const left = (this.activity.get(record.thread_id) ?? []).filter((i) => !keys.has(i.key));
+    if (left.length > 0) this.activity.set(record.thread_id, left);
+    else this.activity.delete(record.thread_id);
+    this.marked.set(record.thread_id, items);
+  }
+
+  /**
+   * Undo a read or archive in Slack (plan 092): the Activity items it marked read are marked unread again. A DM stays
+   * read. When Slack refuses, the card still opens again in loki and the refusal is logged.
+   */
+  async restore(record: ThreadRecord): Promise<void> {
+    const items = this.marked.get(record.thread_id);
+    if (!items) return;
+    this.marked.delete(record.thread_id);
+    try {
+      await this.opts.client.markActivity(items, false);
+    } catch (err) {
+      log("slack:activity-mark-failed", { account_id: this.accountId, thread_id: record.thread_id, read: false, error: messageOf(err) });
+      return;
+    }
+    // Unread again, they are the card's to mark read once more, whether or not the next tick's page shows them.
+    const keys = new Set(items.map((i) => i.key));
+    this.activity.set(record.thread_id, [...(this.activity.get(record.thread_id) ?? []).filter((i) => !keys.has(i.key)), ...items]);
+  }
+
+  /** The tick's unread Activity items by card: in place of those known when the whole feed was read, else beside them. */
+  private remember(candidates: ReadonlyMap<string, Candidate>, complete: boolean): void {
+    const next = complete ? new Map<string, SlackActivityItem[]>() : new Map(this.activity);
+    for (const c of candidates.values()) {
+      if (c.items.length === 0) continue;
+      const keys = new Set(c.items.map((i) => i.key));
+      next.set(c.thread_id, [...(next.get(c.thread_id) ?? []).filter((i) => !keys.has(i.key)), ...c.items]);
+    }
+    this.activity = next;
   }
 
   /**
