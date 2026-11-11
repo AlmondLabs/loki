@@ -439,9 +439,9 @@ By hand:
 
 ---
 
-## Open Questions
+## Decided Questions (the person's, 2026-11-11)
 
-1. Should U9 (daemon and mod data) go in this branch, or in its own PR after it? It touches `daemon/` and the mod,
-   which the rest does not.
-2. Brief needs its own plan: which agent writes it, when, and how much each costs. Is it wanted next, or after this
-   lands?
+1. U9 (daemon and mod data) goes on this branch, in the same PR.
+2. Brief is planned after this lands.
+3. The visual language (colours, type, density, the rail and chat list) is redesigned after this plan, in its own plan
+   and from rendered example pages. This plan builds on today's tokens, so its pane keeps Slack's colours until then.
