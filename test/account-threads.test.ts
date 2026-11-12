@@ -64,6 +64,25 @@ const message = (more: Partial<ObservedMessage> = {}): ObservedMessage => ({
   ...more,
 });
 
+describe("a mail reply that did not go, on its card (plan 096)", () => {
+  test("the card says it until that reply is settled; another reply's settling leaves it, and it outlives a restart and newer mail", async () => {
+    const { threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const note = { outbox_id: "o3-abcdefgh", text: "ok", reason: "Gmail is unreachable", at: "2026-11-04T12:00:00.000Z" };
+    const card = (t: AccountThreads) => t.rows().find((r) => r.outside?.thread_id === "t1")?.outside;
+    expect(card(threads)?.not_sent).toBeUndefined();
+    expect(threads.markNotSent(MAIL, "t1", note.outbox_id, note)).toBe(true);
+    expect(card(threads)?.not_sent).toEqual(note);
+    expect(threads.markNotSent(MAIL, "t1", "another-reply", null)).toBe(false);
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    const later = again();
+    expect(card(later)?.not_sent).toEqual(note);
+    expect(later.markNotSent(MAIL, "t1", note.outbox_id, null)).toBe(true);
+    expect(card(later)?.not_sent).toBeUndefined();
+    expect(later.markNotSent(MAIL, "no-such-thread", note.outbox_id, note)).toBe(false);
+  });
+});
+
 describe("a card's header facts (plan 073)", () => {
   test("a mail's reach comes from its traits, and a lone mailbox is not named", async () => {
     const { threads, accounts } = await fixture();

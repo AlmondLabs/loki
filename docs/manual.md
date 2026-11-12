@@ -1111,9 +1111,16 @@ read) stay in the row at the bottom. The phone keeps its own layout.
 6. **Undo send.** A mail reply waits 10 seconds before it goes. The card moves on at once and says
    "sending · z undo". Z (or ⌘Z) in that time stops it, and the card comes back with your words and recipients.
    After that, Z takes back the key's move as usual. The waiting reply is kept in `~/.loki/state/outbox.json` on the
-   account's Mac, so if loki stops meanwhile it goes when loki starts again. If it fails, the card comes back with
-   your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
-   recipients line has To and Cc. The mode, From and Bcc are on the Mac.
+   account's Mac, so if loki stops meanwhile it goes when loki starts again, as long as that is within 10 minutes of
+   when it was due; a later one waits for you, so a reply never lands days after newer mail. If it fails while the
+   card waits on it, the card comes back with your words and the reason. On the phone, **Undo** shows beside
+   **Sending…** for those 10 seconds. The phone's recipients line has To and Cc. The mode, From and Bcc are on the
+   Mac.
+7. **A reply that did not go.** When a reply fails after the card stopped waiting on it (the Mac slept, or loki
+   stopped while it was sending), the card says "not sent" with the reason and your reply's first line, on every
+   device, until you choose. **send again** first looks in the thread for it, since Gmail may have taken it even
+   though the answer never came back: if it is there, the card stops saying "not sent" and nothing goes twice.
+   **discard** lets it go. Nothing is sent again by itself.
 
 **Jira tickets.** A Jira card is one ticket, drawn as the ticket reads in Jira. Its header names the ticket's key, type
 and project ("◆ OPS-7 · Task · Operations") over its summary, which is the card's title; its tag says why it is there,

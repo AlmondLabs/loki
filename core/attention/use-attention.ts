@@ -215,6 +215,8 @@ export interface OutsideSource {
   composeOutside?: (item: AttentionItem) => Promise<MailCompose | string>;
   /** Stop a held mail reply before it goes (plan 076): true when it was stopped. */
   unsendOutside?: (item: AttentionItem, outboxId: string) => Promise<boolean>;
+  /** Send again or let go a mail reply that did not go (plan 096): null when done, else why not. */
+  settleUnsent?: (item: AttentionItem, outboxId: string, action: "resend" | "discard") => Promise<string | null>;
   /** The replies sent alone from cards, which a card's thread shows until it is read again (plan 086). */
   sentReplies?: SentReplies;
   /** Add or take back the person's reaction on a Slack card's message (plan 079): null when done, else why not. */
@@ -992,6 +994,7 @@ export function useAttention(opts: UseAttentionOptions) {
     readOutside: store.readOutside,
     composeOutside: store.composeOutside,
     unsendOutside: store.unsendOutside,
+    settleUnsent: store.settleUnsent,
     reactOutside: store.reactOutside,
     sentReplies: store.sent,
     searchEmoji: store.searchEmoji,

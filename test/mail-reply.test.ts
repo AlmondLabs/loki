@@ -7,7 +7,7 @@ import { FRAMES } from "../core/frames.ts";
 import type { AccountRecord } from "../mod/accounts.ts";
 import { rfc2822, type GmailDraftInput, type GmailMessage, type GmailMessagePart, type GmailSendAs } from "../mod/gmail.ts";
 import { forwardSubject, fromHeader, mailBody, mailDate } from "../mod/mail-compose.ts";
-import { MailOutbox } from "../mod/mail-outbox.ts";
+import { MailOutbox, RESUME_MAX_MS } from "../mod/mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import { MailPeople } from "../mod/mail-people.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
@@ -454,6 +454,160 @@ describe("undo send", () => {
   });
 });
 
+describe("a mail reply that did not go (plan 096)", () => {
+  const reply = { outbox_id: "o3-abcdefgh", account_id: MAIL, thread_id: "t1", text: "ok", then: "read" as const, mail: null };
+  const AT = Date.parse("2026-11-12T10:00:00Z");
+  /** The hold's timer, run on the next turn: the outbox has the reply in hand by then, as with a real timer. */
+  const soon = (fn: () => void) => {
+    queueMicrotask(fn);
+    return () => {};
+  };
+  /**
+   * An outbox over `file` whose send fails while `fails` holds a reason (and never answers while `hang` is set), with
+   * what its card was told, what it sent, and whether its thread has the reply.
+   */
+  const box = (file = join(scratch(), "outbox.json"), at = AT) => {
+    const notes: Array<{ id: string; reason: string | null }> = [];
+    const sent: string[] = [];
+    const state = { fails: "Gmail is unreachable" as string | null, hang: false, inThread: false as boolean | "unreadable" };
+    const outbox = new MailOutbox({
+      file,
+      holdMs: 0,
+      now: () => new Date(at),
+      key: Promise.resolve("the daemon's key"),
+      after: soon,
+      send: (held) => {
+        if (state.hang) return new Promise(() => {});
+        if (state.fails) return Promise.reject(new Error(state.fails));
+        sent.push(held.outbox_id);
+        return Promise.resolve({ sent: true, then_error: null, change: null });
+      },
+      wentOut: () => (state.inThread === "unreadable" ? Promise.reject(new Error("offline")) : Promise.resolve(state.inThread)),
+      onNotSent: (held, note) => notes.push({ id: held.outbox_id, reason: note?.reason ?? null }),
+    });
+    const kept = () => (JSON.parse(readFileSync(file, "utf8")) as { held: Array<{ outbox_id: string; state?: string; reason?: string }> }).held;
+    return { outbox, notes, sent, state, kept, file };
+  };
+  /** A reply that failed: in the file as failed, its card told. */
+  const failed = async () => {
+    const b = box();
+    await expect(b.outbox.hold(reply)).rejects.toThrow("Gmail is unreachable");
+    b.state.fails = null;
+    return b;
+  };
+
+  test("a send that fails is kept with its reason, and its card is told; nothing tries it again by itself", async () => {
+    const b = await failed();
+    await settle();
+    expect(b.kept()).toMatchObject([{ outbox_id: "o3-abcdefgh", state: "failed", reason: "Gmail is unreachable" }]);
+    expect(b.notes).toEqual([{ id: "o3-abcdefgh", reason: "Gmail is unreachable" }]);
+    expect(b.sent).toEqual([]);
+  });
+
+  test("send again goes when the thread does not have it, and settles the card", async () => {
+    const b = await failed();
+    expect(await b.outbox.resend(MAIL, "o3-abcdefgh")).toMatchObject({ sent: true });
+    expect(b.sent).toEqual(["o3-abcdefgh"]);
+    expect(b.kept()).toEqual([]);
+    expect(b.notes.at(-1)).toEqual({ id: "o3-abcdefgh", reason: null });
+  });
+
+  test("send again never sends twice: a reply already in its thread is settled without a second send", async () => {
+    const b = await failed();
+    b.state.inThread = true; // Gmail took it, and only its answer was lost
+    expect(await b.outbox.resend(MAIL, "o3-abcdefgh")).toMatchObject({ sent: true });
+    expect(b.sent).toEqual([]);
+    expect(b.kept()).toEqual([]);
+  });
+
+  test("a thread that cannot be read is no reason to send: the reply stays not sent", async () => {
+    const b = await failed();
+    b.state.inThread = "unreadable";
+    await expect(b.outbox.resend(MAIL, "o3-abcdefgh")).rejects.toThrow(/could not be read/);
+    expect(b.sent).toEqual([]);
+    expect(b.kept()).toMatchObject([{ state: "failed" }]);
+  });
+
+  test("discard forgets it and settles the card; another account cannot discard it", async () => {
+    const b = await failed();
+    expect(b.outbox.discard("gmail:someone@else.example", "o3-abcdefgh")).toBe(false);
+    expect(b.outbox.discard(MAIL, "o3-abcdefgh")).toBe(true);
+    expect(b.kept()).toEqual([]);
+    expect(b.notes.at(-1)).toEqual({ id: "o3-abcdefgh", reason: null });
+    await expect(b.outbox.resend(MAIL, "o3-abcdefgh")).rejects.toThrow(/not waiting/);
+  });
+
+  test("after a restart: a send cut short is looked for in its thread, and a failed one is shown again", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    before.state.hang = true; // the daemon stops while Gmail has not answered
+    void before.outbox.hold({ ...reply, outbox_id: "cut-short-1" });
+    await settle();
+    before.state.hang = false;
+    await expect(before.outbox.hold({ ...reply, outbox_id: "failed-001" })).rejects.toThrow();
+    expect(before.kept().map((h) => [h.outbox_id, h.state])).toEqual([
+      ["cut-short-1", "sending"],
+      ["failed-001", "failed"],
+    ]);
+    const after = box(file, AT + 60_000);
+    after.state.inThread = true; // the cut-short one reached Gmail
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.kept().map((h) => h.outbox_id)).toEqual(["failed-001"]);
+    expect(after.notes).toEqual(
+      expect.arrayContaining([
+        { id: "failed-001", reason: "Gmail is unreachable" },
+        { id: "cut-short-1", reason: null },
+      ]),
+    );
+  });
+
+  test("a cut-short send not in its thread is kept as not sent, never sent again by itself", async () => {
+    const file = join(scratch(), "outbox.json");
+    const before = box(file);
+    before.state.hang = true;
+    void before.outbox.hold(reply);
+    await settle();
+    const after = box(file, AT + 60_000);
+    after.state.fails = null;
+    after.outbox.resume();
+    await settle();
+    await settle();
+    expect(after.sent).toEqual([]);
+    expect(after.kept()).toMatchObject([{ state: "failed" }]);
+    expect(after.notes[0]?.reason).toMatch(/not in the thread/);
+  });
+
+  test("a reply still held when loki closed goes on its own only within ten minutes of when it was due", async () => {
+    const file = join(scratch(), "outbox.json");
+    const closed = new MailOutbox({
+      file,
+      holdMs: 10_000,
+      now: () => new Date(AT),
+      key: Promise.resolve("the daemon's key"),
+      after: () => () => {},
+      send: () => Promise.reject(new Error("never")),
+    });
+    void closed.hold(reply);
+    await settle();
+    const late = box(file, AT + 10_000 + RESUME_MAX_MS + 1000);
+    late.state.fails = null;
+    late.outbox.resume();
+    await settle();
+    expect(late.sent).toEqual([]);
+    expect(late.kept()).toMatchObject([{ outbox_id: "o3-abcdefgh", state: "failed" }]);
+    expect(late.notes[0]?.reason).toMatch(/loki was closed when it was due/);
+  });
+
+  test("every held reply carries its id in a header, which is how its thread is searched for it", () => {
+    const base = { threadId: "t1", inReplyTo: "", references: [], to: ["p@x.example"], cc: [], subject: "s", body: "b" };
+    expect(rfc2822({ ...base, outboxId: "o3-abcdefgh" })).toContain("\r\nX-Loki-Outbox: o3-abcdefgh\r\n");
+    expect(rfc2822(base)).not.toContain("X-Loki-Outbox");
+  });
+});
+
 describe("the people an account has mail with", () => {
   test("names and addresses from headers, quoted names kept, groups and junk left out", () => {
     expect(headerPeople('"Kumar, Pinku" <Pinku@Shop.example>, eng@acme.com, undisclosed-recipients:;')).toEqual([
@@ -570,6 +724,26 @@ describe("the mail reply box as drawn", () => {
     expect(html).toContain("-- \nAda\nAcme support");
     expect(html).toContain("•••");
     expect(html).toContain("reply all");
+  });
+  test("a reply that did not go: its words, why, and send again and discard, lowercase here and sentence case on the phone", () => {
+    const note = { outbox_id: "o3-abcdefgh", text: "Thanks, I will look tomorrow\nAda", reason: "Gmail is unreachable", at: "2026-11-12T10:00:00Z" };
+    const draw = (touch: boolean, onUnsent?: () => Promise<null>) =>
+      renderToStaticMarkup(
+        createElement(OutsideReply, { facts: { ...facts, not_sent: note }, touch, onUnsent, onSend: () => Promise.resolve({ sent: true, error: null }) }),
+      );
+    const desk = draw(false, () => Promise.resolve(null));
+    expect(desk).toContain('role="alert"');
+    expect(desk).toContain("not sent: Gmail is unreachable");
+    expect(desk).toContain("“Thanks, I will look tomorrow”");
+    expect(desk).toContain(">send again<");
+    expect(desk).toContain(">discard<");
+    const phone = draw(true, () => Promise.resolve(null));
+    expect(phone).toContain("Not sent: Gmail is unreachable");
+    expect(phone).toContain(">Send again<");
+    // With nothing to settle it by, it still says so, and offers nothing.
+    expect(draw(false)).toContain("not sent: Gmail is unreachable");
+    expect(draw(false)).not.toContain("send again");
+    expect(renderToStaticMarkup(createElement(OutsideReply, { facts, onSend: () => Promise.resolve({ sent: true, error: null }) }))).not.toContain("not sent");
   });
   test("before the line is read it says the reply goes to all, as before", () => {
     const html = renderToStaticMarkup(createElement(OutsideReply, { facts, onSend: () => Promise.resolve({ sent: true, error: null }) }));

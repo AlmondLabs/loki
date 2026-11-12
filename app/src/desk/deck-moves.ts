@@ -180,7 +180,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   const sendHeldStay = async (item: AttentionItem, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
     const { text, mail } = host.reply;
-    const outbox = host.newId?.() ?? crypto.randomUUID();
+    const outbox = host.newId?.() ?? newId();
     host.setReply(id, { text: "", mail: null, error: null, held: { outbox_id: outbox, text, mail } });
     host.say("sending · z undo");
     const r = await send(item, text, "stay", { mail, outbox_id: outbox });

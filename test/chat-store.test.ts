@@ -30,6 +30,8 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
   let reopened: () => void = () => {};
   const sent: string[] = [];
   const started: string[] = [];
+  /** Each send-again and discard of a mail reply that did not go (plan 096). */
+  const settled: string[][] = [];
   /** `fails`: every call to the daemon rejects with it, as when the socket closed under the request. `noList`: the list gets no answer. */
   const answers = { approval: true, fails: null as string | null, noList: false };
   const updates: Array<[string, Record<string, unknown>, string | undefined]> = [];
@@ -97,6 +99,11 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     isSubscribed: (rt: Runtime) => started.includes(rt.conversation_id),
     runtimeStart: (rt: Runtime) => Promise.resolve(void started.push(rt.conversation_id)),
     sendUserMessage: (_rt: Runtime, text: string) => (answers.fails ? Promise.reject(new Error(answers.fails)) : Promise.resolve(void sent.push(text))),
+    resendOutside: (accountId: string, threadId: string, outboxId: string) =>
+      answers.fails
+        ? Promise.reject(new Error(answers.fails))
+        : (settled.push(["resend", accountId, threadId, outboxId]), Promise.resolve({ sent: true, then_error: null, change: null })),
+    discardOutside: (accountId: string, outboxId: string) => (settled.push(["discard", accountId, outboxId]), Promise.resolve(true)),
     respondApproval: () => (answers.fails ? Promise.reject(new Error(answers.fails)) : Promise.resolve(answers.approval)),
     changeFolder: () => Promise.resolve(),
     labels: { get: () => Promise.resolve({ labels: [] }) },
@@ -117,6 +124,7 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     events,
     reopen: () => reopened(),
     host,
+    settled,
     sent,
     started,
     answers,
@@ -237,6 +245,21 @@ describe("the chat store (plan 052)", () => {
     await flush();
     expect(asked).toBe(2);
     expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hello", "hi, Ada here"]);
+  });
+
+  test("a mail reply that did not go is sent again or let go on its account's Mac, with why when that fails", async () => {
+    const d = daemon();
+    await flush();
+    const card = { home: "mac-mini", outside: { account_id: "gmail:ada@acme.com", thread_id: "t1" } } as Pick<ConversationInfo, "outside" | "home">;
+    expect(await d.store.settleUnsent(card, "o3-abcdefgh", "resend")).toBeNull();
+    expect(await d.store.settleUnsent(card, "o3-abcdefgh", "discard")).toBeNull();
+    expect(d.settled).toEqual([
+      ["resend", "gmail:ada@acme.com", "t1", "o3-abcdefgh"],
+      ["discard", "gmail:ada@acme.com", "o3-abcdefgh"],
+    ]);
+    d.answers.fails = "the link to loki closed before it answered";
+    expect(await d.store.settleUnsent(card, "o3-abcdefgh", "resend")).toBe("the link to loki closed before it answered");
+    expect(await d.store.settleUnsent({}, "o3-abcdefgh", "resend")).toBe("this card is not from an account");
   });
 
   test("a call's input growing tells the threads on screen without moving the snapshot", async () => {

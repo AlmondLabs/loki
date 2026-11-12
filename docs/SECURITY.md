@@ -260,7 +260,10 @@ and nothing an agent writes is posted to Slack or Jira.
   until it is sent). They are under `~/.loki`, which an agent with file tools can read and write. So each held reply
   carries a seal made with a key kept in the keychain (`outbox-key`), and a restart sends only replies whose seal
   holds: an entry written into the file by anything else is dropped unsent, and without a keychain no held reply is
-  sent after a restart.
+  sent after a restart. One due more than 10 minutes before the restart is not sent by itself either (plan 096). A
+  reply that fails stays in the file, marked failed, until you send it again or discard it on its card; sending it
+  again also needs its seal. Each held reply carries its id in an `X-Loki-Outbox` header, and before a second try loki
+  reads the thread for it, so a reply Gmail took is never sent twice.
 - **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
   The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
   as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more
