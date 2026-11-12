@@ -210,8 +210,8 @@ export class ThreadModel {
         }
         return this.written(step.text, step.at);
       case "thinking":
-        // Pieces add on; a whole thought (a stored message's) stands for what streamed of it.
-        if (!step.chunk || !this.thinking) this.thinkingAt = step.at;
+        // Pieces add on; a whole thought (a stored message's) stands for what streamed of it, and keeps when that began.
+        if (!this.thinking) this.thinkingAt = step.at;
         this.thinking = step.chunk ? this.thinking + step.text : step.text;
         return { changed: false, spoke: null };
       case "call":

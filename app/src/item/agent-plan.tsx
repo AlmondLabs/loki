@@ -14,14 +14,14 @@ const MARK: Record<PlanItem["status"], { Icon: typeof CircleIcon; className: str
 export const planProgress = (items: readonly PlanItem[]): string => `${items.filter((i) => i.status === "completed").length} of ${items.length} done`;
 
 /**
- * The agent's plan as it stands (plan 097, U9) on AI Elements' Plan: "plan" with how far it is, open while the agent
- * works on it, each entry with its mark and the one under way in full ink. Drawn from the newest plan in a stretch of
- * work, so an updated plan replaces the one before rather than stacking.
+ * The agent's plan as it stands (plan 097, U9) on AI Elements' Plan: "plan" with how far it is, closed to that line
+ * until pressed, then each entry with its mark and the one under way in full ink. Drawn from the newest plan in a
+ * stretch of work, so an updated plan replaces the one before rather than stacking. A plan's step is finished the
+ * moment it arrives, so nothing here can tell it is being worked on; it does not shimmer or open by itself.
  */
-export function AgentPlan({ items, running }: { items: readonly PlanItem[]; running: boolean }) {
-  const working = running && items.some((i) => i.status !== "completed");
+export function AgentPlan({ items }: { items: readonly PlanItem[] }) {
   return (
-    <Plan data-plan defaultOpen={working} isStreaming={working} className="gap-2 py-3">
+    <Plan data-plan defaultOpen={false} className="gap-2 py-3">
       <PlanHeader className="px-4">
         <div className="flex min-w-0 flex-col gap-0.5">
           <PlanTitle className="text-body">plan</PlanTitle>

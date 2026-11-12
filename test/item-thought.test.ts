@@ -20,6 +20,15 @@ describe("a thought on the thread", () => {
     expect(t.rows()?.at(-1)).toMatchObject({ role: "assistant", text: "grouped", thought: "The table has a date column.", thought_ms: 12_000 });
   });
 
+  test("the whole thought that comes with the written reply keeps the time the streamed one began", () => {
+    const t = new ThreadModel();
+    t.apply({ kind: "thinking", text: "Twelve weeks.", at: at(0), chunk: true });
+    t.apply({ kind: "assistant", text: "grouped", at: at(4), chunk: true });
+    t.apply({ kind: "thinking", text: "Twelve weeks.", at: at(4) });
+    t.apply({ kind: "assistant", text: "grouped", at: at(4) });
+    expect(t.rows()?.at(-1)).toMatchObject({ text: "grouped", thought: "Twelve weeks.", thought_ms: 4000 });
+  });
+
   test("a thought before a call rides the call's row", () => {
     const rows = foldSteps([
       { kind: "thinking", text: "Read it first.", at: at(0) },

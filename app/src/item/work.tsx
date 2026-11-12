@@ -85,7 +85,7 @@ export const Work = memo(
     const shown = rows.flatMap((r, k) => (KEEP[filter](r) ? [k] : []));
     return (
       <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-1.5">
-        {plan && <AgentPlan items={plan} running={running} />}
+        {plan && <AgentPlan items={plan} />}
         {rows.length > 0 && (
           <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
             <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
