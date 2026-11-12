@@ -458,3 +458,8 @@ By hand:
 3. The visual language (colours, type, density, the rail and chat list) is redesigned after this plan, in its own plan
    and from rendered example pages. This plan builds on today's tokens, so its pane keeps Slack's colours until then.
 4. A finished turn shows no "done" badge (2026-11-12): only working, needs you and failed get one.
+5. From the first critique of the pane (2026-11-12, all five issues): a turn stays whole across a New line or a day;
+   finished steps are drawn at full strength; an approval is a plain card with the attention dot and the finishing
+   move gives up its fill while one waits; a turn reads failed only when its last step failed; the thinking line is
+   left out under a working badge, and a plan that repeats unchanged folds to "plan as before". An approved step that
+   vanished turned out to be the demo agent reusing one call id; real agents give each call its own.

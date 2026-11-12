@@ -6,7 +6,7 @@ import type { TurnPart, TurnState } from "./entries";
 /** How each state reads, and the role its colour comes from; done names the turn for a screen reader, not on screen. */
 const STATE: Record<TurnState, { words: (failed: number) => string; className: string }> = {
   working: { words: () => "working", className: "text-muted-foreground data-[state=working]:shimmer" },
-  "needs you": { words: () => "needs you", className: "text-loki-attention" },
+  "needs you": { words: () => "needs you", className: "text-foreground" },
   failed: { words: (n) => `${n} failed`, className: "text-loki-negative" },
   done: { words: () => "done", className: "text-loki-positive" },
 };
@@ -43,6 +43,8 @@ export function AgentTurn({
         {state !== "done" && (
           <Badge variant="outline" data-state={state} className={look.className}>
             {state === "working" && <Loader size={12} aria-hidden />}
+            {/* The red is the dot; the words keep the text colour, which reads on night's card where the red would not. */}
+            {state === "needs you" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
             {look.words(failed)}
           </Badge>
         )}

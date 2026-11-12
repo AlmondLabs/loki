@@ -170,6 +170,7 @@ export function DeskPane(props: DeskPaneProps) {
       <ActionBar
         className={COMPOSER_COLUMN}
         view={itemView.actions}
+        quiet={itemView.proposals.some((p) => p.kind === "approval" || p.kind === "question")}
         verbs={{
           ...(item.unread ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } } : {}),
           archive: {

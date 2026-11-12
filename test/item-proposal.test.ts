@@ -48,6 +48,13 @@ describe("an approval", () => {
     expect(out).toMatch(/approve<kbd[^>]*>A<\/kbd>/);
   });
 
+  test("is a plain card with the attention dot, never a red panel", () => {
+    const out = html(createElement(ApprovalProposal, { approval: approval(), onApprove: () => {} }));
+    expect(out).toContain("bg-loki-attention");
+    expect(out).not.toContain("bg-loki-attention/");
+    expect(out).not.toContain("border-loki-attention");
+  });
+
   test("a script never offers always allow, since each script is new code", () => {
     expect(html(createElement(ApprovalProposal, { approval: approval("codemode"), onApprove: () => {} }))).not.toContain('data-action="always"');
   });

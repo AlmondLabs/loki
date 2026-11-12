@@ -405,6 +405,7 @@ export function ChatItemActions({ current, typing, read, later, archive, onOpenD
     <ActionBar
       className={COMPOSER_COLUMN}
       view={chatItem({ item: current, live: null, turns: [] }).actions}
+      quiet={Boolean(current.pendingApproval ?? current.pendingQuestion)}
       verbs={{
         open: { run: () => (onOpenDesk(current.agent_id, current.id), onClose()), keys: deckKey("inbox.open", typing), title: "open the chat in its pane" },
         archive: {

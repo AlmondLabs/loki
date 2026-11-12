@@ -188,9 +188,12 @@ numbered layers, default sizes, tracking and hard-coded keys fail the build.
 as outline chips, a chip a button only where a picker opens), **ActionBar** (under the box: the finishing move last,
 filled, the rest quiet before it, each with its key), **Timeline**, **MessageEntry** (a person's message with face,
 name and time; yours a block across the column with where it went), **AgentTurn** (name, time worked, a state badge
-only while working, waiting on you or failed, with the Loader while working), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps, a step to its
-Tool or Task), the agent's **Plan** and **Thought** (Reasoning, folded), **EventEntry** (one quiet line; a compaction
-a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column) and
+only while working, waiting on you, or failed at its last step, with the Loader while working; a New line or a day
+that falls inside a turn is drawn inside it), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps,
+a step to its Tool or Task; finished steps at full strength, never AI Elements' half-faded "pending"), the agent's
+**Plan** (folded to "plan as before" when it repeats unchanged) and **Thought** (Reasoning, folded), **EventEntry** (one quiet line; a compaction
+a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column; an approval or a question is a plain card with the attention
+dot, and while one is open the ActionBar's finishing move gives up its fill) and
 **Composer** (PromptInput around the message box's own behaviour, the Queue above it). **Brief** is designed and not
 built.
 

@@ -126,9 +126,14 @@ describe("turns: everything the agent did between two of your messages", () => {
     ]);
   });
 
-  test("a turn with a failed step says how many failed", () => {
+  test("a turn whose last step failed says how many failed", () => {
     const [, turn] = threadTurns(threadEntries(input([user("go"), bash(true), bash(true), agent("sorry")])), { busy: false, waiting: false });
     expect(turn.kind === "turn" && [turn.state, turn.failed]).toEqual(["failed", 2]);
+  });
+
+  test("a turn the agent got past a failed step in is done, and still counts the failure", () => {
+    const [, turn] = threadTurns(threadEntries(input([user("go"), bash(true), bash(), agent("fixed it")])), { busy: false, waiting: false });
+    expect(turn.kind === "turn" && [turn.state, turn.failed]).toEqual(["done", 1]);
   });
 
   test("only the last turn works or waits on you", () => {
@@ -137,8 +142,13 @@ describe("turns: everything the agent did between two of your messages", () => {
     expect(turnKinds(rows, { busy: true, waiting: true })).toEqual(["user", "turn(message):done", "user", "turn(message):needs you"]);
   });
 
-  test("a day or the New line ends a turn, and a turn keeps its key as it grows", () => {
-    expect(turnKinds([user("a"), agent("b"), agent("c")], undefined, { dividerAt: 2 })).toEqual(["user", "turn(message):done", "new", "turn(message):done"]);
+  test("the New line inside a turn stays in it; between turns it stands alone; a turn keeps its key as it grows", () => {
+    expect(turnKinds([user("a"), agent("b"), agent("c")], undefined, { dividerAt: 2 })).toEqual(["user", "turn(message,new,message):done"]);
+    expect(turnKinds([user("a"), agent("b"), user("c")], undefined, { dividerAt: 2 })).toEqual(["user", "turn(message):done", "new", "user"]);
+    expect(turnKinds([user("a"), agent("b"), agent("c")], { busy: true, waiting: false }, { dividerAt: 2 })).toEqual([
+      "user",
+      "turn(message,new,message):working",
+    ]);
     const short = threadTurns(threadEntries(input([user("a"), agent("b")])), { busy: false, waiting: false });
     const long = threadTurns(threadEntries(input([user("a"), agent("b"), bash()])), { busy: false, waiting: false });
     expect(short[1].key).toBe(long[1].key);

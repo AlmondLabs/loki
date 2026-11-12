@@ -96,4 +96,10 @@ describe("an opened step", () => {
     const out = html(createElement(StepOpened, { row, running: false }));
     expect(out).toContain("npm test: 245 passed");
   });
+
+  test("a finished step reads at full strength, not faded as not yet run", () => {
+    const read: TranscriptRow = { role: "tool", text: "Read · notes.txt", tool: { name: "Read", input: "notes.txt", output: "old" } };
+    const out = html(createElement(Work, { rows: [bash(), read], running: false, arrived: false }));
+    expect(out).not.toContain("text-muted-foreground/50");
+  });
 });

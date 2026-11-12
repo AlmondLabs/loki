@@ -510,7 +510,8 @@ export function Conversation({
 /** What the empty box says: answer the open question, decide the approval, or message the agent — with a note when it will queue. */
 export function composerPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined): string {
   if (view.question) return view.question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…";
-  if (view.approval) return "reply, or approve / deny below…";
+  // The old thread draws the approval under the box, the new pane above it, so the words name no side.
+  if (view.approval) return "reply, or approve or deny the step…";
   const who = agentName ?? "the agent";
   return view.status === "idle"
     ? `message ${who}… (${keyFor("chat.send")} send · ${keyFor("chat.newline")} new line)`

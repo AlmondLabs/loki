@@ -85,6 +85,13 @@ describe("the action bar", () => {
     expect(out).toContain("⌘E");
   });
 
+  test("while a decision waits, the main move keeps its place but gives up its fill", () => {
+    const view = chatItem({ item: attentionItem("c1"), live: null, turns: [] }).actions;
+    const out = html(createElement(ActionBar, { view, verbs: verbs(noop), quiet: true }));
+    expect(out).toMatch(/data-verb="archive"[^>]*data-main="true"[^>]*data-muted="true"/);
+    expect(out).not.toContain("bg-primary-foreground/15");
+  });
+
   test("read is the main move on Slack and Jira, archive on a mail", () => {
     expect(outsideItem({ facts: facts({ provider: "slack", place: "#web-launch" }), messages: [], unread: true }).actions.main).toBe("mark_read");
     expect(outsideItem({ facts: facts({ provider: "jira" }), messages: [], unread: true }).actions.main).toBe("mark_read");

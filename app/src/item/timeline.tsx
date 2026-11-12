@@ -25,7 +25,7 @@ import { WidgetArtifact } from "./content-parts";
 import { ChangeEntry, DayMarker, EventEntry, NewMarker } from "./event-entry";
 import { chatEntries, type ItemEntry } from "./item-view";
 import { ChatMessage } from "./message-entry";
-import { Work } from "./work";
+import { Work, samePlan, stretchPlan } from "./work";
 import { AgentTurn } from "./agent-turn";
 
 const EMPTY: TranscriptRow[] = [];
@@ -100,6 +100,20 @@ function ThreadBody({
         ),
       )
     : [];
+  // A plan that repeats unchanged from the stretch before folds to a line; only a plan that moved is drawn whole.
+  const repeated = new Set<string>();
+  let lastPlan: ReturnType<typeof stretchPlan> = null;
+  for (const e of entries)
+    for (const p of e.kind === "turn" ? e.parts : [])
+      if (p.kind === "steps") {
+        const plan = stretchPlan(p.rows);
+        if (!plan) continue;
+        if (samePlan(plan, lastPlan)) repeated.add(p.key);
+        lastPlan = plan;
+      }
+  // The live turn's badge already says it is working; the thinking line is for the wait before its first part.
+  const tailEntry = entries.at(-1);
+  const turnWorking = tailEntry?.kind === "turn" && tailEntry.state === "working";
   const message = (e: Extract<TurnPart, { kind: "message" }>) => (
     <ChatMessage
       row={e.row}
@@ -117,13 +131,17 @@ function ThreadBody({
   };
   const part = (p: TurnPart) => {
     switch (p.kind) {
+      case "day":
+        return <DayMarker label={p.label} />;
+      case "new":
+        return <NewMarker day={p.day} />;
       case "widget":
         return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
         return (
           <>
             <Thought rows={p.rows} />
-            <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} />
+            <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} planAsBefore={repeated.has(p.key)} />
           </>
         );
       case "event":
@@ -176,7 +194,7 @@ function ThreadBody({
             ))}
           </StepsLoad.Provider>
           {tail}
-          {status === "thinking" && !waiting && (
+          {status === "thinking" && !waiting && !turnWorking && (
             <Trace role="status">
               <TraceLine status="running">
                 <TraceTitle>thinking</TraceTitle>

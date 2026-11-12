@@ -12,7 +12,7 @@ import {
   XIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import type { PlanItem, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from "@/ui/ai-elements/chain-of-thought";
 import { ToggleGroup, ToggleGroupItem } from "@/ui/toggle-group";
 import {
@@ -32,7 +32,7 @@ import { Shimmer } from "@/ui/ai-elements/shimmer";
 import { Task, TaskContent, TaskItem, TaskTrigger } from "@/ui/ai-elements/task";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/ui/ai-elements/tool";
 import { useWhole } from "../chat/tool-steps";
-import { AgentPlan } from "./agent-plan";
+import { AgentPlan, planProgress } from "./agent-plan";
 
 /** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
@@ -69,9 +69,22 @@ const ICON: Record<StepKind, LucideIcon> = {
  * appear; opened at a failure, they start on "failed".
  */
 export const Work = memo(
-  function Work({ rows: all, running, arrived, waiting = false }: { rows: TranscriptRow[]; running: boolean; arrived: boolean; waiting?: boolean }) {
+  function Work({
+    rows: all,
+    running,
+    arrived,
+    waiting = false,
+    planAsBefore = false,
+  }: {
+    rows: TranscriptRow[];
+    running: boolean;
+    arrived: boolean;
+    waiting?: boolean;
+    /** The plan is the one an earlier stretch already drew, unchanged: it folds to one quiet line. */
+    planAsBefore?: boolean;
+  }) {
     // The agent's plan is drawn as its Plan, from the newest one in the stretch, not as a step (plan 097, U9).
-    const plan = [...all].reverse().find((r) => r.tool?.plan)?.tool?.plan ?? null;
+    const plan = stretchPlan(all);
     const rows = withoutSkillCalls(all).filter((r) => !r.tool?.plan);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
@@ -85,7 +98,7 @@ export const Work = memo(
     const shown = rows.flatMap((r, k) => (KEEP[filter](r) ? [k] : []));
     return (
       <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-1.5">
-        {plan && <AgentPlan items={plan} />}
+        {plan && (planAsBefore ? <PlanAsBefore items={plan} /> : <AgentPlan items={plan} />)}
         {rows.length > 0 && (
           <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
             <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
@@ -137,13 +150,37 @@ export const Work = memo(
   },
   // The host slices a fresh array each render; the stretch is the same while its rows are.
   (a, b) =>
-    a.running === b.running && a.arrived === b.arrived && a.waiting === b.waiting && a.rows.length === b.rows.length && a.rows.every((r, i) => r === b.rows[i]),
+    a.running === b.running &&
+    a.arrived === b.arrived &&
+    a.waiting === b.waiting &&
+    a.planAsBefore === b.planAsBefore &&
+    a.rows.length === b.rows.length &&
+    a.rows.every((r, i) => r === b.rows[i]),
 );
+
+/** The newest plan in a stretch of work, the one its Plan draws; null when the stretch has none. */
+export const stretchPlan = (rows: readonly TranscriptRow[]): readonly PlanItem[] | null => [...rows].reverse().find((r) => r.tool?.plan)?.tool?.plan ?? null;
+
+/** Whether two plans say the same: the same entries in the same order, each at the same status. */
+export const samePlan = (a: readonly PlanItem[] | null, b: readonly PlanItem[] | null): boolean =>
+  a !== null && b !== null && a.length === b.length && a.every((item, i) => item.content === b[i].content && item.status === b[i].status);
+
+/** A plan the thread already showed, unchanged since: one quiet line, so a turn's answer is not buried under it again. */
+function PlanAsBefore({ items }: { items: readonly PlanItem[] }) {
+  return (
+    <p data-plan="as-before" className="m-0 flex items-center gap-2 text-meta text-muted-foreground">
+      <ListChecksIcon aria-hidden className="size-4" />
+      plan as before · {planProgress(items)}
+    </p>
+  );
+}
 
 /**
  * One tool call: what it was done to, what it did, and its detail under it once opened (plan 097, Work): a sub-agent or
  * a background task as AI Elements' Task, what it was asked and what it reported; any other step as Tool, its state, its
- * input and its output. Housekeeping reads quieter; the running step shimmers.
+ * input and its output. A named step (a command, a sub-agent, a background task, or any that failed) reads in full
+ * colour, housekeeping in the muted one, both at full strength: AI Elements' "pending" fades a step to half, which would
+ * fail AA and say a finished step has not run. The running step shimmers.
  */
 function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; active: boolean; waiting: boolean; open: boolean; onToggle: () => void }) {
   const failed = stepFailed(row);
@@ -152,8 +189,8 @@ function Step({ row, active, waiting, open, onToggle }: { row: TranscriptRow; ac
   return (
     <ChainOfThoughtStep
       icon={failed ? XIcon : ICON[stepKind(row)]}
-      status={active ? "active" : isNamedStep(row) ? "complete" : "pending"}
-      className={failed ? "text-loki-negative" : undefined}
+      status={active ? "active" : "complete"}
+      className={failed ? "text-loki-negative" : !active && isNamedStep(row) ? "text-foreground" : undefined}
       label={
         <button type="button" aria-expanded={open} onClick={onToggle} className="cursor-pointer text-left hover:text-foreground">
           {active && waiting ? (

@@ -26,21 +26,21 @@ import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/r
 /** What kind of decision a Proposal holds, which names it and sets its tone. */
 export type ProposalKind = "approval" | "question" | "reply";
 
-/** The frame every Proposal shares: its kind and where it applies, what is proposed, and the answers. */
+/**
+ * The frame every Proposal shares: its kind and where it applies, what is proposed, and the answers. An approval or a
+ * question is a plain card with the attention dot by its name: the red is a dot, never a panel (docs/design.md), and the
+ * words stay in the text colour so they read on night's dark card, where the red alone falls under AA.
+ */
 export function ProposalFrame({ kind, where, children, className }: { kind: ProposalKind; where?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section
       data-proposal={kind}
       aria-label={kind === "approval" ? "needs your approval" : kind === "question" ? "a question for you" : "a reply waiting for you"}
-      className={cn(
-        "flex flex-col gap-2 rounded-lg border bg-card p-3 text-body",
-        kind === "approval" && "border-loki-attention bg-loki-attention/5",
-        kind === "reply" && "border-dashed border-ring",
-        className,
-      )}
+      className={cn("flex flex-col gap-2 rounded-lg border bg-card p-3 text-body", kind === "reply" && "border-dashed border-ring", className)}
     >
-      <header className="flex min-w-0 items-baseline gap-2 text-meta">
-        <span className={cn("font-semibold", kind === "approval" ? "text-loki-attention" : "text-ring")}>{kind}</span>
+      <header className="flex min-w-0 items-center gap-2 text-meta">
+        {kind !== "reply" && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-loki-attention" />}
+        <span className={cn("font-semibold", kind === "reply" ? "text-ring" : "text-foreground")}>{kind}</span>
         {where && <span className="min-w-0 truncate text-muted-foreground">{where}</span>}
       </header>
       {children}

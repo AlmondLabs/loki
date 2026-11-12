@@ -54,4 +54,11 @@ describe("Work with a plan", () => {
     expect(out).toContain("2 of 2 done");
     expect(out).not.toContain("0 of 1 done");
   });
+
+  test("a plan the stretch before already drew, unchanged, folds to one line", () => {
+    const out = renderToStaticMarkup(createElement(Work, { rows: planRows(), running: false, arrived: false, planAsBefore: true }));
+    expect(out).toContain('data-plan="as-before"');
+    expect(out).toContain("plan as before · 1 of 3 done");
+    expect(out).not.toContain("Toggle plan");
+  });
 });

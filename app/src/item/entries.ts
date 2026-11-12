@@ -111,16 +111,20 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   return out;
 }
 
-/** A part of the agent's turn: its words, a stretch of its work, an event, a widget it changed. */
-export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "widget" }>;
+/**
+ * A part of the agent's turn: its words, a stretch of its work, an event, a widget it changed, or a day or the New line
+ * that fell inside it. A marker inside a turn is drawn where it fell and does not end the turn, so coming back to a chat
+ * mid-turn shows one turn with the New line in it, not two turns with the agent's name twice.
+ */
+export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "widget" | "day" | "new" }>;
 
 /** What the turn header says about where the turn stands. */
 export type TurnState = "working" | "needs you" | "failed" | "done";
 
 /**
- * The thread as Turns draws it (plan 096, U6): your messages and the day and New markers stand alone; everything the
- * agent did between them (its words, stretches of work, events, widget changes) is one turn, keyed by its first part
- * so it keeps its key as it grows.
+ * The thread as Turns draws it (plan 096, U6): your messages stand alone, and so do the day and New markers that fall
+ * between turns; everything the agent did between two of your messages (its words, stretches of work, events, widget
+ * changes, and any marker among them) is one turn, keyed by its first part so it keeps its key as it grows.
  */
 export type TurnEntry =
   | Extract<ThreadEntry, { kind: "day" | "new" }>
@@ -129,28 +133,43 @@ export type TurnEntry =
 
 /**
  * Groups the entries into turns. Only the last turn can be working (the agent is busy) or waiting on you (an approval or
- * a question is open); before that a turn with a failed step says how many failed, else it is done. How long it took
- * comes from the times on its rows.
+ * a question is open). Before that a turn reads failed only when its last step failed: a step the agent got past is
+ * still counted on its work line, but the turn did not fail. How long it took comes from the times on its rows.
  */
 export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: boolean; waiting: boolean }): TurnEntry[] {
   const out: TurnEntry[] = [];
   let open: TurnPart[] | null = null;
+  // Markers met while a turn is open wait here: the agent's next part takes them into its turn, your next message
+  // leaves them standing between turns.
+  let held: Array<Extract<ThreadEntry, { kind: "day" | "new" }>> = [];
   const close = () => {
     const parts: TurnPart[] | null = open;
-    if (!parts || parts.length === 0) return;
-    const rows = parts.flatMap((p) => (p.kind === "steps" ? p.rows : p.kind === "widget" ? [] : [p.row]));
-    const failed = parts.reduce((n, p) => n + (p.kind === "steps" ? p.rows.filter(stepFailed).length : 0), 0);
-    out.push({ kind: "turn", key: `turn-${parts[0].key}`, parts, state: failed ? "failed" : "done", failed, took: workDuration(rows) });
     open = null;
+    if (!parts || parts.length === 0) return;
+    const rows = parts.flatMap((p) => (p.kind === "steps" ? p.rows : p.kind === "message" || p.kind === "event" ? [p.row] : []));
+    const work = rows.filter(isWorkRow);
+    const failed = work.filter(stepFailed).length;
+    const tail = work.at(-1);
+    out.push({ kind: "turn", key: `turn-${parts[0].key}`, parts, state: tail && stepFailed(tail) ? "failed" : "done", failed, took: workDuration(rows) });
   };
   for (const e of entries) {
-    if (e.kind === "day" || e.kind === "new" || (e.kind === "message" && e.row.role === "user")) {
+    if (e.kind === "day" || e.kind === "new") {
+      if (open) held.push(e);
+      else out.push(e);
+    } else if (e.kind === "message" && e.row.role === "user") {
       close();
-      out.push(e);
-    } else (open ??= []).push(e);
+      out.push(...held, e);
+      held = [];
+    } else {
+      (open ??= []).push(...held, e);
+      held = [];
+    }
   }
   close();
+  // The live turn is the last one, with only the markers it held after it.
+  const at = out.length - 1;
   const last = out.at(-1);
-  if (last?.kind === "turn" && (busy || waiting)) out[out.length - 1] = { ...last, state: waiting ? "needs you" : "working" };
+  if (last?.kind === "turn" && (busy || waiting)) out[at] = { ...last, state: waiting ? "needs you" : "working" };
+  out.push(...held);
   return out;
 }

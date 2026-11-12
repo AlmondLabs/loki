@@ -547,12 +547,15 @@ an agent's chat, a Slack thread, an email or a Jira ticket:
   for a chat or a mail, read for Slack and Jira), the rest before it with Flow's keys, which work as before. The
   chat pane has archive, and read while the chat is unread.
 - **The thread**, in turns: your messages stand alone, and everything the agent did until your next one is one turn,
-  with its name, how long it worked and, while it is not simply finished, where it stands (working, needs you, failed). A stretch of tool calls
-  is one line ("worked 2 min · 3 commands"); opened, each step opens to its input and output. An agent's **plan**
-  shows as a card with how far it is ("1 of 3 done"), opening to its entries. What an agent **thought** shows folded
+  with its name, how long it worked and, while it is not simply finished, where it stands: working, needs you, or
+  failed when its last step failed (a failure the agent got past is only counted on its work line). Coming back to a
+  chat mid-turn, the New line sits inside that turn. A stretch of tool calls is one line ("worked 2 min · 3
+  commands"); opened, each step opens to its input and output. An agent's **plan** shows as a card with how far it
+  is ("1 of 3 done"), opening to its entries; a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows folded
   as "thought for 12 seconds" (or just "thought" when its time was not heard live), opening to the thought.
 - **Decisions** sit above the box: an approval (approve, always here, deny), a question, a reply the agent proposes
-  on an outside thread.
+  on an outside thread. While an approval or a question waits, archive under the box is drawn plain, so approve is
+  the one filled button.
 - **The box**: the same box, drawn new. Messages sent while the agent works wait above it, each with take back; the
   model and its effort open in a dialog with a filter.
 - **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack only); an

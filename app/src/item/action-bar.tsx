@@ -36,10 +36,16 @@ export interface VerbControl {
 export function ActionBar({
   view,
   verbs,
+  quiet = false,
   className,
 }: {
   view: ItemActionsView;
   verbs: Partial<Record<ItemVerb, VerbControl>>;
+  /**
+   * The item waits on a decision (an approval, a question): the finishing move keeps its place but gives up its fill,
+   * so the decision's own button is the one filled button in reach and archive is not pressed for approve.
+   */
+  quiet?: boolean;
   /** Where it lines up: under a chat's Composer, the Composer's column, so the main move ends where the box does. */
   className?: string;
 }) {
@@ -51,24 +57,26 @@ export function ActionBar({
         const c = verbs[v];
         return c ? <VerbButton key={v} verb={v} control={c} quiet /> : null;
       })}
-      {main && <VerbButton verb={view.main} control={main} quiet={false} />}
+      {main && <VerbButton verb={view.main} control={main} quiet={false} muted={quiet} />}
     </div>
   );
 }
 
-function VerbButton({ verb, control, quiet }: { verb: ItemVerb; control: VerbControl; quiet: boolean }) {
+function VerbButton({ verb, control, quiet, muted = false }: { verb: ItemVerb; control: VerbControl; quiet: boolean; muted?: boolean }) {
+  const filled = !quiet && !muted;
   return (
     <Button
       size="sm"
-      variant={quiet ? "ghost" : "default"}
+      variant={quiet ? "ghost" : muted ? "outline" : "default"}
       data-verb={verb}
       data-main={quiet ? undefined : "true"}
+      data-muted={muted || undefined}
       disabled={control.disabled}
       title={control.title}
       onClick={control.run}
     >
       {VERB_WORDS[verb]}
-      {control.keys && <Kbd className={quiet ? undefined : "bg-primary-foreground/15 text-primary-foreground"}>{control.keys}</Kbd>}
+      {control.keys && <Kbd className={filled ? "bg-primary-foreground/15 text-primary-foreground" : undefined}>{control.keys}</Kbd>}
     </Button>
   );
 }
