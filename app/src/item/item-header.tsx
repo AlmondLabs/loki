@@ -1,3 +1,5 @@
+import { capitalFirst } from "../kit/words";
+import { useLook } from "../theme";
 import type { ReactNode } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { Badge } from "@/ui/badge";
@@ -43,6 +45,7 @@ export function ItemHeader({
   titleAs?: "h1" | "h2";
   className?: string;
 }) {
+  const glass = useLook() === "glass";
   return (
     <div data-item-header className={cn("flex min-w-0 items-start gap-3 px-4 py-3", className)}>
       {lead && <span className="shrink-0">{lead}</span>}
@@ -54,7 +57,7 @@ export function ItemHeader({
           {view.flags.map((f) => (
             <Badge key={f} variant={f === "unread" ? "outline" : "secondary"} data-flag={f}>
               {f === "unread" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
-              {FLAG_WORDS[f]}
+              {glass ? capitalFirst(FLAG_WORDS[f]) : FLAG_WORDS[f]}
             </Badge>
           ))}
         </div>

@@ -1,3 +1,5 @@
+import { capitalFirst } from "../kit/words";
+import { useLook } from "../theme";
 import type { ReactNode } from "react";
 import { Badge } from "@/ui/badge";
 import { Loader } from "@/ui/ai-elements/loader";
@@ -35,17 +37,24 @@ export function AgentTurn({
   draw: (part: TurnPart) => ReactNode;
 }) {
   const look = STATE[state];
+  // Under Liquid Glass the header's words take a capital (plan 2026-11-12-1505, R7); today's stay lowercase.
+  const glass = useLook() === "glass";
+  const said = glass ? capitalFirst(look.words(failed)) : look.words(failed);
   return (
     <section data-turn={state} aria-label={`${agentName}'s turn, ${look.words(failed)}`} className="flex flex-col gap-3">
       <header className="flex items-center gap-2 text-meta text-muted-foreground">
         <span className="font-semibold text-foreground">{agentName}</span>
-        {took && <span>worked {took}</span>}
+        {took && (
+          <span>
+            {glass ? "Worked" : "worked"} {took}
+          </span>
+        )}
         {state !== "done" && (
           <Badge variant="outline" data-state={state} className={look.className}>
             {state === "working" && <Loader size={12} aria-hidden />}
             {/* The red is the dot; the words keep the text colour, which reads on night's card where the red would not. */}
             {state === "needs you" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
-            {look.words(failed)}
+            {said}
           </Badge>
         )}
       </header>

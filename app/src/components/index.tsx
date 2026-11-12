@@ -17,6 +17,8 @@ import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
+import { capitalChildren, capitalFirst } from "../kit/words";
+import { useLook } from "../theme";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
@@ -64,20 +66,26 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   kbd?: ReactNode;
 }
 
-/** The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). */
+/**
+ * The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). Under Liquid Glass its label
+ * takes a capital and its key moves from the face into the tooltip (plan 2026-11-12-1505, R7 and R10).
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", ...rest },
+  { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", title, ...rest },
   ref,
 ) {
+  const glass = useLook() === "glass";
+  const keyTip = glass && kbd != null && typeof kbd === "string" ? kbd : null;
   return (
     <button
       ref={ref}
       type={type}
       className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
+      title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
       {...rest}
     >
-      {children}
-      {kbd != null && <Kbd>{kbd}</Kbd>}
+      {glass ? capitalChildren(children) : children}
+      {kbd != null && !glass && <Kbd>{kbd}</Kbd>}
     </button>
   );
 });

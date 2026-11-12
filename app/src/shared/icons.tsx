@@ -1,4 +1,5 @@
 import type { ReactNode, SVGProps } from "react";
+import { useLook } from "../theme";
 
 /**
  * loki's one icon family, the phone's and the desktop's Slack chrome: outlined, a 24-unit box, one 1.8
@@ -213,6 +214,9 @@ const PATHS = {
 /** The name of one of loki's icons. */
 export type IconName = keyof typeof PATHS;
 
+/** A chat under Liquid Glass: a speech bubble where today's look draws Slack's # for a channel (plan 2026-11-12-1505, R8). */
+const CHAT_BUBBLE = <path d="M4 5h16v11H9l-5 4z" />;
+
 /** The props of `Icon`: an SVG's, with the icon's name, its size and an optional accessible name. */
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "children"> {
   name: IconName;
@@ -224,6 +228,7 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "child
 
 /** One icon from the registry. The control around it owns the 44px target and the accessible name. */
 export function Icon({ name, size = 24, title, className, ...rest }: IconProps) {
+  const glass = useLook() === "glass";
   return (
     <svg
       viewBox="0 0 24 24"
@@ -242,7 +247,7 @@ export function Icon({ name, size = 24, title, className, ...rest }: IconProps) 
       {...rest}
     >
       {title && <title>{title}</title>}
-      {PATHS[name]}
+      {name === "desk" && glass ? CHAT_BUBBLE : PATHS[name]}
     </svg>
   );
 }

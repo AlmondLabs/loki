@@ -12,6 +12,7 @@ import {
   type RefObject,
 } from "react";
 import { useHeightVar } from "../shared/use-height-var";
+import { useLook } from "../theme";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
 import { Icon } from "../shared/icons";
@@ -156,6 +157,7 @@ export function DeskPane(props: DeskPaneProps) {
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
+  const glass = useLook() === "glass";
   // Under Liquid Glass the header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
   const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
   useHeightVar(header, "--loki-header-height");
@@ -229,7 +231,7 @@ export function DeskPane(props: DeskPaneProps) {
               <span className="loki-desk-pane-labels">
                 <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
                 <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-                  {chatLabels.length ? "edit labels" : "+ label"}
+                  {glass ? (chatLabels.length ? "Edit Labels" : "Add Label") : chatLabels.length ? "edit labels" : "+ label"}
                 </button>
               </span>
             )}

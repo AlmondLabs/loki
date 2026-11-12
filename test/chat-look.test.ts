@@ -138,3 +138,48 @@ describe("Flow under Liquid Glass (U6)", () => {
     expect(css).toMatch(/\.loki-flow-card \[data-reply-box\] \[data-slot="input-group"\] \{[^}]*var\(--loki-glass-strong\)/);
   });
 });
+
+describe("the wording pass under Liquid Glass", () => {
+  test("loki's Button capitalises its label and moves its key into the tooltip; today's look keeps both as written", async () => {
+    const { Button } = await import("../app/src/components/index.tsx");
+    withPalette("apple");
+    const glass = html(createElement(Button, { kbd: "⌘E" }, "turn the writer on"));
+    expect(glass).toContain(">Turn the writer on</button>");
+    expect(glass).toContain('title="Turn the writer on (⌘E)"');
+    expect(glass).not.toContain("loki-kbd");
+    withPalette(null);
+    const today = html(createElement(Button, { kbd: "⌘E" }, "turn the writer on"));
+    expect(today).toContain("turn the writer on");
+    expect(today).toContain("loki-kbd");
+  });
+
+  test("loki's own name keeps its lowercase", async () => {
+    const { capitalFirst } = await import("../app/src/kit/words.ts");
+    expect(capitalFirst("loki did not load")).toBe("loki did not load");
+    expect(capitalFirst("ask friday to update this")).toBe("Ask friday to update this");
+  });
+
+  test("the turn's header, the plan, the thought and the flags take their capitals", async () => {
+    const { AgentTurn } = await import("../app/src/item/agent-turn.tsx");
+    const { AgentPlan } = await import("../app/src/item/agent-plan.tsx");
+    const { Thought } = await import("../app/src/item/thought.tsx");
+    const { ItemHeader } = await import("../app/src/item/item-header.tsx");
+    withPalette("apple");
+    const turn = html(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: "2 min", parts: [], draw: () => null }));
+    expect(turn).toContain("Worked 2 min");
+    expect(turn).toContain("Needs you");
+    expect(html(createElement(AgentPlan, { items: [{ content: "read", status: "completed" as const }] }))).toContain(">Plan<");
+    expect(html(createElement(Thought, { rows: [{ role: "assistant" as const, text: "x", thought: "y", thought_ms: 2000 }] }))).toContain(
+      "Thought for 2 seconds",
+    );
+    expect(html(createElement(ItemHeader, { view: { title: "t", properties: [], flags: ["unread" as const] } }))).toContain("Unread");
+  });
+
+  test("a chat's icon is a speech bubble, not Slack's #", async () => {
+    const { Icon } = await import("../app/src/shared/icons.tsx");
+    withPalette("apple");
+    expect(html(createElement(Icon, { name: "desk" }))).toContain('d="M4 5h16v11H9l-5 4z"');
+    withPalette(null);
+    expect(html(createElement(Icon, { name: "desk" }))).not.toContain('d="M4 5h16v11H9l-5 4z"');
+  });
+});
