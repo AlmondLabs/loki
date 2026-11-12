@@ -41,7 +41,7 @@ export interface AccountsDeps {
    * Reading a card's whole thread and sending the person's reply in it (mod/outside-threads.ts, plan 068), and what a
    * mail card's recipients line starts from, with the undo of a held mail reply (plan 076).
    */
-  outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend" | "react" | "searchEmoji" | "searchPeople">;
+  outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend" | "resend" | "discardUnsent" | "react" | "searchEmoji" | "searchPeople">;
   /** The ledger of the person's moves on outside cards (mod/inbox-ledger.ts, plan 069). */
   ledger?: Pick<InboxLedger, "record">;
   connect?: AccountConnectDeps;
@@ -282,6 +282,18 @@ export function accountFrames(deps: AccountsDeps): FrameHandlers {
     account_thread_unsend: ({ account_id: accountId, outbox_id: outboxId }) => {
       if (!deps.outside) return fail("replying is not available in this mod");
       return reply({ account_id: accountId, outbox_id: outboxId, undone: deps.outside.unsend(accountId, outboxId) });
+    },
+    account_thread_resend: async ({ account_id: accountId, thread_id: threadId, outbox_id: outboxId }) => {
+      if (!deps.outside) return fail("replying is not available in this mod");
+      try {
+        return reply({ account_id: accountId, thread_id: threadId, ...(await deps.outside.resend(accountId, outboxId)) });
+      } catch (err) {
+        return fail(errorMessage(err));
+      }
+    },
+    account_thread_discard: ({ account_id: accountId, outbox_id: outboxId }) => {
+      if (!deps.outside) return fail("replying is not available in this mod");
+      return reply({ account_id: accountId, outbox_id: outboxId, discarded: deps.outside.discardUnsent(accountId, outboxId) });
     },
     account_thread_move: ({
       account_id: accountId,
