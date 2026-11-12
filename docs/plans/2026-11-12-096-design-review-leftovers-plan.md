@@ -5,8 +5,10 @@
 ## Why
 
 The review of 2026-11-10 left three places where work can still be lost, each needing a choice about how loki
-behaves, not only code (plan 082, "Not in this plan"). This note sets out each one, the options, and a pick. Nothing
-is built until the questions at the end are answered.
+behaves, not only code (plan 082, "Not in this plan"). This note sets out each one, the options, and a pick.
+
+**Decided 2026-11-12: every pick below**, built in the order of question 5: the release first, then mail, then chat
+moves, each in a PR of its own.
 
 ## 1. A held mail reply whose send fails after nobody waits for it
 
@@ -57,7 +59,9 @@ that is gone.
 2. **Only make a re-run refuse.** The job stops when a release already targets this commit, and the steps after it are
    done by hand. Smaller, but a failed tap push still needs someone at a terminal.
 
-**Pick: 1.** It is the one way that lets a failed job be re-run with the button. It changes `scripts/release.ts`
+**Pick: 1.** It is the one way that lets a failed job be re-run with the button. A rebuilt `.dmg` is not the same
+file as the one a stable shipped with, so a re-run after the stable went public makes the cask from the `.dmg` on the
+release, downloaded, never from its own build. It changes `scripts/release.ts`
 (`publish`, `cmdVersion`) and the build job's last three steps; `scripts/release.ts` already has tests for the
 numbering, which would cover "a re-run takes the same number". The first real run is a nightly after it merges.
 
