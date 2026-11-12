@@ -1,8 +1,8 @@
 /* loki on the phone — Slack mode.
    The phone keeps loki's semantic roles (--loki-bg, --loki-fg, …) but redeclares them on the phone root
    element, so every shared control inside inherits the mobile values. A declaration on the element beats
-   the one inherited from :root whatever its specificity, so data-palette never reaches the phone; only
-   data-theme picks night or day. The desktop never renders .loki-phone and is untouched.
+   the one inherited from :root whatever its specificity, so the desktop's palettes never reach the phone; only
+   data-theme picks night or day, and the phone's own Liquid Glass choice (below the day block) its family. The desktop never renders .loki-phone and is untouched.
    The desktop's attention and affirm roles (the same Slack red and green) are redeclared too, so a shared
    primitive that uses them never picks up the desktop's Tokyo Night values. Slack's extra roles live beside
    them as --phone-*: links, the unread badge, presence, the affirmative button, the type scale, radii,
@@ -168,6 +168,121 @@
   --phone-nav-border: #dddddd;
   --phone-nav-active: #ebebeb;
   /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(54% 0.15 25);
+  --loki-label-1: oklch(54% 0.15 65);
+  --loki-label-2: oklch(54% 0.15 95);
+  --loki-label-3: oklch(54% 0.15 150);
+  --loki-label-4: oklch(54% 0.15 195);
+  --loki-label-5: oklch(54% 0.15 250);
+  --loki-label-6: oklch(54% 0.15 300);
+  --loki-label-7: oklch(54% 0.15 350);
+}
+
+/* Liquid Glass on the phone (plan 2026-11-12-1505, U9), chosen in the phone's own Preferences: iOS's colours on the
+   same roles. The only family the phone keys on, since it is the phone's own choice, not the desktop's; the bars keep
+   their glass (the tab bar, search and the compose button), now in iOS's material, and content stays solid. */
+:root[data-palette="apple"] .loki-phone {
+  color-scheme: dark;
+  --loki-bg: #000000;
+  --loki-panel: #1c1c1e;
+  --loki-panel-header: #1c1c1e;
+  --loki-hover: #2c2c2e;
+  --loki-selection: #3a3a3c;
+  --loki-border: #38383a;
+  --loki-control-border: #8e8e93;
+  --loki-fg: #ffffff;
+  --loki-muted: #aeaeb2;
+  --loki-accent: #3d9bff;
+  --loki-accent-soft: oklch(33% 0.09 255);
+  --loki-brass-soft: oklch(25% 0.05 255);
+  --loki-positive: #30d158;
+  --loki-negative: #ff6961;
+  --loki-attention: #e0262e;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #0a6cff;
+  --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #d4a0e0;
+  --loki-mark-mail: #ff8a80;
+  --loki-mark-jira: #8ab4f8;
+  --loki-mention: oklch(27% 0.03 85);
+  --loki-mention-bar: #ffd60a;
+  --loki-grid: #2c2c2e;
+  --loki-well: #1c1c1e;
+  --loki-bubble: #1c1c1e;
+  --loki-user-bubble: #2c2c2e;
+  --loki-code: #2c2c2e;
+  --loki-veil: rgba(0, 0, 0, 0.5);
+  --loki-brass-glow: rgba(61, 155, 255, 0.25);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.45);
+  --loki-shadow-float: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
+  --phone-link: #3d9bff;
+  --phone-unread: #e0262e;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #30d158;
+  --phone-affirm: #0a6cff;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #3d9bff;
+  --phone-nav-surface: rgba(30, 30, 32, 0.66);
+  --phone-nav-border: rgba(255, 255, 255, 0.12);
+  --phone-nav-active: rgba(255, 255, 255, 0.16);
+  --loki-label-0: oklch(72% 0.14 25);
+  --loki-label-1: oklch(72% 0.14 65);
+  --loki-label-2: oklch(72% 0.14 95);
+  --loki-label-3: oklch(72% 0.14 150);
+  --loki-label-4: oklch(72% 0.14 195);
+  --loki-label-5: oklch(72% 0.14 250);
+  --loki-label-6: oklch(72% 0.14 300);
+  --loki-label-7: oklch(72% 0.14 350);
+}
+
+:root[data-palette="apple"][data-theme="light"] .loki-phone {
+  color-scheme: light;
+  --loki-bg: #f2f2f7;
+  --loki-panel: #ffffff;
+  --loki-panel-header: #f2f2f7;
+  --loki-hover: #e5e5ea;
+  --loki-selection: #e3e3e8;
+  --loki-border: #d1d1d6;
+  --loki-control-border: #86868b;
+  --loki-fg: #000000;
+  --loki-muted: #636366;
+  --loki-accent: #0064d6;
+  --loki-accent-soft: #dbe9fb;
+  --loki-brass-soft: #eaf2fd;
+  --loki-positive: #18733a;
+  --loki-negative: #c4170f;
+  --loki-attention: #e0262e;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #0064d6;
+  --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #611f69;
+  --loki-mark-mail: #c5221f;
+  --loki-mark-jira: #1558bc;
+  --loki-mention: #fff8e0;
+  --loki-mention-bar: #e8a33a;
+  --loki-grid: #e5e5ea;
+  --loki-well: #ffffff;
+  --loki-bubble: #ffffff;
+  --loki-user-bubble: #eef4fd;
+  --loki-code: #f2f2f4;
+  --loki-veil: rgba(0, 0, 0, 0.25);
+  --loki-brass-glow: rgba(0, 100, 214, 0.16);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.09);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --phone-link: #0064d6;
+  --phone-unread: #e0262e;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #18733a;
+  --phone-affirm: #0064d6;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #0064d6;
+  --phone-nav-surface: rgba(250, 250, 252, 0.72);
+  --phone-nav-border: rgba(0, 0, 0, 0.1);
+  --phone-nav-active: rgba(0, 0, 0, 0.08);
   --loki-label-0: oklch(54% 0.15 25);
   --loki-label-1: oklch(54% 0.15 65);
   --loki-label-2: oklch(54% 0.15 95);

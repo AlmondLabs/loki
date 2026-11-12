@@ -63,6 +63,12 @@ export function Preferences({ banner, backLabel = "more", onBack }: { banner?: R
       <p className="loki-phone-group-note">
         {theme.preference === "system" ? `Following this phone's setting: ${theme.resolved} now.` : `Always ${theme.resolved}.`} Kept on this phone only.
       </p>
+      {/* Liquid Glass, chosen per phone as the desktop's look is chosen per Mac (plan 2026-11-12-1505, U9). */}
+      <RowGroup title="Look" radio>
+        <MenuRow icon="desk" label="Today's look" checked={theme.palette !== "apple"} onClick={() => theme.setPalette("loki")} />
+        <MenuRow icon="widget" label="Liquid Glass" checked={theme.palette === "apple"} onClick={() => theme.setPalette("apple")} />
+      </RowGroup>
+      <p className="loki-phone-group-note">Liquid Glass is loki's new look, in iOS's colours and materials. Kept on this phone only.</p>
     </Page>
   );
 }

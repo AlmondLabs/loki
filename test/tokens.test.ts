@@ -356,17 +356,23 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   const PHONE = join(APP, "phone", "phone.css");
   const phone = existsSync(PHONE) ? readFileSync(PHONE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") : "";
   const PHONE_SELECTOR: Record<Theme, string> = { dark: ".loki-phone", light: ':root[data-theme="light"] .loki-phone' };
-  const phoneBlock = (theme: Theme) => {
-    const start = phone.indexOf(`\n${PHONE_SELECTOR[theme]} {`);
-    if (start < 0) throw new Error(`no phone block for ${PHONE_SELECTOR[theme]}`);
+  /** The phone's own Liquid Glass family (plan 2026-11-12-1505, U9), chosen on the phone: held to the same rules. */
+  const GLASS_SELECTOR: Record<Theme, string> = {
+    dark: ':root[data-palette="apple"] .loki-phone',
+    light: ':root[data-palette="apple"][data-theme="light"] .loki-phone',
+  };
+  const FAMILIES = { slack: PHONE_SELECTOR, glass: GLASS_SELECTOR };
+  const blockOf = (selector: string) => {
+    const start = phone.indexOf(`\n${selector} {`);
+    if (start < 0) throw new Error(`no phone block for ${selector}`);
     return phone.slice(start, phone.indexOf("\n}", start + 1));
   };
-  const raw = (theme: Theme, name: string) => {
-    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme))?.[2].trim();
-    if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
+  const phoneBlock = (theme: Theme, family: keyof typeof FAMILIES = "slack") => blockOf(FAMILIES[family][theme]);
+  const raw = (theme: Theme, name: string, family: keyof typeof FAMILIES = "slack") => {
+    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme, family))?.[2].trim();
+    if (!hit) throw new Error(`missing ${name} in phone ${family} ${theme}`);
     return hit;
   };
-  const color = (theme: Theme, name: string) => parseColor(raw(theme, name));
   const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
     .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
@@ -381,32 +387,34 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(ui).not.toContain("<style>");
   });
 
-  for (const theme of THEMES) {
-    test(`${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
-      const block = phoneBlock(theme);
-      const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
-      expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
-    });
+  for (const family of ["slack", "glass"] as const)
+    for (const theme of THEMES) {
+      const color = (_theme: Theme, name: string) => parseColor(raw(theme, name, family));
+      test(`${family} ${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
+        const block = phoneBlock(theme, family);
+        const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
+        expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
+      });
 
-    test(`${theme}: text, links and states meet AA on every working surface`, () => {
-      const surfaces = ["bg", "panel", "panel-header", "well"];
-      const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
-      const failures = inks
-        .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
-        .filter(({ ratio }) => ratio < 4.5);
-      expect(failures).toEqual([]);
-      for (const surface of ["bubble", "user-bubble", "hover", "selection"])
-        expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
-    });
+      test(`${family} ${theme}: text, links and states meet AA on every working surface`, () => {
+        const surfaces = ["bg", "panel", "panel-header", "well"];
+        const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
+        const failures = inks
+          .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
+          .filter(({ ratio }) => ratio < 4.5);
+        expect(failures).toEqual([]);
+        for (const surface of ["bubble", "user-bubble", "hover", "selection"])
+          expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
+      });
 
-    test(`${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
-      for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
-      for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
-    });
-  }
+      test(`${family} ${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
+        for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
+        for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
+      });
+    }
 
   test("the display and label faces are the sans stack for both sides — no serif, condensed or mono presentation", () => {
     // declared once on the root class; the day block only changes colours
@@ -414,10 +422,10 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phoneBlock("light")).not.toMatch(/--loki-(font|display|label):/);
   });
 
-  test("the phone never keys on data-palette, and its tokens sit on the phone element rather than :root", () => {
-    expect(phone).not.toContain("data-palette");
+  test("the phone keys on data-palette only for its own Liquid Glass, and its tokens sit on the phone element rather than :root", () => {
+    expect([...phone.matchAll(/data-palette="([^"]+)"/g)].map((m) => m[1]).filter((p) => p !== "apple")).toEqual([]);
     const declaring = [...phone.matchAll(/(?:^|\n)([^\n{}@]+?)\s*\{[^}]*--loki-bg:/g)].map((m) => m[1].trim());
-    expect(declaring.sort()).toEqual(Object.values(PHONE_SELECTOR).sort());
+    expect(declaring.sort()).toEqual([...Object.values(PHONE_SELECTOR), ...Object.values(GLASS_SELECTOR)].sort());
   });
 
   test("the gates and the paired shell all carry the phone root class", () => {
