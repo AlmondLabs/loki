@@ -18,6 +18,9 @@ import {
   previewLine,
   previewPr,
   publish,
+  pruneNightly,
+  stableFor,
+  staleNightlyFiles,
   releaseNotes,
   releasePr,
   setVersion,
@@ -201,52 +204,86 @@ describe("notes and files", () => {
   });
 });
 
-describe("publish: the Mac's files, in one call", () => {
-  // `release view` answers with `body` when the release exists, and fails as gh does when it does not
-  const fakeGh = (body: string | null = null) => {
+describe("publish: the Mac's files, each step safe to run again (plan 096)", () => {
+  /** gh as publishing meets it: `release view` answers the release's state (or fails as gh does), the rest is recorded. */
+  const fakeGh = (state: { draft: boolean; target: string; assets: string[] } | null = null) => {
     const calls: string[][] = [];
     const gh = (...args: string[]) => {
       calls.push(args);
       if (args[1] !== "view") return "";
-      if (body === null) throw new Error("release not found");
-      return body;
+      if (state === null) throw new Error("release not found");
+      return JSON.stringify({ isDraft: state.draft, targetCommitish: state.target, assets: state.assets.map((name) => ({ name })) });
     };
-    return { calls, gh };
+    const writes = () => calls.filter((c) => c[1] !== "view").map((c) => c.slice(0, 3).join(" "));
+    return { calls, gh, writes };
   };
+  const dmg = "src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_2026.1011.0_universal.dmg";
 
-  test("a nightly deletes the rolling release once and recreates it with the .dmg", () => {
-    const { calls, gh } = fakeGh();
-    const dmg = "dist/loki_2026.1011.1-nightly.a96ee85_universal.dmg";
-    publish({ kind: "nightly", version: "2026.1011.1-nightly.a96ee85", files: [dmg], sha: "abc", notesFile: "notes.md", gh });
-    expect(calls.map((c) => c.slice(0, 2))).toEqual([
-      ["release", "delete"],
-      ["release", "create"],
-    ]);
-    const create = calls[1];
-    expect(create).toContain("nightly");
-    expect(create).toContain("--prerelease");
-    expect(create).toContain(dmg);
-    expect(create.some((a) => /setup\.exe|AppImage|\.deb$/.test(a))).toBe(false);
-  });
-
-  test("a stable tags the merge and creates its release with the .dmg, marked latest", () => {
-    const { calls, gh } = fakeGh();
-    const dmg = "src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_2026.1011.0_universal.dmg";
-    publish({ kind: "stable", version: "2026.1011.0", files: [dmg], sha: "f00dfeed", notesFile: "notes.md", gh });
-    const writes = calls.filter((c) => c[1] !== "view");
-    expect(writes.length).toBe(1);
-    expect(writes[0].slice(0, 3)).toEqual(["release", "create", "v2026.1011.0"]);
-    expect(writes[0][writes[0].indexOf("--target") + 1]).toBe("f00dfeed");
-    expect(writes[0]).toContain(dmg);
-    expect(writes[0]).toContain("--latest");
-  });
-
-  test("a stable whose number is already a release fails, and touches nothing: two builds' files never share a release", () => {
-    const { calls, gh } = fakeGh("someone else's notes");
-    expect(() => publish({ kind: "stable", version: "2026.1011.0", files: ["dist/loki_2026.1011.0_universal.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(
-      /already exists/,
+  test("a new stable is a draft first, gets its .dmg, and is made public and latest last", () => {
+    const { calls, gh, writes } = fakeGh();
+    const out = publish({ kind: "stable", version: "2026.1011.0", files: [dmg], sha: "f00dfeed", notesFile: "notes.md", gh });
+    expect(writes()).toEqual(["release create v2026.1011.0", "release upload v2026.1011.0", "release edit v2026.1011.0"]);
+    const create = must(
+      calls.find((c) => c[1] === "create"),
+      "the create call",
     );
-    expect(calls.filter((c) => c[1] !== "view")).toEqual([]);
+    expect(create).toContain("--draft");
+    expect(create[create.indexOf("--target") + 1]).toBe("f00dfeed");
+    expect(create).not.toContain("--latest");
+    expect(calls.find((c) => c[1] === "edit")).toEqual(["release", "edit", "v2026.1011.0", "--draft=false", "--latest"]);
+    expect(out.dmg).toBe(dmg);
+  });
+
+  test("a re-run that finds its own draft gives it the .dmg and makes it public, without a second release", () => {
+    const { gh, writes } = fakeGh({ draft: true, target: "f00dfeed", assets: [] });
+    publish({ kind: "stable", version: "2026.1011.0", files: [dmg], sha: "f00dfeed", notesFile: "notes.md", gh });
+    expect(writes()).toEqual(["release upload v2026.1011.0", "release edit v2026.1011.0"]);
+  });
+
+  test("a re-run after the stable went out changes nothing on it, and makes the cask from the .dmg it shipped with", () => {
+    const { calls, gh, writes } = fakeGh({ draft: false, target: "f00dfeed", assets: ["loki_2026.1011.0_universal.dmg", "cask.rb"] });
+    const out = publish({ kind: "stable", version: "2026.1011.0", files: [dmg], sha: "f00dfeed", notesFile: "notes.md", downloadDir: "shipped", gh });
+    expect(writes()).toEqual(["release download v2026.1011.0"]);
+    expect(calls.at(-1)).toContain("loki_2026.1011.0_universal.dmg");
+    expect(out.dmg).toBe(join("shipped", "loki_2026.1011.0_universal.dmg"));
+  });
+
+  test("a stable whose number is another commit's release fails, and touches nothing: two builds' files never share a release", () => {
+    const { gh, writes } = fakeGh({ draft: false, target: "0ther0ne", assets: [] });
+    expect(() => publish({ kind: "stable", version: "2026.1011.0", files: [dmg], sha: "f00dfeed", notesFile: "n", gh })).toThrow(
+      /already exists for another commit/,
+    );
+    expect(writes()).toEqual([]);
+  });
+
+  test("the first nightly creates the rolling release, after taking away a tag left without one", () => {
+    const { calls, gh, writes } = fakeGh();
+    const nightly = "dist/loki_2026.1011.1-nightly.a96ee85_universal.dmg";
+    publish({ kind: "nightly", version: "2026.1011.1-nightly.a96ee85", files: [nightly], sha: "abc", notesFile: "notes.md", repo: "o/loki", gh });
+    expect(writes()).toEqual(["api -X DELETE", "release create nightly"]);
+    const create = must(
+      calls.find((c) => c[1] === "create"),
+      "the create call",
+    );
+    expect(create).toContain("--prerelease");
+    expect(create).toContain(nightly);
+  });
+
+  test("a nightly puts its files beside the last one's, then moves the tag: the release is never deleted", () => {
+    const { calls, gh, writes } = fakeGh({ draft: false, target: "old", assets: ["loki_2026.1011.1-nightly.0ld0000_universal.dmg"] });
+    const nightly = "dist/loki_2026.1011.1-nightly.a96ee85_universal.dmg";
+    publish({ kind: "nightly", version: "2026.1011.1-nightly.a96ee85", files: [nightly], sha: "abc", notesFile: "notes.md", repo: "o/loki", gh });
+    expect(writes()).toEqual(["release upload nightly", "api -X PATCH", "release edit nightly"]);
+    expect(calls.find((c) => c[2] === "PATCH")).toEqual(["api", "-X", "PATCH", "repos/o/loki/git/refs/tags/nightly", "-f", "sha=abc", "-F", "force=true"]);
+    expect(calls.some((c) => c[1] === "delete")).toBe(false);
+  });
+
+  test("after the tap moves, only the earlier nightlies' .dmg files are removed", () => {
+    expect(staleNightlyFiles(["loki_a_universal.dmg", "loki_b_universal.dmg", "cask.rb"], "loki_b_universal.dmg")).toEqual(["loki_a_universal.dmg"]);
+    const { calls, gh } = fakeGh({ draft: false, target: "abc", assets: ["loki_a_universal.dmg", "loki_b_universal.dmg", "cask.rb"] });
+    expect(pruneNightly("loki_b_universal.dmg", gh)).toEqual(["loki_a_universal.dmg"]);
+    expect(calls.at(-1)).toEqual(["release", "delete-asset", "nightly", "loki_a_universal.dmg", "--yes"]);
+    expect(pruneNightly("x.dmg", fakeGh().gh)).toEqual([]);
   });
 
   test("no files, or a version of the wrong kind, publishes nothing", () => {
@@ -258,6 +295,20 @@ describe("publish: the Mac's files, in one call", () => {
     expect(() => publish({ kind: "stable", version: "2026.10.11", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/); // no new stable in the old scheme
     expect(() => publish({ kind: "preview", version: "2026.1011.0", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/stable or nightly/);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("a stable's number on a re-run (plan 096)", () => {
+  test("the merge's own stable, draft or public, keeps its number; another merge's does not", () => {
+    const releases = [
+      { tag: "v2026.1011.0", target: "aaa" },
+      { tag: "v2026.1011.1", target: "bbb" },
+      { tag: "nightly", target: "bbb" },
+    ];
+    expect(stableFor("bbb", releases)).toBe("2026.1011.1");
+    expect(stableFor("ccc", releases)).toBeNull();
+    // A merge shipped twice before this change: the newer number is the one to finish.
+    expect(stableFor("aaa", [...releases, { tag: "v2026.1011.2", target: "aaa" }])).toBe("2026.1011.2");
   });
 });
 
@@ -395,6 +446,20 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
     expect(after.needs).toEqual(["plan", "build"]);
     expect(after.if).toContain("needs.plan.outputs.kind == 'stable'");
     expect(after.steps.some((s) => s.run?.includes('preview-pr "${{ needs.build.outputs.version }}"'))).toBe(true);
+  });
+
+  test("the cask is made from the .dmg publish answers, and the earlier nightly's file goes only after the tap moved", () => {
+    const steps = wf.jobs.build.steps;
+    const at = (part: string) => steps.findIndex((s) => s.run?.includes(part));
+    const publishStep = must(
+      steps.find((s) => s.id === "publish"),
+      "the publish step",
+    );
+    expect(publishStep.run).toContain('npm run release -- publish "$KIND" "$VERSION" "$DMG"');
+    expect(steps[at("npm run --silent cask")]?.run).toContain("steps.publish.outputs.dmg");
+    const prune = at("npm run release -- prune-nightly");
+    expect(prune).toBeGreaterThan(at("git push --quiet origin main"));
+    expect((steps[prune] as { if?: string }).if).toBe("env.KIND == 'nightly'");
   });
 
   test("Windows and Linux build the merge commit, not a tag, and stamp the stable's version", () => {

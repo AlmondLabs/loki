@@ -1027,6 +1027,26 @@ export class ChatStore {
   };
 
   /**
+   * Settle a mail reply that did not go (plan 096): send it again, after its thread is looked at so it never goes
+   * twice, or let it go. Null when done (the card stops saying "not sent" with the next list), else why not.
+   */
+  settleUnsent = async (card: Pick<ConversationInfo, "outside" | "home">, outboxId: string, action: "resend" | "discard"): Promise<string | null> => {
+    const o = card.outside;
+    if (!o) return NOT_OUTSIDE;
+    const home = card.home ?? null;
+    if (action === "discard") {
+      const r = await this.attempt((c) => c.discardOutside(o.account_id, outboxId, home));
+      if (typeof r === "string") return r;
+      this.reload();
+      return null;
+    }
+    const r = await this.attempt((c) => c.resendOutside(o.account_id, o.thread_id, outboxId, home));
+    if (typeof r === "string") return r;
+    this.reload();
+    return r.sent && r.then_error ? `sent, but ${r.then_error}` : null;
+  };
+
+  /**
    * Keep one of the person's moves on an outside card in its account's ledger (plan 069), on the Mac the account lives
    * on. A move that does not reach the ledger is only data lost, so nothing waits on it and no refusal is shown.
    */

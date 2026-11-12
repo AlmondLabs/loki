@@ -164,21 +164,23 @@ jobs:
           for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             echo "$v=" >> "$GITHUB_ENV"
           done
-      # a new release at the merge, marked latest, or the rolling nightly
+      # A new release at the merge, made a draft first and public last, or the rolling nightly (plan 096). Each step is
+      # safe to run again: a re-run finishes what the last run left. It answers the .dmg the cask is made from: this
+      # build's, or the one a stable already went out with, since a rebuild is not the same file.
       - name: publish the release
+        id: publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           DMG="$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_*_universal.dmg)"
-          echo "dmg=$DMG" >> "$GITHUB_ENV"
           npm run release -- publish "$KIND" "$VERSION" "$DMG"
       - name: render the cask
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          SHA="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+          SHA="$(shasum -a 256 "${{ steps.publish.outputs.dmg }}" | cut -d' ' -f1)"
           npm run --silent cask -- "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
           cat cask.rb
           # The cask rides along on the release too, so anyone can check what the tap carries.
@@ -205,6 +207,12 @@ jobs:
           if git diff --cached --quiet; then echo "tap already at $VERSION"; exit 0; fi
           git commit --quiet -m "loki ${KIND} ${VERSION}"
           git push --quiet origin main
+      # Only now that the tap names this nightly's file is the last one's taken off the release.
+      - name: remove the earlier nightly's file
+        if: env.KIND == 'nightly'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release -- prune-nightly "$(basename "${{ steps.publish.outputs.dmg }}")"
 
   # A stable just shipped without Windows and Linux files: offer their PR for it.
   preview-pr-after-stable:

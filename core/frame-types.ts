@@ -147,6 +147,14 @@ export interface InboxRow extends LocalDigest, ChatHome {
   outside?: OutsideFacts;
 }
 
+/** A mail reply of the person's that did not go (plan 096), as its card shows it. */
+export interface NotSentReply {
+  outbox_id: string;
+  text: string;
+  reason: string;
+  at: string;
+}
+
 /**
  * An outside card's own facts (plan 067, R10): the account and its owner, who wrote last and about what, the thread's
  * last few messages as plain text, and the chat a hand-off took it to. Message text stays on this Mac's clients and
@@ -191,6 +199,11 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
+  /**
+   * The person's mail reply that did not go (plan 096): its words, why, and when. The card says "not sent" with send
+   * again and discard until one of them settles it. Absent while there is none, and from an older loki.
+   */
+  not_sent?: NotSentReply | null;
   /**
    * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
    * first, waiting for the card's comment box until the person sends one or the agent takes it back. Absent when there
