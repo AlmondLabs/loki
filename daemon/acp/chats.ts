@@ -80,6 +80,8 @@ interface Call {
   args: unknown;
   /** The words the agent wrote before the call, which the stored assistant message carries with it. */
   textBefore: string;
+  /** What the agent thought before the call (its thought chunks), stored as the message's thinking part (plan 097, U9). */
+  thoughtBefore: string;
   output: string;
   done: boolean;
   /** The agent said it failed, or the turn ended before it finished. */
@@ -95,6 +97,8 @@ interface Turn {
   abort: AbortController;
   /** The words of the answer in flight, since the last tool call. */
   text: string;
+  /** What the agent thought since the last tool call, from its thought chunks. */
+  thought: string;
   at: string | null;
   calls: Map<string, Call>;
   plan: acp.PlanEntry[] | null;
@@ -716,6 +720,7 @@ export class AcpChats {
       id: `acp-${randomUUID()}`,
       abort: new AbortController(),
       text: "",
+      thought: "",
       at: null,
       calls: new Map(),
       plan: null,
@@ -847,10 +852,13 @@ export class AcpChats {
       );
     }
     const words = turn.text;
+    const thought = turn.thought;
     turn.text = "";
+    turn.thought = "";
     if (words) {
       turn.responses++;
-      const message = { role: "assistant", content: [{ type: "text", text: words }], timestamp: Date.parse(turn.at ?? at) };
+      const content = [...(thought ? [{ type: "thinking", thinking: thought }] : []), { type: "text", text: words }];
+      const message = { role: "assistant", content, timestamp: Date.parse(turn.at ?? at) };
       entries.push({ kind: "pi.assistant", message });
       this.push(
         live.agentId,
@@ -877,6 +885,7 @@ export class AcpChats {
   private async writeCall(live: Live, store: AgentStore, chat: Conversation, id: string, call: Call, failed: boolean, output: string): Promise<void> {
     const at = Date.parse(this.now());
     const content = [
+      ...(call.thoughtBefore ? [{ type: "thinking", thinking: call.thoughtBefore }] : []),
       ...(call.textBefore ? [{ type: "text", text: call.textBefore }] : []),
       { type: "toolCall", id, name: call.name, arguments: call.args ?? {} },
     ];
@@ -951,6 +960,13 @@ export class AcpChats {
         turn.text += u.content.text;
         push([{ kind: "step", step: { kind: "assistant", text: u.content.text, at: now, chunk: true } }]);
         return;
+      // What the agent thinks as it works: shown live as a piece, kept for the reply or call it leads to.
+      case "agent_thought_chunk":
+        if (u.content.type !== "text" || !u.content.text) return;
+        turn.firstOutputAt ??= Date.parse(now);
+        turn.thought += u.content.text;
+        push([{ kind: "step", step: { kind: "thinking", text: u.content.text, at: now, chunk: true } }]);
+        return;
       case "tool_call": {
         turn.firstOutputAt ??= Date.parse(now);
         // The words so far belong before the call: they settle as written, and go into the call's stored message.
@@ -958,11 +974,13 @@ export class AcpChats {
           name: u.title || u.name || u.kind || "tool",
           args: u.rawInput ?? {},
           textBefore: turn.text,
+          thoughtBefore: turn.thought,
           output: contentOutput(u.content),
           done: false,
         };
         if (turn.text) push([{ kind: "step", step: { kind: "assistant", text: turn.text, at: turn.at ?? now } }]);
         turn.text = "";
+        turn.thought = "";
         turn.at = null;
         turn.calls.set(u.toolCallId, call);
         // A call is shown once it has arguments, not under the agent's placeholder title.

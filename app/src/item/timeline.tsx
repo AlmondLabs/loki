@@ -1,3 +1,4 @@
+import { Thought } from "./thought";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type UIEvent } from "react";
 import { flushSync } from "react-dom";
 import { ArrowDownIcon } from "lucide-react";
@@ -119,11 +120,21 @@ function ThreadBody({
       case "widget":
         return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
-        return <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} />;
+        return (
+          <>
+            <Thought rows={p.rows} />
+            <Work rows={p.rows} running={p.running || paused(p.rows)} arrived={p.arrived} waiting={paused(p.rows)} />
+          </>
+        );
       case "event":
         return <EventEntry row={p.row} arrived={p.arrived} />;
       case "message":
-        return message(p);
+        return (
+          <>
+            <Thought rows={[p.row]} />
+            {message(p)}
+          </>
+        );
     }
   };
   const draw = (e: ItemEntry) => {

@@ -49,16 +49,29 @@ export function messageSteps(m: PiMessage, at: string | null, nameImage?: ImageN
     const images = nameImage ? contentImages(m.content).flatMap((image) => nameImage(image) ?? []) : [];
     return [{ kind: "user", raw: text, at, ...(images.length ? { images } : {}) }];
   }
-  const out: Step[] = [{ kind: "assistant", text, at }];
+  // What the model thought before it answered, from its thinking parts (pi's, or an ACP agent's thoughts loki wrote).
+  const thought = thinkingText(m.content);
+  const out: Step[] = [...(thought ? [{ kind: "thinking" as const, text: thought, at }] : []), { kind: "assistant", text, at }];
   for (const part of Array.isArray(m.content) ? m.content : []) {
     const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
     if (p?.type === "toolCall" && p.name)
       out.push(shownStep({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at }));
   }
   // A model call that failed with nothing said: what the provider answered, as a row of its own (plan 037).
-  if (out.length === 1 && !text.trim() && m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim())
+  if (out.length === (thought ? 2 : 1) && !text.trim() && m.stopReason === "error" && typeof m.errorMessage === "string" && m.errorMessage.trim())
     return [{ kind: "failed", message: m.errorMessage.trim().replace(/\s+/g, " "), at }];
   return out;
+}
+
+/** A message's thinking parts, joined; empty when it has none or they were redacted. */
+function thinkingText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const part of content) {
+    const p = part as { type?: unknown; thinking?: unknown } | null;
+    if (p?.type === "thinking" && typeof p.thinking === "string" && p.thinking.trim()) parts.push(p.thinking.trim());
+  }
+  return parts.join("\n\n");
 }
 
 /**
