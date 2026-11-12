@@ -135,6 +135,7 @@ export function Sidebar({
   return (
     <nav
       aria-label="sections"
+      className="loki-sections"
       onPointerDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
@@ -143,8 +144,6 @@ export function Sidebar({
         bottom: 0,
         width: SIDEBAR_WIDTH,
         boxSizing: "border-box",
-        borderRight: "1px solid var(--loki-border)",
-        background: "var(--loki-panel)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

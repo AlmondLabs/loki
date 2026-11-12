@@ -1105,6 +1105,11 @@ button.loki-list-section-toggle {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
+/* The rail of sections down the window's left edge (shell/sidebar.tsx). */
+.loki-sections {
+  border-right: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+}
 .loki-column-body {
   position: absolute;
   inset: 0;
@@ -1206,4 +1211,65 @@ button.loki-list-section-toggle {
 /* ---- A Preferences block: its settings divided by hairlines (plan 031) ------------------------------------- */
 .loki-settings-block > * + * {
   border-top: 1px solid var(--loki-border);
+}
+
+/* Liquid Glass, the window shell (plan 2026-11-12-1505, U3). The rail and the list column sit clear on one glass panel
+   inset from the window's edge (shell.tsx); the top strip and the pane header lose their fills and rules, and the
+   header's view tabs become a capsule of glass beside the title, as a Mac toolbar's segmented control. Every other
+   family keeps the rules above. */
+.loki-shell-glass {
+  display: none;
+}
+:root[data-palette="apple"] {
+  .loki-shell-glass {
+    display: block;
+  }
+  .loki-title-strip,
+  .loki-sections,
+  .loki-column {
+    background: transparent;
+    border-right: 0;
+  }
+  .loki-column-header {
+    border-bottom: 0;
+  }
+  .loki-pane-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "line tabs"
+      "sub tabs";
+    align-items: center;
+    padding-right: 12px;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .loki-pane-header-line {
+    grid-area: line;
+  }
+  .loki-pane-header-subtitle {
+    grid-area: sub;
+  }
+  .loki-pane-header .loki-tabs {
+    grid-area: tabs;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-glass);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+  }
+  .loki-pane-header .loki-tab {
+    min-height: 28px;
+    padding: 0 12px;
+    border-bottom: 0;
+    border-radius: var(--loki-radius-pill);
+  }
+  .loki-pane-header .loki-tab[aria-selected="true"] {
+    background: var(--loki-selection);
+  }
 }

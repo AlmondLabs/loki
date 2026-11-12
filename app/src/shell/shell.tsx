@@ -366,6 +366,13 @@ export function Shell() {
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
+        {/* Liquid Glass's sidebar (plan 2026-11-12-1505, U3): one glass panel, inset from the window's edge, under the rail
+            and the list column; components.css shows it only in that family, where the rail and column go clear over it. */}
+        <div
+          aria-hidden
+          className="loki-shell-glass glass"
+          style={{ position: "absolute", left: 8, top: 8, bottom: 8, width: Math.max(0, paneLeft - 12), borderRadius: "var(--loki-radius-lg)" }}
+        />
         <TitleStrip />
         <Sidebar
           segment={segment}
