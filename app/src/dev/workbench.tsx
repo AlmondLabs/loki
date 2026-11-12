@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowUpIcon, PlusIcon, SearchIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import type { OutsideFacts } from "../../../core/frame-types.ts";
+import { OutsideItemActions, OutsideItemHeader } from "../desk/outside-card";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
@@ -74,6 +76,59 @@ const PARTS: TurnPart[] = [
   { kind: "steps", key: "s1", rows: ROWS, running: false, arrived: false },
   { kind: "message", key: "m1", row: ANSWER, last: true, first: true, arrived: false },
 ];
+
+/** Made-up outside threads, one per source, for Flow's cards. */
+const OUTSIDE: Array<{ name: string; facts: OutsideFacts }> = [
+  [
+    "Gmail",
+    {
+      provider: "gmail" as const,
+      account_id: "gmail:ada@example.com",
+      account_label: "ada@example.com",
+      place: null,
+      sender: "Northwind billing",
+      subject: "Your November invoice",
+    },
+  ],
+  [
+    "Slack",
+    {
+      provider: "slack" as const,
+      account_id: "slack:acme",
+      account_label: "acme",
+      place: "#web-launch",
+      sender: "Grace",
+      subject: "Can we ship the pricing page Thursday?",
+    },
+  ],
+  [
+    "Jira",
+    {
+      provider: "jira" as const,
+      account_id: "jira:acme",
+      account_label: "acme.atlassian.net",
+      place: null,
+      sender: "Linus",
+      subject: "WEB-412 Checkout fails on Safari 17",
+    },
+  ],
+].map(([name, over]) => ({
+  name: name as string,
+  facts: {
+    thread_id: "t1",
+    generation: 0,
+    owner_agent_id: "agent-work",
+    owner_name: "friday",
+    sender_address: "someone@example.com",
+    lines: ["A made-up line of the thread."],
+    newest_message_id: "m1",
+    newest_at: "2026-11-12T08:15:00.000Z",
+    handoff_conversation_id: null,
+    disconnected: null,
+    ...(over as Pick<OutsideFacts, "provider" | "account_id" | "account_label" | "place" | "sender" | "subject">),
+  },
+}));
+const MOVES = { read: noop, later: noop, archive: noop, label: noop };
 
 const LOREM = Array.from(
   { length: 14 },
@@ -228,6 +283,19 @@ export function Workbench() {
 
         <Section title="Plan" note="Closed to its line until pressed.">
           <AgentPlan items={ROWS[0].tool?.plan ?? []} />
+        </Section>
+
+        <Section title="Flow's cards" note="Gmail, Slack and Jira on one shape: the card is the solid page, its moves in Apple's words.">
+          <div className="flex flex-col gap-4">
+            {OUTSIDE.map(({ name, facts }) => (
+              <div key={name} className="flex flex-col gap-2 rounded-lg border bg-background pb-3">
+                <OutsideItemHeader facts={facts} unread flash={null} went={null} cameBack={false} thread={{ kind: "loading" }} />
+                <div className="px-4">
+                  <OutsideItemActions facts={facts} thread={{ kind: "loading" }} typing={false} moves={MOVES} picking={false} onHandoff={noop} />
+                </div>
+              </div>
+            ))}
+          </div>
         </Section>
 
         <Section title="Moves under the box" note="The finishing move last and filled.">

@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useLook } from "../theme";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
 import { inLane, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -142,6 +143,7 @@ type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
   const { onClose, items, lane, loadHistory, onOpenDesk } = props;
+  const glass = useLook() === "glass";
   /** The cards the active lane holds: only they come up (R13). */
   const shown = useMemo(() => laneItems(items, lane), [items, lane]);
   /** Going through the cards Next rested, asked for at the end of the pass. */
@@ -338,7 +340,11 @@ function CatchUpDeck(props: DeckProps) {
             onEverything={lane ? () => pickLane(null) : undefined}
           />
         ) : current.outside ? (
-          <div key={idOf(current)} style={cardFrame(needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color, actions.dir)}>
+          <div
+            key={idOf(current)}
+            className="loki-flow-card"
+            style={cardFrame(needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color, actions.dir, glass)}
+          >
             <OutsideCard
               current={current}
               facts={current.outside}
@@ -389,7 +395,8 @@ function CatchUpDeck(props: DeckProps) {
             picker={picker}
           />
         )}
-        <KeysHint typing={typing} current={current} />
+        {/* Under Liquid Glass the keys live in the Flow menu and the buttons' tooltips, not in a line of their own (KTD7). */}
+        {!glass && <KeysHint typing={typing} current={current} />}
       </div>
     </div>
   );
@@ -429,6 +436,7 @@ function Card({
   /** The return-time picker, when the second later asks (R7), under the card's moves. */
   picker: ReactNode;
 }) {
+  const glass = useLook() === "glass";
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agent_id: agentId, id } = current;
@@ -447,7 +455,7 @@ function Card({
   const cameBack = cameBackIn(decided, current);
   const moves = { typing, read: actions.read, later: actions.later, archive: actions.archive, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
   return (
-    <div style={cardFrame(badgeColor, actions.dir)}>
+    <div className="loki-flow-card" style={cardFrame(badgeColor, actions.dir, glass)}>
       {/* A chip naming another chat opens it, as O opens the card's own. */}
       <OpenChat.Provider value={(agent, conversation) => (deck.onOpenDesk(agent, conversation), deck.onClose())}>
         <Conversation
@@ -543,14 +551,16 @@ function deckMoveApi(
 }
 
 /** The card's frame, a chat's or an outside thread's: its border in the badge's colour, entering from the last move's side. */
-function cardFrame(borderColor: string, dir: "next" | "back"): CSSProperties {
+function cardFrame(borderColor: string, dir: "next" | "back", glass = false): CSSProperties {
   return {
     flex: 1,
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
-    background: "var(--loki-panel)",
-    border: `1px solid ${borderColor}`,
+    // Under Liquid Glass a card is the page it holds: solid, no coloured rule; its badge says where it stands (U6).
+    position: glass ? "relative" : undefined,
+    background: glass ? "var(--loki-bg)" : "var(--loki-panel)",
+    border: glass ? "1px solid var(--loki-border)" : `1px solid ${borderColor}`,
     borderRadius: "var(--loki-radius-lg)",
     boxShadow: "var(--loki-shadow-sheet)",
     overflow: "hidden",

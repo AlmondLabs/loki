@@ -1323,6 +1323,26 @@ button.loki-list-section-toggle {
     border-radius: 24px;
   }
 
+  /* Flow (U6): a chat card holds the same floating dock as the chat pane, so its thread pads itself the same way; an
+     outside card's reply box is the same glass capsule as the composer. */
+  .loki-flow-card [data-slot="message-scroller-content"] {
+    padding-bottom: calc(var(--loki-dock-height) + 20px);
+  }
+  .loki-flow-card [data-slot="message-scroller-button"] {
+    bottom: calc(var(--loki-dock-height) + 12px);
+  }
+  .loki-flow-card [data-reply-box] [data-slot="input-group"] {
+    border-color: transparent;
+    border-radius: 24px;
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-float);
+  }
+
   /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has
      focus. Text fields keep the caret as their mark, as in every family. */
   button:focus-visible,

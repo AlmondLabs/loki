@@ -103,3 +103,38 @@ describe("the keyboard under Liquid Glass (U5)", () => {
     expect(glassPlaceholder({ status: "streaming", approval: null, question: null }, "friday")).toBe("Message friday — sends when this turn ends");
   });
 });
+
+describe("Flow under Liquid Glass (U6)", () => {
+  test("a Gmail card's moves take Apple's words, archive last and filled", async () => {
+    const { OutsideItemActions } = await import("../app/src/desk/outside-card.tsx");
+    withPalette("apple");
+    const facts = {
+      provider: "gmail" as const,
+      account_id: "gmail:ada@example.com",
+      account_label: "ada@example.com",
+      place: null,
+      sender: "Northwind billing",
+      subject: "Your invoice",
+      thread_id: "t1",
+      generation: 0,
+      owner_agent_id: "agent-work",
+      owner_name: "friday",
+      sender_address: "billing@northwind.example",
+      lines: ["November's invoice is attached."],
+      newest_message_id: "m1",
+      newest_at: "2026-11-11T08:15:00.000Z",
+      handoff_conversation_id: null,
+      disconnected: null,
+    };
+    const moves = { read: noop, later: noop, archive: noop, label: noop };
+    const out = html(createElement(OutsideItemActions, { facts, thread: { kind: "loading" }, typing: false, moves, picking: false, onHandoff: noop }));
+    expect([...out.matchAll(/>([A-Z][A-Za-z ]+)<\/button>/g)].map((m) => m[1])).toEqual(["Hand Off", "Label", "Later", "Mark as Read", "Archive"]);
+    expect(out).not.toContain("<kbd");
+  });
+
+  test("a Flow card pads its thread under the dock, and an outside card's reply box is the glass capsule", () => {
+    const css = readFileSync(join(import.meta.dirname, "..", "app", "src", "components", "components.css"), "utf8");
+    expect(css).toMatch(/\.loki-flow-card \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
+    expect(css).toMatch(/\.loki-flow-card \[data-reply-box\] \[data-slot="input-group"\] \{[^}]*var\(--loki-glass-strong\)/);
+  });
+});
