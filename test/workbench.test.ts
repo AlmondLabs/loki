@@ -10,7 +10,7 @@ import { LookProvider } from "../app/src/theme.tsx";
 
 describe("the workbench", () => {
   test("draws every section, with glass only on the floating layer", () => {
-    const out = renderToStaticMarkup(createElement(LookProvider, { look: "glass" }, createElement(Workbench)));
+    const out = renderToStaticMarkup(createElement(LookProvider, { look: "glass", children: createElement(Workbench) }));
     for (const section of ["Glass over content", "Roles", "Type", "Controls", "A turn", "Plan", "Flow&#x27;s cards", "Moves under the box"])
       expect(out).toContain(`>${section}</h2>`);
     expect(out).toMatch(/class="[^"]*\bglass-strong\b/);
