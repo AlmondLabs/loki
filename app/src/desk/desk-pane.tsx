@@ -37,6 +37,7 @@ import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { ItemHeader } from "../item/item-header";
+import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, MailOpenIcon, TagIcon } from "lucide-react";
 import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
@@ -177,21 +178,7 @@ export function DeskPane(props: DeskPaneProps) {
   // chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar symbols, not a row.
   const toolbar = glass && itemView && item;
   const itemLine = toolbar ? (
-    <div className="loki-toolbar-title">
-      <h1 className="loki-toolbar-name" title={itemView.header.title}>
-        {itemView.header.title}
-      </h1>
-      <p className="loki-toolbar-sub">
-        {itemView.header.properties.map((p, i) => (
-          <span key={p.key}>
-            {i > 0 && " · "}
-            {p.tone === "attention" && <span aria-hidden className="loki-toolbar-dot" />}
-            {p.label}
-          </span>
-        ))}
-        {links}
-      </p>
-    </div>
+    <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" />
   ) : itemView && item ? (
     <ItemHeader
       view={itemView.header}
@@ -215,34 +202,22 @@ export function DeskPane(props: DeskPaneProps) {
   const toolbarItems = toolbar ? (
     <>
       {tab === "desk" && <DeskActions />}
-      <span className="loki-toolbar-group" role="group" aria-label="Chat actions">
-        {runtime && (
-          <button type="button" className="loki-toolbar-item" aria-label="Label" title="Label (/label)" onClick={() => setLabeling(true)}>
-            <TagIcon aria-hidden />
-          </button>
-        )}
-        {item.unread && (
-          <button
-            type="button"
-            className="loki-toolbar-item"
-            aria-label="Mark as Read"
-            title={`Mark as Read (${keyFor(DONE)})`}
-            onClick={() => markDone(catchUp, item)}
-          >
-            <MailOpenIcon aria-hidden />
-          </button>
-        )}
-        <button
-          type="button"
-          className="loki-toolbar-item"
-          aria-label="Archive"
-          title={item.id === "default" ? "A main chat cannot be archived" : "Archive"}
-          disabled={item.id === "default"}
-          onClick={() => void catchUp.archive(item, "click")}
-        >
-          <ArchiveIcon aria-hidden />
-        </button>
-      </span>
+      <ToolbarGroup
+        label="Chat actions"
+        moves={[
+          ...(runtime ? [{ label: "Label", icon: <TagIcon aria-hidden />, title: "Label (/label)", run: () => setLabeling(true) }] : []),
+          ...(item.unread
+            ? [{ label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${keyFor(DONE)})`, run: () => markDone(catchUp, item) }]
+            : []),
+          {
+            label: "Archive",
+            icon: <ArchiveIcon aria-hidden />,
+            title: item.id === "default" ? "A main chat cannot be archived" : "Archive",
+            disabled: item.id === "default",
+            run: () => void catchUp.archive(item, "click"),
+          },
+        ]}
+      />
     </>
   ) : undefined;
   // Its moves, under the box (plan 097, U8): read while something is new, and archive. Under Liquid Glass they are the

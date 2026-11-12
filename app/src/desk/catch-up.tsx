@@ -496,6 +496,7 @@ function Card({
                 flash={actions.flash}
                 suggestions={waitingCount(deck.chats, current.runtime)}
                 onSuggestions={onSuggestions}
+                moves={glass ? { current, ...moves } : undefined}
               />
             ) : (
               <CardHeader
@@ -508,7 +509,8 @@ function Card({
               />
             )
           }
-          footer={preview === "on" ? <ChatItemActions current={current} {...moves} /> : <CardActions current={current} {...moves} />}
+          // Under Liquid Glass the moves are the header's toolbar (U16), so the box has no row of buttons under it.
+          footer={preview === "on" ? glass ? undefined : <ChatItemActions current={current} {...moves} /> : <CardActions current={current} {...moves} />}
           hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
           draft={{ value: draft, onChange: setDraft }}
           inputRef={replyRef}

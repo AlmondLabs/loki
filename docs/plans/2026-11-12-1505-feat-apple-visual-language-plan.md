@@ -374,6 +374,22 @@ flowchart TB
 - Under Liquid Glass body and rows are 13, secondary text 11, titles 15; the phone and today's look keep 13.5, 12 and 17.
 **Verification:** rendered on demo data, the chat, Flow and Agents.
 
+### U16. A Flow card asks one thing at a time
+
+**Goal:** a chat's Flow card stops showing seven decisions at once; while an approval waits, the bottom of the card holds only the question and the box.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U6, U13.
+**Files:** `app/src/item/toolbar.tsx`, `app/src/desk/catch-up-parts.tsx`, `app/src/desk/catch-up.tsx`, `app/src/desk/desk-pane.tsx`, `app/src/components/components.css`, `test/chat-look.test.ts`.
+**Approach:** under Liquid Glass the card's header is the chat pane's toolbar (one shared component):
+- The chat's title, which opens the chat (its key in the tooltip), over a grey line of its facts and when and why it is here. No face and no Unread chip.
+- Later, Mark as Read and Archive as one glass group of symbols, their keys in their tooltips.
+- The row of four buttons under the box is gone, so an approval's Deny / Always Allow… / Allow is the only row of choices at the bottom.
+- Every key keeps working. Today's look keeps its card.
+**Test scenarios:**
+- The shared toolbar draws named, keyed symbols and a title that opens.
+- Under Liquid Glass the chat card's footer is empty and its header carries the moves; today's look keeps the ActionBar.
+**Verification:** Flow rendered with an approval waiting, light and dark.
+
 ---
 
 ## Verification Contract

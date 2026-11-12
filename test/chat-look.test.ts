@@ -228,3 +228,39 @@ describe("the thread as a Mac conversation with an agent (U14)", () => {
     expect(markers(15 * 60_000)).toEqual([`${days[0]} ${clockLabel(at(0))}`, clockLabel(at(30))]);
   });
 });
+
+describe("a Flow card asks one thing at a time (U16)", () => {
+  test("the shared toolbar names each symbol and its key, and its title opens the item", async () => {
+    const { ToolbarGroup, ToolbarTitle } = await import("../app/src/item/toolbar.tsx");
+    const group = html(
+      createElement(ToolbarGroup, {
+        label: "Chat actions",
+        moves: [
+          { label: "Later", icon: createElement("i"), title: "Later (L)", run: noop },
+          { label: "Archive", icon: createElement("i"), title: "Archive (E)", run: noop, disabled: true },
+        ],
+      }),
+    );
+    expect(group).toContain('role="group" aria-label="Chat actions"');
+    expect(group).toContain('aria-label="Later" title="Later (L)"');
+    expect(group).toMatch(/aria-label="Archive" title="Archive \(E\)" disabled=""/);
+    const title = html(
+      createElement(ToolbarTitle, {
+        title: "Signups",
+        facts: [{ key: "agent", label: "friday · needs you", editable: false, tone: "attention" }],
+        onOpen: noop,
+        openTitle: "Open Chat (O)",
+      }),
+    );
+    expect(title).toContain('<button type="button" class="loki-toolbar-open" title="Open Chat (O)">Signups</button>');
+    expect(title).toContain('class="loki-toolbar-dot"');
+  });
+
+  test("under Liquid Glass the card's moves are its header's, and the box has no row of buttons under it", () => {
+    const card = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
+    expect(card).toContain("moves={glass ? { current, ...moves } : undefined}");
+    expect(card).toMatch(/footer=\{preview === "on" \? \(?glass \? undefined : <ChatItemActions/);
+    const parts = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up-parts.tsx"), "utf8");
+    for (const key of ["inbox.later", "inbox.next", "inbox.archive", "inbox.open"]) expect(parts).toContain(`deckKey("${key}", moves.typing)`);
+  });
+});

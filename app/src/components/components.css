@@ -1413,6 +1413,50 @@ button.loki-list-section-toggle {
     font-weight: 600;
     color: var(--loki-fg);
   }
+  /* A Flow card's toolbar (U16): the chat's title and facts, its moves at the trailing edge; the title opens the chat. */
+  .loki-card-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 6px 12px 6px 20px;
+  }
+  .loki-card-toolbar > .loki-toolbar-title {
+    flex: 1;
+  }
+  /* Solid to its foot with a short fade, as the chat's toolbar is, so the thread scrolls out of sight beneath it. */
+  .loki-card-toolbar {
+    position: relative;
+    z-index: 2;
+    border-radius: var(--loki-radius-lg) var(--loki-radius-lg) 0 0;
+    background: var(--loki-bg);
+  }
+  .loki-card-toolbar::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(var(--loki-bg), transparent);
+    pointer-events: none;
+  }
+  .loki-toolbar-open {
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .loki-toolbar-open:hover {
+    text-decoration: underline;
+  }
   .loki-toolbar-sub {
     margin: 0;
     overflow: hidden;

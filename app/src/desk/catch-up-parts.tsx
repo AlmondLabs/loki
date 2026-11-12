@@ -1,3 +1,5 @@
+import { ArchiveIcon, ClockIcon, MailOpenIcon } from "lucide-react";
+import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { OUTSIDE_ENDS, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
@@ -379,8 +381,54 @@ function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string
  * chat's name and flags, its agent and state, folder and labels, then when and why. The moves are ChatItemActions, at
  * the card's bottom.
  */
-export function ChatItemHeader({ current, cameBack, flash, suggestions = 0, onSuggestions }: Omit<CardHeaderProps, "labelList">) {
+export function ChatItemHeader({
+  current,
+  cameBack,
+  flash,
+  suggestions = 0,
+  onSuggestions,
+  moves,
+}: Omit<CardHeaderProps, "labelList"> & {
+  /** Liquid Glass's card (plan 2026-11-12-1505, U16): its moves, drawn as the header's toolbar group instead of a row under the box. */
+  moves?: Parameters<typeof CardActions>[0];
+}) {
   const agent = current.agent_name ?? "agent";
+  if (moves) {
+    const view = chatItem({ item: current, live: null, turns: [] }).header;
+    const main = current.id === "default";
+    const open = () => (moves.onOpenDesk(current.agent_id, current.id), moves.onClose());
+    return (
+      <div data-item-header className="loki-card-toolbar">
+        <ToolbarTitle
+          title={view.title}
+          facts={view.properties}
+          onOpen={open}
+          openTitle={`Open Chat (${deckKey("inbox.open", moves.typing)})`}
+          extra={
+            <>
+              {" · "}
+              <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+              {flash && <Meta style={NOTED}>{flash}</Meta>}
+            </>
+          }
+        />
+        <ToolbarGroup
+          label="Chat actions"
+          moves={[
+            { label: "Later", icon: <ClockIcon aria-hidden />, title: `Later (${deckKey("inbox.later", moves.typing)})`, run: moves.later },
+            { label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${deckKey("inbox.next", moves.typing)})`, run: moves.read },
+            {
+              label: "Archive",
+              icon: <ArchiveIcon aria-hidden />,
+              title: main ? "A main chat cannot be archived" : `Archive (${deckKey("inbox.archive", moves.typing)})`,
+              disabled: main,
+              run: moves.archive,
+            },
+          ]}
+        />
+      </div>
+    );
+  }
   return (
     <ItemHeader
       view={chatItem({ item: current, live: null, turns: [] }).header}

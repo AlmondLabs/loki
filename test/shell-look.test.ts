@@ -156,7 +156,7 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
 
   test("the chat's moves are toolbar symbols named for the screen reader, and the box has no row of moves under it", async () => {
     const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
-    for (const name of ["Label", "Mark as Read", "Archive"]) expect(pane).toContain(`aria-label="${name}"`);
+    for (const name of ["Label", "Mark as Read", "Archive"]) expect(pane).toContain(`label: "${name}"`);
     expect(pane).toContain("trailing={toolbarItems}");
     expect(pane).toMatch(/const itemMoves =\s*!toolbar && itemView && item/);
     const { createElement } = await import("react");
