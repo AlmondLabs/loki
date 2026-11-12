@@ -145,6 +145,8 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
+  // Allow Step and Deny Step from the Chat menu or their keys: a counter with the answer, for the chat pane (U5).
+  const [decideChat, setDecideChat] = useState<{ n: number; behavior: "allow" | "deny" }>({ n: 0, behavior: "allow" });
   const {
     list: modelList,
     load: loadModels,
@@ -323,6 +325,8 @@ export function Shell() {
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
       "chat.focus": () => chatKey("chat.focus", (inset) => (inset && setChatOpen(true), setFocusChat((n) => n + 1))),
       "chat.find": () => chatKey("chat.find", (inset) => (inset && setChatOpen(true), setFindChat((n) => n + 1))),
+      "chat.allow": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "allow" })),
+      "chat.deny": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "deny" })),
       "chat.model": () => chatKey("chat.model", (inset) => (inset && setChatOpen(true), setModelPickerTick((n) => n + 1))),
       "chat.mode": () => chatKey("chat.mode", (inset) => (inset && setChatOpen(true), setModeMenuTick((n) => n + 1))),
       "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
@@ -426,6 +430,7 @@ export function Shell() {
               chatPlacement={chat.effectivePlacement}
               focusChat={focusChat}
               findChat={findChat}
+              decideChat={decideChat}
               chatPrefill={chatPrefill}
               models={modelList}
               onLoadModels={loadModels}

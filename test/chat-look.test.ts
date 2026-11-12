@@ -74,3 +74,32 @@ describe("the thread under the floating header and dock", () => {
     expect(css).toMatch(/padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
   });
 });
+
+describe("the keyboard under Liquid Glass (U5)", () => {
+  test("Allow Step and Deny Step sit in the Chat menu, and Deny leaves ⌘⌫ to the text", async () => {
+    const { KEYMAP, menuSpec } = await import("../app/src/shell/keymap.ts");
+    const allow = KEYMAP.find((b) => b.id === "chat.allow");
+    const deny = KEYMAP.find((b) => b.id === "chat.deny");
+    expect(allow?.keys).toEqual(["cmd+enter"]);
+    expect(deny?.keys).toEqual(["cmd+shift+backspace"]);
+    expect(KEYMAP.filter((b) => b.where === "desk" && b.keys.includes("cmd+backspace"))).toEqual([]);
+    const chat = menuSpec(KEYMAP, "macos").find((m) => m.title === "Chat");
+    const ids = (chat?.items ?? []).flatMap((i) => ("id" in i ? [i.id] : []));
+    expect(ids).toEqual(expect.arrayContaining(["chat.allow", "chat.deny"]));
+  });
+
+  test("Always Allow promises a question with its ellipsis and grants nothing by being drawn", () => {
+    withPalette("apple");
+    const ran: string[] = [];
+    const out = html(createElement(ApprovalProposal, { approval, onApprove: (b) => ran.push(b), who: "friday" }));
+    expect(out).toContain(">Always Allow…</button>");
+    expect(ran).toEqual([]);
+  });
+
+  test("the empty box's words carry no keys, and say Return allows while an approval waits", async () => {
+    const { glassPlaceholder } = await import("../app/src/chat/conversation.tsx");
+    expect(glassPlaceholder({ status: "idle", approval: null, question: null }, "friday")).toBe("Message friday");
+    expect(glassPlaceholder({ status: "idle", approval, question: null }, "friday")).toBe("Reply, or press Return to allow");
+    expect(glassPlaceholder({ status: "streaming", approval: null, question: null }, "friday")).toBe("Message friday — sends when this turn ends");
+  });
+});

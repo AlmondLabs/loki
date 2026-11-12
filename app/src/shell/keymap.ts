@@ -84,6 +84,9 @@ export const KEYMAP: Binding[] = [
   { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
   { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
   { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "desk", label: "Show Suggestions…", typing: true, menu: "Chat" },
+  // The step the agent is paused on (plan 2026-11-12-1505, U5): the same keys as Flow's Approve, and a Deny that leaves ⌘⌫ to the text.
+  { id: "chat.allow", keys: ["cmd+enter"], where: "desk", label: "Allow Step", typing: true, menu: "Chat/decide" },
+  { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "desk", label: "Deny Step", typing: true, menu: "Chat/decide" },
   // Ctrl+Alt+arrows are the system's off the Mac (workspaces on Linux, screen rotation on Windows, where Ctrl+Alt is also AltGr).
   {
     id: "chat.left",
@@ -115,6 +118,14 @@ export const KEYMAP: Binding[] = [
 
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
+  {
+    id: "chat.allow-empty",
+    keys: ["enter"],
+    where: "chat",
+    label: "allow the step",
+    typing: true,
+    note: "the empty box, while an approval waits (Liquid Glass)",
+  },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
   { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply", typing: true, note: "the empty box" },
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },

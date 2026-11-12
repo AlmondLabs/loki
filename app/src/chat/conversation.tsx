@@ -13,6 +13,7 @@ import {
 } from "react";
 import "./chat.css";
 import { useHeightVar } from "../shared/use-height-var";
+import { useLook } from "../theme";
 import { offersAlways, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -282,8 +283,16 @@ export function Conversation({
     actions.onSend(text);
     onSent?.();
   };
+  const glass = useLook() === "glass";
   const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (palette.onKeyDown(e)) return true;
+    // Liquid Glass (plan 2026-11-12-1505, R11): Return on an empty box answers the approval with Allow, its default
+    // button; with words in the box it sends them as the reply and the approval stays open.
+    if (glass && approval && onApprove && !hasContent && e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onApprove("allow");
+      return true;
+    }
     const option = replies && !touch && !hasContent ? replyKey(e, replies) : null;
     if (!option) return false;
     e.preventDefault();
@@ -431,7 +440,7 @@ export function Conversation({
                   onBlur={() => onTyping?.(false)}
                   images={images}
                   onImages={setImages}
-                  placeholder={placeholder ?? composerPlaceholder({ status, approval, question }, agentName)}
+                  placeholder={placeholder ?? (glass ? glassPlaceholder : composerPlaceholder)({ status, approval, question }, agentName)}
                   touch={touch}
                   tools={
                     (hasModelPicker || hasModeMenu || suggestions) && (
@@ -515,6 +524,17 @@ export function Conversation({
       )}
     </>
   );
+}
+
+/**
+ * What the empty box says under Liquid Glass (plan 2026-11-12-1505, U4–U5): plain words with no keys in them, the keys
+ * living in the menu and the tooltips; while an approval waits, that Return allows it.
+ */
+export function glassPlaceholder(view: Pick<ConversationView, "status" | "approval" | "question">, agentName: string | null | undefined): string {
+  if (view.question) return "Answer in your own words, or pick above";
+  if (view.approval) return "Reply, or press Return to allow";
+  const who = agentName ?? "the agent";
+  return view.status === "idle" ? `Message ${who}` : `Message ${who} — sends when this turn ends`;
 }
 
 /** What the empty box says: answer the open question, decide the approval, or message the agent — with a note when it will queue. */

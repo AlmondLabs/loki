@@ -1,5 +1,16 @@
 import { LinkHeader } from "../chat/link-header";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FocusEvent,
+  type RefObject,
+} from "react";
 import { useHeightVar } from "../shared/use-height-var";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
@@ -55,6 +66,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   /** The shell's counters (⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode, ⌘⇧S suggestions) and a prefill; each reaches the view that shows. */
   focusChat: number;
   findChat: number;
+  /** Allow Step or Deny Step from the Chat menu (U5): each new count answers the approval this chat waits on, if any. */
+  decideChat: { n: number; behavior: "allow" | "deny" };
   modelPickerTick: number;
   modeMenuTick: number;
   suggestionsTick: number;
@@ -112,6 +125,16 @@ export function DeskPane(props: DeskPaneProps) {
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
   // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.
   const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined }, undefined);
+  // A menu answer reaches the step this chat is paused on; the count it was mounted with is old news, never replayed.
+  const decided = useRef(props.decideChat.n);
+  const approve = useEffectEvent((behavior: "allow" | "deny") => {
+    if (view.approval) actions.onApprove?.(behavior);
+  });
+  useEffect(() => {
+    if (props.decideChat.n === decided.current) return;
+    decided.current = props.decideChat.n;
+    if (visible === "messages") approve(props.decideChat.behavior);
+  }, [props.decideChat, visible]);
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),

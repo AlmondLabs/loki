@@ -7,6 +7,7 @@ import type { ReplyAction } from "../../../core/frames.ts";
 import type { ReplyOutcome } from "../../../core/attention/chat-store.ts";
 import { messageOf } from "../../../core/errors.ts";
 import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
 import { Kbd } from "@/ui/kbd";
 import { Textarea } from "@/ui/textarea";
 import { Confirmation, ConfirmationActions, ConfirmationRequest } from "@/ui/ai-elements/confirmation";
@@ -130,6 +131,7 @@ function GlassApproval({
   who?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const line = inputLine(approval.input);
   const tip = (word: string, key: string | undefined) => (key ? `${word} (${key})` : word);
   return (
@@ -160,11 +162,11 @@ function GlassApproval({
             size="sm"
             variant="secondary"
             className="rounded-full"
-            onClick={() => onApprove("always")}
+            onClick={() => setConfirming(true)}
             title="Allow this tool from now on, in every chat (Preferences › Chat takes it back)"
             data-action="always"
           >
-            Always Allow
+            Always Allow…
           </Button>
         )}
         <Button size="sm" className="rounded-full" onClick={() => onApprove("allow")} data-action="approve" title={tip("Allow", hints?.approve)}>
@@ -172,6 +174,29 @@ function GlassApproval({
         </Button>
       </div>
       {open && <pre className="m-0 max-h-48 overflow-auto rounded-md bg-muted px-3 py-2 text-meta">{formatInput(approval.input)}</pre>}
+      {/* A grant for good, in every chat, asks first (R11), as a Mac asks before a change it cannot quietly take back. */}
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Always allow “{approval.toolName}”?</DialogTitle>
+            <DialogDescription>Every agent can then run it without asking, in every chat, from now on. Preferences › Chat takes it back.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(false)} data-action="always-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setConfirming(false);
+                onApprove("always");
+              }}
+              data-action="always-confirm"
+            >
+              Always Allow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

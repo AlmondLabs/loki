@@ -1322,4 +1322,17 @@ button.loki-list-section-toggle {
   .loki-dock [data-slot="input-group"] {
     border-radius: 24px;
   }
+
+  /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has
+     focus. Text fields keep the caret as their mark, as in every family. */
+  button:focus-visible,
+  select:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible,
+  a:focus-visible {
+    outline: 3px solid color-mix(in oklab, var(--loki-accent) 55%, transparent);
+    outline-offset: 1px;
+    animation: none;
+  }
 }
