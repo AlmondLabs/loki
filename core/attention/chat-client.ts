@@ -64,6 +64,7 @@ export type ChatClient = Pick<
   | "replyOutside"
   | "composeOutside"
   | "unsendOutside"
+  | "keepMoveHere"
   | "resendOutside"
   | "discardOutside"
   | "reactOutside"
@@ -258,6 +259,11 @@ export class FrameChatClient {
       ...(steer ? { steer: true } : {}),
     });
     return r.accepted;
+  }
+
+  /** Keep a chat here whose move to an out-of-reach Mac cannot finish (plan 096); throws why not. */
+  async keepMoveHere(rt: Runtime): Promise<void> {
+    await this.call("chat_move_keep", { agent_id: rt.agent_id, conversation_id: rt.conversation_id });
   }
 
   async abortTurn(rt: Runtime): Promise<boolean> {

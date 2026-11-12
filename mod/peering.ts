@@ -202,7 +202,15 @@ export function startPeering(deps: PeeringDeps): Peering {
         pushes: { memory_changed: (id, f) => (typeof f.agent_id === "string" ? peerMemory.pull(id, f.agent_id) : undefined) },
       },
       // Once after pairing, the chats there of agents that live here (U9).
-      { name: "moves", after: "memory", reached: (id) => chatMoves.takeOver(id) },
+      // A move to this Mac left half-done is finished (or undone) before anything new moves (plan 096).
+      {
+        name: "moves",
+        after: "memory",
+        reached: async (id) => {
+          await chatMoves.settle(id);
+          await chatMoves.takeOver(id);
+        },
+      },
       // Tasks whose chats live there, which could not move into suggestions while it was out of reach (plan 049, U7).
       { name: "tasks", after: "moves", reached: () => deps.moveTasks() },
       {
@@ -282,6 +290,7 @@ export function startPeering(deps: PeeringDeps): Peering {
     chat: chatBackend,
     link: (id) => (links.reachable(id) ? links.get(id) : null),
     widgetsDir: dirs.widgets,
+    file: join(dirs.state, "chat-moves.json"),
     name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? null)),
     done: (id) => peerStore.get(id)?.moves_done === true,
     markDone: (id) => peerStore.markMovesDone(id),

@@ -383,7 +383,11 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    comes into reach, and the syncer it waits for: agents, then their memory, then the chats that move with them;
    the rest side by side. A failure is logged (`peers:sync-failed`) and stops no other syncer. A chat moved by hand, or started away from its agent's
    home, is `placed` (its ChatInfo) and the hand-over skips it. A chat coming back to a Mac that let it go sets the
-   hidden copy aside under a new key first (`AgentStore.retireChat`).
+   hidden copy aside under a new key first (`AgentStore.retireChat`). The Mac a chat leaves holds it (no message goes in) from the
+   start of its copy until the other Mac says it has it; the hold is kept in `state/chat-moves.json` and never lapses
+   (plan 096). When a Mac comes into reach, `ChatMoves.settle` asks it with `peer_where` about each chat held for it,
+   before the hand-over runs: one it holds is let go here, one it never got takes messages again, and one the person
+   kept here (`chat_move_keep`, while that Mac was out of reach) is let go there with `peer_chat_moved`.
 
 ## Where things live on disk
 
@@ -407,7 +411,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     passes' settings and cursors (`passes.json`, `pass-cursors.json`), ACP agents and what each offered (`acp.json`,
     `acp-offered.json`), the analytics id (`analytics.json`), the LAN switch (`lan.json`), paired phones
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
-    (`recent-models.json`), each agent's switched-off MCP servers (`mcp-agents.json`), reflection's settings from
+    (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
+    switched-off MCP servers (`mcp-agents.json`), reflection's settings from
     before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
     (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),

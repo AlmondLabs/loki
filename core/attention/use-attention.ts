@@ -947,6 +947,7 @@ export function useAttention(opts: UseAttentionOptions) {
     listModels: store.listModels,
     updateModel: store.updateModel,
     stop: store.abortTurn,
+    keepMoveHere: store.keepMoveHere,
     setMode: store.setMode,
     changeFolder: store.changeFolder,
     archiveConversation: store.archiveConversation,
