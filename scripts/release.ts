@@ -49,7 +49,7 @@ export const RELEASE_FILE = ".github/release.txt";
 export const PREVIEW_BRANCH = "release/preview";
 /** The one file the Windows and Linux PR's commit changes, naming the stable tag its files go on. */
 export const PREVIEW_FILE = ".github/preview.txt";
-/** The rolling nightly's tag and release, deleted and made again on each nightly. */
+/** The rolling nightly's tag and release: each nightly adds its files, moves the tag, then removes the last one's. */
 export const NIGHTLY_TAG = "nightly";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -103,6 +103,22 @@ export function nextStable(today: Date, tags: string[]): string {
 export const nightlyVersion = (today: Date, tags: string[], sha: string): string => `${nextStable(today, tags)}-nightly.${sha.slice(0, 7)}`;
 
 const STABLE_TAG = /^v\d+\.\d+\.\d+$/;
+
+/** A release as the numbering sees it: its tag, and the commit it was made for (a draft's tag exists only here). */
+export interface ReleaseRef {
+  tag: string;
+  target: string;
+}
+
+/**
+ * The stable already made for `sha`, draft or public, as a version; null when none was. A run of the release job
+ * again for the same merge takes this number, so a re-run after a failed step finishes that stable rather than
+ * shipping the same commit as the next one.
+ */
+export function stableFor(sha: string, releases: readonly ReleaseRef[]): string | null {
+  const mine = releases.filter((r) => r.target === sha && STABLE_TAG.test(r.tag)).map((r) => r.tag.slice(1));
+  return mine.sort(byVersion).at(-1) ?? null;
+}
 const stablesIn = (tags: string[]): string[] => tags.filter((t) => STABLE_TAG.test(t)).map((t) => t.slice(1));
 
 /**
@@ -218,6 +234,16 @@ const gh = (...args: string[]) => run("gh", args);
 function tags(): string[] {
   return git("tag", "--list").split("\n").filter(Boolean);
 }
+/** Every release, drafts included (the build's token sees them), with the commit each was made for. */
+function releaseRefs(): ReleaseRef[] {
+  return gh("api", "--paginate", `repos/${repoName()}/releases?per_page=100`, "--jq", ".[] | [.tag_name, .target_commitish] | @tsv")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [tag = "", target = ""] = line.split("\t");
+      return { tag, target };
+    });
+}
 /** The stables the Mac has shipped: the versions of the releases carrying a `.dmg`, from GitHub (the tags cannot tell). */
 let shippedCache: string[] | null = null;
 function shipped(): string[] {
@@ -293,7 +319,12 @@ function cmdPlan(): void {
  */
 function cmdVersion(kind: string, sha: string): string {
   git("fetch", "--tags", "--force", "--quiet", "origin");
-  if (kind === "stable") return nextStable(new Date(), tags());
+  if (kind === "stable") {
+    // Drafts count as taken too: a stable whose run failed before it went public holds its number, and its merge run
+    // again takes that number back.
+    const releases = releaseRefs();
+    return stableFor(sha, releases) ?? nextStable(new Date(), [...tags(), ...releases.map((r) => r.tag)]);
+  }
   if (kind === "nightly") return nightlyVersion(new Date(), tags(), sha);
   throw new Error(`version: kind is stable or nightly, not ${kind}`);
 }
@@ -357,10 +388,40 @@ function releaseBody(tag: string, gh: (...args: string[]) => string): string | n
   }
 }
 
+/** A release as publishing needs it: whether it is still a draft, the commit it is for, and its files' names. */
+export interface ReleaseState {
+  draft: boolean;
+  target: string;
+  assets: string[];
+}
+
+/** The release at `tag`, draft or not; null when there is none. */
+export function releaseState(tag: string, gh: (...args: string[]) => string): ReleaseState | null {
+  let raw: string;
+  try {
+    raw = gh("release", "view", tag, "--json", "isDraft,targetCommitish,assets");
+  } catch {
+    return null;
+  }
+  const r = JSON.parse(raw) as { isDraft?: unknown; targetCommitish?: unknown; assets?: unknown };
+  const names = (Array.isArray(r.assets) ? r.assets : []).map((a: unknown) => (typeof a === "object" && a !== null ? (a as { name?: unknown }).name : null));
+  const assets = names.filter((n): n is string => typeof n === "string");
+  return { draft: r.isDraft === true, target: typeof r.targetCommitish === "string" ? r.targetCommitish : "", assets };
+}
+
+/** The nightly's `.dmg` files other than `keep`: the ones an earlier nightly left, removed once the tap has moved on. */
+export const staleNightlyFiles = (assets: readonly string[], keep: string): string[] => assets.filter((a) => a.endsWith(".dmg") && a !== keep);
+
 /**
- * Publish: a stable gets its own tag at the merge and its release, marked latest — never another release's, so a
- * number some earlier run already took fails loudly rather than mixing two builds' files; a nightly replaces the
- * rolling one, only now that the build is in hand. The Mac's files only.
+ * Publish the Mac's files, each step safe to run again (plan 096). A stable is made as a draft (no tag yet), given
+ * its files, then made public and latest; a run again for the same merge picks up where the last one stopped, and one
+ * whose release is already public changes nothing on it. A release at this number made for another commit is never
+ * joined: two builds' files never share a release. A nightly keeps its release: the new files go up beside the last
+ * nightly's, then the tag moves to this merge, so a run cancelled at any point leaves a nightly that downloads
+ * (`prune-nightly`, after the tap has moved, removes the old `.dmg`).
+ *
+ * Answers the `.dmg` the cask is made from: this build's, or, when the stable was already public, the one it shipped
+ * with, downloaded to `downloadDir`, since a rebuild is not the same file and its checksum would not match.
  */
 export function publish({
   kind,
@@ -368,6 +429,8 @@ export function publish({
   files,
   sha,
   notesFile,
+  repo = "",
+  downloadDir = ".",
   gh,
 }: {
   kind: string;
@@ -376,31 +439,78 @@ export function publish({
   sha: string;
   notesFile: string;
   repo?: string;
+  downloadDir?: string;
   gh: (...args: string[]) => string;
-}): void {
+}): { dmg: string } {
   if (!files.length) throw new Error("publish: no files");
+  const dmg = files.find((f) => f.endsWith(".dmg")) ?? files[0];
   if (kind === "stable") {
     if (!isStableVersion(version)) throw new Error(`a stable looks like 2026.1011.0, not ${version}`);
     const tag = `v${version}`;
-    if (releaseBody(tag, gh) !== null) throw new Error(`${tag} already exists: this build's number was taken; re-run the job to number it again`);
-    gh("release", "create", tag, "--target", sha, "--title", `loki ${version}`, "--notes-file", notesFile, "--latest", ...files);
-  } else if (kind === "nightly") {
-    if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.a96ee85, not ${version}`);
-    try {
-      gh("release", "delete", NIGHTLY_TAG, "--yes", "--cleanup-tag");
-    } catch {
-      // no nightly yet
+    const state = releaseState(tag, gh);
+    if (state && state.target !== sha)
+      throw new Error(
+        `${tag} already exists for another commit (${state.target.slice(0, 7)}): this build's number was taken; re-run the job to number it again`,
+      );
+    if (state && !state.draft) {
+      const shipped = state.assets.find((a) => a.endsWith(".dmg"));
+      if (!shipped) throw new Error(`${tag} is public but carries no .dmg`);
+      gh("release", "download", tag, "--pattern", shipped, "--dir", downloadDir, "--clobber");
+      return { dmg: join(downloadDir, shipped) };
     }
-    gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", `loki ${version}`, "--notes-file", notesFile, ...files);
-  } else throw new Error(`publish: kind is stable or nightly, not ${kind}`);
+    if (!state) gh("release", "create", tag, "--draft", "--target", sha, "--title", `loki ${version}`, "--notes-file", notesFile);
+    gh("release", "upload", tag, ...files, "--clobber");
+    gh("release", "edit", tag, "--draft=false", "--latest");
+    return { dmg };
+  }
+  if (kind === "nightly") {
+    if (!isNightlyVersion(version)) throw new Error(`a nightly version looks like 2026.1011.1-nightly.a96ee85, not ${version}`);
+    const state = releaseState(NIGHTLY_TAG, gh);
+    if (!state) {
+      // A tag left without its release (the old delete-then-create, cancelled between the two) would pin the new
+      // release to the old commit: it goes first.
+      try {
+        gh("api", "-X", "DELETE", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`);
+      } catch {
+        // no such tag
+      }
+      gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", `loki ${version}`, "--notes-file", notesFile, ...files);
+      return { dmg };
+    }
+    gh("release", "upload", NIGHTLY_TAG, ...files, "--clobber");
+    gh("api", "-X", "PATCH", `repos/${repo}/git/refs/tags/${NIGHTLY_TAG}`, "-f", `sha=${sha}`, "-F", "force=true");
+    gh("release", "edit", NIGHTLY_TAG, "--title", `loki ${version}`, "--notes-file", notesFile, "--prerelease");
+    return { dmg };
+  }
+  throw new Error(`publish: kind is stable or nightly, not ${kind}`);
+}
+
+/** Remove the `.dmg` files an earlier nightly left on the rolling release, now that the tap points at `keep`. */
+export function pruneNightly(keep: string, gh: (...args: string[]) => string): string[] {
+  const state = releaseState(NIGHTLY_TAG, gh);
+  if (!state) return [];
+  const stale = staleNightlyFiles(state.assets, keep);
+  for (const name of stale) gh("release", "delete-asset", NIGHTLY_TAG, name, "--yes");
+  return stale;
 }
 
 function cmdPublish(kind: string, version: string, files: string[]): void {
   if (!files.length) throw new Error("publish: no files");
   const notesFile = join(root, ".release-notes.md");
   writeFileSync(notesFile, cmdNotes(version).replace(/^## .*\n\n/, ""));
-  publish({ kind, version, files, sha: git("rev-parse", "HEAD"), notesFile, gh });
+  const { dmg } = publish({
+    kind,
+    version,
+    files,
+    sha: git("rev-parse", "HEAD"),
+    notesFile,
+    repo: repoName(),
+    downloadDir: join(root, ".release-shipped"),
+    gh,
+  });
   console.error(`release: published ${kind} ${version}`);
+  // The step after reads which .dmg to make the cask from.
+  output({ dmg });
 }
 
 // --- the Windows and Linux PR ------------------------------------------------------------------------------
@@ -529,6 +639,11 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
       case "publish":
         cmdPublish(args[0] ?? "", args[1] ?? "", args.slice(2));
         break;
+      case "prune-nightly": {
+        const gone = pruneNightly(args[0] ?? "", gh);
+        console.error(`release: removed ${gone.length} earlier nightly file${gone.length === 1 ? "" : "s"}`);
+        break;
+      }
       case "preview-pr":
         cmdPreviewPr(args.at(0) ?? lastStable() ?? "");
         break;
@@ -537,7 +652,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         break;
       default:
         console.error(
-          "usage: npm run release -- plan | version <stable|nightly> [sha] | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | preview-pr [version] | attach <tag> <files…>",
+          "usage: npm run release -- plan | version <stable|nightly> [sha] | set <version> | notes [version] | release-pr | publish <stable|nightly> <version> <dmg…> | prune-nightly <kept .dmg name> | preview-pr [version] | attach <tag> <files…>",
         );
         process.exit(2);
     }

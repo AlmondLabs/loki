@@ -40,7 +40,12 @@ never goes stale; the Windows and Linux PR names the stable it is for. Nothing r
    (`release.ts set`), smoke-tests the bundle (`npm run smoke`: it starts and signs in, or nothing ships), builds the
    universal `.dmg` with `tauri-apps/tauri-action` (`--target universal-apple-darwin`),
    publishes it with `release.ts publish`, renders the cask from it, attaches `cask.rb` to the release and pushes it
-   to the tap. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PRs** job
+   to the tap. Each of those steps is safe to run again (plan 096): a stable is made as a draft, given its `.dmg`,
+   then made public and latest, and a re-run of the same merge takes the same number back and finishes what the last
+   run left; once a stable is public a re-run changes nothing on it and makes the cask from the `.dmg` it shipped with.
+   The nightly is never deleted: its new `.dmg` goes up beside the last one's, the `nightly` tag moves, the tap gets
+   the new cask, and only then is the old `.dmg` removed (`release.ts prune-nightly`), so a nightly cancelled by a
+   newer merge at any point still downloads. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PRs** job
    (`release.ts release-pr`, then `release.ts preview-pr`) to refresh both. A merge of docs alone (`docs/**`, the
    root's `*.md`) starts no release run at all.
 3. **A preview** is two build jobs, each checking out the merge, stamping the stable's version (`release.ts set`),
@@ -74,8 +79,10 @@ A nightly is the number of the stable it leads up to plus the merge it was built
   the build job counts today's `vYYYY.MMDD.*` tags and takes the next. Stable builds run one at a time in their own
   queue, so a stable queued behind another sees its tag and takes the next number. GitHub keeps one waiting run per
   queue: of three release merges within a few minutes the middle one may be dropped, and the third, built from a
-  later `main`, carries its changes. A stable never joins an existing release: if its number is somehow taken, the
-  publish fails and a re-run numbers it again.
+  later `main`, carries its changes. A stable never joins another merge's release: if its number is somehow taken by
+  another commit, the publish fails and a re-run numbers it again. Drafts count as taken, and a re-run of the same
+  merge takes its own stable's number back (`stableFor`), so **re-run failed jobs** after a stable's later step
+  failed (the tap token, the network) ships nothing twice.
 - **It sorts after everything before it.** All three parts are integers, so semver, Cargo, macOS bundle versions,
   Homebrew and the app's own update check (`core/version.ts`) order it, and Windows installers' limit of 65535 per
   part is never reached. A month and day (101 to 1231) outnumber a month (1 to 12), so `2026.1011.0` is newer than
