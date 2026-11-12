@@ -6,7 +6,7 @@
  * browser for the Catch Up thread.
  */
 
-import type { FileRef, ToolStep } from "./attention/transcript.ts";
+import type { FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
 
 /** A message's text with the harness's injected blocks taken out (reminders, desk activity, attachment tags, skill bodies, notifications): what the person or agent actually wrote. */
 export function stripHarnessMarkup(text: string): string {
@@ -348,7 +348,36 @@ export function errorOf(output: string): string {
 export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolStep {
   const output = toolOutput(raw);
   const error = failed ? errorOf(toolText(raw) ?? "") : "";
-  return { ...step, ...(output !== undefined ? { output } : {}), ...(failed ? { failed: true } : {}), ...(error ? { error } : {}) };
+  const plan = step.name === PLAN_TOOL && !failed ? planItems(toolText(raw) ?? "") : null;
+  return {
+    ...step,
+    ...(output !== undefined ? { output } : {}),
+    ...(failed ? { failed: true } : {}),
+    ...(error ? { error } : {}),
+    ...(plan ? { plan } : {}),
+  };
+}
+
+/** The step an ACP agent's plan is written as (daemon/acp/chats.ts): a call named "plan" whose result lists the entries. */
+export const PLAN_TOOL = "plan";
+
+/** A plan entry's mark in the plan step's text, as the daemon writes it: done, under way, not started. */
+const PLAN_MARK: Partial<Record<string, PlanItem["status"]>> = { "[x]": "completed", "[~]": "in_progress", "[ ]": "pending" };
+
+/**
+ * A plan step's entries from its text, one "[x] what" line each; null when any line is not one, so a tool that only
+ * happens to be named "plan" keeps its output as written.
+ */
+export function planItems(text: string): PlanItem[] | null {
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (!lines.length) return null;
+  const items: PlanItem[] = [];
+  for (const l of lines) {
+    const status = PLAN_MARK[l.slice(0, 3)];
+    if (!status || l[3] !== " ") return null;
+    items.push({ content: l.slice(4).trim(), status });
+  }
+  return items;
 }
 
 /**

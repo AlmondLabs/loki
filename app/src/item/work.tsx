@@ -32,6 +32,7 @@ import { Shimmer } from "@/ui/ai-elements/shimmer";
 import { Task, TaskContent, TaskItem, TaskTrigger } from "@/ui/ai-elements/task";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/ui/ai-elements/tool";
 import { useWhole } from "../chat/tool-steps";
+import { AgentPlan } from "./agent-plan";
 
 /** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
@@ -69,7 +70,9 @@ const ICON: Record<StepKind, LucideIcon> = {
  */
 export const Work = memo(
   function Work({ rows: all, running, arrived, waiting = false }: { rows: TranscriptRow[]; running: boolean; arrived: boolean; waiting?: boolean }) {
-    const rows = withoutSkillCalls(all);
+    // The agent's plan is drawn as its Plan, from the newest one in the stretch, not as a step (plan 097, U9).
+    const plan = [...all].reverse().find((r) => r.tool?.plan)?.tool?.plan ?? null;
+    const rows = withoutSkillCalls(all).filter((r) => !r.tool?.plan);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);
     const [filter, setFilter] = useState<Filter>("all");
@@ -82,44 +85,47 @@ export const Work = memo(
     const shown = rows.flatMap((r, k) => (KEEP[filter](r) ? [k] : []));
     return (
       <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-1.5">
-        <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
-          <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
-            {waiting ? "Waiting on you" : workSummary(rows, running)}
-          </ChainOfThoughtHeader>
-          <ChainOfThoughtContent>
-            {rows.length > FILTER_FROM && (
-              <ToggleGroup
-                size="sm"
-                variant="outline"
-                aria-label="show"
-                value={[filter]}
-                onValueChange={(v: unknown[]) => {
-                  if (isFilter(v[0])) setFilter(v[0]);
-                }}
-              >
-                {FILTERS.map(([f, label]) => {
-                  const n = rows.filter(KEEP[f]).length;
-                  if (f === "failed" && !n) return null;
-                  return (
-                    <ToggleGroupItem key={f} value={f}>
-                      {label} <span className="text-muted-foreground tabular-nums">{n}</span>
-                    </ToggleGroupItem>
-                  );
-                })}
-              </ToggleGroup>
-            )}
-            {shown.map((k) => (
-              <Step
-                key={k}
-                row={rows[k]}
-                active={running && k === rows.length - 1}
-                waiting={waiting}
-                open={at === k}
-                onToggle={() => setAt(at === k ? null : k)}
-              />
-            ))}
-          </ChainOfThoughtContent>
-        </ChainOfThought>
+        {plan && <AgentPlan items={plan} running={running} />}
+        {rows.length > 0 && (
+          <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
+            <ChainOfThoughtHeader icon={running ? WrenchIcon : TerminalIcon} className={running && !waiting ? "shimmer" : undefined}>
+              {waiting ? "Waiting on you" : workSummary(rows, running)}
+            </ChainOfThoughtHeader>
+            <ChainOfThoughtContent>
+              {rows.length > FILTER_FROM && (
+                <ToggleGroup
+                  size="sm"
+                  variant="outline"
+                  aria-label="show"
+                  value={[filter]}
+                  onValueChange={(v: unknown[]) => {
+                    if (isFilter(v[0])) setFilter(v[0]);
+                  }}
+                >
+                  {FILTERS.map(([f, label]) => {
+                    const n = rows.filter(KEEP[f]).length;
+                    if (f === "failed" && !n) return null;
+                    return (
+                      <ToggleGroupItem key={f} value={f}>
+                        {label} <span className="text-muted-foreground tabular-nums">{n}</span>
+                      </ToggleGroupItem>
+                    );
+                  })}
+                </ToggleGroup>
+              )}
+              {shown.map((k) => (
+                <Step
+                  key={k}
+                  row={rows[k]}
+                  active={running && k === rows.length - 1}
+                  waiting={waiting}
+                  open={at === k}
+                  onToggle={() => setAt(at === k ? null : k)}
+                />
+              ))}
+            </ChainOfThoughtContent>
+          </ChainOfThought>
+        )}
         {failure !== null && !open && (
           <button type="button" className="flex w-fit cursor-pointer items-center gap-1.5 text-meta text-loki-negative" onClick={() => show(failure)}>
             <XIcon className="size-3" aria-hidden />

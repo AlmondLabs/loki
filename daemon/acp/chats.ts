@@ -191,7 +191,7 @@ function rawText(raw: unknown): string {
   return typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
 }
 
-/** The plan as a checklist. */
+/** The plan as a checklist, one "[x] what" line each; planItems (core/harness.ts) reads it back into the Plan's entries. */
 function planText(entries: acp.PlanEntry[]): string {
   return entries.map((e) => `${e.status === "completed" ? "[x]" : e.status === "in_progress" ? "[~]" : "[ ]"} ${e.content}`).join("\n");
 }

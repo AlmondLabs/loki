@@ -22,6 +22,17 @@ export interface ToolStep {
    * log, which `history_step_get` answers with the whole step.
    */
   row?: number;
+  /**
+   * On an agent's plan (an ACP `plan` update, plan 097 U9): its entries, read from the step's result, so the Plan
+   * draws them and a lean history page, which drops the output, still carries them.
+   */
+  plan?: PlanItem[];
+}
+
+/** One entry of an agent's plan, as ACP reports it. */
+export interface PlanItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
 }
 
 /** A file a message carried (its attachment tag), shown as a chip on the bubble. */
