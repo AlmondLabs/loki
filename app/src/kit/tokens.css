@@ -290,8 +290,13 @@
   --loki-brass-soft: oklch(25% 0.05 255);
   --loki-positive: #30d158;
   --loki-negative: #ff6961;
-  --loki-attention: #e0262e;
-  --loki-on-attention: #ffffff;
+  /* What waits on you is blue, as Mail's unread dot is (plan 2026-11-12-1505, U17); red stays for failures and the Dock. */
+  --loki-attention: #3d9bff;
+  --loki-on-attention: #001d3d;
+  /* An agent with no picture: Messages' grey monogram, a soft top-to-bottom gradient under a white initial. */
+  --loki-monogram-top: #8e8e93;
+  --loki-monogram-bottom: #636366;
+  --loki-on-monogram: #ffffff;
   --loki-affirm: #0a6cff;
   --loki-on-affirm: #ffffff;
   --loki-mark-slack: #d4a0e0;
@@ -344,8 +349,11 @@
   --loki-brass-soft: #eaf2fd;
   --loki-positive: #18733a;
   --loki-negative: #c4170f;
-  --loki-attention: #e0262e;
+  --loki-attention: #0064d6;
   --loki-on-attention: #ffffff;
+  --loki-monogram-top: #a5abb8;
+  --loki-monogram-bottom: #858994;
+  --loki-on-monogram: #ffffff;
   --loki-affirm: #0064d6;
   --loki-on-affirm: #ffffff;
   --loki-mark-slack: #611f69;

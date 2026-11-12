@@ -1311,6 +1311,15 @@ button.loki-list-section-toggle {
   .loki-column-header {
     border-bottom: 0;
   }
+  /* A row's count is grey text at its trailing edge, as a Mac source list's is (U17): no pill, no red. */
+  .loki-list-badge {
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--loki-muted);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
   /* One sidebar (U12): it floats inside the glass panel, and each section's name is a source-list heading under the
      places, small and grey, not a title. */
   .loki-column {

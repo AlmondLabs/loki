@@ -204,3 +204,48 @@ describe("the Mac's type scale (U15)", () => {
     expect(styles).toContain("--text-body: var(--loki-text-body);");
   });
 });
+
+describe("blue for what waits on you, grey for counts and faces (U17)", () => {
+  const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
+  const block = (selector: string) => must(new RegExp(`\\n${selector.replace(/[[\]]/g, "\\$&")} \\{([\\s\\S]*?)\\n\\}`).exec(tokens), selector)[1];
+  test("the apple family's attention is the blue of its accent, red only for failures", () => {
+    const dark = block(':root[data-palette="apple"]');
+    const light = block(':root[data-palette="apple"][data-theme="light"]');
+    expect(dark).toContain("--loki-attention: #3d9bff;");
+    expect(dark).toContain("--loki-accent: #3d9bff;");
+    expect(light).toContain("--loki-attention: #0064d6;");
+    expect(light).toContain("--loki-accent: #0064d6;");
+    expect(dark).toContain("--loki-negative: #ff6961;");
+  });
+
+  test("a row's count is grey text with no fill under Liquid Glass", () => {
+    const badge = must(/\n {2}\.loki-list-badge \{([^}]*)\}/.exec(apple), "the glass badge")[1];
+    expect(badge).toContain("background: transparent");
+    expect(badge).toContain("color: var(--loki-muted)");
+  });
+
+  test("an agent with no picture is a grey monogram under Liquid Glass, and keeps its hue in today's look", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { ThemeProvider } = await import("../app/src/theme.tsx");
+    const { AgentFace } = await import("../app/src/desk/agent-chip.tsx");
+    const saved = globalThis.localStorage;
+    const withPalette = (palette: string) =>
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: { getItem: (k: string) => (k === "loki.palette" ? palette : null), setItem: () => {} },
+      });
+    try {
+      withPalette("apple");
+      const glass = renderToStaticMarkup(createElement(ThemeProvider, null, createElement(AgentFace, { name: "friday", src: null })));
+      expect(glass).toContain("data-monogram");
+      expect(glass).toContain("var(--loki-monogram-top)");
+      withPalette("loki");
+      const today = renderToStaticMarkup(createElement(ThemeProvider, null, createElement(AgentFace, { name: "friday", src: null })));
+      expect(today).not.toContain("data-monogram");
+      expect(today).toMatch(/hsl\(\d+ 45% 22%\)/);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: saved });
+    }
+  });
+});

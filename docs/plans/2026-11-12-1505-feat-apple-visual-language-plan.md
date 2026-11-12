@@ -390,6 +390,23 @@ flowchart TB
 - Under Liquid Glass the chat card's footer is empty and its header carries the moves; today's look keeps the ActionBar.
 **Verification:** Flow rendered with an approval waiting, light and dark.
 
+### U17. Blue for what waits on you, grey for counts and faces
+
+**Goal:** red stops carrying "needs you" four times on one screen; the desktop says it the way Mail and Messages do.
+**Requirements:** R1, R4; KTD1.
+**Dependencies:** U1, U12.
+**Files:** `app/src/kit/tokens.css`, `app/src/components/components.css`, `app/src/desk/agent-chip.tsx`, `test/shell-look.test.ts`.
+**Approach:** under Liquid Glass on the desktop:
+- The attention role is blue, at the shade that passes AA as text and 3:1 as a dot in each theme. That covers the needs-you dots, the turn's "Needs you", the approval's dot and the New line.
+- A row's count is grey text at its trailing edge, not a red pill.
+- An agent with no picture is Messages' grey monogram, not a coloured tile.
+- Red stays for failures (the negative role), and the phone keeps its own colours.
+**Test scenarios:**
+- The apple family's attention is blue in both themes and still passes the token contrast tests.
+- Under Liquid Glass the row badge has no fill and reads in the muted colour.
+- Under Liquid Glass an agent with no picture draws the monogram ground; today's look keeps its hue.
+**Verification:** rendered with an approval waiting, light and dark, the chat and Agents.
+
 ---
 
 ## Verification Contract
