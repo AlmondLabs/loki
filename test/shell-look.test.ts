@@ -34,3 +34,20 @@ describe("the window shell on Liquid Glass", () => {
     expect(tabs).not.toMatch(/blur\(/);
   });
 });
+
+describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
+  test("every sheet and popover is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
+    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover \{([^}]*)\}/.exec(apple), "the sheet rule")[1];
+    expect(sheets).toContain("var(--loki-glass-strong)");
+    expect(sheets).toContain("var(--loki-glass-blur)");
+    const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(apple), "the chip rule")[1];
+    expect(chips).toContain("var(--loki-glass)");
+    expect(`${sheets}${chips}`).not.toMatch(/blur\(/);
+  });
+
+  test("widgets are sent the page's palette with its stylesheet, so they draw in Liquid Glass's roles", () => {
+    const widget = readFileSync(join(APP, "desk", "module-widget.tsx"), "utf8");
+    expect(widget).toMatch(/palette: d\.palette \?\? "loki"/);
+    expect(widget).toMatch(/attributeFilter: \["data-theme", "data-palette"\]/);
+  });
+});
