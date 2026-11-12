@@ -407,6 +407,23 @@ flowchart TB
 - Under Liquid Glass an agent with no picture draws the monogram ground; today's look keeps its hue.
 **Verification:** rendered with an approval waiting, light and dark, the chat and Agents.
 
+### U18. Settings in a window of its own
+
+**Goal:** under Liquid Glass on the Mac, Preferences is a Settings window, as on every Mac app, not a sheet over the chat.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U8, U12, U13.
+**Files:** `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`, `app/src/desk/env.ts`, `app/src/boot.tsx`, `app/src/shell/settings-window.tsx`, `app/src/shell/use-shell-attention.ts`, `app/src/shell/shell.tsx`, `app/src/shell/views.tsx`, `app/src/settings/settings.tsx`, `app/src/shell/use-chat-layout.ts`, `app/src/shell/use-global-shortcut.ts`, `app/src/shared/session-value.ts`, `app/src/components/components.css`, tests.
+**Approach:**
+- A Rust command opens a second window labelled `settings`, or brings it forward when it is open. It carries the same start-up script as the main window, plus which window it is and the page to show. An open window is told a new page by an event. On the Mac it has the overlay title bar and the sidebar material.
+- The page boots a settings-only root in that window: its own link to the daemon and its own attention model, through the hook the shell now shares, and Settings filling the window. The section list sits on the material, there is no ×, and Esc or ⌘W closes the window.
+- Under Liquid Glass in the Mac app, ⌘,, the menu bar's Preferences…, ⌘K's preference hits, the keys sheet and the sidebar's Update row all open the window. Today's look, Windows, Linux and the browser keep the sheet.
+- What lives in one window's storage follows in the other through storage events: the chat's width and place, the system-wide key, the new chat pane, and a models-changed mark the main window answers by forgetting its model list. Light/dark and palette already follow.
+**Test scenarios:**
+- The command reuses an open window and passes a page only when it is a plain page id; the window carries the start-up script and is in the capability.
+- The page routes the settings window to its own root; in the main window, under Liquid Glass in the Mac app, Preferences opens the window and otherwise the sheet.
+- A change in another window's storage moves the chat layout, the shortcut and a session value kept in localStorage.
+**Verification:** checked in the real Mac app by the person (a browser cannot open a second Tauri window); the settings root rendered in a browser on demo data.
+
 ---
 
 ## Verification Contract

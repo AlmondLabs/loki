@@ -1222,6 +1222,17 @@ button.loki-list-section-toggle {
 .loki-shell-glass {
   display: none;
 }
+/* The Settings window (shell/settings-window.tsx, U18): Settings fills it; its section list is the sidebar, on the window's
+   material in the Mac app (styles.css) and on the panel colour elsewhere. */
+.loki-settings-window {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.loki-settings-nav {
+  background: var(--loki-panel);
+}
 /* The window's ground (shell.tsx), opaque except where the Mac app lets its material through (styles.css, U13). */
 .loki-shell {
   background: var(--loki-bg);

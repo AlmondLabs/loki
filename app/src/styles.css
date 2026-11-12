@@ -164,7 +164,8 @@ body,
   &,
   & body,
   & #root,
-  & .loki-shell {
+  & .loki-shell,
+  & .loki-settings-nav {
     background: transparent;
   }
 }
@@ -175,6 +176,9 @@ body,
     & #root,
     & .loki-shell {
       background: var(--loki-bg);
+    }
+    & .loki-settings-nav {
+      background: var(--loki-panel);
     }
   }
 }

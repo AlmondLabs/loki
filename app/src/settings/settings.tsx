@@ -49,7 +49,8 @@ const PAGE_KEY = SETTINGS_PAGE_KEY;
 type ChatLink = "connecting" | "open" | "closed";
 type ModConnection = "connecting" | "open" | "closed";
 
-type SettingsProps = Parameters<typeof Settings>[0];
+/** Everything Settings takes: what the shell or the Settings window hands it. */
+export type SettingsProps = Parameters<typeof Settings>[0];
 
 /**
  * Preferences, Slack style: Settings in a large sheet over the section you were in (KTD11). It is marked
@@ -106,6 +107,8 @@ export function Settings({
   returnTimes,
   lanes,
   onClose,
+  windowed = false,
+  initialPage = null,
 }: {
   chatLink: ChatLink;
   modConnection: ModConnection;
@@ -153,9 +156,16 @@ export function Settings({
   lanes: LanesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
+  /**
+   * Settings is its own window (plan 2026-11-12-1505, U18): the section list sits on the window's sidebar material,
+   * clear of the traffic lights, with no heading, and the page's title row drags the window.
+   */
+  windowed?: boolean;
+  /** The page to open on, set by whoever opened the window; otherwise the one this window last showed. */
+  initialPage?: string | null;
 }) {
   const harness = useHarnessFacts();
-  const [page, setPage] = useState<SettingsPage>(() => savedPage(sessionStorage.getItem(PAGE_KEY)));
+  const [page, setPage] = useState<SettingsPage>(() => savedPage(initialPage ?? sessionStorage.getItem(PAGE_KEY)));
   const group = groupOf(page);
   const pick = (p: SettingsPage) => {
     setPage(p);
@@ -210,11 +220,21 @@ export function Settings({
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
       <nav
         aria-label="Preferences"
-        style={{ display: "flex", flexDirection: "column", minHeight: 0, padding: "16px 10px 0", borderRight: "1px solid var(--loki-border)" }}
+        className={windowed ? "loki-settings-nav" : undefined}
+        data-tauri-drag-region={windowed ? "deep" : undefined}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          padding: windowed ? "52px 10px 0" : "16px 10px 0",
+          borderRight: windowed ? undefined : "1px solid var(--loki-border)",
+        }}
       >
-        <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
-          Preferences
-        </h2>
+        {!windowed && (
+          <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
+            Preferences
+          </h2>
+        )}
         <PageList
           page={page}
           onPick={pick}
@@ -227,12 +247,13 @@ export function Settings({
       </nav>
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "var(--loki-bg)" }}>
         <div
+          data-tauri-drag-region={windowed ? "deep" : undefined}
           style={{
             flex: "none",
             display: "flex",
             alignItems: "center",
             gap: 8,
-            minHeight: 48,
+            minHeight: windowed ? 52 : 48,
             padding: "0 12px 0 28px",
             // A group with tabs draws its rule under them instead.
             borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",

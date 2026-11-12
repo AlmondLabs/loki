@@ -11,7 +11,18 @@ import { messageOf } from "../../../core/errors.ts";
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
-    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean; build?: string; os?: string };
+    __LOKI__?: {
+      token?: string;
+      modPort?: number;
+      desk?: string | null;
+      lan?: boolean;
+      build?: string;
+      os?: string;
+      /** "settings" in the Settings window (src-tauri lib.rs settings_script, plan 2026-11-12-1505 U18); unset in the main one. */
+      window?: string;
+      /** The Preferences page the Settings window opens on. */
+      page?: string | null;
+    };
   }
 }
 

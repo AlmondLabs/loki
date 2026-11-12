@@ -30,6 +30,22 @@ export function createSessionValue<T extends string>(key: string, parse: (raw: s
   const subscribe = (l: () => void) => {
     return listeners.add(l);
   };
+  // A value kept in localStorage follows another window's change (the Settings window, plan 2026-11-12-1505 U18).
+  // sessionStorage is the window's own, so its events never come.
+  if (typeof window !== "undefined")
+    addEventListener("storage", (e) => {
+      let area: Storage;
+      try {
+        area = storage();
+      } catch {
+        return;
+      }
+      if (e.key !== key || e.storageArea !== area) return;
+      const next = parse(e.newValue);
+      if (next === value) return;
+      value = next;
+      listeners.emit();
+    });
   const get = () => value;
   /** The value and its setter, re-rendering on every change; a render outside the window (a test) reads the same value. */
   const use = (): [T, (next: T) => void] => [useSyncExternalStore(subscribe, get, get), set];

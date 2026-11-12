@@ -2,7 +2,6 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { scopeFor } from "../../../core/desk-core.ts";
-import { useAttention } from "../../../core/attention/use-attention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/desk-pane";
 import { useDeskPane } from "../desk/use-desk-pane";
@@ -31,7 +30,6 @@ import { useLook } from "../theme";
 import type { Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
-import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { useLokiUpdate } from "./use-loki-update";
@@ -49,7 +47,9 @@ import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
-import { pageActivity, pageVisibility } from "../shared/page-activity";
+import { useShellAttention } from "./use-shell-attention";
+import { MODELS_CHANGED_KEY, openSettingsWindow, SETTINGS_WINDOW } from "./settings-window";
+import { useStorageKey } from "../shared/use-storage-key";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -87,29 +87,7 @@ export function Shell() {
     [captureRaw],
   );
   // This Mac's lane (plan 087): Flow, the rail, the window title, the dock and the tray count only its cards.
-  const [laneId, setLaneId] = useActiveLaneId("desktop");
-  const catchUp = useAttention({
-    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveLane },
-    enabled: attention.available,
-    makeClient: attention.makeClient,
-    seen: attention.seen,
-    viewed: attention.viewed,
-    focus: attention.focus,
-    engage: attention.engage,
-    rests: attention.rests,
-    rest: attention.rest,
-    returnTimes: attention.returnTimes,
-    markSeen: attention.markSeen,
-    unmarkSeen: attention.unmarkSeen,
-    loadLocalHistory: attention.loadHistory,
-    loadLocalStep: attention.loadStep,
-    listConversations: attention.listInbox,
-    capture,
-    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
-    sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
-    activity: pageActivity,
-    visibility: pageVisibility,
-  });
+  const { catchUp, laneId } = useShellAttention(desk, capture);
   /** A line at the bottom of the window for four seconds (Notices). */
   const notice = (m: string) => void notify(m);
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
@@ -165,6 +143,8 @@ export function Shell() {
     load: loadModels,
     forget: forgetModels,
   } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
+  // A provider connected or dropped in the Settings window (U18): this window's model list is asked for again.
+  useStorageKey(MODELS_CHANGED_KEY, () => forgetModels());
   const daemon = useDaemonStatus();
   const welcome = welcomeFor(daemon.status, catchUp);
   const noProviders = catchUp.providers === null;
@@ -306,7 +286,14 @@ export function Shell() {
   const columnShown = column.shown && !immersive;
   // Glass: the sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
   const paneLeft = glass ? (columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36) : SIDEBAR_WIDTH + (columnShown ? column.width : 0);
-  const openPrefs = () => setPrefsOpen(true);
+  // Under Liquid Glass in the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); else the sheet.
+  const settingsWindow = glass && SETTINGS_WINDOW;
+  const showPreferences = (page?: string | null) => {
+    if (settingsWindow) return openSettingsWindow(page);
+    if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
+    setPrefsOpen(true);
+  };
+  const openPrefs = () => showPreferences();
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -315,6 +302,7 @@ export function Shell() {
 
   /** ⌘1-6 and ⌘,: ⌘, (⌘6) toggles Preferences over the section; the others close it and go (settings/preferences.ts). */
   const segmentKey = (id: string) => {
+    if (settingsWindow && id === "segment.settings") return openSettingsWindow();
     const next = afterSegmentKey(id, { segment, preferences: prefsOpen });
     setPrefsOpen(next.preferences);
     setSegment(next.segment);
@@ -368,12 +356,7 @@ export function Shell() {
   );
   const openHit = ({ target: t }: SearchHit) => {
     setSearchOpen(false);
-    if (t.kind === "preferences") {
-      // Preferences mounts on its saved page: set it first.
-      if (t.page) sessionStorage.setItem(SETTINGS_PAGE_KEY, t.page);
-      setPrefsOpen(true);
-      return;
-    }
+    if (t.kind === "preferences") return showPreferences(t.page);
     setPrefsOpen(false);
     if (t.kind === "label") return showLabel(t.name);
     if (t.kind === "desk") return openDesk(t.agentId, t.conversationId);
@@ -533,13 +516,7 @@ export function Shell() {
           onClose={() => setSearchOpen(false)}
         />
       )}
-      {keysOpen && (
-        <KeysSheet
-          segment={segment}
-          onClose={() => setKeysOpen(false)}
-          onSettings={() => (setKeysOpen(false), sessionStorage.setItem(SETTINGS_PAGE_KEY, "keys"), setPrefsOpen(true))}
-        />
-      )}
+      {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), showPreferences("keys"))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
       {prefsOpen && (
         <SettingsView
