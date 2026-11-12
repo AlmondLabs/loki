@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inTauri } from "./desk/env";
+import { inTauri, platform, type Platform } from "./desk/env";
 
 /** The appearance choices: follow the system, or always light or dark. */
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
@@ -23,6 +23,13 @@ export const THEME_STORAGE_KEY = "loki.theme";
 /** The localStorage key the palette is kept under. */
 export const PALETTE_STORAGE_KEY = "loki.palette";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+/**
+ * Where Liquid Glass may blur (plan 2026-11-12-1505, KTD6): a constant in one place, moved only by measurement against
+ * the speed budget, never probed at launch. Linux's web view blurs slowly, so it starts on the solid look-alike; the
+ * Mac and Windows start on glass. The system's Reduce Transparency and Increase Contrast turn glass solid everywhere.
+ */
+export const GLASS_ON: Record<Platform, "glass" | "solid"> = { macos: "glass", windows: "glass", linux: "solid" };
 
 /** Whether a value (a stored one, say) is an appearance choice. */
 export function isThemePreference(value: unknown): value is ThemePreference {
@@ -72,6 +79,7 @@ function applyTheme(preference: ThemePreference, palette: Palette): void {
   root.dataset.theme = theme;
   root.dataset.themePreference = preference;
   root.dataset.palette = palette;
+  if (GLASS_ON[platform] === "solid") root.dataset.glass = "solid";
   root.style.colorScheme = theme;
   requestAnimationFrame(() => {
     // the phone redeclares --loki-bg on its own root (phone/phone.css); the status bar strip follows that

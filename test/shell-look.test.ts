@@ -37,7 +37,7 @@ describe("the window shell on Liquid Glass", () => {
 
 describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
   test("every sheet and popover is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
-    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover \{([^}]*)\}/.exec(apple), "the sheet rule")[1];
+    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-title-menu-panel \{([^}]*)\}/.exec(apple), "the sheet rule")[1];
     expect(sheets).toContain("var(--loki-glass-strong)");
     expect(sheets).toContain("var(--loki-glass-blur)");
     const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(apple), "the chip rule")[1];
@@ -67,5 +67,21 @@ describe("Preferences and every tab row on Liquid Glass (U8)", () => {
     const settings = readFileSync(join(APP, "settings", "settings.tsx"), "utf8");
     expect(settings).toContain('{ system: "System", light: "Light", dark: "Dark" }');
     expect(settings).toContain('apple: "Liquid Glass"');
+  });
+});
+
+describe("Windows and Linux on Liquid Glass (U10)", () => {
+  test("covers AE2: Linux starts on the solid look-alike, the Mac and Windows on glass, from one constant", async () => {
+    const { GLASS_ON } = await import("../app/src/theme.tsx");
+    expect(GLASS_ON).toEqual({ macos: "glass", windows: "glass", linux: "solid" });
+    const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
+    expect(theme).toMatch(/if \(GLASS_ON\[platform\] === "solid"\) root\.dataset\.glass = "solid";/);
+    // the prepaint script says the same before any stylesheet, so Linux never flashes glass
+    const html = readFileSync(join(APP, "..", "index.html"), "utf8");
+    expect(html).toMatch(/Linux\|X11\|CrOS[^\n]*dataset\.glass = "solid"/);
+  });
+
+  test("the ☰ menu on Windows and Linux is the same strong glass as a Mac's menus, solid where glass is off", () => {
+    expect(apple).toMatch(/\.loki-title-menu-panel \{[^}]*var\(--loki-glass-strong\)/);
   });
 });

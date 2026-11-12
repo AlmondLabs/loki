@@ -1362,7 +1362,8 @@ button.loki-list-section-toggle {
   /* Search, sheets, menus and the Canvas's floating chips (U7): the layer that comes and goes over the page is strong
      glass, as a Mac's sheets, popovers and menus are; what they hold stays as it is. */
   .loki-sheet-card,
-  .loki-popover {
+  .loki-popover,
+  .loki-title-menu-panel {
     border-color: transparent;
     background: var(--loki-glass-strong);
     -webkit-backdrop-filter: var(--loki-glass-blur);

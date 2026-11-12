@@ -26,6 +26,8 @@
         document.documentElement.dataset.theme = theme;
         document.documentElement.dataset.themePreference = preference;
         document.documentElement.dataset.palette = palette;
+        // Linux starts Liquid Glass on its solid look-alike (theme.tsx GLASS_ON), before any stylesheet paints.
+        if (/Linux|X11|CrOS/.test(navigator.userAgent) && navigator.userAgent.indexOf("like Mac OS X") < 0) document.documentElement.dataset.glass = "solid";
         document.documentElement.style.colorScheme = theme;
         document.querySelector('meta[name="theme-color"]').content = grounds[palette][theme];
       })();
