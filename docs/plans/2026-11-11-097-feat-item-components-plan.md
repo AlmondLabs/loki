@@ -60,7 +60,7 @@ with them.
 | #   | Component    | What it is                                                                                         |
 | --- | ------------ | -------------------------------------------------------------------------------------------------- |
 | 1   | ItemHeader   | One-line title, then properties as chips (editable ones open a menu), then flags when set         |
-| 2   | ActionBar    | The verb that finishes the item, named; flags as toggles; a menu                                   |
+| 2   | ActionBar    | Under the box: the verb that finishes the item, named; the other moves before it, with their keys  |
 | 3   | Brief        | The agent's read of the item, with citations to the entries it came from                          |
 | 4   | Timeline     | Every entry in order, three kinds: message, agent turn, event                                      |
 | 5   | MessageEntry | A message from a person or from you; yours is the block across the column with where it went      |
@@ -367,7 +367,8 @@ flowchart TB
 - **Dependencies:** U7.
 - **Files:** `app/src/item/item-header.tsx`, `action-bar.tsx`; `app/src/desk/catch-up.tsx` and `desk-pane.tsx` where
   the header is placed; `test/item-header.test.ts`.
-- **Approach:** ItemHeader and ActionBar in one bar; properties from `ItemView`, the editable ones through today's
+- **Approach:** ItemHeader on top and the ActionBar in the row under the box, beside the reply it sends with (the
+  person's call, 2026-11-12: the moves stay where plan 073 put them, not in the header); properties from `ItemView`, the editable ones through today's
   label, folder and Jira pickers; ActionBar's main verb per R13 with its key; then show the person every source, day
   and night, and adjust once.
 - **Test scenarios:**
