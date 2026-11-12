@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Thread } from "../app/src/chat/conversation.tsx";
 import { EventDetail, StepDetail, StepsLoad } from "../app/src/chat/tool-steps.tsx";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
+import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 
 /** The thread's words for a chat whose first page has not come, did not come, or came empty (plan 041). */
 describe("a thread before its first page", () => {
@@ -17,6 +18,17 @@ describe("a thread before its first page", () => {
     expect(failed).toContain("try again");
     expect(failed).not.toContain("nothing here yet");
     expect(html({ rows: [], agentName: "Wren" })).toContain("nothing here yet");
+  });
+});
+
+describe("a chat held for a move to a Mac out of reach (plan 096)", () => {
+  const html = (props: Parameters<typeof Thread>[0]) => renderToStaticMarkup(createElement(Thread, props));
+  const error = `this message may not have been sent: this chat is moving to Mac mini, ${MOVE_OUT_OF_REACH} to use it on this Mac`;
+
+  test("its error line offers keep it here; any other error does not, and nor does a view with no way to keep it", () => {
+    expect(html({ rows: [], status: "idle", error, onKeepHere: () => Promise.resolve(null) })).toContain(">keep it here<");
+    expect(html({ rows: [], status: "idle", error })).not.toContain(">keep it here<");
+    expect(html({ rows: [], status: "idle", error: "the model refused", onKeepHere: () => Promise.resolve(null) })).not.toContain(">keep it here<");
   });
 });
 

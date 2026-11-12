@@ -32,6 +32,7 @@ describe("the frame table", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
       [
         "chat_link_close",
+        "chat_move_keep",
         "chat_open",
         "chat_approve",
         "chat_answer",
@@ -594,6 +595,7 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "chat_message",
       "chat_model",
       "chat_move",
+      "chat_move_keep",
       "chat_open",
       "chat_send",
       "chat_update",

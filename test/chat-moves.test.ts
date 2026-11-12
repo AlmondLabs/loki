@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
-import { MOVE_TIMEOUT_MS } from "../core/frames.ts";
+import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
 import { ChatMoves, writeWidgets } from "../mod/chat-moves.ts";
 
@@ -42,10 +42,11 @@ function macs(busy = new Set<string>(), miniUp = true) {
     finishMove: (_a: string, c: string) => (chats.delete(c), finished.push(c), Promise.resolve()),
     importChat: (m: MovedChat) => (chats.add(m.conversation_id), imported.push(m), Promise.resolve(true)),
   });
-  /** The link from `from` to the Mac whose moves are `to`. */
-  const link = (from: string, to: () => ChatMoves) => ({
+  /** The link from `from` to the Mac whose moves are `to` and whose chats are `toChats`. */
+  const link = (from: string, to: () => ChatMoves, toChats: Set<string>) => ({
     request: async (f: Record<string, unknown>) => {
       const [a, c] = [String(f.agent_id), String(f.conversation_id)];
+      if (f.type === "peer_where") return { held: toChats.has(c), moved_to: null };
       if (f.type === "peer_moves_get") return { chats: await to().candidates(from) };
       if (f.type === "peer_chat_export") return to().export(from, a, c);
       if (f.type === "peer_chat_moved") return (await to().moved(from, a, c), {});
@@ -54,11 +55,14 @@ function macs(busy = new Set<string>(), miniUp = true) {
     },
   });
   const names: Record<string, string> = { [BOOK]: "MacBook", [MINI]: "Mac mini" };
-  const mac = (here: string, chats: Set<string>, widgetsDir: string, other: () => ChatMoves, reach: () => boolean) =>
+  /** Whether the MacBook can reach the mini now; a test turns it off and on. */
+  const reach = { mini: miniUp };
+  const mac = (here: string, chats: Set<string>, widgetsDir: string, other: () => ChatMoves, otherChats: Set<string>, up: () => boolean, file?: string) =>
     new ChatMoves({
       here,
       chat: store(chats),
-      link: (id) => (names[id] && reach() ? (link(here, other) as never) : null),
+      link: (id) => (names[id] && up() ? (link(here, other, otherChats) as never) : null),
+      ...(file ? { file } : {}),
       widgetsDir,
       name: (id) => (id === null ? names[here] : (names[id] ?? null)),
       done: (id) => here === MINI && done.has(id),
@@ -66,18 +70,22 @@ function macs(busy = new Set<string>(), miniUp = true) {
       onMoved: () => {},
       onLeft: (chat, to) => void left.push([chat.conversation_id, to]),
     });
-  const book: ChatMoves = mac(
+  const bookFile = join(dir, "book-moves.json");
+  let book: ChatMoves = mac(
     BOOK,
     onBook,
     bookWidgets,
     () => mini,
-    () => miniUp,
+    onMini,
+    () => reach.mini,
+    bookFile,
   );
   const mini: ChatMoves = mac(
     MINI,
     onMini,
     miniWidgets,
     () => book,
+    onBook,
     () => true,
   );
   return {
@@ -90,8 +98,22 @@ function macs(busy = new Set<string>(), miniUp = true) {
     finished,
     done,
     left,
-    book,
+    get book() {
+      return book;
+    },
     mini,
+    reach,
+    /** The MacBook's daemon starting again over the same holds file. */
+    restartBook: () =>
+      (book = mac(
+        BOOK,
+        onBook,
+        bookWidgets,
+        () => mini,
+        onMini,
+        () => reach.mini,
+        bookFile,
+      )),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -153,7 +175,7 @@ describe("taking an agent's chats over on first pairing", () => {
     const m = macs();
     try {
       await m.book.export(MINI, "agent-ira", "conv-1");
-      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving to the Mac its agent lives on/);
+      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/this chat is moving to Mac mini/);
       expect(m.book.blocked("agent-ira", "conv-2")).toBeNull();
       await m.book.moved(MINI, "agent-ira", "conv-1");
       expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
@@ -170,7 +192,7 @@ describe("a message that arrives while a chat's log is being copied out", () => 
     try {
       // Read before the copy's answer comes: the hold is already on.
       const copying = m.book.export(MINI, "agent-ira", "conv-1");
-      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving to the Mac its agent lives on/);
+      expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/this chat is moving to Mac mini/);
       await copying;
       expect(m.book.blocked("agent-ira", "conv-1")).toMatch(/moving/);
       busy.add("conv-2");
@@ -252,32 +274,58 @@ describe("moving a chat to another Mac", () => {
   });
 });
 
-describe("a move that never finishes", () => {
-  test("the chat it left takes messages again once a move's time is up, not at the next restart", async () => {
-    let now = 0;
-    const moves = new ChatMoves({
-      here: BOOK,
-      chat: {
-        moveCandidates: () => Promise.resolve([]),
-        exportChat: () => Promise.resolve({ chat: moved("conv-1"), busy: false }),
-        importChat: () => Promise.resolve(true),
-        finishMove: () => Promise.resolve(),
-      },
-      link: () => null,
-      widgetsDir: join(tmpdir(), "loki-no-widgets"),
-      name: () => "MacBook",
-      done: () => false,
-      markDone: () => {},
-      onMoved: () => {},
-      onLeft: () => {},
-      now: () => now,
-    });
-    // The mini copied it out, then its import failed: it never says the chat arrived.
-    await moves.export(MINI, "agent-ira", "conv-1");
-    expect(moves.blocked("agent-ira", "conv-1")).not.toBeNull();
-    now = MOVE_TIMEOUT_MS - 1;
-    expect(moves.blocked("agent-ira", "conv-1")).not.toBeNull();
-    now = MOVE_TIMEOUT_MS;
-    expect(moves.blocked("agent-ira", "conv-1")).toBeNull();
+describe("a move that never finishes (plan 096)", () => {
+  test("the chat it left stays held however long, says so, and holds across a restart; keep it here frees it", async () => {
+    const m = macs();
+    try {
+      await m.book.export(MINI, "agent-ira", "conv-1");
+      m.reach.mini = false; // the mini went away before it said the chat arrived
+      const said = m.book.blocked("agent-ira", "conv-1");
+      expect(said).toBe(`this chat is moving to Mac mini, ${MOVE_OUT_OF_REACH} to use it on this Mac`);
+      m.restartBook();
+      expect(m.book.blocked("agent-ira", "conv-1")).toBe(said);
+      expect(m.book.keepHere("agent-ira", "conv-1")).toBeNull();
+      expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
+      expect(m.book.keepHere("agent-ira", "conv-2")).toBe("this chat is not moving");
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("at the next contact a move the other Mac finished is let go here, and one it never got takes messages here again", async () => {
+    const m = macs();
+    try {
+      await m.book.export(MINI, "agent-ira", "conv-1");
+      m.onMini.add("conv-1"); // the import landed, but its "moved" never came back
+      await m.book.export(MINI, "agent-ira", "conv-2"); // this one's import failed there
+      m.restartBook();
+      await m.book.settle(MINI);
+      expect(m.onBook.has("conv-1")).toBe(false);
+      expect(m.left).toContainEqual(["conv-1", MINI]);
+      expect(m.onBook.has("conv-2")).toBe(true);
+      expect(m.book.blocked("agent-ira", "conv-2")).toBeNull();
+    } finally {
+      m.cleanup();
+    }
+  });
+
+  test("a chat kept here: the other Mac lets go of its copy at the next contact, and only then is the hold gone", async () => {
+    const m = macs();
+    try {
+      await m.book.export(MINI, "agent-ira", "conv-1");
+      m.onMini.add("conv-1");
+      m.reach.mini = false;
+      m.book.keepHere("agent-ira", "conv-1");
+      await m.book.settle(MINI); // out of reach: nothing yet
+      expect(m.onMini.has("conv-1")).toBe(true);
+      m.reach.mini = true;
+      await m.book.settle(MINI);
+      expect(m.onMini.has("conv-1")).toBe(false);
+      expect(m.onBook.has("conv-1")).toBe(true);
+      expect(m.book.blocked("agent-ira", "conv-1")).toBeNull();
+      expect(JSON.parse(readFileSync(join(m.dir, "book-moves.json"), "utf8"))).toEqual({ version: 1, holds: [] });
+    } finally {
+      m.cleanup();
+    }
   });
 });

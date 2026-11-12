@@ -437,6 +437,11 @@ reachable; a closed lid still sleeps.
    message there (which Mac it now runs on, and any attached files or folder that did not come along); nothing runs
    just to tell it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
    is one, on the agent's home, and it moves when you change the agent's "lives on".
+   While a chat is being handed over it takes no message on the Mac it is leaving, so it never has two writers. If
+   the other Mac drops out of reach before it says the chat arrived, the chat keeps waiting for it, however long, and
+   says "this chat is moving to Mac mini, which is out of reach" with **keep it here**. Wait, and the move finishes
+   when that Mac is back (or the chat takes messages here again if it never got there); press **keep it here** and
+   the chat is yours on this Mac at once, and the other Mac sets its copy aside, hidden, at the next contact.
 5. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to
    `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat

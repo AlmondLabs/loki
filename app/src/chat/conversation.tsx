@@ -16,6 +16,7 @@ import { offersAlways, type PendingApproval, type PendingQuestion } from "../../
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import { MOVE_OUT_OF_REACH } from "../../../core/frames.ts";
 import { Button, Chip, Title } from "../components";
 import { AgentChip, AgentFace } from "../desk/agent-chip";
 import { avatarUrl } from "../desk/env";
@@ -88,6 +89,8 @@ export interface ConversationActions {
   onStop?: () => Promise<string | null>;
   /** Close one of the chat's links (plan 067); resolves to an error or null. */
   onCloseLink?: (linkId: string) => Promise<string | null>;
+  /** Keep the chat on this Mac when its move cannot finish, the other Mac out of reach (plan 096); an error or null. */
+  onKeepHere?: () => Promise<string | null>;
 }
 
 /** Safe-area insets a host adds inside the thread and under the last row (the phone's notch and home indicator). */
@@ -318,6 +321,7 @@ export function Conversation({
           dim={dim}
           onCancelQueued={actions.onCancelQueued}
           onRetry={(text) => actions.onSend(text)}
+          onKeepHere={actions.onKeepHere}
           older={view.older ?? null}
           loadFailed={view.loadFailed ?? null}
           loadStep={view.loadStep}
@@ -518,12 +522,29 @@ export interface ThreadHandle {
 }
 
 /** A failed turn: one readable sentence, the harness's own words behind a disclosure, and a way to try again. */
-function ThreadError({ error, rows, onRetry }: { error: string; rows: TranscriptRow[]; onRetry?: (text: string) => void }) {
+function ThreadError({
+  error,
+  rows,
+  onRetry,
+  onKeepHere,
+}: {
+  error: string;
+  rows: TranscriptRow[];
+  onRetry?: (text: string) => void;
+  onKeepHere?: () => Promise<string | null>;
+}) {
   const e = readTurnError(error);
   const retry = onRetry ? retryMessage(rows) : null;
+  // A move to a Mac out of reach holds the chat until that Mac is back, unless the person keeps it here (plan 096).
+  const moving = onKeepHere && error.includes(MOVE_OUT_OF_REACH);
   return (
     <div className="loki-thread-error" role="alert">
       <span>{e.text}</span>
+      {moving && (
+        <Button size="sm" onClick={() => void onKeepHere()}>
+          keep it here
+        </Button>
+      )}
       {retry && (
         <Button size="sm" onClick={() => onRetry?.(retry.text)}>
           {retry.label}
@@ -555,6 +576,7 @@ export const Thread = forwardRef<
     dim?: boolean;
     onCancelQueued?: (text: string) => void;
     onRetry?: (text: string) => void;
+    onKeepHere?: () => Promise<string | null>;
     older?: (() => void) | null;
     loadFailed?: (() => void) | null;
     loadStep?: (row: number) => Promise<WholeRow | null>;
@@ -577,6 +599,7 @@ export const Thread = forwardRef<
     dim = true,
     onCancelQueued,
     onRetry,
+    onKeepHere,
     older = null,
     loadFailed = null,
     loadStep,
@@ -680,7 +703,7 @@ export const Thread = forwardRef<
             </span>
           </div>
         )}
-        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} />}
+        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} onKeepHere={onKeepHere} />}
       </div>
       {unpinned && (
         <Chip

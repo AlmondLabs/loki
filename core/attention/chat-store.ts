@@ -1067,6 +1067,20 @@ export class ChatStore {
   };
 
   /** Stop a conversation's turn (the composer's stop button); resolves to an error message or null. */
+  /**
+   * Keep a chat on this Mac whose move cannot finish, the Mac it was going to out of reach (plan 096): it takes
+   * messages again, and its error line goes. Null when kept, else why not.
+   */
+  keepMoveHere = async (rt: Runtime): Promise<string | null> => {
+    const why = await this.tried((c) => c.keepMoveHere(rt));
+    const l = this.liveMap.get(keyOf(rt.agent_id, rt.conversation_id));
+    if (!why && l) {
+      l.error = null;
+      this.bump();
+    }
+    return why;
+  };
+
   abortTurn = (rt: Runtime): Promise<string | null> =>
     this.tried(async (c) => {
       const turnId = this.turnOf(rt.agent_id, rt.conversation_id);

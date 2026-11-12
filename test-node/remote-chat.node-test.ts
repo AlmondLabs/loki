@@ -116,6 +116,7 @@ async function macs() {
             export: () => Promise.resolve({ chat: null, busy: false, widgets: {} }),
             moved: () => Promise.resolve(),
             take: () => Promise.resolve({ moved: false, busy: false }),
+            keepHere: () => null,
             offer: (to, agentId, conversationId) => (
               reached.push({ type: "chat_move", to, agent_id: agentId, conversation_id: conversationId }),
               Promise.resolve(null)

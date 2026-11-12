@@ -514,6 +514,11 @@ export interface PushPeerMeaning {
 
 /** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
 export const MOVE_TIMEOUT_MS = 180_000;
+/**
+ * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
+ * offers **keep it here** there.
+ */
+export const MOVE_OUT_OF_REACH = "which is out of reach: keep it here";
 
 interface RequestEntry<R extends ReplyName, P> {
   kind: "request";
@@ -1203,6 +1208,13 @@ export const FRAMES = {
     },
     false,
     { route: "chat", relists: true, timeout_ms: MOVE_TIMEOUT_MS },
+  ),
+  chat_move_keep: request(
+    "chat_done",
+    "keep here a chat whose move to another Mac cannot finish while that Mac is out of reach (plan 096): it takes messages here again, and that Mac lets go of its copy at the next contact; answered by the Mac the chat lives on",
+    chatRef,
+    PHONE,
+    { route: "chat", relists: true },
   ),
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   chat_requirements: request(
