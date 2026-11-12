@@ -221,7 +221,7 @@ export function Sidebar({
                   />
                 )}
               </button>
-              <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
+              <span className="loki-label" style={{ fontSize: "var(--loki-text-micro)", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
                 {s.label}
               </span>
             </span>
@@ -338,7 +338,7 @@ function Badge({ n, tone }: { n: number; tone: "attention" | "quiet" }) {
         background: tone === "attention" ? "var(--loki-attention)" : "var(--loki-muted)",
         color: tone === "attention" ? "var(--loki-on-attention)" : "var(--loki-bg)",
         border: "2px solid var(--loki-panel)",
-        fontSize: 9.5,
+        fontSize: "var(--loki-text-micro)",
         fontWeight: 700,
         lineHeight: "13px",
         textAlign: "center",

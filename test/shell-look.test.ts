@@ -166,3 +166,41 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(out).toContain('<div class="loki-pane-header-trailing"><span>tools</span></div>');
   });
 });
+
+describe("the Mac's type scale (U15)", () => {
+  const tokens = readFileSync(join(APP, "kit", "tokens.css"), "utf8");
+  const scale = (block: string) => Object.fromEntries([...block.matchAll(/--loki-text-(\w+): ([\d.]+)px;/g)].map((m) => [m[1], Number(m[2])]));
+  test("today's look keeps its sizes; Liquid Glass moves them onto AppKit's; the phone keeps today's", () => {
+    const today = { micro: 9.5, fine: 10.5, tag: 11, meta: 12, body: 13.5, row: 15, title: 17, display: 22, hero: 28 };
+    expect(scale(must(/\n:root \{([\s\S]*?)\n\}/.exec(tokens), "the root block")[1])).toEqual(today);
+    expect(scale(must(/\n:root\[data-palette="apple"\] \{([\s\S]*?)\n\}/.exec(tokens), "the apple block")[1])).toEqual({
+      micro: 10,
+      fine: 10,
+      tag: 11,
+      meta: 11,
+      body: 13,
+      row: 13,
+      title: 15,
+      display: 22,
+      hero: 26,
+    });
+    const phone = readFileSync(join(APP, "phone", "phone.css"), "utf8");
+    expect(scale(must(/\n\.loki-phone \{([\s\S]*?)\n\}/.exec(phone), "the phone's root")[1])).toEqual(today);
+  });
+
+  test("every desktop size reads a token: no literal font-size or fontSize outside the token files", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => {
+        const p = join(dir, n);
+        return statSync(p).isDirectory() ? (n === "phone" ? [] : walk(p)) : /\.(tsx|ts|css)$/.test(n) ? [p] : [];
+      });
+    const hits = walk(APP).flatMap((p) => {
+      const text = readFileSync(p, "utf8");
+      return [...text.matchAll(/font-size: [\d.]+px|fontSize: [\d.]+\b/g)].map((m) => `${p.slice(APP.length + 1)}: ${m[0]}`);
+    });
+    expect(hits).toEqual([]);
+    const styles = readFileSync(join(APP, "styles.css"), "utf8");
+    expect(styles).toContain("--text-body: var(--loki-text-body);");
+  });
+});

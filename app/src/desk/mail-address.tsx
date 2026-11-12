@@ -243,7 +243,13 @@ export function MailAddressLine({
   const taken = new Set([...a.to, ...a.cc, ...a.bcc].map(addressOf));
   const set = (patch: Partial<MailAddressing>) => onChange({ ...a, ...patch });
   const word = (s: string) => (touch ? `${s.charAt(0).toUpperCase()}${s.slice(1)}` : s);
-  const selectStyle = { font: "inherit", fontSize: touch ? "var(--phone-text-body)" : 12, color: "var(--loki-fg)", background: "transparent", border: "none" };
+  const selectStyle = {
+    font: "inherit",
+    fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-meta)",
+    color: "var(--loki-fg)",
+    background: "transparent",
+    border: "none",
+  };
   const lead = (
     <>
       {full && (

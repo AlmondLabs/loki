@@ -254,7 +254,7 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     const label = rule(".loki-label");
     expect(label).not.toMatch(/text-transform:\s*uppercase/);
     expect(label).not.toMatch(/letter-spacing/);
-    expect(label).toMatch(/font-size:\s*12px/);
+    expect(label).toMatch(/font-size:\s*var\(--loki-text-meta\)/);
     expect(label).toMatch(/font-weight:\s*600/);
     expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
   });
@@ -295,7 +295,7 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
 describe("design tokens: every family remains readable on both sides", () => {
   const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
-    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles beside the accent: the red unread / needs-you badge and the green affirmative fill, each with its ink. */
   const ROLES = ["attention", "on-attention", "affirm", "on-affirm"];
   for (const palette of PALETTES) {
@@ -375,7 +375,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   };
   const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
-    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
   const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
 

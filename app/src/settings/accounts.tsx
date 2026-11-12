@@ -374,7 +374,7 @@ function AccountLine({
     <div style={{ display: "grid", gap: 6, padding: "12px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Dot color={row.problem ? "var(--loki-negative)" : "var(--loki-positive)"} />
-        <strong style={{ fontSize: 13.5, minWidth: 0, overflowWrap: "anywhere" }}>{row.label}</strong>
+        <strong style={{ fontSize: "var(--loki-text-body)", minWidth: 0, overflowWrap: "anywhere" }}>{row.label}</strong>
         <span className="loki-meta">
           {row.service} · {row.owner}
         </span>

@@ -140,7 +140,9 @@ export function CardList({
                 style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 12px" }}
               >
                 <span style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div
+                    style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
                     {c.card.front}
                   </div>
                   <div className="loki-meta" style={{ marginTop: 2 }}>
@@ -181,7 +183,9 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
             }}
           >
             <span style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.card.front}</div>
+              <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {r.card.front}
+              </div>
               <div className="loki-meta" style={{ marginTop: 2 }}>
                 {r.card.back}
               </div>
@@ -292,11 +296,11 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         padding: "22px 24px",
         display: "grid",
         gap: 14,
-        fontSize: 13.5,
+        fontSize: "var(--loki-text-body)",
         lineHeight: 1.55,
       }}
     >
-      <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
+      <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
         Learn is a writer that runs in the background. Once conversations have been quiet for half an hour, it hands what was new in them to the agent, several
         at a time, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of your field that will
@@ -444,13 +448,38 @@ export function LeadList({
               <span style={{ flex: 1 }} />
               <Meta>{DEPTH[l.depth]}</Meta>
             </span>
-            <span style={{ display: "block", fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>
+            <span
+              style={{
+                display: "block",
+                fontSize: "var(--loki-text-display)",
+                fontWeight: 700,
+                lineHeight: 1.3,
+                color: "var(--loki-fg)",
+                textWrap: "balance" as never,
+              }}
+            >
               {l.title}
             </span>
-            <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>
+            <span
+              style={{
+                display: "block",
+                fontSize: "var(--loki-text-body)",
+                lineHeight: 1.5,
+                color: "var(--loki-muted)",
+                fontStyle: "italic",
+                overflowWrap: "anywhere",
+              }}
+            >
               {l.why}
             </span>
-            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>
+            <span
+              style={{
+                display: "block",
+                fontSize: "var(--loki-text-meta)",
+                color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)",
+                fontWeight: 600,
+              }}
+            >
               {starting === l.id ? "furnishing the canvas…" : "start the lesson →"}
             </span>
           </Row>
@@ -483,7 +512,7 @@ export function LeadList({
               <Row flush onClick={() => onOpen(s.agent_id, s.conversation_id)} title="open the lesson's chat" style={{ minWidth: 0 }}>
                 <span
                   style={{
-                    fontSize: 15,
+                    fontSize: "var(--loki-text-row)",
                     fontWeight: 700,
                     color: "var(--loki-fg)",
                     minWidth: 0,
@@ -519,7 +548,17 @@ export function DismissedLeadList({ dismissed, onRestore }: { dismissed: Dismiss
       <Meta>dismissed leads</Meta>
       {dismissed.map((d) => (
         <Row key={d.lead.id}>
-          <span style={{ fontSize: 13.5, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+          <span
+            style={{
+              fontSize: "var(--loki-text-body)",
+              color: "var(--loki-fg)",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+          >
             {d.lead.title}
           </span>
           <Meta>{ago(d.at)}</Meta>

@@ -107,7 +107,7 @@ export function ChatWindow({
                       <WidthIcon wide={width === "wide"} />
                     </IconButton>
                   )}
-                  <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: 13.5 }}>
+                  <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: "var(--loki-text-body)" }}>
                     ×
                   </IconButton>
                 </div>
@@ -223,7 +223,7 @@ export function ChatBubble({
         border: "1px solid var(--loki-border)",
         background: open ? "var(--loki-accent)" : "var(--loki-panel)",
         color: "var(--loki-fg)",
-        fontSize: 17,
+        fontSize: "var(--loki-text-title)",
         cursor: "pointer",
         boxShadow: "var(--loki-shadow-panel)",
         zIndex: LAYER.bubble,

@@ -23,7 +23,7 @@
   background: transparent;
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: 17px;
+  font-size: var(--loki-text-title);
   line-height: 1.3;
 }
 .loki-search-input::placeholder {
@@ -47,7 +47,7 @@
   padding: 4px 10px 2px;
 }
 .loki-search-group-title {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 700;
   color: var(--loki-muted);
 }
@@ -57,7 +57,7 @@
   padding: 0 4px;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   cursor: pointer;
   border-radius: var(--loki-radius-sm);
 }
@@ -83,7 +83,7 @@
 }
 .loki-search-miss {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--loki-text-row);
   font-weight: 700;
   color: var(--loki-fg);
 }

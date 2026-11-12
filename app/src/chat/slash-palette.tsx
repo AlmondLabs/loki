@@ -42,14 +42,23 @@ export function SlashPalette({
             onClick={() => onPick(c)}
             style={{ alignItems: "baseline", gap: 8 }}
           >
-            <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", whiteSpace: "nowrap" }}>
               /{c.id}
               {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 6 }}>{c.args}</span>}
             </span>
-            <span style={{ fontSize: 11, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: "var(--loki-text-tag)",
+                color: "var(--loki-muted)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
+            >
               {commandText(c)}
             </span>
-            <span style={{ fontSize: 9.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>
+            <span style={{ fontSize: "var(--loki-text-micro)", color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>
               {c.where === "loki" ? "loki" : "agent"}
             </span>
           </Row>

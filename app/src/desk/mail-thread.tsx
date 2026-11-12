@@ -139,7 +139,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
         {m.html ? (
           <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
         ) : (
-          <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13.5, lineHeight: 1.55 }}>
+          <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "var(--loki-text-body)", lineHeight: 1.55 }}>
             <LinkedText text={m.text} />
           </p>
         )}

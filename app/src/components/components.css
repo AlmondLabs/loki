@@ -59,17 +59,17 @@
 .loki-btn--sm {
   min-height: 28px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 .loki-btn--md {
   min-height: 36px;
   padding: 0 14px;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
 }
 .loki-btn--touch {
   min-height: 44px;
   padding: 0 14px;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
 }
 .loki-btn--paper {
   color: var(--loki-fg);
@@ -120,7 +120,7 @@
 .loki-btn--icon {
   padding: 0;
   border-radius: var(--loki-radius-sm);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 /* Fills its row; the label sits left. */
 .loki-btn--block {
@@ -141,7 +141,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   cursor: pointer;
   transition:
     background-color 120ms ease-out,
@@ -173,7 +173,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -232,7 +232,7 @@
 .loki-chip--tag {
   min-height: 0;
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: var(--loki-text-tag);
 }
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float {
@@ -263,7 +263,7 @@
   background: var(--loki-well);
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.4;
   transition: border-color 120ms ease-out;
 }
@@ -285,13 +285,13 @@
 .loki-field--sm {
   min-height: 28px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 /* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
 .loki-field--touch {
   min-height: 44px;
   padding: 10px 12px;
-  font-size: 15px;
+  font-size: var(--loki-text-row);
 }
 /* The first line of a sheet (search, a title): no box, a hairline below. */
 .loki-field--bare {
@@ -485,7 +485,7 @@ textarea.loki-field {
   font-family: var(--loki-font);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   box-shadow: var(--loki-shadow-float);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] [data-description] {
@@ -513,13 +513,13 @@ textarea.loki-field {
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 
 /* ---- Text ---------------------------------------------------------------------------------------- */
 .loki-kbd {
   font-family: var(--loki-mono);
-  font-size: 9.5px;
+  font-size: var(--loki-text-micro);
   color: var(--loki-muted);
   margin-left: 6px;
   border: 1px solid var(--loki-border);
@@ -531,7 +531,7 @@ textarea.loki-field {
 }
 .loki-meta {
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -551,12 +551,12 @@ textarea.loki-field {
 }
 .loki-title {
   font-family: var(--loki-font);
-  font-size: 17px;
+  font-size: var(--loki-text-title);
   font-weight: 700;
   color: var(--loki-fg);
 }
 .loki-title--page {
-  font-size: 22px;
+  font-size: var(--loki-text-display);
 }
 .loki-empty {
   text-align: center;
@@ -572,11 +572,11 @@ textarea.loki-field {
   padding: 36px 28px;
 }
 .loki-empty > .loki-title {
-  font-size: 22px;
+  font-size: var(--loki-text-display);
   line-height: 1.25;
 }
 .loki-empty > p {
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   margin: 10px 0 0;
   line-height: 1.6;
 }
@@ -628,7 +628,7 @@ textarea.loki-field {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
@@ -715,7 +715,7 @@ textarea.loki-field {
   white-space: nowrap;
 }
 .loki-list-row-preview {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
   overflow: hidden;
@@ -724,7 +724,7 @@ textarea.loki-field {
 }
 .loki-list-row-time {
   flex: none;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -737,7 +737,7 @@ textarea.loki-field {
   border-radius: var(--loki-radius-pill);
   background: var(--loki-attention);
   color: var(--loki-on-attention);
-  font-size: 11px;
+  font-size: var(--loki-text-tag);
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
@@ -809,7 +809,7 @@ textarea.loki-field {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   font-weight: 600;
   text-align: left;
 }
@@ -829,7 +829,7 @@ button.loki-list-section-toggle {
   transform: rotate(-90deg);
 }
 .loki-list-section-count {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -839,7 +839,7 @@ button.loki-list-section-toggle {
   align-items: center;
   gap: 4px;
   flex: none;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
 }
 .loki-list-section-actions {
@@ -945,7 +945,7 @@ button.loki-list-section-toggle {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
 }
 .loki-title-menu-sep {
   height: 1px;
@@ -981,7 +981,7 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: 17px;
+  font-size: var(--loki-text-title);
   font-weight: 700;
   color: var(--loki-fg);
 }
@@ -990,7 +990,7 @@ button.loki-list-section-toggle {
 }
 .loki-pane-header-subtitle {
   padding: 0 12px 8px 20px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1021,7 +1021,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -1038,7 +1038,7 @@ button.loki-list-section-toggle {
   border-bottom-color: var(--loki-fg);
 }
 .loki-tab-count {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -1136,7 +1136,7 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: 15px;
+  font-size: var(--loki-text-row);
   font-weight: 700;
   color: var(--loki-fg);
 }
@@ -1190,7 +1190,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1252,7 +1252,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   font-weight: 400;
   text-align: left;
   cursor: default;
@@ -1278,7 +1278,7 @@ button.loki-list-section-toggle {
   white-space: nowrap;
 }
 .loki-place-count {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1321,7 +1321,7 @@ button.loki-list-section-toggle {
     padding: 0 10px 0 18px;
   }
   .loki-column-title {
-    font-size: 11px;
+    font-size: var(--loki-text-tag);
     font-weight: 600;
     color: var(--loki-muted);
   }
@@ -1390,7 +1390,7 @@ button.loki-list-section-toggle {
   .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
     min-height: 22px;
     padding: 0 10px;
-    font-size: 12px;
+    font-size: var(--loki-text-meta);
   }
   .loki-pane-header-trailing {
     grid-area: tools;
@@ -1409,7 +1409,7 @@ button.loki-list-section-toggle {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 15px;
+    font-size: var(--loki-text-title);
     font-weight: 600;
     color: var(--loki-fg);
   }
@@ -1418,7 +1418,7 @@ button.loki-list-section-toggle {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 11px;
+    font-size: var(--loki-text-tag);
     color: var(--loki-muted);
   }
   /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
@@ -1431,7 +1431,7 @@ button.loki-list-section-toggle {
     min-height: 0;
     padding: 0;
     border: 0;
-    font-size: 11px;
+    font-size: var(--loki-text-tag);
     font-weight: 400;
   }
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as

@@ -104,7 +104,7 @@ export function LabelPicker({
               disabled={busy}
               onMouseEnter={() => setHi(i)}
               onClick={() => choose(l.id)}
-              style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5 }}
+              style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--loki-text-body)" }}
             >
               {l.name}
             </Row>

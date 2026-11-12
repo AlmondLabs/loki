@@ -10,6 +10,17 @@
 
 /* Night: Slack's dark mobile ground, raised surfaces a step lighter. */
 .loki-phone {
+  /* The shared components the phone draws keep today's desktop scale: Liquid Glass's Mac scale (kit/tokens.css) is the
+     desktop's, and a property set here wins over the one the root passes down. */
+  --loki-text-micro: 9.5px;
+  --loki-text-fine: 10.5px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 12px;
+  --loki-text-body: 13.5px;
+  --loki-text-row: 15px;
+  --loki-text-title: 17px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 28px;
   color-scheme: dark;
   --loki-bg: #1a1d21;
   --loki-panel: #222529;

@@ -539,7 +539,7 @@ export function Switch({
         padding: 0,
         cursor: "pointer",
         color: on ? "var(--loki-fg)" : "var(--loki-muted)",
-        fontSize: small ? 12 : 13.5,
+        fontSize: small ? "var(--loki-text-meta)" : "var(--loki-text-body)",
       }}
     >
       <span

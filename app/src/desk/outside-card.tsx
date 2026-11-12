@@ -76,7 +76,10 @@ export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; to
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
       {facts.lines.map((line, i) => (
-        <p key={i} style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+        <p
+          key={i}
+          style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}
+        >
           {line}
         </p>
       ))}

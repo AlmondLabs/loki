@@ -83,7 +83,12 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
-          <Row dense key={x.scope} onClick={() => onOpen(x.conversation_id ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
+          <Row
+            dense
+            key={x.scope}
+            onClick={() => onOpen(x.conversation_id ?? "default")}
+            style={{ justifyContent: "space-between", fontSize: "var(--loki-text-body)" }}
+          >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
             <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
               {x.active ? "active" : x.last_active ? ago(x.last_active) : ""}
@@ -136,7 +141,7 @@ function ConfirmDelete({
         padding: "10px 12px",
         border: "1px solid var(--loki-negative)",
         borderRadius: "var(--loki-radius-md)",
-        fontSize: 12,
+        fontSize: "var(--loki-text-meta)",
         color: "var(--loki-fg)",
         lineHeight: 1.5,
       }}
@@ -202,7 +207,7 @@ function Identity({
           onBlur={() => name.trim() && name.trim() !== d.agent.name && void onSave({ name: name.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           aria-label="agent name"
-          style={{ fontSize: 22, fontWeight: 700 }}
+          style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}
         />
         <Field
           inline
@@ -212,7 +217,7 @@ function Identity({
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           placeholder="a line about this agent"
           aria-label="agent description"
-          style={{ fontSize: 13.5, color: "var(--loki-muted)" }}
+          style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)" }}
         />
         <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <Field
@@ -225,7 +230,7 @@ function Identity({
             onBlur={() => model.trim() && model.trim() !== (d.agent.model ?? "") && void onSave({ model: model.trim() })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             aria-label="model"
-            style={{ width: 240, fontSize: 12 }}
+            style={{ width: 240, fontSize: "var(--loki-text-meta)" }}
           />
           <datalist id="loki-models">
             {(models ?? []).map((m) => (

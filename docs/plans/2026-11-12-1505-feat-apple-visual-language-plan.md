@@ -359,6 +359,21 @@ flowchart TB
 - With gaps on, a message 15 minutes or more after the row before it gets a time marker; one sooner does not; the day's marker carries the time where both fall.
 **Verification:** rendered on demo data in light and dark.
 
+### U15. The Mac's type scale
+
+**Goal:** text on the desktop is sized as AppKit sizes it, not at iOS or web sizes.
+**Requirements:** R7, R13; KTD1.
+**Dependencies:** U1.
+**Files:** `app/src/kit/tokens.css`, `app/src/styles.css`, `app/src/phone/phone.css`, every desktop stylesheet and component that set a size, `test/tokens.test.ts`, `test/shell-look.test.ts`.
+**Approach:**
+- The nine sizes become tokens (`--loki-text-micro` … `--loki-text-hero`) at today's values, and every desktop size reads one: the stylesheets' `font-size`, inline `fontSize`, and Tailwind's `text-*` names.
+- Liquid Glass redefines them as the Mac's: 10, 10, 11, 11, 13, 13, 15, 22 and 26.
+- The phone sets today's values back on its own root, so only the desktop moves.
+**Test scenarios:**
+- No desktop stylesheet or component sets a literal size outside the tokens (the agent's monogram, derived from its face, aside).
+- Under Liquid Glass body and rows are 13, secondary text 11, titles 15; the phone and today's look keep 13.5, 12 and 17.
+**Verification:** rendered on demo data, the chat, Flow and Agents.
+
 ---
 
 ## Verification Contract

@@ -98,7 +98,7 @@ function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
         style={{ background: "none", border: 0, padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "baseline", gap: 4 }}
       >
         {laneTitle(props.lane)}
-        <span aria-hidden style={{ fontSize: 9.5 }}>
+        <span aria-hidden style={{ fontSize: "var(--loki-text-micro)" }}>
           ▾
         </span>
       </button>
@@ -251,7 +251,7 @@ export function CaughtUp({
         </div>
       )}
       {(decided.length > 0 || replies > 0) && (
-        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
+        <div style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
         anything new lands here while this stays open

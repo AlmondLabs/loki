@@ -64,7 +64,7 @@ function SpendSection({
         label="Estimated"
         value={
           <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 22, fontWeight: 700 }}>{money(summary.cost.total)}</span>
+            <span style={{ fontSize: "var(--loki-text-display)", fontWeight: 700 }}>{money(summary.cost.total)}</span>
             <span className="loki-meta">{tokenCount(summary.tokens.total)} tokens</span>
           </span>
         }
@@ -133,7 +133,16 @@ function Breakdown({
     <div style={{ display: "grid", gap: 2 }}>
       {lines.map((l) => (
         <Row key={l.key} dense onClick={() => onPick(l.key)} title={`Show only ${name(l.key)}`}>
-          <span style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 80px 72px 64px", gap: 12, alignItems: "center", width: "100%", fontSize: 13.5 }}>
+          <span
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 80px 72px 64px",
+              gap: 12,
+              alignItems: "center",
+              width: "100%",
+              fontSize: "var(--loki-text-body)",
+            }}
+          >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.key}>
               {name(l.key)}
             </span>

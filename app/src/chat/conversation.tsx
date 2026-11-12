@@ -711,13 +711,15 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
           // The thread keeps the row being read in place itself (use-transcript-scroll.ts); the browser's own would move it twice.
           overflowAnchor: "none",
           padding: "16px 20px",
-          fontSize: 13.5,
+          fontSize: "var(--loki-text-body)",
           lineHeight: 1.5,
           color: "var(--loki-fg)",
           ...style,
         }}
       >
-        {!rows && !loadFailed && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>{home ? `loading from ${home}…` : "loading the thread…"}</div>}
+        {!rows && !loadFailed && (
+          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>{home ? `loading from ${home}…` : "loading the thread…"}</div>
+        )}
         {!rows && loadFailed && (
           <div className="loki-thread-error" role="alert">
             <span>{home ? `could not load this chat from ${home}` : "could not load this chat"}</span>
@@ -727,7 +729,9 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
           </div>
         )}
         {rows?.length === 0 && (
-          <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>
+          <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>
+            nothing here yet — everything you send lands in {who}'s transcript
+          </div>
         )}
         {rows && (
           <StepsLoad.Provider value={stableLoadStep}>

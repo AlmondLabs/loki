@@ -64,6 +64,18 @@
   --loki-radius-md: 8px;
   --loki-radius-lg: 12px;
   --loki-radius-pill: 999px;
+  /* Type scale (px), by role: micro 9.5 · fine 10.5 · tag 11 · meta 12 · body 13.5 · row 15 · title 17 · display 22 ·
+     hero 28. Every desktop size reads one of these (styles.css names them for Tailwind), so Liquid Glass can move the
+     whole scale onto the Mac's (below) in one place. */
+  --loki-text-micro: 9.5px;
+  --loki-text-fine: 10.5px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 12px;
+  --loki-text-body: 13.5px;
+  --loki-text-row: 15px;
+  --loki-text-title: 17px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 28px;
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
   --loki-label: var(--loki-font);
@@ -252,6 +264,17 @@
    utilities in styles.css fall back to the solid panel in every other family, and the media block below turns them
    solid under Reduce Transparency or Increase Contrast, or when the platform asks for it (data-glass="solid"). */
 :root[data-palette="apple"] {
+  /* The Mac's type scale (plan 2026-11-12-1505, U15), as AppKit sets it: body and list rows 13, secondary 11, the
+     smallest 10, a window or section title 15, a pane's large title 22, the largest 26. */
+  --loki-text-micro: 10px;
+  --loki-text-fine: 10px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 11px;
+  --loki-text-body: 13px;
+  --loki-text-row: 13px;
+  --loki-text-title: 15px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 26px;
   color-scheme: dark;
   --loki-bg: #1c1c1e;
   --loki-panel: #232325;
@@ -449,7 +472,7 @@
 /* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 600;
   color: var(--loki-muted);
 }
@@ -678,7 +701,7 @@ a:focus-visible {
 .loki-widget-body {
   font-family: var(--loki-font);
   color: var(--loki-fg);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.45;
 }
 
