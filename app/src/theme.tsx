@@ -152,5 +152,17 @@ export type Look = "glass" | "classic";
  * today's look, so components stay renderable on their own.
  */
 export function useLook(): Look {
-  return useContext(ThemeContext)?.palette === "apple" ? "glass" : "classic";
+  const forced = useContext(LookContext);
+  const palette = useContext(ThemeContext)?.palette;
+  return forced ?? (palette === "apple" ? "glass" : "classic");
+}
+
+const LookContext = createContext<Look | null>(null);
+
+/**
+ * Draws its children in one look whatever this device has chosen: the Liquid Glass workbench (dev/workbench.tsx)
+ * shows the new look without touching the saved palette.
+ */
+export function LookProvider({ look, children }: { look: Look; children: ReactNode }) {
+  return <LookContext.Provider value={look}>{children}</LookContext.Provider>;
 }
