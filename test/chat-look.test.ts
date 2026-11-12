@@ -183,3 +183,48 @@ describe("the wording pass under Liquid Glass", () => {
     expect(html(createElement(Icon, { name: "desk" }))).not.toContain('d="M4 5h16v11H9l-5 4z"');
   });
 });
+
+describe("the thread as a Mac conversation with an agent (U14)", () => {
+  const at = (m: number) => new Date(Date.parse("2026-11-12T09:00:00Z") + m * 60_000).toISOString();
+  const you = (text: string, m: number) => ({ role: "user" as const, text, at: at(m) });
+  const them = (text: string, m: number) => ({ role: "assistant" as const, text, at: at(m) });
+
+  test("your message is a bubble with no label, its time in its tooltip; today's look keeps both on the row", async () => {
+    const { ChatMessage } = await import("../app/src/item/message-entry.tsx");
+    const { clockLabel } = await import("../app/src/shared/thread.ts");
+    const row = you("chart the signups", 0);
+    const props = { row, last: false, streaming: false, arrived: false };
+    withPalette("apple");
+    const glass = html(createElement(ChatMessage, props));
+    expect(glass).not.toContain(">You<");
+    expect(glass).toContain(`title="${clockLabel(row.at)}"`);
+    expect(glass).toContain("max-w-[75%]");
+    withPalette(null);
+    expect(html(createElement(ChatMessage, props))).toContain(">You<");
+  });
+
+  test("the agent's turn names no one on screen but still to a screen reader, and a quiet finished turn has no header", async () => {
+    const { AgentTurn } = await import("../app/src/item/agent-turn.tsx");
+    withPalette("apple");
+    const quiet = html(createElement(AgentTurn, { agentName: "friday", state: "done", failed: 0, took: null, parts: [], draw: () => null }));
+    expect(quiet).toContain('aria-label="friday&#x27;s turn, done"');
+    expect(quiet).not.toContain("<header");
+    const failed = html(createElement(AgentTurn, { agentName: "friday", state: "failed", failed: 1, took: null, parts: [], draw: () => null }));
+    expect(failed).toContain("1 failed");
+    expect(failed).not.toContain(">friday<");
+    withPalette(null);
+    expect(html(createElement(AgentTurn, { agentName: "friday", state: "done", failed: 0, took: null, parts: [], draw: () => null }))).toContain(">friday<");
+  });
+
+  test("time is told before your message after a quarter hour's gap, and rides on the day's marker where both fall", async () => {
+    const { threadEntries } = await import("../app/src/item/entries.ts");
+    const { clockLabel } = await import("../app/src/shared/thread.ts");
+    const rows = [you("one", 0), them("a", 1), you("two", 5), them("b", 6), you("three", 30)];
+    const base = { rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy: false, arrivedFrom: rows.length, now: Date.parse(at(60)) };
+    const markers = (gaps?: number) => threadEntries({ ...base, gaps }).flatMap((e) => (e.kind === "day" ? [e.label] : []));
+    const days = markers();
+    expect(days).toHaveLength(1);
+    // the first message carries the day and its time; "two" came 4 minutes after "a", so no marker; "three" came 24 after
+    expect(markers(15 * 60_000)).toEqual([`${days[0]} ${clockLabel(at(0))}`, clockLabel(at(30))]);
+  });
+});

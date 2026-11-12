@@ -1,5 +1,5 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import { dayPills } from "../shared/thread";
+import { clockLabel, dayPills } from "../shared/thread";
 import { isWorkRow, stepFailed, toolRuns, workDuration } from "../shared/tool-steps";
 import type { WidgetMark } from "../chat/transcript";
 
@@ -30,6 +30,12 @@ export interface EntryInput {
   widgets: readonly WidgetMark[];
   /** The agent is working: a last stretch still waiting on its result reads as running. */
   busy: boolean;
+  /**
+   * Liquid Glass tells time at gaps (plan 2026-11-12-1505, U14): before your message when this many ms or more have
+   * passed since the row before, a marker with its time, and the day's marker carries the time where both fall. Unset,
+   * only the day is marked.
+   */
+  gaps?: number;
   /** Rows from this index on came in while the thread was open. */
   arrivedFrom: number;
   now?: number;
@@ -40,7 +46,7 @@ export interface EntryInput {
  * times), the New line, then the row itself: a message, an event, or the first row of a stretch of work standing for
  * the whole stretch. A widget mark, a day or the New line ends a stretch and starts a new run of messages.
  */
-export function threadEntries({ rows, from, above, dividerAt, dividerDay, widgets, busy, arrivedFrom, now = Date.now() }: EntryInput): ThreadEntry[] {
+export function threadEntries({ rows, from, above, dividerAt, dividerDay, widgets, busy, arrivedFrom, gaps, now = Date.now() }: EntryInput): ThreadEntry[] {
   const first = Math.max(0, Math.min(from, rows.length));
   const marks = new Map<number, WidgetMark[]>();
   for (const w of widgets) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
@@ -67,12 +73,29 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   });
   const tools = toolRuns(rows, first, (k) => marks.has(k) || dayAt.has(k) || k === dividerAt);
 
+  // Where a time marker goes (gaps): your message, a gap or more after the timed row before it, or the first one.
+  const timeAt = new Map<number, string>();
+  if (gaps !== undefined && timed) {
+    let before = Number.NaN;
+    order.forEach((o) => {
+      const t = o.row?.at ? Date.parse(o.row.at) : Number.NaN;
+      if (!Number.isFinite(t)) return;
+      const clock = o.row?.role === "user" ? clockLabel(o.row.at) : null;
+      if (clock && !(t - before < gaps)) timeAt.set(o.i, clock);
+      before = t;
+    });
+  }
+
   const out: ThreadEntry[] = [];
   let author: TranscriptRow["role"] | null = null;
   order.forEach((o, k) => {
     const label = days[k];
+    const clock = o.row ? timeAt.get(o.i) : undefined;
     if (label) {
-      out.push({ kind: "day", key: `day-${label}`, label });
+      out.push({ kind: "day", key: `day-${label}`, label: clock ? `${label} ${clock}` : label });
+      author = null;
+    } else if (clock) {
+      out.push({ kind: "day", key: `at-${o.i - above}`, label: clock });
       author = null;
     }
     if (o.mark) {

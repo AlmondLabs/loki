@@ -40,24 +40,29 @@ export function AgentTurn({
   // Under Liquid Glass the header's words take a capital (plan 2026-11-12-1505, R7); today's stay lowercase.
   const glass = useLook() === "glass";
   const said = glass ? capitalFirst(look.words(failed)) : look.words(failed);
+  // Under Liquid Glass the agent's words are prose with no name over them (U14): the header says only how long it
+  // worked and where it stands, and is left out when it would say neither. The section still names the agent.
+  const header = !glass || took !== null || state !== "done";
   return (
     <section data-turn={state} aria-label={`${agentName}'s turn, ${look.words(failed)}`} className="flex flex-col gap-3">
-      <header className="flex items-center gap-2 text-meta text-muted-foreground">
-        <span className="font-semibold text-foreground">{agentName}</span>
-        {took && (
-          <span>
-            {glass ? "Worked" : "worked"} {took}
-          </span>
-        )}
-        {state !== "done" && (
-          <Badge variant="outline" data-state={state} className={look.className}>
-            {state === "working" && <Loader size={12} aria-hidden />}
-            {/* The red is the dot; the words keep the text colour, which reads on night's card where the red would not. */}
-            {state === "needs you" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
-            {said}
-          </Badge>
-        )}
-      </header>
+      {header && (
+        <header className="flex items-center gap-2 text-meta text-muted-foreground">
+          {!glass && <span className="font-semibold text-foreground">{agentName}</span>}
+          {took && (
+            <span>
+              {glass ? "Worked" : "worked"} {took}
+            </span>
+          )}
+          {state !== "done" && (
+            <Badge variant="outline" data-state={state} className={look.className}>
+              {state === "working" && <Loader size={12} aria-hidden />}
+              {/* The red is the dot; the words keep the text colour, which reads on night's card where the red would not. */}
+              {state === "needs you" && <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />}
+              {said}
+            </Badge>
+          )}
+        </header>
+      )}
       {parts.map((p) => (
         <div key={p.key} className="min-w-0">
           {draw(p)}

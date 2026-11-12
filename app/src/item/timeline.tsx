@@ -27,6 +27,10 @@ import { chatEntries, type ItemEntry } from "./item-view";
 import { ChatMessage } from "./message-entry";
 import { Work, samePlan, stretchPlan } from "./work";
 import { AgentTurn } from "./agent-turn";
+import { useLook } from "../theme";
+
+/** Liquid Glass tells the time before your message when this long has passed since the row before (entries.ts, U14). */
+const TIME_GAP = 15 * 60_000;
 
 const EMPTY: TranscriptRow[] = [];
 
@@ -63,6 +67,7 @@ function ThreadBody({
   handle,
 }: Omit<ThreadProps, "previewable"> & { handle: Ref<ThreadHandle> }) {
   const list = rows ?? EMPTY;
+  const glass = useLook() === "glass";
   const arrivedFrom = useArrivedFrom(rows);
   const dividerAt = layout?.dividerAt ?? null;
   const widgets = layout?.widgets ?? [];
@@ -95,7 +100,17 @@ function ThreadBody({
   const entries: ItemEntry[] = shown
     ? chatEntries(
         threadTurns(
-          threadEntries({ rows: shown, from: start, above, dividerAt, dividerDay: layout?.dividerDay ?? null, widgets, busy: status !== "idle", arrivedFrom }),
+          threadEntries({
+            rows: shown,
+            from: start,
+            above,
+            dividerAt,
+            dividerDay: layout?.dividerDay ?? null,
+            widgets,
+            busy: status !== "idle",
+            arrivedFrom,
+            gaps: glass ? TIME_GAP : undefined,
+          }),
           { busy: status !== "idle", waiting },
         ),
       )

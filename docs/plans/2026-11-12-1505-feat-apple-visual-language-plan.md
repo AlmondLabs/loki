@@ -341,6 +341,24 @@ flowchart TB
 - The chat's toolbar draws Archive, Label and Mark as Read as named buttons in the header, and no ActionBar under the box.
 **Verification:** the toolbar rendered on demo data in light and dark; the material checked in the real Mac window.
 
+### U14. The thread reads as a Mac conversation with an agent
+
+**Goal:** the thread stops reading as a Slack channel: your prompts are bubbles at the trailing edge, the agent's work is prose with no name over it, and time is told at gaps, not on every row.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U4.
+**Files:** `app/src/item/message-entry.tsx`, `app/src/item/agent-turn.tsx`, `app/src/item/entries.ts`, `app/src/item/timeline.tsx`, `test/chat-look.test.ts`, `test/thread-new.test.ts`.
+**Approach:** under Liquid Glass, the layout of ChatGPT and Claude for Mac rather than Messages' two-sided bubbles (the critique's recommendation, which the person went ahead with):
+- Your message is a bubble at the trailing edge, at most three quarters of the column, with no "You" and no time on it; its time is its tooltip, and copy shows on hover under it.
+- The agent's turn has no name; its header line appears only while it says something (worked for how long, working, needs you, failed).
+- Its words carry no time row; copy appears on hover.
+- Time is a centred marker before your message when a quarter of an hour or more has passed, or with the day where the day changes.
+- Today's look keeps its rows as they are.
+**Test scenarios:**
+- Under Liquid Glass your message has no "You" label and keeps its time as a tooltip; today's look keeps both on the row.
+- The agent's turn names no agent under Liquid Glass and still announces itself to a screen reader by name.
+- With gaps on, a message 15 minutes or more after the row before it gets a time marker; one sooner does not; the day's marker carries the time where both fall.
+**Verification:** rendered on demo data in light and dark.
+
 ---
 
 ## Verification Contract
