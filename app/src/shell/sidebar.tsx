@@ -20,6 +20,15 @@ export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform
 /** The top strip's height in px on this system (see `titlebarHeight`); 0 in a browser tab. */
 export const TITLEBAR_HEIGHT = titlebarHeight();
 
+/** Liquid Glass's sidebar (U12): its gap from the window's edges, in px. */
+export const GLASS_INSET = 8;
+/** Liquid Glass's sidebar: the height of its top row, where the traffic lights and the sidebar toggle sit, in px. */
+export const GLASS_HEAD = 44;
+/** Where Liquid Glass's sidebar toggle sits from the window's left edge: past the traffic lights on the Mac's window, else near the edge. */
+export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? 84 : 16;
+}
+
 /**
  * The window's top edge, Slack style, and it drags the window (a double click zooms, or maximises). On the Mac the
  * lights float at its left and nothing interactive goes in it. On Windows and Linux (plan 014 KTD4) it is Slack's
@@ -214,18 +223,76 @@ export function Sidebar({
   );
 }
 
-/** Show / hide the list column (⌘⇧D, Slack's sidebar key): a panel with its left pane, above Preferences. */
-function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+/**
+ * Liquid Glass's sidebar head (plan 2026-11-12-1505, U12): the window's places as the source list's first rows, in
+ * place of the rail, as Mail lists its mailboxes. Each row is a symbol in the accent, the place's name and a grey count
+ * (what waits in Flow, the cards due in Learn); the place showing is filled, never bold. Preferences is not a row: it is
+ * ⌘, and the menu bar's, as on every Mac app.
+ */
+export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: Segment; onSelect: (s: Segment) => void; waiting: number; dueCards?: number }) {
+  return (
+    <nav aria-label="sections" className="loki-places">
+      {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
+        const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
+        const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            className="loki-place"
+            aria-current={segment === s.id ? "page" : undefined}
+            aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
+            title={`${s.label} (${s.key})`}
+            onClick={() => onSelect(s.id)}
+          >
+            <span className="loki-place-icon">
+              {s.id === "desk" ? (
+                // a chat is a speech bubble on the Mac, as the menu and search draw it under Liquid Glass
+                <svg {...common} aria-hidden>
+                  <path d="M3.5 4.5h13v9h-8l-4.5 3.5z" />
+                </svg>
+              ) : (
+                <Icon id={s.id} />
+              )}
+            </span>
+            <span className="loki-place-label">{s.label}</span>
+            {count > 0 && (
+              <span aria-hidden className="loki-place-count">
+                {countText(count)}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The sidebar's foot under Liquid Glass while a newer loki is out: one quiet row that opens Preferences on it. */
+export function UpdateRow({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className="loki-place loki-place--foot" onClick={onOpen}>
+      <Dot aria-hidden color="var(--loki-accent)" />
+      <span className="loki-place-label">Update Available</span>
+    </button>
+  );
+}
+
+/**
+ * Show / hide the sidebar (⌘⇧D). Today's look draws it on the rail, above Preferences; Liquid Glass floats it beside
+ * the traffic lights, where it stays while the sidebar is hidden, as Mail's does.
+ */
+export function ColumnToggle({ open, onToggle, floating = false }: { open: boolean; onToggle: () => void; floating?: boolean }) {
   return (
     <button
       onClick={onToggle}
       aria-label={open ? "Hide sidebar" : "Show sidebar"}
       aria-pressed={open}
       title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
-      className="loki-rail"
+      className={floating ? "loki-rail loki-sidebar-toggle" : "loki-rail"}
       style={{
-        marginTop: "auto",
-        width: 36,
+        marginTop: floating ? 0 : "auto",
+        width: floating ? 28 : 36,
         height: 28,
         display: "grid",
         placeItems: "center",

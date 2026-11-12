@@ -48,7 +48,7 @@ The person likes the apps Apple designs, chose Liquid Glass over a merely Apple-
 - **Tokyo Night is retired; loki has one palette on Apple's roles.** Governs R4. (session-settled: user-directed — chosen over keeping Tokyo Night remapped onto Apple's roles)
 - **One switch, and the week starts at the end.** Governs R18. (session-settled: user-directed — chosen over one switch per screen)
 - **The look comes before item behaviour.** The 2026-11-11 research said to settle the paint last, on finished components; the person chose the look first. Plan 098 and the uniform item shape follow, cut onto this look. (session-settled: user-directed — chosen over item behaviour first and over both together, with the trade shown)
-- **The labelled rail and chats grouped by agent stay,** inside the glass sidebar. Strict guidelines would fold the sections into the sidebar list; the person has ruled out a single sidebar without the rail before.
+- **One Mac sidebar replaces the labelled rail; chats stay grouped by agent.** The first cut kept the rail; the 2026-11-12 critique found it the strongest Slack signal left, and the person chose to replace it (U12). Chats, Flow, Agents and Learn are the sidebar's top rows; Preferences leaves the window for ⌘, and the menu bar. (session-settled: user-directed, reversing the earlier keep-the-rail decision)
 - **The accent follows the Mac's accent colour, blue by default, at a shade that passes AA.** Apple's stock blue under 13 pt white text falls below PRODUCT.md's AA floor; loki keeps AA. Governs R4.
 - **Apple's focus ring replaces loki's focus flash.** One focus treatment, the one Mac users expect. Governs R12.
 - **One icon set at one stroke on every platform, drawn in the SF Symbols manner.** SF Symbols' licence does not cover Windows, Linux or a bundled web app; real SF Symbols appear only in the native macOS menus. Governs R8.
@@ -137,15 +137,15 @@ The person likes the apps Apple designs, chose Liquid Glass over a merely Apple-
 
 ### Key Technical Decisions
 
-- KTD1. **The new look is a layer beside the old one, switched by one attribute.** `data-look="apple"` on the root selects a separate token file; the Slack tokens and Tokyo Night keep working untouched until U12 deletes them. One switch, so the person can compare and turn back at any point (R18).
-- KTD2. **The new look paints only the new components.** Turning it on turns on the new chat pane (plans 096/097); the old Slack thread is never repainted and leaves with the old look in U12. Repainting both would double the work for code that is going away. Governs R13.
+- KTD1. **The new look is a layer beside the old one, switched by one attribute.** `data-look="apple"` on the root selects a separate token file; the Slack tokens and Tokyo Night keep working untouched until U11 deletes them. One switch, so the person can compare and turn back at any point (R18).
+- KTD2. **The new look paints only the new components.** Turning it on turns on the new chat pane (plans 096/097); the old Slack thread is never repainted and leaves with the old look in U11. Repainting both would double the work for code that is going away. Governs R13.
 - KTD3. **Glass is one material utility with three states: glass, strong glass, solid.** Every glass surface uses it, never its own blur. The root's `data-glass="solid"` turns every one opaque at once; it is set by the system's Reduce Transparency or Increase Contrast, and by the platform budget (KTD6). Governs R1, R3.
 - KTD4. **Glass blurs loki's own content, not the desktop.** No transparent window: Tauri's transparent macOS windows need its private-API mode, which costs speed and rules out the App Store. Sidebar glass shows the thread and canvas beneath it. Native window materials return only if measurement shows them cheaper (Outstanding Questions). Governs R1, R2.
 - KTD5. **The web view first, native code only where it cannot answer.** The accent is WebKit's system-accent colour keyword, mixed darker until white text passes AA; Reduce Transparency, Increase Contrast and Reduce Motion come from CSS media queries. If WebKit on macOS 13.3+ does not report one of them, a small native bridge sets the matching root attribute instead. Governs R3, R4, R6.
 - KTD6. **Glass on Linux starts solid; Windows and macOS start glass.** The measured budget (R17) can move a platform either way; the result is a constant in one place, not a runtime probe on every launch. Governs R16, R17.
 - KTD7. **Menus and tooltips both read the keymap.** `app/src/shell/keymap.ts` already feeds the Mac menu bar (`src-tauri/src/menu.rs`) and the ☰ menu; it grows to every command (R9), and a tooltip that names a key reads the same binding, so a key is written once. Governs R9, R10, R11.
 - KTD8. **A dev-only workbench comes before any screen.** It draws every primitive and item component in day, night, solid and increased contrast with made-up data, so the foundation is approved by looking (R18), and the same page carries the contrast and screenshot checks.
-- KTD9. **Words change screen by screen, with the screen.** Each unit moves its screen's words to Apple's title case (R7); the style docs change once, in U12, when the last screen has moved.
+- KTD9. **Words change screen by screen, with the screen.** Each unit moves its screen's words to Apple's title case (R7); the style docs change once, in U11, when the last screen has moved.
 
 ### High-Level Technical Design
 
@@ -314,6 +314,19 @@ flowchart TB
 - No reference to `data-palette` or the old tokens remains.
 - The token fence passes on the single look.
 **Verification:** every check in AGENTS.md passes; the person has used the new look for a week.
+
+### U12. One sidebar in place of the rail
+
+**Goal:** the window's left side is one Mac source list, as Mail and Notes draw it, not a rail beside a list.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U3.
+**Files:** `app/src/shell/sidebar.tsx`, `app/src/shell/shell.tsx`, `app/src/shell/list-column.tsx`, `app/src/shell/use-column.ts`, `app/src/components/components.css`, `test/shell-look.test.ts`.
+**Approach:** under Liquid Glass the rail draws nothing and takes no width. The list column becomes the sidebar on every section, Flow included: four place rows at its top (Chats, Flow, Agents, Learn) at 13 pt with an accent-tinted symbol and a grey trailing count, the selected row filled and never bold, then the section's own list under an 11 pt section heading. The sidebar toggle sits beside the traffic lights and stays there while the sidebar is hidden; the main pane leaves room for both. Preferences is ⌘, (and the menu bar); a quiet "Update available" row appears at the sidebar's foot only while a newer loki is out. Today's look keeps the rail.
+**Test scenarios:**
+- Under Liquid Glass the sections nav lists Chats, Flow, Agents and Learn as rows, with no Preferences row and no labelled rail.
+- Flow's row carries the waiting count as text, not a red badge.
+- Today's look still draws the rail with its five segments.
+**Verification:** rendered in light and dark on demo data, with the sidebar shown and hidden.
 
 ---
 

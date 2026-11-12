@@ -5,9 +5,9 @@ import type { Segment } from "./keymap";
 /**
  * The list column's state for the shell: the kept width and collapse (localStorage, column.ts), the
  * window's width for the fold below 1100, and the narrow window's peek. `shown` is for the showing
- * segment; `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
+ * segment; `everywhere` gives every section one (Liquid Glass's sidebar); `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
  */
-export function useColumn(segment: Segment) {
+export function useColumn(segment: Segment, everywhere = false) {
   const [pref, setPref] = useState<ColumnPref>(() => loadColumn(columnStore()));
   const [peek, setPeek] = useState(false);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
@@ -34,5 +34,7 @@ export function useColumn(segment: Segment) {
     [pref],
   );
   const open = columnShown(pref, windowWidth, peek);
-  return { width: pref.width, open, shown: hasColumn(segment) && open, has: hasColumn(segment), toggle, setWidth };
+  // Liquid Glass's sidebar (U12) carries the places, so it stands beside every section, Flow included.
+  const has = everywhere ? segment !== "settings" : hasColumn(segment);
+  return { width: pref.width, open, shown: has && open, has, toggle, setWidth };
 }

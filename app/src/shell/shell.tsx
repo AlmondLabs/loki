@@ -14,7 +14,8 @@ import { LearnColumn } from "../recall/learn-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
+import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, Sidebar, SIDEBAR_WIDTH, sidebarToggleLeft, TitleStrip, TITLEBAR_HEIGHT, UpdateRow } from "./sidebar";
+import { useLook } from "../theme";
 import type { Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
@@ -277,8 +278,10 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends.
-  const column = useColumn(segment);
+  // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends. Under
+  // Liquid Glass there is no rail (U12): the column is the window's one sidebar, beside every section, its places on top.
+  const glass = useLook() === "glass";
+  const column = useColumn(segment, glass);
   /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
   const showLabel = (name: string) => {
     setSidebarQuery(`label:${name}`);
@@ -289,7 +292,9 @@ export function Shell() {
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
   const immersive = sidebarHidden(segment, pane.tab);
   const columnShown = column.shown && !immersive;
-  const paneLeft = SIDEBAR_WIDTH + (columnShown ? column.width : 0);
+  // Glass: the sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
+  const paneLeft = glass ? (columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36) : SIDEBAR_WIDTH + (columnShown ? column.width : 0);
+  const openPrefs = () => setPrefsOpen(true);
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -375,25 +380,44 @@ export function Shell() {
         <div
           aria-hidden
           className="loki-shell-glass glass"
-          style={{ position: "absolute", left: 8, top: 8, bottom: 8, width: Math.max(0, paneLeft - 12), borderRadius: "var(--loki-radius-lg)" }}
+          style={{
+            position: "absolute",
+            left: GLASS_INSET,
+            top: GLASS_INSET,
+            bottom: GLASS_INSET,
+            width: glass ? (columnShown ? column.width : 0) : Math.max(0, paneLeft - 12),
+            borderRadius: "var(--loki-radius-lg)",
+            display: glass && !columnShown ? "none" : undefined,
+          }}
         />
         <TitleStrip />
-        <Sidebar
-          segment={segment}
-          onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))}
-          waiting={waiting}
-          tick={tick}
-          dueCards={recall.due}
-          lanOn={desk.phone.status?.enabled === true}
-          updateReady={update.newer}
-          column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null}
-        />
+        {glass && column.has && !immersive && (
+          <span style={{ position: "absolute", top: GLASS_INSET + 8, left: sidebarToggleLeft(), zIndex: 2 }}>
+            <ColumnToggle open={column.open} onToggle={column.toggle} floating />
+          </span>
+        )}
+        {!glass && (
+          <Sidebar
+            segment={segment}
+            onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))}
+            waiting={waiting}
+            tick={tick}
+            dueCards={recall.due}
+            lanOn={desk.phone.status?.enabled === true}
+            updateReady={update.newer}
+            column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null}
+          />
+        )}
 
         <ListColumn
           segment={segment}
           shown={columnShown}
           width={column.width}
           onWidth={column.setWidth}
+          left={glass ? GLASS_INSET : SIDEBAR_WIDTH}
+          top={glass ? GLASS_INSET + GLASS_HEAD : TITLEBAR_HEIGHT}
+          head={glass ? <Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} /> : null}
+          foot={glass && update.newer ? <UpdateRow onOpen={openPrefs} /> : null}
           sections={{
             desk: (
               <DeskSidebarView

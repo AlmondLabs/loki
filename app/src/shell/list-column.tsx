@@ -1,7 +1,6 @@
 import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { COLUMN_MAX, COLUMN_MIN } from "./column";
 import type { Segment } from "./keymap";
-import { SIDEBAR_WIDTH, TITLEBAR_HEIGHT } from "./sidebar";
 
 /** One arrow press on the resize handle, in px. */
 const KEY_STEP = 16;
@@ -18,12 +17,24 @@ export function ListColumn({
   width,
   onWidth,
   sections,
+  left,
+  top,
+  head = null,
+  foot = null,
 }: {
   segment: Segment;
   shown: boolean;
   width: number;
   onWidth: (w: number, commit: boolean) => void;
   sections: Partial<Record<Segment, ReactNode>>;
+  /** Where the column starts, in px: past the rail in today's look, at the glass sidebar's inset in Liquid Glass. */
+  left: number;
+  /** The column's top, in px: under the top strip, or under the glass sidebar's row of lights. */
+  top: number;
+  /** Rows above every section's body: Liquid Glass's places (U12). */
+  head?: ReactNode;
+  /** Rows under every section's body: Liquid Glass's update notice. */
+  foot?: ReactNode;
 }) {
   // Which bodies have mounted: set during render (the React pattern for state derived from a prop), so the showing one mounts on the same pass.
   const [mounted, setMounted] = useState<ReadonlySet<Segment>>(() => new Set(shown ? [segment] : []));
@@ -70,13 +81,17 @@ export function ListColumn({
       aria-label="Sidebar"
       aria-hidden={!shown}
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ top: TITLEBAR_HEIGHT, left: SIDEBAR_WIDTH, width, visibility: shown ? "visible" : "hidden" }}
+      style={{ top, left, width, visibility: shown ? "visible" : "hidden" }}
     >
-      {[...mounted].map((s) => (
-        <div key={s} className="loki-column-body" style={{ visibility: shown && s === segment ? "visible" : "hidden" }} aria-hidden={s !== segment}>
-          {sections[s]}
-        </div>
-      ))}
+      {head}
+      <div className="loki-column-bodies">
+        {[...mounted].map((s) => (
+          <div key={s} className="loki-column-body" style={{ visibility: shown && s === segment ? "visible" : "hidden" }} aria-hidden={s !== segment}>
+            {sections[s]}
+          </div>
+        ))}
+      </div>
+      {foot}
       <div
         role="separator"
         aria-orientation="vertical"

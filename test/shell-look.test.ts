@@ -85,3 +85,29 @@ describe("Windows and Linux on Liquid Glass (U10)", () => {
     expect(apple).toMatch(/\.loki-title-menu-panel \{[^}]*var\(--loki-glass-strong\)/);
   });
 });
+
+describe("one sidebar in place of the rail (U12)", () => {
+  test("the places are Chats, Flow, Agents and Learn as rows, with no Preferences row, and Flow's count is grey text", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Places } = await import("../app/src/shell/sidebar.tsx");
+    const out = renderToStaticMarkup(createElement(Places, { segment: "desk", onSelect: () => {}, waiting: 2, dueCards: 0 }));
+    expect([...out.matchAll(/class="loki-place-label">([^<]+)</g)].map((m) => m[1])).toEqual(["Chats", "Flow", "Agents", "Learn"]);
+    expect(out).not.toContain("Preferences");
+    expect(out).toContain('aria-label="Flow, 2 waiting"');
+    expect(out).toContain('<span aria-hidden="true" class="loki-place-count">2</span>');
+    expect(out).not.toContain("--loki-attention");
+    expect(must(/\.loki-place-count \{([^}]*)\}/.exec(css), "the count rule")[1]).toContain("var(--loki-muted)");
+  });
+
+  test("the place showing is filled, never bold", () => {
+    expect(must(/\.loki-place\[aria-current\] \{([^}]*)\}/.exec(css), "the current place")[1]).toContain("var(--loki-selection)");
+    expect(must(/\n\.loki-place \{([^}]*)\}/.exec(css), "the place rule")[1]).toContain("font-weight: 400");
+  });
+
+  test("Liquid Glass draws no rail, and today's look keeps it with its five segments", async () => {
+    expect(shell).toMatch(/\{!glass && \(\s*<Sidebar/);
+    const { SEGMENTS } = await import("../app/src/shell/shortcuts.ts");
+    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
+  });
+});
