@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
@@ -149,5 +149,16 @@ describe("the route", () => {
     expect((await fetch(`${base}/chat-images/${NAME}`)).status).toBe(403);
     expect((await fetch(`${base}/chat-images/..%2Fsecret.png?t=ok`)).status).toBe(404);
     expect((await fetch(`${base}/chat-images/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png?t=ok`)).status).toBe(404);
+  });
+
+  test("a picture that is there but cannot be read ends that answer, not the daemon; the next one is served", async () => {
+    // A folder under a picture's name: it exists, and reading it fails after the answer began.
+    mkdirSync(join(dir, NAME));
+    await fetch(`${base}/chat-images/${NAME}?t=ok`)
+      .then((r) => r.text())
+      .catch(() => "cut off");
+    const other = "fedcba9876543210fedcba9876543210.jpg";
+    writeFileSync(join(dir, other), "still here");
+    expect(await (await fetch(`${base}/chat-images/${other}?t=ok`)).text()).toBe("still here");
   });
 });

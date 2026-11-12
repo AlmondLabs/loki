@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyRecall, recallSnapshot } from "../mod/recall-sync.ts";
+import { applyFiles, applyRecall, filesSnapshot, recallSnapshot, type SyncedFiles } from "../mod/recall-sync.ts";
 
 /** A Learn file written at `at` (ms). */
 function put(dir: string, path: string, text: string, at: number): void {
@@ -72,6 +72,38 @@ describe("Learn's files on two Macs", () => {
         false,
       );
       expect(existsSync(join(root, "worker.json"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a mod's files on two Macs", () => {
+  /** A mods folder's files, as peering lists them: every file directly in it. */
+  const MODS: SyncedFiles = {
+    list: (dir) => Object.fromEntries(["icon.png", "mod.ts"].filter((n) => existsSync(join(dir, n))).map((n) => [n, T])),
+    safe: (path) => /^[\w.-]+$/.test(path),
+  };
+
+  test("a picture or any file that is not text arrives byte for byte; text still travels as text", () => {
+    const root = mkdtempSync(join(tmpdir(), "loki-mod-sync-"));
+    const book = join(root, "book");
+    const mini = join(root, "mini");
+    try {
+      // A PNG's first bytes: 0x89 alone is not UTF-8, so read as text it became a replacement character.
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]);
+      mkdirSync(book, { recursive: true });
+      writeFileSync(join(book, "icon.png"), png);
+      writeFileSync(join(book, "mod.ts"), "export default () => {}; // ünïcode");
+      const snap = filesSnapshot(book, MODS, T);
+      expect(snap.files["icon.png"].encoding).toBe("base64");
+      expect(snap.files["mod.ts"].encoding).toBeUndefined();
+      expect(applyFiles(mini, MODS, snap, T)).toBe(true);
+      expect(readFileSync(join(mini, "icon.png")).equals(png)).toBe(true);
+      expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("export default () => {}; // ünïcode");
+      // A Mac on an older loki sends no mark: its text is written as text.
+      expect(applyFiles(mini, MODS, { files: { "mod.ts": { content: "old", mtime: T + 1 } }, deleted: {} }, T + 1)).toBe(true);
+      expect(readFileSync(join(mini, "mod.ts"), "utf8")).toBe("old");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -19,10 +19,27 @@ export interface SyncedFiles {
   safe: (path: string) => boolean;
 }
 
-/** One file as it travels: its text and when it was last written (ms). */
+/**
+ * One file as it travels: its content and when it was last written (ms). Text goes as it is; a file that is not UTF-8
+ * text (an image or a wasm file in a mod) goes as base64, marked `encoding`, so it arrives byte for byte. A Mac on a
+ * loki from before this sends no mark, and its files are read as text, as they always were.
+ */
 export interface RecallFile {
   content: string;
   mtime: number;
+  encoding?: "base64";
+}
+
+/** Strict UTF-8: a byte sequence that is not text fails here rather than being read with replacement characters. */
+const UTF8 = new TextDecoder("utf-8", { fatal: true });
+
+/** A file's bytes as they travel: text when they are UTF-8, else base64. */
+function encodeFile(bytes: Buffer, mtime: number): RecallFile {
+  try {
+    return { content: UTF8.decode(bytes), mtime };
+  } catch {
+    return { content: bytes.toString("base64"), mtime, encoding: "base64" };
+  }
 }
 
 /** A Mac's Learn files for another, and the ones it removed (path → when, ms). */
@@ -101,7 +118,7 @@ export function filesSnapshot(dir: string, which: SyncedFiles, now = Date.now())
   const out: Record<string, RecallFile> = {};
   for (const [path, mtime] of Object.entries(files)) {
     try {
-      out[path] = { content: readFileSync(join(dir, path), "utf8"), mtime };
+      out[path] = encodeFile(readFileSync(join(dir, path)), mtime);
     } catch {
       // removed while reading: the next look says so
     }
@@ -119,7 +136,7 @@ export function applyFiles(dir: string, which: SyncedFiles, theirs: RecallSnapsh
     const mine = Math.max(files[path] ?? -1, manifest.deleted[path] ?? -1);
     if (file.mtime <= mine) continue;
     const full = join(dir, path);
-    writeFileAtomic(full, file.content);
+    writeFileAtomic(full, file.encoding === "base64" ? Buffer.from(file.content, "base64") : file.content);
     utimesSync(full, new Date(file.mtime), new Date(file.mtime));
     manifest.known[path] = file.mtime;
     manifest.deleted = without(manifest.deleted, path);

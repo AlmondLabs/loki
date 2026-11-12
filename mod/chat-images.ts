@@ -1,4 +1,5 @@
 import { createReadStream, existsSync } from "node:fs";
+import { pipeline } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { IMAGE_NAME } from "../daemon/chat-images.ts";
@@ -45,7 +46,12 @@ export function chatImageRoute(opts: {
     const file = join(opts.dir, name);
     const send = () => {
       res.writeHead(200, { "content-type": TYPES[name.split(".")[1]] ?? "application/octet-stream", "cache-control": "private, max-age=31536000, immutable" });
-      createReadStream(file).pipe(res);
+      // pipeline, not pipe: a read that fails after the check above (the file removed, a disk error) would otherwise be
+      // an error event nobody listens for, which ends the daemon. It ends this answer instead, and a client that goes
+      // away part-way closes the file.
+      pipeline(createReadStream(file), res, (err) => {
+        if (err && err.code !== "ERR_STREAM_PREMATURE_CLOSE") log("chat-images:read-failed", { error: err.message });
+      });
     };
     if (existsSync(file)) {
       send();
