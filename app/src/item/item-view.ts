@@ -20,7 +20,7 @@ import type { TurnEntry } from "./entries";
 /*
  * The chat pane's one shape for every item (plan 097, KTD2): an agent chat, a Slack thread, an email or a Jira ticket
  * becomes an ItemView, and the twelve components in this folder read only that. What differs between sources lives in
- * the builders below. Data loki does not have is left out, never made up (KTD8): no Brief, no starred or watching flag.
+ * the builders below. Data loki does not have is left out, never made up (KTD8): no Brief, no watching flag.
  */
 
 /** Where an item comes from: one of loki's own chats, or a thread of a connected account. */
@@ -36,8 +36,11 @@ export interface ItemProperty {
   tone?: "attention" | "negative" | "positive";
 }
 
-/** A state of the item that shows only while it holds (R4): unread, a mention of the person, a ticket changed since read. */
-export type ItemFlag = "unread" | "mentions_you" | "changed";
+/**
+ * A state of the item that shows only while it holds (R4): unread, starred in Gmail (U9), a mention of the person, a
+ * ticket changed since read. No watching flag: every Jira card is a ticket the person watches, so it would say nothing.
+ */
+export type ItemFlag = "unread" | "starred" | "mentions_you" | "changed";
 
 /** The item's header: its one-line title, then its facts, then its flags. */
 export interface ItemHeaderView {
@@ -267,6 +270,7 @@ export function outsideItem({ facts, messages, ticket = null, unread, replies = 
 
   const flags: ItemFlag[] = [];
   if (unread) flags.push("unread");
+  if (facts.starred === true) flags.push("starred");
   if (MENTIONS.has(facts.reach ?? null) || entries.some((e) => e.kind === "message" && e.mentions_you)) flags.push("mentions_you");
   if (ticket && ticket.changed.length > 0) flags.push("changed");
 

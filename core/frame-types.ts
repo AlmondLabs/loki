@@ -191,6 +191,8 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
+  /** A Gmail thread one of whose messages is starred (plan 097, U9); absent when it is not, and from an older loki. */
+  starred?: boolean;
   /**
    * Comments the owning agent proposed on a Jira ticket and the person approved (plan 2026-11-10-1451, KTD18), oldest
    * first, waiting for the card's comment box until the person sends one or the agent takes it back. Absent when there

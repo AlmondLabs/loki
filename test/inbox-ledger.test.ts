@@ -43,6 +43,7 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   from_backfill: false,
   traits: { to_you: true, list: false, automated: true, category: "updates" },
   unread_out_there: true,
+  starred: false,
   waiting: false,
   kept_open: false,
   reach: null,

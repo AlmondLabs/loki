@@ -49,6 +49,8 @@ export interface ThreadRecord {
    * is unread. A record from before this was kept reads as unread, so no card goes quiet on the upgrade.
    */
   unread_out_there: boolean;
+  /** Gmail: one of the thread's messages carries the star (plan 097, U9). False for Slack, Jira and records from before. */
+  starred: boolean;
   /**
    * The person replied and is waiting for an answer (plan 070, KTD7): set by a reply with "later", cleared when a newer
    * message comes. While it is set, Slack's read marker, which the person's own post moves, does not end the card.
@@ -101,6 +103,8 @@ export interface ObservedMessage {
   traits?: MailTraits | null;
   /** Whether the thread is unread out there (plan 070); unread when not said, as every Slack card is. */
   unread_out_there?: boolean;
+  /** Whether the thread is starred in Gmail (plan 097, U9); not starred when not said. */
+  starred?: boolean;
   /** Slack's facts for the card's header (plan 073); mail has none. */
   reach?: OutsideReach | null;
   place?: string | null;
@@ -191,6 +195,7 @@ function parseRecord(v: unknown): ThreadRecord | null {
     from_backfill: r.from_backfill === true,
     traits: parseMailTraits(r.traits),
     unread_out_there: r.unread_out_there !== false,
+    starred: r.starred === true,
     waiting: r.waiting === true,
     kept_open: r.kept_open === true,
     reach: typeof r.reach === "string" && r.reach in REACH_LEVEL ? (r.reach as OutsideReach) : null,
@@ -258,9 +263,11 @@ export class AccountThreads {
     const records = this.records(accountId);
     const prev = records.get(m.thread_id);
     const unreadOutThere = m.unread_out_there ?? true;
+    const starred = m.starred === true;
     if (prev && !newer(m, prev)) {
-      if (prev.state !== "open" || prev.unread_out_there === unreadOutThere) return false;
-      records.set(m.thread_id, { ...prev, unread_out_there: unreadOutThere });
+      // No new message: only what can change without one, read or unread and the star, is taken in.
+      if (prev.state !== "open" || (prev.unread_out_there === unreadOutThere && prev.starred === starred)) return false;
+      records.set(m.thread_id, { ...prev, unread_out_there: unreadOutThere, starred });
       this.save(accountId);
       return true;
     }
@@ -279,6 +286,7 @@ export class AccountThreads {
       from_backfill: prev ? prev.from_backfill && m.from_backfill === true : m.from_backfill === true,
       traits: m.traits ?? null,
       unread_out_there: unreadOutThere,
+      starred,
       // A newer message is the other side writing, so the person is no longer waiting on them.
       waiting: false,
       // The undo kept the card open for the message it showed; a newer one is a card the read marker may end again.
@@ -612,6 +620,7 @@ export class AccountThreads {
         handoff_conversation_id: r.handoff_conversation_id,
         disconnected: account.status === "connected" ? null : account.status.disconnected,
         unread_out_there: r.unread_out_there,
+        ...(r.starred ? { starred: true } : {}),
         reach: reachOf(account.provider, r),
         place: r.place,
         sender_avatar: r.sender_avatar,

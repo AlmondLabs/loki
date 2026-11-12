@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { ItemFlag, ItemHeaderView, ItemProperty } from "./item-view";
 
 /** How each flag reads on screen; the unread one carries the attention dot. */
-const FLAG_WORDS: Record<ItemFlag, string> = { unread: "unread", mentions_you: "mentions you", changed: "changed" };
+const FLAG_WORDS: Record<ItemFlag, string> = { unread: "unread", starred: "starred", mentions_you: "mentions you", changed: "changed" };
 
 /** A property's tone as its dot's colour. */
 const TONE_DOT: Record<NonNullable<ItemProperty["tone"]>, string> = {

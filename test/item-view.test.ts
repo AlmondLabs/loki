@@ -175,6 +175,11 @@ describe("an email", () => {
     expect(view.composer.targets.map((t) => t.kind)).toEqual(["reply", "reply_all"]);
   });
 
+  test("a starred mail carries the starred flag; one not starred has none", () => {
+    expect(outsideItem({ facts: facts({ provider: "gmail", starred: true }), messages: [], unread: false }).header.flags).toEqual(["starred"]);
+    expect(outsideItem({ facts: facts({ provider: "gmail" }), messages: [], unread: false }).header.flags).toEqual([]);
+  });
+
   test("a message with no HTML is its plain text, and an email never carries reactions", () => {
     const view = outsideItem({
       facts: facts({ provider: "gmail" }),
