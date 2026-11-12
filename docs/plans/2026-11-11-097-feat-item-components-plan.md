@@ -84,7 +84,8 @@ with them.
   its channel, or the person's name for a DM; an email's its subject; a Jira ticket's its key and summary; a chat's its
   name.
 - R4. Flags show only when set, and only the ones loki knows: unread (every source), mentions you (Slack and Jira, from
-  `reach`), changed since you looked (Jira). Starred and watching wait until the mod carries them (U9).
+  `reach`), changed since you looked (Jira), starred (Gmail, U9). No watching flag: every Jira card is a watched
+  ticket, so it would be on every card.
 
 **Entries and work**
 
@@ -98,7 +99,7 @@ with them.
   failure, the filters past 8 steps, a step's detail. A step's detail is AI Elements' Tool (state badge, input,
   output). A running turn shimmers its header and running step.
 - R8. EventEntry draws widget, compaction, join, folder and status changes as one quiet line each. A compaction is a
-  Checkpoint; it shows no restore until loki can restore (U9).
+  Checkpoint; it shows no restore (the person's call, 2026-11-12: restore is left out of this plan).
 
 **Decisions and writing**
 
@@ -392,6 +393,14 @@ flowchart TB
   - A `plan` update with three entries, one done, draws a Plan with "1 of 3".
   - A starred Gmail thread's card carries the flag; unstarring in Gmail clears it on the next read.
 - **Verification:** `npm run test:node` and the demo daemon with the fake ACP engine sending both.
+- **Outcome (2026-11-12):**
+  - **Plan:** no daemon change. The daemon already wrote a plan as "[x] / [~] / [ ]" lines; the thread reads them into
+    the tool step's `plan`, which a lean history page keeps.
+  - **Reasoning:** thoughts ride the row that follows them (`thought`, `thought_ms`), not a row kind of their own, so
+    today's views and the phone need no change. Stored as the message's thinking part; timed only when heard live.
+  - **Starred:** carried; **watching:** left out (see R4).
+  - **Restore:** left out, the person's call. Restore would reach loki's own chats only, since an ACP agent keeps its
+    own context; a fork or a rewind each needs its own plan if it is wanted later.
 
 ### U10. Docs
 
