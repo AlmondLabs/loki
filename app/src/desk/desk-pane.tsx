@@ -184,7 +184,7 @@ export function DeskPane(props: DeskPaneProps) {
           <>
             {runtime && !chatLabels.length && (
               <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-                + label
+                {glass ? "Add Label" : "+ label"}
               </button>
             )}
             {links}
