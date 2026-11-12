@@ -5,7 +5,7 @@ import type { OutsideFacts } from "../core/frame-types.ts";
 import { ItemHeader } from "../app/src/item/item-header.tsx";
 import { ActionBar, type VerbControl } from "../app/src/item/action-bar.tsx";
 import { chatItem, outsideItem, type ItemVerb } from "../app/src/item/item-view.ts";
-import { OutsideItemBar } from "../app/src/desk/outside-card.tsx";
+import { OutsideItemActions, OutsideItemHeader } from "../app/src/desk/outside-card.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
 // Plan 097, U8: the item's header and its moves in one bar.
@@ -101,37 +101,30 @@ describe("the action bar", () => {
   });
 });
 
-describe("an outside card's bar", () => {
-  const bar = (over: Partial<Parameters<typeof OutsideItemBar>[0]> = {}) =>
-    html(
-      createElement(OutsideItemBar, {
-        facts: facts(),
-        unread: true,
-        flash: null,
-        went: null,
-        cameBack: false,
-        thread: { kind: "loading" },
-        typing: false,
-        moves,
-        picking: false,
-        ...over,
-      }),
-    );
+describe("an outside card's header and moves", () => {
+  const head = (over: Partial<Parameters<typeof OutsideItemHeader>[0]> = {}) =>
+    html(createElement(OutsideItemHeader, { facts: facts(), unread: true, flash: null, went: null, cameBack: false, thread: { kind: "loading" }, ...over }));
+  const bar = (over: Partial<Parameters<typeof OutsideItemActions>[0]> = {}) =>
+    html(createElement(OutsideItemActions, { facts: facts(), thread: { kind: "loading" }, typing: false, moves, picking: false, ...over }));
 
-  test("a mail is titled by its subject, flagged unread, with archive named and label, later and read beside it", () => {
-    const out = bar({ onHandoff: noop });
+  test("a mail's header is its subject and unread flag, with no moves in it", () => {
+    const out = head();
     expect(out).toMatch(/<h2[^>]*>Your invoice</);
     expect(out).toContain('data-flag="unread"');
-    expect([...out.matchAll(/data-verb="(\w+)"/g)].map((m) => m[1])).toEqual(["handoff", "label", "later", "mark_read", "archive"]);
+    expect(out).not.toContain("data-verb");
   });
 
-  test("a Jira card has no archive, and links to its ticket from the bar", () => {
+  test("a mail's moves: archive named, hand off, label, later and read before it", () => {
+    expect([...bar({ onHandoff: noop }).matchAll(/data-verb="(\w+)"/g)].map((m) => m[1])).toEqual(["handoff", "label", "later", "mark_read", "archive"]);
+  });
+
+  test("a Jira card has no archive, and read is its main move", () => {
     const out = bar({ facts: facts({ provider: "jira", account_id: "jira:acme", account_label: "acme.atlassian.net", subject: "WEB-412 checkout" }) });
     expect(out).not.toContain('data-verb="archive"');
     expect(out).toMatch(/data-verb="mark_read"[^>]*data-main="true"/);
   });
 
   test("a read card has no unread flag", () => {
-    expect(bar({ unread: false })).not.toContain("data-flag");
+    expect(head({ unread: false })).not.toContain("data-flag");
   });
 });

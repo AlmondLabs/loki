@@ -12,7 +12,7 @@ import { avatarUrl } from "./env";
 import { keyboard } from "./env";
 import { formatKeys, keyFor } from "../shell/keymap";
 import { ItemHeader } from "../item/item-header";
-import { ActionBar } from "../item/action-bar";
+import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
 
 /** The pieces of a Flow card around its Conversation, and the title with its lane switcher. State lives in CatchUpDeck; these only draw it and call back. */
@@ -375,29 +375,15 @@ function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string
 }
 
 /**
- * A chat card's header and moves as one bar, for the new chat pane's preview (plan 097, U8): the item header with the
- * agent's face, the chat's name, its agent and state, folder and labels, then when and why; the ActionBar with archive
- * named, and open, later and read before it, each with its key as CardActions shows them.
+ * A chat card's header for the new chat pane's preview (plan 097, U8): the item header with the agent's face, the
+ * chat's name and flags, its agent and state, folder and labels, then when and why. The moves are ChatItemActions, at
+ * the card's bottom.
  */
-export function ChatItemBar({
-  current,
-  cameBack,
-  flash,
-  suggestions = 0,
-  onSuggestions,
-  typing,
-  read,
-  later,
-  archive,
-  onOpenDesk,
-  onClose,
-}: Omit<CardHeaderProps, "labelList"> & Omit<Parameters<typeof CardActions>[0], "current">) {
-  const view = chatItem({ item: current, live: null, turns: [] });
+export function ChatItemHeader({ current, cameBack, flash, suggestions = 0, onSuggestions }: Omit<CardHeaderProps, "labelList">) {
   const agent = current.agent_name ?? "agent";
-  const main = current.id === "default";
   return (
     <ItemHeader
-      view={view.header}
+      view={chatItem({ item: current, live: null, turns: [] }).header}
       lead={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
       meta={
         <>
@@ -405,26 +391,35 @@ export function ChatItemBar({
           {flash && <Meta style={NOTED}>{flash}</Meta>}
         </>
       }
-      actions={
-        <ActionBar
-          view={view.actions}
-          verbs={{
-            open: { run: () => (onOpenDesk(current.agent_id, current.id), onClose()), keys: deckKey("inbox.open", typing), title: "open the chat in its pane" },
-            archive: {
-              run: archive,
-              keys: deckKey("inbox.archive", typing),
-              disabled: main,
-              title: main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow",
-            },
-            later: {
-              run: later,
-              keys: deckKey("inbox.later", typing),
-              title: "keep it unread: the chat comes back in a day, or sooner if something new arrives",
-            },
-            mark_read: { run: read, keys: deckKey("inbox.next", typing), title: "mark it read: the chat rests and comes back later" },
-          }}
-        />
-      }
+    />
+  );
+}
+
+/**
+ * A chat card's moves as the ActionBar, under its box as CardActions sits today (plan 097, U8): archive named, and
+ * open, later and read before it, each with its key.
+ */
+export function ChatItemActions({ current, typing, read, later, archive, onOpenDesk, onClose }: Parameters<typeof CardActions>[0]) {
+  const main = current.id === "default";
+  return (
+    <ActionBar
+      className={COMPOSER_COLUMN}
+      view={chatItem({ item: current, live: null, turns: [] }).actions}
+      verbs={{
+        open: { run: () => (onOpenDesk(current.agent_id, current.id), onClose()), keys: deckKey("inbox.open", typing), title: "open the chat in its pane" },
+        archive: {
+          run: archive,
+          keys: deckKey("inbox.archive", typing),
+          disabled: main,
+          title: main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow",
+        },
+        later: {
+          run: later,
+          keys: deckKey("inbox.later", typing),
+          title: "keep it unread: the chat comes back in a day, or sooner if something new arrives",
+        },
+        mark_read: { run: read, keys: deckKey("inbox.next", typing), title: "mark it read: the chat rests and comes back later" },
+      }}
     />
   );
 }

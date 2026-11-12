@@ -1,5 +1,6 @@
 import { Button } from "@/ui/button";
 import { Kbd } from "@/ui/kbd";
+import { cn } from "@/lib/utils";
 import type { ItemActionsView, ItemVerb } from "./item-view";
 
 /** How each move reads on its button: lowercase desktop words, as Flow's buttons say them today. */
@@ -13,6 +14,9 @@ const VERB_WORDS: Record<ItemVerb, string> = {
   open_out: "open in jira",
 };
 
+/** The Composer's column (composer.tsx), for an ActionBar under it. */
+export const COMPOSER_COLUMN = "mx-auto max-w-3xl px-6";
+
 /** One move as the surface makes it: what it does, its key in the grammar that applies, why it is off. */
 export interface VerbControl {
   run: () => void;
@@ -24,15 +28,25 @@ export interface VerbControl {
 }
 
 /**
- * The item's moves (plan 097, ActionBar; R13): the one that finishes the item last and in full weight (archive for a
- * chat or an email, read for Slack and Jira), the rest before it, quiet. Only the moves this surface can make are
- * drawn, in the view's order; Flow's keys show on each and keep their meaning (KTD9).
+ * The item's moves (plan 097, ActionBar; R13), in the row under its box, where the reply and the move that goes with
+ * it meet: the one that finishes the item at the right end and in full weight (archive for a chat or an email, read
+ * for Slack and Jira), the rest before it, quiet. Only the moves this surface can make are drawn, in the view's order;
+ * Flow's keys show on each and keep their meaning (KTD9).
  */
-export function ActionBar({ view, verbs }: { view: ItemActionsView; verbs: Partial<Record<ItemVerb, VerbControl>> }) {
+export function ActionBar({
+  view,
+  verbs,
+  className,
+}: {
+  view: ItemActionsView;
+  verbs: Partial<Record<ItemVerb, VerbControl>>;
+  /** Where it lines up: under a chat's Composer, the Composer's column, so the main move ends where the box does. */
+  className?: string;
+}) {
   const more = view.more.filter((v) => v !== view.main && verbs[v]);
   const main = verbs[view.main];
   return (
-    <div data-action-bar className="flex flex-wrap items-center justify-end gap-1">
+    <div data-action-bar className={cn("flex w-full flex-wrap items-center justify-end gap-1", className)}>
       {more.map((v) => {
         const c = verbs[v];
         return c ? <VerbButton key={v} verb={v} control={c} quiet /> : null;

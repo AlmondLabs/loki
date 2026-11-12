@@ -24,7 +24,7 @@ import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { ItemHeader } from "../item/item-header";
-import { ActionBar } from "../item/action-bar";
+import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
 import { useThreadPreview } from "../item/preview";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
@@ -161,24 +161,23 @@ export function DeskPane(props: DeskPaneProps) {
             {links}
           </>
         }
-        actions={
-          <>
-            <ActionBar
-              view={itemView.actions}
-              verbs={{
-                ...(item.unread
-                  ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } }
-                  : {}),
-                archive: {
-                  run: () => void catchUp.archive(item, "click"),
-                  disabled: item.id === "default",
-                  title: item.id === "default" ? "a main chat cannot be archived" : "done with this chat: it leaves the list and Flow",
-                },
-              }}
-            />
-            {tab === "desk" && <DeskActions />}
-          </>
-        }
+        actions={tab === "desk" ? <DeskActions /> : undefined}
+      />
+    ) : undefined;
+  // Its moves, under the box (plan 097, U8): read while something is new, and archive.
+  const itemMoves =
+    itemView && item ? (
+      <ActionBar
+        className={COMPOSER_COLUMN}
+        view={itemView.actions}
+        verbs={{
+          ...(item.unread ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } } : {}),
+          archive: {
+            run: () => void catchUp.archive(item, "click"),
+            disabled: item.id === "default",
+            title: item.id === "default" ? "a main chat cannot be archived" : "done with this chat: it leaves the list and Flow",
+          },
+        }}
       />
     ) : undefined;
 
@@ -252,6 +251,7 @@ export function DeskPane(props: DeskPaneProps) {
               modeMenuTick={tickFor(mode, "messages")}
               suggestionsTick={tickFor(suggest, "messages")}
               prefill={prefillFor("messages")}
+              footer={itemMoves}
               suggestions={runtime ? { source: catchUp, rt: runtime } : null}
             />
           </div>

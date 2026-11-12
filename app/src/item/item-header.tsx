@@ -18,7 +18,8 @@ const TONE_DOT: Record<NonNullable<ItemProperty["tone"]>, string> = {
  * The item's header (plan 097, ItemHeader): its title on one line, cut with an ellipsis and whole on hover (R3), the
  * flags that hold beside it (R4), then its properties as chips, with the surface's own words after them (when, where
  * it went). An editable property is a button only where the surface has its picker; elsewhere it is a plain chip, so
- * nothing on screen promises a menu that does not open. The ActionBar sits at the end of the same bar.
+ * nothing on screen promises a menu that does not open. The item's moves are not here: the ActionBar sits under the
+ * box, beside the reply it goes with.
  */
 export function ItemHeader({
   view,
@@ -34,7 +35,7 @@ export function ItemHeader({
   lead?: ReactNode;
   /** The surface's words after the properties: when, the account, where it went before, the last move's flash. */
   meta?: ReactNode;
-  /** The ActionBar, at the end of the bar. */
+  /** A surface's own controls at the end of the line: the chat pane's Canvas menu. Not the item's moves. */
   actions?: ReactNode;
   /** The pickers this surface has, by property: today's labels, folder and Jira pickers. */
   onProperty?: Partial<Record<ItemProperty["key"], () => void>>;

@@ -1046,22 +1046,17 @@ export function OutsideHeader({
 }
 
 /**
- * An outside card's header and moves as one bar, for the new chat pane's preview (plan 097, U8): the item header (the
- * sender's face with its mark, the channel, subject or ticket as the one-line title, its flags and properties, then
- * when, the account and where it went), and the ActionBar with read named on Slack and Jira and archive on a mail, the
- * rest before it with Flow's keys (KTD9). A Jira ticket's link to its page is the bar's "open in jira".
+ * An outside card's header for the new chat pane's preview (plan 097, U8): the sender's face with its mark, the
+ * channel, subject or ticket as the one-line title with its flags, its properties, then when, the account and where it
+ * went. The moves are OutsideItemActions, under the reply box.
  */
-export function OutsideItemBar({
+export function OutsideItemHeader({
   facts,
   unread,
   flash,
   went,
   cameBack,
   thread,
-  typing,
-  moves,
-  onHandoff,
-  picking,
 }: {
   facts: OutsideFacts;
   unread: boolean;
@@ -1069,14 +1064,45 @@ export function OutsideItemBar({
   went: string | null;
   cameBack: boolean;
   thread: ThreadState;
+}) {
+  const view = outsideItem({ facts, messages: thread.kind === "read" ? thread.messages : [], ticket: readHead(thread).ticket, unread });
+  const who = senderName(facts.sender);
+  return (
+    <ItemHeader
+      view={view.header}
+      lead={<CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />}
+      meta={
+        <>
+          <OutsideHeadLine facts={facts} what={facts.provider === "slack" ? who : null} went={went} cameBack={cameBack} />
+          {flash && <Chip tone="var(--loki-positive)">{flash}</Chip>}
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * An outside card's moves as the ActionBar, in the reply box's row as OutsideMoves sits today (plan 097, U8): read
+ * named on Slack and Jira and archive on a mail, the rest before it with Flow's keys (KTD9). A Jira ticket's link to
+ * its page is the bar's "open in jira".
+ */
+export function OutsideItemActions({
+  facts,
+  thread,
+  typing,
+  moves,
+  onHandoff,
+  picking,
+}: {
+  facts: OutsideFacts;
+  thread: ThreadState;
   typing: boolean;
   moves: OutsideMoveHandlers;
   onHandoff?: () => void;
   picking: boolean;
 }) {
-  const { link, ticket } = readHead(thread);
-  const view = outsideItem({ facts, messages: thread.kind === "read" ? thread.messages : [], ticket, unread });
-  const who = senderName(facts.sender);
+  const { link } = readHead(thread);
+  const view = outsideItem({ facts, messages: [], unread: false });
   const address = ticketAddress(facts, link);
   const off = !!facts.disconnected || picking;
   const archiveTitle = ARCHIVE_TITLE[facts.provider];
@@ -1101,19 +1127,7 @@ export function OutsideItemBar({
         : HANDOFF_TITLE[facts.provider](facts.owner_name ?? "its agent"),
     };
   if (address) verbs.open_out = { run: () => openExternal(address), title: address };
-  return (
-    <ItemHeader
-      view={view.header}
-      lead={<CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />}
-      meta={
-        <>
-          <OutsideHeadLine facts={facts} what={facts.provider === "slack" ? who : null} went={went} cameBack={cameBack} />
-          {flash && <Chip tone="var(--loki-positive)">{flash}</Chip>}
-        </>
-      }
-      actions={<ActionBar view={view.actions} verbs={verbs} />}
-    />
-  );
+  return <ActionBar view={view.actions} verbs={verbs} />;
 }
 
 /** The header's second line: where or who, when, the account when more than one is connected, and the last move. */
@@ -1303,8 +1317,13 @@ export function OutsideCard({
   const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
   // The new chat pane's preview draws the thread's messages with the item components (plan 097, U7).
   const [preview] = useThreadPreview();
-  // With the preview on, the card's moves live in the header's ActionBar (plan 097, U8), so the reply box has none under it.
-  const row = preview === "on" ? null : <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
+  // With the preview on, the card's moves are the item's ActionBar (plan 097, U8), in the same place under the reply.
+  const row =
+    preview === "on" ? (
+      <OutsideItemActions facts={facts} thread={thread} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />
+    ) : (
+      <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />
+    );
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
   const own = ownAddresses(facts, compose);
@@ -1326,18 +1345,7 @@ export function OutsideCard({
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {preview === "on" ? (
-        <OutsideItemBar
-          facts={facts}
-          unread={current.unread}
-          flash={flash}
-          went={went}
-          cameBack={cameBack}
-          thread={thread}
-          typing={typing}
-          moves={moves}
-          onHandoff={onHandoff}
-          picking={!!picker}
-        />
+        <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} />
       ) : (
         <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} {...readHead(thread)} />
       )}
@@ -1351,11 +1359,9 @@ export function OutsideCard({
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
       {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
-      {(row !== null || (reply !== null && !mailBox)) && (
-        <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
-          {reply && !mailBox ? reply : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>}
-        </div>
-      )}
+      <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
+        {reply && !mailBox ? reply : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>}
+      </div>
     </div>
   );
 }

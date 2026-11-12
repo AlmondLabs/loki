@@ -14,7 +14,20 @@ import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-wi
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, ChatItemBar, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
+import {
+  BADGE,
+  CardActions,
+  CardHeader,
+  CaughtUp,
+  ChatItemActions,
+  ChatItemHeader,
+  DeckHeader,
+  KeysHint,
+  cameBackIn,
+  deckKey,
+  liveWaitingCount,
+  needsYou,
+} from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
@@ -429,7 +442,7 @@ function Card({
   // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
   // draft for this chat (plan 049) shows in the box while nothing is typed.
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
-  // The new chat pane's preview puts the card's header and moves in one bar (plan 097, U8).
+  // The new chat pane's preview draws the card's header and moves with the item components (plan 097, U8).
   const [preview] = useThreadPreview();
   const cameBack = cameBackIn(decided, current);
   const moves = { typing, read: actions.read, later: actions.later, archive: actions.archive, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
@@ -469,13 +482,12 @@ function Card({
           agentName={current.agent_name}
           header={
             preview === "on" ? (
-              <ChatItemBar
+              <ChatItemHeader
                 current={current}
                 cameBack={cameBack}
                 flash={actions.flash}
                 suggestions={waitingCount(deck.chats, current.runtime)}
                 onSuggestions={onSuggestions}
-                {...moves}
               />
             ) : (
               <CardHeader
@@ -488,7 +500,7 @@ function Card({
               />
             )
           }
-          footer={preview === "on" ? undefined : <CardActions current={current} {...moves} />}
+          footer={preview === "on" ? <ChatItemActions current={current} {...moves} /> : <CardActions current={current} {...moves} />}
           hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
           draft={{ value: draft, onChange: setDraft }}
           inputRef={replyRef}
