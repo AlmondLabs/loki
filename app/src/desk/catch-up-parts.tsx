@@ -11,6 +11,9 @@ import { CardFace, CardHead } from "./card-head";
 import { avatarUrl } from "./env";
 import { keyboard } from "./env";
 import { formatKeys, keyFor } from "../shell/keymap";
+import { ItemHeader } from "../item/item-header";
+import { ActionBar } from "../item/action-bar";
+import { chatItem } from "../item/item-view";
 
 /** The pieces of a Flow card around its Conversation, and the title with its lane switcher. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -317,15 +320,33 @@ export function CardHeader({ current, cameBack, flash, labelList = null, suggest
 
 /** A chat card's second line: the chat's title (its purpose on hover), when, why it ranks here, and its marks. */
 function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions }: Omit<CardHeaderProps, "flash">) {
-  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
-  const reason = REASON_LABEL[current.reason];
   const title = current.title ?? current.id;
-  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
   return (
     <>
       <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
         {title}
       </span>
+      <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+      <LabelChips labels={current.labels} list={labelList ?? null} />
+    </>
+  );
+}
+
+/**
+ * A chat card's words after its title: when, why it ranks here, whether it came back, a draft, and its suggestions'
+ * mark. The item header (plan 097, U8) shows them after its properties.
+ */
+export function ChatCardMeta({
+  current,
+  cameBack,
+  suggestions,
+  onSuggestions,
+}: Pick<CardHeaderProps, "current" | "cameBack" | "suggestions" | "onSuggestions">) {
+  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
+  const reason = REASON_LABEL[current.reason];
+  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
+  return (
+    <>
       <Meta>{when}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
@@ -335,7 +356,6 @@ function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions
           {chipText(suggestions ?? 0, false)}
         </Chip>
       )}
-      <LabelChips labels={current.labels} list={labelList ?? null} />
     </>
   );
 }
@@ -352,6 +372,61 @@ function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string
       </Chip>
     );
   return label ? <Chip tone={badge.color}>{label}</Chip> : null;
+}
+
+/**
+ * A chat card's header and moves as one bar, for the new chat pane's preview (plan 097, U8): the item header with the
+ * agent's face, the chat's name, its agent and state, folder and labels, then when and why; the ActionBar with archive
+ * named, and open, later and read before it, each with its key as CardActions shows them.
+ */
+export function ChatItemBar({
+  current,
+  cameBack,
+  flash,
+  suggestions = 0,
+  onSuggestions,
+  typing,
+  read,
+  later,
+  archive,
+  onOpenDesk,
+  onClose,
+}: Omit<CardHeaderProps, "labelList"> & Omit<Parameters<typeof CardActions>[0], "current">) {
+  const view = chatItem({ item: current, live: null, turns: [] });
+  const agent = current.agent_name ?? "agent";
+  const main = current.id === "default";
+  return (
+    <ItemHeader
+      view={view.header}
+      lead={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
+      meta={
+        <>
+          <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+          {flash && <Meta style={NOTED}>{flash}</Meta>}
+        </>
+      }
+      actions={
+        <ActionBar
+          view={view.actions}
+          verbs={{
+            open: { run: () => (onOpenDesk(current.agent_id, current.id), onClose()), keys: deckKey("inbox.open", typing), title: "open the chat in its pane" },
+            archive: {
+              run: archive,
+              keys: deckKey("inbox.archive", typing),
+              disabled: main,
+              title: main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow",
+            },
+            later: {
+              run: later,
+              keys: deckKey("inbox.later", typing),
+              title: "keep it unread: the chat comes back in a day, or sooner if something new arrives",
+            },
+            mark_read: { run: read, keys: deckKey("inbox.next", typing), title: "mark it read: the chat rests and comes back later" },
+          }}
+        />
+      }
+    />
+  );
 }
 
 /** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */

@@ -23,6 +23,10 @@ import { useInlineWidgets } from "../chat/use-inline-widgets";
 import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
+import { ItemHeader } from "../item/item-header";
+import { ActionBar } from "../item/action-bar";
+import { chatItem } from "../item/item-view";
+import { useThreadPreview } from "../item/preview";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
@@ -133,6 +137,50 @@ export function DeskPane(props: DeskPaneProps) {
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Chat";
+  // The new chat pane's preview draws the header as the item's (plan 097, U8), once the chat is in the list.
+  const [preview] = useThreadPreview();
+  const links = view.links?.length ? (
+    <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
+  ) : null;
+  const itemView = preview === "on" && item ? chatItem({ item, live: null, turns: [] }) : null;
+  const itemLine =
+    itemView && item ? (
+      <ItemHeader
+        view={itemView.header}
+        titleAs="h1"
+        className="flex-1 px-0 py-2"
+        lead={<AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={28} />}
+        onProperty={runtime ? { labels: () => setLabeling(true) } : {}}
+        meta={
+          <>
+            {runtime && !chatLabels.length && (
+              <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
+                + label
+              </button>
+            )}
+            {links}
+          </>
+        }
+        actions={
+          <>
+            <ActionBar
+              view={itemView.actions}
+              verbs={{
+                ...(item.unread
+                  ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } }
+                  : {}),
+                archive: {
+                  run: () => void catchUp.archive(item, "click"),
+                  disabled: item.id === "default",
+                  title: item.id === "default" ? "a main chat cannot be archived" : "done with this chat: it leaves the list and Flow",
+                },
+              }}
+            />
+            {tab === "desk" && <DeskActions />}
+          </>
+        }
+      />
+    ) : undefined;
 
   return (
     <div className="loki-desk-pane" ref={paneRef}>
@@ -159,10 +207,11 @@ export function DeskPane(props: DeskPaneProps) {
               </span>
             )}
             {/* The chat's links to other chats (plan 067): which way each goes, the time left, and close. */}
-            {view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null}
+            {links}
           </span>
         }
         actions={tab === "desk" ? <DeskActions /> : undefined}
+        line={itemLine}
         tabs={TABS}
         tab={tab}
         onTab={onTab}

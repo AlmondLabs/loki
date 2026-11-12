@@ -46,10 +46,13 @@ export interface ItemHeaderView {
   flags: ItemFlag[];
 }
 
-/** A move on the whole item; Flow's keys keep their meaning (KTD9). */
-export type ItemVerb = "archive" | "mark_read" | "later" | "label" | "open_out" | "canvas";
+/**
+ * A move on the whole item; Flow's keys keep their meaning (KTD9). The view lists every move the source has; a surface
+ * draws the ones it can make (Flow's card opens a chat, the chat pane does not).
+ */
+export type ItemVerb = "archive" | "mark_read" | "later" | "label" | "handoff" | "open" | "open_out";
 
-/** The item's verbs: the one that finishes it, named; the rest as icons and a menu (R13). */
+/** The item's verbs: the one that finishes it, named and first in weight; the rest beside it (R13). */
 export interface ItemActionsView {
   main: ItemVerb;
   more: ItemVerb[];
@@ -166,7 +169,8 @@ export function chatItem({ item, live, turns }: ChatSource): ItemView {
   ];
   const cwd = live?.cwd ?? item.cwd;
   if (cwd) properties.push({ key: "folder", label: folderName(cwd), editable: true });
-  properties.push({ key: "labels", label: item.labels?.length ? item.labels.join(", ") : "+ label", editable: true });
+  // No chip for no labels: the surface that can add one says so itself (the chat pane's "+ label").
+  if (item.labels?.length) properties.push({ key: "labels", label: item.labels.join(", "), editable: true });
 
   const entries = chatEntries(turns);
 
@@ -190,7 +194,7 @@ export function chatItem({ item, live, turns }: ChatSource): ItemView {
   return {
     source: "chat",
     header: { title: item.title?.trim() || "new chat", properties, flags: item.unread ? ["unread"] : [] },
-    actions: { main: "archive", more: ["canvas", "later"] },
+    actions: { main: "archive", more: ["open", "later", "mark_read"] },
     entries,
     proposals,
     composer: { targets: [{ kind: "agent", label: agent }], voices: ["you"], agent, seeds: item.draft_text ? [item.draft_text] : [] },
@@ -282,7 +286,7 @@ export function outsideItem({ facts, messages, ticket = null, unread, replies = 
       return {
         source: "slack",
         header: { title: facts.place ?? facts.sender, properties, flags },
-        actions: { main: "mark_read", more: ["later", "open_out"] },
+        actions: { main: "mark_read", more: ["handoff", "archive", "later"] },
         entries,
         proposals,
         composer,
@@ -297,7 +301,7 @@ export function outsideItem({ facts, messages, ticket = null, unread, replies = 
       return {
         source: "gmail",
         header: { title: facts.subject || "(no subject)", properties, flags },
-        actions: { main: "archive", more: ["later", "label", "open_out"] },
+        actions: { main: "archive", more: ["handoff", "label", "later", "mark_read"] },
         entries,
         proposals,
         composer,
@@ -314,7 +318,7 @@ export function outsideItem({ facts, messages, ticket = null, unread, replies = 
       return {
         source: "jira",
         header: { title: ticket ? `${ticket.key} · ${ticket.summary}` : facts.subject, properties, flags },
-        actions: { main: "mark_read", more: ["later", "open_out"] },
+        actions: { main: "mark_read", more: ["open_out", "handoff", "later"] },
         entries,
         proposals,
         composer,

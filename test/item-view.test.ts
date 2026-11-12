@@ -52,7 +52,7 @@ describe("an agent chat", () => {
     const view = chatItem({ item, live: null, turns: turnsOf(rows) });
     expect(view.source).toBe("chat");
     expect(view.header.title).toBe("Signups by week");
-    expect(view.header.properties.map((p) => p.label)).toEqual(["friday · working", "reports", "+ label"]);
+    expect(view.header.properties.map((p) => p.label)).toEqual(["friday · working", "reports"]);
     expect(kinds(view.entries).filter((k) => k !== "day")).toEqual(["chat_message", "turn"]);
     const turn = view.entries.find((e) => e.kind === "turn");
     expect(turn?.kind === "turn" && turn.failed).toBe(1);

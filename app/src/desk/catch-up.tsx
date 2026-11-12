@@ -14,7 +14,7 @@ import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-wi
 import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
+import { BADGE, CardActions, CardHeader, CaughtUp, ChatItemBar, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
 import { useDeckQueue } from "./use-deck-queue";
@@ -26,6 +26,7 @@ import { LabelPicker } from "./label-picker";
 import type { DeckMoveApi } from "./deck-moves";
 import type { MoveResult } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
+import { useThreadPreview } from "../item/preview";
 
 /**
  * The Inbox: every chat you have not archived, one at a time, highest score first (core/attention/priority.ts):
@@ -428,6 +429,10 @@ function Card({
   // The same draft as the chat's own pane and the phone (shared/drafts.ts): a reply begun here waits there, and a saved
   // draft for this chat (plan 049) shows in the box while nothing is typed.
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
+  // The new chat pane's preview puts the card's header and moves in one bar (plan 097, U8).
+  const [preview] = useThreadPreview();
+  const cameBack = cameBackIn(decided, current);
+  const moves = { typing, read: actions.read, later: actions.later, archive: actions.archive, onOpenDesk: deck.onOpenDesk, onClose: deck.onClose };
   return (
     <div style={cardFrame(badgeColor, actions.dir)}>
       {/* A chip naming another chat opens it, as O opens the card's own. */}
@@ -463,26 +468,27 @@ function Card({
           layout={layout}
           agentName={current.agent_name}
           header={
-            <CardHeader
-              current={current}
-              cameBack={cameBackIn(decided, current)}
-              flash={actions.flash}
-              labelList={deck.labelList}
-              suggestions={waitingCount(deck.chats, current.runtime)}
-              onSuggestions={onSuggestions}
-            />
+            preview === "on" ? (
+              <ChatItemBar
+                current={current}
+                cameBack={cameBack}
+                flash={actions.flash}
+                suggestions={waitingCount(deck.chats, current.runtime)}
+                onSuggestions={onSuggestions}
+                {...moves}
+              />
+            ) : (
+              <CardHeader
+                current={current}
+                cameBack={cameBack}
+                flash={actions.flash}
+                labelList={deck.labelList}
+                suggestions={waitingCount(deck.chats, current.runtime)}
+                onSuggestions={onSuggestions}
+              />
+            )
           }
-          footer={
-            <CardActions
-              current={current}
-              typing={typing}
-              read={actions.read}
-              later={actions.later}
-              archive={actions.archive}
-              onOpenDesk={deck.onOpenDesk}
-              onClose={deck.onClose}
-            />
-          }
+          footer={preview === "on" ? undefined : <CardActions current={current} {...moves} />}
           hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
           draft={{ value: draft, onChange: setDraft }}
           inputRef={replyRef}

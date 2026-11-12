@@ -866,6 +866,8 @@ export interface PaneHeaderProps<T extends string = string> {
   panelId?: (id: T) => string;
   /** The title's id, so the pane can be labelled by it. */
   titleId?: string;
+  /** A whole line drawn in place of the lead, title, aside and actions: the new chat pane's item header (plan 097). */
+  line?: ReactNode;
 }
 
 /** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
@@ -881,17 +883,22 @@ export function PaneHeader<T extends string>({
   tabsLabel = "Views",
   panelId,
   titleId,
+  line,
 }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
       {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
       <div className="loki-pane-header-line" data-tauri-drag-region="deep">
-        {lead && <span className="loki-pane-header-lead">{lead}</span>}
-        <h1 id={titleId} className="loki-pane-title">
-          {title}
-        </h1>
-        {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
-        {actions && <span className="loki-pane-header-actions">{actions}</span>}
+        {line ?? (
+          <>
+            {lead && <span className="loki-pane-header-lead">{lead}</span>}
+            <h1 id={titleId} className="loki-pane-title">
+              {title}
+            </h1>
+            {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
+            {actions && <span className="loki-pane-header-actions">{actions}</span>}
+          </>
+        )}
       </div>
       {subtitle && <div className="loki-pane-header-subtitle">{subtitle}</div>}
       {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
