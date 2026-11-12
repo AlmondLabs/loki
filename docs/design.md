@@ -188,7 +188,7 @@ numbered layers, default sizes, tracking and hard-coded keys fail the build.
 as outline chips, a chip a button only where a picker opens), **ActionBar** (under the box: the finishing move last,
 filled, the rest quiet before it, each with its key), **Timeline**, **MessageEntry** (a person's message with face,
 name and time; yours a block across the column with where it went), **AgentTurn** (name, time worked, a state badge
-with the Loader while working), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps, a step to its
+only while working, waiting on you or failed, with the Loader while working), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps, a step to its
 Tool or Task), the agent's **Plan** and **Thought** (Reasoning, folded), **EventEntry** (one quiet line; a compaction
 a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column) and
 **Composer** (PromptInput around the message box's own behaviour, the Queue above it). **Brief** is designed and not
@@ -402,6 +402,8 @@ box is one for both, its sizes set by `touch`.
 - The item's moves in its header (plan 097, U8, 2026-11-12): ItemHeader and ActionBar as one bar, the moves at the
   title's end. Moved back under the box the same day, by the user's decision: a reply and its move go together (⌘]
   and ⌘E send with the reply), the eye is at the box after reading down, and the header is for what the item is.
+- A "done" badge on every finished agent turn (plan 097, U4, 2026-11-12): dropped the same day at the user's ask. Nearly
+  every turn ends done, so it said nothing and dulled the badges that matter; a finished turn shows its name and time.
 
 ## Backlog
 

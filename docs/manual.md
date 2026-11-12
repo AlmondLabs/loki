@@ -547,7 +547,7 @@ an agent's chat, a Slack thread, an email or a Jira ticket:
   for a chat or a mail, read for Slack and Jira), the rest before it with Flow's keys, which work as before. The
   chat pane has archive, and read while the chat is unread.
 - **The thread**, in turns: your messages stand alone, and everything the agent did until your next one is one turn,
-  with its name, how long it worked and where it stands (working, needs you, failed, done). A stretch of tool calls
+  with its name, how long it worked and, while it is not simply finished, where it stands (working, needs you, failed). A stretch of tool calls
   is one line ("worked 2 min · 3 commands"); opened, each step opens to its input and output. An agent's **plan**
   shows as a card with how far it is ("1 of 3 done"), opening to its entries. What an agent **thought** shows folded
   as "thought for 12 seconds" (or just "thought" when its time was not heard live), opening to the thought.

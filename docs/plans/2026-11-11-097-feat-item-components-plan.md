@@ -457,3 +457,4 @@ By hand:
 2. Brief is planned after this lands.
 3. The visual language (colours, type, density, the rail and chat list) is redesigned after this plan, in its own plan
    and from rendered example pages. This plan builds on today's tokens, so its pane keeps Slack's colours until then.
+4. A finished turn shows no "done" badge (2026-11-12): only working, needs you and failed get one.

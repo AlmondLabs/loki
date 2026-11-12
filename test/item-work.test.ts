@@ -25,6 +25,15 @@ describe("AgentTurn", () => {
     expect(done).toContain("worked 2 min");
   });
 
+  test("a done turn has no state badge; the others keep theirs", () => {
+    const turn = (state: "done" | "needs you" | "failed") =>
+      html(createElement(AgentTurn, { agentName: "friday", state, failed: 2, took: null, parts: [], draw: () => null }));
+    expect(turn("done")).not.toContain("data-state");
+    expect(turn("done")).toContain("friday&#x27;s turn, done");
+    expect(turn("needs you")).toContain('data-state="needs you"');
+    expect(turn("failed")).toContain("2 failed");
+  });
+
   test("a turn with no reasoning recorded shows no reasoning line", () => {
     const out = html(createElement(AgentTurn, { agentName: "friday", state: "done", failed: 0, took: null, parts: [], draw: () => null }));
     expect(out).not.toContain("Thought for");
