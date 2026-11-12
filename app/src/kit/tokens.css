@@ -419,6 +419,9 @@
   --loki-glass-hi: transparent;
   --loki-glass-edge: var(--loki-border);
   --loki-glass-blur: none;
+  /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */
+  --loki-header-height: 0px;
+  --loki-dock-height: 0px;
 }
 :root {
   --loki-layer-panel: 100;

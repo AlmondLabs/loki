@@ -1220,6 +1220,10 @@ button.loki-list-section-toggle {
 .loki-shell-glass {
   display: none;
 }
+/* The chat's dock of decisions, box and moves (chat/conversation.tsx): no box of its own outside Liquid Glass. */
+.loki-dock {
+  display: contents;
+}
 :root[data-palette="apple"] {
   .loki-shell-glass {
     display: block;
@@ -1271,5 +1275,51 @@ button.loki-list-section-toggle {
   }
   .loki-pane-header .loki-tab[aria-selected="true"] {
     background: var(--loki-selection);
+  }
+
+  /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their
+     measured heights (shared/use-height-var.ts) so its first and last rows stay clear. The header fades the thread
+     out under it, as a Mac window's scroll edge does. */
+  .loki-desk-pane > .loki-pane-header {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(var(--loki-bg) 55%, transparent);
+  }
+  .loki-desk-pane-messages {
+    top: calc(-1 * var(--loki-header-height));
+  }
+  .loki-desk-pane-messages [data-slot="message-scroller-content"] {
+    padding-top: calc(var(--loki-header-height) + 20px);
+    padding-bottom: calc(var(--loki-dock-height) + 20px);
+  }
+  .loki-desk-pane-messages [data-slot="message-scroller-button"] {
+    bottom: calc(var(--loki-dock-height) + 12px);
+  }
+  .loki-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    background: linear-gradient(transparent, var(--loki-bg) 70%);
+  }
+  .loki-dock [data-proposal],
+  .loki-dock [data-slot="input-group"] {
+    border-color: transparent;
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-float);
+  }
+  .loki-dock [data-proposal],
+  .loki-dock [data-slot="input-group"] {
+    border-radius: 24px;
   }
 }

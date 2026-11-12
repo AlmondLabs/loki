@@ -142,3 +142,15 @@ export function useTheme(): ThemeState {
   if (!theme) throw new Error("useTheme must be used inside ThemeProvider");
   return theme;
 }
+
+/** Which look draws the window: Liquid Glass (the apple family, plan 2026-11-12-1505) or today's. */
+export type Look = "glass" | "classic";
+
+/**
+ * The look in effect, for the few places where it changes words or structure rather than colour: Apple's title case
+ * and the approval as a question under Liquid Glass. Outside ThemeProvider (a test rendering one component) it is
+ * today's look, so components stay renderable on their own.
+ */
+export function useLook(): Look {
+  return useContext(ThemeContext)?.palette === "apple" ? "glass" : "classic";
+}

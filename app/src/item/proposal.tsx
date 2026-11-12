@@ -13,6 +13,7 @@ import { Confirmation, ConfirmationActions, ConfirmationRequest } from "@/ui/ai-
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput } from "@/ui/ai-elements/tool";
 import { cn } from "@/lib/utils";
+import { useLook } from "../theme";
 import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
 
 /*
@@ -60,11 +61,16 @@ export function ApprovalProposal({
   approval,
   onApprove,
   hints,
+  who,
 }: {
   approval: PendingApproval;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
   hints?: { approve?: string; deny?: string };
+  /** The agent asking, for the question Liquid Glass puts it as. */
+  who?: string;
 }) {
+  const look = useLook();
+  if (look === "glass") return <GlassApproval approval={approval} onApprove={onApprove} hints={hints} who={who} />;
   return (
     <ProposalFrame kind="approval" where="the agent is paused on this step">
       <Tool open className="mb-0 bg-background">
@@ -97,6 +103,76 @@ export function ApprovalProposal({
         </ConfirmationRequest>
       </Confirmation>
     </ProposalFrame>
+  );
+}
+
+/** The first line of a call's input, for the one-line summary under the approval's question. */
+const inputLine = (input: unknown): string =>
+  formatInput(input)
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l && l !== "{" && l !== "[") ?? "";
+
+/**
+ * The approval under Liquid Glass (plan 2026-11-12-1505, U4): a question naming the agent and the step, the input's
+ * first line under it, then Deny, Always Allow and Allow, Allow the default as a Mac alert's is. The whole input
+ * opens from the summary. Keys show in the buttons' tooltips, not on their faces (KTD7).
+ */
+function GlassApproval({
+  approval,
+  onApprove,
+  hints,
+  who,
+}: {
+  approval: PendingApproval;
+  onApprove: (behavior: "allow" | "deny" | "always") => void;
+  hints?: { approve?: string; deny?: string };
+  who?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const line = inputLine(approval.input);
+  const tip = (word: string, key: string | undefined) => (key ? `${word} (${key})` : word);
+  return (
+    <section data-proposal="approval" aria-label={`${who ?? "the agent"} needs your approval`} className="flex flex-col gap-2 px-4 py-3 text-body">
+      <div className="flex min-w-0 items-center gap-3">
+        <span aria-hidden className="size-2 shrink-0 rounded-full bg-loki-attention" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="font-semibold text-foreground">
+            Allow {who ?? "the agent"} to run “{approval.toolName}”?
+          </span>
+          {line && (
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              className="min-w-0 cursor-pointer truncate text-left text-meta text-muted-foreground hover:text-foreground"
+              title={open ? "Hide the input" : "Show the whole input"}
+            >
+              {line}
+            </button>
+          )}
+        </div>
+        <Button size="sm" variant="ghost" className="rounded-full" onClick={() => onApprove("deny")} data-action="deny" title={tip("Deny", hints?.deny)}>
+          Deny
+        </Button>
+        {offersAlways(approval) && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-full"
+            onClick={() => onApprove("always")}
+            title="Allow this tool from now on, in every chat (Preferences › Chat takes it back)"
+            data-action="always"
+          >
+            Always Allow
+          </Button>
+        )}
+        <Button size="sm" className="rounded-full" onClick={() => onApprove("allow")} data-action="approve" title={tip("Allow", hints?.approve)}>
+          Allow
+        </Button>
+      </div>
+      {open && <pre className="m-0 max-h-48 overflow-auto rounded-md bg-muted px-3 py-2 text-meta">{formatInput(approval.input)}</pre>}
+    </section>
   );
 }
 

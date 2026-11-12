@@ -12,6 +12,7 @@ import {
   type RefObject,
 } from "react";
 import "./chat.css";
+import { useHeightVar } from "../shared/use-height-var";
 import { offersAlways, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -216,6 +217,9 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const dock = useCallback(() => dockRef.current, []);
+  useHeightVar(dock, "--loki-dock-height");
   const { draft, setDraft, images, setImages, submit } = useDraft({
     question,
     onAnswer: actions.onAnswer,
@@ -362,7 +366,9 @@ export function Conversation({
       </StepsTouch.Provider>
 
       {composer && (
-        <>
+        // The dock: decisions, the box and the moves. Under Liquid Glass it floats over the thread, which scrolls on
+        // beneath it (components.css); elsewhere it is display: contents and changes nothing.
+        <div ref={dockRef} className="loki-dock">
           {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
           <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 empty:hidden" : "contents"}>
             {question &&
@@ -380,7 +386,11 @@ export function Conversation({
                 );
               })()}
             {approval &&
-              (proposals && onApprove ? <ApprovalProposal approval={approval} onApprove={onApprove} hints={hints} /> : <ApprovalCard approval={approval} />)}
+              (proposals && onApprove ? (
+                <ApprovalProposal approval={approval} onApprove={onApprove} hints={hints} who={agentName ?? undefined} />
+              ) : (
+                <ApprovalCard approval={approval} />
+              ))}
             {suggestions &&
               (proposals ? (
                 <ReplyProposals source={suggestions.source} rt={suggestions.rt} blocked={suggestions.blocked ?? null} />
@@ -501,7 +511,7 @@ export function Conversation({
               {footer}
             </div>
           )}
-        </>
+        </div>
       )}
     </>
   );

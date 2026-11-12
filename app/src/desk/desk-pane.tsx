@@ -1,5 +1,6 @@
 import { LinkHeader } from "../chat/link-header";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
+import { useHeightVar } from "../shared/use-height-var";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
 import { Icon } from "../shared/icons";
@@ -132,6 +133,9 @@ export function DeskPane(props: DeskPaneProps) {
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
+  // Under Liquid Glass the header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
+  const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
+  useHeightVar(header, "--loki-header-height");
   const threadFocus = useRef<HTMLElement | null>(null);
   useTabFocus(visible, paneRef, threadFocus);
   useSwitchFade(paneRef, scope);
