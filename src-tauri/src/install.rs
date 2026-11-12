@@ -547,11 +547,16 @@ mod tests {
     /// A tiny temp dir without a crate: unique per test, removed on drop.
     mod tempdir {
         use std::path::{Path, PathBuf};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        /// Counts the folders made, so two tests starting within one tick of the clock (a microsecond on macOS) never
+        /// share one: the first to finish removed the other's files under it.
+        static MADE: AtomicUsize = AtomicUsize::new(0);
         pub struct Dir(PathBuf);
         impl Dir {
             pub fn new(tag: &str) -> Dir {
                 let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-                let p = std::env::temp_dir().join(format!("{tag}-{}-{nanos}", std::process::id()));
+                let n = MADE.fetch_add(1, Ordering::Relaxed);
+                let p = std::env::temp_dir().join(format!("{tag}-{}-{nanos}-{n}", std::process::id()));
                 std::fs::create_dir_all(&p).unwrap();
                 Dir(p)
             }

@@ -24,8 +24,8 @@ pub struct Harness {
     stops: std::sync::atomic::AtomicU64,
 }
 
-/// How long a daemon asked to stop has to close its stores before it is killed (Unix: Windows has no SIGTERM).
-#[cfg(unix)]
+/// How long a daemon asked to stop has to close its stores before it is killed. Windows has no SIGTERM to ask with,
+/// so there a daemon is killed at once and the grace is never waited out.
 pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The daemon loki started: the child, and on Windows the Job Object that owns its process tree.

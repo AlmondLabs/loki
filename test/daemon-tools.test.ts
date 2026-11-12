@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -65,6 +66,35 @@ describe("file tools", () => {
       expect(t.sent[0]).not.toContain('"name":"ls"');
       await t.store.close(ctx);
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ripgrep is there on a developer's Mac and may not be on a runner; a folder made unreadable reads anyway as root.
+const ripgrep = spawnSync("rg", ["--version"]).status === 0 && process.platform !== "win32" && process.getuid?.() !== 0;
+
+describe("grep when ripgrep cannot search all of the folder", () => {
+  test.skipIf(!ripgrep)("a folder it may not read still answers with what it found elsewhere, and says so", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-grep-"));
+    const locked = join(dir, "locked");
+    try {
+      mkdirSync(locked);
+      writeFileSync(join(dir, "a.ts"), "export const answer = 42;\n");
+      writeFileSync(join(locked, "b.ts"), "answer");
+      chmodSync(locked, 0o000);
+      const tool = must(
+        fileToolsExtension().tools?.find((t) => t.name === "grep"),
+        "grep",
+      );
+      const api = { agent: () => Promise.resolve({ cwd: dir }) } as unknown as ToolExecutionApi;
+      const out = JSON.stringify(await tool.execute({ pattern: "answer" }, api, ctx));
+      expect(out).toContain("a.ts:1:export const answer = 42;");
+      expect(out).toContain("some of it could not be searched");
+      // A pattern that is not a regular expression still fails, with ripgrep's reason.
+      await expect(tool.execute({ pattern: "(" }, api, ctx)).rejects.toThrow();
+    } finally {
+      chmodSync(locked, 0o700);
       rmSync(dir, { recursive: true, force: true });
     }
   });

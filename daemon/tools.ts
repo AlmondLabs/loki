@@ -15,6 +15,9 @@ import { withKind } from "./tool-kinds.ts";
  */
 
 const run = promisify(execFile);
+
+/** The most of ripgrep's output kept; past it the search stops and answers with what it has. */
+const GREP_MAX_BUFFER = 8 * 1024 * 1024;
 const LIMIT = 200;
 const SKIP = new Set([".git", "node_modules", ".DS_Store"]);
 
@@ -125,6 +128,12 @@ export function fileToolsExtension(): Extension {
           execute: async (args, api, context) => {
             const a = args as { pattern: string; path?: string; glob?: string };
             const root = at(await folderOf(api, context), a.path);
+            /** The matches as the tool answers them, with a note when ripgrep could not search all of it. */
+            const answer = (stdout: string, note: string | null) => {
+              const lines = stdout.split("\n").filter(Boolean);
+              const shown = lines.slice(0, LIMIT).join("\n") + (lines.length > LIMIT ? `\n… and ${lines.length - LIMIT} more` : "");
+              return text([shown || "no matches", note].filter(Boolean).join("\n"));
+            };
             try {
               const { stdout } = await run(
                 "rg",
@@ -140,15 +149,25 @@ export function fileToolsExtension(): Extension {
                   a.pattern,
                   root,
                 ],
-                { maxBuffer: 8 * 1024 * 1024 },
+                // Stop ends ripgrep too, not only the turn waiting on it.
+                { maxBuffer: GREP_MAX_BUFFER, signal: context.abortSignal },
               );
-              const lines = stdout.split("\n").filter(Boolean);
-              return text(lines.slice(0, LIMIT).join("\n") + (lines.length > LIMIT ? `\n… and ${lines.length - LIMIT} more` : ""));
+              return answer(stdout, null);
             } catch (error) {
+              const e = error as { code?: unknown; stdout?: unknown; stderr?: unknown };
+              const found = typeof e.stdout === "string" ? e.stdout : "";
+              const why = typeof e.stderr === "string" ? e.stderr.trim() : "";
               // ripgrep exits 1 when nothing matched; ENOENT means there is no ripgrep.
-              const code = (error as { code?: unknown }).code;
-              if (code === 1) return text("no matches");
-              if (code !== "ENOENT") throw error;
+              if (e.code === 1) return text("no matches");
+              // 2 is an error somewhere, often one folder it may not read (macOS keeps Desktop, Mail and the like
+              // from a process without access): what it found elsewhere is still the answer. A bad pattern finds
+              // nothing and says why.
+              if (e.code === 2 && (found || !/regex parse error|error parsing/i.test(why)))
+                return answer(found, `(some of it could not be searched: ${why.split("\n")[0] || "ripgrep reported an error"})`);
+              // Past the buffer: the matches so far are plenty, as the model reads at most LIMIT of them.
+              if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER")
+                return answer(found, "(stopped early: the output was too large; narrow the pattern or the folder)");
+              if (e.code !== "ENOENT") throw error;
             }
             // No ripgrep on this machine: walk the folder.
             const re = new RegExp(a.pattern);
