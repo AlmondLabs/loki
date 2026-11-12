@@ -39,7 +39,7 @@ const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\( /g, "(").re
 type Rgb = [number, number, number];
 type Theme = "dark" | "light";
 /** The colour families in tokens.css; loki's own is the bare :root, the others sit under data-palette. */
-const PALETTES = ["loki", "tokyo-night"] as const;
+const PALETTES = ["loki", "tokyo-night", "apple"] as const;
 type Palette = (typeof PALETTES)[number];
 const THEMES: Theme[] = ["dark", "light"];
 const selectorFor = (palette: Palette, theme: Theme) =>
@@ -626,5 +626,31 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
 
   test("no class string in loki's source leaves the scales", () => {
     expect(code.flatMap((f) => offScale(f.path, f.text))).toEqual([]);
+  });
+});
+
+describe("Liquid Glass: the material and its solid fallback (plan 2026-11-12-1505, U1)", () => {
+  const styles = readFileSync(join(APP, "styles.css"), "utf8");
+  const solid = (block: string) => /--loki-glass:\s*var\(--loki-panel\)/.test(block) && /--loki-glass-blur:\s*none/.test(block);
+
+  test("the glass utilities read only the glass tokens, so one switch turns every surface solid", () => {
+    for (const name of ["glass", "glass-strong"]) {
+      const body = must(new RegExp(`@utility ${name} \\{([^}]*)\\}`).exec(styles), `@utility ${name}`)[1];
+      expect(body).toContain("var(--loki-glass-blur)");
+      expect(body).not.toMatch(/blur\(/);
+    }
+  });
+
+  test("every other family draws the solid panel: the glass defaults are the panel with no blur", () => {
+    const defaults = tokens.slice(tokens.indexOf(":root {\n  --loki-glass:"));
+    expect(solid(defaults.slice(0, defaults.indexOf("\n}")))).toBe(true);
+  });
+
+  test("Reduce Transparency, Increase Contrast and data-glass=solid each turn Liquid Glass solid", () => {
+    const media = must(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{([\s\S]*?)\n\}/.exec(tokens), "the media block")[1];
+    expect(media).toContain(':root[data-palette="apple"]');
+    expect(solid(media)).toBe(true);
+    const forced = must(/:root\[data-palette="apple"\]\[data-glass="solid"\],[^{]*\{([^}]*)\}/.exec(tokens), "the data-glass block")[1];
+    expect(solid(forced)).toBe(true);
   });
 });

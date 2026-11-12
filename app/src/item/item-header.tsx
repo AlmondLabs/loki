@@ -48,7 +48,7 @@ export function ItemHeader({
       {lead && <span className="shrink-0">{lead}</span>}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
-          <Title data-item-title className="m-0 min-w-0 truncate text-card font-semibold text-foreground" title={view.title}>
+          <Title data-item-title className="m-0 min-w-0 truncate text-title font-semibold text-foreground" title={view.title}>
             {view.title}
           </Title>
           {view.flags.map((f) => (

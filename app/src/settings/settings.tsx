@@ -35,7 +35,7 @@ import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
-import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
+import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme, type Palette } from "../theme";
 import { useThreadPreview } from "../item/preview";
 
 /** The chat panel's widths at the side, narrow first. */
@@ -265,6 +265,11 @@ export function Settings({
 function AppearancePage() {
   const theme = useTheme();
   const [preview, setPreview] = useThreadPreview();
+  const glass = theme.palette === "apple";
+  const pickPalette = (palette: Palette) => {
+    theme.setPalette(palette);
+    if (palette === "apple") setPreview("on");
+  };
   return (
     <Block>
       <Setting
@@ -275,12 +280,22 @@ function AppearancePage() {
       >
         <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} />
       </Setting>
-      <Setting label="Palette" help="The colour family, in light and in dark.">
-        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={theme.setPalette} labels={PALETTE_LABEL} />
+      <Setting
+        label="Palette"
+        help={
+          glass
+            ? "Liquid glass is loki's new look, built one screen at a time; screens not yet moved keep today's shapes."
+            : "The colour family, in light and in dark."
+        }
+      >
+        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={pickPalette} labels={PALETTE_LABEL} />
       </Setting>
-      <Setting label="New chat pane (preview)" help="Draw the chat pane and Flow's cards on loki's new components. Turn it off to go back.">
-        <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new chat pane (preview)" hideLabel />
-      </Setting>
+      {/* Liquid Glass draws only the new chat pane (plan 2026-11-12-1505, KTD2), so the switch steps aside while it is on. */}
+      {!glass && (
+        <Setting label="New chat pane (preview)" help="Draw the chat pane and Flow's cards on loki's new components. Turn it off to go back.">
+          <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new chat pane (preview)" hideLabel />
+        </Setting>
+      )}
     </Block>
   );
 }

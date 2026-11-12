@@ -8,12 +8,15 @@ export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 /** The appearance in effect, with the system's choice resolved. */
 export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
-/** The colour families in kit/tokens.css: loki's own drafting table, and Tokyo Night. Each has a day and a night side. */
-export const PALETTES = ["loki", "tokyo-night"] as const;
+/**
+ * The colour families in kit/tokens.css: loki's own, Tokyo Night, and Liquid Glass (Apple's Human Interface Guidelines,
+ * plan 2026-11-12-1505), the new look being built one screen at a time. Each has a day and a night side.
+ */
+export const PALETTES = ["loki", "tokyo-night", "apple"] as const;
 /** One of loki's colour families. */
 export type Palette = (typeof PALETTES)[number];
 /** Each palette's name as Preferences shows it. */
-export const PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "tokyo night" };
+export const PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "tokyo night", apple: "liquid glass" };
 
 /** The localStorage key the appearance choice is kept under. */
 export const THEME_STORAGE_KEY = "loki.theme";

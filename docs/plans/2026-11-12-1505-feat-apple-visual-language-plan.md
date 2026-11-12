@@ -17,7 +17,7 @@ execution: code
 - **Product authority:** this Product Contract. Frame D of the canvas "loki glass directions" (a private artifact, 2026-11-12) is the reference look; it is directional, not a pixel spec. How an item behaves across sources and what it shows when (plan 098, the uniform item shape) are not active scope here.
 - **Open blockers:** none.
 - **Stop conditions:** stop and ask if (1) a screen misses R17's budget with glass and the solid look-alike alike; (2) WebKit reports neither Reduce Transparency nor Increase Contrast and native code would be needed (KTD5); (3) the person has not approved the previous screen rendered (R18); (4) a unit needs the old look changed rather than the new one added beside it.
-- **Execution profile:** its own branch off main once plans 096 and 097 merge (`feat/apple-look`), never stacked on `feat/shadcn-thread`; units in order, each its own commit; the person raises the PR.
+- **Execution profile:** continues on `feat/shadcn-thread`, by the person's choice (2026-11-12): they run main day to day and do not want this branch merged until the new look is done, so the look builds on plans 096 and 097 here; units in order, each its own commit; the person raises the PR.
 - **Product Contract preservation:** Product Contract unchanged.
 
 ---

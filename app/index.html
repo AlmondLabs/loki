@@ -13,7 +13,7 @@
       // mount so system mode follows later OS changes and the theme-color meta stays in sync.
       (function () {
         // Each family's --loki-bg, night and day, repeated from kit/tokens.css (test/tokens.test.ts keeps them equal).
-        var grounds = { "loki": { dark: "#1a1d21", light: "#f8f8f8" }, "tokyo-night": { dark: "#1a1b26", light: "#e1e2e7" } };
+        var grounds = { "loki": { dark: "#1a1d21", light: "#f8f8f8" }, "tokyo-night": { dark: "#1a1b26", light: "#e1e2e7" }, "apple": { dark: "#1c1c1e", light: "#ffffff" } };
         var preference = "system";
         var palette = "loki";
         try {
@@ -50,6 +50,8 @@
       html[data-theme="light"] { background: #f8f8f8; color: #1d1c1d; }
       html[data-palette="tokyo-night"] { background: #1a1b26; color: #c0caf5; }
       html[data-palette="tokyo-night"][data-theme="light"] { background: #e1e2e7; color: #343b59; }
+      html[data-palette="apple"] { background: #1c1c1e; color: #f5f5f7; }
+      html[data-palette="apple"][data-theme="light"] { background: #ffffff; color: #1d1d1f; }
       body { margin: 0; }
       #loki-fallback { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
       #loki-fallback[hidden] { display: none; }
