@@ -1283,7 +1283,7 @@ button.loki-list-section-toggle {
   .loki-desk-pane > .loki-pane-header {
     position: relative;
     z-index: 2;
-    background: linear-gradient(var(--loki-bg) 55%, transparent);
+    background: linear-gradient(var(--loki-bg) 75%, transparent);
   }
   .loki-desk-pane-messages {
     top: calc(-1 * var(--loki-header-height));
