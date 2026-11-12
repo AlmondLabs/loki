@@ -1254,11 +1254,27 @@ button.loki-list-section-toggle {
   .loki-pane-header-subtitle {
     grid-area: sub;
   }
-  .loki-pane-header .loki-tabs {
-    grid-area: tabs;
+  /* Every tab row is a segmented control (U8): a grey track with the chosen tab raised; in the pane header the track
+     is glass (below). */
+  .loki-tabs {
     gap: 2px;
     padding: 3px;
     border-radius: var(--loki-radius-pill);
+    background: var(--loki-hover);
+    width: fit-content;
+  }
+  .loki-tab {
+    min-height: 26px;
+    padding: 0 12px;
+    border-bottom: 0;
+    border-radius: var(--loki-radius-pill);
+  }
+  .loki-tab[aria-selected="true"] {
+    background: var(--loki-segment);
+    box-shadow: var(--loki-shadow-low);
+  }
+  .loki-pane-header .loki-tabs {
+    grid-area: tabs;
     background: var(--loki-glass);
     -webkit-backdrop-filter: var(--loki-glass-blur);
     backdrop-filter: var(--loki-glass-blur);
@@ -1364,6 +1380,24 @@ button.loki-list-section-toggle {
       inset 0 0.5px 0 var(--loki-glass-hi),
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-low);
+  }
+
+  /* Preferences (U8): settings grouped in rounded boxes as a Mac's System Settings groups them, and the segmented
+     control as a grey track with the chosen value raised. */
+  .loki-settings-block {
+    padding: 0 14px;
+    border-radius: var(--loki-radius-lg);
+    background: var(--loki-bg);
+    box-shadow: 0 0 0 0.5px var(--loki-border);
+  }
+  .loki-segmented {
+    border: 0;
+    border-radius: var(--loki-radius-md);
+    background: var(--loki-hover);
+  }
+  .loki-segmented > button[aria-pressed="true"] {
+    border-color: transparent;
+    background: var(--loki-segment);
   }
 
   /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has

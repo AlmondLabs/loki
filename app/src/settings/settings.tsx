@@ -261,6 +261,10 @@ export function Settings({
   );
 }
 
+/** Appearance's values in Apple's words, under Liquid Glass (plan 2026-11-12-1505, U8). */
+const GLASS_THEME_LABEL: Record<(typeof THEME_PREFERENCES)[number], string> = { system: "System", light: "Light", dark: "Dark" };
+const GLASS_PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "Tokyo Night", apple: "Liquid Glass" };
+
 /** Preferences › Appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
@@ -278,7 +282,13 @@ function AppearancePage() {
           theme.preference === "system" ? `Follows ${systemName(keyboard)} as it changes: ${theme.resolved} now.` : "On this device, whatever the system does."
         }
       >
-        <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} />
+        <Segmented
+          label="light or dark"
+          options={THEME_PREFERENCES}
+          value={theme.preference}
+          onPick={theme.setPreference}
+          labels={glass ? GLASS_THEME_LABEL : undefined}
+        />
       </Setting>
       <Setting
         label="Palette"
@@ -288,7 +298,7 @@ function AppearancePage() {
             : "The colour family, in light and in dark."
         }
       >
-        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={pickPalette} labels={PALETTE_LABEL} />
+        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={pickPalette} labels={glass ? GLASS_PALETTE_LABEL : PALETTE_LABEL} />
       </Setting>
       {/* Liquid Glass draws only the new chat pane (plan 2026-11-12-1505, KTD2), so the switch steps aside while it is on. */}
       {!glass && (

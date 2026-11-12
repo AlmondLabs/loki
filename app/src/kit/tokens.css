@@ -292,6 +292,8 @@
   --loki-glass-hi: rgba(255, 255, 255, 0.14);
   --loki-glass-edge: rgba(255, 255, 255, 0.12);
   --loki-glass-blur: blur(28px) saturate(180%);
+  /* The chosen segment of a segmented control, raised off its grey track as a Mac's is. */
+  --loki-segment: #636366;
   /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(72% 0.14 25);
   --loki-label-1: oklch(72% 0.14 65);
@@ -344,6 +346,7 @@
   --loki-glass-hi: rgba(255, 255, 255, 0.95);
   --loki-glass-edge: rgba(0, 0, 0, 0.1);
   --loki-glass-blur: blur(28px) saturate(180%);
+  --loki-segment: #ffffff;
   /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
   --loki-label-0: oklch(54% 0.15 25);
   --loki-label-1: oklch(54% 0.15 65);

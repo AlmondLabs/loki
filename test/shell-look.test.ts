@@ -51,3 +51,21 @@ describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", ()
     expect(widget).toMatch(/attributeFilter: \["data-theme", "data-palette"\]/);
   });
 });
+
+describe("Preferences and every tab row on Liquid Glass (U8)", () => {
+  test("settings sit in a rounded group and a segmented control raises its chosen value", () => {
+    expect(must(/\.loki-settings-block \{([^}]*)\}/.exec(apple), "the block rule")[1]).toContain("border-radius: var(--loki-radius-lg)");
+    expect(must(/\.loki-segmented > button\[aria-pressed="true"\] \{([^}]*)\}/.exec(apple), "the chosen segment")[1]).toContain("var(--loki-segment)");
+  });
+
+  test("a tab row is a track that hugs its tabs, the chosen tab raised; the pane header's track is glass", () => {
+    expect(must(/\n\s*\.loki-tabs \{([^}]*)\}/.exec(apple), "the tab row")[1]).toContain("width: fit-content");
+    expect(must(/\.loki-tab\[aria-selected="true"\] \{([^}]*)\}/.exec(apple), "the chosen tab")[1]).toContain("var(--loki-segment)");
+  });
+
+  test("Appearance's values are in Apple's words under Liquid Glass", () => {
+    const settings = readFileSync(join(APP, "settings", "settings.tsx"), "utf8");
+    expect(settings).toContain('{ system: "System", light: "Light", dark: "Dark" }');
+    expect(settings).toContain('apple: "Liquid Glass"');
+  });
+});
