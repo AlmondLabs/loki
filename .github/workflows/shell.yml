@@ -1,12 +1,15 @@
 name: shell
 # The Rust shell's tests (src-tauri), on the three systems, for a PR that changes it. It needs nothing of the app's
 # build: tauri::generate_context!() only wants frontendDist (app/dist) and the bundle's resources to exist when it
-# compiles, so a placeholder of each stands in for them (the release builds bundle the real ones).
+# compiles, so a placeholder of each stands in for them (the release builds bundle the real ones). Once a week on main
+# too, as ci.yml is: a shell no PR touched still meets each new runner image.
 on:
   pull_request:
     paths:
       - "src-tauri/**"
       - ".github/workflows/shell.yml"
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 concurrency:
