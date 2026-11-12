@@ -211,6 +211,26 @@ execution, exec.
 model or to an ACP chat, grouped under a namespace the script section names (the `google_*` tools, in `google`). A
 script finds one with `searchTools()` and reads it with `describeTool()`. _Avoid_: hidden tool, internal tool.
 
+**Item** (`app/src/item/`, plan 097): one thing the new chat pane draws, whatever its source: a chat, a Slack thread,
+an email or a Jira ticket, each turned into one `ItemView` by `item-view.ts`. It has a header (its title, flags and
+properties), its moves, a timeline of entries, its proposals and a Composer. _Avoid_: card (a Flow card is how an
+item sits in Flow's deck), conversation, thread (one part of an item).
+
+**Proposal** (`app/src/item/proposal.tsx`, plan 097): anything an agent asks the person to decide, drawn above the
+Composer: an approval, a question, a reply proposal. _Avoid_: suggestion, which is loki's word for a message an agent
+writes for another chat (Suggestion), and AI Elements' word for a quick reply chip.
+
+**Composer** (`app/src/item/composer.tsx`, plan 097): the new pane's one place to write, around the message box's own
+behaviour, with the queue of messages sent mid-turn above it. _Avoid_: input, prompt box.
+
+**Thought** (`TranscriptRow.thought`, plan 097 U9): what an agent thought before a reply or a call (an ACP agent's
+thought chunks, or a model's thinking part), kept on the row it led to and drawn folded as "thought for 12 seconds".
+_Avoid_: reasoning effort (how hard a model is asked to think), chain of thought.
+
+**Brief** (plan 097, designed, not built): the agent's short read of an item, with citations to the entries it came
+from, meant for the top of the item. Who writes it, when and at what cost waits for its own plan. _Avoid_: catch-up
+and summary, since Flow was once Catch Up and a compaction's summary is something else.
+
 **Card**, **lead**, **lesson** and **writer** (Learn, `docs/learn.md`; "recall" in the code): a card is a question
 and answer asked back on a spaced-repetition schedule; a lead is a concept that went by without being understood;
 a lesson is the `[Learn]` chat a lead starts, taught by the agent that was there. The writer is Learn's background

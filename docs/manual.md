@@ -198,8 +198,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   switch for on and off, a segmented control for a few choices, one green button for the page's main action, red only
   for what removes something. The groups and their pages:
   1. **General**
-     1. **Appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or tokyo
-        night; kept per device.
+     1. **Appearance**: system, light or dark (system follows macOS as it changes), the palette, loki or tokyo
+        night, and **New chat pane (preview)** (see [New chat pane](#new-chat-pane-preview)); kept per device.
      2. **Chat**: where the panel sits on the Canvas tab (left, centre, right), its width at the side (narrow,
         wide), and the tools that are **always allowed**, each with take back.
      3. **Keyboard shortcuts**: the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the
@@ -531,6 +531,36 @@ comes from Vite in a browser tab, or from the loki app itself.
 Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
 plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
 in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:5173*`.
+
+## New chat pane (preview)
+
+Preferences › General › Appearance › **New chat pane (preview)** draws the desktop chat pane and Flow's cards on loki's
+new components; off, they look as they always have. The phone is unchanged either way. Every item reads the same way,
+an agent's chat, a Slack thread, an email or a Jira ticket:
+
+- **The header**: the item's title on one line (the whole of it on hover), a flag for each state that holds now
+  (**unread**; **starred** for a starred Gmail thread; **mentions you** on Slack and Jira; **changed** on a ticket
+  that changed since you looked), then its facts as chips: the agent and how it stands, the folder and labels for a
+  chat; replies and people for Slack; the sender for a mail; status, assignee, priority and labels for a ticket. The
+  labels chip in the chat pane opens the labels picker.
+- **The moves**, in the row under the message or reply box: the one that finishes the item last and in full (archive
+  for a chat or a mail, read for Slack and Jira), the rest before it with Flow's keys, which work as before. The
+  chat pane has archive, and read while the chat is unread.
+- **The thread**, in turns: your messages stand alone, and everything the agent did until your next one is one turn,
+  with its name, how long it worked and where it stands (working, needs you, failed, done). A stretch of tool calls
+  is one line ("worked 2 min · 3 commands"); opened, each step opens to its input and output. An agent's **plan**
+  shows as a card with how far it is ("1 of 3 done"), opening to its entries. What an agent **thought** shows folded
+  as "thought for 12 seconds" (or just "thought" when its time was not heard live), opening to the thought.
+- **Decisions** sit above the box: an approval (approve, always here, deny), a question, a reply the agent proposes
+  on an outside thread.
+- **The box**: the same box, drawn new. Messages sent while the agent works wait above it, each with take back; the
+  model and its effort open in a dialog with a filter.
+- **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack only); an
+  email folds every mail but the newest to a line. The reply box says where a reply goes and keeps everything the
+  card's box does: its keys, a mail's recipients, signature and quoted mail.
+
+Not in the preview yet: asking the owning agent to write a reply from the box, posting a Slack reply to the channel as
+well, editing a proposed reply in the box (it edits in its card), and going back to a compaction.
 
 ## New chat
 

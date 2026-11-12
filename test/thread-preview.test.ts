@@ -3,7 +3,7 @@ import { threadPreview } from "../app/src/item/preview.ts";
 
 // Plan 096, U4: the new thread is a per-Mac preference, off unless chosen. Node has no localStorage, so these also
 // prove the value holds for the window when storage is unavailable.
-describe("new thread (preview)", () => {
+describe("new chat pane (preview)", () => {
   afterEach(() => threadPreview.set("off"));
 
   test("is off until chosen", () => {

@@ -278,8 +278,8 @@ function AppearancePage() {
       <Setting label="Palette" help="The colour family, in light and in dark.">
         <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={theme.setPalette} labels={PALETTE_LABEL} />
       </Setting>
-      <Setting label="New thread (preview)" help="Draw chats on loki's new components. Turn it off to go back.">
-        <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new thread (preview)" hideLabel />
+      <Setting label="New chat pane (preview)" help="Draw the chat pane and Flow's cards on loki's new components. Turn it off to go back.">
+        <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new chat pane (preview)" hideLabel />
       </Setting>
     </Block>
   );

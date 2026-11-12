@@ -515,7 +515,14 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
    phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
-   primitives; `kit/` the tokens and the widget kit (`@loki/kit`).
+   primitives; `kit/` the tokens and the widget kit (`@loki/kit`). The new chat pane (plans 096 and 097, behind
+   Preferences › New chat pane (preview)) adds three: `ui/` holds shadcn's components on Base UI and, in
+   `ui/ai-elements/`, Vercel's AI Elements, both copied in and bent to loki's rules, imported as `@/ui/…`; `lib/utils.ts`
+   is the one `cn`, which knows loki's type sizes and shadows; `item/` draws one item (a chat, a Slack thread, an email,
+   a Jira ticket) from the `ItemView` its pure adapter `item-view.ts` builds, with the header, the moves, the timeline,
+   the agent's turns, work, plan and thoughts, proposals and the Composer. The seams that choose old or new are three,
+   each reading `useThreadPreview()` and leaving the phone alone: the thread in `chat/conversation.tsx`, the outside
+   card in `desk/outside-card.tsx`, and the header and moves in `desk/desk-pane.tsx` and `desk/catch-up.tsx`.
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the

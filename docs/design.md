@@ -168,6 +168,36 @@ the time or the red badge, hover actions; `aria-current` on the chosen one), **L
 heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
 **PaneHeader** (the pane's name line and tab row) and **EmptyPane**.
 
+## The new chat pane (shadcn and AI Elements, plans 096 and 097, preview)
+
+Behind Preferences › New chat pane (preview), the desktop chat pane and Flow's cards are built on a second vocabulary;
+the rest of the app keeps the primitives above until the visual language that follows plan 097.
+
+**Foundation.** [shadcn](https://ui.shadcn.com) components on Base UI (a custom trigger is `render=`, not `asChild`)
+and Vercel's [AI Elements](https://ai-sdk.dev/elements) live in `app/src/ui/` and `app/src/ui/ai-elements/`, copied
+in and owned: no `ai` runtime, icons from Lucide. Tailwind v4's `@theme inline` maps shadcn's names (`background`,
+`muted-foreground`, `primary`, …) onto loki's tokens, so day, night and both palettes follow. Each piece is bent to
+the rules here: focus is loki's flash, motion stops under reduced motion and uses only transform and opacity, overlays
+take loki's layers rather than numbered z values, and type stays on loki's scale (`text-micro` to `text-hero`), never
+Tailwind's defaults. `cn` (`app/src/lib/utils.ts`) knows those sizes and loki's shadows, so a size beside a colour
+never drops the colour. `test/tokens.test.ts` fences all of it: off-scale classes, `outline-none`, focus rings,
+numbered layers, default sizes, tracking and hard-coded keys fail the build.
+
+**One item.** A chat, a Slack thread, an email and a Jira ticket draw with the same twelve components in
+`app/src/item/` (plan 097): **ItemHeader** (the title on one line, whole on hover; flags only while they hold; facts
+as outline chips, a chip a button only where a picker opens), **ActionBar** (under the box: the finishing move last,
+filled, the rest quiet before it, each with its key), **Timeline**, **MessageEntry** (a person's message with face,
+name and time; yours a block across the column with where it went), **AgentTurn** (name, time worked, a state badge
+with the Loader while working), **Work** (AI Elements' ChainOfThought: one summary line, opened to steps, a step to its
+Tool or Task), the agent's **Plan** and **Thought** (Reasoning, folded), **EventEntry** (one quiet line; a compaction
+a Checkpoint), **ContentParts**, **Reactions** (Slack only), **Proposal** (above the box, in the thread's column) and
+**Composer** (PromptInput around the message box's own behaviour, the Queue above it). **Brief** is designed and not
+built.
+
+**Layout.** One centred column, `max-w-3xl`, for the thread, the proposals, the Composer and the moves under it, so
+the finishing move ends where the box does. The header says what the item is; what you do with it sits by the box you
+write in.
+
 ## Signature
 
 The window has no native title bar (2026-09-23): the title bar is an overlay with its title hidden, the
@@ -368,6 +398,10 @@ box is one for both, its sizes set by `touch`.
   ⌘K search; the tree survived as Tasks' picker until Tasks was retired (plan 049).
 - A desk that opened on its canvas (to 2026-09-23): the conversation floated on the widgets and switching
   desks meant summoning the drawer. A chat now opens on Messages; the canvas is its Canvas tab (called the Desk tab until 2026-09-27).
+
+- The item's moves in its header (plan 097, U8, 2026-11-12): ItemHeader and ActionBar as one bar, the moves at the
+  title's end. Moved back under the box the same day, by the user's decision: a reply and its move go together (⌘]
+  and ⌘E send with the reply), the eye is at the box after reading down, and the header is for what the item is.
 
 ## Backlog
 

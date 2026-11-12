@@ -605,7 +605,7 @@ export interface ThreadProps {
 }
 
 /**
- * The thread, today's or the one on loki's new components, by Preferences › Appearance › New thread (preview). The chat
+ * The thread, today's or the one on loki's new components, by Preferences › Appearance › New chat pane (preview). The chat
  * pane and the Flow card switch together; a host that passes `previewable={false}` keeps today's.
  */
 export const Thread = forwardRef<ThreadHandle, ThreadProps>(function Thread({ previewable = true, ...props }, ref) {
