@@ -14,7 +14,19 @@ import { LearnColumn } from "../recall/learn-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import { ColumnToggle, GLASS_HEAD, GLASS_INSET, Places, Sidebar, SIDEBAR_WIDTH, sidebarToggleLeft, TitleStrip, TITLEBAR_HEIGHT, UpdateRow } from "./sidebar";
+import {
+  ColumnToggle,
+  GLASS_HEAD,
+  GLASS_INSET,
+  Places,
+  Sidebar,
+  SIDEBAR_WIDTH,
+  sidebarToggleLeft,
+  sidebarToggleTop,
+  TitleStrip,
+  TITLEBAR_HEIGHT,
+  UpdateRow,
+} from "./sidebar";
 import { useLook } from "../theme";
 import type { Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
@@ -392,7 +404,7 @@ export function Shell() {
         />
         <TitleStrip />
         {glass && column.has && !immersive && (
-          <span style={{ position: "absolute", top: GLASS_INSET + 8, left: sidebarToggleLeft(), zIndex: 2 }}>
+          <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }}>
             <ColumnToggle open={column.open} onToggle={column.toggle} floating />
           </span>
         )}

@@ -430,6 +430,9 @@ pub fn run() {
             // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            // The lights sit inside Liquid Glass's inset sidebar, level with its toggle (app sidebar.tsx GLASS_LIGHTS).
+            #[cfg(target_os = "macos")]
+            let window = window.traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0));
             // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
             // it through the sidebar and paints everything else; today's look paints the whole window, so it never
             // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.

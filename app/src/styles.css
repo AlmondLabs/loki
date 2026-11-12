@@ -157,14 +157,24 @@ body,
   font-family: var(--loki-font);
 }
 /* The Mac app under Liquid Glass (plan 2026-11-12-1505, U13): the page is clear, so the window's sidebar material shows
-   where the shell lets it (components.css .loki-shell-glass); Reduce Transparency and Increase Contrast keep it solid. */
-@media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) {
+   where the shell lets it (components.css .loki-shell-glass). Reduce Transparency and Increase Contrast paint it again;
+   the clear rule stands on its own because WebKit does not know prefers-reduced-transparency, and a query asking for
+   its no-preference never matches there. */
+:root[data-palette="apple"][data-vibrant]:not([data-glass="solid"]) {
+  &,
+  & body,
+  & #root,
+  & .loki-shell {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root[data-palette="apple"][data-vibrant]:not([data-glass="solid"]) {
     &,
     & body,
     & #root,
     & .loki-shell {
-      background: transparent;
+      background: var(--loki-bg);
     }
   }
 }

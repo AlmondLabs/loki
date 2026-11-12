@@ -24,9 +24,18 @@ export const TITLEBAR_HEIGHT = titlebarHeight();
 export const GLASS_INSET = 8;
 /** Liquid Glass's sidebar: the height of its top row, where the traffic lights and the sidebar toggle sit, in px. */
 export const GLASS_HEAD = 44;
+/**
+ * The Mac window's traffic lights (src-tauri lib.rs traffic_light_position): the close button's top-left, in points.
+ * They sit inside Liquid Glass's inset sidebar, and its toggle is centred on them.
+ */
+export const GLASS_LIGHTS = { x: 20, y: 22 };
 /** Where Liquid Glass's sidebar toggle sits from the window's left edge: past the traffic lights on the Mac's window, else near the edge. */
 export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
-  return shell && os === "macos" ? 84 : 16;
+  return shell && os === "macos" ? 92 : 16;
+}
+/** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
+export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? GLASS_LIGHTS.y + 7 - 14 : GLASS_INSET + 8;
 }
 
 /**

@@ -1414,13 +1414,40 @@ button.loki-list-section-toggle {
     color: var(--loki-fg);
   }
   .loki-toolbar-sub {
-    display: flex;
-    align-items: center;
     margin: 0;
     overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 11px;
     color: var(--loki-muted);
+  }
+  /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
+  .loki-toolbar-sub .loki-chat-links {
+    display: inline-flex;
+    margin-left: 6px;
+    vertical-align: bottom;
+  }
+  .loki-toolbar-sub .loki-chip {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    font-size: 11px;
+    font-weight: 400;
+  }
+  /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
+     under a Mac window's scroll edge, never through its words. */
+  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title) {
+    background: var(--loki-bg);
+  }
+  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title)::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(var(--loki-bg), transparent);
+    pointer-events: none;
   }
   .loki-toolbar-dot {
     display: inline-block;
@@ -1592,19 +1619,27 @@ button.loki-list-section-toggle {
 
   /* The sidebar's real material (U13): in the Mac app the page is clear (styles.css) and the glass panel becomes the
      window's hole onto the system's sidebar material. Its ring of the page's ground, far wider than the window, paints
-     everything outside its rounded corners opaque; with the sidebar hidden it is an empty box whose ring covers all. */
-  @media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) {
+     everything outside its rounded corners opaque; with the sidebar hidden it is an empty box whose ring covers all.
+     Under Reduce Transparency and Increase Contrast the page is painted again and the panel is its solid self. */
+  &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
+    display: block;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      inset 0 0 0 0.5px var(--loki-glass-edge),
+      0 0 0 200vmax var(--loki-bg);
+  }
+  &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass[data-empty] {
+    box-shadow: 0 0 0 200vmax var(--loki-bg);
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
     &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
-      display: block;
-      background: transparent;
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
-      box-shadow:
-        inset 0 0 0 0.5px var(--loki-glass-edge),
-        0 0 0 200vmax var(--loki-bg);
+      background: var(--loki-glass);
+      box-shadow: 0 0 0 0.5px var(--loki-glass-edge);
     }
     &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass[data-empty] {
-      box-shadow: 0 0 0 200vmax var(--loki-bg);
+      display: none;
     }
   }
 }

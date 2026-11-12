@@ -124,14 +124,27 @@ describe("the chat's toolbar and the sidebar's real material (U13)", () => {
     expect(readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8")).toMatch(/tauri = \{ version = "2", features = \[[^\]]*"macos-private-api"/);
   });
 
-  test("the page is clear only under Liquid Glass in the Mac app, and never under Reduce Transparency or Increase Contrast", () => {
+  test("the page is clear under Liquid Glass in the Mac app, painted again under Reduce Transparency or Increase Contrast", () => {
     const styles = readFileSync(join(APP, "styles.css"), "utf8");
+    // WebKit does not know prefers-reduced-transparency, so the clear rule cannot hang on its no-preference
+    expect(styles).not.toContain("prefers-reduced-transparency: no-preference");
+    expect(styles).toMatch(/\n:root\[data-palette="apple"\]\[data-vibrant\]:not\(\[data-glass="solid"\]\) \{[\s\S]*?background: transparent;/);
     expect(styles).toMatch(
-      /@media \(prefers-reduced-transparency: no-preference\) and \(prefers-contrast: no-preference\) \{\s*:root\[data-palette="apple"\]\[data-vibrant\]:not\(\[data-glass="solid"\]\)/,
+      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{\s*:root\[data-palette="apple"\]\[data-vibrant\][\s\S]*?background: var\(--loki-bg\);/,
     );
     const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
     expect(theme).toContain('export const VIBRANT = inTauri && platform === "macos";');
     expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
+  });
+
+  test("the traffic lights sit inside the inset sidebar, and its toggle is centred on their row", async () => {
+    const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
+    expect(lib).toContain("traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0))");
+    const { GLASS_LIGHTS, sidebarToggleTop, sidebarToggleLeft } = await import("../app/src/shell/sidebar.tsx");
+    expect(GLASS_LIGHTS).toEqual({ x: 20, y: 22 });
+    // a 28 px toggle centred on 14 pt buttons whose top is at 22
+    expect(sidebarToggleTop(true, "macos") + 14).toBe(GLASS_LIGHTS.y + 7);
+    expect(sidebarToggleLeft(true, "macos")).toBeGreaterThan(GLASS_LIGHTS.x + 3 * 14 + 2 * 6);
   });
 
   test("the glass panel is the window's hole onto the material: its ring paints everything else opaque, hidden or shown", () => {
