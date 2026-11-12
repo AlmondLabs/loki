@@ -409,8 +409,6 @@ pub fn run() {
                 .title("loki")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
-                // It starts on the system theme; the page applies the saved light/dark preference after it loads.
-                .background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff))
                 .initialization_script(&script)
                 // No page opens a second loki window. A link that asks for one (a mail drawn in its frame, whose
                 // clicks the Mac's webview keeps from loki's own listener) goes to the system browser when it is a
@@ -432,6 +430,19 @@ pub fn run() {
             // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
+            // it through the sidebar and paints everything else; today's look paints the whole window, so it never
+            // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.
+            #[cfg(target_os = "macos")]
+            let window = window.transparent(true).effects(
+                tauri::window::EffectsBuilder::new()
+                    .effect(tauri::window::Effect::Sidebar)
+                    .state(tauri::window::EffectState::FollowsWindowActiveState)
+                    .build(),
+            );
+            // Elsewhere it starts on loki's dark ground; the page applies the saved light/dark preference after it loads.
+            #[cfg(not(target_os = "macos"))]
+            let window = window.background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff));
             // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
             // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]

@@ -328,6 +328,19 @@ flowchart TB
 - Today's look still draws the rail with its five segments.
 **Verification:** rendered in light and dark on demo data, with the sidebar shown and hidden.
 
+### U13. The chat's toolbar and the sidebar's real material
+
+**Goal:** the chat pane's top is a Mac toolbar, and the sidebar is the Mac's own translucent material rather than blur painted over a flat colour.
+**Requirements:** R1, R2, R13; KTD1.
+**Dependencies:** U4, U12.
+**Files:** `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `app/index.html`, `app/src/theme.tsx`, `app/src/styles.css`, `app/src/shell/shell.tsx`, `app/src/components/index.tsx`, `app/src/desk/desk-pane.tsx`, `app/src/components/components.css`, `test/shell-look.test.ts`, `test/chat-look.test.ts`.
+**Approach:** on the Mac the window is transparent with the system's sidebar material behind it (Tauri's window effects; the private-API flag it needs is acceptable outside the App Store). The page marks the root `data-vibrant` there; under Liquid Glass the sidebar's region lets the material through and everything right of it is painted opaque, and Reduce Transparency, Increase Contrast and the solid fallback paint it solid as before. The chat's header becomes one 52 pt toolbar row: the title at 15 pt semibold with the agent and its state as a grey line under it, no avatar or Unread chip (the sidebar shows unread), and at the trailing edge the Messages / Canvas control and one glass group of the item's moves as symbols (Label, Mark as Read while unread, Archive) whose names and keys are in their tooltips. The moves leave the row under the box. Today's look and the browser keep today's header and an opaque window.
+**Test scenarios:**
+- On the Mac the window builder asks for transparency and the sidebar effect; elsewhere it does not.
+- Under Liquid Glass with `data-vibrant`, the page ground is transparent and the content right of the sidebar is opaque; under the solid fallbacks it is opaque everywhere.
+- The chat's toolbar draws Archive, Label and Mark as Read as named buttons in the header, and no ActionBar under the box.
+**Verification:** the toolbar rendered on demo data in light and dark; the material checked in the real Mac window.
+
 ---
 
 ## Verification Contract

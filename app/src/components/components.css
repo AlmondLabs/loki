@@ -1222,6 +1222,10 @@ button.loki-list-section-toggle {
 .loki-shell-glass {
   display: none;
 }
+/* The window's ground (shell.tsx), opaque except where the Mac app lets its material through (styles.css, U13). */
+.loki-shell {
+  background: var(--loki-bg);
+}
 /* The section bodies under the column's head (shell/list-column.tsx): the room each body fills. */
 .loki-column-bodies {
   position: relative;
@@ -1295,6 +1299,9 @@ button.loki-list-section-toggle {
   .loki-shell-glass {
     display: block;
   }
+  .loki-shell-glass[data-empty] {
+    display: none;
+  }
   .loki-title-strip,
   .loki-sections,
   .loki-column {
@@ -1320,11 +1327,12 @@ button.loki-list-section-toggle {
   }
   .loki-pane-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "line tabs"
-      "sub tabs";
+      "line tabs tools"
+      "sub tabs tools";
     align-items: center;
+    column-gap: 8px;
     padding-right: 12px;
     border-bottom: 0;
     background: transparent;
@@ -1372,6 +1380,93 @@ button.loki-list-section-toggle {
   }
   .loki-pane-header .loki-tab[aria-selected="true"] {
     background: var(--loki-selection);
+  }
+
+  /* The chat's toolbar (U13): one row, the title over a grey line of facts, then the Messages / Canvas control and one
+     glass group of the chat's moves as symbols, their names and keys in their tooltips, as Mail's toolbar draws them. */
+  .loki-pane-header-line:has(> .loki-toolbar-title) {
+    min-height: 52px;
+  }
+  .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
+    min-height: 22px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .loki-pane-header-trailing {
+    grid-area: tools;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .loki-toolbar-title {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .loki-toolbar-name {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--loki-fg);
+  }
+  .loki-toolbar-sub {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--loki-muted);
+  }
+  .loki-toolbar-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-attention);
+    vertical-align: 1px;
+  }
+  .loki-toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 2px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-glass);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+  }
+  .loki-toolbar-item {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-fg);
+    cursor: default;
+  }
+  .loki-toolbar-item:hover:not(:disabled) {
+    background: var(--loki-hover);
+  }
+  .loki-toolbar-item:disabled {
+    opacity: 0.35;
+  }
+  .loki-toolbar-item svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.75;
   }
 
   /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their
@@ -1493,5 +1588,23 @@ button.loki-list-section-toggle {
     outline: 3px solid color-mix(in oklab, var(--loki-accent) 55%, transparent);
     outline-offset: 1px;
     animation: none;
+  }
+
+  /* The sidebar's real material (U13): in the Mac app the page is clear (styles.css) and the glass panel becomes the
+     window's hole onto the system's sidebar material. Its ring of the page's ground, far wider than the window, paints
+     everything outside its rounded corners opaque; with the sidebar hidden it is an empty box whose ring covers all. */
+  @media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) {
+    &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
+      display: block;
+      background: transparent;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      box-shadow:
+        inset 0 0 0 0.5px var(--loki-glass-edge),
+        0 0 0 200vmax var(--loki-bg);
+    }
+    &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass[data-empty] {
+      box-shadow: 0 0 0 200vmax var(--loki-bg);
+    }
   }
 }

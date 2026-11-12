@@ -111,3 +111,45 @@ describe("one sidebar in place of the rail (U12)", () => {
     expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
   });
 });
+
+describe("the chat's toolbar and the sidebar's real material (U13)", () => {
+  const root = join(APP, "..", "..");
+  test("on the Mac the window is transparent with the system's sidebar material; elsewhere it keeps its ground", () => {
+    const lib = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
+    expect(lib).toMatch(/#\[cfg\(target_os = "macos"\)\]\s*let window = window\.transparent\(true\)\.effects\(/);
+    expect(lib).toContain("tauri::window::Effect::Sidebar");
+    expect(lib).toMatch(/#\[cfg\(not\(target_os = "macos"\)\)\]\s*let window = window\.background_color\(/);
+    const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8")) as { app: { macOSPrivateApi?: boolean } };
+    expect(conf.app.macOSPrivateApi).toBe(true);
+    expect(readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8")).toMatch(/tauri = \{ version = "2", features = \[[^\]]*"macos-private-api"/);
+  });
+
+  test("the page is clear only under Liquid Glass in the Mac app, and never under Reduce Transparency or Increase Contrast", () => {
+    const styles = readFileSync(join(APP, "styles.css"), "utf8");
+    expect(styles).toMatch(
+      /@media \(prefers-reduced-transparency: no-preference\) and \(prefers-contrast: no-preference\) \{\s*:root\[data-palette="apple"\]\[data-vibrant\]:not\(\[data-glass="solid"\]\)/,
+    );
+    const theme = readFileSync(join(APP, "theme.tsx"), "utf8");
+    expect(theme).toContain('export const VIBRANT = inTauri && platform === "macos";');
+    expect(theme).toContain('if (VIBRANT) root.dataset.vibrant = "on";');
+  });
+
+  test("the glass panel is the window's hole onto the material: its ring paints everything else opaque, hidden or shown", () => {
+    const hole = must(/&\[data-vibrant\]:not\(\[data-glass="solid"\]\) \.loki-shell-glass \{([^}]*)\}/.exec(apple), "the hole rule")[1];
+    expect(hole).toContain("background: transparent");
+    expect(hole).toContain("0 0 0 200vmax var(--loki-bg)");
+    expect(apple).toMatch(/\.loki-shell-glass\[data-empty\] \{\s*box-shadow: 0 0 0 200vmax var\(--loki-bg\);/);
+  });
+
+  test("the chat's moves are toolbar symbols named for the screen reader, and the box has no row of moves under it", async () => {
+    const pane = readFileSync(join(APP, "desk", "desk-pane.tsx"), "utf8");
+    for (const name of ["Label", "Mark as Read", "Archive"]) expect(pane).toContain(`aria-label="${name}"`);
+    expect(pane).toContain("trailing={toolbarItems}");
+    expect(pane).toMatch(/const itemMoves =\s*!toolbar && itemView && item/);
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { PaneHeader } = await import("../app/src/components/index.tsx");
+    const out = renderToStaticMarkup(createElement(PaneHeader, { title: "t", trailing: createElement("span", null, "tools") }));
+    expect(out).toContain('<div class="loki-pane-header-trailing"><span>tools</span></div>');
+  });
+});

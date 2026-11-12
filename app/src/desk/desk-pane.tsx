@@ -37,6 +37,7 @@ import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { ItemHeader } from "../item/item-header";
+import { ArchiveIcon, MailOpenIcon, TagIcon } from "lucide-react";
 import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
 import { useThreadPreview } from "../item/preview";
@@ -172,30 +173,82 @@ export function DeskPane(props: DeskPaneProps) {
     <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
   ) : null;
   const itemView = preview === "on" && item ? chatItem({ item, live: null, turns: [] }) : null;
-  const itemLine =
-    itemView && item ? (
-      <ItemHeader
-        view={itemView.header}
-        titleAs="h1"
-        className="flex-1 px-0 py-2"
-        lead={<AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={28} />}
-        onProperty={runtime ? { labels: () => setLabeling(true) } : {}}
-        meta={
-          <>
-            {runtime && !chatLabels.length && (
-              <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-                {glass ? "Add Label" : "+ label"}
-              </button>
-            )}
-            {links}
-          </>
-        }
-        actions={tab === "desk" ? <DeskActions /> : undefined}
-      />
-    ) : undefined;
-  // Its moves, under the box (plan 097, U8): read while something is new, and archive.
+  // Under Liquid Glass the header is a Mac toolbar (plan 2026-11-12-1505, U13): the title over a grey line of the
+  // chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar symbols, not a row.
+  const toolbar = glass && itemView && item;
+  const itemLine = toolbar ? (
+    <div className="loki-toolbar-title">
+      <h1 className="loki-toolbar-name" title={itemView.header.title}>
+        {itemView.header.title}
+      </h1>
+      <p className="loki-toolbar-sub">
+        {itemView.header.properties.map((p, i) => (
+          <span key={p.key}>
+            {i > 0 && " · "}
+            {p.tone === "attention" && <span aria-hidden className="loki-toolbar-dot" />}
+            {p.label}
+          </span>
+        ))}
+        {links}
+      </p>
+    </div>
+  ) : itemView && item ? (
+    <ItemHeader
+      view={itemView.header}
+      titleAs="h1"
+      className="flex-1 px-0 py-2"
+      lead={<AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={28} />}
+      onProperty={runtime ? { labels: () => setLabeling(true) } : {}}
+      meta={
+        <>
+          {runtime && !chatLabels.length && (
+            <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
+              {glass ? "Add Label" : "+ label"}
+            </button>
+          )}
+          {links}
+        </>
+      }
+      actions={tab === "desk" ? <DeskActions /> : undefined}
+    />
+  ) : undefined;
+  const toolbarItems = toolbar ? (
+    <>
+      {tab === "desk" && <DeskActions />}
+      <span className="loki-toolbar-group" role="group" aria-label="Chat actions">
+        {runtime && (
+          <button type="button" className="loki-toolbar-item" aria-label="Label" title="Label (/label)" onClick={() => setLabeling(true)}>
+            <TagIcon aria-hidden />
+          </button>
+        )}
+        {item.unread && (
+          <button
+            type="button"
+            className="loki-toolbar-item"
+            aria-label="Mark as Read"
+            title={`Mark as Read (${keyFor(DONE)})`}
+            onClick={() => markDone(catchUp, item)}
+          >
+            <MailOpenIcon aria-hidden />
+          </button>
+        )}
+        <button
+          type="button"
+          className="loki-toolbar-item"
+          aria-label="Archive"
+          title={item.id === "default" ? "A main chat cannot be archived" : "Archive"}
+          disabled={item.id === "default"}
+          onClick={() => void catchUp.archive(item, "click")}
+        >
+          <ArchiveIcon aria-hidden />
+        </button>
+      </span>
+    </>
+  ) : undefined;
+  // Its moves, under the box (plan 097, U8): read while something is new, and archive. Under Liquid Glass they are the
+  // toolbar's (above), so the box has no row under it.
   const itemMoves =
-    itemView && item ? (
+    !toolbar && itemView && item ? (
       <ActionBar
         className={COMPOSER_COLUMN}
         view={itemView.actions}
@@ -241,6 +294,7 @@ export function DeskPane(props: DeskPaneProps) {
         }
         actions={tab === "desk" ? <DeskActions /> : undefined}
         line={itemLine}
+        trailing={toolbarItems}
         tabs={TABS}
         tab={tab}
         onTab={onTab}

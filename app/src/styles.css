@@ -156,3 +156,15 @@ body,
   color: var(--loki-fg);
   font-family: var(--loki-font);
 }
+/* The Mac app under Liquid Glass (plan 2026-11-12-1505, U13): the page is clear, so the window's sidebar material shows
+   where the shell lets it (components.css .loki-shell-glass); Reduce Transparency and Increase Contrast keep it solid. */
+@media (prefers-reduced-transparency: no-preference) and (prefers-contrast: no-preference) {
+  :root[data-palette="apple"][data-vibrant]:not([data-glass="solid"]) {
+    &,
+    & body,
+    & #root,
+    & .loki-shell {
+      background: transparent;
+    }
+  }
+}

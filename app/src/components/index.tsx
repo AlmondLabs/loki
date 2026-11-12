@@ -876,6 +876,8 @@ export interface PaneHeaderProps<T extends string = string> {
   titleId?: string;
   /** A whole line drawn in place of the lead, title, aside and actions: the new chat pane's item header (plan 097). */
   line?: ReactNode;
+  /** After the tabs, at the trailing edge: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
+  trailing?: ReactNode;
 }
 
 /** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
@@ -892,6 +894,7 @@ export function PaneHeader<T extends string>({
   panelId,
   titleId,
   line,
+  trailing,
 }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
@@ -910,6 +913,7 @@ export function PaneHeader<T extends string>({
       </div>
       {subtitle && <div className="loki-pane-header-subtitle">{subtitle}</div>}
       {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
+      {trailing && <div className="loki-pane-header-trailing">{trailing}</div>}
     </header>
   );
 }

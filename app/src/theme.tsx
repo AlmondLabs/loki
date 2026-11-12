@@ -31,6 +31,12 @@ const DARK_QUERY = "(prefers-color-scheme: dark)";
  */
 export const GLASS_ON: Record<Platform, "glass" | "solid"> = { macos: "glass", windows: "glass", linux: "solid" };
 
+/**
+ * Whether this window has the Mac's own sidebar material behind a transparent page (plan 2026-11-12-1505, U13): the
+ * Mac app's window only. Liquid Glass lets it through the sidebar (components.css); a browser tab has none.
+ */
+export const VIBRANT = inTauri && platform === "macos";
+
 /** Whether a value (a stored one, say) is an appearance choice. */
 export function isThemePreference(value: unknown): value is ThemePreference {
   return typeof value === "string" && (THEME_PREFERENCES as readonly string[]).includes(value);
@@ -80,6 +86,8 @@ function applyTheme(preference: ThemePreference, palette: Palette): void {
   root.dataset.themePreference = preference;
   root.dataset.palette = palette;
   if (GLASS_ON[platform] === "solid") root.dataset.glass = "solid";
+  // The Mac's window carries the system's sidebar material behind the page (src-tauri lib.rs, U13).
+  if (VIBRANT) root.dataset.vibrant = "on";
   root.style.colorScheme = theme;
   requestAnimationFrame(() => {
     // the phone redeclares --loki-bg on its own root (phone/phone.css); the status bar strip follows that
