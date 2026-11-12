@@ -29,7 +29,7 @@ describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
 
   test("runs on a PR (and by hand), not again on its merge, and a newer push cancels the run before it", () => {
-    expect(Object.keys(ci.on).sort()).toEqual(["pull_request", "workflow_dispatch"]);
+    expect(Object.keys(ci.on).sort()).toEqual(["pull_request", "schedule", "workflow_dispatch"]);
     expect(ci.concurrency).toEqual({ group: "ci-${{ github.event.pull_request.number || github.ref }}", "cancel-in-progress": true });
   });
 
@@ -49,6 +49,18 @@ describe("ci: a PR's checks", () => {
     for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
     expect(tests).toContain("npm run smoke"); // the bundle on each system: the keychain module, paths, processes
     expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]); // the Rust shell is shell.yml's
+  });
+});
+
+describe("main between PRs", () => {
+  // Nothing ran on main after a merge, so a refused runner went unseen for four days (macos-14, 2026-11-06).
+  test("ci and the shell's tests run on main once a week, on a fixed weekday and hour", () => {
+    for (const name of ["ci", "shell"]) {
+      const schedule = (workflow(name).on as unknown as { schedule?: Array<{ cron: string }> }).schedule ?? [];
+      expect(schedule, name).toHaveLength(1);
+      // minute hour * * weekday: weekly, not daily or hourly.
+      expect(schedule[0]?.cron, name).toMatch(/^\d{1,2} \d{1,2} \* \* [0-6]$/);
+    }
   });
 });
 
