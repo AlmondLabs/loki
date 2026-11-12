@@ -91,6 +91,9 @@ export class ChatMoves implements PeerMoves {
     if (!link) return;
     for (const [key, hold] of [...this.moving].filter(([, h]) => h.to === macId)) {
       try {
+        // One chat at a time on purpose, as the hand-over after it: each settles a chat's single writer and rewrites
+        // the holds file, and a Mac just back in reach is not flooded.
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         const where = (await link.request({ type: "peer_where", agent_id: hold.agent_id, conversation_id: hold.conversation_id })) as { held?: boolean };
         if (hold.kept) {
           if (where.held) await link.request({ type: "peer_chat_moved", agent_id: hold.agent_id, conversation_id: hold.conversation_id });
