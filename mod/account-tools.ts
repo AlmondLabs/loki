@@ -1,15 +1,17 @@
-import { htmlToText, tidyMail } from "../core/mail-text.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
 import { messageOf } from "../core/errors.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
-import type { GmailClient, GmailMessage, GmailMessagePart } from "./gmail.ts";
+import type { GmailClient, GmailMessage } from "./gmail.ts";
+import { gmailThread, mailHeader } from "./account-ops/gmail.ts";
+import { slackThreadText } from "./account-ops/slack.ts";
+import type { ThreadMessage } from "./account-ops/thread.ts";
 import { log } from "./log.ts";
 import type { JiraClient } from "./jira.ts";
 import { jiraThreadText } from "./jira-view.ts";
-import type { SlackClient, SlackMessage } from "./slack.ts";
+import type { SlackClient } from "./slack.ts";
 import { argText, toolRegistrar, type Call, type LokiTool } from "./tools.ts";
-import { fenceThread, inert, type ThreadMessage } from "./handoff.ts";
+import { fenceThread, inert } from "./handoff.ts";
 
 /**
  * The owning agent's tools for its accounts (plan 067, U9, KTD10): account_list, account_read and account_search.
@@ -39,8 +41,6 @@ export interface AccountToolDeps {
 
 const SEARCH_DEFAULT = 10;
 const SEARCH_MAX = 25;
-/** How many messages of a Slack DM account_read shows, newest last: a DM is one long conversation. */
-const SLACK_DM_MESSAGES = 50;
 
 const statusText = (a: AccountRecord): string => (a.status === "connected" ? "connected" : `disconnected (${a.status.disconnected})`);
 
@@ -71,65 +71,10 @@ function notOwned(deps: AccountToolDeps, agentId: string, name: string): { statu
   return { status: "error", content: `this agent owns no account "${name}"; its accounts are ${own.join(", ") || "none"}` };
 }
 
-const headerOf = (m: GmailMessage, name: string): string => m.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 const gmailTime = (m: GmailMessage): string => {
   const ms = Number(m.internalDate);
-  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : headerOf(m, "Date");
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : mailHeader(m, "Date");
 };
-
-/** The first part of a type in a message's MIME tree, depth first. */
-function partOf(part: GmailMessagePart | null, mimeType: string): GmailMessagePart | null {
-  if (!part) return null;
-  if (part.mimeType === mimeType && part.body.data) return part;
-  for (const p of part.parts) {
-    const found = partOf(p, mimeType);
-    if (found) return found;
-  }
-  return null;
-}
-
-/** A message's text: its plain part, else its HTML part laid out as text (core/mail-text.ts), else Gmail's snippet. */
-function gmailText(m: GmailMessage): string {
-  const decode = (p: GmailMessagePart) => Buffer.from(p.body.data ?? "", "base64url").toString("utf8");
-  const plain = partOf(m.payload, "text/plain");
-  if (plain) return tidyMail(decode(plain));
-  const html = partOf(m.payload, "text/html");
-  if (html) return htmlToText(decode(html));
-  return tidyMail(m.snippet);
-}
-
-/** A Slack ts as ISO time, or the ts itself when it is not one. */
-function slackTime(ts: string): string {
-  const s = Number(ts);
-  return Number.isFinite(s) && s > 0 ? new Date(Math.round(s * 1000)).toISOString() : ts;
-}
-
-/**
- * A Slack thread's messages, oldest first. A DM card's thread id is its channel; an Activity card's is
- * `<channel>:<thread ts>` (mod/slack-sync.ts).
- */
-async function slackThread(client: SlackReader, threadId: string): Promise<ThreadMessage[]> {
-  const [channel = "", ts] = threadId.split(":");
-  const messages: SlackMessage[] = ts
-    ? (await client.conversationsReplies({ channel, ts, limit: 200 })).messages
-    : (await client.conversationsHistory({ channel, limit: SLACK_DM_MESSAGES })).messages.reverse();
-  const names = new Map<string, string>();
-  const nameOf = async (m: SlackMessage): Promise<string> => {
-    if (!m.user) return m.bot_id ? `a bot (${m.bot_id})` : "someone";
-    let name = names.get(m.user);
-    if (name === undefined) {
-      name = await client.usersInfo(m.user).then(
-        (u) => u.display_name || u.real_name || u.name || m.user || "someone",
-        () => m.user ?? "someone",
-      );
-      names.set(m.user, name);
-    }
-    return name;
-  };
-  const out: ThreadMessage[] = [];
-  for (const m of messages) out.push({ sender: await nameOf(m), at: slackTime(m.ts), text: m.text });
-  return out;
-}
 
 /**
  * Register account_list, account_read and account_search, and the prompt section that names an agent's accounts;
@@ -220,15 +165,11 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
         let subject = "";
         let name = thread;
         switch (reader.provider) {
-          case "gmail": {
-            const t = await reader.client.getThread(thread, "full");
-            const opening = t.messages.at(0);
-            subject = opening ? headerOf(opening, "Subject") : "";
-            messages = t.messages.map((m) => ({ sender: headerOf(m, "From") || "someone", at: gmailTime(m), text: gmailText(m) }));
+          case "gmail":
+            ({ subject, messages } = await gmailThread(reader.client, account.account_id, thread));
             break;
-          }
           case "slack":
-            messages = await slackThread(reader.client, thread);
+            messages = await slackThreadText(() => reader.client)(account.account_id, thread);
             break;
           case "jira": {
             // A key and an id name the same ticket, which is read by its id, as its card keeps it (KTD7).
@@ -289,7 +230,7 @@ export function registerAccountTools(api: ModApi, deps: AccountToolDeps): Array<
           const first = t.messages.at(0);
           const newest = t.messages.at(-1);
           if (!first || !newest) continue;
-          lines.push(`${id} · from ${inert(headerOf(newest, "From")) || "someone"} · "${inert(headerOf(first, "Subject"))}" · ${gmailTime(newest)}`);
+          lines.push(`${id} · from ${inert(mailHeader(newest, "From")) || "someone"} · "${inert(mailHeader(first, "Subject"))}" · ${gmailTime(newest)}`);
         }
         log("tool:account_search", { agent: ctx.agent.id, found: lines.length });
         return lines.length ? lines.join("\n") : `nothing in ${accountLabel(account)} matches ${query}`;
