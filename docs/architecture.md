@@ -204,7 +204,9 @@ every chat gets, the chats, then the mods.
     usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
     memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
     (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
-    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are
+    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); an agent
+    with script-only tools is served one `script` tool instead of them, run by `scripts.ts` in the daemon's sandbox
+    with the same one card a run and the same fence (plan 097, U5). The MCP servers the agent has on are
     handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
     asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
     `open`, `rundll32` or `xdg-open`). The agents are Claude Code (through npx, pinned) and the person's own in

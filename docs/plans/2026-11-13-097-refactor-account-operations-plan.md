@@ -164,8 +164,16 @@ changing that would make reading mail worse. Changing it makes one path good eno
   after a restart may ask once more. Tests: a read-only script asks nothing in standard; a script that writes three
   times, two at once, raises one card that shows its code and first call; a decline refuses every later call; strict
   asks for the script and each call; "always allow" is still not kept.
-- **U5. ACP script tool.** KTD4, or its fallback. Tests: an ACP chat's MCP server lists `script` and none of the
-  removed tools; a script there reads a Slack thread fenced, and a send asks once.
+- **U5. ACP script tool.** Done without the fallback: pi-codemode's `CodemodeSandbox.start` runs a script with the
+  run's own tool list and answers each call itself, so `daemon/acp/scripts.ts` drives the daemon's sandbox directly.
+  loki's MCP endpoint serves `script` to an agent with script-only tools, its description listing them, and a script
+  reads one's signature with `describeTool(name)`. It is marked read-only, so the agent does not ask before it; the
+  first call of a tool that is not a read raises one loki card (`codemode`, `{ code, first_call }`), whose answer
+  stands for the run. That card asks even when the agent's own mode would not have; the agent's mode is its own, and
+  loki cannot read it. The answer is fenced from the run's calls, as U3. Differences from loki's engine: no file tools
+  (they are pi-durable's, not ChatTools), and `store`/`load` values are not kept between scripts. Tests: the listing
+  shows `script` and not the tools behind it; a read answers fenced without a card; three sends, two at once, raise
+  one card; `describeTool` answers.
 - **U6. Removal and words.** Remove the three account tools. Update the hand-off message and `reply_propose`'s
   description; `docs/manual.md` (accounts, scripts, permission modes); `docs/SECURITY.md` (what reaches the model,
   scripts' asking, residual risks); `glossary.md`; and `skills/loki/SKILL.md`. Measure the prompt (R7).

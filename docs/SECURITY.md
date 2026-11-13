@@ -173,7 +173,11 @@ An agent on loki's own engine may run a short JavaScript program with its `codem
 virtual machine on a worker thread, with no file, network or process access, no `fetch`, `require`, timers or
 modules. It reaches anything only by calling tools, and the `loki.scripts` extension hands it only the script-only
 tools (loki's `ls`, `find` and `grep` among them) and pi-durable's file tools (`read`, `write`, `edit`); `bash`, background runs, helpers and the
-rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well.
+rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well. A chat on
+an ACP agent runs scripts through loki's `script` MCP tool (`daemon/acp/scripts.ts`, plan 097): the same sandbox and
+limits, only the agent's script-only tools, one loki card at its first change, and the same fence. The agent is told
+the tool only reads, so it does not ask first; loki's card then asks at the first change even when the agent's own
+mode would not have asked.
 
 - **Asking.** A script asks by what it does (plan 097, KTD3). It does not ask when it starts; each call it makes is
   weighed by that tool's kind in the chat's mode, and the first that would ask raises one card showing the script and

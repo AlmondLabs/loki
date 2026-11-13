@@ -1237,7 +1237,9 @@ sandbox with no files, network or programs of its own; it reaches anything only 
 file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
 `bash`. So one script can page through every Drive
 file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
-browser. Claude Code and other ACP agents do not get scripts.
+browser. A chat on Claude Code or another ACP agent gets the same scripts as a `script` tool on loki's tool server
+(`mcp__loki__script`), over the same account tools, with the same limits, asking and fencing; it has no file tools
+there, and a value one script stores is not kept for the next.
 
 1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
    files) runs without a card in standard mode. One that changes or sends something asks once, at its first such call:

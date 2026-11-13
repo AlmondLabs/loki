@@ -11,7 +11,7 @@ import { signInAgainFor, type GoogleAuth } from "../google-auth.ts";
  * What every Google tool shares (plan 2026-11-11 scripts, U7): finding the account a call is for and checking, at the
  * moment of the call, that the calling chat's agent may use it (KTD12); the chat's folder for files (KTD13); full
  * listings saved to the chat's tool-results folder; and checksums. The tools are script-only: the model never sees
- * them, and an ACP chat is never served them (daemon/acp/loki-tools.ts).
+ * them, and an ACP chat reaches them only through its `script` tool (daemon/acp/scripts.ts).
  */
 
 /** What the Google tools are built from; each account's sign-in and Gmail client are the mod's shared ones (mod/index.ts). */

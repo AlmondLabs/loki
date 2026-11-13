@@ -3,7 +3,9 @@ import type * as acp from "@agentclientprotocol/sdk";
 import { createMcpHandler, fromJsonSchema, McpServer, type CallToolResult as ServedResult } from "@modelcontextprotocol/server";
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
-import type { ChatTool } from "../chat-tools.ts";
+import type { CodemodeSandboxBase } from "@earendil-works/pi-codemode";
+import type { ChatTool, ChatToolResult } from "../chat-tools.ts";
+import { ACP_SCRIPT_TOOL, runAcpScript, scriptToolDescription } from "./scripts.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import { messageOf } from "../../core/errors.ts";
 
@@ -17,6 +19,19 @@ interface ChatKey {
   only?: ReadonlySet<string>;
 }
 
+/** What an ACP chat's scripts run with (plan 097, U5): the daemon's sandbox, and how to ask the person and fence. */
+export interface AcpScripts {
+  sandbox: CodemodeSandboxBase;
+  timeoutMs: number;
+  strangerText: (tool: string) => boolean;
+  ask: (
+    agentId: string,
+    conversationId: string,
+    input: { code: string; first_call: { tool: string; input: unknown } },
+    signal: AbortSignal,
+  ) => Promise<{ allow: boolean; message?: string }>;
+}
+
 /**
  * loki's own tools for chats on an ACP agent (plan 044): an MCP endpoint on loopback, handed to each session as an
  * HTTP server named `loki` with a key that names the chat, so every call runs as that chat on the same bodies loki's
@@ -24,7 +39,7 @@ interface ChatKey {
  * MCP servers set up in loki are not served here: the agent connects to them itself (daemon/mcp/ acpServers).
  */
 export class LokiTools {
-  private readonly deps: { tools: () => ChatTool[]; stores: StoreManager; context: Context; version: string };
+  private readonly deps: { tools: () => ChatTool[]; stores: StoreManager; context: Context; version: string; scripts?: AcpScripts };
   private readonly chats = new Map<string, ChatKey>();
   private readonly keys = new Map<string, string>();
   /** The tools each pass chat ran here and that did not fail, by chat, until taken (`takeCalls`). */
@@ -132,25 +147,49 @@ export class LokiTools {
 
   /**
    * One request's MCP server: loki's tools for the chat's agent (a tool's `forAgent`, plan 067, asked afresh with each
-   * request, so a listing follows its latest answer), each run as `chat`. A script-only tool is never served: an ACP
-   * chat has no scripts, and its model may not call the tool directly.
+   * request, so a listing follows its latest answer), each run as `chat`. A script-only tool is never served to the
+   * model: the agent reaches it through the `script` tool (plan 097, U5), served when the agent has any.
    */
   private server(chat: ChatKey): McpServer {
     const server = new McpServer({ name: LOKI_TOOLS_SERVER, version: this.deps.version });
-    const served = this.deps
-      .tools()
-      .filter((t) => (!t.callers || t.callers.includes("model")) && (!chat.only || chat.only.has(t.name)) && (!t.forAgent || t.forAgent(chat.agentId)));
+    const forChat = this.deps.tools().filter((t) => (!chat.only || chat.only.has(t.name)) && (!t.forAgent || t.forAgent(chat.agentId)));
+    const served = forChat.filter((t) => !t.callers || t.callers.includes("model"));
+    const scriptOnly = forChat.filter((t) => t.callers?.includes("tools") === true && !t.callers.includes("model"));
+    const scripts = this.deps.scripts;
+    if (scripts && scriptOnly.length > 0 && (!chat.only || chat.only.has(ACP_SCRIPT_TOOL)))
+      server.registerTool(
+        ACP_SCRIPT_TOOL,
+        {
+          description: scriptToolDescription(scriptOnly),
+          inputSchema: schema({ type: "object", properties: { code: { type: "string" } }, required: ["code"] }),
+          // A script asks loki's card itself at its first change (runAcpScript); the agent need not ask before one.
+          annotations: { readOnlyHint: true },
+        },
+        async (args, ctx): Promise<ServedResult> => {
+          try {
+            const signal = ctx.mcpReq.signal;
+            const out = await runAcpScript(typeof args.code === "string" ? args.code : "", {
+              sandbox: scripts.sandbox,
+              tools: scriptOnly,
+              run: (tool, toolArgs) => this.runAs(chat, tool, toolArgs, signal),
+              ask: (input) => scripts.ask(chat.agentId, chat.conversationId, input, signal),
+              strangerText: scripts.strangerText,
+              signal,
+              timeoutMs: scripts.timeoutMs,
+            });
+            return { content: [{ type: "text", text: out.text }], ...(out.isError ? { isError: true } : {}) };
+          } catch (e) {
+            return failed(e);
+          }
+        },
+      );
     for (const tool of served)
       server.registerTool(
         tool.name,
         { description: tool.description, inputSchema: schema(tool.parameters), annotations: { readOnlyHint: tool.kind === "read" } },
         async (args, ctx): Promise<ServedResult> => {
           try {
-            const store = await this.deps.stores.get(chat.agentId);
-            const conversation = await store.chat(chat.conversationId, this.deps.context);
-            if (!conversation) throw new Error("this chat is no longer here");
-            const call = { read: store.harness, conversationId: conversation.id, callId: randomUUID(), signal: ctx.mcpReq.signal, output: () => {} };
-            const content = (await tool.run(args, call, this.deps.context)).output ?? [];
+            const content = (await this.runAs(chat, tool, args, ctx.mcpReq.signal)).output ?? [];
             // Only a pass's calls are kept (it takes them after its run); a chat's would pile up for nobody.
             if (chat.only) {
               const key = chatKey(chat.agentId, chat.conversationId);
@@ -163,6 +202,15 @@ export class LokiTools {
         },
       );
     return server;
+  }
+
+  /** Run one of loki's tools as `chat`, on the same body loki's engine runs. */
+  private async runAs(chat: ChatKey, tool: ChatTool, args: Record<string, unknown>, signal: AbortSignal): Promise<ChatToolResult> {
+    const store = await this.deps.stores.get(chat.agentId);
+    const conversation = await store.chat(chat.conversationId, this.deps.context);
+    if (!conversation) throw new Error("this chat is no longer here");
+    const call = { read: store.harness, conversationId: conversation.id, callId: randomUUID(), signal, output: () => {} };
+    return tool.run(args, call, this.deps.context);
   }
 }
 
