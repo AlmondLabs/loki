@@ -199,6 +199,44 @@ describe("signing in to a remote MCP server (OAuth)", () => {
     }
   });
 
+  test("a registration kept from a sign-in that never finished is not reused: the next sign-in registers again", async () => {
+    const fake = await oauthServer();
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-oauth-"));
+    const redirect = "http://127.0.0.1:41414/mcp/oauth/callback";
+    // An earlier daemon registered and was sent to the server's page, but no tokens came back; the server has since
+    // forgotten that client, which it says only on its own page in the browser.
+    const keychain = new Map<string, string>([
+      [`mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.client`, JSON.stringify({ client_id: "forgotten", redirect_uris: [redirect] })],
+    ]);
+    const mcp = new McpTools({
+      registry: createRegistry(),
+      configPath: join(dir, "mcp.json"),
+      lokiDir: dir,
+      redirect,
+      secrets: {
+        get: (a) => Promise.resolve(keychain.get(a) || null),
+        set: (a, v) => (keychain.set(a, v), Promise.resolve()),
+        delete: (a) => (keychain.delete(a), Promise.resolve()),
+      },
+    });
+    try {
+      mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
+      await until(() => mcp.view().servers[0]?.sign_in?.url != null);
+      const page = new URL(must(mcp.view().servers[0].sign_in?.url, "the sign-in page"));
+      expect(fake.seen.registrations).toBe(1);
+      expect(page.searchParams.get("client_id")).toBe("loki-test-client");
+      // The registration made for this sign-in redeems its code.
+      const back = new URL(must((await fetch(page, { redirect: "manual" })).headers.get("location"), "a redirect"));
+      expect(await mcp.finishAuth(Object.fromEntries(back.searchParams))).toMatchObject({ ok: true });
+      await until(() => mcp.view().servers[0]?.state === "connected");
+      expect(fake.seen.registrations).toBe(1);
+    } finally {
+      await mcp.close();
+      await fake.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("a server with its own Authorization header never signs in; an error from the server's page is said plainly", async () => {
     const fake = await oauthServer();
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-oauth-"));

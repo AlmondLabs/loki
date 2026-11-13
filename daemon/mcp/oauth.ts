@@ -70,6 +70,8 @@ export const oauthKey = (server: string, url: string): string => `${server}.${cr
 /** One remote server's side of the flow, as the SDK's transport and `auth()` ask for it. */
 export class ServerOauth implements OAuthClientProvider {
   private lastState: string | null = null;
+  /** Whether this daemon registered loki with the server, so the registration is good for the sign-in under way. */
+  private registered = false;
   readonly server: string;
   /** Where this server's sign-in is kept (oauthKey). */
   private readonly key: string;
@@ -111,15 +113,22 @@ export class ServerOauth implements OAuthClientProvider {
     return this.lastState;
   }
 
-  /** A registration made for another callback address (loki on another port) is not this client: register again. */
+  /**
+   * loki's registration with the server, used only while it is known good: tokens were issued to it, or this daemon
+   * made it for the sign-in under way. One kept from a sign-in that never finished may since have been forgotten by the
+   * server, which says so only on its own page in the browser, where loki never hears of it; so a new sign-in registers
+   * again. A registration made for another callback address (loki on another port) is not this client either.
+   */
   async clientInformation(): Promise<StoredOAuthClientInformation | undefined> {
     const client = await this.store.get<StoredOAuthClientInformation & { redirect_uris?: string[] }>(this.key, "client");
     if (client?.redirect_uris && !client.redirect_uris.includes(this.redirect)) return undefined;
+    if (client && !this.registered && !(await this.store.get(this.key, "tokens"))) return undefined;
     return client;
   }
 
   async saveClientInformation(info: StoredOAuthClientInformation): Promise<void> {
     await this.store.set(this.key, "client", { redirect_uris: [this.redirect], ...info });
+    this.registered = true;
   }
 
   tokens(): Promise<StoredOAuthTokens | undefined> {
@@ -147,15 +156,17 @@ export class ServerOauth implements OAuthClientProvider {
   /**
    * Signing out: forget the tokens, any sign-in under way and loki's registration with the server, so the next sign-in
    * registers again. A registration the server has since forgotten fails on its own authorization page, in the browser,
-   * where loki never hears of it: signing out is how the person clears one.
+   * where loki never hears of it: signing out is how the person clears one that tokens were issued to.
    */
   async signOut(): Promise<void> {
+    this.registered = false;
     await this.store.delete(this.key, ["tokens", "verifier", "client"]);
   }
 
   /** The server said what it holds is no longer good (a revoked token, a forgotten registration): forget it. */
   async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier" | "discovery"): Promise<void> {
     if (scope === "discovery") return;
+    if (scope === "all" || scope === "client") this.registered = false;
     await this.store.delete(this.key, scope === "all" ? ["tokens", "client", "verifier"] : [scope]);
   }
 }
