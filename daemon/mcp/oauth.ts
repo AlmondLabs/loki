@@ -144,9 +144,13 @@ export class ServerOauth implements OAuthClientProvider {
     return v;
   }
 
-  /** Signing out: forget the tokens and any sign-in under way; the registration stays. */
+  /**
+   * Signing out: forget the tokens, any sign-in under way and loki's registration with the server, so the next sign-in
+   * registers again. A registration the server has since forgotten fails on its own authorization page, in the browser,
+   * where loki never hears of it: signing out is how the person clears one.
+   */
   async signOut(): Promise<void> {
-    await this.store.delete(this.key, ["tokens", "verifier"]);
+    await this.store.delete(this.key, ["tokens", "verifier", "client"]);
   }
 
   /** The server said what it holds is no longer good (a revoked token, a forgotten registration): forget it. */

@@ -17,7 +17,7 @@ import { auth } from "@modelcontextprotocol/client";
 import type * as acp from "@agentclientprotocol/sdk";
 import { commandPath } from "../acp/agents.ts";
 import { editServer, keychainRef, readConfig, setAlwaysLoad, withSecrets, type ServerConfig, type ServerEdit } from "./config.ts";
-import { OauthStore, ServerOauth, callbackUrl } from "./oauth.ts";
+import { OauthStore, ServerOauth, callbackUrl, oauthKey } from "./oauth.ts";
 import { toolResultsDir } from "../tool-results.ts";
 import { mapResult } from "./results.ts";
 import { rank, selected } from "./search.ts";
@@ -385,10 +385,24 @@ export class McpTools {
     return { servers, problems: this.problems, config_path: this.configPath };
   }
 
-  /** Add, change, rename (`rename`) or remove (`edit` null) a server in mcp.json, and connect as it now says. */
+  /**
+   * Add, change, rename (`rename`) or remove (`edit` null) a server in mcp.json, and connect as it now says. A server
+   * removed, renamed or pointed at a new address leaves its old sign-in behind, so that is forgotten: tokens and
+   * registration both, which a later server of the same name and address would otherwise be handed.
+   */
   setServer(entry: string, edit: ServerEdit | null, rename?: string): McpView {
+    const before = this.servers.configs().filter((c) => c.kind === "remote" && usesOauth(c));
     editServer(this.configPath, entry, edit, rename ? { rename } : {});
     this.reload();
+    const now = this.servers.configs();
+    for (const old of before) {
+      if (old.kind !== "remote" || now.some((c) => c.name === old.name && c.kind === "remote" && c.url === old.url)) continue;
+      this.providers.delete(`${old.name}\u0000${old.url}`);
+      this.signedIn.delete(old.name);
+      void this.oauthStore
+        .delete(oauthKey(old.name, old.url))
+        .catch((e: unknown) => this.report(`mcp: could not forget ${old.name}'s sign-in: ${messageOf(e)}`));
+    }
     return this.view();
   }
 
@@ -482,7 +496,7 @@ export class McpTools {
     }
   }
 
-  /** Forget a server's tokens (its registration stays) and connect again, which asks for a sign-in. */
+  /** Forget a server's sign-in, tokens and registration both, and connect again, which asks for a sign-in. */
   async signOut(name: string): Promise<McpView> {
     const config = this.servers.configs().find((c) => c.name === name);
     await (config && this.oauthFor(config))?.signOut();
