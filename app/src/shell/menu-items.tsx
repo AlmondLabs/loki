@@ -80,6 +80,7 @@ export function PopoverMenu({
   entries,
   onClose,
   anchor = "right",
+  side = "below",
   width = 260,
 }: {
   label: string;
@@ -87,6 +88,8 @@ export function PopoverMenu({
   onClose: () => void;
   /** The wrapper's edge the menu lines up with. */
   anchor?: "left" | "right";
+  /** Under the button (the default), or above it for a button along the window's foot. */
+  side?: "below" | "above";
   width?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -117,6 +120,7 @@ export function PopoverMenu({
       role="menu"
       aria-label={label}
       anchor={anchor}
+      side={side}
       width={width}
       // hung from a small button: the popover's own cap (its parent's width) would crush it
       style={{ padding: 4, [anchor]: 0, maxWidth: "none" }}

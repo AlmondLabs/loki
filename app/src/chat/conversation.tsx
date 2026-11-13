@@ -18,7 +18,7 @@ import { offersAlways, type PendingApproval, type PendingQuestion } from "../../
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { Button, Chip, Title } from "../components";
+import { Button, Chip, Title, sentence } from "../components";
 import { AgentChip, AgentFace } from "../desk/agent-chip";
 import { avatarUrl } from "../desk/env";
 import { keyFor } from "../shell/keymap";
@@ -36,8 +36,8 @@ import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } fr
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
 import type { UsualChoice } from "./model-switcher";
-import { openCommandCenter, useShareModels } from "../shell/command-center";
-import { ModeSwitch } from "./permission-mode";
+import { openCommandCenter, useShareModels, type CommandScope } from "../shell/command-center";
+import { MODES, ModeSwitch, selectedMode, titleCase } from "./permission-mode";
 import { engineControls } from "./engine-controls";
 import type { ChatEngineView } from "../../../core/models.ts";
 import { useChatTicks } from "./use-chat-ticks";
@@ -306,12 +306,14 @@ export function Conversation({
     sendReply(option);
     return true;
   };
-  // Under Liquid Glass on the desktop the model is switched in ⌘K's Models scope (plan 2026-11-12-1505, U19, U23): the chat
-  // shares its model controls, and the pill and ⌘⇧M open ⌘K there. The new pane otherwise picks a model in AI Elements'
-  // ModelSelector dialog; today's box keeps its popover (plan 097, U6).
+  // Under Liquid Glass on the desktop the model and the permission mode are changed in ⌘K (plan 2026-11-12-1505, U19,
+  // U21, U23), their one home: the chat shares its controls, and ⌘⇧M and ⌘⇧P open ⌘K on the Models or Permissions scope.
+  // The new pane otherwise picks a model in AI Elements' ModelSelector dialog; today's box keeps its popover (plan 097, U6).
   const inCommand = glass && !touch && hasModelPicker;
+  const modesInCommand = glass && !touch && hasModeMenu;
+  const modeList = modes ?? MODES;
   useShareModels(
-    inCommand
+    inCommand || modesInCommand
       ? {
           entries: models,
           current: model,
@@ -320,13 +322,22 @@ export function Conversation({
           usual: usualModels ?? NO_USUAL,
           agentName: agentName ?? null,
           pick: (selection) => void controls.pickModel(selection),
+          modes: modesInCommand
+            ? {
+                current: selectedMode(currentMode, modeList),
+                list: modeList.map((m) => ({ id: m.id, label: titleCase(m.label), description: sentence(m.description) })),
+                pick: (m) => void controls.pickMode(m),
+              }
+            : null,
         }
       : null,
   );
+  // Under Liquid Glass the box is Messages' (plan 2026-11-12-1505, U21): no pills in it, and "+" only attaches files.
+  const messages = glass && !touch && proposals;
   const picker =
     hasModelPicker &&
     (inCommand ? (
-      <OpenModels open={controls.pickerOpen} onOpened={controls.closePicker} />
+      <OpenScope scope="models" open={controls.pickerOpen} onOpened={controls.closePicker} />
     ) : proposals ? (
       <ModelDialog
         open={controls.pickerOpen}
@@ -469,6 +480,7 @@ export function Conversation({
                   placeholder={placeholder ?? (glass ? glassPlaceholder : composerPlaceholder)({ status, approval, question }, agentName)}
                   touch={touch}
                   tools={
+                    !messages &&
                     (hasModelPicker || hasModeMenu || suggestions) && (
                       <>
                         {hasModelPicker && (
@@ -497,11 +509,13 @@ export function Conversation({
                   sendTitle={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
                   {...palette.aria}
                   {...(proposals ? { queued: queuedRows, onCancelQueued: actions.onCancelQueued } : {})}
+                  {...(messages ? { extras: suggestions && <SuggestionChip {...suggestions} touch={touch} tick={suggestionsTick} /> } : {})}
                 />
               );
             })()}
           </div>
-          {touch && picker}
+          {(touch || messages) && picker}
+          {messages && modesInCommand && <OpenScope scope="permissions" open={controls.modeOpen} onOpened={controls.closeMode} />}
 
           {hasFooter && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
@@ -816,18 +830,18 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
 const NO_USUAL: readonly UsualChoice[] = [];
 
 /**
- * The pill or ⌘⇧M asked for the model (the picker's open flag): ⌘K opens on its Models scope (U23), and the flag is
- * handed back so the next click or key opens it again.
+ * ⌘⇧M or ⌘⇧P asked for the model or the mode (the switcher's open flag): ⌘K opens on its Models or Permissions scope
+ * (U21, U23), and the flag is handed back so the next key opens it again.
  */
-function OpenModels({ open, onOpened }: { open: boolean; onOpened: () => void }) {
+function OpenScope({ scope, open, onOpened }: { scope: CommandScope; open: boolean; onOpened: () => void }) {
   const opened = useRef(onOpened);
   useEffect(() => {
     opened.current = onOpened;
   });
   useEffect(() => {
     if (!open) return;
-    openCommandCenter("models");
+    openCommandCenter(scope);
     opened.current();
-  }, [open]);
+  }, [open, scope]);
   return null;
 }

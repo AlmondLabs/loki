@@ -182,14 +182,19 @@ export function ModeMenu({
 }
 
 /** A mode's name as a menu item says it, in title case ("Accept Edits"). */
-const titleCase = (label: string) => label.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
+export const titleCase = (label: string) => label.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
+
+/** The mode a chat runs in: its own, else loki's default (unrestricted, daemon/approvals.ts) or its agent's first. */
+export function selectedMode(current: string | null, modes: ModeChoice[]): string | null {
+  return current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
+}
 
 /**
  * The mode menu as data (plan 2026-11-12-1505, U19): each mode, the current one checked, for the system's menu under
  * Liquid Glass in the Mac app. The chip's tooltip says what the current one lets through.
  */
 export function modeMenuEntries(current: string | null, modes: ModeChoice[], onPick: (m: string) => void): MenuEntry[] {
-  const selected = current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
+  const selected = selectedMode(current, modes);
   return modes.map((m): MenuEntry => ({ type: "item", id: `mode-${m.id}`, label: titleCase(m.label), checked: m.id === selected, run: () => onPick(m.id) }));
 }
 

@@ -1695,6 +1695,82 @@ button.loki-list-section-toggle {
     border-radius: 24px;
   }
 
+  /* The message box as Messages draws it (U21): "+" in a glass circle outside a one-line capsule that grows with the
+     text; inside the capsule, at its trailing edge, one round button: the microphone, the accent up-arrow once there
+     is something to send, or stop while the agent works. */
+  .loki-composer-plus {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+    flex: none;
+    color: var(--loki-muted);
+    cursor: default;
+  }
+  .loki-composer-plus:hover:not(:disabled) {
+    color: var(--loki-fg);
+  }
+  .loki-composer-plus svg,
+  .loki-composer-round svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+  }
+  .loki-dock .loki-composer-capsule[data-slot="input-group"] {
+    min-height: 30px;
+  }
+  .loki-composer-capsule .loki-composer-field {
+    min-height: 30px;
+    padding: 6px 4px 6px 12px;
+    line-height: 18px;
+  }
+  .loki-composer-act {
+    display: flex;
+    flex: none;
+    padding: 3px;
+  }
+  .loki-composer-round {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-muted);
+    cursor: default;
+  }
+  .loki-composer-round:disabled {
+    opacity: 0.35;
+  }
+  .loki-composer-round[data-kind="send"] {
+    background: var(--loki-affirm);
+    color: var(--loki-on-affirm);
+  }
+  .loki-composer-round[data-kind="stop"] {
+    background: var(--loki-fg);
+    color: var(--loki-bg);
+  }
+  .loki-composer-round[data-kind="stop"] svg {
+    width: 10px;
+    height: 10px;
+    fill: currentColor;
+  }
+  .loki-composer-round[data-kind="dictate"][aria-pressed="true"] {
+    color: var(--loki-accent);
+  }
+
   /* Flow (U6): a chat card holds the same floating dock as the chat pane, so its thread pads itself the same way; an
      outside card's reply box is the same glass capsule as the composer. */
   .loki-flow-card [data-slot="message-scroller-content"] {

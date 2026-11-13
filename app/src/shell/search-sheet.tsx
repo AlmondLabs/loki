@@ -5,7 +5,7 @@ import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
 import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";
 import { formatKeys } from "./keymap";
-import type { CommandScope, SharedModels } from "./command-center";
+import type { CommandScope, SharedMode, SharedModels, SharedModes } from "./command-center";
 import {
   ModelRow,
   ModelSwitchFoot,
@@ -31,14 +31,36 @@ export interface CommandHit {
 }
 
 /** One row of plain ⌘K, whatever it is: a search hit, a command to run, or a model to switch to. */
-type Row = { kind: "hit"; hit: SearchHit } | { kind: "command"; command: CommandHit } | { kind: "model"; model: SwitchRow };
-const rowKey = (r: Row) => (r.kind === "hit" ? r.hit.key : r.kind === "command" ? `command:${r.command.id}` : `model:${r.model.key}`);
+type Row =
+  { kind: "hit"; hit: SearchHit } | { kind: "command"; command: CommandHit } | { kind: "model"; model: SwitchRow } | { kind: "mode"; mode: SharedMode };
+const rowKey = (r: Row) =>
+  r.kind === "hit" ? r.hit.key : r.kind === "command" ? `command:${r.command.id}` : r.kind === "model" ? `model:${r.model.key}` : `mode:${r.mode.id}`;
 
 /** How many commands and models plain ⌘K shows for a query: the Models scope holds the rest. */
 const COMMANDS_MAX = 5;
 const MODELS_MAX = 3;
 /** Typed at the start of plain ⌘K, this steps into the Models scope. */
 const MODELS_PREFIX = /^models?\s$/i;
+/** Typed at the start of plain ⌘K, this steps into the Permissions scope. */
+const PERMISSIONS_PREFIX = /^(permissions?|modes?)\s$/i;
+
+/**
+ * The chat's permission modes for what is typed (plan 2026-11-12-1505, U21). In the Permissions scope: all of them, or
+ * those whose name or line holds each word. In plain ⌘K: only once something is typed, the ones it names, or all of
+ * them for "permission" or "mode". A typed word matches the start of a word, as a name is typed.
+ */
+export function matchModes(modes: SharedModes | null | undefined, typed: string, inScope: boolean): SharedMode[] {
+  if (!modes) return [];
+  const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return inScope ? [...modes.list] : [];
+  // Each word must start a word of the mode's name or line: "strict" is not inside "Unrestricted".
+  const named = modes.list.filter((m) => {
+    const said = `${m.label} ${m.description}`.toLowerCase().split(/[^a-z0-9]+/);
+    return words.every((w) => said.some((x) => x.startsWith(w)));
+  });
+  if (named.length > 0 || inScope) return named;
+  return words.every((w) => "permission mode".includes(w)) && typed.length >= 3 ? [...modes.list] : [];
+}
 
 /** The commands whose label holds every word of the query, at most COMMANDS_MAX; none before anything is typed. */
 export function matchCommands(commands: readonly CommandHit[], typed: string): CommandHit[] {
@@ -94,9 +116,14 @@ export function SearchSheet({
   // No autoFocus on the field: Sheet notes the element focused before it (to hand focus back on close), then focuses the field, its first control.
   const [query, setQuery] = useState("");
   const [placeKeys, setPlaceKeys] = useState(() => recentPlaces.read());
-  const [active, setActive] = useState(0);
+  const modes = models?.modes ?? null;
+  // The Permissions scope opens with the chat's own mode highlighted, as a Mac pop-up opens on its current item.
+  const currentModeAt = Math.max(0, modes?.list.findIndex((m) => m.id === modes.current) ?? 0);
+  const [active, setActive] = useState(() => (scope === "permissions" ? currentModeAt : 0));
   const scroller = useRef<HTMLDivElement>(null);
   const inModels = scope === "models";
+  const inModes = scope === "permissions";
+  const scoped = inModels || inModes;
 
   const typed = cleanQuery(query);
   const index = useMemo(() => buildIndex(sources), [sources]);
@@ -113,12 +140,17 @@ export function SearchSheet({
   );
   const commandHits = matchCommands(commands, typed);
   const modelHits = matchModels(models, typed);
-  const rows: Row[] = [
-    ...(typed ? flatHits(groups) : places).map((hit): Row => ({ kind: "hit", hit })),
-    ...commandHits.map((command): Row => ({ kind: "command", command })),
-    ...modelHits.map((model): Row => ({ kind: "model", model })),
-  ];
-  const found = groups.reduce((n, g) => n + g.total, 0) + commandHits.length + modelHits.length;
+  const modeHits = matchModes(modes, typed, inModes);
+  // In the Permissions scope the list is the modes alone; plain ⌘K ends with the ones typed for.
+  const rows: Row[] = inModes
+    ? modeHits.map((mode): Row => ({ kind: "mode", mode }))
+    : [
+        ...(typed ? flatHits(groups) : places).map((hit): Row => ({ kind: "hit", hit })),
+        ...commandHits.map((command): Row => ({ kind: "command", command })),
+        ...modelHits.map((model): Row => ({ kind: "model", model })),
+        ...modeHits.map((mode): Row => ({ kind: "mode", mode })),
+      ];
+  const found = inModes ? modeHits.length : groups.reduce((n, g) => n + g.total, 0) + commandHits.length + modelHits.length + modeHits.length;
   const at = Math.min(active, rows.length - 1);
   const current = at >= 0 ? rows[at] : null;
   const sw = useModelSwitch(models ?? EMPTY_SOURCE, inModels ? typed : "");
@@ -146,15 +178,20 @@ export function SearchSheet({
     } else if (r.kind === "command") {
       onClose();
       onCommand(r.command.id);
+    } else if (r.kind === "mode") {
+      modes?.pick(r.mode.id);
+      onClose();
     } else if (models) {
       models.pick(selectionOf(preferredModelEntry(r.model.group, models.currentEffort)));
       onClose();
     }
   };
-  const enterModels = () => {
-    onScope("models");
-    setActive(0);
+  const enterScope = (to: CommandScope) => {
+    onScope(to);
+    setQuery("");
+    setActive(to === "permissions" ? currentModeAt : 0);
   };
+  const enterModels = () => enterScope("models");
   const leaveModels = () => {
     onScope("all");
     setQuery("");
@@ -169,7 +206,7 @@ export function SearchSheet({
   const activeId = inModels ? (sw.active ? modelOptionId(sw.active.key) : undefined) : current ? optionId(rowKey(current)) : undefined;
   return (
     <Sheet
-      label={inModels ? "Switch model" : "Search"}
+      label={inModels ? "Switch model" : inModes ? "Change permission mode" : "Search"}
       onClose={onClose}
       width={640}
       top="10vh"
@@ -188,9 +225,9 @@ export function SearchSheet({
         }}
       >
         <Icon name="search" size={18} className="loki-search-glass" />
-        {inModels && (
+        {scoped && (
           <span className="loki-search-scope">
-            Models
+            {inModels ? "Models" : "Permissions"}
             <button
               type="button"
               className="loki-search-scope-x"
@@ -208,11 +245,8 @@ export function SearchSheet({
           value={query}
           onChange={(e) => {
             const text = e.target.value.slice(0, 200);
-            if (!inModels && models && MODELS_PREFIX.test(text)) {
-              setQuery("");
-              enterModels();
-              return;
-            }
+            if (!scoped && models && MODELS_PREFIX.test(text)) return enterModels();
+            if (!scoped && modes && PERMISSIONS_PREFIX.test(text)) return enterScope("permissions");
             setQuery(text);
             setActive(0);
           }}
@@ -224,23 +258,36 @@ export function SearchSheet({
               } else if (sw.onKey(e.key)) e.preventDefault();
               return;
             }
-            if (e.key === "Tab" && !e.shiftKey && current?.kind === "model") {
+            if (inModes && e.key === "Backspace" && !query) {
               e.preventDefault();
-              enterModels();
+              leaveModels();
+              return;
+            }
+            if (e.key === "Tab" && !e.shiftKey && !inModes && (current?.kind === "model" || current?.kind === "mode")) {
+              e.preventDefault();
+              enterScope(current.kind === "model" ? "models" : "permissions");
               return;
             }
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
             if (rows.length) setActive((a) => (Math.min(a, rows.length - 1) + (e.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length);
           }}
-          placeholder={inModels ? (models?.agentName ? `Switch ${models.agentName}'s model` : "Switch model") : "Search chats, agents, pages and commands"}
-          aria-label={inModels ? "Switch model" : "Search"}
+          placeholder={
+            inModels
+              ? models?.agentName
+                ? `Switch ${models.agentName}'s model`
+                : "Switch model"
+              : inModes
+                ? "Change this chat's permission mode"
+                : "Search chats, agents, pages and commands"
+          }
+          aria-label={inModels ? "Switch model" : inModes ? "Change permission mode" : "Search"}
           role="combobox"
           aria-expanded={inModels ? sw.groups.length > 0 : rows.length > 0}
           aria-controls={inModels ? "loki-model-switch-list" : LIST_ID}
           aria-autocomplete="list"
           aria-activedescendant={activeId}
-          aria-describedby={inModels ? undefined : "loki-search-coverage"}
+          aria-describedby={scoped ? undefined : "loki-search-coverage"}
           autoComplete="off"
           spellCheck={false}
           data-1p-ignore
@@ -257,6 +304,34 @@ export function SearchSheet({
           ) : (
             <div className="loki-search-empty">
               <p className="loki-search-miss">Open a chat to switch its model</p>
+            </div>
+          )
+        ) : inModes ? (
+          modes ? (
+            <>
+              <div id={LIST_ID} role="listbox" aria-label="Permission modes">
+                <ul className="loki-list" role="presentation">
+                  {modeHits.map((m, i) => (
+                    <ModeRow
+                      key={m.id}
+                      mode={m}
+                      current={m.id === modes.current}
+                      selected={current?.kind === "mode" && current.mode.id === m.id}
+                      onPoint={() => setActive(i)}
+                      onPick={() => take({ kind: "mode", mode: m })}
+                    />
+                  ))}
+                </ul>
+              </div>
+              {modeHits.length === 0 && (
+                <div className="loki-search-empty">
+                  <p className="loki-search-miss">No mode matches “{typed}”</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="loki-search-empty">
+              <p className="loki-search-miss">Open a chat to change its permission mode</p>
             </div>
           )
         ) : (
@@ -311,6 +386,20 @@ export function SearchSheet({
                   ))}
                 </Group>
               )}
+              {modeHits.length > 0 && modes && (
+                <Group title="Permissions" note="Applies to this chat">
+                  {modeHits.map((m, i) => (
+                    <ModeRow
+                      key={m.id}
+                      mode={m}
+                      current={m.id === modes.current}
+                      selected={current?.kind === "mode" && current.mode.id === m.id}
+                      onPoint={() => setActive(searchCount + commandHits.length + modelHits.length + i)}
+                      onPick={() => take({ kind: "mode", mode: m })}
+                    />
+                  ))}
+                </Group>
+              )}
             </div>
             {typed && rows.length === 0 && (
               <div className="loki-search-empty">
@@ -328,12 +417,43 @@ export function SearchSheet({
       </div>
       {inModels ? (
         models && <ModelSwitchFoot sw={{ ...sw, pick: (row, effort) => pickModel(row, effort) }} />
+      ) : inModes ? (
+        <p className="loki-meta loki-meta--wrap loki-search-coverage">Applies to this chat. ↑ ↓ to move, {formatKeys("enter")} to change.</p>
       ) : (
         <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
           {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
         </p>
       )}
     </Sheet>
+  );
+}
+
+/** A permission mode as a listbox option: its name over the line saying what it lets through, the chat's own checked. */
+function ModeRow({
+  mode,
+  current,
+  selected,
+  onPoint,
+  onPick,
+}: {
+  mode: SharedMode;
+  current: boolean;
+  selected: boolean;
+  onPoint: () => void;
+  onPick: () => void;
+}) {
+  return (
+    <li id={optionId(`mode:${mode.id}`)} role="option" aria-selected={selected} className="loki-list-item">
+      <div className="loki-list-row loki-search-row" onPointerDown={(e) => e.preventDefault()} onPointerMove={selected ? undefined : onPoint} onClick={onPick}>
+        <span className="loki-list-row-copy">
+          <span className="loki-list-row-title">
+            <span className="loki-list-row-name">{mode.label}</span>
+          </span>
+          {mode.description && <span className="loki-list-row-preview">{mode.description}</span>}
+        </span>
+        {current && <Icon name="check" size={16} className="loki-model-switch-check" />}
+      </div>
+    </li>
   );
 }
 

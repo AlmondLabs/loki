@@ -8,8 +8,22 @@ import type { UsualChoice } from "../chat/model-switcher";
  * anything (the model pill, ⌘⇧M) can open ⌘K on a scope.
  */
 
-/** ⌘K's scopes: everything, or only the open chat's models. */
-export type CommandScope = "all" | "models";
+/** ⌘K's scopes: everything, only the open chat's models, or only its permission modes. */
+export type CommandScope = "all" | "models" | "permissions";
+
+/** A permission mode as ⌘K lists it: its name and the line saying what it lets through. */
+export interface SharedMode {
+  id: string;
+  label: string;
+  description: string;
+}
+
+/** What the open chat shares for changing its permission mode (plan 2026-11-12-1505, U21). */
+export interface SharedModes {
+  current: string | null;
+  list: readonly SharedMode[];
+  pick: (id: string) => void;
+}
 
 /** What the open chat shares for switching its model: what it offers, what it is on, and how to switch. */
 export interface SharedModels {
@@ -21,6 +35,8 @@ export interface SharedModels {
   /** The chat's agent, for the scope's heading. */
   agentName: string | null;
   pick: (selection: ModelSelection) => void;
+  /** The chat's permission modes, for ⌘K's Permissions scope; null where the chat has none to change. */
+  modes?: SharedModes | null;
 }
 
 type Listener = () => void;
@@ -53,19 +69,28 @@ export function useShareModels(models: SharedModels | null): void {
   useEffect(() => {
     pick.current = models?.pick;
   });
+  // The modes come as a fresh list each render: they are read through a ref, and a key of what they say tells a change.
+  const modes = useRef(models?.modes ?? null);
+  useEffect(() => {
+    modes.current = models?.modes ?? null;
+  });
+  const shownModes = models?.modes ?? null;
+  const modesKey = shownModes ? `${shownModes.current ?? ""}\n${shownModes.list.map((m) => `${m.id}\t${m.label}\t${m.description}`).join("\n")}` : null;
   const on = models !== null;
   const { entries = null, current = null, currentEffort = null, started = false, usual = NONE, agentName = null } = models ?? {};
   useEffect(() => {
     if (!on) return;
     const id = next++;
-    shared.push({ id, models: { entries, current, currentEffort, started, usual, agentName, pick: (s) => pick.current?.(s) } });
+    const now = modesKey === null ? null : modes.current;
+    const sharedModes = now ? { current: now.current, list: now.list, pick: (m: string) => modes.current?.pick(m) } : null;
+    shared.push({ id, models: { entries, current, currentEffort, started, usual, agentName, pick: (s) => pick.current?.(s), modes: sharedModes } });
     changed();
     return () => {
       const at = shared.findIndex((x) => x.id === id);
       if (at >= 0) shared.splice(at, 1);
       changed();
     };
-  }, [on, entries, current, currentEffort, started, usual, agentName]);
+  }, [on, entries, current, currentEffort, started, usual, agentName, modesKey]);
 }
 
 const NONE: readonly UsualChoice[] = [];

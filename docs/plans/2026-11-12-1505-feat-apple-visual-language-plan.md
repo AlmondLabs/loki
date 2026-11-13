@@ -472,10 +472,10 @@ Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everyt
 **Approach:** under Liquid Glass on the desktop:
 - One line, a capsule about 30pt tall that grows with the text up to a limit; "+" outside it on the leading side.
 - Send is the accent up-arrow in a filled circle, shown only when there is text; the microphone shows when there is none, as in Messages.
-- The engine and mode pills leave the composer: they open from the "+" menu and the chat's toolbar subtitle, through U19's native menus.
+- The engine and mode pills leave the composer. Changed during the unit, by the person's choice (2026-11-13): the model and the permission mode change rarely, so they get no quick controls and no duplicates. ⌘K is their one home, Models and a new **Permissions** scope (⌘⇧M, ⌘⇧P, or "model " / "mode " typed); "+" only attaches files, and the toolbar names neither. This replaces U19's native mode menu under Liquid Glass.
 **Test scenarios:**
 - Under Liquid Glass the composer has no pills, one row, and swaps the microphone for send when text is typed.
-- The model and mode stay reachable from the "+" menu and keep their keys.
+- "+" attaches files and offers no menu; ⌘K's Permissions scope lists the chat's modes, the current one checked, and plain ⌘K finds a mode by the start of its name.
 **Verification:** rendered empty, typing and multi-line, light and dark.
 
 ### U22. SF Symbols in native menus

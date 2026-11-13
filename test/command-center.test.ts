@@ -67,10 +67,12 @@ describe("anything opens ⌘K on a scope; the open chat's models reach it", () =
     expect(opened).toEqual(["models"]);
   });
 
-  test("the conversation shares its models under Liquid Glass and its pill opens ⌘K on Models; the shell passes them on", () => {
+  test("the conversation shares its models and modes under Liquid Glass, ⌘⇧M and ⌘⇧P open ⌘K on their scopes; the shell passes them on", () => {
     const conversation = readFileSync(join(ROOT, "app", "src", "chat", "conversation.tsx"), "utf8");
     expect(conversation).toContain("const inCommand = glass && !touch && hasModelPicker;");
-    expect(conversation).toContain('openCommandCenter("models");');
+    expect(conversation).toContain('<OpenScope scope="models" open={controls.pickerOpen} onOpened={controls.closePicker} />');
+    expect(conversation).toContain('<OpenScope scope="permissions" open={controls.modeOpen} onOpened={controls.closeMode} />');
+    expect(conversation).toContain("openCommandCenter(scope);");
     const shell = readFileSync(join(ROOT, "app", "src", "shell", "shell.tsx"), "utf8");
     expect(shell).toContain("useEffect(() => takeCommandCenter(openSearch), [openSearch]);");
     expect(shell).toMatch(/models=\{sharedModels\}\s*commands=\{glass \? commandsFor\(segment\) : \[\]\}/);

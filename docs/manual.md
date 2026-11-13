@@ -167,7 +167,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the three model and effort settings you switch that agent's chats to most. Once a chat has started it lists only its
   own harness's models, since a chat stays on the harness it started on. A **new chat starts on the agent's most used
   setting**, harness included; with none yet, on the agent's own model. Only a switch counts toward Usual, from the
-  Mac or a phone, not each message you send. Cards in Flow carry the same chips in their actions row. When a tool call asks, its card
+  Mac or a phone, not each message you send. Cards in Flow carry the same chips in their actions row. Under
+  Liquid Glass on the desktop the message box is drawn as Messages draws its own: one line that grows with what you
+  type, with **+** outside it; inside it, the microphone while it is empty and a blue up-arrow once there is something
+  to send (a stop button while the agent works and nothing is typed); **+** attaches files. The two chips are gone:
+  the model and the permission mode change rarely, so ⌘K is their one home. ⌘⇧M opens it on **Models**, ⌘⇧P on
+  **Permissions**, which lists the chat's modes with what each lets through, the current one checked and highlighted;
+  typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
