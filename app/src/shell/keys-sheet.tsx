@@ -1,7 +1,7 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
 import { keyboard } from "../desk/env";
-import { useLook } from "../theme";
+import { useLook, type Look } from "../theme";
 
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
@@ -11,8 +11,8 @@ import { useLook } from "../theme";
  * the keys, and this is the list of them for the view, named as the sidebar names it.
  */
 export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; onClose: () => void; onSettings: () => void }) {
-  const groups = keysFor(segment);
   const glass = useLook() === "glass";
+  const groups = keysFor(segment, KEYMAP, keyboard, glass ? "glass" : "classic");
   const place = glass ? (PLACE[segment] ?? sentence(segment)) : segment;
   return (
     <Sheet label={glass ? `Keys for ${place}` : `keys for ${segment}`} onClose={onClose} width={620} clear={glass}>
@@ -87,7 +87,12 @@ export function keysSheetNote(os: Platform = keyboard): string {
  * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar). The rows carry
  * the system's own keys (keysOf).
  */
-export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
+export function keysFor(
+  segment: Segment,
+  map: Binding[] = KEYMAP,
+  os: Platform = keyboard,
+  look: Look = "classic",
+): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
     const own = keysOf(b, os);
@@ -100,7 +105,7 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
           )
         : new Set<string>();
     const keys = own.filter((k) => !taken.has(k));
-    const label = labelOf(b, os);
+    const label = labelOf(b, os, look);
     return keys.length === 0 ? null : own === b.keys && keys.length === own.length && label === b.label ? b : { ...b, keys, label };
   };
   return wheres

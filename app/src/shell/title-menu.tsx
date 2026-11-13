@@ -4,6 +4,7 @@ import { keyboard, type Platform } from "../desk/env";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
 import { ChevronRightIcon, MenuIcon } from "lucide-react";
 import { GlassIcon } from "../shared/icons";
+import { useLook, type Look } from "../theme";
 
 /** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
 export interface TitleMenuEntry {
@@ -29,8 +30,8 @@ const HIDE_BINDING: Binding = (() => {
  * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
  * in Ctrl words. An item without an accelerator on the Mac shows none here either.
  */
-export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): TitleMenuGroup[] {
-  return menuSpec(map, os).map((m) => ({
+export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP, look: Look = "classic"): TitleMenuGroup[] {
+  return menuSpec(map, os, look).map((m) => ({
     title: m.title,
     items: m.items.map((it) => {
       if ("separator" in it) return it;
@@ -157,6 +158,8 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
   const [open, setOpen] = useState<string | null>(null);
   /** Bumped when the keyboard opens a title: its menu's first item takes the focus once it shows. */
   const [enter, setEnter] = useState(0);
+  // Worded for the look showing, as the Mac's menu bar is.
+  const look = useLook();
   const closeRef = useRef(onClose);
   useEffect(() => {
     closeRef.current = onClose;
@@ -212,7 +215,7 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
         e.stopPropagation();
       }}
     >
-      <TitleMenuPanel groups={titleMenus(os)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
+      <TitleMenuPanel groups={titleMenus(os, KEYMAP, look)} open={open} onOpen={setOpen} onPick={onPick} os={os} />
     </div>
   );
 }

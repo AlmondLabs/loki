@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { inTauri, keyboard, type Platform } from "../desk/env";
+import { useLook } from "../theme";
 import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
 
 /**
@@ -113,10 +114,17 @@ export function useShellKeys(
   // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
   // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
   // and "read the card" in the inbox; the key handler already ran the right one).
+  // The menu bar is worded for the look showing, so it is built again when the look changes (New Chat… or New Chat).
+  const look = useLook();
+  useEffect(() => {
+    if (!inTauri) return;
+    void import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke("set_menu", { menus: menuSpec(undefined, undefined, look) }))
+      .catch((e: unknown) => console.warn("loki: menu", e));
+  }, [look]);
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e: unknown) => console.warn("loki: menu", e));
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen<string>("loki:menu", (ev) => {
         const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;
