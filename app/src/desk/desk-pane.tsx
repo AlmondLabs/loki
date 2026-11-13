@@ -384,7 +384,15 @@ function DeskMessages({
   // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
-  return <Conversation {...conversation} view={{ ...view, rows }} agentName={agentName} layout={layout} />;
+  return (
+    <Conversation
+      {...conversation}
+      view={{ ...view, rows }}
+      agentName={agentName}
+      layout={layout}
+      usualModels={agentId ? desk.models.usual[agentId] : undefined}
+    />
+  );
 }
 
 /**

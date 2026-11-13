@@ -27,14 +27,23 @@ export interface SwitchRow {
   /** This account cannot reach the model. */
   off: boolean;
   current: boolean;
+  /** A usual configuration's own effort, which a pick takes as it is; absent, the effort shown at the foot. */
+  effort?: ReasoningEffort | null;
 }
 
-/** One harness's block: its name over its rows, and a note when the chat cannot move to it. */
+/** One block of rows under its title: the agent's usual configurations, or one harness's models. */
 export interface SwitchGroup {
-  harness: Harness;
+  id: string;
+  title: string;
   rows: SwitchRow[];
   /** How many more matched than are shown. */
   hidden: number;
+}
+
+/** One of the agent's usual configurations as the app holds it (mod/usual-models.ts): a model and its effort. */
+export interface UsualChoice {
+  handle: string;
+  reasoning_effort: ReasoningEffort | null;
 }
 
 /** The most rows a harness shows for a query: the rest are a few more letters away. */
@@ -51,40 +60,76 @@ const providerOf = (handle: string) => {
  * What the switcher lists (plan 2026-11-12-1505, U19): the chat's harness first, then the others in their order, each
  * under its name. With nothing typed, loki's quick picks (and an agent's every model); typed, every model whose name,
  * provider or harness holds each word, names that start with the query first. Once the chat has started, only its
- * own harness: switching models and effort happens there, and another harness is a new chat's choice.
+ * own harness: switching models and effort happens there, and another harness is a new chat's choice. With nothing
+ * typed, the agent's usual configurations lead (plan 2026-11-13-1240), each with its effort, ones the chat can take.
  */
-export function switcherGroups(entries: ModelEntry[], current: string | null, started: boolean, query: string): SwitchGroup[] {
+export function switcherGroups(
+  entries: ModelEntry[],
+  current: string | null,
+  started: boolean,
+  query: string,
+  usual: readonly UsualChoice[] = [],
+  currentEffort: ReasoningEffort | null = null,
+): SwitchGroup[] {
   const chatHarness = harnessOf(current);
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const tabs = harnesses(entries, chatHarness, started);
   // Once the chat has started only its own harness is offered (plan 020, KD4): its history lives there.
   const open = tabs.filter((t) => !t.locked);
   const ordered = [...open.filter((t) => t.id === chatHarness), ...open.filter((t) => t.id !== chatHarness)];
-  return ordered.flatMap((harness): SwitchGroup[] => {
-    const inHarness = entries.filter((e) => harnessOf(e.handle) === harness.id);
-    const groups = !words.length && harness.id === null ? modelLists(inHarness, current).short : groupModelEntries(inHarness);
-    const rows = groups.map((group): SwitchRow => {
-      const name = nameInHarness(group, harness);
-      const described = group.entries.find((e) => e.description)?.description ?? null;
-      return {
-        key: `${harness.id ?? "loki"}:${group.handle}`,
-        group,
-        harness,
-        name,
-        line: described ?? providerOf(group.handle),
-        off: harness.locked || !group.available,
-        current: group.handle === current,
-      };
-    });
-    const hay = (r: SwitchRow) => `${r.name} ${r.group.handle} ${r.harness.name} ${r.line ?? ""}`.toLowerCase();
-    const matched = words.length
-      ? rows
-          .filter((r) => words.every((w) => hay(r).includes(w)))
-          .sort((a, b) => Number(!a.name.toLowerCase().startsWith(words[0])) - Number(!b.name.toLowerCase().startsWith(words[0])))
-      : rows;
-    if (!matched.length) return [];
-    return [{ harness, rows: matched.slice(0, PER_HARNESS), hidden: Math.max(0, matched.length - PER_HARNESS) }];
-  });
+  const all = groupModelEntries(entries);
+  const usualRows = words.length
+    ? []
+    : usual.flatMap((u): SwitchRow[] => {
+        const harness = open.find((t) => t.id === harnessOf(u.handle));
+        const group = all.find((g) => g.handle === u.handle);
+        if (!harness || !group) return [];
+        const name = nameInHarness(group, harness);
+        const where = [u.reasoning_effort && effortsOf(entries, u.handle).length ? `${effortTitle(u.reasoning_effort)} effort` : null, harness.name]
+          .filter(Boolean)
+          .join(" · ");
+        return [
+          {
+            key: `usual:${u.handle}:${u.reasoning_effort ?? ""}`,
+            group,
+            harness,
+            name,
+            line: where,
+            off: !group.available,
+            current: group.handle === current && (u.reasoning_effort ?? null) === (effortsOf(entries, u.handle).length ? currentEffort : null),
+            effort: u.reasoning_effort,
+          },
+        ];
+      });
+  const lead: SwitchGroup[] = usualRows.length ? [{ id: "usual", title: "Usual", rows: usualRows, hidden: 0 }] : [];
+  return [
+    ...lead,
+    ...ordered.flatMap((harness): SwitchGroup[] => {
+      const inHarness = entries.filter((e) => harnessOf(e.handle) === harness.id);
+      const groups = !words.length && harness.id === null ? modelLists(inHarness, current).short : groupModelEntries(inHarness);
+      const rows = groups.map((group): SwitchRow => {
+        const name = nameInHarness(group, harness);
+        const described = group.entries.find((e) => e.description)?.description ?? null;
+        return {
+          key: `${harness.id ?? "loki"}:${group.handle}`,
+          group,
+          harness,
+          name,
+          line: described ?? providerOf(group.handle),
+          off: harness.locked || !group.available,
+          current: group.handle === current,
+        };
+      });
+      const hay = (r: SwitchRow) => `${r.name} ${r.group.handle} ${r.harness.name} ${r.line ?? ""}`.toLowerCase();
+      const matched = words.length
+        ? rows
+            .filter((r) => words.every((w) => hay(r).includes(w)))
+            .sort((a, b) => Number(!a.name.toLowerCase().startsWith(words[0])) - Number(!b.name.toLowerCase().startsWith(words[0])))
+        : rows;
+      if (!matched.length) return [];
+      return [{ id: harness.id ?? "loki", title: harness.name, rows: matched.slice(0, PER_HARNESS), hidden: Math.max(0, matched.length - PER_HARNESS) }];
+    }),
+  ];
 }
 
 /** The efforts a model offers, in REASONING_EFFORTS order; empty when it offers one or none. */
@@ -101,6 +146,7 @@ export function stepEffort(offered: ReasoningEffort[], at: ReasoningEffort | nul
   return offered[Math.max(0, Math.min(offered.length - 1, from + step))];
 }
 
+const NO_USUAL: readonly UsualChoice[] = [];
 const LIST_ID = "loki-model-switch-list";
 const optionId = (key: string) => `loki-model-switch-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
@@ -114,6 +160,7 @@ export function ModelSwitcher({
   current,
   currentEffort,
   started = false,
+  usual = NO_USUAL,
   onPick,
   onClose,
 }: {
@@ -121,11 +168,16 @@ export function ModelSwitcher({
   current: string | null;
   currentEffort: ReasoningEffort | null;
   started?: boolean;
+  /** The agent's usual configurations, most used first; they lead the list with nothing typed. */
+  usual?: readonly UsualChoice[];
   onPick: (selection: ModelSelection) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const groups = useMemo(() => switcherGroups(entries ?? [], current, started, query), [entries, current, started, query]);
+  const groups = useMemo(
+    () => switcherGroups(entries ?? [], current, started, query, usual, currentEffort),
+    [entries, current, started, query, usual, currentEffort],
+  );
   const rows = groups.flatMap((g) => g.rows);
   const live = rows.filter((r) => !r.off);
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -134,7 +186,14 @@ export function ModelSwitcher({
   const active = live.find((r) => r.key === activeKey) ?? (query ? first : (live.find((r) => r.current) ?? first));
   const offered = active ? effortsOf(entries ?? [], active.group.handle) : [];
   const [effortPick, setEffortPick] = useState<{ handle: string; effort: ReasoningEffort } | null>(null);
-  const effort = active && effortPick?.handle === active.group.handle ? effortPick.effort : active?.current ? currentEffort : null;
+  const effort =
+    active && effortPick?.handle === active.group.handle
+      ? effortPick.effort
+      : active?.effort !== undefined
+        ? active.effort
+        : active?.current
+          ? currentEffort
+          : null;
   // The effort shown: the one chosen here, else the chat's for its own model, else the one a pick would take.
   const shownEffort =
     !active || !offered.length
@@ -147,7 +206,7 @@ export function ModelSwitcher({
     if (active) document.getElementById(optionId(active.key))?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  const pick = (row: SwitchRow, at: ReasoningEffort | null = shownEffort) => {
+  const pick = (row: SwitchRow, at: ReasoningEffort | null = row === active ? shownEffort : (row.effort ?? null)) => {
     if (row.off) return;
     const entry = (at ? row.group.entries.find((e) => e.reasoning_effort === at) : undefined) ?? preferredModelEntry(row.group, currentEffort);
     onPick(selectionOf(entry));
@@ -202,9 +261,9 @@ export function ModelSwitcher({
         ) : (
           <div id={LIST_ID} role="listbox" aria-label="Models">
             {groups.map((g) => (
-              <div key={g.harness.id ?? "loki"} role="group" aria-label={g.harness.name} className="loki-search-group">
+              <div key={g.id} role="group" aria-label={g.title} className="loki-search-group">
                 <div className="loki-search-group-head">
-                  <span className="loki-search-group-title">{g.harness.name}</span>
+                  <span className="loki-search-group-title">{g.title}</span>
                   {g.hidden > 0 && <span className="loki-meta">{`${g.hidden} more: type more letters`}</span>}
                 </div>
                 <ul className="loki-list" role="presentation">

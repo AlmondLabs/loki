@@ -68,6 +68,8 @@ export interface DeskSocketState {
   servedBuild: string | null;
   /** The models used lately, latest first (mod/models.ts). */
   recentModels: string[];
+  /** Each agent's usual models, most used first (mod/usual-models.ts): the model switcher leads with them. */
+  usualModels: Pushes["models_usual"]["usual"];
   /** Each desk's widget change log (desk/widget-rows.ts): from history replies and live `widget_change` frames. */
   widgetLogs: WidgetLogs;
 }
@@ -102,6 +104,7 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
   restartDue: null,
   servedBuild: null,
   recentModels: [],
+  usualModels: {},
   widgetLogs: {},
 };
 
@@ -125,6 +128,7 @@ export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["t
   "peer_pair_code",
   "app_build",
   "models_recent",
+  "models_usual",
   "widget_change",
   "seen",
   "seen_chat",
@@ -193,6 +197,19 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       const next = msg.recent.filter((h): h is string => typeof h === "string");
       const cur = state.recentModels;
       return cur.length === next.length && cur.every((h, i) => h === next[i]) ? state : withParts(state, { recentModels: next });
+    }
+    case "models_usual": {
+      const next: DeskSocketState["usualModels"] = {};
+      for (const [agent, list] of Object.entries(msg.usual)) {
+        if (!Array.isArray(list)) continue;
+        next[agent] = list.flatMap((u: unknown) => {
+          if (typeof u !== "object" || u === null || !("handle" in u) || typeof u.handle !== "string") return [];
+          const effort = "reasoning_effort" in u && isReasoningEffort(u.reasoning_effort) ? u.reasoning_effort : null;
+          const uses = "uses" in u && typeof u.uses === "number" ? u.uses : 1;
+          return [{ handle: u.handle, reasoning_effort: effort, uses }];
+        });
+      }
+      return withParts(state, { usualModels: keepSame(state.usualModels, next) });
     }
     case "widget_change": {
       // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.

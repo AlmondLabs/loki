@@ -35,7 +35,7 @@ import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
-import { ModelSwitcher } from "./model-switcher";
+import { ModelSwitcher, type UsualChoice } from "./model-switcher";
 import { ModeSwitch } from "./permission-mode";
 import { engineControls } from "./engine-controls";
 import type { ChatEngineView } from "../../../core/models.ts";
@@ -121,6 +121,7 @@ export function Conversation({
   view,
   actions,
   models = null,
+  usualModels,
   agentName,
   header,
   footer,
@@ -149,6 +150,8 @@ export function Conversation({
   actions: ConversationActions;
   /** list_models, for the picker and to know which efforts the current model offers. */
   models?: ModelEntry[] | null;
+  /** The agent's usual models, most used first (mod/usual-models.ts): the switcher leads with them. */
+  usualModels?: readonly UsualChoice[];
   agentName?: string | null;
   /** Above the thread: a ConversationHeader, or the host's own. */
   header?: ReactNode;
@@ -311,6 +314,7 @@ export function Conversation({
           currentEffort={reasoningEffort}
           entries={models}
           started={started}
+          usual={usualModels}
           onPick={(selection) => void controls.pickModel(selection)}
           onClose={controls.closePicker}
         />

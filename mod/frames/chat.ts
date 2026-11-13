@@ -5,6 +5,8 @@ import type { LabelColorsSnapshot } from "../../daemon/labels.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
 import type { DeskTitleFrame } from "../chat-listing.ts";
+import type { UsualModels } from "../usual-models.ts";
+import type { ReasoningEffort } from "../../core/models.ts";
 import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
 
 /**
@@ -96,6 +98,8 @@ export interface ChatDeps {
   chatBlocked?: (agentId: string, conversationId: string) => string | null;
   /** The `desk_title` push for a chat as it now stands, or null before it has a title (mod/chat-listing.ts). */
   titleFrame?: (agentId: string, conversationId: string) => DeskTitleFrame | null;
+  /** Each agent's usual models (mod/usual-models.ts): read for a window that opens, recorded on a switch. */
+  usualModels?: { read: () => UsualModels; record: (agentId: string, handle: string, effort: ReasoningEffort | null) => UsualModels };
 }
 
 const NOT_HERE = "chats are served by loki's daemon, not this host";
@@ -166,7 +170,14 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         ctx,
       ),
     chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
-    chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
+    // A switch the person made counts toward the agent's usual models (plan 2026-11-13-1240); every window and phone hears.
+    chat_model: (p, ctx) =>
+      served(b, async (x) => {
+        await x.model(p);
+        const usual = deps.usualModels?.record(p.agent_id, p.handle, p.reasoning_effort ?? null);
+        if (usual) ctx.broadcast({ type: "models_usual", usual });
+        return DONE;
+      }),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
     chat_agents: () => served(b, async (x) => ({ agents: await x.agents() })),
     chat_agent_create: (p, ctx) =>

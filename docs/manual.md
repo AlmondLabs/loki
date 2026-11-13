@@ -161,7 +161,13 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
   chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
-  per conversation; a main chat's model is the agent's. Cards in Flow carry the same chips in their actions row. When a tool call asks, its card
+  per conversation; a main chat's model is the agent's. Under the Liquid Glass look on the desktop, Select model is a
+  floating switcher near the top of the window, as ⌘K is: type to filter every harness and provider at once, ↑↓ and
+  Return to switch, ←→ (with nothing typed) or a click for the effort, Esc to close. It opens on the agent's **Usual**:
+  the three model and effort settings you switch that agent's chats to most. Once a chat has started it lists only its
+  own harness's models, since a chat stays on the harness it started on. A **new chat starts on the agent's most used
+  setting**, harness included; with none yet, on the agent's own model. Only a switch counts toward Usual, from the
+  Mac or a phone, not each message you send. Cards in Flow carry the same chips in their actions row. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.

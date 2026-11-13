@@ -11,13 +11,14 @@ import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
 import { backendName } from "../core/desk-core.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
-import { isReasoningEffort, type ModelEntry } from "../core/models.ts";
+import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { modeOf, type Approvals } from "./approvals.ts";
 import { engineMoveRefused, type Delivery, type Engine, type EngineChat } from "./engine.ts";
 import { LokiEngine, modelRef } from "./loki-engine.ts";
 import { keyedQueue } from "../core/serial.ts";
+import { messageOf } from "../core/errors.ts";
 import { looserThan, lokiModeOf, stricterMode, type LokiMode } from "../core/chat-links.ts";
 import { AcpEngine } from "./acp/engine.ts";
 import type { Providers } from "./providers.ts";
@@ -74,6 +75,8 @@ interface Deps {
   background?: Pick<BackgroundTasks, "stopAgent">;
   /** The clock for those stamps and for the time a message from loki carries; Date.now unless a test sets it. */
   now?: () => number;
+  /** Each agent's top usual model (mod/usual-models.ts), the one a new chat starts on; absent, it starts on the agent's own. */
+  usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
 }
 
 /**
@@ -293,6 +296,13 @@ export class DaemonChats implements ChatBackend {
     const here = this.deps.macId ?? "";
     if (home && here && homeOf(readRecord(this.deps.backendDir, agentId), here) !== here)
       await store.updateChat(conversationId, { placed: true }, this.deps.context);
+    // The agent's usual model, harness and effort (plan 2026-11-13-1240), set as a switch would before the first
+    // message, so an ACP agent's takes the chat there; not counted as one. Its agent gone, the chat keeps the agent's model.
+    const usual = this.deps.usualModel?.(agentId);
+    if (usual)
+      await this.model({ agent_id: agentId, conversation_id: conversationId, handle: usual.handle, reasoning_effort: usual.reasoning_effort }).catch(
+        (e: unknown) => this.deps.report?.(`a new chat could not start on ${usual.handle}: ${messageOf(e)}`),
+      );
     return { agentId, conversationId };
   }
 

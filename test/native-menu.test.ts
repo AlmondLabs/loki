@@ -140,7 +140,7 @@ describe("Switch model, ⌘K's way", () => {
     entry("acp:fake/sonnet", "Demo agent · Sonnet"),
   ];
   const shape = (groups: ReturnType<typeof switcherGroups>) =>
-    groups.map((g) => `${g.harness.name}: ${g.rows.map((r) => `${r.name}${r.current ? " ✓" : ""}${r.off ? " (off)" : ""}`).join(", ")}`);
+    groups.map((g) => `${g.title}: ${g.rows.map((r) => `${r.name}${r.current ? " ✓" : ""}${r.off ? " (off)" : ""}`).join(", ")}`);
 
   test("with nothing typed, the chat's harness first with loki's quick picks, then the other agent", () => {
     expect(shape(switcherGroups(entries, "anthropic/claude-fable-5", false, ""))).toEqual(["loki: Fable 5 ✓, GPT X", "Demo agent: Default, Sonnet"]);
@@ -160,9 +160,24 @@ describe("Switch model, ⌘K's way", () => {
     expect(groups[0].rows.find((r) => r.name === "Sonnet")?.line).toBeNull();
     expect(
       switcherGroups(entries, "anthropic/claude-fable-5", true, "")
-        .find((g) => g.harness.id === null)
+        .find((g) => g.id === "loki")
         ?.rows.find((r) => r.name === "GPT X")?.line,
     ).toBe("openai");
+  });
+
+  test("the agent's usual configurations lead with nothing typed, each with its effort, only ones the chat can take", () => {
+    const usual = [
+      { handle: "anthropic/claude-fable-5", reasoning_effort: "high" as const },
+      { handle: "acp:fake/sonnet", reasoning_effort: null },
+      { handle: "gone/model", reasoning_effort: null },
+    ];
+    const fresh = switcherGroups(entries, "anthropic/claude-fable-5", false, "", usual, "high");
+    expect(fresh[0].title).toBe("Usual");
+    expect(fresh[0].rows.map((r) => `${r.name} · ${r.line}${r.current ? " ✓" : ""}`)).toEqual(["Fable 5 · High effort · loki ✓", "Sonnet · Demo agent"]);
+    expect(fresh[0].rows[0].effort).toBe("high");
+    const started = switcherGroups(entries, "anthropic/claude-fable-5", true, "", usual, "medium");
+    expect(started[0].rows.map((r) => `${r.name}${r.current ? " ✓" : ""}`)).toEqual(["Fable 5"]);
+    expect(switcherGroups(entries, "anthropic/claude-fable-5", false, "gpt", usual).map((g) => g.title)).toEqual(["loki"]);
   });
 
   test("effort steps within what the model offers and stays at the ends; titles read as a Mac menu writes them", () => {

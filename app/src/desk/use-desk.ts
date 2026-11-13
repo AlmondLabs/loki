@@ -116,6 +116,7 @@ export function useDesk() {
     macCode,
     servedBuild,
     recentModels,
+    usualModels,
     widgetLogs,
     setWidgetLogs,
     watchDesk,
@@ -540,6 +541,8 @@ export function useDesk() {
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
     models: {
       recent: recentModels,
+      /** Each agent's usual models, most used first (mod/usual-models.ts), for the switcher to lead with. */
+      usual: usualModels,
       used: (handle: string) => {
         if (recentModels[0] !== handle) send({ type: "models_recent_add", handle });
       },
