@@ -15,6 +15,8 @@ export interface PeerMoves {
   take: (macId: string, agentId: string, conversationId: string) => Promise<Replies["peer_chat_taken"]>;
   /** Offer one chat here to the paired Mac `to`: null once it moved, else why not, for the person. */
   offer: (to: string, agentId: string, conversationId: string) => Promise<string | null>;
+  /** Keep here a chat whose move cannot finish, its Mac out of reach (plan 096): null when kept, else why not. */
+  keepHere: (agentId: string, conversationId: string) => string | null;
 }
 /** What Preferences › Macs' frame handler needs from its host; without `peers` every frame fails with an error. */
 export interface PeersDeps {
@@ -91,6 +93,13 @@ export function peersFrames({ peers }: PeersDeps): FrameHandlers {
       const moves = need().moves;
       if (!moves || !ctx.client.peerId) return fail("only another Mac offers a chat");
       return reply(await moves.take(ctx.client.peerId, agentId, conversationId));
+    },
+    // The chat lives here and is held for a move that cannot finish: the person keeps it here (plan 096).
+    chat_move_keep: ({ agent_id: agentId, conversation_id: conversationId }) => {
+      const moves = need().moves;
+      if (!moves) return fail("moving chats between Macs is not available in this mod");
+      const why = moves.keepHere(agentId, conversationId);
+      return why ? fail(why) : reply({});
     },
     // The chat lives here (a tab here, or the Mac it moves to, asked): this Mac offers it to `to` (addendum A1).
     chat_move: async ({ agent_id: agentId, conversation_id: conversationId, to }) => {

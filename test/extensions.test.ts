@@ -37,11 +37,8 @@ describe("the built-in tools", () => {
       expect(names.sort()).toEqual(
         [
           "user_ask",
-          "background_output",
           "background_run",
-          "background_stop",
           "background_watch",
-          "background_write",
           "bash",
           "edit",
           "find",
@@ -57,13 +54,14 @@ describe("the built-in tools", () => {
           "schedule_create",
           "schedule_delete",
           "schedule_list",
-          "skill",
           "subagent",
-          "image_view",
           "web_search",
           "write",
         ].sort(),
       );
+      // ls, find and grep are there for scripts only; bash does their work for the model (plan 094).
+      const scriptsOnly = extensions.flatMap((e) => e.tools ?? []).filter((t) => t.callers?.includes("model") === false);
+      expect(scriptsOnly.map((t) => t.name).sort()).toEqual(["find", "grep", "ls"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -78,8 +76,6 @@ describe("the built-in tools", () => {
       // Today's classes, kept as they were before each tool declared its own.
       expect(Object.fromEntries([...kinds].filter(([, k]) => k !== "read"))).toEqual({
         background_run: "command",
-        background_write: "command",
-        background_stop: "command",
         bash: "command",
         edit: "edit",
         schedule_create: "command",
@@ -116,8 +112,12 @@ describe("tools allowed always, under their old names", () => {
     try {
       writeFileSync(path, JSON.stringify({ always: ["Agent", "TaskOutput", "bash", "mcp__github__list_issues"] }));
       const approvals = new Approvals({ alwaysPath: path });
-      expect(approvals.always()).toEqual(["background_output", "bash", "mcp__github__list_issues", "subagent"]);
-      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ always: ["background_output", "bash", "mcp__github__list_issues", "subagent"] });
+      // TaskOutput only read, so its allow is not carried to background_watch, which can also stop (plan 095).
+      expect(approvals.always()).toEqual(["bash", "mcp__github__list_issues", "subagent"]);
+      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ always: ["bash", "mcp__github__list_issues", "subagent"] });
+      // A merged tool that was a command carries its allow to the tool it is in.
+      writeFileSync(path, JSON.stringify({ always: ["background_stop", "background_write"] }));
+      expect(new Approvals({ alwaysPath: path }).always()).toEqual(["background_watch"]);
       // A list with no old names is left as it is on disk.
       writeFileSync(path, JSON.stringify({ always: ["bash"] }));
       new Approvals({ alwaysPath: path });

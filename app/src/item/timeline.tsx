@@ -57,6 +57,7 @@ function ThreadBody({
   waiting = false,
   onCancelQueued,
   onRetry,
+  onKeepHere,
   older = null,
   loadFailed = null,
   loadStep,
@@ -219,7 +220,7 @@ function ThreadBody({
               </TraceLine>
             </Trace>
           )}
-          {error && <ThreadError error={error} rows={list} onRetry={status === "idle" ? onRetry : undefined} />}
+          {error && <ThreadError error={error} rows={list} onRetry={status === "idle" ? onRetry : undefined} onKeepHere={onKeepHere} />}
         </MessageScrollerContent>
       </MessageScrollerViewport>
       <MessageScrollerButton

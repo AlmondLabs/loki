@@ -10,9 +10,11 @@ import { withKind } from "./tool-kinds.ts";
 
 /**
  * Background tasks (plan 017, U11, KTD13): a shell command that keeps running after the turn that started it. The
- * agent reads its output so far, writes to its input, waits on it, or stops it; when it ends, its chat gets a
- * `<task-notification>` (the format the thread shows as an event row, core/harness.ts), which starts the agent's next
- * turn, or goes into the one running at its next step. An agent that was waiting on it when it ended is not told. The processes are the daemon's: they end with it, and a task from before a restart is gone.
+ * agent reads its output so far, writes to its input, waits on it, or stops it, all with `background_watch` (plan
+ * 095); when it ends, its chat gets a `<task-notification>` (the format the thread shows as an event row,
+ * core/harness.ts), which starts the agent's next turn, or goes into the one running at its next step. An agent that
+ * was waiting on it when it ended, a stop included, is not told. The processes are the daemon's: they end with it, and
+ * a task from before a restart is gone.
  */
 
 /** The most output a task keeps, from its end. */
@@ -270,9 +272,15 @@ async function caller(api: ToolExecutionApi, context: Context) {
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
 const idParam = { task_id: { type: "string" } };
 
+/** How long a stop waits for the task to end, so its answer says how it ended: past GRACE_MS, when it is killed. */
+const STOP_WAIT_MS = GRACE_MS + 1_000;
+
 /**
- * The background-task tools, as an extension over `tasks`: `background_run` starts one, `background_output` reads it,
- * `background_write` types into it, `background_watch` waits on it, `background_stop` ends it.
+ * The background-task tools, as an extension over `tasks`: `background_run` starts one, and `background_watch` does
+ * the rest (plan 095): it reads the task's new output, waiting first if asked, types into it, or stops it. One tool
+ * for all of these, against docs/style.md's one tool per action, because each is a way of looking at the task and every
+ * one answers with the same thing, its output and state; the approval gate weighs a call that types or stops as a
+ * command (daemon/approvals.ts).
  */
 export function backgroundExtension(tasks: BackgroundTasks): Extension {
   return defineExtension({
@@ -295,58 +303,21 @@ export function backgroundExtension(tasks: BackgroundTasks): Extension {
       withKind(
         "read",
         defineTool({
-          name: "background_output",
-          description: "A background task's output since you last read it, and whether it is still running.",
-          parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
-          execute: async (args, api, context) => text(tasks.output((args as { task_id: string }).task_id, (await caller(api, context)).agentId)),
-        }),
-      ),
-      withKind(
-        "command",
-        defineTool({
-          name: "background_write",
-          description: "Write to a running background task's input (add \\n to end a line).",
-          parameters: { type: "object", properties: { ...idParam, text: { type: "string" } }, required: ["task_id", "text"] } as never,
-          execute: async (args, api, context) => {
-            const a = args as { task_id: string; text: string };
-            tasks.write(a.task_id, (await caller(api, context)).agentId, a.text);
-            return text("written");
-          },
-        }),
-      ),
-      withKind(
-        "read",
-        defineTool({
           name: "background_watch",
-          description: "Wait for a background task: until its output matches a pattern (a regular expression), it ends, or the time runs out.",
+          description:
+            "A background task's output since you last read it, and whether it is still running. It waits first: until the output matches `pattern` (a regular expression), the task ends, or `timeout_ms` runs out (default 30000; 0 reads at once). `input` is written to the task's input before the wait (add \\n to end a line); `stop: true` stops the task and waits for it to end.",
           parameters: {
             type: "object",
-            properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" } },
+            properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" }, input: { type: "string" }, stop: { type: "boolean" } },
             required: ["task_id"],
           } as never,
           execute: async (args, api, context) => {
-            const a = args as { task_id: string; pattern?: string; timeout_ms?: number };
-            return text(
-              await tasks.wait(
-                a.task_id,
-                (await caller(api, context)).agentId,
-                a.pattern,
-                Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000),
-                context.abortSignal,
-              ),
-            );
-          },
-        }),
-      ),
-      withKind(
-        "command",
-        defineTool({
-          name: "background_stop",
-          description: "Stop a background task.",
-          parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
-          execute: async (args, api, context) => {
-            tasks.stop((args as { task_id: string }).task_id, (await caller(api, context)).agentId);
-            return text("stopping");
+            const a = args as { task_id: string; pattern?: string; timeout_ms?: number; input?: string; stop?: boolean };
+            const { agentId } = await caller(api, context);
+            if (a.input !== undefined) tasks.write(a.task_id, agentId, a.input);
+            if (a.stop) tasks.stop(a.task_id, agentId);
+            const ms = a.stop ? STOP_WAIT_MS : Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000);
+            return text(await tasks.wait(a.task_id, agentId, a.stop ? undefined : a.pattern, ms, context.abortSignal));
           },
         }),
       ),

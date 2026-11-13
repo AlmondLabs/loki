@@ -32,8 +32,12 @@ export interface ModTool {
   description: string;
   /** JSON Schema for the arguments, an object schema. */
   parameters: object;
-  /** Hints for permission modes (plan 017, U7): read-only tools never ask; destructive ones may. */
-  annotations?: { readOnly?: boolean; destructive?: boolean };
+  /**
+   * Hints for permission modes (plan 017, U7): read-only tools never ask; destructive ones may. `strangerText` says the
+   * tool's answer carries text other people wrote (mail, messages, tickets, shared files), so a script that called it
+   * answers the model fenced (plan 097, KTD2).
+   */
+  annotations?: { readOnly?: boolean; destructive?: boolean; strangerText?: boolean };
   /**
    * Which agents' chats are offered the tool (plan 067, KTD10); absent, every agent's. Asked again before each turn on
    * loki's engine and at each listing for an ACP chat, so the answer may change. A list can be stale by the time a call

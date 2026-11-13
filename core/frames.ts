@@ -350,6 +350,8 @@ export interface Replies {
   account_compose: { account_id: string; thread_id: string } & MailCompose;
   /** Whether a held mail reply was stopped before it went (plan 076); false when it had already gone or was never held. */
   account_thread_unsent: { account_id: string; outbox_id: string; undone: boolean };
+  /** Whether a mail reply that did not go was discarded (plan 096); false when there was none to discard. */
+  account_thread_discarded: { account_id: string; outbox_id: string; discarded: boolean };
   account_thread_reacted: { account_id: string; thread_id: string; message_id: string; name: string; on: boolean };
   account_emoji: { account_id: string; emoji: EmojiChoice[] };
   account_people: { account_id: string; people: SlackPerson[] };
@@ -516,6 +518,11 @@ export interface PushPeerMeaning {
 
 /** How long moving one chat may take, end to end: a long chat's whole log crosses the link. */
 export const MOVE_TIMEOUT_MS = 180_000;
+/**
+ * What a chat says while it is held for a move to a Mac out of reach (plan 096); the app finds it in the error line and
+ * offers **keep it here** there.
+ */
+export const MOVE_OUT_OF_REACH = "which is out of reach: keep it here";
 
 interface RequestEntry<R extends ReplyName, P> {
   kind: "request";
@@ -1206,6 +1213,13 @@ export const FRAMES = {
     false,
     { route: "chat", relists: true, timeout_ms: MOVE_TIMEOUT_MS },
   ),
+  chat_move_keep: request(
+    "chat_done",
+    "keep here a chat whose move to another Mac cannot finish while that Mac is out of reach (plan 096): it takes messages here again, and that Mac lets go of its copy at the next contact; answered by the Mac the chat lives on",
+    chatRef,
+    PHONE,
+    { route: "chat", relists: true },
+  ),
   // Between paired Macs only (plan 023, U2): the peer link's first word, which also tells the two protocols apart.
   chat_requirements: request(
     "chat_requirements",
@@ -1429,6 +1443,26 @@ export const FRAMES = {
   account_thread_unsend: request(
     "account_thread_unsent",
     "stop a held mail reply before it goes (plan 076), by the `outbox_id` its reply frame carried; the reply frame then answers that it was undone; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.outbox_id) && m.outbox_id
+        ? { account_id: m.account_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }
+        : "account_id and outbox_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_resend: request(
+    "account_thread_replied",
+    "send again a mail reply of the person's that did not go (plan 096), by its `outbox_id`: its thread is read for it first and it is sent only when it is not there, then the key's move it was sent with; the person's devices alone send this; sent to the Mac the account lives on by `home`",
+    (m) =>
+      str(m.account_id) && m.account_id && str(m.thread_id) && m.thread_id && str(m.outbox_id) && /^[\w-]{8,64}$/.test(m.outbox_id)
+        ? { account_id: m.account_id, thread_id: m.thread_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }
+        : "account_id, thread_id and outbox_id required",
+    PHONE,
+    BY_HOME,
+  ),
+  account_thread_discard: request(
+    "account_thread_discarded",
+    "let go of a mail reply of the person's that did not go (plan 096), by its `outbox_id`, so its card stops saying it was not sent; sent to the Mac the account lives on by `home`",
     (m) =>
       str(m.account_id) && m.account_id && str(m.outbox_id) && m.outbox_id
         ? { account_id: m.account_id, outbox_id: m.outbox_id, home: strOr(m.home, null) }

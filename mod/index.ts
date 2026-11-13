@@ -66,7 +66,9 @@ import { OutsideThreads, type SendClient } from "./outside-threads.ts";
 import { outboxKey } from "./mail-outbox.ts";
 import { InboxLedger } from "./inbox-ledger.ts";
 import { MailPeople } from "./mail-people.ts";
-import { Handoff, gmailThreadText, slackThreadText } from "./handoff.ts";
+import { gmailThreadText } from "./account-ops/gmail.ts";
+import { slackThreadText } from "./account-ops/slack.ts";
+import { Handoff } from "./handoff.ts";
 import { slackChannelView } from "./slack-view.ts";
 import { jiraCardView, jiraThreadText } from "./jira-view.ts";
 import { serialQueue } from "../core/serial.ts";
@@ -76,7 +78,7 @@ import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
-import { registerAccountTools, type AccountReader } from "./account-tools.ts";
+import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
 import { ReplyProposals, registerReplyTools, withRepliesOnOpen, type ReplyClient } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
@@ -792,22 +794,10 @@ export default function activate(api: ModApi, host: Host): () => void {
         }
       : undefined,
   });
-  // The owning agent's account tools (plan 067, U9): offered only to agents that own an account, re-checked every call.
+  // The owning agent's account reads, for scripts (plan 097): offered only to agents that own an account, re-checked every call.
   toolDisposers.push(
-    ...registerAccountTools(api, {
-      accounts,
-      threads,
-      clientFor: (account): AccountReader => {
-        switch (account.provider) {
-          case "gmail":
-            return { provider: "gmail", client: gmailClient(account.account_id) };
-          case "slack":
-            return { provider: "slack", client: slackClient(account.account_id) };
-          case "jira":
-            return { provider: "jira", client: jiraClients.of(account.account_id) };
-        }
-      },
-    }),
+    // The same reads for scripts (plan 097, U2): Slack threads, Jira tickets and Flow's list, script-only.
+    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of }),
     ...registerReplyTools(api, { accounts, replies }),
     // The Google tools scripts call (plan 2026-11-11 scripts): the owner's Google accounts on this Mac, through the
     // account's shared sign-in; full listings go where every chat's too-big results go (daemon/tool-results.ts).

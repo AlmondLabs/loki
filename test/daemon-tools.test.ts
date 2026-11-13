@@ -1,17 +1,20 @@
 import { describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
+import { createRegistry, MemoryStorage, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { fileToolsExtension } from "../daemon/tools.ts";
 import { skillsExtension, skillsOf } from "../daemon/skills.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
 import { createAgent } from "../daemon/store/agents.ts";
 import { memoryRoot } from "../daemon/memory.ts";
+import { isScriptOnly } from "../daemon/scripts.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -32,7 +35,7 @@ async function chatWith(cwd: string, extensions: Array<ReturnType<typeof fileToo
 }
 
 describe("file tools", () => {
-  test("ls, find and grep work in the chat's folder", async () => {
+  test("ls, find and grep work in the chat's folder, for scripts only: the model is never offered them (plan 094)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-tools-"));
     try {
       mkdirSync(join(dir, "src"));
@@ -40,25 +43,27 @@ describe("file tools", () => {
       writeFileSync(join(dir, "src", "a.ts"), "export const answer = 42;\n");
       writeFileSync(join(dir, "README.md"), "# hello\n");
       writeFileSync(join(dir, "node_modules", "x.ts"), "answer");
-      const t = await chatWith(dir, [fileToolsExtension()]);
-      t.faux.setResponses([
-        t.reply(
-          fauxAssistantMessage([fauxToolCall("ls", {}), fauxToolCall("find", { pattern: "**/*.ts" }), fauxToolCall("grep", { pattern: "answer" })], {
-            stopReason: "toolUse",
-          }),
-        ),
-        t.reply(fauxAssistantMessage("seen")),
-      ]);
-      await (await t.chat.submit({ type: "input", content: "look" }, ctx)).wait(ctx);
-      // By name, not position: the three run together and finish in any order (the file tools are asynchronous).
-      const all = await t.results();
-      const named = (tool: string) => all.find((r) => r.includes(`"toolName":"${tool}"`)) ?? "";
-      const [ls, find, grep] = [named("ls"), named("find"), named("grep")];
-      expect(ls).toContain("README.md\\nsrc/");
+      const extension = fileToolsExtension();
+      const api = { agent: () => Promise.resolve({ cwd: dir }) } as unknown as ToolExecutionApi;
+      const run = async (name: string, args: Record<string, unknown>) => {
+        const tool = must(
+          extension.tools?.find((t) => t.name === name),
+          name,
+        );
+        expect(isScriptOnly(tool), name).toBe(true);
+        return JSON.stringify(await tool.execute(args, api, ctx));
+      };
+      expect(await run("ls", {})).toContain("README.md\\nsrc/");
+      const find = await run("find", { pattern: "**/*.ts" });
       expect(find).toContain("src/a.ts");
       expect(find).not.toContain("node_modules");
+      const grep = await run("grep", { pattern: "answer" });
       expect(grep).toContain("a.ts:1:export const answer = 42;");
       expect(grep).not.toContain("node_modules");
+      const t = await chatWith(dir, [extension]);
+      t.faux.setResponses([t.reply(fauxAssistantMessage("hi"))]);
+      await (await t.chat.submit({ type: "input", content: "look" }, ctx)).wait(ctx);
+      expect(t.sent[0]).not.toContain('"name":"ls"');
       await t.store.close(ctx);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -66,8 +71,37 @@ describe("file tools", () => {
   });
 });
 
+// ripgrep is there on a developer's Mac and may not be on a runner; a folder made unreadable reads anyway as root.
+const ripgrep = spawnSync("rg", ["--version"]).status === 0 && process.platform !== "win32" && process.getuid?.() !== 0;
+
+describe("grep when ripgrep cannot search all of the folder", () => {
+  test.skipIf(!ripgrep)("a folder it may not read still answers with what it found elsewhere, and says so", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-grep-"));
+    const locked = join(dir, "locked");
+    try {
+      mkdirSync(locked);
+      writeFileSync(join(dir, "a.ts"), "export const answer = 42;\n");
+      writeFileSync(join(locked, "b.ts"), "answer");
+      chmodSync(locked, 0o000);
+      const tool = must(
+        fileToolsExtension().tools?.find((t) => t.name === "grep"),
+        "grep",
+      );
+      const api = { agent: () => Promise.resolve({ cwd: dir }) } as unknown as ToolExecutionApi;
+      const out = JSON.stringify(await tool.execute({ pattern: "answer" }, api, ctx));
+      expect(out).toContain("a.ts:1:export const answer = 42;");
+      expect(out).toContain("some of it could not be searched");
+      // A pattern that is not a regular expression still fails, with ripgrep's reason.
+      await expect(tool.execute({ pattern: "(" }, api, ctx)).rejects.toThrow();
+    } finally {
+      chmodSync(locked, 0o700);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("skills and project instructions", () => {
-  test("the agent's own skills and the global ones are listed; Skill loads one; the folder's AGENTS.md is a section", async () => {
+  test("the agent's own skills and the global ones are listed under their folders, read with read; the folder's AGENTS.md is a section", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-skills-"));
     try {
       const agentId = await createAgent(dir, { name: "Ada" });
@@ -88,16 +122,14 @@ describe("skills and project instructions", () => {
         ["unslop", "write plainly"],
       ]);
       const t = await chatWith(project, [skillsExtension(dir, globalDir)], { id: agentId, name: "Ada" });
-      t.faux.setResponses([
-        t.reply(fauxAssistantMessage(fauxToolCall("skill", { skill: "tea" }), { stopReason: "toolUse" })),
-        t.reply(fauxAssistantMessage("ok")),
-      ]);
+      t.faux.setResponses([t.reply(fauxAssistantMessage("ok"))]);
       await (await t.chat.submit({ type: "input", content: "tea please" }, ctx)).wait(ctx);
-      expect(t.sent[0]).toContain("- tea: brew tea properly");
-      expect(t.sent[0]).toContain("- unslop: write plainly");
+      // The section names each group's folder once (plan 094, KTD4); the file there is the skill, for `read`.
+      const sent = (text: string) => JSON.stringify(text).slice(1, -1);
+      expect(t.sent[0]).toContain(sent(`Your own, each at ${join(memoryRoot(dir, agentId), "skills", "<name>", "SKILL.md")}:\n- tea: brew tea properly`));
+      expect(t.sent[0]).toContain(sent(`Global, each at ${join(globalDir, "<name>", "SKILL.md")}:\n- unslop: write plainly`));
       expect(t.sent[0]).toContain("Use bun, never npm.");
-      expect((await t.results())[0]).toContain('<skill_content name=\\"tea\\">');
-      expect((await t.results())[0]).toContain("Steep three minutes.");
+      expect(t.sent[0]).not.toContain("Skill tool");
       await t.store.close(ctx);
     } finally {
       rmSync(dir, { recursive: true, force: true });

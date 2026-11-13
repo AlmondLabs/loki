@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createServer, type Server } from "node:http";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SHRINK_ABOVE_BYTES, shrinkImage, type Run } from "../daemon/image-shrink.ts";
+import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
+import { SHRINK_ABOVE_BYTES, shrinkImage, shrinkingProcessor, type Run } from "../daemon/image-shrink.ts";
 import { ChatImages } from "../daemon/chat-images.ts";
 import { chatImageRoute } from "../mod/chat-images.ts";
 import { messageSteps } from "../core/attention/pi-steps.ts";
@@ -24,7 +25,7 @@ const big = () => {
   return file;
 };
 
-describe("view_image's shrink", () => {
+describe("the shrink of an image a tool reads", () => {
   test("a large image is resized by sips and comes back as JPEG; its size is asked first, so a small one is not enlarged", async () => {
     const calls: string[][] = [];
     const run: Run = (_file, args) => {
@@ -51,6 +52,30 @@ describe("view_image's shrink", () => {
     expect((await shrinkImage(big(), "image/gif", { run: never, platform: "darwin" })).mimeType).toBe("image/gif");
     expect((await shrinkImage(big(), "image/png", { run: never, platform: "darwin" })).mimeType).toBe("image/png");
     expect((await shrinkImage(big(), "image/png", { run: never, platform: "linux" })).data.length).toBe(SHRINK_ABOVE_BYTES + 1);
+  });
+});
+
+describe("read's image processor (plan 094)", () => {
+  const sips: Run = (_file, args) => {
+    if (args[0] === "-g") return Promise.resolve("pixelWidth: 3200\npixelHeight: 1800");
+    writeFileSync(args[args.length - 1], Buffer.from("small jpeg"));
+    return Promise.resolve("");
+  };
+  const never: Run = () => Promise.reject(new Error("no sips"));
+
+  test("a large picture comes back shrunk, as base64 JPEG; a small one as it was", async () => {
+    const out = await shrinkingProcessor({ run: sips, platform: "darwin" }).prepare(Buffer.alloc(SHRINK_ABOVE_BYTES + 1, 7), "image/png", DEFAULT_IMAGE_LIMITS);
+    expect(out).toEqual({ data: Buffer.from("small jpeg").toString("base64"), mimeType: "image/jpeg" });
+    const small = await shrinkingProcessor({ run: never, platform: "darwin" }).prepare(Buffer.from("tiny"), "image/png", DEFAULT_IMAGE_LIMITS);
+    expect(small).toEqual({ data: Buffer.from("tiny").toString("base64"), mimeType: "image/png" });
+  });
+
+  test("a BMP becomes JPEG whatever its size, and is refused where it cannot; so is one past the byte limit", async () => {
+    const bmp = await shrinkingProcessor({ run: sips, platform: "darwin" }).prepare(Buffer.from("tiny bmp"), "image/bmp", DEFAULT_IMAGE_LIMITS);
+    expect(bmp?.mimeType).toBe("image/jpeg");
+    expect(await shrinkingProcessor({ run: never, platform: "linux" }).prepare(Buffer.from("tiny bmp"), "image/bmp", DEFAULT_IMAGE_LIMITS)).toBeUndefined();
+    const limits = { ...DEFAULT_IMAGE_LIMITS, maxBytes: 4 };
+    expect(await shrinkingProcessor({ run: never, platform: "linux" }).prepare(Buffer.from("too big"), "image/png", limits)).toBeUndefined();
   });
 });
 
@@ -124,5 +149,16 @@ describe("the route", () => {
     expect((await fetch(`${base}/chat-images/${NAME}`)).status).toBe(403);
     expect((await fetch(`${base}/chat-images/..%2Fsecret.png?t=ok`)).status).toBe(404);
     expect((await fetch(`${base}/chat-images/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png?t=ok`)).status).toBe(404);
+  });
+
+  test("a picture that is there but cannot be read ends that answer, not the daemon; the next one is served", async () => {
+    // A folder under a picture's name: it exists, and reading it fails after the answer began.
+    mkdirSync(join(dir, NAME));
+    await fetch(`${base}/chat-images/${NAME}?t=ok`)
+      .then((r) => r.text())
+      .catch(() => "cut off");
+    const other = "fedcba9876543210fedcba9876543210.jpg";
+    writeFileSync(join(dir, other), "still here");
+    expect(await (await fetch(`${base}/chat-images/${other}?t=ok`)).text()).toBe("still here");
   });
 });

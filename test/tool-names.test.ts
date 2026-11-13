@@ -3,14 +3,18 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Approvals } from "../daemon/approvals.ts";
-import { RENAMED_TOOLS, SPLIT_TOOLS, renameToolsIn, renamedCall } from "../daemon/tool-kinds.ts";
+import { MERGED_TOOLS, RENAMED_TOOLS, SPLIT_TOOLS, isOldTool, renameToolsIn, renamedCall } from "../daemon/tool-kinds.ts";
 
 /** loki's tools under their names now, and every old name moving to one (plan 044). */
 describe("loki's tool names, old and now", () => {
   test("every name now is <subject>_<verb> or one word, and no old name is a name now", () => {
-    const now = [...Object.values(RENAMED_TOOLS), ...Object.values(SPLIT_TOOLS).flatMap((s) => Object.values(s ?? {}))];
+    const now = [
+      ...Object.values(RENAMED_TOOLS),
+      ...Object.values(SPLIT_TOOLS).flatMap((s) => Object.values(s ?? {})),
+      ...Object.values(MERGED_TOOLS).map((m) => m?.into),
+    ];
     expect(now.filter((n) => !n || !/^[a-z][a-z0-9]*(_[a-z0-9]+)?$/.test(n))).toEqual([]);
-    expect(now.filter((n) => n && (n in RENAMED_TOOLS || n in SPLIT_TOOLS))).toEqual([]);
+    expect(now.filter((n) => n && isOldTool(n))).toEqual([]);
   });
 
   test("a call takes its name now; a split tool's, its action's tool without the action; a current name is left", () => {
@@ -19,6 +23,17 @@ describe("loki's tool names, old and now", () => {
     expect(renamedCall("loki_task", { action: "list" })).toEqual({ name: "task_list", args: {} });
     expect(renamedCall("tasks", { action: "fly" })).toBeNull();
     expect(renamedCall("canvas_read", {})).toBeNull();
+  });
+
+  test("a merged tool's call is background_watch's, its arguments carried over (plan 095)", () => {
+    expect(renamedCall("background_output", { task_id: "bg-1" })).toEqual({ name: "background_watch", args: { task_id: "bg-1", timeout_ms: 0 } });
+    expect(renamedCall("TaskOutput", { task_id: "bg-1" })).toEqual({ name: "background_watch", args: { task_id: "bg-1", timeout_ms: 0 } });
+    expect(renamedCall("background_write", { task_id: "bg-1", text: "y\n" })).toEqual({
+      name: "background_watch",
+      args: { task_id: "bg-1", input: "y\n", timeout_ms: 0 },
+    });
+    expect(renamedCall("background_stop", { task_id: "bg-1" })).toEqual({ name: "background_watch", args: { task_id: "bg-1", stop: true } });
+    expect(renamedCall("background_watch", { task_id: "bg-1" })).toBeNull();
   });
 
   test("a result follows its call by id; one whose call was not seen takes a plain rename", () => {
@@ -34,10 +49,11 @@ describe("loki's tool names, old and now", () => {
       { role: "toolResult", toolCallId: "t1", toolName: "tasks", content: [] },
       { role: "toolResult", toolCallId: "elsewhere", toolName: "view_image", content: [] },
       { role: "toolResult", toolCallId: "t9", toolName: "bash", content: [] },
+      { role: "toolResult", toolCallId: "lost", toolName: "background_stop", content: [] },
     ];
     expect(renameToolsIn(messages, calls)).toBe(true);
     expect(messages[0].content[1]).toEqual({ type: "toolCall", id: "t1", name: "task_close", arguments: { id: "lk-1" } });
-    expect(messages.slice(1).map((m) => m.toolName)).toEqual(["task_close", "image_view", "bash"]);
+    expect(messages.slice(1).map((m) => m.toolName)).toEqual(["task_close", "image_view", "bash", "background_watch"]);
     expect(renameToolsIn(messages, calls)).toBe(false);
   });
 

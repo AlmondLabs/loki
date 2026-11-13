@@ -87,15 +87,21 @@ way back to it; delete them once you are happy. Each Mac copies and rewrites its
 Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. When a store
 first opens on a loki that changed those shapes, its saved entries are rewritten once, after a whole copy of the store
 to `~/.loki/stores/backup-letta-<date>/` (only when something changes); `~/.loki/stores/migrations.json` notes how far
-each store has come, and the older `tool-names.json` is deleted. There are two steps so far. The first takes loki's
+each store has come, and the older `tool-names.json` is deleted. There are three steps so far. The first takes loki's
 new tool names: in October 2026 `ask_user` became `user_ask`, `desk_state` and `desk_camera` became `canvas_read` and
 `canvas_focus`, `tasks` became `task_create`, `task_list`, `task_comment` and `task_close`, and `view_image` became
 `image_view`. Tasks and its four tools went later that month, replaced by [suggestions](#suggestions); old chats that
-called them still read as they did. Older names from before then (`Agent`, `Skill`, `bash_background`,
+called them still read as they did. In November 2026 `image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`,
+`suggestion_withdraw`, `reply_list` and `reply_withdraw` went too, since another tool or the chat itself already does
+what each did (see [Scripts](#scripts) for where `ls`, `find` and `grep` remain); old chats show their calls as they
+were. Older names from before then (`Agent`, `Skill`, `bash_background`,
 `TaskOutput`, `loki_camera` and the like) take today's names the same way, and so does the "always allow" list; the
 whole map is `RENAMED_TOOLS` in `daemon/tool-kinds.ts`. The second rewrites what chats imported from Letta still carried: its tool
-arguments, notices and paths. A chat on Claude Code, Cursor or another ACP agent is left as it is, with its agent's
-own tool names.
+arguments, notices and paths. The third, also in November 2026, folds the background task's tools into two:
+`background_output`, `background_write` and `background_stop` calls become `background_watch` calls (a read with no
+wait, one that types its `input` first, one with `stop`). An "always allow" for `background_write` or `background_stop`
+carries to `background_watch`; one for `background_output` does not, since it was only ever a read. A chat on Claude
+Code, Cursor or another ACP agent is left as it is, with its agent's own tool names.
 
 Leaving Letta behind also changed a few things once on each Mac (noted in `~/.loki/state/migrations.json`): agent
 records take pi-ai's name for ChatGPT's provider and keep their effort as `reasoning_effort`, memory files that named
@@ -156,7 +162,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
-  ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking") and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
+  ⌘⇧P; a chat with no mode set runs unrestricted, and its chip reads "no asking"; a shell command made only of
+  `ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd` counts as a read, so it asks only in strict) and its **model** (⌘⇧M). Select model has three steps: the harness as tabs at the top (loki, Claude Code,
   any agent added in Preferences › Engines; ←→ move between them), that harness's models (loki's lately used and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
@@ -191,7 +198,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, and the Skill tool gives the rest. **Skills**:
+  compacted) — with the last change reflection made; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest. **Skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
@@ -447,6 +454,11 @@ reachable; a closed lid still sleeps.
    message there (which Mac it now runs on, and any attached files or folder that did not come along); nothing runs
    just to tell it. A chat mid-answer or waiting for you says so and stays. An agent's main chat is not moved by hand: there
    is one, on the agent's home, and it moves when you change the agent's "lives on".
+   While a chat is being handed over it takes no message on the Mac it is leaving, so it never has two writers. If
+   the other Mac drops out of reach before it says the chat arrived, the chat keeps waiting for it, however long, and
+   says "this chat is moving to Mac mini, which is out of reach" with **keep it here**. Wait, and the move finishes
+   when that Mac is back (or the chat takes messages here again if it never got there); press **keep it here** and
+   the chat is yours on this Mac at once, and the other Mac sets its copy aside, hidden, at the next contact.
 5. **Memory is one.** An agent's memory is a git repo on each Mac, merged between them as you work. When both Macs
    changed the same lines apart, the note keeps the home Mac's text and the other side goes to
    `conflicts/sync.md` in the agent's memory; its next reflection folds it in. Reflection and Learn read each chat
@@ -479,8 +491,8 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - keeps pins in `~/.loki/state/pins.json`
 - tools: `canvas_read`, `canvas_focus` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
-- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list`,
-  `suggestion_create`, `suggestion_list` and `suggestion_withdraw` (see [Suggestions](#suggestions))
+- keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` and
+  `suggestion_create` (see [Suggestions](#suggestions))
 
 ## Install (development)
 
@@ -704,7 +716,7 @@ Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the p
   the long edge before sending. The picture shows on your message in every window, after a reload too, on the Mac
   the chat lives on and the phone: the daemon keeps a copy of each in `~/.loki/chat-images/`, named by its content,
   and a Mac showing a chat that lives on another asks that Mac for its pictures.
-- **Images the agent looks at** with its `image_view` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
+- **Images the agent looks at** with its `read` tool are shrunk the same way on a Mac (over 300 KB: 1600px on
   the long edge, as JPEG, by macOS's `sips`), since each is kept in the chat's history for good; a GIF and a small
   file go as they are, and so does every image on Windows and Linux. Images an agent looked at before this shrink
   are still whole in the history: quit loki and run `npm run shrink-images` to see what shrinking them would save, then
@@ -1161,9 +1173,16 @@ read) stay in the row at the bottom. The phone keeps its own layout.
 6. **Undo send.** A mail reply waits 10 seconds before it goes. The card moves on at once and says
    "sending · z undo". Z (or ⌘Z) in that time stops it, and the card comes back with your words and recipients.
    After that, Z takes back the key's move as usual. The waiting reply is kept in `~/.loki/state/outbox.json` on the
-   account's Mac, so if loki stops meanwhile it goes when loki starts again. If it fails, the card comes back with
-   your words and the reason. On the phone, **Undo** shows beside **Sending…** for those 10 seconds. The phone's
-   recipients line has To and Cc. The mode, From and Bcc are on the Mac.
+   account's Mac, so if loki stops meanwhile it goes when loki starts again, as long as that is within 10 minutes of
+   when it was due; a later one waits for you, so a reply never lands days after newer mail. If it fails while the
+   card waits on it, the card comes back with your words and the reason. On the phone, **Undo** shows beside
+   **Sending…** for those 10 seconds. The phone's recipients line has To and Cc. The mode, From and Bcc are on the
+   Mac.
+7. **A reply that did not go.** When a reply fails after the card stopped waiting on it (the Mac slept, or loki
+   stopped while it was sending), the card says "not sent" with the reason and your reply's first line, on every
+   device, until you choose. **send again** first looks in the thread for it, since Gmail may have taken it even
+   though the answer never came back: if it is there, the card stops saying "not sent" and nothing goes twice.
+   **discard** lets it go. Nothing is sent again by itself.
 
 **Jira tickets.** A Jira card is one ticket, drawn as the ticket reads in Jira. Its header names the ticket's key, type
 and project ("◆ OPS-7 · Task · Operations") over its summary, which is the card's title; its tag says why it is there,
@@ -1234,15 +1253,17 @@ then stands. A hand-off cannot be undone. When someone writes in that thread aga
 that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
 while the account is disconnected.
 
-**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts that read:
-`account_list` (its accounts and the threads waiting in each, with no message text; a Jira site's open tickets with
-their key and title), `account_read` (a whole thread, or a Jira ticket by its key or id, oldest first) and
-`account_search` (a mailbox, in Gmail's search syntax; Slack and Jira cannot be searched yet). No other agent has them,
-and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
-even if you ask it to. For a Google account the owner's scripts can do more, sending included (see Scripts).
+**What the owner can do.** In any of its chats, the owning agent reads its accounts with scripts (see Scripts):
+`flow_list` (the threads waiting in Flow for each account, with no message text; a Jira ticket with its key),
+`slack_read` (a DM or a thread), `jira_read` (a ticket by its key or id, with its comments and changes), and for a
+Google account the `google_*` tools (Gmail search and read among them; Slack and Jira cannot be searched yet). Its
+prompt lists its accounts. No other agent has these, and each call checks the account is still the caller's, so a
+chat with a different agent cannot read or draft there even if you ask it to. Until plan 097 (November 2026) these
+reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
+they were. For a Google account the owner's scripts can do more, sending included.
 
 **Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
-one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
+one it found or read with a script, so you can simply ask it to draft a reply in a chat.
 The reply always asks you first, in every permission
 mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card
@@ -1250,8 +1271,8 @@ never sends; an owner's script may send mail and calendar invites from a Google 
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
 On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
 card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
-approval. The owner can propose a comment only on a ticket that has had a card in Flow. `reply_withdraw` takes a
-proposal back, an approved comment you have not sent included.
+approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a
+proposal back: you reject the card, or clear an approved comment from the ticket card's box.
 
 **When an account stops working.** Its row in Preferences turns red and its cards say why, in one of these lines:
 
@@ -1269,15 +1290,21 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 ## Scripts
 
 An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
-tools only scripts may call: today, the Google tools for the Google accounts it owns on this Mac. A script runs in a
+tools only scripts may call: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and
+Flow reads for any account it owns. A script runs in a
 sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
-file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`), never `bash`. So one script can page through every Drive
+file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
+`bash`. So one script can page through every Drive
 file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
-browser. Claude Code and other ACP agents do not get scripts.
+browser. A chat on Claude Code or another ACP agent gets the same scripts as a `script` tool on loki's tool server
+(`mcp__loki__script`), over the same account tools, with the same limits, asking and fencing; it has no file tools
+there, and a value one script stores is not kept for the next.
 
-1. **Asking first.** A script asks as a command does, in the chat's permission mode, and its card shows the script.
-   What it does inside does not ask again, except in strict mode, which asks for each call. "always allow" is never
-   offered for a script: each one is new code.
+1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
+   files) runs without a card in standard mode. One that changes or sends something asks once, at its first such call:
+   the card shows the script and that call, and your answer stands for the rest of the run, so moving forty files is
+   one card. Declining refuses every change the script tries after. Strict mode asks for the script and for each call.
+   "always allow" is never offered for a script: each one is new code.
 2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
    limit it reached. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
 3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
@@ -1285,9 +1312,15 @@ browser. Claude Code and other ACP agents do not get scripts.
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
    use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
    Mac, connected, and allowed that service.
-4. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
+4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
+   changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
+   subject, time and the chat it went to. They only read; a reply to Slack or Jira still goes through `reply_propose`.
+   Each checks that the account is the agent's, and names none that is not.
+   A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
+   is told it is content from other people, not instructions, as with a thread you hand it.
+5. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
    does counts as your own pick. A reply a script sends does not mark its card as waiting.
-5. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
+6. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
    a change that was under way fails in the script with that reason, for it to check and retry.
 
 ## Scheduled tasks
@@ -1321,8 +1354,7 @@ phone, the spark icon and the count). The chip opens them, in a modal over the w
 phone; so do **⌘⇧S** and `/suggestions` in the box. Inside, they list newest first, each its title and, under it, the chat it is for; the newest
 starts open, showing its message, written in markdown as an agent's reply is, and four actions. Esc, a click outside
 or close shuts it. On a card in Flow, the header says **3 suggestions** beside *draft*, and pressing it opens them for
-that card's chat. A suggestion stays until you act on it or its agent takes it back
-(`suggestion_withdraw`); nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
+that card's chat. A suggestion stays until you act on it; nothing reminds you of it. A new suggestion in an archived chat brings the chat back into the
 Flow, so it has a screen to show in.
 
 <img src="images/suggestion-chip.jpg" width="560" alt="The suggestions modal over a chat: a header saying 3 waiting, the newest open with its markdown message (a numbered list, bullets, code and a link) and send now, save as draft, change chat and reject, two more below as a title and the chat each is for">
@@ -1364,8 +1396,6 @@ suggestion is already yours to decide.
   chats are left out. An agent calls it when it needs to pick a chat; the list never rides along in its context.
 - `suggestion_create` makes a suggestion for an open chat or for a new chat with an agent in a folder; a target that
   is not in `chat_list` is refused with the valid choices.
-- `suggestion_list` lists the suggestions made in this chat, with each one's status and the chat it now points at.
-- `suggestion_withdraw` takes back one you have not acted on.
 
 Reflection and Learn cannot suggest: a background pass has no chat screen to show a suggestion in.
 

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { scopeFor } from "../core/desk-core.ts";
-import { MOVE_TIMEOUT_MS, type Replies } from "../core/frames.ts";
+import { MOVE_OUT_OF_REACH, MOVE_TIMEOUT_MS, type Replies } from "../core/frames.ts";
+import { readJson, writeJsonAtomic } from "./json-file.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { PeerMoves } from "./frames/peers.ts";
@@ -18,6 +19,11 @@ import { messageOf } from "../core/errors.ts";
  * Two kinds of move run on it: the takeover of an agent's chats by its home Mac, once after pairing (and again when an
  * agent's home is set to this Mac), and one chat moved by the person, which arrives `placed` so the takeover leaves it
  * where it was put. A move cut short is tried again at the next contact, and a chat already here is not written twice.
+ *
+ * The hold on the Mac a chat leaves is kept on disk and never lapses by itself (plan 096): a chat with two writers can
+ * lose what one of them wrote, so it waits for the Mac it moves to. At the next contact that Mac is asked whether it
+ * holds the chat: yes, and the hand-over finishes; no, and the chat takes messages here again. While that Mac is out of
+ * reach the person can choose to **keep it here**, and that Mac's copy is let go at the next contact.
  * The frames between Macs (mod/frames/peers.ts) call it as their `moves`; the peer link carries it, and tests join two
  * of these with an in-memory link.
  */
@@ -38,29 +44,84 @@ export class ChatMoves implements PeerMoves {
     onMoved: (macId: string) => void;
     /** This Mac let a chat go to `to`: frames for it go there now. */
     onLeft: (chat: { agent_id: string; conversation_id: string }, to: string) => void;
+    /** Where the holds are kept (`state/chat-moves.json`); in memory only when left out. */
+    file?: string;
     now?: () => number;
   };
   /**
-   * Chats this Mac is handing over, which take no message meanwhile, each until when. A move takes at most
-   * MOVE_TIMEOUT_MS; one that never finished (the import failed there, or the link dropped before it said so) lets
-   * the chat take messages again here, where it still lives, instead of holding it until the next restart.
+   * Chats this Mac is handing over, by "agent/chat": the Mac each moves to, and whether the person chose to keep it here
+   * after all (`kept`), so that Mac lets go of its copy at the next contact. Kept on disk; a held chat takes no message.
    */
-  private readonly moving = new Map<string, number>();
+  private readonly moving: Map<string, Hold>;
   private readonly running = new Set<string>();
 
   constructor(opts: ChatMoves["opts"]) {
     this.opts = opts;
+    this.moving = new Map(opts.file ? readHolds(opts.file) : []);
   }
 
-  /** Why a chat takes no message now: it is moving to another Mac. */
+  /** Why a chat takes no message now: it is moving to another Mac, which is in reach or not. */
   blocked(agentId: string, conversationId: string): string | null {
+    const hold = this.moving.get(`${agentId}/${conversationId}`);
+    if (!hold || hold.kept) return null;
+    const name = this.opts.name(hold.to) ?? "another Mac";
+    if (this.opts.link(hold.to)) return `this chat is moving to ${name}; it opens there in a moment`;
+    return `this chat is moving to ${name}, ${MOVE_OUT_OF_REACH} to use it on this Mac`;
+  }
+
+  /**
+   * The person keeps a chat here whose move cannot finish, its Mac out of reach (plan 096): it takes messages here
+   * again at once, and that Mac lets go of its copy at the next contact. Null when kept, else why not.
+   */
+  keepHere(agentId: string, conversationId: string): string | null {
     const key = `${agentId}/${conversationId}`;
-    const until = this.moving.get(key);
-    if (until === undefined) return null;
-    if (until > this.now()) return "this chat is moving to the Mac its agent lives on; it opens there in a moment";
-    this.moving.delete(key);
-    log("peers:chat-move-lapsed", { agent: agentId, chat: conversationId });
+    const hold = this.moving.get(key);
+    if (!hold || hold.kept) return "this chat is not moving";
+    this.hold(key, { ...hold, kept: true });
+    log("peers:chat-kept-here", { agent: agentId, chat: conversationId, was_to: hold.to });
     return null;
+  }
+
+  /**
+   * At contact with `macId`, finish what a move to it left: a chat it holds is let go here, one it never got takes
+   * messages here again, and one the person kept here is let go there. One that fails waits for the next contact.
+   */
+  async settle(macId: string): Promise<void> {
+    const link = this.opts.link(macId);
+    if (!link) return;
+    for (const [key, hold] of [...this.moving].filter(([, h]) => h.to === macId)) {
+      try {
+        // One chat at a time on purpose, as the hand-over after it: each settles a chat's single writer and rewrites
+        // the holds file, and a Mac just back in reach is not flooded.
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
+        const where = (await link.request({ type: "peer_where", agent_id: hold.agent_id, conversation_id: hold.conversation_id })) as { held?: boolean };
+        if (hold.kept) {
+          if (where.held) await link.request({ type: "peer_chat_moved", agent_id: hold.agent_id, conversation_id: hold.conversation_id });
+          this.drop(key);
+          log("peers:chat-kept-settled", { agent: hold.agent_id, chat: hold.conversation_id, to: macId });
+        } else if (where.held) {
+          await this.moved(macId, hold.agent_id, hold.conversation_id);
+        } else {
+          this.drop(key);
+          log("peers:chat-move-undone", { agent: hold.agent_id, chat: hold.conversation_id, to: macId });
+        }
+      } catch (err) {
+        log("peers:chat-settle-failed", { agent: hold.agent_id, chat: hold.conversation_id, error: messageOf(err) });
+      }
+    }
+  }
+
+  private hold(key: string, hold: Hold): void {
+    this.moving.set(key, hold);
+    this.save();
+  }
+
+  private drop(key: string): void {
+    if (this.moving.delete(key)) this.save();
+  }
+
+  private save(): void {
+    if (this.opts.file) writeJsonAtomic(this.opts.file, { version: 1, holds: [...this.moving.values()] });
   }
 
   private now(): number {
@@ -132,17 +193,17 @@ export class ChatMoves implements PeerMoves {
     // the copy missed, and the chat would then be hidden here with that message in it.
     const key = `${agentId}/${conversationId}`;
     const held = this.moving.has(key);
-    this.moving.set(key, this.now() + MOVE_TIMEOUT_MS);
+    this.hold(key, { agent_id: agentId, conversation_id: conversationId, to: macId, at: new Date(this.now()).toISOString() });
     let out: Awaited<ReturnType<ChatBackend["exportChat"]>>;
     try {
       out = await this.opts.chat.exportChat(agentId, conversationId);
     } catch (err) {
-      if (!held) this.moving.delete(key);
+      if (!held) this.drop(key);
       throw err;
     }
     if (!out.chat) {
       // Busy, or not here: nothing moves, so the chat takes messages again (unless an earlier hand-over still holds it).
-      if (!held) this.moving.delete(key);
+      if (!held) this.drop(key);
       return { ...out, widgets: {} };
     }
     return { ...out, widgets: readWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId))) };
@@ -152,7 +213,7 @@ export class ChatMoves implements PeerMoves {
   async moved(macId: string, agentId: string, conversationId: string): Promise<void> {
     await this.opts.chat.finishMove(agentId, conversationId);
     rmSync(join(this.opts.widgetsDir, scopeFor(conversationId, agentId)), { recursive: true, force: true });
-    this.moving.delete(`${agentId}/${conversationId}`);
+    this.drop(`${agentId}/${conversationId}`);
     log("peers:chat-moved", { agent: agentId, chat: conversationId, to: macId });
     this.opts.onLeft({ agent_id: agentId, conversation_id: conversationId }, macId);
   }
@@ -187,6 +248,32 @@ export class ChatMoves implements PeerMoves {
     await link.request({ type: "peer_chat_moved", agent_id: agentId, conversation_id: conversationId });
     return "moved";
   }
+}
+
+/** One chat this Mac is handing over, as the holds file keeps it. */
+interface Hold {
+  agent_id: string;
+  conversation_id: string;
+  /** The Mac it moves to. */
+  to: string;
+  /** When the hold began (ISO). */
+  at: string;
+  /** The person kept it here while `to` was out of reach: `to` lets go of its copy at the next contact. */
+  kept?: boolean;
+}
+
+/** The holds a daemon that stopped left, by "agent/chat"; anything in the file that is not one is passed over. */
+function readHolds(file: string): Array<[string, Hold]> {
+  const raw = readJson(file);
+  const list = typeof raw === "object" && raw !== null ? (raw as { holds?: unknown }).holds : null;
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((v: unknown) => {
+    if (typeof v !== "object" || v === null) return [];
+    const h = v as Record<string, unknown>;
+    if (typeof h.agent_id !== "string" || typeof h.conversation_id !== "string" || typeof h.to !== "string" || typeof h.at !== "string") return [];
+    const hold: Hold = { agent_id: h.agent_id, conversation_id: h.conversation_id, to: h.to, at: h.at, ...(h.kept === true ? { kept: true } : {}) };
+    return [[`${hold.agent_id}/${hold.conversation_id}`, hold] as [string, Hold]];
+  });
 }
 
 /** A canvas's files, by path under its folder, as base64. */

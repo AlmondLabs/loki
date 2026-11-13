@@ -130,7 +130,7 @@ fn is_loki_shell(name: &str) -> bool {
 /// The process source (sysinfo), the same on every system.
 pub mod os {
     use super::{Proc, Snapshot};
-    use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, Signal, System, UpdateKind};
 
     /// Every process with its command line.
     pub fn snapshot() -> Snapshot {
@@ -165,9 +165,15 @@ pub mod os {
             .map(|p| p.start_time())
     }
 
-    /// Kill `pid` if it is still the process that started at `started`, and wait (up to 3 s) for it to go, so the
-    /// daemon started next finds its folder's lock free. False when it was already gone or is another process now.
+    /// End `pid` if it is still the process that started at `started`, so the daemon started next finds its folder's
+    /// lock free: SIGTERM first and up to `grace` for it to go on its own, closing its stores and stopping its
+    /// background tasks as a daemon loki stops itself does (harness.rs `terminate`), then SIGKILL and up to 3 s more.
+    /// Windows has no SIGTERM to send, and is killed at once. False when it was already gone or is another process now.
     pub fn kill(pid: u32, started: Option<u64>) -> bool {
+        kill_within(pid, started, crate::harness::STOP_GRACE)
+    }
+
+    pub(crate) fn kill_within(pid: u32, started: Option<u64>, grace: std::time::Duration) -> bool {
         let Some(at) = started else { return false };
         if start_time(pid) != Some(at) {
             return false;
@@ -175,13 +181,21 @@ pub mod os {
         let mut sys = System::new();
         let p = Pid::from_u32(pid);
         sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[p]), true, ProcessRefreshKind::nothing());
-        if !sys.process(p).is_some_and(|proc| proc.kill()) {
-            return false;
+        let Some(proc) = sys.process(p) else { return false };
+        let gone = |within: std::time::Duration| {
+            let deadline = std::time::Instant::now() + within;
+            while start_time(pid) == Some(at) && std::time::Instant::now() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            start_time(pid) != Some(at)
+        };
+        if proc.kill_with(Signal::Term) == Some(true) && gone(grace) {
+            return true;
         }
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
-        while start_time(pid) == Some(at) && std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(50));
+        if !proc.kill() {
+            return start_time(pid) != Some(at);
         }
+        gone(std::time::Duration::from_secs(3));
         true
     }
 }
@@ -314,5 +328,44 @@ mod tests {
         assert!(os::kill(pid, started));
         assert!(child.wait().is_ok());
         assert!(!os::kill(pid, started), "already gone");
+    }
+
+    /// A leftover daemon is asked to stop first, so it can close its stores; one that does not stop is killed.
+    #[cfg(unix)]
+    #[test]
+    fn a_leftover_gets_sigterm_and_time_to_close_and_one_that_ignores_it_is_killed() {
+        let dir = std::env::temp_dir().join(format!("loki-procs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Each script says it is ready only once its trap is set: a signal sent before then would end it by default.
+        let start = |script: String, ready: &std::path::Path| {
+            let child = std::process::Command::new("sh").arg("-c").arg(script).spawn().unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            while !ready.exists() && std::time::Instant::now() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            assert!(ready.exists(), "the script set its trap");
+            child
+        };
+        let said = dir.join("closed");
+        let ready = dir.join("polite-ready");
+        let mut polite = start(
+            format!(
+                "trap 'echo closed > {}; exit 0' TERM; touch {}; while :; do sleep 0.05; done",
+                said.display(),
+                ready.display()
+            ),
+            &ready,
+        );
+        let pid = polite.id();
+        assert!(os::kill_within(pid, os::start_time(pid), std::time::Duration::from_secs(3)));
+        assert_eq!(std::fs::read_to_string(&said).unwrap().trim(), "closed", "it ran its own stop before it went");
+        assert!(polite.wait().is_ok());
+        let ready = dir.join("stubborn-ready");
+        let mut stubborn =
+            start(format!("trap '' TERM; touch {}; while :; do sleep 0.05; done", ready.display()), &ready);
+        let pid = stubborn.id();
+        assert!(os::kill_within(pid, os::start_time(pid), std::time::Duration::from_millis(300)));
+        assert!(stubborn.wait().is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

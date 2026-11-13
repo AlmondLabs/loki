@@ -44,17 +44,37 @@ fn ensure_token() -> Option<String> {
         return Some(t);
     }
     let token = new_token()?;
-    let dir = loki_dir();
-    std::fs::create_dir_all(&dir).ok()?;
-    let path = dir.join("token");
-    std::fs::write(&path, &token).ok()?;
+    match write_token_file(&loki_dir(), &token) {
+        Ok(()) => {
+            eprintln!("loki: wrote a new capability token");
+            Some(token)
+        }
+        // The mod wrote one between the read above and this write: that one is the token.
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => read_token(),
+        Err(e) => {
+            eprintln!("loki: could not write the capability token: {e}");
+            None
+        }
+    }
+}
+
+/// Write a new token file in `dir`, readable by this user only from the moment it exists: made with mode 0600 (and
+/// `dir`, when it has to be made, 0700) where the system has modes, never written first and narrowed after, when
+/// another user could read it in between. Never replaces a file already there (AlreadyExists).
+fn write_token_file(dir: &std::path::Path, token: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut folder = std::fs::DirBuilder::new();
+    folder.recursive(true);
+    let mut file = std::fs::OpenOptions::new();
+    file.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        folder.mode(0o700);
+        file.mode(0o600);
     }
-    eprintln!("loki: wrote a new capability token");
-    Some(token)
+    folder.create(dir)?;
+    file.open(dir.join("token"))?.write_all(token.as_bytes())
 }
 
 /// The system as the page names it (`__LOKI__.os`, read by `platform` in app/src/desk/env.ts): macos, windows or linux.
@@ -534,6 +554,25 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_new_token_file_is_private_from_the_start_and_never_replaces_one_there() {
+        let dir = std::env::temp_dir().join(format!("loki-token-{}", std::process::id())).join(".loki");
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        write_token_file(&dir, "first").unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("token")).unwrap(), "first");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(dir.join("token")).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+        }
+        let again = write_token_file(&dir, "second").unwrap_err();
+        assert_eq!(again.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read_to_string(dir.join("token")).unwrap(), "first");
+        std::fs::remove_dir_all(dir.parent().unwrap()).unwrap();
+    }
+
     use super::*;
     use std::ffi::OsString;
 

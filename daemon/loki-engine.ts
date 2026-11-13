@@ -48,6 +48,8 @@ export class LokiEngine implements Engine {
     push: (agentId: string, conversationId: string, events: ChatEvent[]) => void;
     /** Keeps the person's pictures as files a window loads (plan 029). */
     nameImage?: ImageNamer;
+    /** How a chat's events are followed: pi-durable's own, unless a test stands in for it. */
+    watch?: typeof watchEvents;
   };
   private readonly following = new Map<string, Promise<AgentEventStream>>();
   /** Each followed chat's event converter, which knows the answer in flight (open hands it to a late client). */
@@ -178,13 +180,22 @@ export class LokiEngine implements Engine {
   /** Follow a chat, once: from now on its events go to every client. */
   private async watch(c: EngineChat): Promise<void> {
     const key = keyOf(c.agentId, c.conversationId);
-    if (!this.following.has(key)) this.following.set(key, this.follow(c));
-    await this.following.get(key);
+    let following = this.following.get(key);
+    if (!following) {
+      following = this.follow(c);
+      this.following.set(key, following);
+      // A follow that failed is forgotten, so the next open or send tries again. Kept, it would answer every later
+      // call with the same error until the store reopened or the daemon restarted.
+      following.catch(() => {
+        if (this.following.get(key) === following) this.following.delete(key);
+      });
+    }
+    await following;
   }
 
   /** Push every event of a chat from now on. */
   private async follow({ store, chat, agentId, conversationId }: EngineChat): Promise<AgentEventStream> {
-    const stream = await watchEvents(store.harness, chat.id, this.deps.context);
+    const stream = await (this.deps.watch ?? watchEvents)(store.harness, chat.id, this.deps.context);
     const converter = new ChatEventConverter(agentId, this.deps.nameImage);
     this.converters.set(keyOf(agentId, conversationId), converter);
     stream.start(async (batch) => {

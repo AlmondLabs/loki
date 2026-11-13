@@ -36,6 +36,7 @@ const api: GoogleToolDef = {
   // Checked against the service named, below.
   service: null,
   reads: false,
+  answersContent: true,
   run: async (call) => {
     const service = textArg(call.args, "service");
     const method = textArg(call.args, "method").toUpperCase();

@@ -99,6 +99,8 @@ export interface ConversationActions {
   onStop?: () => Promise<string | null>;
   /** Close one of the chat's links (plan 067); resolves to an error or null. */
   onCloseLink?: (linkId: string) => Promise<string | null>;
+  /** Keep the chat on this Mac when its move cannot finish, the other Mac out of reach (plan 096); an error or null. */
+  onKeepHere?: () => Promise<string | null>;
 }
 
 /** Safe-area insets a host adds inside the thread and under the last row (the phone's notch and home indicator). */
@@ -392,6 +394,7 @@ export function Conversation({
           dim={dim}
           onCancelQueued={actions.onCancelQueued}
           onRetry={(text) => actions.onSend(text)}
+          onKeepHere={actions.onKeepHere}
           older={view.older ?? null}
           loadFailed={view.loadFailed ?? null}
           loadStep={view.loadStep}
@@ -660,6 +663,8 @@ export interface ThreadProps {
   dim?: boolean;
   onCancelQueued?: (text: string) => void;
   onRetry?: (text: string) => void;
+  /** Keep the chat on this Mac when its move cannot finish, the other Mac out of reach (plan 096); an error or null. */
+  onKeepHere?: () => Promise<string | null>;
   older?: (() => void) | null;
   loadFailed?: (() => void) | null;
   loadStep?: (row: number) => Promise<WholeRow | null>;
@@ -701,6 +706,7 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
     dim = true,
     onCancelQueued,
     onRetry,
+    onKeepHere,
     older = null,
     loadFailed = null,
     loadStep,
@@ -809,7 +815,7 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
             </span>
           </div>
         )}
-        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} />}
+        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} onKeepHere={onKeepHere} />}
       </div>
       {unpinned && (
         <Chip

@@ -131,6 +131,15 @@ describe("who may use a Google account (plan 2026-11-11, U7, KTD12)", () => {
 });
 
 describe("Gmail and Drive for scripts (plan 2026-11-11, U7)", () => {
+  test("every read, and the request tool, says it answers with other people's text; a change or a send does not (plan 097)", async () => {
+    const f = await fixture();
+    const marked = [...f.tools.values()].filter((t) => t.annotations?.strangerText === true).map((t) => t.name);
+    for (const t of f.tools.values()) if (t.annotations?.readOnly === true && t.name !== "google_accounts") expect(marked, t.name).toContain(t.name);
+    expect(marked).toContain("google_api");
+    expect(marked).not.toContain("google_gmail_send");
+    expect(marked).not.toContain("google_gmail_modify");
+  });
+
   test("R19: a search over every page answers a short copy and keeps all 120 threads in the chat's tool-results folder", async () => {
     const f = await fixture();
     const r = await f.call(WORK, "google_gmail_search", { query: "invoice", all_pages: true });

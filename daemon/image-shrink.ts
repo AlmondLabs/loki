@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import type { ImageProcessor } from "@earendil-works/pi-durable/tools";
 
 /**
  * An image a tool hands the model, made the size the person's own pasted images are (plan 029; the app's
@@ -30,21 +31,54 @@ export async function shrinkImage(
   mimeType: string,
   opts: { run?: Run; platform?: NodeJS.Platform } = {},
 ): Promise<{ data: Buffer; mimeType: string }> {
-  const data = await readFile(file);
+  return shrunk(await readFile(file), mimeType, file, opts);
+}
+
+/** The image types a model takes as they are; any other (a BMP, which `read` accepts) must become JPEG first. */
+const MODEL_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
+/**
+ * The image `read` hands the model, shrunk (plan 094): pi-durable's `read` prepares every image through this, so a
+ * picture read once is kept at the size `image_view` once made it. An image still past `read`'s byte limit after that,
+ * or one that could not become a type the model takes, is refused, as `read` refuses one with no processor.
+ */
+export function shrinkingProcessor(opts: { run?: Run; platform?: NodeJS.Platform } = {}): ImageProcessor {
+  return {
+    async prepare(bytes, mimeType, limits) {
+      const data = Buffer.from(bytes);
+      const image = await shrunk(data, mimeType, null, { ...opts, always: !MODEL_TYPES.has(mimeType) });
+      const base64 = image.data.toString("base64");
+      return MODEL_TYPES.has(image.mimeType) && base64.length <= limits.maxBytes ? { data: base64, mimeType: image.mimeType } : undefined;
+    },
+  };
+}
+
+/**
+ * `data` shrunk; `file` is where it already is on disk, or null to write it out for `sips` first. `always` converts it
+ * whatever its size, for a type the model does not take.
+ */
+async function shrunk(
+  data: Buffer,
+  mimeType: string,
+  file: string | null,
+  opts: { run?: Run; platform?: NodeJS.Platform; always?: boolean },
+): Promise<{ data: Buffer; mimeType: string }> {
   const original = { data, mimeType };
-  if (data.length <= SHRINK_ABOVE_BYTES || mimeType === "image/gif" || (opts.platform ?? process.platform) !== "darwin") return original;
+  if ((!opts.always && data.length <= SHRINK_ABOVE_BYTES) || mimeType === "image/gif" || (opts.platform ?? process.platform) !== "darwin") return original;
   const run = opts.run ?? realRun;
   const dir = await mkdtemp(join(tmpdir(), "loki-shrink-"));
   try {
+    const source = file ?? join(dir, "source");
+    if (!file) await writeFile(source, data);
     // Its size first: `sips -Z` would also enlarge a smaller one.
-    const dims = await run("/usr/bin/sips", ["-g", "pixelWidth", "-g", "pixelHeight", file]);
+    const dims = await run("/usr/bin/sips", ["-g", "pixelWidth", "-g", "pixelHeight", source]);
     const sides = [...dims.matchAll(/pixel(?:Width|Height):\s*(\d+)/g)].map((m) => Number(m[1]));
     const long = sides.length ? Math.max(...sides) : 0;
     const out = join(dir, "shrunk.jpg");
     const resize = long > SHRINK_LONG_EDGE ? ["-Z", String(SHRINK_LONG_EDGE)] : [];
-    await run("/usr/bin/sips", [...resize, "-s", "format", "jpeg", "-s", "formatOptions", String(SHRINK_QUALITY), file, "--out", out]);
-    const shrunk = await readFile(out);
-    return shrunk.length > 0 && shrunk.length < data.length ? { data: shrunk, mimeType: "image/jpeg" } : original;
+    await run("/usr/bin/sips", [...resize, "-s", "format", "jpeg", "-s", "formatOptions", String(SHRINK_QUALITY), source, "--out", out]);
+    const made = await readFile(out);
+    return made.length > 0 && (opts.always || made.length < data.length) ? { data: made, mimeType: "image/jpeg" } : original;
   } catch {
     return original;
   } finally {

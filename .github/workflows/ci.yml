@@ -3,6 +3,8 @@ name: ci
 # is not tested again; release.yml's nightly build compiles every merge. A newer push to the PR cancels the run before
 # it. Docs and the two release PRs' marker files change nothing these check, so a PR touching only them starts nothing
 # (skills/loki/SKILL.md ships in the app and is not skipped). The Rust shell's tests are shell.yml, run when it changes.
+# Once a week it runs on main as well, with no PR: a runner GitHub retires or a main that went red between PRs shows
+# there within days (macos-14 was refused from 2026-11-06 and no one saw it for four days).
 on:
   pull_request:
     paths-ignore:
@@ -12,6 +14,8 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/release.txt"
       - ".github/preview.txt"
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 concurrency:

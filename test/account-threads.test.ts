@@ -64,6 +64,25 @@ const message = (more: Partial<ObservedMessage> = {}): ObservedMessage => ({
   ...more,
 });
 
+describe("a mail reply that did not go, on its card (plan 096)", () => {
+  test("the card says it until that reply is settled; another reply's settling leaves it, and it outlives a restart and newer mail", async () => {
+    const { threads, again } = await fixture();
+    threads.observe(MAIL, message());
+    const note = { outbox_id: "o3-abcdefgh", text: "ok", reason: "Gmail is unreachable", at: "2026-11-04T12:00:00.000Z" };
+    const card = (t: AccountThreads) => t.rows().find((r) => r.outside?.thread_id === "t1")?.outside;
+    expect(card(threads)?.not_sent).toBeUndefined();
+    expect(threads.markNotSent(MAIL, "t1", note.outbox_id, note)).toBe(true);
+    expect(card(threads)?.not_sent).toEqual(note);
+    expect(threads.markNotSent(MAIL, "t1", "another-reply", null)).toBe(false);
+    threads.observe(MAIL, message({ message_id: "m2", at: "2026-11-04T10:00:00.000Z" }));
+    const later = again();
+    expect(card(later)?.not_sent).toEqual(note);
+    expect(later.markNotSent(MAIL, "t1", note.outbox_id, null)).toBe(true);
+    expect(card(later)?.not_sent).toBeUndefined();
+    expect(later.markNotSent(MAIL, "no-such-thread", note.outbox_id, note)).toBe(false);
+  });
+});
+
 describe("a card's header facts (plan 073)", () => {
   test("a mail's reach comes from its traits, and a lone mailbox is not named", async () => {
     const { threads, accounts } = await fixture();
@@ -514,14 +533,12 @@ describe("an approved Jira comment waits on the record (plan 2026-11-10-1451, U8
     expect(threads.rows()[0]?.outside?.seeds).toEqual([SEED]);
   });
 
-  test("a seed goes on its own or with the rest; a record from before seeds has none", async () => {
+  test("seeds go with the rest; a record from before seeds has none", async () => {
     const { dir, threads, again } = await site();
     threads.observe(SITE, event());
     threads.seed(SITE, "10001", SEED);
     threads.seed(SITE, "10001", { ...SEED, id: "reply-2", text: "And the backups." });
-    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(true);
-    expect(threads.dropSeed(SITE, "10001", "reply-1")).toBe(false);
-    expect(threads.get(SITE, "10001")?.seeds.map((s) => s.id)).toEqual(["reply-2"]);
+    expect(threads.get(SITE, "10001")?.seeds.map((s) => s.id)).toEqual(["reply-1", "reply-2"]);
     expect(threads.clearSeeds(SITE, "10001")).toBe(true);
     expect(threads.get(SITE, "10001")?.seeds).toEqual([]);
     expect(threads.rows()[0]?.outside?.seeds).toBeUndefined();

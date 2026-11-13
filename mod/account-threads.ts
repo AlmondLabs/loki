@@ -1,6 +1,6 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountLabel, AccountProvider, InboxRow, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, InboxRow, NotSentReply, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
@@ -68,6 +68,8 @@ export interface ThreadRecord {
   place: string | null;
   /** The sender's Slack photo; null for mail and from before. */
   sender_avatar: string | null;
+  /** The person's mail reply in this thread that did not go (plan 096), until it is sent again or discarded. */
+  not_sent: NotSentReply | null;
   /**
    * The newest message when the person last dealt with the card (plan 077, KTD1): archived it, marked it read, replied
    * from it or handed it off. Only what came after it is new on the card; null until the person first acts.
@@ -201,12 +203,22 @@ function parseRecord(v: unknown): ThreadRecord | null {
     reach: typeof r.reach === "string" && r.reach in REACH_LEVEL ? (r.reach as OutsideReach) : null,
     place: s("place"),
     sender_avatar: s("sender_avatar"),
+    not_sent: parseNotSent(r.not_sent),
     dealt_message_id: s("dealt_message_id"),
     dealt_was: s("dealt_was"),
     brought_ids: Array.isArray(r.brought_ids) ? r.brought_ids.filter((l): l is string => typeof l === "string") : [],
     seeds: parseSeeds(r.seeds),
     seeds_was: parseSeeds(r.seeds_was),
   };
+}
+
+/** A kept "not sent" note, or null for anything else. */
+function parseNotSent(v: unknown): NotSentReply | null {
+  if (typeof v !== "object" || v === null) return null;
+  const n = v as Record<string, unknown>;
+  return typeof n.outbox_id === "string" && typeof n.text === "string" && typeof n.reason === "string" && typeof n.at === "string"
+    ? { outbox_id: n.outbox_id, text: n.text, reason: n.reason, at: n.at }
+    : null;
 }
 
 /** A record marked as dealt with at its newest message (plan 077, KTD1), keeping the mark it had for an undo. */
@@ -294,6 +306,8 @@ export class AccountThreads {
       reach: m.reach ?? null,
       place: m.place ?? null,
       sender_avatar: m.sender_avatar ?? null,
+      // A reply that did not go stays on the card until the person settles it, newer mail or not.
+      not_sent: prev?.not_sent ?? null,
       dealt_message_id: prev?.dealt_message_id ?? null,
       dealt_was: prev?.dealt_was ?? null,
       brought_ids: (m.brought_ids ?? prev?.brought_ids ?? []).slice(-BROUGHT_MAX),
@@ -321,6 +335,20 @@ export class AccountThreads {
    * The person replied on an open card and waits for an answer (plan 070, KTD7): the record is marked waiting until a
    * newer message comes. Returns whether it changed; a card that is not open stays as it is.
    */
+  /**
+   * The person's reply in this thread did not go (`note`), or is settled after all (null, for that reply's id only, so
+   * a later reply's failure is not cleared by an earlier one's). Kept whatever state the record is in: a card that
+   * opens again still says it. Returns whether it changed.
+   */
+  markNotSent(accountId: string, threadId: string, outboxId: string, note: NotSentReply | null): boolean {
+    const r = this.records(accountId).get(threadId);
+    if (!r) return false;
+    if (note === null && r.not_sent?.outbox_id !== outboxId) return false;
+    this.records(accountId).set(threadId, { ...r, not_sent: note });
+    this.save(accountId);
+    return true;
+  }
+
   markWaiting(accountId: string, threadId: string): boolean {
     const r = this.records(accountId).get(threadId);
     if (r?.state !== "open" || r.waiting) return false;
@@ -380,15 +408,6 @@ export class AccountThreads {
     if (!r) return false;
     const seeds = [...r.seeds.filter((s) => s.id !== seed.id), seed];
     this.records(accountId).set(threadId, { ...r, state: r.state === "archived" ? "open" : r.state, seeds });
-    this.save(accountId);
-    return true;
-  }
-
-  /** The agent took back an approved comment (reply_withdraw): it leaves the record. Returns whether it was there. */
-  dropSeed(accountId: string, threadId: string, seedId: string): boolean {
-    const r = this.records(accountId).get(threadId);
-    if (!r?.seeds.some((s) => s.id === seedId)) return false;
-    this.records(accountId).set(threadId, { ...r, seeds: r.seeds.filter((s) => s.id !== seedId) });
     this.save(accountId);
     return true;
   }
@@ -624,6 +643,7 @@ export class AccountThreads {
         reach: reachOf(account.provider, r),
         place: r.place,
         sender_avatar: r.sender_avatar,
+        ...(r.not_sent ? { not_sent: { ...r.not_sent } } : {}),
         only_account: this.opts.accounts.list().filter((a) => a.provider === account.provider).length <= 1,
         ...(r.seeds.length > 0 ? { seeds: r.seeds.map((s) => ({ ...s })) } : {}),
       },

@@ -64,6 +64,9 @@ export type ChatClient = Pick<
   | "replyOutside"
   | "composeOutside"
   | "unsendOutside"
+  | "keepMoveHere"
+  | "resendOutside"
+  | "discardOutside"
   | "reactOutside"
   | "searchEmoji"
   | "searchPeople"
@@ -258,6 +261,11 @@ export class FrameChatClient {
     return r.accepted;
   }
 
+  /** Keep a chat here whose move to an out-of-reach Mac cannot finish (plan 096); throws why not. */
+  async keepMoveHere(rt: Runtime): Promise<void> {
+    await this.call("chat_move_keep", { agent_id: rt.agent_id, conversation_id: rt.conversation_id });
+  }
+
   async abortTurn(rt: Runtime): Promise<boolean> {
     await this.call("chat_abort", { agent_id: rt.agent_id, conversation_id: rt.conversation_id });
     return true;
@@ -376,6 +384,18 @@ export class FrameChatClient {
   async unsendOutside(accountId: string, outboxId: string, home: string | null): Promise<boolean> {
     const r = await this.call("account_thread_unsend", { account_id: accountId, outbox_id: outboxId, home });
     return r.undone;
+  }
+
+  /** Send again a mail reply that did not go (plan 096): its thread is looked at first, so it never goes twice. */
+  async resendOutside(accountId: string, threadId: string, outboxId: string, home: string | null): Promise<OutsideReplied> {
+    const r = await this.call("account_thread_resend", { account_id: accountId, thread_id: threadId, outbox_id: outboxId, home }, 60_000);
+    return r.sent ? { sent: true, then_error: r.then_error, change: r.change } : { sent: false, undone: true };
+  }
+
+  /** Let go of a mail reply that did not go (plan 096); false when there was none to let go of. */
+  async discardOutside(accountId: string, outboxId: string, home: string | null): Promise<boolean> {
+    const r = await this.call("account_thread_discard", { account_id: accountId, outbox_id: outboxId, home });
+    return r.discarded;
   }
 
   /** Keep one of the person's moves on an outside card in the ledger of the Mac its account lives on (plan 069). */

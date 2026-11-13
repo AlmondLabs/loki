@@ -5,7 +5,9 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
-import { CODING_TOOL_KINDS, RENAMED_TOOLS, SPLIT_TOOLS, renamedTools, type ToolKind } from "./tool-kinds.ts";
+import { isReadOnlyCommand } from "./read-only-command.ts";
+import { SCRIPT_TOOL } from "./scripts.ts";
+import { CODING_TOOL_KINDS, isOldTool, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
  * Approvals (plan 017, U7, KTD8): before a tool runs, the chat's permission mode decides whether the person is asked.
@@ -31,17 +33,7 @@ export type { ToolKind } from "./tool-kinds.ts";
  * "always allow" may stand in for (plan 067). A reply proposal's card is its approval in every mode, and nothing is
  * written before it (plan 067, KTD9), so it is never asked about, nor ever "always allowed".
  */
-const NEVER_ASK = new Set([
-  "user_ask",
-  "chat_list",
-  "suggestion_create",
-  "suggestion_list",
-  "suggestion_withdraw",
-  "chat_message",
-  "reply_propose",
-  "reply_list",
-  "reply_withdraw",
-]);
+const NEVER_ASK = new Set(["user_ask", "chat_list", "suggestion_create", "chat_message", "reply_propose"]);
 
 /**
  * A tool's kind for the mode table, when it is not one of loki's own (those declare theirs; daemon/extensions.ts
@@ -61,17 +53,32 @@ export function kindOf(name: string, annotations?: { readOnly?: boolean; destruc
  *   standard      edits and commands; reads run freely
  *   acceptEdits   commands; edits and reads run freely
  *   unrestricted  nothing
- * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish.
+ * An edit inside loki's widget folder never asks: the canvas is the agent's to furnish. Some calls' kind is in their
+ * arguments (callKind).
  */
 export function asks(mode: PermissionMode, name: string, args: Record<string, unknown>, opts: { cwd?: string; widgetsDir?: string; kind?: ToolKind }): boolean {
   if (NEVER_ASK.has(name) || mode === "unrestricted") return false;
-  const kind = opts.kind ?? kindOf(name);
+  const kind = callKind(name, args) ?? opts.kind ?? kindOf(name);
   if (kind === "edit" && opts.widgetsDir && insideFolder(args.path ?? args.file_path, opts.widgetsDir, opts.cwd)) return false;
   if (mode === "strict") return true;
   if (kind === "read") return false;
   if (mode === "acceptEdits") return kind === "command";
   return true;
 }
+
+/**
+ * A call's kind when its arguments decide it: a `bash` command made only of read-only programs is a read
+ * (daemon/read-only-command.ts, plan 094), and a `background_watch` that types into its task or stops it is a command
+ * (plan 095), though the tool reads.
+ */
+function callKind(name: string, args: Record<string, unknown>): ToolKind | undefined {
+  if (name === "bash" && isReadOnlyCommand(args.command)) return "read";
+  if (name === "background_watch" && (args.input !== undefined || args.stop === true)) return "command";
+  return undefined;
+}
+
+/** A script call's code, as its arguments carry it; "" when they do not. */
+const scriptCode = (args: Record<string, unknown>): string => (typeof args.code === "string" ? args.code : "");
 
 function insideFolder(path: unknown, folder: string, cwd: string | undefined): boolean {
   if (typeof path !== "string" || !path) return false;
@@ -106,6 +113,13 @@ export class Approvals {
    */
   private readonly alwaysPath: string | null;
   private readonly alwaysAllowed: Set<string>;
+  /**
+   * Each running script's code and, once one of its calls asked, the person's answer, by the script's call id: every
+   * later call of the run takes that answer (plan 097, KTD3). Held in memory, since a tool's memos are its own and a
+   * script's calls are tasks of their own; each call's decision is still kept in its own memo, so a call resumed after
+   * a restart never asks again, but a later call of a script resumed after a restart may ask once more.
+   */
+  private readonly scriptRuns = new Map<string, { code: string; answer?: Promise<Decision> }>();
 
   /**
    * Whether a script may call a tool (daemon/scripts.ts, scriptMayCall), for a nested call: one a running script made.
@@ -117,10 +131,11 @@ export class Approvals {
     this.widgetsDir = opts.widgetsDir;
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
-    // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools), written back once.
+    // Tools allowed under an old name carry over to the names now (a split tool's to each of its tools, a merged one's
+    // to the tool it is in when it was a command), written back once.
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
     this.alwaysAllowed = new Set(stored.flatMap(renamedTools).filter((name) => !NEVER_ALWAYS_TOOLS.has(name)));
-    if (stored.some((name) => name in RENAMED_TOOLS || name in SPLIT_TOOLS)) this.saveAlways();
+    if (stored.some(isOldTool)) this.saveAlways();
     this.kindOfTool = opts.kindOfTool ?? ((name) => kindOf(name));
   }
 
@@ -221,12 +236,23 @@ export class Approvals {
             // own tool list (daemon/scripts.ts), which leaves such a tool out.
             const mayCall = call.parent === undefined ? undefined : this.scriptMayCall;
             if (mayCall && !mayCall(call.name)) return { block: `A script may not call ${call.name}.` };
+            // A script's code, kept for the one card its run may raise later (decideCall).
+            if (call.parent === undefined && call.name === SCRIPT_TOOL) this.scriptRuns.set(call.id, { code: scriptCode(call.arguments) });
             const memoName = `approval:${call.id}`;
             const decided = await api.memo<Decision>(memoName, context);
-            const decision = decided ?? (await this.decideCall(call.name, call.arguments, call.id, api, context, mayCall !== undefined));
+            const decision =
+              decided ??
+              (mayCall === undefined || !call.parent
+                ? await this.decideCall(call.name, call.arguments, call.id, api, context)
+                : await this.decideCall(call.name, call.arguments, call.id, api, context, call.parent.callId));
             if (!decision) return undefined;
             if (!decided) await api.memo(memoName, decision, context);
             return decision.allow ? undefined : { block: decision.message || "The person declined this tool call." };
+          },
+          // A script's run ends with its call: its code and answer go.
+          afterTool: (call, result) => {
+            if (call.parent === undefined && call.name === SCRIPT_TOOL) this.scriptRuns.delete(call.id);
+            return result;
           },
         }),
       ],
@@ -234,9 +260,11 @@ export class Approvals {
   }
 
   /**
-   * null when the mode lets the call run without asking. A script's own call (`nested`) asks only in strict mode: its
-   * script was approved, or ran without asking, under the same mode, and one card per call would make a forty-file
-   * move forty cards (plan 2026-11-11 scripts, KTD4). Strict asks for everything, by choice.
+   * null when the mode lets the call run without asking. A script's own call (one made in the script whose call id is
+   * `script`) asks by its own kind, but once for the whole run (plan 097, KTD3): its first call that would ask raises
+   * one card showing the script and that call, and the answer stands for every later call of the run (scriptRuns). A
+   * forty-file move is one card, not forty, and a script that only reads asks nothing. Strict asks for each call, by
+   * choice.
    */
   private async decideCall(
     name: string,
@@ -244,7 +272,7 @@ export class Approvals {
     callId: string,
     api: HookApi,
     context: Context,
-    nested = false,
+    script?: string,
   ): Promise<Decision | null> {
     const [own, agent, settings] = await Promise.all([
       api.snapshot(ChatDoc, api.conversationId, context),
@@ -255,11 +283,34 @@ export class Approvals {
     const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     // A turn another chat's message started runs with no more power than that chat has (plan 067).
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
-    if (nested && mode !== "strict") return null;
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
     const conversationId = chat?.id || `conversation-${api.conversationId}`;
+    if (script !== undefined && mode !== "strict") {
+      const run = this.scriptRuns.get(script) ?? { code: "" };
+      this.scriptRuns.set(script, run);
+      // Calls a script makes at once wait on the one card the first of them raised; later calls take its answer.
+      run.answer ??= this.ask<Decision>(
+        agentId,
+        conversationId,
+        // The card is the script's: "always allow" is never offered for one (NEVER_ALWAYS_TOOLS), and it shows the
+        // script with the call that raised it.
+        {
+          kind: "approval",
+          request_id: `approval-script-${script}`,
+          tool_name: SCRIPT_TOOL,
+          input: { code: run.code, first_call: { tool: name, input: args } },
+        },
+        context.abortSignal,
+      ).catch((error: unknown) => {
+        // A stopped turn's card is withdrawn; a later call of the same run, if any, asks again.
+        delete run.answer;
+        throw error;
+      });
+      const answer = await run.answer;
+      return answer.allow ? answer : { allow: false, message: answer.message || "The person declined this script's changes." };
+    }
     return this.ask<Decision>(
       agentId,
       conversationId,

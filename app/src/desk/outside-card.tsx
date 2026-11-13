@@ -10,6 +10,7 @@ import type {
   SlackPerson,
   MailAddressing,
   MailCompose,
+  NotSentReply,
   OutsideFacts,
   OutsideMessage,
   OutsideRead,
@@ -117,14 +118,14 @@ export interface ThreadControls {
 }
 
 /** What a card's thread is read from, and, for a Slack card, what reacts on it (plan 079). */
-export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople" | "sentReplies">;
+export type OutsideThreadSource = Pick<OutsideSource, "readOutside" | "reactOutside" | "searchEmoji" | "searchPeople" | "sentReplies" | "settleUnsent">;
 
 /**
  * What a card's thread is read and reacted through, taken from everything the Inbox holds; null when it cannot read
  * threads. Each is passed on, so a card offers reacting (plan 079) and mentioning (plan 082) wherever its source can.
  */
 export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThreadSource | null {
-  const { readOutside, reactOutside, searchEmoji, searchPeople, sentReplies } = chats;
+  const { readOutside, reactOutside, searchEmoji, searchPeople, sentReplies, settleUnsent } = chats;
   if (!readOutside) return null;
   return {
     readOutside,
@@ -132,6 +133,7 @@ export function threadSourceOf(chats: Partial<OutsideThreadSource>): OutsideThre
     ...(reactOutside ? { reactOutside } : {}),
     ...(searchEmoji ? { searchEmoji } : {}),
     ...(searchPeople ? { searchPeople } : {}),
+    ...(settleUnsent ? { settleUnsent } : {}),
   };
 }
 
@@ -663,11 +665,17 @@ export function OutsideReply({
   searchPeople,
   inThread = false,
   items = false,
+  onUnsent,
 }: {
   /** A thread is open on the card (plan 085): the reply goes into it, and the box says so. */
   inThread?: boolean;
   /** Draw the box as the new chat pane's Composer (plan 097, U7); its behaviour is the same either way. */
   items?: boolean;
+  /**
+   * Send again or let go the person's mail reply that did not go (plan 096), which the card's facts carry: null when
+   * done, else why not. Absent, the card still says it was not sent but offers nothing.
+   */
+  onUnsent?: (outboxId: string, action: "resend" | "discard") => Promise<string | null>;
   facts: OutsideFacts;
   /** The card's id (`idOf`), under which its unsent text is kept for the session (shared/outside-replies.ts); absent, the text goes with the box. */
   keep?: string;
@@ -788,69 +796,75 @@ export function OutsideReply({
     if (compose) setMail(startAddressing(compose));
     setLineOpen(false);
   };
+  // The mail reply that did not go (plan 096) shows over either box, the new pane's as today's.
+  const notSent = facts.not_sent && <NotSentLine note={facts.not_sent} touch={touch} onUnsent={onUnsent} />;
   if (items)
     return (
-      <ItemReplyBox
-        isMail={isMail}
-        target={
-          isMail ? (
-            <MailAddressLine
-              compose={compose}
-              value={mail}
-              onChange={setMail}
-              open={lineOpen}
-              onOpen={setLineOpen}
-              onTyping={onTyping}
-              touch={false}
-              disabled={off}
-              full
-            />
-          ) : (
-            hint
-          )
-        }
-        mentions={mentions.list}
-        field={{
-          ref: (el: HTMLTextAreaElement | null) => {
-            ownRef.current = el;
-            if (inputRef) inputRef.current = el;
-          },
-          value: text,
-          disabled: off,
-          // The target line already says where it goes; the field says what to do.
-          placeholder: isMail ? hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
-          "aria-label": hint,
-          onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
-            setText(e.target.value);
-            mentions.onCaret(e.target);
-          },
-          onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
-          onKeyDown: keys,
-          onFocus: () => onTyping?.(true),
-          onBlur: () => {
-            mentions.onCaret(null);
-            onTyping?.(false);
-          },
-        }}
-        signature={isMail && compose && hasSignature ? { text: signature, toggle: () => shown && setMail({ ...shown, signature: !signature }) } : null}
-        quote={isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null}
-        send={{
-          busy,
-          disabled: off || !text.trim(),
-          title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
-          keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
-          onSend: () => void send(),
-        }}
-        discard={isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null}
-        error={error}
-        actions={isMail ? null : actions}
-      />
+      <>
+        {notSent}
+        <ItemReplyBox
+          isMail={isMail}
+          target={
+            isMail ? (
+              <MailAddressLine
+                compose={compose}
+                value={mail}
+                onChange={setMail}
+                open={lineOpen}
+                onOpen={setLineOpen}
+                onTyping={onTyping}
+                touch={false}
+                disabled={off}
+                full
+              />
+            ) : (
+              hint
+            )
+          }
+          mentions={mentions.list}
+          field={{
+            ref: (el: HTMLTextAreaElement | null) => {
+              ownRef.current = el;
+              if (inputRef) inputRef.current = el;
+            },
+            value: text,
+            disabled: off,
+            // The target line already says where it goes; the field says what to do.
+            placeholder: isMail ? hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
+            "aria-label": hint,
+            onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+              setText(e.target.value);
+              mentions.onCaret(e.target);
+            },
+            onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
+            onKeyDown: keys,
+            onFocus: () => onTyping?.(true),
+            onBlur: () => {
+              mentions.onCaret(null);
+              onTyping?.(false);
+            },
+          }}
+          signature={isMail && compose && hasSignature ? { text: signature, toggle: () => shown && setMail({ ...shown, signature: !signature }) } : null}
+          quote={isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null}
+          send={{
+            busy,
+            disabled: off || !text.trim(),
+            title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
+            keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
+            onSend: () => void send(),
+          }}
+          discard={isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null}
+          error={error}
+          actions={isMail ? null : actions}
+        />
+      </>
     );
   return (
     <div
       className={framed ? "loki-mail-compose" : undefined}
       style={framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
     >
+      {notSent}
       {isMail && (
         <div className={framed ? "loki-mail-compose-head" : undefined}>
           <MailAddressLine
@@ -1228,6 +1242,56 @@ function ownAddresses(facts: OutsideFacts, compose: MailCompose | null): string[
   return [facts.account_id.replace(/^gmail:/, ""), ...(compose?.from.map((f) => f.address) ?? [])];
 }
 
+/**
+ * The person's mail reply that did not go (plan 096): its first words, why, and send again and discard. Send again
+ * looks in the thread first, so it never sends twice; until one of them settles it the card keeps saying it.
+ */
+function NotSentLine({
+  note,
+  touch,
+  onUnsent,
+}: {
+  note: NotSentReply;
+  touch: boolean;
+  onUnsent?: (outboxId: string, action: "resend" | "discard") => Promise<string | null>;
+}) {
+  const [busy, setBusy] = useState<"resend" | "discard" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const act = async (action: "resend" | "discard") => {
+    if (!onUnsent || busy) return;
+    setBusy(action);
+    setError(null);
+    try {
+      setError(await onUnsent(note.outbox_id, action));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const size = touch ? "touch" : "sm";
+  return (
+    <div role="alert" style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-1)" : 4 }}>
+      <Meta negative wrap>
+        {touch ? "Not sent" : "not sent"}: {error ?? note.reason}
+      </Meta>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <Meta style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={note.text}>
+          “{firstLine(note.text)}”
+        </Meta>
+        {onUnsent && (
+          <>
+            <Button size={size} tone="positive" disabled={!!busy} onClick={() => void act("resend")} title="looks in the thread first, so it never goes twice">
+              {busy === "resend" ? (touch ? "Sending…" : "sending…") : touch ? "Send again" : "send again"}
+            </Button>
+            <Button size={size} bare disabled={!!busy} onClick={() => void act("discard")} title="let it go; the card stops saying it was not sent">
+              {touch ? "Discard" : "discard"}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The reply box the deck holds on a desktop card: with the card's moves, its people to mention and its opened thread. */
 function DeckReply({
   current,
@@ -1255,6 +1319,7 @@ function DeckReply({
   compose: MailCompose | null;
 }) {
   const people = source?.searchPeople;
+  const settle = source?.settleUnsent;
   return (
     <OutsideReply
       facts={facts}
@@ -1268,6 +1333,7 @@ function DeckReply({
       searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
       inThread={thread.kind === "read" && !!thread.opened}
       items={items}
+      onUnsent={settle ? (outboxId, action) => settle(current, outboxId, action) : undefined}
     />
   );
 }

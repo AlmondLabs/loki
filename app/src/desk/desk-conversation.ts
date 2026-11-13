@@ -83,6 +83,7 @@ export function deskConversation(
     onCancelQueued: (text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text),
     onStop: deskRuntime ? () => catchUp.stop(deskRuntime) : undefined,
     onCloseLink: deskRuntime ? (linkId) => catchUp.links.close(deskRuntime, linkId) : undefined,
+    onKeepHere: deskRuntime ? () => catchUp.keepMoveHere(deskRuntime) : undefined,
   };
   return { view, actions };
 }

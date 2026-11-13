@@ -121,7 +121,12 @@ export interface GmailDraftInput {
   bcc?: string[];
   html?: string;
   attachments?: GmailAttachment[];
+  /** A held reply's id (mod/mail-outbox.ts), written as `X-Loki-Outbox` so loki can tell later whether it went. */
+  outboxId?: string;
 }
+
+/** The header a held reply carries its outbox id in, and is looked for by before it is sent a second time (plan 096). */
+export const OUTBOX_HEADER = "X-Loki-Outbox";
 
 /** One address the person sends from (Gmail's send-as), with the name it shows and its signature as Gmail keeps it, in HTML. */
 export interface GmailSendAs {
@@ -242,6 +247,7 @@ export function rfc2822(d: GmailDraftInput, boundary = "loki"): string {
     `Subject: ${encodedWord(oneLine(d.subject))}`,
     d.inReplyTo ? `In-Reply-To: ${oneLine(d.inReplyTo)}` : "",
     references.length ? `References: ${[...new Set(references)].join(" ")}` : "",
+    d.outboxId ? `${OUTBOX_HEADER}: ${oneLine(d.outboxId)}` : "",
     "MIME-Version: 1.0",
   ].filter(Boolean);
   const plain = part(["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64"], textBody(d.body));

@@ -49,6 +49,7 @@ const record = (threadId: string, over: Partial<ThreadRecord> = {}): ThreadRecor
   reach: null,
   place: null,
   sender_avatar: null,
+  not_sent: null,
   dealt_message_id: null,
   dealt_was: null,
   brought_ids: [],

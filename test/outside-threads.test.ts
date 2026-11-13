@@ -34,7 +34,7 @@ import type { AccountRecord } from "../mod/accounts.ts";
 import { PHONE_FRAMES, peerMeaning } from "../core/frames.ts";
 import { accountFrames } from "../mod/frames/accounts.ts";
 import type { GmailDraftInput, GmailMessage, GmailSendAs } from "../mod/gmail.ts";
-import type { ThreadMessage } from "../mod/handoff.ts";
+import type { ThreadMessage } from "../mod/account-ops/thread.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
 import type { CardFacts } from "../mod/slack-view.ts";
 import { SlackError, type SlackDraftInput } from "../mod/slack.ts";
@@ -694,6 +694,8 @@ describe("the person's reactions on a Slack card (plan 079)", () => {
 const NO_MAIL = {
   compose: () => Promise.reject(new Error("not a mail")),
   unsend: () => false,
+  resend: () => Promise.reject(new Error("no reply to send again")),
+  discardUnsent: () => false,
   react: () => Promise.resolve(),
   searchEmoji: () => Promise.resolve([]),
   searchPeople: () => Promise.resolve([]),

@@ -40,8 +40,8 @@ const EDITS = new Set([
   "memory_edit",
   "memory_delete",
 ]);
-/** The background-task tools beside the one that starts a command: they read, type into, wait on and stop it. */
-const BACKGROUND = new Set(["background_write", "background_output", "background_watch", "background_stop", "TaskOutput", "Monitor", "TaskStop"]);
+/** The background-task tools beside the one that starts a command: loki's one, and Claude Code's that read, wait on and stop it. */
+const BACKGROUND = new Set(["background_watch", "TaskOutput", "Monitor", "TaskStop"]);
 /** The tool that loads a skill: loki's `skill`, or Claude Code's `Skill`. */
 const isSkillTool = (name: string): boolean => name === "skill" || name === "Skill";
 /** Tools that hand work to another agent. */
@@ -101,15 +101,11 @@ export function stepVerb(name: string): string {
     case "TodoWrite":
     case "UpdatePlan":
       return "Updated the plan";
-    case "background_write":
-      return "Typed into a command";
-    case "background_output":
     case "TaskOutput":
       return "Read a command's output";
     case "background_watch":
     case "Monitor":
       return "Waited on a command";
-    case "background_stop":
     case "TaskStop":
       return "Stopped a command";
     case "user_ask":

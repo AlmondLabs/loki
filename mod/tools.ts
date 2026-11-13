@@ -6,7 +6,7 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { log, withTimeout } from "./log.ts";
-import type { DeskSummary, Suggestion } from "../core/frame-types.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
 import { linkLines, type ChatMessages } from "./chat-links.ts";
@@ -46,7 +46,7 @@ export interface ListedAgent {
 
 /** What chat_list and the suggestion tools read and change. */
 export interface ChatToolDeps {
-  suggestions: Pick<Suggestions, "add" | "list" | "withdraw">;
+  suggestions: Pick<Suggestions, "add">;
   /** The person's agents, each with its Mac. */
   agents(): ListedAgent[] | Promise<ListedAgent[]>;
   /** Every chat in the lists, this Mac's and the paired Macs', archived ones included (they are left out here). */
@@ -261,18 +261,9 @@ function chatLine(d: OpenChat, calling: string): string {
     .join(" · ");
 }
 
-/** One suggestion as suggestion_list prints it, with the chat it now points at. */
-function suggestionLine(s: Suggestion, chats: OpenChat[]): string {
-  const t = s.target;
-  const target =
-    "conversation_id" in t
-      ? `for chat ${t.conversation_id} "${chats.find((d) => d.conversation_id === t.conversation_id)?.title ?? "untitled"}" (agent ${t.agent_id})`
-      : `for a new chat of agent ${t.agent_id} in ${t.folder}`;
-  return [s.id, s.status, `"${s.title}"`, target, s.reason ? `reason: ${s.reason}` : null].filter(Boolean).join(" · ");
-}
-
 /**
- * chat_list, suggestion_create, suggestion_list and suggestion_withdraw (plan 049, U3), and chat_message (plan 067).
+ * chat_list and suggestion_create (plan 049, U3), and chat_message (plan 067). The agent hears what became of each
+ * suggestion when the person acts on it, so there is no tool to list or take one back (plan 094).
  * All are marked read-only (KTD4): a suggestion is the person's decision when they act on it, so making one never stops
  * a turn for approval, and a chat message asks on its own link card, which no mode stands in for.
  */
@@ -325,7 +316,7 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
       "be done better in another chat: a themed chat it belongs to, another agent, or a new chat running in parallel. " +
       "Suggest never for work you can do in this chat. One piece of work per suggestion. The text must stand alone, " +
       "as if the person typed it there: what to do and why, with absolute paths, since it may go to another agent or " +
-      "folder. Call chat_list first to pick the target, and suggestion_list to avoid repeating one already made. The " +
+      "folder. Call chat_list first to pick the target. The " +
       "target is an open chat { agent_id, conversation_id } or a new chat { agent_id, folder }. It returns the " +
       "suggestion's id at once; name the suggestion in one line of your reply.",
     parameters: {
@@ -378,48 +369,6 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     },
   };
 
-  const list: LokiTool = {
-    name: "suggestion_list",
-    annotations: { readOnly: true },
-    description:
-      "List the suggestions made in this chat, one line each: id, status (pending, sending, sent, drafted, rejected, " +
-      "withdrawn), title, and the chat it now points at, which the person may have changed. Check it before suggesting again.",
-    parameters: { type: "object", properties: {}, additionalProperties: false },
-    async run(ctx) {
-      if (deps.passChat(ctx.conversation.id)) return passError;
-      try {
-        const made = await deps.suggestions.list(source(ctx));
-        const chats = openChats(deps.chats());
-        return made.length ? made.map((s) => suggestionLine(s, chats)).join("\n") : "no suggestions in this chat";
-      } catch (err) {
-        return failed(reason(err));
-      }
-    },
-  };
-
-  const withdraw: LokiTool = {
-    name: "suggestion_withdraw",
-    annotations: { readOnly: true },
-    description: "Take back a suggestion made in this chat that the person has not acted on yet, when it no longer holds.",
-    parameters: {
-      type: "object",
-      properties: { id: { type: "string", description: "The suggestion's id, from suggestion_create or suggestion_list." } },
-      required: ["id"],
-      additionalProperties: false,
-    },
-    async run(ctx) {
-      if (deps.passChat(ctx.conversation.id)) return passError;
-      const id = argText(ctx.args.id);
-      if (!id) return failed("suggestion_withdraw needs id");
-      try {
-        const out = await deps.suggestions.withdraw(source(ctx), id);
-        return out.done ? `withdrew ${id}` : failed(`cannot withdraw ${id}: ${out.message ?? out.suggestion.status}`);
-      } catch (err) {
-        return failed(reason(err));
-      }
-    },
-  };
-
   const message: LokiTool = {
     name: "chat_message",
     annotations: { readOnly: true },
@@ -458,5 +407,5 @@ function registerChatTools(tools: { register: (tool: LokiTool) => () => void }, 
     },
   };
 
-  return [chatList, create, list, withdraw, ...(deps.messages ? [message] : [])].map((tool) => tools.register(tool));
+  return [chatList, create, ...(deps.messages ? [message] : [])].map((tool) => tools.register(tool));
 }

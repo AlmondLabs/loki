@@ -36,6 +36,13 @@ other Macs, and the Gmail, Slack and Jira accounts you connect. The rest (web se
   (below); `open`, `xdg-open` or `rundll32` open an ACP agent's sign-in page, and `taskkill` stops a task on Windows.
   An ACP chat reaches loki's own tools through one MCP endpoint on a random loopback port, with a key per chat, kept
   in memory only, that names the chat.
+- **Read-only shell commands.** In the standard and accept-edits modes, a bash command made only of `ls`, `find`,
+  `rg`, `grep`, `cat`, `head`, `tail`, `wc` and `pwd`, perhaps piped one into the next, runs without asking, as a read
+  tool does (`daemon/read-only-command.ts`). The check reads the command without running it and asks whenever it is not
+  sure: any `;`, `&`, redirect or bracket outside quotes, any `$`, backquote or backslash outside single quotes, any
+  other program, and
+  `find -exec`, `-delete` or `-fprint` or `rg --pre` all make it a command. Like `read`, such a command may read any file
+  you can, inside the chat's folder or not.
 - **Provider sign-ins.** While you sign in to a provider in the browser, its sign-in code listens on loopback for the
   redirect (127.0.0.1:1455 for ChatGPT and Codex, 1456 for Radius, a random port for OpenRouter) for up to ten
   minutes.
@@ -153,8 +160,8 @@ server or account is involved.
 ## Suggestions
 
 An agent can suggest a message for any chat, of any agent, on any of your Macs, but it never sends one: you send it,
-save it as a draft, or reject it, and that decision is the approval. So `chat_list`, `suggestion_create`,
-`suggestion_list` and `suggestion_withdraw` never ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
+save it as a draft, or reject it, and that decision is the approval. So `chat_list` and `suggestion_create` never
+ask, in any permission mode (`NEVER_ASK` in `daemon/approvals.ts`),
 on loki's engine and on an ACP agent alike. `chat_list` shows an agent the names, folders, labels and purpose lines of
 your open chats, never their messages. A sent suggestion arrives in its chat as your message, with a mark naming the
 chat it came from, and runs under that chat's own permission mode. A background pass cannot suggest.
@@ -165,17 +172,27 @@ An agent on loki's own engine may run a short JavaScript program with its `codem
 `daemon/scripts.ts`), when it owns a Google account on this Mac. The program runs in pi-durable's Code Mode: a QuickJS
 virtual machine on a worker thread, with no file, network or process access, no `fetch`, `require`, timers or
 modules. It reaches anything only by calling tools, and the `loki.scripts` extension hands it only the script-only
-tools and loki's file tools (`read`, `write`, `edit`, `ls`, `find`, `grep`); `bash`, background runs, helpers and the
-rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well.
+tools (loki's `ls`, `find` and `grep` among them) and pi-durable's file tools (`read`, `write`, `edit`); `bash`, background runs, helpers and the
+rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well. A chat on
+an ACP agent runs scripts through loki's `script` MCP tool (`daemon/acp/scripts.ts`, plan 097): the same sandbox and
+limits, only the agent's script-only tools, one loki card at its first change, and the same fence. The agent is told
+the tool only reads, so it does not ask first; loki's card then asks at the first change even when the agent's own
+mode would not have asked.
 
-- **Asking.** A script asks as a command does, in the chat's mode; "always allow" is never offered or kept for it. Its
-  own calls ask again only in strict mode. In unrestricted mode, the default, a script runs without asking, sends
-  included.
+- **Asking.** A script asks by what it does (plan 097, KTD3). It does not ask when it starts; each call it makes is
+  weighed by that tool's kind in the chat's mode, and the first that would ask raises one card showing the script and
+  that call. The answer stands for the rest of that run, calls made at once included; a decline refuses them all.
+  "Always allow" is never offered or kept for a script. Strict mode asks for the script and for each call. In
+  unrestricted mode, the default, a script runs without asking, sends included. The answer is held in memory for the
+  run: after a restart a later call of the same script may ask once more, and a call already answered never does.
 - **Google tools.** The `google_*` tools (`mod/google-tools/`) act for the Google accounts the chat's agent owns on
   this Mac, checked at every call: the owner, this Mac, connected, and the service granted. They read and change mail,
   Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of
   those five services on their own hosts, never a URL the script names. No tool returns a token. Files are read and
   written only inside the chat's folder.
+- **Slack, Jira and Flow.** `slack_read`, `jira_read` and `flow_list` (`mod/account-ops/script-tools.ts`, plan 097)
+  only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
+  another agent's account is refused without saying whose it is.
 - **Limits.** 10 minutes, a 64 MB memory cap and four scripts at once across every chat.
 
 
@@ -233,11 +250,12 @@ and nothing an agent writes is posted to Slack or Jira.
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
   comments. An agent's proposed comment, once you approve it, waits in the card's box for you to send.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
-  owner (`mod/handoff.ts`), when the owning agent reads it with its account tools (`account_list`, `account_read`,
-  `account_search`), which only the owner's chats are offered and which check ownership on every call, or when an
-  owner's script returns or prints what it read from Google. For the account tools and hand-offs the
-  text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
-  tags made inert. The Inbox card itself is drawn in the app and goes to no model.
+  owner (`mod/handoff.ts`), or when an owner's script returns or prints what it read from Google, Slack, Jira or Flow
+  with the script-only reads, which only the owner's chats are offered and which check ownership on every call. In a
+  hand-off the text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
+  tags made inert. A script's whole answer is fenced the same way when the script called a tool marked as answering
+  with other people's text (`strangerText`: every Google read, `google_api`, `slack_read`, `jira_read`, `flow_list`),
+  failed scripts included (plan 097, `fencedIfRead` in `daemon/scripts.ts`). The Inbox card itself is drawn in the app and goes to no model.
 - **A mail drawn on its card.** A mail's HTML is drawn for you only, in a frame sandboxed with no scripts or forms and
   its own policy allowing only images, styles and fonts (`app/src/desk/mail-html.tsx`); scripts, frames,
   objects, base and refresh tags are also removed before it is drawn. Remote images load, so a sender can tell the
@@ -253,12 +271,18 @@ and nothing an agent writes is posted to Slack or Jira.
   until it is sent). They are under `~/.loki`, which an agent with file tools can read and write. So each held reply
   carries a seal made with a key kept in the keychain (`outbox-key`), and a restart sends only replies whose seal
   holds: an entry written into the file by anything else is dropped unsent, and without a keychain no held reply is
-  sent after a restart.
+  sent after a restart. One due more than 10 minutes before the restart is not sent by itself either (plan 096). A
+  reply that fails stays in the file, marked failed, until you send it again or discard it on its card; sending it
+  again also needs its seal. Each held reply carries its id in an `X-Loki-Outbox` header, and before a second try loki
+  reads the thread for it, so a reply Gmail took is never sent twice.
 - **Recipients, forward and From (plan 076).** They ride on `account_thread_reply`, the frame only your devices send.
   The mod checks each address is one line, refuses more than 100 people, and sends only from an address Gmail lists
   as one you send from. A forward reads the forwarded mail's own files from Gmail and attaches them, refusing more
   than 17 MB. Agents get none of this: an approved agent draft still goes to the thread's own people.
-- **Residual risks.** A fence asks the model to treat text as content; it cannot make it. An owner that also has shell
+- **Residual risks.** A fence asks the model to treat text as content; it cannot make it. A fence covers what a
+  script answers, not what it leaves behind: text it writes to a file, an attachment it saves, or the whole of an
+  answer too long for the model, which goes to a file, reaches the model unfenced when the agent later reads that file.
+  The same was true before plan 097, when an agent could write what its account tools showed it to a file. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
   propose a reply in any thread of its accounts (plan 071), not only one you handed it, so mail could steer it to

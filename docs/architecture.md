@@ -107,10 +107,10 @@ every chat gets, the chats, then the mods.
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
    crash never asks twice. `user_ask` shows a question card the same way. A script's own calls ask only in strict
    mode, and a call of a tool scripts may not call is blocked in every mode.
-5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `image_view`
-   (`daemon/tools.ts`, which shrinks an image to the size of a pasted one before the model gets it,
-   `daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
-   `daemon/store-images.ts`); web search over DuckDuckGo's plain HTML results, which need no key
+5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`, with `read` given loki's image processor, which
+   shrinks an image to the size of a pasted one before the model gets it (`daemon/image-shrink.ts`; `npm run shrink-images` does the same to the pictures already in a store,
+   `daemon/store-images.ts`); loki's `ls`, `find` and `grep` for scripts only (`daemon/tools.ts`), since the model
+   runs those with `bash`, whose read-only commands the gate weighs as reads (`daemon/read-only-command.ts`); web search over DuckDuckGo's plain HTML results, which need no key
    (`daemon/web-search.ts`); the memory tools; `history_search` and `history_read` over the chat's own thread, which
    read the daemon's `ChatProjection` rather than the store and add a `history` prompt section once a chat has been
    compacted (`daemon/history-tools.ts`, plan 062). `daemon/extensions.ts` installs the built-in extensions in one
@@ -122,8 +122,8 @@ every chat gets, the chats, then the mods.
    except that `bash` output past its limits is saved to the chat's `tool-results` folder, where MCP's big results go
    too.
 6. **Skills (`daemon/skills.ts`).** The prompt lists every skill the agent has by name and description: the global
-   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder. The `skill` tool hands over a
-   skill's full text when the agent needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
+   ones in `~/.agents/skills` and the agent's own in its memory's `skills/` folder, each group under its folder, and
+   the agent reads a skill's `SKILL.md` with `read` when it needs it. The chat folder's `AGENTS.md` (or `CLAUDE.md`) is a section of its
    own.
 7. **Subagents (`daemon/subagents.ts`).** The `subagent` tool runs a helper in a child conversation that the call owns,
    with the parent's model, tools and folder; it asks under the parent chat's permission mode as that mode is at each
@@ -204,7 +204,9 @@ every chat gets, the chats, then the mods.
     usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
     memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
     (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
-    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are
+    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); an agent
+    with script-only tools is served one `script` tool instead of them, run by `scripts.ts` in the daemon's sandbox
+    with the same one card a run and the same fence (plan 097, U5). The MCP servers the agent has on are
     handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
     asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
     `open`, `rundll32` or `xdg-open`). The agents are Claude Code (through npx, pinned) and the person's own in
@@ -236,7 +238,7 @@ so each bundle has its own copy and both see the same files. Anything that holds
    transform.
 3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
    `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
-   links), `suggestion_create`, `suggestion_list` and `suggestion_withdraw`, and `chat_message`. These are marked
+   links), `suggestion_create` and `chat_message`. These are marked
    read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
    background pass fails; `chat_message` asks on its own link card instead.
 4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,
@@ -383,7 +385,11 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    comes into reach, and the syncer it waits for: agents, then their memory, then the chats that move with them;
    the rest side by side. A failure is logged (`peers:sync-failed`) and stops no other syncer. A chat moved by hand, or started away from its agent's
    home, is `placed` (its ChatInfo) and the hand-over skips it. A chat coming back to a Mac that let it go sets the
-   hidden copy aside under a new key first (`AgentStore.retireChat`).
+   hidden copy aside under a new key first (`AgentStore.retireChat`). The Mac a chat leaves holds it (no message goes in) from the
+   start of its copy until the other Mac says it has it; the hold is kept in `state/chat-moves.json` and never lapses
+   (plan 096). When a Mac comes into reach, `ChatMoves.settle` asks it with `peer_where` about each chat held for it,
+   before the hand-over runs: one it holds is let go here, one it never got takes messages again, and one the person
+   kept here (`chat_move_keep`, while that Mac was out of reach) is let go there with `peer_chat_moved`.
 
 ## Where things live on disk
 
@@ -407,7 +413,8 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     passes' settings and cursors (`passes.json`, `pass-cursors.json`), ACP agents and what each offered (`acp.json`,
     `acp-offered.json`), the analytics id (`analytics.json`), the LAN switch (`lan.json`), paired phones
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
-    (`recent-models.json`), each agent's switched-off MCP servers (`mcp-agents.json`), reflection's settings from
+    (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
+    switched-off MCP servers (`mcp-agents.json`), reflection's settings from
     before the passes (`reflection.json`), each chat's canvas, and which migrations of records and memory have run
     (`migrations.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
@@ -483,7 +490,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    update time and the past fill's page token kept in the account record's backfill) and its write-back, which writes
    nothing to Jira; and `jira-view.ts`, which builds a Jira card's ticket (fields, description, changes) and its
    window of comments, or the older merged log of comments and changes when the app does not ask for the ticket, and
-   the whole ticket for a hand-off and `account_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
+   the whole ticket for a hand-off and `jira_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
    each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
    recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
    for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM
@@ -496,7 +503,11 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `mail-outbox.ts` (the 10-second hold for undo send) and `mail-people.ts` (the people each mailbox has mail with, fed
    by `gmail-sync.ts` and by what the person sends, its address headers read by `core/mail-header.ts`, which the card's
    thread in `app/src/desk/mail-thread.tsx` reads too, plan 078); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
-   thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`, the three that read; and
+   thread was (plan 069); `account-ops/` reads a thread from each service once, as loki's messages (`thread.ts`, `gmail.ts`,
+   `slack.ts`; Jira's is `jira-view.ts`'s `jiraThreadText`), for hand-offs, cards and scripts alike, `fence.ts` fences
+   other people's text for the model, and `script-tools.ts` gives scripts `slack_read`, `jira_read` and `flow_list`
+   and the prompt's list of the owner's accounts (plan 097, which removed `account_list`, `account_read` and
+   `account_search`); and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),

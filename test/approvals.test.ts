@@ -19,21 +19,61 @@ describe("the permission modes", () => {
   const table = (mode: PermissionMode) => ({
     read: asks(mode, "read", { path: "/work/a" }, { cwd: "/work" }),
     editInside: asks(mode, "edit", { path: "a.ts" }, { cwd: "/work" }),
-    command: asks(mode, "bash", { command: "ls" }, { cwd: "/work" }),
+    command: asks(mode, "bash", { command: "rm a.ts" }, { cwd: "/work" }),
+    readCommand: asks(mode, "bash", { command: "rg -n answer src | head" }, { cwd: "/work" }),
+    watch: asks(mode, "background_watch", { task_id: "bg-1", pattern: "ready" }, { kind: "read" }),
+    watchStop: asks(mode, "background_watch", { task_id: "bg-1", stop: true }, { kind: "read" }),
+    watchInput: asks(mode, "background_watch", { task_id: "bg-1", input: "y\n" }, { kind: "read" }),
     widget: asks(mode, "write", { path: "/home/x/.loki/widgets/c/w.json" }, { cwd: "/work", widgetsDir: "/home/x/.loki/widgets" }),
   });
 
-  test("each mode asks as the app describes it, and loki's widget folder never asks", () => {
-    expect(table("strict")).toEqual({ read: true, editInside: true, command: true, widget: false });
-    expect(table("standard")).toEqual({ read: false, editInside: true, command: true, widget: false });
-    expect(table("acceptEdits")).toEqual({ read: false, editInside: false, command: true, widget: false });
-    expect(table("unrestricted")).toEqual({ read: false, editInside: false, command: false, widget: false });
+  test("each mode asks as the app describes it, a read-only shell command is a read, and loki's widget folder never asks", () => {
+    expect(table("strict")).toEqual({
+      read: true,
+      editInside: true,
+      command: true,
+      readCommand: true,
+      watch: true,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("standard")).toEqual({
+      read: false,
+      editInside: true,
+      command: true,
+      readCommand: false,
+      watch: false,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("acceptEdits")).toEqual({
+      read: false,
+      editInside: false,
+      command: true,
+      readCommand: false,
+      watch: false,
+      watchStop: true,
+      watchInput: true,
+      widget: false,
+    });
+    expect(table("unrestricted")).toEqual({
+      read: false,
+      editInside: false,
+      command: false,
+      readCommand: false,
+      watch: false,
+      watchStop: false,
+      watchInput: false,
+      widget: false,
+    });
   });
 
   test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
     // A suggestion is already the person's decision (plan 049, KTD4): finding chats and suggesting never ask, strict included.
-    for (const name of ["chat_list", "suggestion_create", "suggestion_list", "suggestion_withdraw"]) expect(asks("strict", name, {}, {})).toBe(false);
+    for (const name of ["chat_list", "suggestion_create"]) expect(asks("strict", name, {}, {})).toBe(false);
     // A chat message asks on its own link card (plan 067), which no mode stands in for.
     expect(asks("strict", "chat_message", {}, {})).toBe(false);
     expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
@@ -322,7 +362,8 @@ async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => bool
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);
-  const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : "command"), scriptMayCall: mayCall });
+  // As the daemon's built-in kinds have them: the script tool is a read (plan 097), `write` an edit, the rest commands.
+  const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : name === "codemode" ? "read" : "command"), scriptMayCall: mayCall });
   const pushed: ChatEvent[] = [];
   approvals.attach((_a, _c, events) => pushed.push(...events));
   const ran: string[] = [];
@@ -359,18 +400,56 @@ async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => bool
 const approvalTools = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.tool_name] : []));
 
 describe("approvals for scripts", () => {
-  test("AE9: in standard mode a script asks once, as a command, and its own write runs without a second card", async () => {
+  test("in standard mode a script that only reads runs without a card (plan 097, KTD3)", async () => {
     const s = await scriptSetup("standard");
     try {
-      s.faux.setResponses([s.script("await tools.write({ x: 'a' }); return 'wrote'", "s1"), fauxAssistantMessage("done")]);
+      s.faux.setResponses([s.script("return 1 + 1", "s1"), fauxAssistantMessage("done")]);
+      await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      expect(approvalIds(s.pushed)).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("in standard mode a script asks once, at its first change, showing the script and that call; the rest of the run follows the answer", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      const code = "await tools.write({ x: 'a' }); await Promise.all([tools.write({ x: 'b' }), tools.write({ x: 'c' })]); return 'wrote'";
+      s.faux.setResponses([s.script(code, "s1"), fauxAssistantMessage("done")]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
-      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
       expect(s.ran).toEqual([]);
-      s.approvals.decide("approval-s1", true);
+      expect(s.pushed.find((e) => e.kind === "approval")).toEqual({
+        kind: "approval",
+        request_id: "approval-script-s1",
+        tool_name: "codemode",
+        input: { code, first_call: { tool: "write", input: { x: "a" } } },
+      });
+      s.approvals.decide("approval-script-s1", true);
       await run;
-      expect(s.ran).toEqual(["write:a"]);
-      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
+      expect([...s.ran].sort()).toEqual(["write:a", "write:b", "write:c"]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-script-s1"]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("a declined script's call and every later one in the run is refused, calls made at once included", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      const code =
+        "const out = []; for (const x of ['a', 'b']) { try { await tools.write({ x }) } catch (e) { out.push(e.message) } }" +
+        " await Promise.allSettled([tools.write({ x: 'c' }), tools.write({ x: 'd' })]).then((r) => r.forEach((x) => out.push(x.status))); return out.join(' | ')";
+      s.faux.setResponses([s.script(code, "s1"), fauxAssistantMessage("done")]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      s.approvals.decide("approval-script-s1", false, "not now");
+      await run;
+      expect(s.ran).toEqual([]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-script-s1"]);
+      const result = JSON.stringify((await s.entries()).filter((e) => e.kind === "pi.tool-result").map((e) => e.model));
+      expect(result).toContain("not now");
+      expect(result).toContain("rejected | rejected");
     } finally {
       await s.close();
     }
@@ -406,7 +485,7 @@ describe("approvals for scripts", () => {
   });
 
   test("an always-allow answer on a script's card allows that script only: the next one asks again", async () => {
-    const s = await scriptSetup("standard");
+    const s = await scriptSetup("strict");
     try {
       s.faux.setResponses([s.script("return 1", "s1"), s.script("return 2", "s2"), fauxAssistantMessage("done")]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);

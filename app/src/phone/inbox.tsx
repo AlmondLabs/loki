@@ -1209,6 +1209,7 @@ function OutsideBody({
   const facts = item.outside;
   if (!facts) return null;
   const unsend = outside?.unsendOutside;
+  const settle = outside?.settleUnsent;
   const people = outside?.searchPeople;
   return (
     <div style={{ padding: "var(--phone-space-3) var(--phone-gutter)", display: "flex", flexDirection: "column", gap: "var(--phone-space-3)" }}>
@@ -1233,6 +1234,7 @@ function OutsideBody({
             quote={quoteOf(facts, thread)}
             searchPeople={people ? (q) => people(item, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
             inThread={thread.kind === "read" && !!thread.opened}
+            onUnsent={settle ? (outboxId, action) => settle(item, outboxId, action) : undefined}
             onUndo={
               facts.provider === "gmail" && unsend
                 ? () => {

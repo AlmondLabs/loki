@@ -2,7 +2,10 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BackgroundTasks, shell } from "../daemon/background.ts";
+import type { Context } from "@earendil-works/chord";
+import type { ToolExecutionApi } from "@earendil-works/pi-durable";
+import { BackgroundTasks, backgroundExtension, shell } from "../daemon/background.ts";
+import { AgentInfoDoc } from "../daemon/kernel/index.ts";
 import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts";
 import { extractHarnessEvents } from "../core/harness.ts";
 import { must } from "./fixtures/must.ts";
@@ -76,6 +79,35 @@ describe("background tasks", () => {
     expect(() => tasks.output(done, "agent-a")).toThrow("no background task");
     expect(tasks.output(running, "agent-a")).toContain("[running]");
     tasks.stopAll();
+  });
+});
+
+describe("the background tools (plan 095)", () => {
+  const api = {
+    conversationId: 1,
+    snapshot: (doc: unknown) => Promise.resolve(doc === AgentInfoDoc ? { id: "agent-a" } : { id: "c" }),
+    agent: () => Promise.resolve({ cwd: tmpdir() }),
+  } as unknown as ToolExecutionApi;
+  const context = {} as Context;
+  const tool = (tasks: BackgroundTasks, name: string) =>
+    must(
+      backgroundExtension(tasks).tools?.find((t) => t.name === name),
+      name,
+    );
+  const call = async (tasks: BackgroundTasks, name: string, args: Record<string, unknown>): Promise<string> => {
+    const result = (await tool(tasks, name).execute(args, api, context)) as { output: Array<{ text: string }> };
+    return result.output.map((o) => o.text).join("");
+  };
+
+  test("two tools: run starts a task; watch reads it, types into it and stops it, and a stop's answer is its notice", async () => {
+    const notices: string[] = [];
+    const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
+    expect(backgroundExtension(tasks).tools?.map((t) => t.name)).toEqual(["background_run", "background_watch"]);
+    const id = must(/bg-\w+/.exec(await call(tasks, "background_run", { command: "read line; echo got $line; sleep 30; echo after" }))?.[0], "id");
+    expect(await call(tasks, "background_watch", { task_id: id, timeout_ms: 0 })).toContain("[running]");
+    expect(await call(tasks, "background_watch", { task_id: id, input: "hello\n", pattern: "got hello", timeout_ms: 2000 })).toContain("got hello");
+    expect(await call(tasks, "background_watch", { task_id: id, stop: true })).toContain("[stopped (SIGTERM)]");
+    expect(notices).toEqual([]);
   });
 });
 

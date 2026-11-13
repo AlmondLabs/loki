@@ -14,9 +14,10 @@ import type {
 } from "../core/frame-types.ts";
 import type { AccountRecord, Accounts } from "./accounts.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
-import type { GmailAttachment, GmailClient, GmailMessage, GmailSendAs } from "./gmail.ts";
+import { OUTBOX_HEADER, type GmailAttachment, type GmailClient, type GmailMessage, type GmailSendAs } from "./gmail.ts";
 import type { JiraClient } from "./jira.ts";
-import { mailAttachments, mailParts, type ThreadMessage, type ThreadText } from "./handoff.ts";
+import { mailAttachments, mailParts } from "./account-ops/gmail.ts";
+import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import type { CardView } from "./slack-view.ts";
 import { log } from "./log.ts";
 import { forwardSubject, fromHeader, mailBody, signatureText } from "./mail-compose.ts";
@@ -52,13 +53,14 @@ export type SendClient = { provider: "gmail"; client: SendGmail } | { provider: 
 /** What the thread reader and the reply are built from; the clients and readers are injected so tests own them. */
 export interface OutsideThreadsOptions {
   accounts: Pick<Accounts, "get">;
-  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt" | "clearSeeds"> & {
-    /** A card's record, for what its window is built around (plan 077). */
-    get: (
-      accountId: string,
-      threadId: string,
-    ) => (Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> & { place?: string | null }) | null;
-  };
+  threads: Pick<AccountThreads, "archive" | "markRead" | "markUnread" | "markWaiting" | "markDealt" | "clearSeeds"> &
+    Partial<Pick<AccountThreads, "markNotSent">> & {
+      /** A card's record, for what its window is built around (plan 077). */
+      get: (
+        accountId: string,
+        threadId: string,
+      ) => (Pick<ThreadRecord, "dealt_message_id" | "brought_ids" | "newest_message_id"> & { place?: string | null }) | null;
+    };
   /** The whole thread from its account, oldest first: the readers a hand-off uses (mod/handoff.ts). */
   threadText: Record<AccountProvider, ThreadText>;
   /** A card's own reader where it shows a window rather than the whole thread: Slack's (plan 074, plan 077) and Jira's (KTD14). */
@@ -106,7 +108,15 @@ export class OutsideThreads {
 
   constructor(opts: OutsideThreadsOptions) {
     this.opts = opts;
-    this.outbox = opts.outbox ? new MailOutbox({ ...opts.outbox, send: (held) => this.sendNow(held) }) : null;
+    this.outbox = opts.outbox
+      ? new MailOutbox({
+          ...opts.outbox,
+          send: (held) => this.sendNow(held),
+          wentOut: (held) => this.wentOut(held),
+          onNotSent: (held, note) =>
+            void opts.threads.markNotSent?.(held.account_id, held.thread_id, held.outbox_id, note && { outbox_id: held.outbox_id, text: held.text, ...note }),
+        })
+      : null;
   }
 
   /** Send the mail replies a daemon that stopped left held (plan 076), each when its time comes. */
@@ -210,6 +220,28 @@ export class OutsideThreads {
   }
 
   /**
+   * The person's "send again" on a mail reply that did not go (plan 096): sent only when its thread does not have it
+   * already, then the move it was sent with. Rejects with why when it cannot be tried or fails again.
+   */
+  resend(accountId: string, outboxId: string): Promise<OutsideReplied> {
+    if (!this.outbox) return Promise.reject(new Error("replies are not held on this Mac"));
+    return this.outbox.resend(accountId, outboxId);
+  }
+
+  /** The person's "discard" on a mail reply that did not go (plan 096); false when there was none to discard. */
+  discardUnsent(accountId: string, outboxId: string): boolean {
+    return this.outbox?.discard(accountId, outboxId) ?? false;
+  }
+
+  /** Whether a held reply is in its thread already, found by the header it was sent with. */
+  private async wentOut(held: HeldReply): Promise<boolean> {
+    const sender = this.opts.clientFor(this.need(held.account_id));
+    if (sender.provider !== "gmail") return false;
+    const thread = await sender.client.getThread(held.thread_id, "metadata");
+    return thread.messages.some((m) => headerOf(m, OUTBOX_HEADER) === held.outbox_id);
+  }
+
+  /**
    * The thread as the card draws it: every message with its sender and time, and mail without the quoted thread under
    * it; for a Slack or Jira card, the window around what is new, or what `ask` asks for (plan 077, KTD14), from the
    * card's record, and for a Jira card the ticket's address in the browser and, with the opening window, the ticket
@@ -303,7 +335,7 @@ export class OutsideThreads {
     let deals = true;
     switch (sender.provider) {
       case "gmail":
-        await this.sendMail(account, sender.client, threadId, body, mail);
+        await this.sendMail(account, sender.client, threadId, body, mail, held.outbox_id || null);
         break;
       case "slack": {
         // A thread the person opened on the card (plan 085) is where they are writing, else the card's own place.
@@ -337,7 +369,14 @@ export class OutsideThreads {
    * A mail reply as Gmail writes one (plan 076): from the chosen address with its signature, to whom `mail` says (or
    * everyone on the newest message), with that message quoted under it, or set out with its files for a forward.
    */
-  private async sendMail(account: AccountRecord, client: SendGmail, threadId: string, body: string, mail: MailAddressing | null): Promise<void> {
+  private async sendMail(
+    account: AccountRecord,
+    client: SendGmail,
+    threadId: string,
+    body: string,
+    mail: MailAddressing | null,
+    outboxId: string | null,
+  ): Promise<void> {
     const [thread, sendAs] = await Promise.all([client.getThread(threadId, "full"), client.sendAs()]);
     const newest = replyTarget(thread.messages);
     if (!newest) throw new Error("that thread is empty in Gmail now");
@@ -378,6 +417,7 @@ export class OutsideThreads {
       body: out.text,
       html: out.html,
       ...(forward ? { attachments: await forwarded(client, newest) } : {}),
+      ...(outboxId ? { outboxId } : {}),
     });
     // Whoever the person writes to comes first in their suggestions after this.
     this.opts.people?.saw(account.account_id, [...to, ...cc, ...bcc].flatMap(headerPeople), (this.opts.now?.() ?? new Date()).getTime(), own);

@@ -6,7 +6,11 @@ import { memorySecrets } from "../daemon/credentials.ts";
 import { Accounts } from "../mod/accounts.ts";
 import type { OutsideChange } from "../core/frame-types.ts";
 import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/account-threads.ts";
-import { Handoff, fenceThread, gmailThreadText, slackThreadText, type HandoffChat, type ThreadMessage } from "../mod/handoff.ts";
+import { gmailThreadText } from "../mod/account-ops/gmail.ts";
+import { slackThreadText } from "../mod/account-ops/slack.ts";
+import type { ThreadMessage } from "../mod/account-ops/thread.ts";
+import { fenceThread } from "../mod/account-ops/fence.ts";
+import { Handoff, type HandoffChat } from "../mod/handoff.ts";
 import type { GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 import { initLog } from "../mod/log.ts";
 import type { SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";
@@ -110,7 +114,9 @@ describe("handing a thread to its owner's chat", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ agent_id: "agent-work", conversation_id: "c-new-1" });
     const { text } = sent[0];
-    expect(text.startsWith("Handed off from ada@acme.com, thread t1. Use account_read for newer messages.")).toBe(true);
+    expect(text.startsWith("Handed off from ada@acme.com, thread t1. Read newer messages with a script (google_gmail_read, slack_read or jira_read).")).toBe(
+      true,
+    );
     expect(text).toContain(fenceThread(THREAD));
     // The reminder names loki's deck by its name on screen, Flow (plan 087).
     expect(sent[0].context).toContain("to you from Flow.");
