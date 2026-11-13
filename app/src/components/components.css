@@ -400,6 +400,12 @@ textarea.loki-field {
 .loki-veil--scroll {
   overflow-y: auto;
 }
+/* A floating panel (Sheet clear): the window stays as it is behind it, as behind Spotlight. */
+.loki-veil--clear,
+.loki-veil--clear[data-grow] {
+  background: transparent;
+  animation: none;
+}
 .loki-veil--scroll > .loki-sheet-card {
   max-height: none;
   overflow: visible;

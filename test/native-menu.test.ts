@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { nativeOptions, tidyEntries, POPUP, type MenuEntry } from "../app/src/shell/native-menu.ts";
 import { rowMenuEntries } from "../app/src/shell/desk-sidebar.tsx";
-import { effortTitle, modelMenuEntries } from "../app/src/chat/model-picker.tsx";
+import { effortTitle } from "../app/src/chat/model-picker.tsx";
+import { stepEffort, switcherGroups } from "../app/src/chat/model-switcher.tsx";
 import { modeMenuEntries, MODES } from "../app/src/chat/permission-mode.tsx";
 import { laneMenuEntries } from "../app/src/desk/catch-up-parts.tsx";
 import type { DeskSummary } from "../core/frame-types.ts";
@@ -20,10 +21,6 @@ const labels = (entries: MenuEntry[]): string[] =>
   tidyEntries(entries).map((e) =>
     e.type === "separator" ? "—" : e.type === "submenu" ? `${e.label} ▸` : `${e.label}${e.checked ? " ✓" : ""}${e.disabled ? " (off)" : ""}`,
   );
-const sub = (entries: MenuEntry[], label: string): MenuEntry[] => {
-  const found = entries.find((e) => e.type === "submenu" && e.label === label);
-  return found?.type === "submenu" ? found.items : [];
-};
 
 describe("a menu as data", () => {
   test("separators only between groups: none leading, trailing or doubled, and an empty submenu goes", () => {
@@ -125,7 +122,7 @@ describe("the chat row's menu", () => {
   });
 });
 
-describe("Select model as a native menu", () => {
+describe("Switch model, ⌘K's way", () => {
   const entry = (handle: string, label: string, over: Partial<ModelEntry> = {}): ModelEntry => ({
     id: `${handle}:${over.reasoning_effort ?? ""}`,
     handle,
@@ -137,35 +134,43 @@ describe("Select model as a native menu", () => {
     entry("anthropic/claude-fable-5", "Fable 5", { is_featured: true, reasoning_effort: "medium" }),
     entry("anthropic/claude-fable-5", "Fable 5", { is_featured: true, reasoning_effort: "high" }),
     entry("openai/gpt-x", "GPT X", { is_featured: true }),
-    entry("anthropic/claude-older", "Older"),
+    entry("anthropic/claude-sonnet-old", "Sonnet Old"),
     entry("openai/gpt-old", "GPT Old"),
     entry("acp:fake/default", "Demo agent", { is_default: true }),
     entry("acp:fake/sonnet", "Demo agent · Sonnet"),
   ];
+  const shape = (groups: ReturnType<typeof switcherGroups>) =>
+    groups.map((g) => `${g.harness.name}: ${g.rows.map((r) => `${r.name}${r.current ? " ✓" : ""}${r.off ? " (off)" : ""}`).join(", ")}`);
 
-  test("the quick picks with the current one checked, More Models by provider, the other harness, then Effort", () => {
-    const menu = modelMenuEntries({ entries, current: "anthropic/claude-fable-5", currentEffort: "medium", onPick: noop });
-    expect(labels(menu)).toEqual(["Fable 5 ✓", "GPT X", "—", "More Models ▸", "—", "Demo agent ▸", "—", "Effort ▸"]);
-    expect(labels(sub(menu, "More Models"))).toEqual(["anthropic ▸", "openai ▸"]);
-    expect(labels(sub(sub(menu, "More Models"), "openai"))).toEqual(["GPT Old"]);
-    expect(labels(sub(menu, "Demo agent"))).toEqual(["Default", "Sonnet"]);
-    expect(labels(sub(menu, "Effort"))).toEqual(["Low", "Medium ✓", "High"]);
+  test("with nothing typed, the chat's harness first with loki's quick picks, then the other agent", () => {
+    expect(shape(switcherGroups(entries, "anthropic/claude-fable-5", false, ""))).toEqual(["loki: Fable 5 ✓, GPT X", "Demo agent: Default, Sonnet"]);
   });
 
-  test("on an agent, once the chat has started, other harnesses are left out and no handle is a label", () => {
-    const menu = modelMenuEntries({ entries, current: "acp:fake/sonnet", currentEffort: null, started: true, onPick: noop });
-    expect(labels(menu)).toEqual(["Default", "Sonnet ✓"]);
-    expect(JSON.stringify(labels(menu))).not.toContain("acp:");
+  test("typing searches every harness and provider, each word must match, names that start with it first", () => {
+    expect(shape(switcherGroups(entries, "anthropic/claude-fable-5", false, "son"))).toEqual(["loki: Sonnet Old", "Demo agent: Sonnet"]);
+    expect(shape(switcherGroups(entries, null, false, "openai old"))).toEqual(["loki: GPT Old"]);
+    expect(switcherGroups(entries, null, false, "nothing like it")).toEqual([]);
   });
 
-  test("a pick hands back the model at the effort in use; loading says so", () => {
-    const picked: unknown[] = [];
-    const menu = modelMenuEntries({ entries, current: "openai/gpt-x", currentEffort: "high", onPick: (s) => picked.push(s) });
-    const fable = menu.find((e) => e.type === "item" && e.label === "Fable 5");
-    if (fable?.type === "item") fable.run();
-    expect(picked).toEqual([{ id: "anthropic/claude-fable-5:high", handle: "anthropic/claude-fable-5", reasoning_effort: "high" }]);
-    expect(labels(modelMenuEntries({ entries: null, current: null, currentEffort: null, onPick: noop }))).toEqual(["Loading Models… (off)"]);
+  test("on an agent once the chat has started, its own models lead and the others stay in view, off; no handle is a name", () => {
+    const groups = switcherGroups(entries, "acp:fake/sonnet", true, "");
+    expect(shape(groups)).toEqual(["Demo agent: Default, Sonnet ✓", "loki: Fable 5 (off), GPT X (off)"]);
+    expect(groups.flatMap((g) => g.rows.map((r) => r.name)).join(" ")).not.toContain("acp:");
+    expect(groups[0].rows.find((r) => r.name === "Sonnet")?.line).toBeNull();
+    expect(groups[1].rows.find((r) => r.name === "GPT X")?.line).toBe("openai");
+  });
+
+  test("effort steps within what the model offers and stays at the ends; titles read as a Mac menu writes them", () => {
+    expect(stepEffort(["low", "medium", "high"], "medium", 1)).toBe("high");
+    expect(stepEffort(["low", "medium", "high"], "high", 1)).toBe("high");
+    expect(stepEffort(["low", "medium", "high"], null, -1)).toBe("low");
     expect([effortTitle("none"), effortTitle("xhigh")]).toEqual(["No Reasoning", "X-High"]);
+  });
+
+  test("under Liquid Glass on the desktop the pill and ⌘⇧M open the switcher; nothing dims behind it", () => {
+    const conversation = readFileSync(join(ROOT, "app", "src", "chat", "conversation.tsx"), "utf8");
+    expect(conversation).toMatch(/glass && !touch \? \(\s*controls\.pickerOpen && \(\s*<ModelSwitcher/);
+    expect(readFileSync(join(ROOT, "app", "src", "chat", "model-switcher.tsx"), "utf8")).toContain('top="12vh" clear');
   });
 });
 

@@ -265,6 +265,8 @@ export interface SheetProps {
   zIndex?: number;
   /** Escape closes by default; pass false when the sheet handles keys itself. */
   escape?: boolean;
+  /** Nothing dims behind it: a floating panel (the model switcher) that a click outside still closes. */
+  clear?: boolean;
   className?: string;
   style?: CSSProperties;
   cardProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, unknown>;
@@ -287,6 +289,7 @@ export function Sheet({
   scroll,
   zIndex = LAYER.modal,
   escape = !!onClose,
+  clear = false,
   className,
   style,
   cardProps,
@@ -319,7 +322,7 @@ export function Sheet({
   const sheet = (
     <div
       ref={veilRef}
-      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom")}
+      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom", clear && "loki-veil--clear")}
       data-sheet
       data-grow={grows || undefined}
       style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}

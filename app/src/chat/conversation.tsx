@@ -34,8 +34,8 @@ import { FindBar } from "./find-bar";
 import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
-import { ModelPicker, ModelPill, NativeModelMenu, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
-import { useNativeMenus } from "../shell/native-menu";
+import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
+import { ModelSwitcher } from "./model-switcher";
 import { ModeSwitch } from "./permission-mode";
 import { engineControls } from "./engine-controls";
 import type { ChatEngineView } from "../../../core/models.ts";
@@ -285,7 +285,6 @@ export function Conversation({
     onSent?.();
   };
   const glass = useLook() === "glass";
-  const nativeMenus = useNativeMenus();
   const onBoxKey = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (palette.onKeyDown(e)) return true;
     // Liquid Glass (plan 2026-11-12-1505, R11): Return on an empty box answers the approval with Allow, its default
@@ -302,20 +301,20 @@ export function Conversation({
     return true;
   };
   // The new pane picks a model in AI Elements' ModelSelector dialog; today's box keeps its popover (plan 097, U6).
-  // Under Liquid Glass in the Mac app it is the system's menu from the pill instead (plan 2026-11-12-1505, U19).
+  // Under Liquid Glass on the desktop it is a floating switcher, ⌘K's way (plan 2026-11-12-1505, U19).
   const picker =
     hasModelPicker &&
-    (nativeMenus ? (
-      <NativeModelMenu
-        open={controls.pickerOpen}
-        current={model}
-        currentEffort={reasoningEffort}
-        entries={models}
-        started={started}
-        onPick={(selection) => void controls.pickModel(selection)}
-        onClose={controls.closePicker}
-        pillRef={pillRef}
-      />
+    (glass && !touch ? (
+      controls.pickerOpen && (
+        <ModelSwitcher
+          current={model}
+          currentEffort={reasoningEffort}
+          entries={models}
+          started={started}
+          onPick={(selection) => void controls.pickModel(selection)}
+          onClose={controls.closePicker}
+        />
+      )
     ) : proposals ? (
       <ModelDialog
         open={controls.pickerOpen}

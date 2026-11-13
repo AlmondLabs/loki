@@ -431,11 +431,11 @@ Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everyt
 **Goal:** under Liquid Glass in the Mac app, every command menu and choice picker is a real macOS menu, attached to what opened it, never a drawn dialog over the window.
 **Requirements:** R1, R5, R13; KTD1.
 **Dependencies:** U5, U12.
-**Files:** `app/src/shell/native-menu.ts` (a menu as data, popped up natively), `app/src/shell/menu-items.tsx` (the same data drawn by loki), `app/src/shell/desk-sidebar.tsx` (row menu), `app/src/desk/desk-pane.tsx` (the Canvas tab's menu), `app/src/desk/catch-up-parts.tsx` (Flow's lane menu), `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/chat/conversation.tsx`, `app/src/shell/use-shell-keys.ts`, `app/src/shell/keymap.ts`, `src-tauri/src/menu.rs`, tests.
+**Files:** `app/src/shell/native-menu.ts` (a menu as data, popped up natively), `app/src/shell/menu-items.tsx` (the same data drawn by loki), `app/src/chat/model-switcher.tsx` (Switch model), `app/src/components/index.tsx` (a Sheet that dims nothing), `app/src/shell/desk-sidebar.tsx` (row menu), `app/src/desk/desk-pane.tsx` (the Canvas tab's menu), `app/src/desk/catch-up-parts.tsx` (Flow's lane menu), `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/chat/conversation.tsx`, `app/src/shell/use-shell-keys.ts`, `app/src/shell/keymap.ts`, `src-tauri/src/menu.rs`, tests.
 **Approach:**
 - A menu is data: items with title-case labels, separators, checkmarks, submenus, disabled states, a quiet count, and the key from the keymap. The Mac app pops it up with Tauri's menu API at the control (or the pointer, for a right-click). Popped-up items carry a `popup:` id, which the page's menu-bar handler skips, since the shell forwards every native menu click as `loki:menu`.
 - Command menus (the chat row's, the Canvas tab's, Flow's lanes) are described once and drawn either way: natively, or by loki at menu sizes elsewhere.
-- Select model pops up natively: the chat's harness's quick picks with the current one checked, then More Models ▸ one submenu per provider, every other harness the chat can still move to as a submenu, then Effort ▸ its levels. Names only, never a handle such as `acp:fake/sonnet`. The filter field goes in the native menu. Off the Mac (and in today's look) the drawn picker stays as it is, filter included.
+- Select model is a floating switcher, ⌘K's way, at the person's choice once the native menu was tried (a Mac menu cannot filter, and it hid which agent a chat runs on): opened by the pill or ⌘⇧M, a panel near the top of the window with nothing dimmed behind it, the field focused. Results sit under each harness's name, the chat's first; with nothing typed, loki's quick picks or an agent's models, the current one checked; typed, every model whose name, provider or harness holds each word. A harness a started chat cannot move to stays in view, off, marked "In a New Chat". ↑↓ move, Return switches, Esc closes; the highlighted model's efforts sit at the foot (←→ while the field is empty, or a click). Names only, never a handle. This is the desktop's picker under Liquid Glass in the app and the browser alike; the phone keeps its sheet and today's look its popover.
 - The permission mode pops up natively with the current mode checked; its drawn menu marks it with a check, not the word "current".
 - The menu bar says "Settings…", as macOS has since 13.
 - Labels on menu items and the thread's jump button are title case under Liquid Glass.
@@ -443,7 +443,7 @@ Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everyt
 **Test scenarios:**
 - Separators are tidied (none leading, trailing or doubled) and a menu's entries become Tauri's option shape with `popup:` ids, checks, accelerators and nested submenus.
 - The row menu groups open and read state, then rename, folder, labels and other Macs, then pin and archive, and disables what needs the link while it is down.
-- The model menu checks the current model and effort, nests More Models by provider and other harnesses as submenus, leaves locked harnesses out, and never shows a raw handle.
+- The switcher lists the chat's harness first with its quick picks, searches every harness by each word, keeps locked harnesses in view and off, never names a handle, and steps effort within what the model offers.
 - The menu bar handler ignores `popup:` ids.
 **Verification:** the drawn fallback rendered on demo data; the native menus checked by the person in the real Mac app (a browser cannot pop one up).
 

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObje
 import { Chip, Field, IconButton, Meta, Popover, Row, Sheet, sentence } from "../components";
 import { Icon } from "../shared/icons";
 import { formatKeys } from "../shell/keymap";
-import { popUpMenu, under, type MenuEntry } from "../shell/native-menu";
 import {
   REASONING_EFFORTS,
   harnessOf,
@@ -445,131 +444,6 @@ export function ModelChoices({
 /** An effort as a menu item says it, in title case ("No Reasoning", "X-High", "Medium"). */
 export function effortTitle(effort: ReasoningEffort): string {
   return effortLabel(effort).replace(/(^|[\s-])([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
-}
-
-/** A harness's models as menu items: loki's quick picks then More Models ▸ one submenu per provider; an agent's, all. */
-function harnessEntries(
-  entries: ModelEntry[],
-  harness: Harness,
-  current: string | null,
-  currentEffort: ReasoningEffort | null,
-  onPick: (s: ModelSelection) => void,
-): MenuEntry[] {
-  const inShown = entries.filter((entry) => harnessOf(entry.handle) === harness.id);
-  const { short, more } = harness.id === null ? modelLists(inShown, current) : { short: groupModelEntries(inShown), more: [] };
-  const item = (group: ModelGroup): MenuEntry => ({
-    type: "item",
-    id: `model-${group.handle}`,
-    label: nameInHarness(group, harness),
-    checked: group.handle === current,
-    disabled: !group.available,
-    run: () => onPick(selectionOf(preferredModelEntry(group, currentEffort))),
-  });
-  const providers = new Map<string, ModelGroup[]>();
-  for (const group of more) {
-    const slash = group.handle.indexOf("/");
-    const provider = slash > 0 ? group.handle.slice(0, slash) : "";
-    providers.set(provider, [...(providers.get(provider) ?? []), group]);
-  }
-  const moreItems: MenuEntry[] =
-    providers.size === 1
-      ? more.map(item)
-      : [...providers].map(([provider, groups]): MenuEntry => ({
-          type: "submenu",
-          id: `provider-${provider}`,
-          label: provider || "Other",
-          items: groups.map(item),
-        }));
-  if (!short.length && !more.length)
-    return [{ type: "item", id: `empty-${harness.id ?? "loki"}`, label: `${harness.name} has not listed its models yet`, disabled: true, run: () => {} }];
-  return [
-    ...short.map(item),
-    ...(more.length ? [{ type: "separator" } as const, { type: "submenu", id: "more", label: "More Models", items: moreItems } as const] : []),
-  ];
-}
-
-/**
- * Select model as a native Mac menu (plan 2026-11-12-1505, U19): the chat's harness's models with the current one
- * checked, every other harness the chat can still move to as a submenu, then Effort ▸ its levels when the model offers
- * several. Names only: a handle such as `acp:fake/sonnet` is never a label.
- */
-export function modelMenuEntries({
-  entries,
-  current,
-  currentEffort,
-  started = false,
-  onPick,
-}: {
-  entries: ModelEntry[] | null;
-  current: string | null;
-  currentEffort: ReasoningEffort | null;
-  started?: boolean;
-  onPick: (selection: ModelSelection) => void;
-}): MenuEntry[] {
-  if (!entries) return [{ type: "item", id: "loading", label: "Loading Models…", disabled: true, run: () => {} }];
-  const chatHarness = harnessOf(current);
-  const tabs = harnesses(entries, chatHarness, started);
-  const own = tabs.find((t) => t.id === chatHarness) ?? tabs.at(0);
-  if (!own) return [{ type: "item", id: "none", label: "No Models", disabled: true, run: () => {} }];
-  const others = tabs.filter((t) => t !== own && !t.locked);
-  const efforts = effortEntriesFor(entries, current);
-  return [
-    ...harnessEntries(entries, own, current, currentEffort, onPick),
-    ...(others.length ? [{ type: "separator" } as const] : []),
-    ...others.map((t): MenuEntry => ({
-      type: "submenu",
-      id: `harness-${t.id ?? "loki"}`,
-      label: t.name,
-      items: harnessEntries(entries, t, current, currentEffort, onPick),
-    })),
-    ...(efforts.length > 1
-      ? [
-          { type: "separator" } as const,
-          {
-            type: "submenu",
-            id: "effort",
-            label: "Effort",
-            items: efforts.flatMap((entry): MenuEntry[] =>
-              entry.reasoning_effort
-                ? [
-                    {
-                      type: "item",
-                      id: `effort-${entry.reasoning_effort}`,
-                      label: effortTitle(entry.reasoning_effort),
-                      checked: entry.reasoning_effort === currentEffort,
-                      run: () => onPick(selectionOf(entry)),
-                    },
-                  ]
-                : [],
-            ),
-          } as const,
-        ]
-      : []),
-  ];
-}
-
-/**
- * Select model popped up as the system's menu from the pill, while `open` (the pill, or ⌘⇧M): it hands back to
- * `onClose` once the menu is up, so the next click or key opens it again.
- */
-export function NativeModelMenu({
-  open,
-  pillRef,
-  onClose,
-  ...menu
-}: Parameters<typeof modelMenuEntries>[0] & { open: boolean; pillRef: RefObject<HTMLButtonElement | null>; onClose: () => void }) {
-  const latest = useRef({ menu, onClose });
-  useEffect(() => {
-    latest.current = { menu, onClose };
-  });
-  useEffect(() => {
-    const pill = pillRef.current;
-    if (!open || !pill) return;
-    void popUpMenu(modelMenuEntries(latest.current.menu), under(pill))
-      .catch((e: unknown) => console.warn("loki: model menu", e))
-      .finally(() => latest.current.onClose());
-  }, [open, pillRef]);
-  return null;
 }
 
 interface ModelPickerProps {
