@@ -148,9 +148,13 @@ changing that would make reading mail worse. Changing it makes one path good eno
 - **U2. Slack, Jira and Flow script tools.** `slack_read`, `jira_read`, `flow_list`, their namespaces, and the owner
   check per call. Tests: the agent that owns the account reads; another agent is refused without being told whose it
   is; JSON shapes.
-- **U3. Fencing.** The `strangerText` flag, the per-run mark in `loki.scripts`, and the fenced answer. Tests: a script
-  that read mail answers fenced, with a forged closing tag made inert; a script that read nothing answers bare; a
-  failed script that read mail is fenced too. The file pass-through case is written down as a residual risk.
+- **U3. Fencing.** `strangerText` on a mod tool's annotations (`daemon/mods/api.ts`), set on every Google read,
+  `google_api`, and the three U2 tools. `fencedIfRead` in `daemon/scripts.ts` reads the calls Code Mode lists in a
+  script's result (`details.calls`, kept with the result, so a resumed script is judged the same) and fences the whole
+  answer when any was marked. The fence helpers moved from `handoff.ts` to `mod/account-ops/fence.ts`. Tests: a script
+  that read a marked tool answers fenced with a forged closing tag made inert; one that read only a file answers bare;
+  a failed one that read is fenced. The file pass-through, and the whole of an answer too long for the model, which
+  goes to a file, are written down as residual risks.
 - **U4. Asking.** The script tool becomes a read; one lazy decision per run; strict unchanged. Tests:
   - the mode table for a read-only script, a script that sends once, and one that sends three times (one card);
   - a decline ends the run;

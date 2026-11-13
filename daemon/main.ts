@@ -161,7 +161,14 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 // it counts as undecided and resumes on the next start.
 const sandbox = scriptSandbox();
 // Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
-const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules, history: chats, scripts: scriptExtensions(sandbox) });
+const builtins = builtinExtensions({
+  approvals,
+  backendDir: backend,
+  background,
+  schedules,
+  history: chats,
+  scripts: scriptExtensions(sandbox, undefined, (name) => mods.annotations(name)?.strangerText === true),
+});
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
 // The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).

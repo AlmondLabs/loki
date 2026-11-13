@@ -11,7 +11,7 @@ import type { JiraClient } from "./jira.ts";
 import { jiraThreadText } from "./jira-view.ts";
 import type { SlackClient } from "./slack.ts";
 import { argText, toolRegistrar, type Call, type LokiTool } from "./tools.ts";
-import { fenceThread, inert } from "./handoff.ts";
+import { fenceThread, inert } from "./account-ops/fence.ts";
 
 /**
  * The owning agent's tools for its accounts (plan 067, U9, KTD10): account_list, account_read and account_search.

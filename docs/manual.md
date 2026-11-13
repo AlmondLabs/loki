@@ -1253,6 +1253,8 @@ browser. Claude Code and other ACP agents do not get scripts.
    changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
    subject, time and the chat it went to. They only read; a reply to Slack or Jira still goes through `reply_propose`.
    Each checks that the account is the agent's, and names none that is not.
+   A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
+   is told it is content from other people, not instructions, as with a thread you hand it.
 5. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
    does counts as your own pick. A reply a script sends does not mark its card as waiting.
 6. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;

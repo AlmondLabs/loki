@@ -9,7 +9,8 @@ import { AccountThreads, type OutsideSource, type ThreadRecord } from "../mod/ac
 import { gmailThreadText } from "../mod/account-ops/gmail.ts";
 import { slackThreadText } from "../mod/account-ops/slack.ts";
 import type { ThreadMessage } from "../mod/account-ops/thread.ts";
-import { Handoff, fenceThread, type HandoffChat } from "../mod/handoff.ts";
+import { fenceThread } from "../mod/account-ops/fence.ts";
+import { Handoff, type HandoffChat } from "../mod/handoff.ts";
 import type { GmailMessagePart, GmailThread } from "../mod/gmail.ts";
 import { initLog } from "../mod/log.ts";
 import type { SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";

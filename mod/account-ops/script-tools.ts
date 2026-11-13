@@ -75,7 +75,8 @@ function scriptTool(
     callers: ["tools"],
     outputSchema: { type: "object" },
     replay: "safe",
-    annotations: { readOnly: true },
+    // Each answers with what other people wrote, or their names and subjects (plan 097, KTD2).
+    annotations: { readOnly: true, strangerText: true },
     forAgent: (agentId) => deps.accounts.ownedBy(agentId).some((a) => provider === null || a.provider === provider),
     execute: (args, ctx) => tool.run(args, ctx),
   };

@@ -37,6 +37,8 @@ export interface GoogleToolDef {
   service: GoogleService | null;
   /** Reads only: safe to run again after a restart, and a read for the permission modes. */
   reads: boolean;
+  /** Whether a tool that changes things also answers with what is in the account (google_api); every read does. */
+  answersContent?: boolean;
   run: (call: GoogleCall) => Promise<Record<string, unknown>>;
 }
 
@@ -93,7 +95,12 @@ export function modToolOf(def: GoogleToolDef, deps: GoogleToolDeps): ModTool {
     parameters: { type: "object", properties: { account: ACCOUNT_PROPERTY, ...def.properties }, ...(def.required ? { required: def.required } : {}) },
     callers: ["tools"],
     outputSchema: { type: "object" },
-    ...(def.reads ? { replay: "safe" as const, annotations: { readOnly: true } } : {}),
+    // Every read answers with what is in the account, which other people may have written (plan 097, KTD2).
+    ...(def.reads
+      ? { replay: "safe" as const, annotations: { readOnly: true, strangerText: true } }
+      : def.answersContent
+        ? { annotations: { strangerText: true } }
+        : {}),
     forAgent: (agentId) => googleAccountsOf(deps.accounts, agentId).length > 0,
     execute: async (args, ctx) => {
       const account = accountFor(deps, ctx, args.account, def.service);

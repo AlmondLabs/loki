@@ -100,6 +100,7 @@ describe("account script tools (plan 097, U2)", () => {
     for (const tool of f.tools.values()) {
       expect(isScriptOnly(tool), tool.name).toBe(true);
       expect(tool.annotations?.readOnly, tool.name).toBe(true);
+      expect(tool.annotations?.strangerText, tool.name).toBe(true);
     }
     const offered = (agentId: string) => [...f.tools.values()].filter((t) => t.forAgent?.(agentId)).map((t) => t.name);
     expect(offered(WORK)).toEqual(["slack_read", "jira_read", "flow_list"]);
