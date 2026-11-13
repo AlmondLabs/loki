@@ -1417,10 +1417,12 @@ an entry. loki reads the file again when it changes and reconnects only the serv
 authorization spec describes, if it asks to. Its row in Preferences › MCP servers says **needs sign-in**; **sign in to …** opens the
 server's own sign-in page in your browser, and when you approve there, the browser comes back to loki
 (`http://127.0.0.1:41414/mcp/oauth/callback`, on this computer only), loki finishes the sign-in and the server
-connects. loki registers itself with the server's authorization server the first time (when the server allows that),
-keeps the tokens in the system keychain, never in `mcp.json`, and renews them when they expire. **sign out** forgets the
-tokens and loki's registration; the server then asks again, and the next sign-in registers anew. If the server's
-sign-in page says it does not know loki ("the OAuth client could not be found"), sign out and sign in again. Removing a
+connects. loki registers itself with the server's authorization server for a sign-in (when the server allows that) and reuses
+that registration later only once the sign-in has finished, so a sign-in left unfinished never leaves one behind that
+the server may since have forgotten. It keeps the tokens in the system keychain, never in `mcp.json`, and renews them when they expire.
+**sign out** forgets the tokens and loki's registration; the server then asks again, and the next sign-in registers
+anew. If the server's sign-in page says it does not know loki ("the OAuth client could not be found"), restart loki
+for a fresh sign-in page, or, when signed in, sign out and sign in again. Removing a
 server, renaming it or giving it a new address forgets its old sign-in too. While a server waits for a sign-in, agents see that in their server list and none
 of its tools.
 
