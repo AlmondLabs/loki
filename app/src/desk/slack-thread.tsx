@@ -19,6 +19,8 @@ import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
 import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
+import { SmilePlusIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -114,8 +116,8 @@ function Spans({ spans }: { spans: readonly SlackSpan[] }) {
   return keyed(spans, (s) => s.text.length).map(([key, s]) => <Span key={key} s={s} />);
 }
 
-/** A message's paragraphs: ordinary lines, a quote with Slack's bar, a code block. */
-function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
+/** A message's paragraphs: ordinary lines, a quote with Slack's bar, a code block; the item's ContentParts draws them too (plan 097). */
+export function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
   return keyed(blocks, (b) => b.spans.reduce((n, s) => n + s.text.length, 0)).map(([key, b]) => {
     if (b.kind === "code")
       return (
@@ -133,7 +135,7 @@ function Blocks({ blocks }: { blocks: readonly SlackBlock[] }) {
 }
 
 /** What an app attached to its message (plan 075): a lead line, then a bar in the app's colour beside its title, text and fields. */
-function Attachment({ a }: { a: SlackAttachment }) {
+export function AppAttachment({ a }: { a: SlackAttachment }) {
   return (
     <>
       {a.pretext && <Blocks blocks={a.pretext} />}
@@ -198,7 +200,7 @@ function SlackPreview({ f, preview, where }: { f: SlackFile; preview: NonNullabl
  * Mac saved its thumbnail; pressing one opens it in Slack, which holds its bytes. A file deleted since, or hidden by the workspace's plan, says so and opens nothing.
  * A Jira comment's files ride the same shape (plan 093), so `where` names the place they open: "Slack", or "jira" on a Jira card.
  */
-function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
+export function SlackFiles({ files, where }: { files: readonly SlackFile[]; where: string }) {
   return (
     <div className="loki-slack-files">
       {keyed(files, () => 1).map(([key, f]) => {
@@ -288,7 +290,7 @@ function repliesLabel(m: OutsideMessage, canOpen: boolean): string | null {
  * Under a post: its replies as a button that opens its whole thread, saying how many are new when some are; without
  * a way to open it (a Mac on an older loki), how many replies it has.
  */
-function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
+export function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void }) {
   const label = repliesLabel(m, onOpen !== undefined);
   if (!label) return null;
   if (!onOpen) return <div className="loki-slack-replies">{label}</div>;
@@ -304,7 +306,7 @@ function SlackReplies({ m, onOpen }: { m: OutsideMessage; onOpen?: () => void })
  * What a row can do with reactions (plan 079): open the picker on it, toggle one of its pills, react with one of the
  * person's quick reactions from its hover bar (plan 084), and the picker when open.
  */
-interface RowReacting {
+export interface RowReacting {
   open: () => void;
   toggle: (r: SlackReaction) => void;
   quick: readonly EmojiChoice[];
@@ -318,6 +320,15 @@ const BAR_QUICK = 3;
 /** Slack's add-reaction mark: a face with a plus, drawn in the text's colour. */
 function AddReactionMark() {
   return (
+    <GlassIcon icon={SmilePlusIcon} size={18}>
+      <AddReactionDrawing />
+    </GlassIcon>
+  );
+}
+
+/** Today's look's add-reaction drawing. */
+function AddReactionDrawing() {
+  return (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
       <path d="M16.5 9.5a7 7 0 1 1-6-6.9" />
       <path d="M7 12.5c.8 1 1.8 1.5 3 1.5s2.2-.5 3-1.5" />
@@ -329,7 +340,7 @@ function AddReactionMark() {
 }
 
 /** The bar that shows on the message under the pointer, as Slack's does: the person's quick reactions and the picker. */
-function HoverBar({ reacting }: { reacting: RowReacting }) {
+export function HoverBar({ reacting }: { reacting: RowReacting }) {
   return (
     <div className="loki-slack-hoverbar" role="toolbar" aria-label="react">
       {reacting.quick.slice(0, BAR_QUICK).map((c) => (
@@ -343,6 +354,18 @@ function HoverBar({ reacting }: { reacting: RowReacting }) {
     </div>
   );
 }
+
+/** Where a message sits in the thread, as its row is drawn: the first of a run, the day it moved to, its thread, its reacting. */
+export interface SlackRowAt {
+  first: boolean;
+  dayNote: string | null;
+  onOpen?: () => void;
+  reacting?: RowReacting;
+  jira: boolean;
+}
+
+/** The Slack card's own row, today's look. */
+const defaultRow = (m: OutsideMessage, at: SlackRowAt) => <SlackRow m={m} {...at} />;
 
 function SlackRow({
   m,
@@ -372,7 +395,7 @@ function SlackRow({
         {m.attachments && (
           <div className="loki-msg-body loki-slack-text">
             {keyed(m.attachments, () => 1).map(([key, a]) => (
-              <Attachment key={key} a={a} />
+              <AppAttachment key={key} a={a} />
             ))}
           </div>
         )}
@@ -594,6 +617,7 @@ export function SlackThread({
   controls = null,
   jira = false,
   stays = false,
+  row = defaultRow,
 }: {
   messages: readonly OutsideMessage[];
   newest: string;
@@ -601,6 +625,8 @@ export function SlackThread({
   controls?: ThreadControls | null;
   jira?: boolean;
   stays?: boolean;
+  /** How one message draws; the new chat pane draws it with its item components (plan 097, U7), keeping all else here. */
+  row?: (m: OutsideMessage, at: SlackRowAt) => ReactNode;
 }) {
   const pinned = window?.view === "thread" && messages[0]?.id === window.thread_ts ? messages[0] : null;
   const rows = pinned ? messages.slice(1) : messages;
@@ -626,7 +652,7 @@ export function SlackThread({
       )}
       {pinned && (
         <div className={washed(pinned, jira) ? "loki-slack-brought" : undefined}>
-          <SlackRow m={pinned} first dayNote={null} reacting={reactingOn(pinned)} />
+          {row(pinned, { first: true, dayNote: null, reacting: reactingOn(pinned), jira })}
         </div>
       )}
       <LoadButton direction="before" window={window} controls={controls} onLoad={loadEarlier} />
@@ -634,14 +660,13 @@ export function SlackThread({
         <Fragment key={m.id}>
           <RowMarks p={plan[i]} />
           <div ref={i === focusAt ? focus : undefined} className={rowClass(m, jira)}>
-            <SlackRow
-              m={m}
-              first={plan[i].first}
-              dayNote={plan[i].dayNote}
-              onOpen={controls && !jira && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined}
-              reacting={reactingOn(m)}
-              jira={jira}
-            />
+            {row(m, {
+              first: plan[i].first,
+              dayNote: plan[i].dayNote,
+              onOpen: controls && !jira && (m.new_replies || m.replies) ? () => controls.openThread(m.id) : undefined,
+              reacting: reactingOn(m),
+              jira,
+            })}
           </div>
         </Fragment>
       ))}

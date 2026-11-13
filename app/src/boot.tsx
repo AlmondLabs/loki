@@ -30,7 +30,12 @@ document.addEventListener(
 // client shows is loaded (plan 038): each is a chunk of its own, and a phone never parses the desktop, nor it the phone.
 const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
-const Surface = inLan ? (await import("./phone/phone")).Phone : (await import("./shell/shell")).Shell;
+// The Mac app's Settings window (plan 2026-11-12-1505, U18) is the same page told by its start-up script which it is.
+const Surface = inLan
+  ? (await import("./phone/phone")).Phone
+  : window.__LOKI__?.window === "settings"
+    ? (await import("./shell/settings-window")).SettingsWindow
+    : (await import("./shell/shell")).Shell;
 createRoot(root).render(
   <ThemeProvider>
     <Surface />

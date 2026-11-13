@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { inTauri, platform, type Platform } from "../desk/env";
 import { messageOf } from "../../../core/errors.ts";
+import { useStorageKey } from "../shared/use-storage-key";
 
 const KEY = "loki.globalShortcut";
 
@@ -29,6 +30,8 @@ const AVAILABLE = shortcutAvailable(inTauri);
 export function useGlobalShortcut(): GlobalShortcut {
   const [enabled, setEnabled] = useState(() => localStorage.getItem(KEY) !== "off");
   const [error, setError] = useState<string | null>(null);
+  // Turned on or off in the Settings window (plan 2026-11-12-1505, U18): this window's switch follows.
+  useStorageKey(KEY, (v) => setEnabled(v !== "off"));
   useEffect(() => {
     if (!AVAILABLE) return;
     let cancelled = false;

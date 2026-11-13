@@ -35,7 +35,10 @@ import { PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
-import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme } from "../theme";
+import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme, type Palette } from "../theme";
+import { useThreadPreview } from "../item/preview";
+import { XIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -48,7 +51,8 @@ const PAGE_KEY = SETTINGS_PAGE_KEY;
 type ChatLink = "connecting" | "open" | "closed";
 type ModConnection = "connecting" | "open" | "closed";
 
-type SettingsProps = Parameters<typeof Settings>[0];
+/** Everything Settings takes: what the shell or the Settings window hands it. */
+export type SettingsProps = Parameters<typeof Settings>[0];
 
 /**
  * Preferences, Slack style: Settings in a large sheet over the section you were in (KTD11). It is marked
@@ -105,6 +109,8 @@ export function Settings({
   returnTimes,
   lanes,
   onClose,
+  windowed = false,
+  initialPage = null,
 }: {
   chatLink: ChatLink;
   modConnection: ModConnection;
@@ -152,9 +158,16 @@ export function Settings({
   lanes: LanesApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
+  /**
+   * Settings is its own window (plan 2026-11-12-1505, U18): the section list sits on the window's sidebar material,
+   * clear of the traffic lights, with no heading, and the page's title row drags the window.
+   */
+  windowed?: boolean;
+  /** The page to open on, set by whoever opened the window; otherwise the one this window last showed. */
+  initialPage?: string | null;
 }) {
   const harness = useHarnessFacts();
-  const [page, setPage] = useState<SettingsPage>(() => savedPage(sessionStorage.getItem(PAGE_KEY)));
+  const [page, setPage] = useState<SettingsPage>(() => savedPage(initialPage ?? sessionStorage.getItem(PAGE_KEY)));
   const group = groupOf(page);
   const pick = (p: SettingsPage) => {
     setPage(p);
@@ -209,11 +222,21 @@ export function Settings({
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
       <nav
         aria-label="Preferences"
-        style={{ display: "flex", flexDirection: "column", minHeight: 0, padding: "16px 10px 0", borderRight: "1px solid var(--loki-border)" }}
+        className={windowed ? "loki-settings-nav" : undefined}
+        data-tauri-drag-region={windowed ? "deep" : undefined}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          padding: windowed ? "52px 10px 0" : "16px 10px 0",
+          borderRight: windowed ? undefined : "1px solid var(--loki-border)",
+        }}
       >
-        <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
-          Preferences
-        </h2>
+        {!windowed && (
+          <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
+            Preferences
+          </h2>
+        )}
         <PageList
           page={page}
           onPick={pick}
@@ -226,12 +249,13 @@ export function Settings({
       </nav>
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "var(--loki-bg)" }}>
         <div
+          data-tauri-drag-region={windowed ? "deep" : undefined}
           style={{
             flex: "none",
             display: "flex",
             alignItems: "center",
             gap: 8,
-            minHeight: 48,
+            minHeight: windowed ? 52 : 48,
             padding: "0 12px 0 28px",
             // A group with tabs draws its rule under them instead.
             borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
@@ -241,8 +265,10 @@ export function Settings({
             {group.title}
           </h3>
           {onClose && (
-            <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: 17 }}>
-              ×
+            <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--loki-text-title)" }}>
+              <GlassIcon icon={XIcon} size={16}>
+                ×
+              </GlassIcon>
             </IconButton>
           )}
         </div>
@@ -260,9 +286,19 @@ export function Settings({
   );
 }
 
+/** Appearance's values in Apple's words, under Liquid Glass (plan 2026-11-12-1505, U8). */
+const GLASS_THEME_LABEL: Record<(typeof THEME_PREFERENCES)[number], string> = { system: "System", light: "Light", dark: "Dark" };
+const GLASS_PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "Tokyo Night", apple: "Liquid Glass" };
+
 /** Preferences › Appearance: light or dark and the colour family, on this device only. */
 function AppearancePage() {
   const theme = useTheme();
+  const [preview, setPreview] = useThreadPreview();
+  const glass = theme.palette === "apple";
+  const pickPalette = (palette: Palette) => {
+    theme.setPalette(palette);
+    if (palette === "apple") setPreview("on");
+  };
   return (
     <Block>
       <Setting
@@ -271,11 +307,30 @@ function AppearancePage() {
           theme.preference === "system" ? `Follows ${systemName(keyboard)} as it changes: ${theme.resolved} now.` : "On this device, whatever the system does."
         }
       >
-        <Segmented label="light or dark" options={THEME_PREFERENCES} value={theme.preference} onPick={theme.setPreference} />
+        <Segmented
+          label="light or dark"
+          options={THEME_PREFERENCES}
+          value={theme.preference}
+          onPick={theme.setPreference}
+          labels={glass ? GLASS_THEME_LABEL : undefined}
+        />
       </Setting>
-      <Setting label="Palette" help="The colour family, in light and in dark.">
-        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={theme.setPalette} labels={PALETTE_LABEL} />
+      <Setting
+        label="Palette"
+        help={
+          glass
+            ? "Liquid glass is loki's new look, built one screen at a time; screens not yet moved keep today's shapes."
+            : "The colour family, in light and in dark."
+        }
+      >
+        <Segmented label="colour palette" options={PALETTES} value={theme.palette} onPick={pickPalette} labels={glass ? GLASS_PALETTE_LABEL : PALETTE_LABEL} />
       </Setting>
+      {/* Liquid Glass draws only the new chat pane (plan 2026-11-12-1505, KTD2), so the switch steps aside while it is on. */}
+      {!glass && (
+        <Setting label="New chat pane (preview)" help="Draw the chat pane and Flow's cards on loki's new components. Turn it off to go back.">
+          <Switch on={preview === "on"} onToggle={() => setPreview(preview === "on" ? "off" : "on")} label="new chat pane (preview)" hideLabel />
+        </Setting>
+      )}
     </Block>
   );
 }
@@ -647,7 +702,7 @@ const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 hours", "1d": "1
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
-  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)" }}>{children}</span>;
+  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>{children}</span>;
 }
 
 /** Preferences › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
@@ -723,7 +778,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
         </div>
         {rows.length === 0 && <Setting label="Nothing matches" help={`Try what the key does, such as archive, or a key, such as ${keyFor("search.open")}.`} />}
         {rows.length > 0 && (
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "var(--loki-text-body)" }}>
             <tbody>
               {rows.map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
@@ -735,7 +790,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                       padding: "6px 12px 6px 0",
                       width: 170,
                       fontFamily: "var(--loki-mono)",
-                      fontSize: 12,
+                      fontSize: "var(--loki-text-meta)",
                       color: "var(--loki-fg)",
                       whiteSpace: "nowrap",
                     }}
@@ -747,7 +802,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {b.typing ? (
                       ""
                     ) : b.where === "inbox" || b.where === "desk" ? (
-                      <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span>
+                      <span style={{ marginLeft: 8, fontSize: "var(--loki-text-fine)", opacity: 0.7 }}>not while typing</span>
                     ) : null}
                     {b.was && (
                       <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
@@ -775,18 +830,20 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
 /** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
 
 function Note({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "warn" }) {
-  return <span style={{ marginLeft: 8, fontSize: 12, color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>;
+  return (
+    <span style={{ marginLeft: 8, fontSize: "var(--loki-text-meta)", color: tone === "warn" ? "var(--loki-negative)" : "var(--loki-muted)" }}>{children}</span>
+  );
 }
 
 function InstallState({ s }: { s: string }) {
   const color = s === "error" ? "var(--loki-negative)" : s === "custom" || s === "skipped" ? "var(--loki-muted)" : "var(--loki-positive)";
-  return <span style={{ color, fontSize: 12, fontWeight: 600 }}>{sentence(s)}</span>;
+  return <span style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>{sentence(s)}</span>;
 }
 
 function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontSize: 12, fontWeight: 600 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
       <Dot color={color} />
       {sentence(s)}
     </span>

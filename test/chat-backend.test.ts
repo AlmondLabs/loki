@@ -32,6 +32,7 @@ async function setup(
     schedules?: ConstructorParameters<typeof DaemonChats>[0]["schedules"];
     background?: ConstructorParameters<typeof DaemonChats>[0]["background"];
     macId?: string;
+    usualModel?: ConstructorParameters<typeof DaemonChats>[0]["usualModel"];
   } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
@@ -80,6 +81,7 @@ async function setup(
     ...(opts.schedules ? { schedules: opts.schedules } : {}),
     ...(opts.background ? { background: opts.background } : {}),
     ...(opts.macId ? { macId: opts.macId } : {}),
+    ...(opts.usualModel ? { usualModel: opts.usualModel } : {}),
   });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
@@ -342,6 +344,26 @@ describe("the daemon's chats", () => {
       await s.chats.deleteAgent(agent.id);
       expect(await s.chats.agents()).toEqual([]);
       expect(existsSync(join(s.dir, "backend", "memfs", agent.id))).toBe(false);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a new chat starts on its agent's usual model and effort; with none, or one it cannot run, on the agent's own (plan 2026-11-13-1240)", async () => {
+    let usual: { handle: string; reasoning_effort: "high" | null } | null = null;
+    const s = await setup({ usualModel: () => usual });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const store = await s.stores.get(agent.id);
+      const settings = async (conversationId: string) => store.agentSettings(must(await store.chat(conversationId, ctx), "the chat").id, ctx);
+      const plain = await s.chats.create(agent.id, null, null);
+      expect(await settings(plain.conversationId)).toMatchObject({ model: modelRef(s.handle) });
+      usual = { handle: s.handle, reasoning_effort: "high" };
+      const usualChat = await s.chats.create(agent.id, null, null);
+      expect(await settings(usualChat.conversationId)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high" });
+      usual = { handle: "acp:nowhere/default", reasoning_effort: null };
+      const fallback = await s.chats.create(agent.id, null, null);
+      expect(await settings(fallback.conversationId)).toMatchObject({ model: modelRef(s.handle) });
     } finally {
       await s.cleanup();
     }

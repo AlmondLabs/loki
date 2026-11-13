@@ -1,5 +1,5 @@
 import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
-import type { FileRef, TranscriptRow } from "./transcript.ts";
+import { THOUGHT_MAX, type FileRef, type TranscriptRow } from "./transcript.ts";
 
 /**
  * A chat's thread, built in one place (glossary.md: ThreadModel). Every source of a conversation, the history page
@@ -18,6 +18,11 @@ export type Step =
   | { kind: "user"; raw: string; at: string | null; images?: string[] }
   /** The agent's words: a whole message from history, or a streamed piece of the reply (`chunk`). */
   | { kind: "assistant"; text: string; at: string | null; chunk?: boolean }
+  /**
+   * What the agent thought (plan 097, U9): a streamed piece (`chunk`), or the whole of it from a stored message. It
+   * rides the reply or call that follows it as that row's `thought`.
+   */
+  | { kind: "thinking"; text: string; at: string | null; chunk?: boolean }
   /** A tool call; the same id again carries more of its arguments as they stream in. */
   | { kind: "call"; name: string; args: unknown; id: string | null; at: string | null }
   /** The approval request for a call: it belongs to the open call of that tool when there is one. */
@@ -122,6 +127,9 @@ export class ThreadModel {
   private readonly modelErrors = new WeakMap<TranscriptRow, number>();
   private streamingText = "";
   private streamingAt: string | null = null;
+  /** What the agent is thinking, until the reply or call it leads to takes it, and when the thought began. */
+  private thinking = "";
+  private thinkingAt: string | null = null;
   /** Calls already shown, by id: the same id again is more of that call's arguments. */
   private readonly seen = new Set<string>();
   /** A call's arguments as they stream in, by id, until they parse. */
@@ -201,6 +209,11 @@ export class ThreadModel {
           return { changed: true, spoke: null };
         }
         return this.written(step.text, step.at);
+      case "thinking":
+        // Pieces add on; a whole thought (a stored message's) stands for what streamed of it, and keeps when that began.
+        if (!this.thinking) this.thinkingAt = step.at;
+        this.thinking = step.chunk ? this.thinking + step.text : step.text;
+        return { changed: false, spoke: null };
       case "call":
         return { changed: this.call(step.name, step.args, step.id, step.at), spoke: null };
       case "approval":
@@ -304,7 +317,7 @@ export class ThreadModel {
   settle(at: string | null = null): boolean {
     const t = this.streamingText.trim();
     const had = this.streamingText !== "";
-    if (t) this.tail.push({ role: "assistant", text: t, ...rowAt(this.streamingAt ?? at) });
+    if (t) this.tail.push(this.thoughtOnto({ role: "assistant", text: t, ...rowAt(this.streamingAt ?? at) }, this.streamingAt ?? at));
     this.streamingText = "";
     this.streamingAt = null;
     if (had) this.touch();
@@ -497,8 +510,28 @@ export class ThreadModel {
   }
 
   private push(row: TranscriptRow): void {
-    this.tail.push(row);
+    this.tail.push(this.thoughtOnto(row, row.at ?? null));
     this.touch();
+  }
+
+  /**
+   * A row the agent made carries the thought before it, cut at THOUGHT_MAX, with how long it lasted when both ends have
+   * times that differ (a stored message gives its thought and words one time). A message of the person's ends a
+   * thought that led nowhere.
+   */
+  private thoughtOnto(row: TranscriptRow, end: string | null): TranscriptRow {
+    if (!this.thinking) return row;
+    const thought = this.thinking.trim();
+    const began = this.thinkingAt;
+    this.thinking = "";
+    this.thinkingAt = null;
+    if (row.role === "user" || !thought) return row;
+    const ms = began && end ? Date.parse(end) - Date.parse(began) : Number.NaN;
+    return {
+      ...row,
+      thought: thought.length > THOUGHT_MAX ? `${thought.slice(0, THOUGHT_MAX - 1)}…` : thought,
+      ...(ms > 0 ? { thought_ms: ms } : {}),
+    };
   }
 
   private copyOf(r: TranscriptRow): TranscriptRow {

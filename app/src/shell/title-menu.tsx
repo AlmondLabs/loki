@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Kbd, Row } from "../components";
 import { keyboard, type Platform } from "../desk/env";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
+import { ChevronRightIcon, MenuIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
 export interface TitleMenuEntry {
@@ -79,9 +81,11 @@ export function TitleMenuPanel({
             onPointerEnter={() => onOpen(g.title)}
           >
             <span>{g.title}</span>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-              <path d="M3.5 2l3 3-3 3" />
-            </svg>
+            <GlassIcon icon={ChevronRightIcon} size={12}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                <path d="M3.5 2l3 3-3 3" />
+              </svg>
+            </GlassIcon>
           </Row>
         ))}
         <hr className="loki-title-menu-sep" />
@@ -128,9 +132,11 @@ export function TitleMenu({ os = keyboard }: { os?: Platform }) {
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((v) => !v)}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-          <path d="M3 4.5h10M3 8h10M3 11.5h10" />
-        </svg>
+        <GlassIcon icon={MenuIcon} size={16}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+            <path d="M3 4.5h10M3 8h10M3 11.5h10" />
+          </svg>
+        </GlassIcon>
       </button>
       {menuOpen && (
         <TitleMenuPopover

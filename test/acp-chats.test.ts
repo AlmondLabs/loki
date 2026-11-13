@@ -16,6 +16,7 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 import { AcpChats, type AcpChatsDeps } from "../daemon/acp/chats.ts";
 import { acpHandle, CLAUDE_CODE, commandFound, CURSOR, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
+import { foldSteps } from "../core/attention/thread.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -506,6 +507,28 @@ describe("ACP agents (plan 020)", () => {
     await s.say(id, "hello");
     const steps = s.events().flatMap((e) => (e.kind === "step" && !(e.step.kind === "assistant" && e.step.chunk) ? [e.step.kind] : []));
     expect(steps).toEqual(["user", "assistant"]);
+  });
+
+  test("the agent's thoughts show live and are kept: on the call they led to, and on the reply (plan 097, U9)", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "think");
+    const pieces = s.events().flatMap((e) => (e.kind === "step" && e.step.kind === "thinking" && e.step.chunk ? [e.step.text] : []));
+    expect(pieces).toEqual(["The table has a date ", "column; group by week.", "Twelve weeks of data."]);
+    const rows = foldSteps((await s.stored(id)).entries.flatMap((e) => entrySteps(e)));
+    expect(rows.find((r) => r.role === "tool")?.thought).toBe("The table has a date column; group by week.");
+    expect(rows.find((r) => r.role === "assistant")).toMatchObject({ text: "grouped", thought: "Twelve weeks of data." });
+  });
+
+  test("a plan is kept with its entries, which the thread reads back (plan 097, U9)", async () => {
+    const s = setup();
+    const id = await s.chat();
+    await s.say(id, "plan");
+    const rows = foldSteps((await s.stored(id)).entries.flatMap((e) => entrySteps(e)));
+    expect(rows.find((r) => r.tool?.name === "plan")?.tool?.plan).toEqual([
+      { content: "read the file", status: "completed" },
+      { content: "change it", status: "pending" },
+    ]);
   });
 
   test("a call shows once it has arguments, and a file's last newline is not one more line of its diff", async () => {

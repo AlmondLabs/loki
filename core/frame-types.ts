@@ -199,6 +199,8 @@ export interface OutsideFacts {
   sender_avatar?: string | null;
   /** Whether this is the only connected account of its service, so the card need not name it (plan 073). */
   only_account?: boolean;
+  /** A Gmail thread one of whose messages is starred (plan 097, U9); absent when it is not, and from an older loki. */
+  starred?: boolean;
   /**
    * The person's mail reply that did not go (plan 096): its words, why, and when. The card says "not sent" with send
    * again and discard until one of them settles it. Absent while there is none, and from an older loki.

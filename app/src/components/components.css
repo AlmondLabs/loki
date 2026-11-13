@@ -59,17 +59,17 @@
 .loki-btn--sm {
   min-height: 28px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 .loki-btn--md {
   min-height: 36px;
   padding: 0 14px;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
 }
 .loki-btn--touch {
   min-height: 44px;
   padding: 0 14px;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
 }
 .loki-btn--paper {
   color: var(--loki-fg);
@@ -120,7 +120,7 @@
 .loki-btn--icon {
   padding: 0;
   border-radius: var(--loki-radius-sm);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 /* Fills its row; the label sits left. */
 .loki-btn--block {
@@ -141,7 +141,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   cursor: pointer;
   transition:
     background-color 120ms ease-out,
@@ -173,7 +173,7 @@
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -232,7 +232,7 @@
 .loki-chip--tag {
   min-height: 0;
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: var(--loki-text-tag);
 }
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float {
@@ -263,7 +263,7 @@
   background: var(--loki-well);
   color: var(--loki-fg);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.4;
   transition: border-color 120ms ease-out;
 }
@@ -285,13 +285,13 @@
 .loki-field--sm {
   min-height: 28px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 /* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
 .loki-field--touch {
   min-height: 44px;
   padding: 10px 12px;
-  font-size: 15px;
+  font-size: var(--loki-text-row);
 }
 /* The first line of a sheet (search, a title): no box, a hairline below. */
 .loki-field--bare {
@@ -400,6 +400,12 @@ textarea.loki-field {
 .loki-veil--scroll {
   overflow-y: auto;
 }
+/* A floating panel (Sheet clear): the window stays as it is behind it, as behind Spotlight. */
+.loki-veil--clear,
+.loki-veil--clear[data-grow] {
+  background: transparent;
+  animation: none;
+}
 .loki-veil--scroll > .loki-sheet-card {
   max-height: none;
   overflow: visible;
@@ -485,7 +491,7 @@ textarea.loki-field {
   font-family: var(--loki-font);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   box-shadow: var(--loki-shadow-float);
 }
 .loki-notices[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled] [data-description] {
@@ -513,13 +519,13 @@ textarea.loki-field {
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
 }
 
 /* ---- Text ---------------------------------------------------------------------------------------- */
 .loki-kbd {
   font-family: var(--loki-mono);
-  font-size: 9.5px;
+  font-size: var(--loki-text-micro);
   color: var(--loki-muted);
   margin-left: 6px;
   border: 1px solid var(--loki-border);
@@ -531,7 +537,7 @@ textarea.loki-field {
 }
 .loki-meta {
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -551,12 +557,12 @@ textarea.loki-field {
 }
 .loki-title {
   font-family: var(--loki-font);
-  font-size: 17px;
+  font-size: var(--loki-text-title);
   font-weight: 700;
   color: var(--loki-fg);
 }
 .loki-title--page {
-  font-size: 22px;
+  font-size: var(--loki-text-display);
 }
 .loki-empty {
   text-align: center;
@@ -572,11 +578,11 @@ textarea.loki-field {
   padding: 36px 28px;
 }
 .loki-empty > .loki-title {
-  font-size: 22px;
+  font-size: var(--loki-text-display);
   line-height: 1.25;
 }
 .loki-empty > p {
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   margin: 10px 0 0;
   line-height: 1.6;
 }
@@ -601,6 +607,11 @@ textarea.loki-field {
 .loki-icon {
   display: block;
   flex: none;
+}
+/* In a line of text ("⎇ main", "↓ Needs you"): on the line, centred on its letters. */
+.loki-icon.loki-icon--inline {
+  display: inline-block;
+  vertical-align: -0.15em;
 }
 
 /* A list of rows (ListRow): no markers, no indent. */
@@ -628,7 +639,7 @@ textarea.loki-field {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
@@ -715,7 +726,7 @@ textarea.loki-field {
   white-space: nowrap;
 }
 .loki-list-row-preview {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
   overflow: hidden;
@@ -724,7 +735,7 @@ textarea.loki-field {
 }
 .loki-list-row-time {
   flex: none;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -737,7 +748,7 @@ textarea.loki-field {
   border-radius: var(--loki-radius-pill);
   background: var(--loki-attention);
   color: var(--loki-on-attention);
-  font-size: 11px;
+  font-size: var(--loki-text-tag);
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
@@ -809,7 +820,7 @@ textarea.loki-field {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   font-weight: 600;
   text-align: left;
 }
@@ -829,7 +840,7 @@ button.loki-list-section-toggle {
   transform: rotate(-90deg);
 }
 .loki-list-section-count {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -839,7 +850,7 @@ button.loki-list-section-toggle {
   align-items: center;
   gap: 4px;
   flex: none;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
 }
 .loki-list-section-actions {
@@ -945,7 +956,33 @@ button.loki-list-section-toggle {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
+}
+/* A drawn menu's icon column (U22): the action's Lucide icon, at the toolbar's size and stroke, in the label's colour. */
+.loki-menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.loki-menu-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.loki-menu-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
+}
+/* A drawn menu's checkmark on its chosen item, and a submenu's label over its items (shell/menu-items.tsx, U19). */
+.loki-menu-check {
+  color: var(--loki-accent);
+}
+.loki-menu-group-label {
+  padding: 6px 8px 2px;
 }
 .loki-title-menu-sep {
   height: 1px;
@@ -981,7 +1018,7 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: 17px;
+  font-size: var(--loki-text-title);
   font-weight: 700;
   color: var(--loki-fg);
 }
@@ -990,7 +1027,7 @@ button.loki-list-section-toggle {
 }
 .loki-pane-header-subtitle {
   padding: 0 12px 8px 20px;
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1021,7 +1058,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -1038,7 +1075,7 @@ button.loki-list-section-toggle {
   border-bottom-color: var(--loki-fg);
 }
 .loki-tab-count {
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 400;
   color: var(--loki-muted);
 }
@@ -1101,7 +1138,14 @@ button.loki-list-section-toggle {
 .loki-column {
   position: absolute;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
+  border-right: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+}
+/* The rail of sections down the window's left edge (shell/sidebar.tsx). */
+.loki-sections {
   border-right: 1px solid var(--loki-border);
   background: var(--loki-panel);
 }
@@ -1129,7 +1173,7 @@ button.loki-list-section-toggle {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--loki-font);
-  font-size: 15px;
+  font-size: var(--loki-text-row);
   font-weight: 700;
   color: var(--loki-fg);
 }
@@ -1183,7 +1227,7 @@ button.loki-list-section-toggle {
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1206,4 +1250,682 @@ button.loki-list-section-toggle {
 /* ---- A Preferences block: its settings divided by hairlines (plan 031) ------------------------------------- */
 .loki-settings-block > * + * {
   border-top: 1px solid var(--loki-border);
+}
+
+/* Liquid Glass, the window shell (plan 2026-11-12-1505, U3). The rail and the list column sit clear on one glass panel
+   inset from the window's edge (shell.tsx); the top strip and the pane header lose their fills and rules, and the
+   header's view tabs become a capsule of glass beside the title, as a Mac toolbar's segmented control. Every other
+   family keeps the rules above. */
+.loki-shell-glass {
+  display: none;
+}
+/* The Settings window (shell/settings-window.tsx, U18): Settings fills it; its section list is the sidebar, on the window's
+   material in the Mac app (styles.css) and on the panel colour elsewhere. */
+.loki-settings-window {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.loki-settings-nav {
+  background: var(--loki-panel);
+}
+/* The window's ground (shell.tsx), opaque except where the Mac app lets its material through (styles.css, U13). */
+.loki-shell {
+  background: var(--loki-bg);
+}
+/* The section bodies under the column's head (shell/list-column.tsx): the room each body fills. */
+.loki-column-bodies {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+/* Liquid Glass's places (shell/sidebar.tsx Places, U12): the source list's first rows, as Mail lists its mailboxes. A
+   symbol in the accent, the name, a grey count; the place showing is filled, never bold. */
+.loki-places {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 10px 12px;
+}
+.loki-place {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: var(--loki-text-body);
+  font-weight: 400;
+  text-align: left;
+  cursor: default;
+}
+.loki-place[aria-current] {
+  background: var(--loki-selection);
+}
+.loki-place-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  color: var(--loki-accent);
+}
+.loki-place-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.loki-place-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-place-count {
+  font-size: var(--loki-text-meta);
+  color: var(--loki-muted);
+  font-variant-numeric: tabular-nums;
+}
+.loki-place--foot {
+  flex: none;
+  margin: 8px 10px 10px;
+  color: var(--loki-muted);
+}
+/* The sidebar toggle beside the traffic lights (shell/sidebar.tsx ColumnToggle, U12): a plain symbol, no fill when pressed. */
+.loki-sidebar-toggle[aria-pressed] {
+  background: transparent;
+}
+/* The chat's dock of decisions, box and moves (chat/conversation.tsx): no box of its own outside Liquid Glass. */
+.loki-dock {
+  display: contents;
+}
+:root[data-palette="apple"] {
+  .loki-shell-glass {
+    display: block;
+  }
+  .loki-shell-glass[data-empty] {
+    display: none;
+  }
+  .loki-title-strip,
+  .loki-sections,
+  .loki-column {
+    background: transparent;
+    border-right: 0;
+  }
+  .loki-column-header {
+    border-bottom: 0;
+  }
+  /* A row's count is grey text at its trailing edge, as a Mac source list's is (U17): no pill, no red. */
+  .loki-list-badge {
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--loki-muted);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  /* One sidebar (U12): it floats inside the glass panel, and each section's name is a source-list heading under the
+     places, small and grey, not a title. */
+  .loki-column {
+    bottom: 8px;
+  }
+  .loki-column-header {
+    min-height: 28px;
+    padding: 0 10px 0 18px;
+  }
+  .loki-column-title {
+    font-size: var(--loki-text-tag);
+    font-weight: 600;
+    color: var(--loki-muted);
+  }
+  .loki-pane-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "line tabs tools"
+      "sub tabs tools";
+    align-items: center;
+    column-gap: 8px;
+    padding-right: 12px;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .loki-pane-header-line {
+    grid-area: line;
+  }
+  .loki-pane-header-subtitle {
+    grid-area: sub;
+  }
+  /* Every tab row is a segmented control (U8): a grey track with the chosen tab raised; in the pane header the track
+     is glass (below). */
+  .loki-tabs {
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-hover);
+    width: fit-content;
+  }
+  .loki-tab {
+    min-height: 26px;
+    padding: 0 12px;
+    border-bottom: 0;
+    border-radius: var(--loki-radius-pill);
+  }
+  .loki-tab[aria-selected="true"] {
+    background: var(--loki-segment);
+    box-shadow: var(--loki-shadow-low);
+  }
+  .loki-pane-header .loki-tabs {
+    grid-area: tabs;
+    background: var(--loki-glass);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+  }
+  .loki-pane-header .loki-tab {
+    min-height: 28px;
+    padding: 0 12px;
+    border-bottom: 0;
+    border-radius: var(--loki-radius-pill);
+  }
+  .loki-pane-header .loki-tab[aria-selected="true"] {
+    background: var(--loki-selection);
+  }
+
+  /* The chat's toolbar (U13): one row, the title over a grey line of facts, then the Messages / Canvas control and one
+     glass group of the chat's moves as symbols, their names and keys in their tooltips, as Mail's toolbar draws them. */
+  .loki-pane-header-line:has(> .loki-toolbar-title) {
+    min-height: 52px;
+  }
+  .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
+    min-height: 22px;
+    padding: 0 10px;
+    font-size: var(--loki-text-meta);
+  }
+  .loki-pane-header-trailing {
+    grid-area: tools;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .loki-toolbar-title {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .loki-toolbar-name {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--loki-text-title);
+    font-weight: 600;
+    color: var(--loki-fg);
+  }
+  /* A Flow card's toolbar (U16): the chat's title and facts, its moves at the trailing edge; the title opens the chat. */
+  .loki-card-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 6px 12px 6px 20px;
+  }
+  .loki-card-toolbar > .loki-toolbar-title {
+    flex: 1;
+  }
+  /* Solid to its foot with a short fade, as the chat's toolbar is, so the thread scrolls out of sight beneath it. */
+  .loki-card-toolbar {
+    position: relative;
+    z-index: 2;
+    border-radius: var(--loki-radius-lg) var(--loki-radius-lg) 0 0;
+    background: var(--loki-bg);
+  }
+  .loki-card-toolbar::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(var(--loki-bg), transparent);
+    pointer-events: none;
+  }
+  .loki-toolbar-open {
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .loki-toolbar-open:hover {
+    text-decoration: underline;
+  }
+  .loki-toolbar-sub {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--loki-text-tag);
+    color: var(--loki-muted);
+  }
+  /* A chat's link to another (chat/link-header.tsx) reads as more of the grey line, not a pill that grows the toolbar. */
+  .loki-toolbar-sub .loki-chat-links {
+    display: inline-flex;
+    margin-left: 6px;
+    vertical-align: bottom;
+  }
+  .loki-toolbar-sub .loki-chip {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    font-size: var(--loki-text-tag);
+    font-weight: 400;
+  }
+  /* A chat not started yet (U20): under its title, a To: line as Messages draws one, with the agent as a token and
+     the folder it will work in, quiet, at the trailing edge. */
+  .loki-new-chat-to {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 12px 0 20px;
+    border-top: 0.5px solid var(--loki-border);
+    border-bottom: 0.5px solid var(--loki-border);
+    font-size: var(--loki-text-body);
+    color: var(--loki-fg);
+  }
+  .loki-new-chat > .loki-pane-header {
+    grid-template-areas:
+      "line tabs tools"
+      "sub sub sub";
+    padding-right: 0;
+    background: var(--loki-bg);
+  }
+  .loki-new-chat .loki-pane-header-subtitle {
+    padding: 0;
+    white-space: normal;
+    overflow: visible;
+  }
+  .loki-new-chat-to-label {
+    color: var(--loki-muted);
+  }
+  .loki-new-chat-anchor {
+    position: relative;
+    display: inline-flex;
+  }
+  .loki-new-chat-spacer {
+    flex: 1;
+  }
+  .loki-new-chat-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px 0 4px;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-accent-soft);
+    color: var(--loki-accent);
+    font: inherit;
+    cursor: default;
+  }
+  .loki-new-chat-folder {
+    max-width: 280px;
+    height: 24px;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-muted);
+    font: inherit;
+    font-size: var(--loki-text-meta);
+    cursor: default;
+  }
+  .loki-new-chat-folder:hover {
+    background: var(--loki-hover);
+  }
+  .loki-new-chat-folder[data-failed] {
+    color: var(--loki-negative);
+  }
+  .loki-new-chat-notice {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 48rem;
+    padding: 0 24px 6px;
+  }
+
+  /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
+     under a Mac window's scroll edge, never through its words. */
+  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title) {
+    background: var(--loki-bg);
+  }
+  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title)::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(var(--loki-bg), transparent);
+    pointer-events: none;
+  }
+  .loki-toolbar-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-attention);
+    vertical-align: 1px;
+  }
+  .loki-toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 2px;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-glass);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+  }
+  .loki-toolbar-item {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-fg);
+    cursor: default;
+  }
+  .loki-toolbar-item:hover:not(:disabled) {
+    background: var(--loki-hover);
+  }
+  .loki-toolbar-item:disabled {
+    opacity: 0.35;
+  }
+  .loki-toolbar-item svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.75;
+  }
+
+  /* The chat pane (U4): the header and the dock float, and the thread scrolls on beneath both, padded by their
+     measured heights (shared/use-height-var.ts) so its first and last rows stay clear. The header fades the thread
+     out under it, as a Mac window's scroll edge does. */
+  .loki-desk-pane > .loki-pane-header {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(var(--loki-bg) 75%, transparent);
+  }
+  .loki-desk-pane-messages {
+    top: calc(-1 * var(--loki-header-height));
+  }
+  .loki-desk-pane-messages [data-slot="message-scroller-content"] {
+    padding-top: calc(var(--loki-header-height) + 20px);
+    padding-bottom: calc(var(--loki-dock-height) + 20px);
+  }
+  .loki-desk-pane-messages [data-slot="message-scroller-button"] {
+    bottom: calc(var(--loki-dock-height) + 12px);
+  }
+  .loki-dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    background: linear-gradient(transparent, var(--loki-bg) 70%);
+  }
+  .loki-dock [data-proposal],
+  .loki-dock [data-slot="input-group"] {
+    border-color: transparent;
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-float);
+  }
+  .loki-dock [data-proposal],
+  .loki-dock [data-slot="input-group"] {
+    border-radius: 24px;
+  }
+
+  /* The message box as Messages draws it (U21): "+" in a glass circle outside a one-line capsule that grows with the
+     text; inside the capsule, at its trailing edge, one round button: the microphone, the accent up-arrow once there
+     is something to send, or stop while the agent works. */
+  .loki-composer-plus {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+    flex: none;
+    color: var(--loki-muted);
+    cursor: default;
+  }
+  .loki-composer-plus:hover:not(:disabled) {
+    color: var(--loki-fg);
+  }
+  .loki-composer-plus svg,
+  .loki-composer-round svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+  }
+  .loki-dock .loki-composer-capsule[data-slot="input-group"] {
+    min-height: 30px;
+  }
+  .loki-composer-capsule .loki-composer-field {
+    min-height: 30px;
+    padding: 6px 4px 6px 12px;
+    line-height: 18px;
+  }
+  .loki-composer-act {
+    display: flex;
+    flex: none;
+    padding: 3px;
+  }
+  .loki-composer-round {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-muted);
+    cursor: default;
+  }
+  .loki-composer-round:disabled {
+    opacity: 0.35;
+  }
+  .loki-composer-round[data-kind="send"] {
+    background: var(--loki-affirm);
+    color: var(--loki-on-affirm);
+  }
+  .loki-composer-round[data-kind="stop"] {
+    background: var(--loki-fg);
+    color: var(--loki-bg);
+  }
+  .loki-composer-round[data-kind="stop"] svg {
+    width: 10px;
+    height: 10px;
+    fill: currentColor;
+  }
+  .loki-composer-round[data-kind="dictate"][aria-pressed="true"] {
+    color: var(--loki-accent);
+  }
+
+  /* Flow (U6): a chat card holds the same floating dock as the chat pane, so its thread pads itself the same way; an
+     outside card's reply box is the same glass capsule as the composer. */
+  .loki-flow-card [data-slot="message-scroller-content"] {
+    padding-bottom: calc(var(--loki-dock-height) + 20px);
+  }
+  .loki-flow-card [data-slot="message-scroller-button"] {
+    bottom: calc(var(--loki-dock-height) + 12px);
+  }
+  .loki-flow-card [data-reply-box] [data-slot="input-group"] {
+    border-color: transparent;
+    border-radius: 24px;
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-float);
+  }
+
+  /* Search, sheets, menus and the Canvas's floating chips (U7): the layer that comes and goes over the page is strong
+     glass, as a Mac's sheets, popovers and menus are; what they hold stays as it is. */
+  .loki-sheet-card,
+  .loki-popover,
+  .loki-mail-suggest,
+  .loki-title-menu-panel {
+    border-color: transparent;
+    background: var(--loki-glass-strong);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-sheet);
+  }
+  /* Type-ahead lists (U20): people to mention and mail addresses read as a Mac's completion list, at menu sizes, with
+     the arrow a menu has, not a link's hand. */
+  .loki-mail-suggest-row {
+    padding: 4px 8px;
+    font-size: var(--loki-text-body);
+    cursor: default;
+  }
+  .loki-mail-suggest-name {
+    font-weight: 400;
+  }
+  /* The label picker (U20) is a menu hung over the card from its Label move, on the popover's glass: its slot above
+     the moves takes no room, and the list fills the menu, so the focus ring is the menu's own edge. */
+  .loki-card-picker:has(> .loki-label-menu) {
+    position: relative;
+    height: 0;
+    padding: 0;
+    border-top: 0;
+  }
+  .loki-label-menu {
+    top: auto;
+    bottom: 6px;
+    right: 18px;
+    width: 220px;
+    padding: 0;
+  }
+  .loki-label-menu [role="listbox"] {
+    padding: 4px;
+    border-radius: inherit;
+  }
+  .loki-label-menu .loki-meta {
+    padding: 4px 8px;
+  }
+  .loki-chip--float {
+    background: var(--loki-glass);
+    -webkit-backdrop-filter: var(--loki-glass-blur);
+    backdrop-filter: var(--loki-glass-blur);
+    box-shadow:
+      inset 0 0.5px 0 var(--loki-glass-hi),
+      0 0 0 0.5px var(--loki-glass-edge),
+      var(--loki-shadow-low);
+  }
+
+  /* Preferences (U8): settings grouped in rounded boxes as a Mac's System Settings groups them, and the segmented
+     control as a grey track with the chosen value raised. */
+  .loki-settings-block {
+    padding: 0 14px;
+    border-radius: var(--loki-radius-lg);
+    background: var(--loki-bg);
+    box-shadow: 0 0 0 0.5px var(--loki-border);
+  }
+  .loki-segmented {
+    border: 0;
+    border-radius: var(--loki-radius-md);
+    background: var(--loki-hover);
+  }
+  .loki-segmented > button[aria-pressed="true"] {
+    border-color: transparent;
+    background: var(--loki-segment);
+  }
+
+  /* Keyboard (U5): Apple's focus ring in place of loki's flash, a steady accent halo around the control that has
+     focus. Text fields keep the caret as their mark, as in every family. */
+  button:focus-visible,
+  select:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible,
+  a:focus-visible {
+    outline: 3px solid color-mix(in oklab, var(--loki-accent) 55%, transparent);
+    outline-offset: 1px;
+    animation: none;
+  }
+
+  /* The sidebar's real material (U13): in the Mac app the page is clear (styles.css) and the glass panel becomes the
+     window's hole onto the system's sidebar material. Its ring of the page's ground, far wider than the window, paints
+     everything outside its rounded corners opaque; with the sidebar hidden it is an empty box whose ring covers all.
+     Under Reduce Transparency and Increase Contrast the page is painted again and the panel is its solid self. */
+  &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
+    display: block;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      inset 0 0 0 0.5px var(--loki-glass-edge),
+      0 0 0 200vmax var(--loki-bg);
+  }
+  &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass[data-empty] {
+    box-shadow: 0 0 0 200vmax var(--loki-bg);
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass {
+      background: var(--loki-glass);
+      box-shadow: 0 0 0 0.5px var(--loki-glass-edge);
+    }
+    &[data-vibrant]:not([data-glass="solid"]) .loki-shell-glass[data-empty] {
+      display: none;
+    }
+  }
 }

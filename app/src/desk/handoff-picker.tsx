@@ -116,7 +116,14 @@ export function HandoffPicker({
               onClick={() => choose(o.conversation_id)}
               style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}
             >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)",
+                }}
+              >
                 {o.label}
               </span>
               {o.meta && <Meta>{words(o.meta)}</Meta>}

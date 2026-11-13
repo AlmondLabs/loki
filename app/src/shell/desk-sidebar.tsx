@@ -1,7 +1,20 @@
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  FolderIcon,
+  MailDotIcon,
+  MailOpenIcon,
+  PencilIcon,
+  PinIcon,
+  PinOffIcon,
+  TagIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Button, Field, IconButton, ListRow, ListSection, Row } from "../components";
+import { Button, Field, IconButton, ListRow, ListSection } from "../components";
 import { ago } from "../shared/ago";
-import { Icon } from "../shared/icons";
+import { Icon, GlassIcon } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { AgentFace } from "../desk/agent-chip";
@@ -31,6 +44,8 @@ import { conversationDirName } from "../../../core/desk-core.ts";
 import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./desk-sidebar.css";
+import { popUpMenu, useNativeMenus, type MenuEntry } from "./native-menu";
+import { MenuItems, menuKey } from "./menu-items";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 import type { Pushes } from "../../../core/frames.ts";
 import type { LabelView } from "../../../core/labels.ts";
@@ -224,15 +239,37 @@ export function DeskSidebar({
 
   // The rows' handlers stay the same functions from render to render and look the chat up when called, so a row
   // redraws only when what it shows changed (plan 051): one chat moving no longer redraws the whole list.
-  const latest = useRef({ desks, onOpen, onPin, onArchive });
+  const native = useNativeMenus();
+  // Under Liquid Glass in the Mac app the row's menu is the system's, popped up at the pointer (U19).
+  const popRow = (d: DeskSummary, x: number, y: number) =>
+    void popUpMenu(
+      rowMenuEntries({
+        desk: d,
+        item: items.find((i) => i.agent_id === d.agent_id && i.id === d.conversation_id) ?? null,
+        connected,
+        onOpen,
+        onPin,
+        onArchive,
+        onRename: setRenaming,
+        onMove: onMove && folders ? setMoving : undefined,
+        onLabels: labels ? setLabeling : undefined,
+        onDone,
+        targets: macs ? moveTargets(d, macs.view) : [],
+        onMoveTo: macs?.move,
+      }),
+      { x, y },
+    ).catch((e: unknown) => console.warn("loki: row menu", e));
+  const latest = useRef({ desks, onOpen, onPin, onArchive, native, popRow });
   useEffect(() => {
-    latest.current = { desks, onOpen, onPin, onArchive };
+    latest.current = { desks, onOpen, onPin, onArchive, native, popRow };
   });
   const deskOf = (scope: string) => latest.current.desks.find((d) => d.scope === scope);
   const openRow = useCallback((scope: string) => latest.current.onOpen(scope), []);
   const menuRow = useCallback((scope: string, x: number, y: number) => {
     const d = deskOf(scope);
-    if (d) setMenu({ desk: d, x, y });
+    if (!d) return;
+    if (latest.current.native) latest.current.popRow(d, x, y);
+    else setMenu({ desk: d, x, y });
   }, []);
   const pinRow = useCallback((scope: string, pinned: boolean) => {
     const d = deskOf(scope);
@@ -405,7 +442,12 @@ export function DeskSidebar({
             onClick={() => reveal(pills.up)}
             aria-label="Scroll up to a chat that needs you"
           >
-            <span aria-hidden>↑</span> Needs you
+            <span aria-hidden>
+              <GlassIcon icon={ArrowUpIcon} size={12} inline>
+                ↑
+              </GlassIcon>
+            </span>{" "}
+            Needs you
           </button>
         )}
         {pills.down && (
@@ -415,7 +457,12 @@ export function DeskSidebar({
             onClick={() => reveal(pills.down)}
             aria-label="Scroll down to a chat that needs you"
           >
-            <span aria-hidden>↓</span> Needs you
+            <span aria-hidden>
+              <GlassIcon icon={ArrowDownIcon} size={12} inline>
+                ↓
+              </GlassIcon>
+            </span>{" "}
+            Needs you
           </button>
         )}
       </div>
@@ -469,14 +516,31 @@ export function DeskSidebar({
   );
 }
 
-/** A row's context menu at the pointer: open, mark done or not done, rename, change folder, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
-function RowMenu({
+/** What a row's menu offers, as data (U19): drawn by RowMenu, or popped up natively under Liquid Glass in the Mac app. */
+interface RowMenuProps {
+  desk: DeskSummary;
+  item: AttentionItem | null;
+  connected: boolean;
+  onRename: (d: DeskSummary) => void;
+  onMove?: (d: DeskSummary) => void;
+  onLabels?: (d: DeskSummary) => void;
+  /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
+  targets: MoveTarget[];
+  onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
+  onOpen: DeskSidebarProps["onOpen"];
+  onPin: DeskSidebarProps["onPin"];
+  onArchive: DeskSidebarProps["onArchive"];
+  onDone?: DeskSidebarProps["onDone"];
+}
+
+/**
+ * A row's menu, Mail's way: open and read state, then what changes the chat (rename, folder, labels, another Mac),
+ * then pin and archive, each group apart; only what the desk allows, and what needs the link off while it is down.
+ */
+export function rowMenuEntries({
   desk: d,
   item,
-  x,
-  y,
   connected,
-  onClose,
   onOpen,
   onPin,
   onArchive,
@@ -486,20 +550,62 @@ function RowMenu({
   onDone,
   targets,
   onMoveTo,
-}: {
-  desk: DeskSummary;
-  item: AttentionItem | null;
-  x: number;
-  y: number;
-  connected: boolean;
-  onClose: () => void;
-  onRename: (d: DeskSummary) => void;
-  onMove?: (d: DeskSummary) => void;
-  onLabels?: (d: DeskSummary) => void;
-  /** The Macs this chat can move to (sidebar-model.ts moveTargets). */
-  targets: MoveTarget[];
-  onMoveTo?: (d: DeskSummary, to: MoveTarget) => void;
-} & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
+}: RowMenuProps): MenuEntry[] {
+  const archived = d.status === "archived";
+  const done = doneAction(item);
+  const off = (reason: string) => (connected ? {} : { disabled: true, hint: reason });
+  return [
+    { type: "item", id: "open", label: "Open", run: () => onOpen(d.scope) },
+    ...(onDone && item && done
+      ? [
+          {
+            type: "item",
+            id: "done",
+            label: done === "done" ? "Mark as Read" : "Mark as Unread",
+            icon: done === "done" ? MailOpenIcon : MailDotIcon,
+            run: () => onDone(item, done === "done"),
+          } as const,
+        ]
+      : []),
+    { type: "separator" },
+    ...(canRename(d) ? [{ type: "item", id: "rename", label: "Rename…", icon: PencilIcon, run: () => onRename(d), ...off(NO_RENAME_REASON) } as const] : []),
+    ...(onMove && canMove(d)
+      ? [{ type: "item", id: "folder", label: "Change Folder…", icon: FolderIcon, run: () => onMove(d), ...off(NO_MOVE_REASON) } as const]
+      : []),
+    ...(onLabels && canLabel(d)
+      ? [{ type: "item", id: "labels", label: "Labels…", icon: TagIcon, run: () => onLabels(d), ...off(NO_LABEL_REASON) } as const]
+      : []),
+    ...(onMoveTo
+      ? targets.map((t): MenuEntry => ({
+          type: "item",
+          id: `move-${t.mac_id}`,
+          label: `Move to ${t.name}`,
+          run: () => onMoveTo(d, t),
+          ...(!connected ? { disabled: true, hint: NO_MOVE_REASON } : !t.reachable ? { disabled: true, hint: `${t.name} is out of reach` } : {}),
+        }))
+      : []),
+    { type: "separator" },
+    ...(canPin(d)
+      ? [{ type: "item", id: "pin", label: d.pinned ? "Unpin" : "Pin", icon: d.pinned ? PinOffIcon : PinIcon, run: () => onPin(d, !d.pinned) } as const]
+      : []),
+    ...(canArchive(d)
+      ? [
+          {
+            type: "item",
+            id: "archive",
+            label: archived ? "Restore" : "Archive",
+            icon: archived ? ArchiveRestoreIcon : ArchiveIcon,
+            run: () => onArchive(d, !archived),
+            ...off(NO_ARCHIVE_REASON),
+          } as const,
+        ]
+      : []),
+  ];
+}
+
+/** A row's context menu drawn at the pointer, where no native menu pops up: rowMenuEntries. ↑↓ Enter Esc, or click; a press outside closes it. */
+function RowMenu({ x, y, onClose, ...props }: RowMenuProps & { x: number; y: number; onClose: () => void }) {
+  const d = props.desk;
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -507,7 +613,7 @@ function RowMenu({
   });
   useEffect(() => {
     const node = ref.current;
-    node?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    node?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
     const away = (e: PointerEvent) => {
       if (!node?.contains(e.target as Node)) closeRef.current();
     };
@@ -521,12 +627,6 @@ function RowMenu({
         document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
     };
   }, [d.scope]);
-  const archived = d.status === "archived";
-  const done = doneAction(item);
-  const pick = (fn: () => void) => () => {
-    onClose();
-    fn();
-  };
   // Kept inside the window: a menu opened near the right or bottom edge moves in.
   const left = Math.min(x, (typeof window === "undefined" ? x : window.innerWidth) - 228);
   const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 236);
@@ -537,63 +637,9 @@ function RowMenu({
       aria-label={`${d.title ?? "Chat"} actions`}
       className="loki-sidebar-menu"
       style={{ left: Math.max(8, left), top: Math.max(8, top) }}
-      onKeyDown={(e) => {
-        const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
-        else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
-        else if (e.key === "Escape" || e.key === "Tab") onClose();
-        else return;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
+      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
     >
-      <Row dense role="menuitem" onClick={pick(() => onOpen(d.scope))}>
-        Open
-      </Row>
-      {onDone && item && done && (
-        <Row dense role="menuitem" onClick={pick(() => onDone(item, done === "done"))}>
-          {done === "done" ? "Mark as read" : "Mark as unread"}
-        </Row>
-      )}
-      {canRename(d) && (
-        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_RENAME_REASON} onClick={pick(() => onRename(d))}>
-          Rename…
-        </Row>
-      )}
-      {onMove && canMove(d) && (
-        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_MOVE_REASON} onClick={pick(() => onMove(d))}>
-          Change folder…
-        </Row>
-      )}
-      {onLabels && canLabel(d) && (
-        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_LABEL_REASON} onClick={pick(() => onLabels(d))}>
-          Labels…
-        </Row>
-      )}
-      {onMoveTo &&
-        targets.map((t) => (
-          <Row
-            key={t.mac_id}
-            dense
-            role="menuitem"
-            disabled={!connected || !t.reachable}
-            title={!connected ? NO_MOVE_REASON : t.reachable ? undefined : `${t.name} is out of reach`}
-            onClick={pick(() => onMoveTo(d, t))}
-          >
-            Move to {t.name}
-          </Row>
-        ))}
-      {canPin(d) && (
-        <Row dense role="menuitem" onClick={pick(() => onPin(d, !d.pinned))}>
-          {d.pinned ? "Unpin" : "Pin to the top"}
-        </Row>
-      )}
-      {canArchive(d) && (
-        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_ARCHIVE_REASON} onClick={pick(() => onArchive(d, !archived))}>
-          {archived ? "Restore from the archive" : "Archive"}
-        </Row>
-      )}
+      <MenuItems entries={rowMenuEntries(props)} onPicked={onClose} />
     </div>
   );
 }
@@ -610,6 +656,7 @@ export function DeskSidebarView({
   onNew,
   query,
   onQuery,
+  drafting = false,
 }: {
   desk: Desk;
   catchUp: CatchUp;
@@ -618,6 +665,8 @@ export function DeskSidebarView({
   onNew: (agentId: string | null) => void;
   query: string;
   onQuery: (query: string) => void;
+  /** A chat not started yet shows in the pane (⌘N under Liquid Glass): no row is the open one. */
+  drafting?: boolean;
 }) {
   const connected = catchUp.status === "open";
   return (
@@ -636,7 +685,7 @@ export function DeskSidebarView({
       desks={desk.desks.list}
       agents={catchUp.agents}
       items={catchUp.items}
-      current={desk.scope}
+      current={drafting ? "" : desk.scope}
       connected={connected}
       avatar={avatarUrl}
       onOpen={onOpen}

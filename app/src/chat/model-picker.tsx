@@ -441,6 +441,11 @@ export function ModelChoices({
   );
 }
 
+/** An effort as a menu item says it, in title case ("No Reasoning", "X-High", "Medium"). */
+export function effortTitle(effort: ReasoningEffort): string {
+  return effortLabel(effort).replace(/(^|[\s-])([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
+}
+
 interface ModelPickerProps {
   touch?: boolean;
   current: string | null;

@@ -1,7 +1,20 @@
 import { LinkHeader } from "../chat/link-header";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FocusEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FocusEvent,
+  type RefObject,
+} from "react";
+import { useHeightVar } from "../shared/use-height-var";
+import { useLook } from "../theme";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
-import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
+import { IconButton, PaneHeader, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
@@ -10,7 +23,9 @@ import { OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transc
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
-import { keyFor, registerActions, runAction } from "../shell/keymap";
+import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
+import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { PopoverMenu } from "../shell/menu-items";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
@@ -23,6 +38,12 @@ import { useInlineWidgets } from "../chat/use-inline-widgets";
 import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
+import { ItemHeader } from "../item/item-header";
+import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
+import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
+import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
+import { chatItem } from "../item/item-view";
+import { useThreadPreview } from "../item/preview";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: ReadonlyArray<Tab<DeskTab>> = [
@@ -50,6 +71,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   /** The shell's counters (⌘L focus, ⌘F find, ⌘⇧M model, ⌘⇧P mode, ⌘⇧S suggestions) and a prefill; each reaches the view that shows. */
   focusChat: number;
   findChat: number;
+  /** Allow Step or Deny Step from the Chat menu (U5): each new count answers the approval this chat waits on, if any. */
+  decideChat: { n: number; behavior: "allow" | "deny" };
   modelPickerTick: number;
   modeMenuTick: number;
   suggestionsTick: number;
@@ -107,6 +130,16 @@ export function DeskPane(props: DeskPaneProps) {
   const runtime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
   // No rows here: DeskMessages and the inset chat read them, so a streamed piece redraws the thread, not this pane.
   const { view, actions } = deskConversation(desk, catchUp, chat, { ...props, onOpenLabels: runtime ? () => setLabeling(true) : undefined }, undefined);
+  // A menu answer reaches the step this chat is paused on; the count it was mounted with is old news, never replayed.
+  const decided = useRef(props.decideChat.n);
+  const approve = useEffectEvent((behavior: "allow" | "deny") => {
+    if (view.approval) actions.onApprove?.(behavior);
+  });
+  useEffect(() => {
+    if (props.decideChat.n === decided.current) return;
+    decided.current = props.decideChat.n;
+    if (visible === "messages") approve(props.decideChat.behavior);
+  }, [props.decideChat, visible]);
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
@@ -128,11 +161,85 @@ export function DeskPane(props: DeskPaneProps) {
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
+  const glass = useLook() === "glass";
+  // Under Liquid Glass the header floats over the thread, which pads itself by its height (shared/use-height-var.ts).
+  const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
+  useHeightVar(header, "--loki-header-height");
   const threadFocus = useRef<HTMLElement | null>(null);
   useTabFocus(visible, paneRef, threadFocus);
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Chat";
+  // The new chat pane's preview draws the header as the item's (plan 097, U8), once the chat is in the list.
+  const [preview] = useThreadPreview();
+  const links = view.links?.length ? (
+    <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} />
+  ) : null;
+  const itemView = preview === "on" && item ? chatItem({ item, live: null, turns: [] }) : null;
+  // Under Liquid Glass the header is a Mac toolbar (plan 2026-11-12-1505, U13): the title over a grey line of the
+  // chat's facts, no face and no Unread chip (the sidebar shows unread); its moves are toolbar symbols, not a row.
+  const toolbar = glass && itemView && item;
+  const itemLine = toolbar ? (
+    <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" />
+  ) : itemView && item ? (
+    <ItemHeader
+      view={itemView.header}
+      titleAs="h1"
+      className="flex-1 px-0 py-2"
+      lead={<AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={28} />}
+      onProperty={runtime ? { labels: () => setLabeling(true) } : {}}
+      meta={
+        <>
+          {runtime && !chatLabels.length && (
+            <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
+              {glass ? "Add Label" : "+ label"}
+            </button>
+          )}
+          {links}
+        </>
+      }
+      actions={tab === "desk" ? <DeskActions /> : undefined}
+    />
+  ) : undefined;
+  const toolbarItems = toolbar ? (
+    <>
+      {tab === "desk" && <DeskActions />}
+      <ToolbarGroup
+        label="Chat actions"
+        moves={[
+          ...(runtime ? [{ label: "Label", icon: <TagIcon aria-hidden />, title: "Label (/label)", run: () => setLabeling(true) }] : []),
+          ...(item.unread
+            ? [{ label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${keyFor(DONE)})`, run: () => markDone(catchUp, item) }]
+            : []),
+          {
+            label: "Archive",
+            icon: <ArchiveIcon aria-hidden />,
+            title: item.id === "default" ? "A main chat cannot be archived" : "Archive",
+            disabled: item.id === "default",
+            run: () => void catchUp.archive(item, "click"),
+          },
+        ]}
+      />
+    </>
+  ) : undefined;
+  // Its moves, under the box (plan 097, U8): read while something is new, and archive. Under Liquid Glass they are the
+  // toolbar's (above), so the box has no row under it.
+  const itemMoves =
+    !toolbar && itemView && item ? (
+      <ActionBar
+        className={COMPOSER_COLUMN}
+        view={itemView.actions}
+        quiet={itemView.proposals.some((p) => p.kind === "approval" || p.kind === "question")}
+        verbs={{
+          ...(item.unread ? { mark_read: { run: () => markDone(catchUp, item), keys: keyFor(DONE), title: "mark it read: what is new is cleared" } } : {}),
+          archive: {
+            run: () => void catchUp.archive(item, "click"),
+            disabled: item.id === "default",
+            title: item.id === "default" ? "a main chat cannot be archived" : "done with this chat: it leaves the list and Flow",
+          },
+        }}
+      />
+    ) : undefined;
 
   return (
     <div className="loki-desk-pane" ref={paneRef}>
@@ -154,15 +261,17 @@ export function DeskPane(props: DeskPaneProps) {
               <span className="loki-desk-pane-labels">
                 <LabelChips labels={chatLabels} list={catchUp.labels.list} onPick={props.onShowLabel} />
                 <button type="button" className="loki-desk-pane-label-add" onClick={() => setLabeling(true)} title="label this chat (/label)">
-                  {chatLabels.length ? "edit labels" : "+ label"}
+                  {glass ? (chatLabels.length ? "Edit Labels" : "Add Label") : chatLabels.length ? "edit labels" : "+ label"}
                 </button>
               </span>
             )}
             {/* The chat's links to other chats (plan 067): which way each goes, the time left, and close. */}
-            {view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null}
+            {links}
           </span>
         }
         actions={tab === "desk" ? <DeskActions /> : undefined}
+        line={itemLine}
+        trailing={toolbarItems}
         tabs={TABS}
         tab={tab}
         onTab={onTab}
@@ -203,6 +312,7 @@ export function DeskPane(props: DeskPaneProps) {
               modeMenuTick={tickFor(mode, "messages")}
               suggestionsTick={tickFor(suggest, "messages")}
               prefill={prefillFor("messages")}
+              footer={itemMoves}
               suggestions={runtime ? { source: catchUp, rt: runtime } : null}
             />
           </div>
@@ -274,7 +384,15 @@ function DeskMessages({
   // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowDesk };
-  return <Conversation {...conversation} view={{ ...view, rows }} agentName={agentName} layout={layout} />;
+  return (
+    <Conversation
+      {...conversation}
+      view={{ ...view, rows }}
+      agentName={agentName}
+      layout={layout}
+      usualModels={agentId ? desk.models.usual[agentId] : undefined}
+    />
+  );
 }
 
 /**
@@ -299,12 +417,6 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
   }, [visible, root, last]);
 }
 
-/** A line of the header's menu: a keymap action, run through runAction, its key shown. */
-interface MenuItem {
-  id: string;
-  label: string;
-  keys?: string;
-}
 const DONE = "desk.done";
 
 /** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */
@@ -331,81 +443,31 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
  */
 function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const items: MenuItem[] = [
-    { id: "desk.arrange", label: "Arrange widgets", keys: keyFor("desk.arrange") },
-    { id: "view.fit", label: "Fit all widgets", keys: keyFor("view.fit") },
-    { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
+  const native = useNativeMenus();
+  const action = (id: string, label: string, icon: LucideIcon): MenuEntry => ({ type: "item", id, label, icon, keys: specFor(id), run: () => runAction(id) });
+  const entries: MenuEntry[] = [
+    action("desk.arrange", "Arrange Widgets", LayoutGridIcon),
+    action("view.fit", "Fit All Widgets", Maximize2Icon),
+    { type: "separator" },
+    action("chat.toggle", "Show / Hide Chat", PanelRightIcon),
   ];
   return (
     <span className="loki-desk-pane-menu-anchor">
-      <IconButton size={28} label="More chat actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+      <IconButton
+        size={28}
+        label="More Chat Actions"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={(e) => {
+          // Under Liquid Glass in the Mac app the system's menu hangs from the button (U19).
+          if (native) void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err));
+          else setMenuOpen((v) => !v);
+        }}
+      >
         <Icon name="more" size={16} />
       </IconButton>
-      {menuOpen && (
-        <DeskMenu
-          items={items}
-          onPick={(id) => {
-            setMenuOpen(false);
-            runAction(id);
-          }}
-          onClose={() => setMenuOpen(false)}
-        />
-      )}
+      {menuOpen && <PopoverMenu label="Chat actions" entries={entries} onClose={() => setMenuOpen(false)} />}
     </span>
-  );
-}
-
-/** The overflow menu: ↑↓ / Enter / Esc, or click; a click outside closes it. */
-function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const anchor = node?.parentElement ?? null;
-    node?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
-    // a press outside the menu and its button closes it (the button toggles it itself)
-    const away = (e: PointerEvent) => {
-      if (!anchor?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      // Esc, or a pick whose action takes no focus of its own: back to the "More desk actions" button.
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
-  return (
-    <Popover
-      ref={ref}
-      role="menu"
-      aria-label="Chat actions"
-      anchor="right"
-      width={260}
-      // hung from a 28px button: the popover's own cap (its parent's width) would crush it
-      style={{ padding: 4, right: 0, maxWidth: "none" }}
-      onKeyDown={(e) => {
-        const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
-        else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
-        else if (e.key === "Escape") onClose();
-        else return;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-    >
-      {items.map((it) => (
-        <Row key={it.id} dense role="menuitem" onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
-          <span>{it.label}</span>
-          {it.keys && <Kbd>{it.keys}</Kbd>}
-        </Row>
-      ))}
-    </Popover>
   );
 }
 

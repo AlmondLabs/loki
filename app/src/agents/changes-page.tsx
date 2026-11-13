@@ -42,7 +42,7 @@ export function ChangesPage({
                 key={c.sha}
                 selected={on}
                 onClick={() => onPickSha(c.sha)}
-                style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", fontSize: 13.5 }}
+                style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", fontSize: "var(--loki-text-body)" }}
               >
                 <span className="loki-meta loki-meta--wrap">{ago(c.at)}</span>
                 <span style={{ lineHeight: 1.4 }}>
@@ -107,7 +107,16 @@ function CommitView({
 /** A unified diff, coloured by line; the header lines (message, date, stat) stay muted. */
 export function Diff({ text }: { text: string }) {
   return (
-    <pre style={{ margin: 0, fontFamily: "var(--loki-mono)", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+    <pre
+      style={{
+        margin: 0,
+        fontFamily: "var(--loki-mono)",
+        fontSize: "var(--loki-text-meta)",
+        lineHeight: 1.5,
+        whiteSpace: "pre-wrap",
+        overflowWrap: "anywhere",
+      }}
+    >
       {text.split("\n").map((line, i) => {
         const color =
           line.startsWith("+") && !line.startsWith("+++")

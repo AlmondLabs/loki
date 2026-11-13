@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLook } from "../theme";
 
 /**
  * The agent's face: its profile.png from the memory filesystem, served by the mod. Falls back to a
@@ -6,6 +7,8 @@ import { useState } from "react";
  */
 export function AgentFace({ name, src, size = 20 }: { name: string | null | undefined; src: string | null; size?: number }) {
   const [broken, setBroken] = useState(false);
+  // Under Liquid Glass an agent with no picture is Messages' grey monogram, not a coloured tile (plan 2026-11-12-1505, U17).
+  const glass = useLook() === "glass";
   const hue = agentHue(name ?? "agent");
   const style: React.CSSProperties = {
     width: size,
@@ -21,11 +24,13 @@ export function AgentFace({ name, src, size = 20 }: { name: string | null | unde
     return (
       <span
         aria-hidden
+        data-monogram={glass || undefined}
         style={{
           ...style,
+          ...(glass ? MONOGRAM : null),
           display: "inline-grid",
           placeItems: "center",
-          color: `hsl(${hue} 60% 78%)`,
+          color: glass ? "var(--loki-on-monogram)" : `hsl(${hue} 60% 78%)`,
           fontWeight: 700,
           fontSize: Math.max(9, Math.round(size * 0.5)),
           lineHeight: 1,
@@ -37,6 +42,9 @@ export function AgentFace({ name, src, size = 20 }: { name: string | null | unde
   }
   return <img src={src} alt={name ? `${name}'s face` : "agent"} style={style} onError={() => setBroken(true)} />;
 }
+
+/** Liquid Glass's monogram ground: the grey gradient Messages and Contacts draw under an initial, with no ring. */
+const MONOGRAM: React.CSSProperties = { background: "linear-gradient(var(--loki-monogram-top), var(--loki-monogram-bottom))", border: 0 };
 
 /** The hue (0 to 359) of an agent's colour, worked out from its name so the same name always gets the same colour. */
 export function agentHue(name: string): number {

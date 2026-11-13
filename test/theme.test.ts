@@ -31,7 +31,8 @@ describe("theme preference", () => {
   });
 
   test("the palette is a known family and falls back to loki's own", () => {
-    expect(PALETTES.map(isPalette)).toEqual([true, true]);
+    expect(PALETTES.map(isPalette)).toEqual([true, true, true]);
+    expect(storedPalette({ getItem: (key) => (key === PALETTE_STORAGE_KEY ? "apple" : null) })).toBe("apple");
     expect(isPalette("dracula")).toBe(false);
     expect(storedPalette({ getItem: (key) => (key === PALETTE_STORAGE_KEY ? "tokyo-night" : null) })).toBe("tokyo-night");
     expect(storedPalette({ getItem: () => "dracula" })).toBe("loki");

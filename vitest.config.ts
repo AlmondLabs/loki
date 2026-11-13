@@ -7,7 +7,7 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
   // The app's own alias (app/vite.config.ts).
-  resolve: { alias: { "@loki/kit": here("./app/src/kit/index.tsx") } },
+  resolve: { alias: { "@loki/kit": here("./app/src/kit/index.tsx"), "@": here("./app/src") } },
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", ".claude/**"],

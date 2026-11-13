@@ -249,7 +249,7 @@ export class GmailSync implements AccountSync {
   /**
    * The threads a tick reads again: those with new mail in the inbox, those moved back into the inbox (plan 070, KTD4:
    * by the person in Gmail, or by an undo), and the open cards' threads that lost UNREAD or INBOX (read or archived in
-   * Gmail), gained UNREAD (marked unread there) or lost a message. `back` names the threads moved back into the inbox,
+   * Gmail), gained UNREAD (marked unread there), gained or lost the star (plan 097, U9) or lost a message. `back` names the threads moved back into the inbox,
    * whose cards may open again.
    */
   private touched(history: GmailHistoryRecord[]): { all: Set<string>; back: Set<string> } {
@@ -259,10 +259,12 @@ export class GmailSync implements AccountSync {
     for (const h of history) {
       for (const m of h.messagesAdded) if (m.labelIds.includes("INBOX")) all.add(m.threadId);
       for (const c of h.labelsRemoved)
-        if ((c.labelIds.includes("UNREAD") || c.labelIds.includes("INBOX")) && open(c.message.threadId)) all.add(c.message.threadId);
+        if ((c.labelIds.includes("UNREAD") || c.labelIds.includes("INBOX") || c.labelIds.includes("STARRED")) && open(c.message.threadId))
+          all.add(c.message.threadId);
       for (const c of h.labelsAdded) {
         if (c.labelIds.includes("INBOX")) back.add(c.message.threadId);
-        if (c.labelIds.includes("INBOX") || (c.labelIds.includes("UNREAD") && open(c.message.threadId))) all.add(c.message.threadId);
+        if (c.labelIds.includes("INBOX") || ((c.labelIds.includes("UNREAD") || c.labelIds.includes("STARRED")) && open(c.message.threadId)))
+          all.add(c.message.threadId);
       }
       for (const m of h.messagesDeleted) if (open(m.threadId)) all.add(m.threadId);
     }
@@ -370,6 +372,8 @@ export class GmailSync implements AccountSync {
       from_backfill: fromBackfill,
       traits: mailTraits(newest.payload?.headers ?? [], own, newest.labelIds),
       unread_out_there: unread,
+      // Gmail stars a message; the thread reads as starred while any of its messages is.
+      starred: messages.some((m) => m.labelIds.includes("STARRED")),
     });
     return { observed, unread };
   }

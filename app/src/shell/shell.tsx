@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
-import { scopeFor } from "../../../core/desk-core.ts";
-import { useAttention } from "../../../core/attention/use-attention.ts";
+import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/desk-pane";
+import { NewChat } from "../desk/new-chat";
+import { useFirstMessage } from "../desk/use-first-message";
+import type { Attachment } from "../../../core/attention/content.ts";
 import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
@@ -14,11 +16,23 @@ import { LearnColumn } from "../recall/learn-column";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
-import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./sidebar";
-import type { Segment } from "./keymap";
+import {
+  ColumnToggle,
+  GLASS_HEAD,
+  GLASS_INSET,
+  Places,
+  Sidebar,
+  SIDEBAR_WIDTH,
+  sidebarToggleLeft,
+  sidebarToggleTop,
+  TitleStrip,
+  TITLEBAR_HEIGHT,
+  UpdateRow,
+} from "./sidebar";
+import { useLook } from "../theme";
+import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
-import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { useChatLayout } from "./use-chat-layout";
 import { useRecall } from "./use-recall";
 import { useLokiUpdate } from "./use-loki-update";
@@ -30,13 +44,16 @@ import { ListColumn } from "./list-column";
 import { DeskSidebarView } from "./desk-sidebar";
 import { AgentsView, InboxView, NewDeskSheet, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
+import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
 import { agentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel, modelName } from "../chat/model-picker";
 import type { ModelSelection } from "../../../core/models.ts";
-import { pageActivity, pageVisibility } from "../shared/page-activity";
+import { useShellAttention } from "./use-shell-attention";
+import { MODELS_CHANGED_KEY, openSettingsWindow, SETTINGS_WINDOW } from "./settings-window";
+import { useStorageKey } from "../shared/use-storage-key";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -74,29 +91,7 @@ export function Shell() {
     [captureRaw],
   );
   // This Mac's lane (plan 087): Flow, the rail, the window title, the dock and the tray count only its cards.
-  const [laneId, setLaneId] = useActiveLaneId("desktop");
-  const catchUp = useAttention({
-    lane: { id: laneId, setId: setLaneId, lanes: attention.lanes, setLanes: attention.setLanes, resolve: resolveLane },
-    enabled: attention.available,
-    makeClient: attention.makeClient,
-    seen: attention.seen,
-    viewed: attention.viewed,
-    focus: attention.focus,
-    engage: attention.engage,
-    rests: attention.rests,
-    rest: attention.rest,
-    returnTimes: attention.returnTimes,
-    markSeen: attention.markSeen,
-    unmarkSeen: attention.unmarkSeen,
-    loadLocalHistory: attention.loadHistory,
-    loadLocalStep: attention.loadStep,
-    listConversations: attention.listInbox,
-    capture,
-    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
-    sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
-    activity: pageActivity,
-    visibility: pageVisibility,
-  });
+  const { catchUp, laneId } = useShellAttention(desk, capture);
   /** A line at the bottom of the window for four seconds (Notices). */
   const notice = (m: string) => void notify(m);
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
@@ -115,8 +110,10 @@ export function Shell() {
     setSegmentRaw(s);
     sessionStorage.setItem(SEGMENT_KEY, s);
   }, []);
-  /** ⌘K search (SearchSheet): a sheet over whatever shows. */
+  /** ⌘K (SearchSheet): a panel over whatever shows, on a scope (U23): everything, or the open chat's models. */
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchScope, setSearchScope] = useState<CommandScope>("all");
+  const sharedModels = useSharedModels();
   /** The Chats sidebar's filter, held here so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
   const [sidebarQuery, setSidebarQuery] = useState("");
   /** Preferences: the Settings sheet over the section showing (KTD11). The rail keeps that section highlighted underneath. */
@@ -132,6 +129,11 @@ export function Shell() {
     capture("desk_switched", { desk: desk.scope });
   }, [desk.scope, capture]);
   const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
+  /**
+   * ⌘N under Liquid Glass (plan 2026-11-12-1505, U20): a chat not started yet, shown in place of the open one. `n` counts
+   * the asks, so asking again starts over on the agent asked for and puts the caret back in its box.
+   */
+  const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
   const chat = useChatLayout(desk);
   // The desk pane: Messages or the Desk tab, per desk; every open lands on Messages (desk/pane.ts).
   const pane = useDeskPane(desk.scope);
@@ -145,11 +147,15 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
+  // Allow Step and Deny Step from the Chat menu or their keys: a counter with the answer, for the chat pane (U5).
+  const [decideChat, setDecideChat] = useState<{ n: number; behavior: "allow" | "deny" }>({ n: 0, behavior: "allow" });
   const {
     list: modelList,
     load: loadModels,
     forget: forgetModels,
   } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
+  // A provider connected or dropped in the Settings window (U18): this window's model list is asked for again.
+  useStorageKey(MODELS_CHANGED_KEY, () => forgetModels());
   const daemon = useDaemonStatus();
   const welcome = welcomeFor(daemon.status, catchUp);
   const noProviders = catchUp.providers === null;
@@ -189,10 +195,13 @@ export function Shell() {
   useEffect(() => {
     desksRef.current = desk.desks;
   });
-  const openSearch = useCallback(() => {
+  const openSearch = useCallback((scope: CommandScope = "all") => {
     desksRef.current.request(); // the freshest desk titles to search
+    setSearchScope(scope);
     setSearchOpen(true);
   }, []);
+  // The model pill and ⌘⇧M open ⌘K on the open chat's models (command-center.ts).
+  useEffect(() => takeCommandCenter(openSearch), [openSearch]);
   /**
    * Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, search, a new desk): its Messages tab with the box focused.
    * `_opts.chat` predates the tabs and is kept for callers. `switchTo` is a dependency: it compares against the desk showing,
@@ -206,6 +215,7 @@ export function Shell() {
       switchTo(scope);
       paneOpen(scope);
       setSegment("desk");
+      setNewChat(null);
       setFocusChat((n) => n + 1);
     },
     [setSegment, paneOpen, switchTo],
@@ -232,6 +242,25 @@ export function Shell() {
   const createDesk = async (agent: string, folder: string, name: string, home?: string) => {
     const rt = await catchUp.createDesk(agent, folder, name, home);
     setNewDesk({ open: false, name: "", agentId: null });
+    openDesk(rt.agent_id, rt.conversation_id, { chat: true });
+  };
+
+  // Under Liquid Glass there is no rail (U12): the list column is the window's one sidebar, beside every section.
+  const glass = useLook() === "glass";
+  // Under Liquid Glass a new chat opens in place and is created by its first message; today's look asks in the dialog.
+  const startNewChat = (agentId: string | null) => {
+    if (!glass) return setNewDesk({ open: true, name: "", agentId });
+    setNewChat((was) => ({ agentId, n: (was?.n ?? 0) + 1 }));
+    setPrefsOpen(false);
+    setSegment("desk");
+  };
+  const queueFirst = useFirstMessage(desk.scope, desk.connection, (m) =>
+    catchUp.send(m.runtime, m.text, m.images, { desk: null, labels: null, origin: "desk" }),
+  );
+  const startChat = async ({ agentId, folder, home, text, images }: { agentId: string; folder: string; home?: string; text: string; images: Attachment[] }) => {
+    const rt = await catchUp.createDesk(agentId, folder, "", home);
+    // The message goes once the pane is on the new chat and its link is open (use-first-message.ts).
+    queueFirst({ scope: scopeFor(rt.conversation_id, rt.agent_id), runtime: rt, text, images });
     openDesk(rt.agent_id, rt.conversation_id, { chat: true });
   };
 
@@ -275,8 +304,9 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends.
-  const column = useColumn(segment);
+  // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends. Under
+  // Liquid Glass there is no rail (U12): the column is the window's one sidebar, beside every section, its places on top.
+  const column = useColumn(segment, glass);
   /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
   const showLabel = (name: string) => {
     setSidebarQuery(`label:${name}`);
@@ -284,10 +314,22 @@ export function Shell() {
     setSegment("desk");
     if (!column.open) column.toggle();
   };
+  // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
+  const drafting = glass && newChat !== null && segment === "desk";
+  const onChat = segment === "desk" && !drafting;
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
   const immersive = sidebarHidden(segment, pane.tab);
   const columnShown = column.shown && !immersive;
-  const paneLeft = SIDEBAR_WIDTH + (columnShown ? column.width : 0);
+  // Glass: the sidebar floats GLASS_INSET in from the window's edges; hidden, the pane clears the lights and the toggle.
+  const paneLeft = glass ? (columnShown ? GLASS_INSET * 2 + column.width : sidebarToggleLeft() + 36) : SIDEBAR_WIDTH + (columnShown ? column.width : 0);
+  // Under Liquid Glass in the Mac app Preferences is a window of its own (plan 2026-11-12-1505, U18); else the sheet.
+  const settingsWindow = glass && SETTINGS_WINDOW;
+  const showPreferences = (page?: string | null) => {
+    if (settingsWindow) return openSettingsWindow(page);
+    if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
+    setPrefsOpen(true);
+  };
+  const openPrefs = () => showPreferences();
   /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
   const chatKey = (id: string, run: (inset: boolean) => void) => {
     const to = chatKeyTarget(id, pane.tab);
@@ -296,6 +338,7 @@ export function Shell() {
 
   /** ⌘1-6 and ⌘,: ⌘, (⌘6) toggles Preferences over the section; the others close it and go (settings/preferences.ts). */
   const segmentKey = (id: string) => {
+    if (settingsWindow && id === "segment.settings") return openSettingsWindow();
     const next = afterSegmentKey(id, { segment, preferences: prefsOpen });
     setPrefsOpen(next.preferences);
     setSegment(next.segment);
@@ -309,7 +352,7 @@ export function Shell() {
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
-      "desk.new": () => setNewDesk({ open: true, name: "", agentId: null }),
+      "desk.new": () => startNewChat(null),
       "keys.sheet": () => setKeysOpen((v) => !v),
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
@@ -323,6 +366,8 @@ export function Shell() {
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
       "chat.focus": () => chatKey("chat.focus", (inset) => (inset && setChatOpen(true), setFocusChat((n) => n + 1))),
       "chat.find": () => chatKey("chat.find", (inset) => (inset && setChatOpen(true), setFindChat((n) => n + 1))),
+      "chat.allow": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "allow" })),
+      "chat.deny": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "deny" })),
       "chat.model": () => chatKey("chat.model", (inset) => (inset && setChatOpen(true), setModelPickerTick((n) => n + 1))),
       "chat.mode": () => chatKey("chat.mode", (inset) => (inset && setChatOpen(true), setModeMenuTick((n) => n + 1))),
       "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
@@ -337,6 +382,7 @@ export function Shell() {
     desk.desks.switchTo(scope);
     pane.open(scope);
     setSegment("desk");
+    setNewChat(null);
     setFocusChat((n) => n + 1);
   };
 
@@ -347,12 +393,7 @@ export function Shell() {
   );
   const openHit = ({ target: t }: SearchHit) => {
     setSearchOpen(false);
-    if (t.kind === "preferences") {
-      // Preferences mounts on its saved page: set it first.
-      if (t.page) sessionStorage.setItem(SETTINGS_PAGE_KEY, t.page);
-      setPrefsOpen(true);
-      return;
-    }
+    if (t.kind === "preferences") return showPreferences(t.page);
     setPrefsOpen(false);
     if (t.kind === "label") return showLabel(t.name);
     if (t.kind === "desk") return openDesk(t.agentId, t.conversationId);
@@ -364,25 +405,51 @@ export function Shell() {
   };
 
   return (
-    <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
+    <div className="loki-shell" style={{ position: "relative", height: "100%", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0 }}>
-        <TitleStrip />
-        <Sidebar
-          segment={segment}
-          onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))}
-          waiting={waiting}
-          tick={tick}
-          dueCards={recall.due}
-          lanOn={desk.phone.status?.enabled === true}
-          updateReady={update.newer}
-          column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null}
+        {/* Liquid Glass's sidebar (plan 2026-11-12-1505, U3): one glass panel, inset from the window's edge, under the rail
+            and the list column; components.css shows it only in that family, where the rail and column go clear over it. */}
+        <div
+          aria-hidden
+          className="loki-shell-glass glass"
+          data-empty={glass && !columnShown ? "" : undefined}
+          style={{
+            position: "absolute",
+            left: GLASS_INSET,
+            top: GLASS_INSET,
+            bottom: GLASS_INSET,
+            width: glass ? (columnShown ? column.width : 0) : Math.max(0, paneLeft - 12),
+            borderRadius: "var(--loki-radius-lg)",
+          }}
         />
+        <TitleStrip />
+        {glass && column.has && !immersive && (
+          <span style={{ position: "absolute", top: sidebarToggleTop(), left: sidebarToggleLeft(), zIndex: 2 }}>
+            <ColumnToggle open={column.open} onToggle={column.toggle} floating />
+          </span>
+        )}
+        {!glass && (
+          <Sidebar
+            segment={segment}
+            onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))}
+            waiting={waiting}
+            tick={tick}
+            dueCards={recall.due}
+            lanOn={desk.phone.status?.enabled === true}
+            updateReady={update.newer}
+            column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null}
+          />
+        )}
 
         <ListColumn
           segment={segment}
           shown={columnShown}
           width={column.width}
           onWidth={column.setWidth}
+          left={glass ? GLASS_INSET : SIDEBAR_WIDTH}
+          top={glass ? GLASS_INSET + GLASS_HEAD : TITLEBAR_HEIGHT}
+          head={glass ? <Places segment={segment} onSelect={setSegment} waiting={waiting} dueCards={recall.due} /> : null}
+          foot={glass && update.newer ? <UpdateRow onOpen={openPrefs} /> : null}
           sections={{
             desk: (
               <DeskSidebarView
@@ -390,9 +457,10 @@ export function Shell() {
                 catchUp={catchUp}
                 notice={notice}
                 onOpen={switchDesk}
-                onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })}
+                onNew={startNewChat}
                 query={sidebarQuery}
                 onQuery={setSidebarQuery}
+                drafting={drafting}
               />
             ),
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
@@ -403,11 +471,11 @@ export function Shell() {
         {/* The main pane: one main landmark for whichever section shows; the rail is the navigation, the list column the sidebar. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
-          <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
+          <div style={{ position: "absolute", inset: 0, visibility: onChat ? "visible" : "hidden" }} aria-hidden={!onChat}>
             <DeskPane
               desk={desk}
               catchUp={catchUp}
-              active={segment === "desk"}
+              active={onChat}
               tab={pane.tab}
               onTab={pane.setTab}
               frameRequest={pane.frameRequest}
@@ -419,6 +487,7 @@ export function Shell() {
               chatPlacement={chat.effectivePlacement}
               focusChat={focusChat}
               findChat={findChat}
+              decideChat={decideChat}
               chatPrefill={chatPrefill}
               models={modelList}
               onLoadModels={loadModels}
@@ -430,6 +499,26 @@ export function Shell() {
               onShowLabel={showLabel}
             />
           </div>
+
+          {/* A chat not started yet takes the open chat's place (U20); keyed by the ask, so ⌘N again starts over. */}
+          {drafting && (
+            <div style={{ position: "absolute", inset: 0 }}>
+              <NewChat
+                key={newChat.n}
+                agents={catchUp.agents}
+                avatar={avatarUrl}
+                defaultAgentId={newChat.agentId ?? desk.agentId}
+                currentAgentId={desk.agentId}
+                currentConversationKey={desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null}
+                folders={desk.attention.folders}
+                macs={desk.macs.view}
+                requirements={desk.attention.requirements}
+                onStart={startChat}
+                onClose={() => setNewChat(null)}
+                focusTick={newChat.n}
+              />
+            </div>
+          )}
 
           {segment === "inbox" && (
             <InboxView
@@ -483,15 +572,14 @@ export function Shell() {
           avatar={avatarUrl}
           onOpen={openHit}
           onClose={() => setSearchOpen(false)}
+          scope={searchScope}
+          onScope={setSearchScope}
+          models={sharedModels}
+          commands={glass ? commandsFor(segment) : []}
+          onCommand={(id) => void runAction(id)}
         />
       )}
-      {keysOpen && (
-        <KeysSheet
-          segment={segment}
-          onClose={() => setKeysOpen(false)}
-          onSettings={() => (setKeysOpen(false), sessionStorage.setItem(SETTINGS_PAGE_KEY, "keys"), setPrefsOpen(true))}
-        />
-      )}
+      {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), showPreferences("keys"))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
       {prefsOpen && (
         <SettingsView

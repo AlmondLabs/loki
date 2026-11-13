@@ -37,6 +37,7 @@ import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
 import { PassState } from "./passes-state.ts";
 import { readLocalAgent } from "../mod/agents.ts";
+import { topUsualModel } from "../mod/usual-models.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
 import { listAgents } from "./store/agents.ts";
@@ -300,6 +301,8 @@ const chat: DaemonChats = new DaemonChats({
   macId: installId(),
   schedules,
   background,
+  // A new chat starts on its agent's usual model (plan 2026-11-13-1240); the mod records the switches.
+  usualModel: (agentId) => topUsualModel(agentId),
 });
 chats.follow(stores, report);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's

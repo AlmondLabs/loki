@@ -1,3 +1,9 @@
+import { useThreadPreview } from "../item/preview";
+import { ItemMailThread, itemSlackRow } from "../item/outside-rows";
+import { ItemReplyBox } from "../item/reply-box";
+import { ItemHeader } from "../item/item-header";
+import { ActionBar, type VerbControl } from "../item/action-bar";
+import { outsideItem, type ItemVerb } from "../item/item-view";
 import type {
   EmojiChoice,
   JiraCardTicket,
@@ -19,9 +25,11 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
 } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { OutsideSource } from "../../../core/attention/use-attention.ts";
@@ -69,7 +77,10 @@ export function OutsideLines({ facts, touch = false }: { facts: OutsideFacts; to
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-3)" : 12 }}>
       {facts.lines.map((line, i) => (
-        <p key={i} style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+        <p
+          key={i}
+          style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}
+        >
           {line}
         </p>
       ))}
@@ -475,12 +486,15 @@ export function OutsideThread({
   state,
   touch = false,
   own = NO_ADDRESSES,
+  items = false,
 }: {
   facts: OutsideFacts;
   state: ThreadState;
   touch?: boolean;
   /** The person's own addresses, which a mail's header line says as "you" (plan 078). */
   own?: readonly string[];
+  /** Draw the messages with the new chat pane's item components (plan 097, U7), keeping the thread's own behaviour. */
+  items?: boolean;
 }) {
   const end = useRef<HTMLDivElement>(null);
   // Scrolled when the newest message changes, so events a Jira card loads above what is read leave it where it is.
@@ -497,7 +511,7 @@ export function OutsideThread({
   if (facts.provider === "jira" && state.kind === "read" && state.ticket)
     return (
       <JiraTicket ticket={state.ticket} touch={touch}>
-        {touch ? <ThreadList facts={facts} state={state} /> : <SlackRows facts={facts} state={state} stays />}
+        {touch ? <ThreadList facts={facts} state={state} /> : <SlackRows facts={facts} state={state} stays items={items} />}
       </JiraTicket>
     );
   if (state.kind !== "read" || state.messages.length === 0) return <ThreadStandIn facts={facts} state={state} touch={touch} />;
@@ -505,18 +519,28 @@ export function OutsideThread({
   if (facts.provider === "gmail")
     return (
       <>
-        <MailThread messages={state.messages} own={own} />
+        {items ? <ItemMailThread messages={state.messages} own={own} /> : <MailThread messages={state.messages} own={own} />}
         <div ref={end} />
       </>
     );
-  return <SlackRows facts={facts} state={state} />;
+  return <SlackRows facts={facts} state={state} items={items} />;
 }
 
 /**
  * A Slack or Jira card's messages on the desktop, drawn by the Slack card's rows (plans 074, 091); a Jira card's
  * without what only Slack has, and under its ticket without scrolling away from the ticket's top (`stays`).
  */
-function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state: Extract<ThreadState, { kind: "read" }>; stays?: boolean }) {
+function SlackRows({
+  facts,
+  state,
+  stays = false,
+  items = false,
+}: {
+  facts: OutsideFacts;
+  state: Extract<ThreadState, { kind: "read" }>;
+  stays?: boolean;
+  items?: boolean;
+}) {
   return (
     <SlackThread
       messages={state.messages}
@@ -525,6 +549,7 @@ function SlackRows({ facts, state, stays = false }: { facts: OutsideFacts; state
       controls={state.controls ?? null}
       jira={facts.provider === "jira"}
       stays={stays}
+      {...(items ? { row: itemSlackRow(facts.provider) } : {})}
     />
   );
 }
@@ -639,10 +664,13 @@ export function OutsideReply({
   keep,
   searchPeople,
   inThread = false,
+  items = false,
   onUnsent,
 }: {
   /** A thread is open on the card (plan 085): the reply goes into it, and the box says so. */
   inThread?: boolean;
+  /** Draw the box as the new chat pane's Composer (plan 097, U7); its behaviour is the same either way. */
+  items?: boolean;
   /**
    * Send again or let go the person's mail reply that did not go (plan 096), which the card's facts carry: null when
    * done, else why not. Absent, the card still says it was not sent but offers nothing.
@@ -768,12 +796,75 @@ export function OutsideReply({
     if (compose) setMail(startAddressing(compose));
     setLineOpen(false);
   };
+  // The mail reply that did not go (plan 096) shows over either box, the new pane's as today's.
+  const notSent = facts.not_sent && <NotSentLine note={facts.not_sent} touch={touch} onUnsent={onUnsent} />;
+  if (items)
+    return (
+      <>
+        {notSent}
+        <ItemReplyBox
+          isMail={isMail}
+          target={
+            isMail ? (
+              <MailAddressLine
+                compose={compose}
+                value={mail}
+                onChange={setMail}
+                open={lineOpen}
+                onOpen={setLineOpen}
+                onTyping={onTyping}
+                touch={false}
+                disabled={off}
+                full
+              />
+            ) : (
+              hint
+            )
+          }
+          mentions={mentions.list}
+          field={{
+            ref: (el: HTMLTextAreaElement | null) => {
+              ownRef.current = el;
+              if (inputRef) inputRef.current = el;
+            },
+            value: text,
+            disabled: off,
+            // The target line already says where it goes; the field says what to do.
+            placeholder: isMail ? hint : facts.provider === "jira" ? "write a comment…" : "write a reply…",
+            "aria-label": hint,
+            onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+              setText(e.target.value);
+              mentions.onCaret(e.target);
+            },
+            onSelect: (e: SyntheticEvent<HTMLTextAreaElement>) => mentions.onCaret(e.currentTarget),
+            onKeyDown: keys,
+            onFocus: () => onTyping?.(true),
+            onBlur: () => {
+              mentions.onCaret(null);
+              onTyping?.(false);
+            },
+          }}
+          signature={isMail && compose && hasSignature ? { text: signature, toggle: () => shown && setMail({ ...shown, signature: !signature }) } : null}
+          quote={isMail && compose && quote ? { text: quote, forward: shown?.mode === "forward" } : null}
+          send={{
+            busy,
+            disabled: off || !text.trim(),
+            title: nobody ? "add someone to send it to first" : SEND_TITLE[facts.provider],
+            keys: sendKey ? formatKeys(sendKey) : keyFor("chat.send"),
+            onSend: () => void send(),
+          }}
+          discard={isMail ? { disabled: off || (!text && mail === null), onDiscard: discard } : null}
+          error={error}
+          actions={isMail ? null : actions}
+        />
+      </>
+    );
   return (
     <div
       className={framed ? "loki-mail-compose" : undefined}
       style={framed ? undefined : { display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-2)" : 8 }}
     >
-      {facts.not_sent && <NotSentLine note={facts.not_sent} touch={touch} onUnsent={onUnsent} />}
+      {notSent}
       {isMail && (
         <div className={framed ? "loki-mail-compose-head" : undefined}>
           <MailAddressLine
@@ -971,6 +1062,91 @@ export function OutsideHeader({
   );
 }
 
+/**
+ * An outside card's header for the new chat pane's preview (plan 097, U8): the sender's face with its mark, the
+ * channel, subject or ticket as the one-line title with its flags, its properties, then when, the account and where it
+ * went. The moves are OutsideItemActions, under the reply box.
+ */
+export function OutsideItemHeader({
+  facts,
+  unread,
+  flash,
+  went,
+  cameBack,
+  thread,
+}: {
+  facts: OutsideFacts;
+  unread: boolean;
+  flash: string | null;
+  went: string | null;
+  cameBack: boolean;
+  thread: ThreadState;
+}) {
+  const view = outsideItem({ facts, messages: thread.kind === "read" ? thread.messages : [], ticket: readHead(thread).ticket, unread });
+  const who = senderName(facts.sender);
+  return (
+    <ItemHeader
+      view={view.header}
+      lead={<CardFace name={who} src={facts.sender_avatar ?? null} mark={MARK[facts.provider]} />}
+      meta={
+        <>
+          <OutsideHeadLine facts={facts} what={facts.provider === "slack" ? who : null} went={went} cameBack={cameBack} />
+          {flash && <Chip tone="var(--loki-positive)">{flash}</Chip>}
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * An outside card's moves as the ActionBar, in the reply box's row as OutsideMoves sits today (plan 097, U8): read
+ * named on Slack and Jira and archive on a mail, the rest before it with Flow's keys (KTD9). A Jira ticket's link to
+ * its page is the bar's "open in jira".
+ */
+export function OutsideItemActions({
+  facts,
+  thread,
+  typing,
+  moves,
+  onHandoff,
+  picking,
+}: {
+  facts: OutsideFacts;
+  thread: ThreadState;
+  typing: boolean;
+  moves: OutsideMoveHandlers;
+  onHandoff?: () => void;
+  picking: boolean;
+}) {
+  const { link } = readHead(thread);
+  const view = outsideItem({ facts, messages: [], unread: false });
+  const address = ticketAddress(facts, link);
+  const off = !!facts.disconnected || picking;
+  const archiveTitle = ARCHIVE_TITLE[facts.provider];
+  const verbs: Partial<Record<ItemVerb, VerbControl>> = {
+    mark_read: { run: moves.read, keys: deckKey("inbox.next", typing), title: READ_TITLE[facts.provider] },
+    later: { run: moves.later, keys: deckKey("inbox.later", typing), title: LATER_TITLE[facts.provider] },
+  };
+  if (archiveTitle) verbs.archive = { run: moves.archive, keys: deckKey("inbox.archive", typing), title: archiveTitle };
+  if (facts.provider === "gmail")
+    verbs.label = {
+      run: moves.label,
+      keys: typing ? undefined : keyFor("inbox.label"),
+      disabled: off,
+      title: "add a Gmail label to the thread; the card stays",
+    };
+  if (onHandoff)
+    verbs.handoff = {
+      run: onHandoff,
+      disabled: off,
+      title: facts.disconnected
+        ? `cannot hand off now: ${disconnectedText(facts.disconnected, facts.provider)}`
+        : HANDOFF_TITLE[facts.provider](facts.owner_name ?? "its agent"),
+    };
+  if (address) verbs.open_out = { run: () => openExternal(address), title: address };
+  return <ActionBar view={view.actions} verbs={verbs} />;
+}
+
 /** The header's second line: where or who, when, the account when more than one is connected, and the last move. */
 function OutsideHeadLine({ facts, what, went, cameBack }: { facts: OutsideFacts; what: string | null; went: string | null; cameBack: boolean }) {
   return (
@@ -1128,7 +1304,9 @@ function DeckReply({
   onEscapeEmpty,
   row,
   compose,
+  items = false,
 }: {
+  items?: boolean;
   current: AttentionItem;
   facts: OutsideFacts;
   thread: ThreadState;
@@ -1154,6 +1332,7 @@ function DeckReply({
       quote={quoteOf(facts, thread)}
       searchPeople={people ? (q: string) => people(current, q).then((r) => (typeof r === "string" ? [] : r)) : undefined}
       inThread={thread.kind === "read" && !!thread.opened}
+      items={items}
       onUnsent={settle ? (outboxId, action) => settle(current, outboxId, action) : undefined}
     />
   );
@@ -1205,7 +1384,15 @@ export function OutsideCard({
   compose?: MailCompose | null;
 }) {
   const thread = useOutsideThread(current, source, box?.onThread ? { opened: box.thread ?? null, setOpened: box.onThread } : undefined);
-  const row = <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />;
+  // The new chat pane's preview draws the thread's messages with the item components (plan 097, U7).
+  const [preview] = useThreadPreview();
+  // With the preview on, the card's moves are the item's ActionBar (plan 097, U8), in the same place under the reply.
+  const row =
+    preview === "on" ? (
+      <OutsideItemActions facts={facts} thread={thread} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />
+    ) : (
+      <OutsideMoves facts={facts} typing={typing} moves={moves} onHandoff={onHandoff} picking={!!picker} />
+    );
   // A mail's reply is a box at the end of its thread, as Gmail's is (plan 078); the card's moves keep the bottom row.
   const mailBox = facts.provider === "gmail" && !!box;
   const own = ownAddresses(facts, compose);
@@ -1221,21 +1408,26 @@ export function OutsideCard({
       onEscapeEmpty={onEscapeEmpty}
       row={row}
       compose={compose}
+      items={preview === "on"}
     />
   ) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} {...readHead(thread)} />
+      {preview === "on" ? (
+        <OutsideItemHeader facts={facts} unread={current.unread} flash={flash} went={went} cameBack={cameBack} thread={thread} />
+      ) : (
+        <OutsideHeader facts={facts} badge={flash ?? (current.unread ? "new" : null)} went={went} cameBack={cameBack} {...readHead(thread)} />
+      )}
       <div data-thread-scroll style={{ flex: 1, minHeight: 0, overflow: "auto", padding: facts.provider === "slack" ? "8px 20px 16px" : "16px 18px" }}>
         {facts.disconnected && (
           <Meta negative wrap style={{ display: "block", marginBottom: 12 }}>
             {disconnectedText(facts.disconnected, facts.provider)}
           </Meta>
         )}
-        <OutsideThread facts={facts} state={thread} own={own} />
+        <OutsideThread facts={facts} state={thread} own={own} items={preview === "on"} />
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
-      {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
+      {picker && <div className="loki-card-picker">{picker}</div>}
       <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
         {reply && !mailBox ? reply : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>}
       </div>

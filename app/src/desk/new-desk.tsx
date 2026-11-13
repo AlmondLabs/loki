@@ -4,8 +4,11 @@ import { AgentFace } from "./agent-chip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
+import { useLook } from "../theme";
 import type { Pushes } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
+import { GitBranchIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /**
  * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
@@ -29,10 +32,16 @@ export function NewDesk({ open, ...props }: NewDeskProps & { open: boolean }) {
   return <NewDeskSheet {...props} />;
 }
 
+/** An agent a new chat can be for. `home_mac` is the Mac it lives on (plan 023). */
+export interface NewChatAgent {
+  id: string;
+  name: string;
+  home_mac?: string | null;
+}
+
 interface NewDeskProps {
   onClose: () => void;
-  /** `home_mac` is the Mac each agent lives on (plan 023). */
-  agents: Array<{ id: string; name: string; home_mac?: string | null }>;
+  agents: NewChatAgent[];
   /** This Mac and the Macs paired with it; with none, every chat starts here and nothing is asked. */
   macs?: Pushes["peers"] | null;
   defaultAgentId: string | null;
@@ -289,7 +298,9 @@ function NewDeskSheet({
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">New chat</div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>A fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
+        <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
+          A fresh conversation{agentName ? ` with ${agentName}` : ""}
+        </div>
       </div>
 
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
@@ -328,7 +339,7 @@ function NewDeskSheet({
           />
         </div>
 
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
       </div>
 
       <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
@@ -342,7 +353,7 @@ function NewDeskSheet({
  * name when starting it: named outright either way, so the chat lives where the dialog said even if that Mac came
  * back meanwhile; undefined when the agent lives here.
  */
-function useChatHome(agents: NewDeskProps["agents"], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
+export function useChatHome(agents: NewChatAgent[], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
   const [pickHere, setPickHere] = useState(false);
   const agentHome = agentHomeOf(
     agents.find((a) => a.id === agentId),
@@ -482,7 +493,7 @@ export function ChangeFolder({
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
+        <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
           {title ? `Move ${title}` : "Move this chat"}
           {agentName ? ` · ${agentName}` : ""}
         </div>
@@ -507,7 +518,7 @@ export function ChangeFolder({
         <div className="loki-meta loki-meta--wrap">
           {currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.
         </div>
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
       </div>
       <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
         <span className="loki-label">Enter move · esc close</span>
@@ -567,7 +578,24 @@ function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"
 function FolderVerdict({ status }: { status: FolderStatus }) {
   return (
     <span style={{ fontWeight: 400, color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
-      {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
+      {status ? (
+        status.ok ? (
+          status.branch ? (
+            <>
+              <GlassIcon icon={GitBranchIcon} size={12} inline>
+                ⎇
+              </GlassIcon>{" "}
+              {status.branch}
+            </>
+          ) : (
+            "folder ok"
+          )
+        ) : (
+          status.reason
+        )
+      ) : (
+        ""
+      )}
     </span>
   );
 }
@@ -608,6 +636,8 @@ export function FolderPicker({
   browser: BrowseWith;
 }) {
   const [hi, setHi] = useState(0);
+  // Liquid Glass words its controls in title case (plan 2026-11-12-1505, R7).
+  const glass = useLook() === "glass";
   return (
     <div style={{ position: "relative" }}>
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
@@ -652,7 +682,17 @@ export function FolderPicker({
         />
         {browser && (
           <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`choose a folder in ${osWords().fileManager}`}>
-            {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
+            {glass
+              ? busy === "picking"
+                ? "Choosing…"
+                : !canBrowse
+                  ? "Loading…"
+                  : "Browse…"
+              : busy === "picking"
+                ? "choosing…"
+                : !canBrowse
+                  ? "loading…"
+                  : "browse…"}
           </Button>
         )}
       </div>
@@ -718,7 +758,7 @@ function FolderList({
               }}
               style={{ display: "grid", gap: 0 }}
             >
-              <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
+              <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{label}</div>
               <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>
                 {o.path}
               </div>

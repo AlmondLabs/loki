@@ -126,7 +126,7 @@ function JiraFields({ ticket, touch }: { ticket: JiraCardTicket; touch: boolean 
   );
   if (rows.length === 0) return null;
   return (
-    <dl className="loki-jira-fields" style={{ fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+    <dl className="loki-jira-fields" style={{ fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}>
       {rows.map((f) => (
         <div key={f.key} className="loki-jira-field">
           <dt className={touch ? "loki-phone-meta" : "loki-meta"}>{say(touch, f.label)}</dt>
@@ -163,7 +163,7 @@ export function alsoChangedText(changes: readonly JiraOtherChange[]): string | n
 /** A part's heading: "Description", "Comments · 2". */
 function Heading({ touch, children }: { touch: boolean; children: ReactNode }) {
   return (
-    <div className="loki-jira-heading" style={{ fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+    <div className="loki-jira-heading" style={{ fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}>
       {children}
     </div>
   );
@@ -190,7 +190,7 @@ function JiraDescription({ ticket, touch }: { ticket: JiraCardTicket; touch: boo
         </span>
       )}
       {lines.length > 0 ? (
-        <div className="loki-jira-description" style={{ fontSize: touch ? "var(--phone-text-body)" : 13.5 }}>
+        <div className="loki-jira-description" style={{ fontSize: touch ? "var(--phone-text-body)" : "var(--loki-text-body)" }}>
           <LinkedText text={shown.join("\n")} />
         </div>
       ) : (

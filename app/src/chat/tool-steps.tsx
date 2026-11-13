@@ -48,7 +48,7 @@ const fills = (row: TranscriptRow, whole: WholeRow | null): whole is WholeRow =>
  * A row as it shows opened: its own step or detail, or for a lean one (plans 041 and 043) what the page left out,
  * asked for from the Mac the chat lives on. "loading" until it comes, "failed" with a retry when it does not.
  */
-function useWhole(row: TranscriptRow): { whole: WholeRow | undefined; state: "ready" | "loading" | "failed"; retry: () => void } {
+export function useWhole(row: TranscriptRow): { whole: WholeRow | undefined; state: "ready" | "loading" | "failed"; retry: () => void } {
   const load = useContext(StepsLoad);
   const lean = row.tool?.row ?? row.row;
   const [got, setGot] = useState<{ row: TranscriptRow; whole: WholeRow | null } | null>(null);

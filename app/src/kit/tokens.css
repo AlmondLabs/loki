@@ -64,6 +64,18 @@
   --loki-radius-md: 8px;
   --loki-radius-lg: 12px;
   --loki-radius-pill: 999px;
+  /* Type scale (px), by role: micro 9.5 · fine 10.5 · tag 11 · meta 12 · body 13.5 · row 15 · title 17 · display 22 ·
+     hero 28. Every desktop size reads one of these (styles.css names them for Tailwind), so Liquid Glass can move the
+     whole scale onto the Mac's (below) in one place. */
+  --loki-text-micro: 9.5px;
+  --loki-text-fine: 10.5px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 12px;
+  --loki-text-body: 13.5px;
+  --loki-text-row: 15px;
+  --loki-text-title: 17px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 28px;
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
   --loki-label: var(--loki-font);
@@ -246,6 +258,214 @@
   --loki-label-7: oklch(54% 0.15 350);
 }
 
+/* Liquid Glass (plan 2026-11-12-1505, U1): loki on Apple's Human Interface Guidelines. The roles are loki's, the colours
+   Apple's semantic ones (label, secondary label, separators, fills, the system blue), darkened where AA needs it. The
+   affirmative fill is the accent, as a Mac's default button is. The glass tokens are this family's alone: the glass
+   utilities in styles.css fall back to the solid panel in every other family, and the media block below turns them
+   solid under Reduce Transparency or Increase Contrast, or when the platform asks for it (data-glass="solid"). */
+:root[data-palette="apple"] {
+  /* The Mac's type scale (plan 2026-11-12-1505, U15), as AppKit sets it: body and list rows 13, secondary 11, the
+     smallest 10, a window or section title 15, a pane's large title 22, the largest 26. */
+  --loki-text-micro: 10px;
+  --loki-text-fine: 10px;
+  --loki-text-tag: 11px;
+  --loki-text-meta: 11px;
+  --loki-text-body: 13px;
+  --loki-text-row: 13px;
+  --loki-text-title: 15px;
+  --loki-text-display: 22px;
+  --loki-text-hero: 26px;
+  color-scheme: dark;
+  --loki-bg: #1c1c1e;
+  --loki-panel: #232325;
+  --loki-panel-header: #1c1c1e;
+  --loki-hover: #2c2c2e;
+  --loki-selection: #3a3a3c;
+  --loki-border: #38383a;
+  --loki-control-border: #8e8e93;
+  --loki-fg: #f5f5f7;
+  --loki-muted: #aeaeb2;
+  --loki-accent: #3d9bff;
+  --loki-accent-soft: oklch(33% 0.09 255);
+  --loki-brass-soft: oklch(25% 0.05 255);
+  --loki-positive: #30d158;
+  --loki-negative: #ff6961;
+  /* What waits on you is blue, as Mail's unread dot is (plan 2026-11-12-1505, U17); red stays for failures and the Dock. */
+  --loki-attention: #3d9bff;
+  --loki-on-attention: #001d3d;
+  /* An agent with no picture: Messages' grey monogram, a soft top-to-bottom gradient under a white initial. */
+  --loki-monogram-top: #8e8e93;
+  --loki-monogram-bottom: #636366;
+  --loki-on-monogram: #ffffff;
+  --loki-affirm: #0a6cff;
+  --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #d4a0e0;
+  --loki-mark-mail: #ff8a80;
+  --loki-mark-jira: #8ab4f8;
+  --loki-mention: oklch(27% 0.03 85);
+  --loki-mention-bar: #ffd60a;
+  --loki-grid: #2c2c2e;
+  --loki-well: #161618;
+  --loki-bubble: #232325;
+  --loki-user-bubble: #2c2c2e;
+  --loki-code: #2c2c2e;
+  --loki-veil: rgba(0, 0, 0, 0.5);
+  --loki-brass-glow: rgba(61, 155, 255, 0.25);
+  --loki-shadow-sheet: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
+  --loki-glass: rgba(44, 44, 48, 0.6);
+  --loki-glass-strong: rgba(44, 44, 48, 0.76);
+  --loki-glass-hi: rgba(255, 255, 255, 0.14);
+  --loki-glass-edge: rgba(255, 255, 255, 0.12);
+  --loki-glass-blur: blur(28px) saturate(180%);
+  /* The chosen segment of a segmented control, raised off its grey track as a Mac's is. */
+  --loki-segment: #636366;
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(72% 0.14 25);
+  --loki-label-1: oklch(72% 0.14 65);
+  --loki-label-2: oklch(72% 0.14 95);
+  --loki-label-3: oklch(72% 0.14 150);
+  --loki-label-4: oklch(72% 0.14 195);
+  --loki-label-5: oklch(72% 0.14 250);
+  --loki-label-6: oklch(72% 0.14 300);
+  --loki-label-7: oklch(72% 0.14 350);
+}
+
+:root[data-palette="apple"][data-theme="light"] {
+  color-scheme: light;
+  --loki-bg: #ffffff;
+  --loki-panel: #f5f5f7;
+  --loki-panel-header: #f5f5f7;
+  --loki-hover: #ebebed;
+  --loki-selection: #e3e3e8;
+  --loki-border: #e0e0e3;
+  --loki-control-border: #86868b;
+  --loki-fg: #1d1d1f;
+  --loki-muted: #636366;
+  --loki-accent: #0064d6;
+  --loki-accent-soft: #dbe9fb;
+  --loki-brass-soft: #eaf2fd;
+  --loki-positive: #18733a;
+  --loki-negative: #c4170f;
+  --loki-attention: #0064d6;
+  --loki-on-attention: #ffffff;
+  --loki-monogram-top: #a5abb8;
+  --loki-monogram-bottom: #858994;
+  --loki-on-monogram: #ffffff;
+  --loki-affirm: #0064d6;
+  --loki-on-affirm: #ffffff;
+  --loki-mark-slack: #611f69;
+  --loki-mark-mail: #c5221f;
+  --loki-mark-jira: #1558bc;
+  --loki-mention: #fff8e0;
+  --loki-mention-bar: #e8a33a;
+  --loki-grid: #ebebed;
+  --loki-well: #ffffff;
+  --loki-bubble: #f5f5f7;
+  --loki-user-bubble: #eef4fd;
+  --loki-code: #f2f2f4;
+  --loki-veil: rgba(0, 0, 0, 0.25);
+  --loki-brass-glow: rgba(0, 100, 214, 0.16);
+  --loki-shadow-sheet: 0 12px 32px rgba(0, 0, 0, 0.16);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.09);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --loki-glass: rgba(236, 236, 241, 0.7);
+  --loki-glass-strong: rgba(246, 246, 249, 0.82);
+  --loki-glass-hi: rgba(255, 255, 255, 0.95);
+  --loki-glass-edge: rgba(0, 0, 0, 0.1);
+  --loki-glass-blur: blur(28px) saturate(180%);
+  --loki-segment: #ffffff;
+  /* Label colours (plan 022): a dot and a faint tint on a chip, in this order; core/labels.ts counts eight. */
+  --loki-label-0: oklch(54% 0.15 25);
+  --loki-label-1: oklch(54% 0.15 65);
+  --loki-label-2: oklch(54% 0.15 95);
+  --loki-label-3: oklch(54% 0.15 150);
+  --loki-label-4: oklch(54% 0.15 195);
+  --loki-label-5: oklch(54% 0.15 250);
+  --loki-label-6: oklch(54% 0.15 300);
+  --loki-label-7: oklch(54% 0.15 350);
+}
+
+/* Glass turns solid, same shapes, when the person asked for less transparency or more contrast (R3), or when the
+   platform's budget says so: data-glass="solid" on the root. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-palette="apple"],
+  :root[data-palette="apple"][data-theme="light"] {
+    --loki-glass: var(--loki-panel);
+    --loki-glass-strong: var(--loki-panel);
+    --loki-glass-blur: none;
+  }
+}
+:root[data-palette="apple"][data-glass="solid"],
+:root[data-palette="apple"][data-glass="solid"][data-theme="light"] {
+  --loki-glass: var(--loki-panel);
+  --loki-glass-strong: var(--loki-panel);
+  --loki-glass-blur: none;
+}
+
+/* shadcn's names for loki's roles (plan 096). shadcn's components read these; each one is a loki token, so every
+   family, side and the phone follow without a second definition. They are declared on .loki-phone as well as :root
+   because a custom property resolves where it is declared: on :root alone, the phone's own roles would never reach
+   them. shadcn's "primary" is loki's affirmative fill (the one go button), "accent" its hover, "ring" the link blue.
+   The layers repeat LAYER (kit/layers.ts) for the z-* utilities in styles.css; the tokens test keeps them equal. */
+:root,
+.loki-phone {
+  --background: var(--loki-bg);
+  --foreground: var(--loki-fg);
+  --card: var(--loki-panel);
+  --card-foreground: var(--loki-fg);
+  --popover: var(--loki-panel);
+  --popover-foreground: var(--loki-fg);
+  --primary: var(--loki-affirm);
+  --primary-foreground: var(--loki-on-affirm);
+  --secondary: var(--loki-selection);
+  --secondary-foreground: var(--loki-fg);
+  --muted: var(--loki-panel-header);
+  --muted-foreground: var(--loki-muted);
+  --accent: var(--loki-hover);
+  --accent-foreground: var(--loki-fg);
+  --destructive: var(--loki-negative);
+  --border: var(--loki-border);
+  --input: var(--loki-control-border);
+  --ring: var(--loki-accent);
+  --chart-1: var(--loki-accent);
+  --chart-2: var(--loki-label-1);
+  --chart-3: var(--loki-label-3);
+  --chart-4: var(--loki-label-5);
+  --chart-5: var(--loki-label-7);
+  --sidebar: var(--loki-panel);
+  --sidebar-foreground: var(--loki-fg);
+  --sidebar-primary: var(--loki-affirm);
+  --sidebar-primary-foreground: var(--loki-on-affirm);
+  --sidebar-accent: var(--loki-hover);
+  --sidebar-accent-foreground: var(--loki-fg);
+  --sidebar-border: var(--loki-border);
+  --sidebar-ring: var(--loki-accent);
+  --radius: var(--loki-radius-md);
+}
+/* The glass every family but Liquid Glass draws: the solid panel and its hairline, no blur (styles.css's glass utilities). */
+:root {
+  --loki-glass: var(--loki-panel);
+  --loki-glass-strong: var(--loki-panel);
+  --loki-glass-hi: transparent;
+  --loki-glass-edge: var(--loki-border);
+  --loki-glass-blur: none;
+  /* What the chat pane's floating header and dock measure (shared/use-height-var.ts); 0 until measured. */
+  --loki-header-height: 0px;
+  --loki-dock-height: 0px;
+}
+:root {
+  --loki-layer-panel: 100;
+  --loki-layer-bubble: 101;
+  --loki-layer-rail: 110;
+  --loki-layer-modal: 200;
+  --loki-layer-strip: 250;
+  --loki-layer-toast: 300;
+}
+
 /* More contrast (the OS setting): the quiet hairlines take the controls' stronger edge, in every theme and palette.
    The phone does the same for its own tokens (phone.css). */
 @media (prefers-contrast: more) {
@@ -260,7 +480,7 @@
 /* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 600;
   color: var(--loki-muted);
 }
@@ -489,7 +709,7 @@ a:focus-visible {
 .loki-widget-body {
   font-family: var(--loki-font);
   color: var(--loki-fg);
-  font-size: 13.5px;
+  font-size: var(--loki-text-body);
   line-height: 1.45;
 }
 

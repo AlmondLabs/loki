@@ -146,7 +146,7 @@ function TailnetList({ devices, picked, onPick }: { devices: Array<TailnetDevice
             >
               <Dot aria-hidden size={8} color={d.online ? "var(--loki-positive)" : "var(--loki-border)"} ring={!d.online} />
               <span style={{ display: "grid", minWidth: 0, flex: 1 }}>
-                <span style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{d.name}</span>
+                <span style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{d.name}</span>
                 <span className="loki-meta" style={{ fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {d.address}
                 </span>
@@ -167,13 +167,15 @@ function PairCode({ code }: { code: Pushes["peer_pair_code"] }) {
   const expired = left === "expired";
   return (
     <div style={{ display: "grid", gap: 4, paddingBottom: 12 }}>
-      <div style={{ fontFamily: "var(--loki-mono)", fontSize: 22, color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>{code.code}</div>
+      <div style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-display)", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+        {code.code}
+      </div>
       {code.host && (
         <div className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>
           {code.host}
         </div>
       )}
-      <div style={{ fontSize: 12, color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
+      <div style={{ fontSize: "var(--loki-text-meta)", color: expired ? "var(--loki-negative)" : "var(--loki-muted)" }}>
         {expired ? "expired" : `${left} left`} · type both on the other Mac's Preferences › Macs
       </div>
     </div>

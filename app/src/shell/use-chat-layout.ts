@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { Desk } from "./types";
+import { useStorageKey } from "../shared/use-storage-key";
 
 const CHAT_WIDTH_KEY = "loki.chatWidth";
 const CHAT_PLACEMENT_KEY = "loki.chatPlacement";
@@ -26,6 +27,9 @@ export function useChatLayout(desk: Pick<Desk, "loaded" | "connection" | "ownCou
     setChatPlacementRaw(p);
     localStorage.setItem(CHAT_PLACEMENT_KEY, p);
   }, []);
+  // Settings may be another window (plan 2026-11-12-1505, U18): its choice arrives here as a storage event.
+  useStorageKey(CHAT_WIDTH_KEY, (v) => setChatWidthRaw(v === "wide" ? "wide" : "narrow"));
+  useStorageKey(CHAT_PLACEMENT_KEY, (v) => setChatPlacementRaw(v === "center" || v === "right" ? v : "left"));
   /** Empty desks whose chat the user moved away from the centre; state, not a ref, because render reads it. */
   const [movedOnEmpty, setMovedOnEmpty] = useState<ReadonlySet<string>>(() => new Set());
   const emptyDesk = desk.loaded && desk.connection === "open" && desk.ownCount === 0;

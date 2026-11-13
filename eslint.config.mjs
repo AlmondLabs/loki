@@ -68,9 +68,10 @@ export default tseslint.config(
   },
   {
     // Every export outside the tests says what it is (STYLE §5): functions, components, classes, interfaces, type aliases
-    // and constants alike. A `/** … */` comment, so editors show it where the export is used.
+    // and constants alike. A `/** … */` comment, so editors show it where the export is used. shadcn's components in
+    // app/src/ui are upstream source kept close to the registry so `shadcn add --diff` merges cleanly (plan 096).
     files: ["**/*.{ts,tsx,mts}"],
-    ignores: ["test/**", "test-node/**", "**/*.config.ts", "**/*.d.mts"],
+    ignores: ["test/**", "test-node/**", "**/*.config.ts", "**/*.d.mts", "app/src/ui/**"],
     plugins: { jsdoc },
     rules: {
       "jsdoc/require-jsdoc": [

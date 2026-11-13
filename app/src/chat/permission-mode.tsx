@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 import type { ChatEngineView } from "../../../core/models.ts";
 import type { ModelAndMode } from "./use-model-and-mode";
+import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
 
 /**
  * The four permission modes loki's daemon knows, per conversation (daemon/approvals.ts). Set with chat_open { mode }
@@ -85,7 +86,7 @@ export function ModeChip({
     >
       <Shield fill={info.fill} />
       {busy ? "changing…" : info.short}
-      <span aria-hidden style={{ fontSize: 9.5 }}>
+      <span aria-hidden style={{ fontSize: "var(--loki-text-micro)" }}>
         ▾
       </span>
     </Chip>
@@ -165,12 +166,12 @@ export function ModeMenu({
             <Shield fill={m.fill} />
           </span>
           <span style={{ display: "grid" }}>
-            <span style={{ fontSize: 13.5 }}>{m.label}</span>
+            <span style={{ fontSize: "var(--loki-text-body)" }}>{m.label}</span>
             <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
               {m.description}
             </span>
           </span>
-          <span style={{ fontSize: 10.5, color: "var(--loki-accent)" }}>{m.id === selected ? "current" : ""}</span>
+          <span style={{ fontSize: "var(--loki-text-fine)", color: "var(--loki-accent)" }}>{m.id === selected ? "✓" : ""}</span>
         </Row>
       ))}
       <div style={{ padding: "5px 8px 3px" }}>
@@ -180,12 +181,50 @@ export function ModeMenu({
   );
 }
 
+/** A mode's name as a menu item says it, in title case ("Accept Edits"). */
+export const titleCase = (label: string) => label.replace(/(^|\s)([a-z])/g, (_, lead: string, c: string) => lead + c.toUpperCase());
+
+/** The mode a chat runs in: its own, else loki's default (unrestricted, daemon/approvals.ts) or its agent's first. */
+export function selectedMode(current: string | null, modes: ModeChoice[]): string | null {
+  return current ?? (modes === MODES ? "unrestricted" : modes.length ? modes[0].id : null);
+}
+
+/**
+ * The mode menu as data (plan 2026-11-12-1505, U19): each mode, the current one checked, for the system's menu under
+ * Liquid Glass in the Mac app. The chip's tooltip says what the current one lets through.
+ */
+export function modeMenuEntries(current: string | null, modes: ModeChoice[], onPick: (m: string) => void): MenuEntry[] {
+  const selected = selectedMode(current, modes);
+  return modes.map((m): MenuEntry => ({ type: "item", id: `mode-${m.id}`, label: titleCase(m.label), checked: m.id === selected, run: () => onPick(m.id) }));
+}
+
 /** The chip under the message box with its menu above it: the conversation's mode, loki's or its agent's. */
 export function ModeSwitch({ mode, modes, controls }: { mode: string | null; modes?: ModeChoice[]; controls: ModelAndMode }) {
+  const native = useNativeMenus();
+  const chip = useRef<HTMLSpanElement>(null);
+  const latest = useRef({ mode, modes, controls });
+  useEffect(() => {
+    latest.current = { mode, modes, controls };
+  });
+  // Under Liquid Glass in the Mac app the menu is the system's, from the chip, opened by a click or ⌘⇧P (U19).
+  const open = native && controls.modeOpen;
+  useEffect(() => {
+    const el = chip.current;
+    if (!open || !el) return;
+    const { mode: m, modes: list, controls: c } = latest.current;
+    void popUpMenu(
+      modeMenuEntries(m, list ?? MODES, (id) => void c.pickMode(id)),
+      under(el),
+    )
+      .catch((e: unknown) => console.warn("loki: mode menu", e))
+      .finally(() => latest.current.controls.closeMode());
+  }, [open]);
   return (
-    <span className="loki-mode-anchor">
+    <span ref={chip} className="loki-mode-anchor">
       <ModeChip className="loki-model-pill loki-mode-pill" mode={mode} modes={modes} busy={controls.changingMode} onClick={controls.toggleMode} />
-      <ModeMenu open={controls.modeOpen} side="above" current={mode} modes={modes} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />
+      {!native && (
+        <ModeMenu open={controls.modeOpen} side="above" current={mode} modes={modes} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />
+      )}
     </span>
   );
 }

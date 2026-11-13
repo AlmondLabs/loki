@@ -41,7 +41,7 @@ export function snippet(text: string): string {
 }
 
 /** The bare address in a From header, lower case; "" when it has none. */
-function addressIn(sender: string): string {
+export function addressIn(sender: string): string {
   return headerPeople(sender).at(0)?.address ?? "";
 }
 
@@ -81,7 +81,7 @@ export function fileSize(bytes: number): string {
 }
 
 /** A mail's files as chips, by name and size; the card's Gmail link opens them. */
-function MailFiles({ files }: { files: readonly MailFile[] }) {
+export function MailFiles({ files }: { files: readonly MailFile[] }) {
   // Two files may share a name, so each is keyed by its name and how many of that name came before it.
   const seen = new Map<string, number>();
   const keyed = files.map((f) => {
@@ -139,7 +139,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
         {m.html ? (
           <MailHtml html={m.html} title={`mail from ${senderName(m.sender)}`} />
         ) : (
-          <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13.5, lineHeight: 1.55 }}>
+          <p style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "var(--loki-text-body)", lineHeight: 1.55 }}>
             <LinkedText text={m.text} />
           </p>
         )}

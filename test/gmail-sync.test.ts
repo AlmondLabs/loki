@@ -232,6 +232,20 @@ describe("watching a Gmail account (R7, R12, R13)", () => {
     expect(cards()).toEqual([]);
   });
 
+  test("a starred thread's card is starred, and unstarring it in Gmail clears that at the next tick (plan 097, U9)", async () => {
+    const { box, sync, ago, threads, id } = await setup();
+    box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });
+    const s = sync();
+    await s.tick();
+    expect(threads.get(id(), "t1")?.starred).toBe(false);
+    box.addLabels("t1", ["STARRED"]);
+    await s.tick();
+    expect(threads.get(id(), "t1")?.starred).toBe(true);
+    box.removeLabels("t1", ["STARRED"]);
+    await s.tick();
+    expect(threads.get(id(), "t1")?.starred).toBe(false);
+  });
+
   test("archive from loki takes INBOX and UNREAD off the thread, and a later poll does not bring the card back", async () => {
     const { box, sync, cards, ago, threads, id } = await setup();
     box.deliver({ thread: "t1", at: ago(HOUR), from: GRACE, to: "ada@acme.com" });

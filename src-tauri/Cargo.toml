@@ -14,7 +14,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["image-png"] }
+# macos-private-api: the transparent window the Mac's sidebar material shows through (plan 2026-11-12-1505, U13).
+tauri = { version = "2", features = ["image-png", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "fs", "signal"] }
@@ -39,6 +40,10 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "2"
+# Pop-up menus built in AppKit, so an item can carry a template SF Symbol (popup.rs); the versions Tauri already uses.
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
 
 # Windows only: the daemon's Job Object (harness.rs) and no console window for node (node.rs `quiet`).
 [target.'cfg(windows)'.dependencies]

@@ -7,6 +7,8 @@ import { isConnected } from "../settings/provider-model";
 import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
 import { formatKeys } from "./keymap";
 import { useAgentDraft, type CreateAgent } from "./use-agent-draft";
+import { CheckIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 interface ProviderProps {
   providers: ConnectProvider[] | null;
@@ -65,7 +67,7 @@ export function Welcome({
         {/* loki's mark, the L (app/public/mark.png). */}
         <img src="/mark.png" alt="" aria-hidden width={48} height={48} style={{ display: "block", borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
         <Title page>Welcome to loki</Title>
-        <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
         </div>
       </div>
@@ -218,7 +220,7 @@ export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null
   if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
+      <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
       {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
         Its log is <code style={mono}>~/.loki/logs/daemon.log</code>.
@@ -241,7 +243,9 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
   const help = nodeHelp(missing.os);
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. loki runs your agents on it.</div>
+      <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)", lineHeight: 1.5 }}>
+        Node 22 or newer is needed. loki runs your agents on it.
+      </div>
       {missing.found && (
         <div className="loki-meta loki-meta--wrap">
           The Node found is {missing.found}
@@ -282,16 +286,16 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
           borderRadius: "var(--loki-radius-lg)",
           display: "grid",
           placeItems: "center",
-          fontSize: 12,
+          fontSize: "var(--loki-text-meta)",
           fontWeight: 600,
           border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`,
           color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)",
         }}
       >
-        {done ? "✓" : n}
+        {done ? <GlassIcon icon={CheckIcon}>✓</GlassIcon> : n}
       </span>
       <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
+        <div style={{ fontSize: "var(--loki-text-row)", fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
         {children}
       </div>
     </section>
@@ -301,7 +305,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 /** A labelled line of the form: the label column matches Settings' facts. */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: 12 }}>
+    <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: "var(--loki-text-meta)" }}>
       <span className="loki-label" style={{ paddingTop: 9 }}>
         {label}
       </span>

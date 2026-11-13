@@ -21,6 +21,7 @@ import type { LokiUpdate } from "./use-loki-update";
 import type { GlobalShortcut } from "./use-global-shortcut";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
+import type { SettingsProps } from "../settings/settings";
 
 /**
  * The views the rail switches between, each a thin wrapper that wires the window's models to one
@@ -189,22 +190,8 @@ export function AgentsView({
 /** The Settings sheet, loaded the first time it opens (plan 038): it is opened now and then, and is a large part of the page. */
 const Preferences = lazy(() => import("../settings/settings").then((m) => ({ default: m.Preferences })));
 
-/** Preferences (the Settings sheet): the daemon and mod facts come from the two models and the shell; the chat preferences from useChatLayout. */
-export function SettingsView({
-  desk,
-  catchUp,
-  daemon,
-  chatWidth,
-  onChatWidth,
-  chatPlacement,
-  onChatPlacement,
-  onModelsChanged,
-  update,
-  shortcut,
-  recall,
-  onClose,
-}: {
-  onClose: () => void;
+/** What Preferences reads from a window's models: the shell's for the sheet, the Settings window's own for the window. */
+export interface PreferencesSources {
   update: LokiUpdate;
   shortcut: GlobalShortcut;
   recall: RecallModel;
@@ -216,49 +203,71 @@ export function SettingsView({
   chatPlacement: ChatPlacement;
   onChatPlacement: (p: ChatPlacement) => void;
   onModelsChanged: () => void;
-}) {
+}
+
+/**
+ * Preferences' inputs from a window's models (plan 2026-11-12-1505, U18): the daemon and mod facts from the desk and
+ * attention models, the chat preferences from useChatLayout. One mapping, so the sheet and the window cannot drift.
+ */
+export function preferencesProps({
+  desk,
+  catchUp,
+  daemon,
+  chatWidth,
+  onChatWidth,
+  chatPlacement,
+  onChatPlacement,
+  onModelsChanged,
+  update,
+  shortcut,
+  recall,
+}: PreferencesSources): Omit<SettingsProps, "onClose" | "windowed"> {
+  return {
+    chatLink: catchUp.status === "off" ? "connecting" : catchUp.status,
+    modConnection: desk.connection,
+    deskCount: desk.desks.list.filter((d) => d.status === "live").length,
+    chatWidth,
+    onChatWidth,
+    chatPlacement,
+    onChatPlacement,
+    providers: catchUp.providers,
+    onLoadProviders: catchUp.loadProviders,
+    onConnectProvider: catchUp.connectProvider,
+    onDisconnectProvider: catchUp.disconnectProvider,
+    onModelsChanged,
+    daemon,
+    phone: desk.phone,
+    macs: desk.macs,
+    globalSkills: { list: desk.agents.globalSkills, enable: desk.calls.skills.enable, disable: desk.calls.skills.disable },
+    mcp: desk.calls.mcp,
+    accounts: desk.calls.accounts,
+    agents: catchUp.agents,
+    engines: desk.calls.engines,
+    links: catchUp.links,
+    labels: {
+      list: catchUp.labels.list,
+      // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
+      edit: async (change) => {
+        const err = await catchUp.labels.edit(change);
+        if (!err) desk.desks.request();
+        return err;
+      },
+    },
+    update,
+    shortcut,
+    recall,
+    usage: { ...desk.usage, agents: catchUp.agents },
+    returnTimes: { times: desk.attention.returnTimes, set: desk.attention.setReturnTimes },
+    lanes: { lanes: desk.attention.lanes, set: desk.attention.setLanes },
+  };
+}
+
+/** Preferences (the Settings sheet), over the section showing. */
+export function SettingsView({ onClose, ...sources }: PreferencesSources & { onClose: () => void }) {
   // Nothing while the sheet's chunk loads: a moment on the Mac, where it is read from disk.
   return (
     <Suspense fallback={null}>
-      <Preferences
-        onClose={onClose}
-        chatLink={catchUp.status === "off" ? "connecting" : catchUp.status}
-        modConnection={desk.connection}
-        deskCount={desk.desks.list.filter((d) => d.status === "live").length}
-        chatWidth={chatWidth}
-        onChatWidth={onChatWidth}
-        chatPlacement={chatPlacement}
-        onChatPlacement={onChatPlacement}
-        providers={catchUp.providers}
-        onLoadProviders={catchUp.loadProviders}
-        onConnectProvider={catchUp.connectProvider}
-        onDisconnectProvider={catchUp.disconnectProvider}
-        onModelsChanged={onModelsChanged}
-        daemon={daemon}
-        phone={desk.phone}
-        macs={desk.macs}
-        globalSkills={{ list: desk.agents.globalSkills, enable: desk.calls.skills.enable, disable: desk.calls.skills.disable }}
-        mcp={desk.calls.mcp}
-        accounts={desk.calls.accounts}
-        agents={catchUp.agents}
-        engines={desk.calls.engines}
-        links={catchUp.links}
-        labels={{
-          list: catchUp.labels.list,
-          // A rename or delete changes chats, not just the list: the desks are asked for again so every chip follows.
-          edit: async (change) => {
-            const err = await catchUp.labels.edit(change);
-            if (!err) desk.desks.request();
-            return err;
-          },
-        }}
-        update={update}
-        shortcut={shortcut}
-        recall={recall}
-        usage={{ ...desk.usage, agents: catchUp.agents }}
-        returnTimes={{ times: desk.attention.returnTimes, set: desk.attention.setReturnTimes }}
-        lanes={{ lanes: desk.attention.lanes, set: desk.attention.setLanes }}
-      />
+      <Preferences onClose={onClose} {...preferencesProps(sources)} />
     </Suspense>
   );
 }

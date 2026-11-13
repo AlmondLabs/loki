@@ -5,7 +5,7 @@ tour; this is the reference. Paths are the defaults; Preferences › About shows
 
 ## Requirements
 
-- **macOS 13 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
+- **macOS 13.3 or later.** The shell uses the traffic lights over a hidden title bar, the dock badge and a global
   shortcut.
 - **Or, as a preview, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux** (the `.deb` for Debian and
   Ubuntu, the AppImage elsewhere). Built and tested in CI, not yet tried on real machines; what differs is under
@@ -168,7 +168,19 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
   chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
-  per conversation; a main chat's model is the agent's. Cards in Flow carry the same chips in their actions row. When a tool call asks, its card
+  per conversation; a main chat's model is the agent's. Under the Liquid Glass look on the desktop, Select model is
+  ⌘K's **Models** scope (the pill and ⌘⇧M open ⌘K on it, a "Models" chip in the field): type to filter every harness and provider at once, ↑↓ and
+  Return to switch, ←→ (with nothing typed) or a click for the effort, Esc to close. It opens on the agent's **Usual**:
+  the three model and effort settings you switch that agent's chats to most. Once a chat has started it lists only its
+  own harness's models, since a chat stays on the harness it started on. A **new chat starts on the agent's most used
+  setting**, harness included; with none yet, on the agent's own model. Only a switch counts toward Usual, from the
+  Mac or a phone, not each message you send. Cards in Flow carry the same chips in their actions row. Under
+  Liquid Glass on the desktop the message box is drawn as Messages draws its own: one line that grows with what you
+  type, with **+** outside it; inside it, the microphone while it is empty and a blue up-arrow once there is something
+  to send (a stop button while the agent works and nothing is typed); **+** attaches files. The two chips are gone:
+  the model and the permission mode change rarely, so ⌘K is their one home. ⌘⇧M opens it on **Models**, ⌘⇧P on
+  **Permissions**, which lists the chat's modes with what each lets through, the current one checked and highlighted;
+  typing "mode " in ⌘K steps in too, and typing a mode's name or "permission" offers them among the results. When a tool call asks, its card
   offers **approve**, **deny** and **always allow**: the last allows that tool from then on, in every chat and every
   mode but strict, until you take it back in Preferences › Chat › Always allowed. ⌘[ and ⌘] step through live chats,
   each on the tab you left it on.
@@ -205,8 +217,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   switch for on and off, a segmented control for a few choices, one green button for the page's main action, red only
   for what removes something. The groups and their pages:
   1. **General**
-     1. **Appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or tokyo
-        night; kept per device.
+     1. **Appearance**: system, light or dark (system follows macOS as it changes), the palette, loki or tokyo
+        night, and **New chat pane (preview)** (see [New chat pane](#new-chat-pane-preview)); kept per device.
      2. **Chat**: where the panel sits on the Canvas tab (left, centre, right), its width at the side (narrow,
         wide), and the tools that are **always allowed**, each with take back.
      3. **Keyboard shortcuts**: the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the
@@ -264,6 +276,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
 places you visited last; ↑↓ move, ↵ opens the top result (a chat on Messages), Esc or ⌘K again closes it. `/chats`
 in a message box opens it too. ⌘K used to open the chats tree; the sidebar holds that list now. Typing "desk", the old word, still finds chats.
+Under the Liquid Glass look on the desktop, ⌘K is also the command panel: it floats with nothing dimmed behind it,
+and as you type it adds **Commands** (the menu bar's actions that work on the screen you're on, each with its key) and,
+while a chat is open, the three best **Models** to switch it to. Tab on a model, or typing "model " and a space, steps
+into the Models scope, where all of the chat's models are listed with Usual first and the effort at the foot;
+Backspace in the empty field, or the chip's ×, steps back out.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in Flow; Preferences › Keyboard shortcuts says so); `?` or
@@ -544,6 +561,39 @@ Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
 plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
 in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:5173*`.
 
+## New chat pane (preview)
+
+Preferences › General › Appearance › **New chat pane (preview)** draws the desktop chat pane and Flow's cards on loki's
+new components; off, they look as they always have. The phone is unchanged either way. Every item reads the same way,
+an agent's chat, a Slack thread, an email or a Jira ticket:
+
+- **The header**: the item's title on one line (the whole of it on hover), a flag for each state that holds now
+  (**unread**; **starred** for a starred Gmail thread; **mentions you** on Slack and Jira; **changed** on a ticket
+  that changed since you looked), then its facts as chips: the agent and how it stands, the folder and labels for a
+  chat; replies and people for Slack; the sender for a mail; status, assignee, priority and labels for a ticket. The
+  labels chip in the chat pane opens the labels picker.
+- **The moves**, in the row under the message or reply box: the one that finishes the item last and in full (archive
+  for a chat or a mail, read for Slack and Jira), the rest before it with Flow's keys, which work as before. The
+  chat pane has archive, and read while the chat is unread.
+- **The thread**, in turns: your messages stand alone, and everything the agent did until your next one is one turn,
+  with its name, how long it worked and, while it is not simply finished, where it stands: working, needs you, or
+  failed when its last step failed (a failure the agent got past is only counted on its work line). Coming back to a
+  chat mid-turn, the New line sits inside that turn. A stretch of tool calls is one line ("worked 2 min · 3
+  commands"); opened, each step opens to its input and output. An agent's **plan** shows as a card with how far it
+  is ("1 of 3 done"), opening to its entries; a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows folded
+  as "thought for 12 seconds" (or just "thought" when its time was not heard live), opening to the thought.
+- **Decisions** sit above the box: an approval (approve, always here, deny), a question, a reply the agent proposes
+  on an outside thread. While an approval or a question waits, archive under the box is drawn plain, so approve is
+  the one filled button.
+- **The box**: the same box, drawn new. Messages sent while the agent works wait above it, each with take back; the
+  model and its effort open in a dialog with a filter.
+- **Outside items**: a Slack thread or a Jira ticket draws its messages in the same rows (reactions on Slack only); an
+  email folds every mail but the newest to a line. The reply box says where a reply goes and keeps everything the
+  card's box does: its keys, a mail's recipients, signature and quoted mail.
+
+Not in the preview yet: asking the owning agent to write a reply from the box, posting a Slack reply to the channel as
+well, editing a proposed reply in the box (it edits in its card), and going back to a compaction.
+
 ## New chat
 
 Press ⌘N, or the "+" at the top of the Chats sidebar or beside an agent's section (that agent is then
@@ -552,6 +602,13 @@ the folder (defaults to that agent's most recent one; recents, typed paths with
 completion, or **browse…** for the system's folder dialog; the git branch shows when the
 folder is a checkout) and an optional name. **start** creates the conversation
 and opens the empty chat on Messages with the message box focused.
+
+Under **Liquid Glass** there is no sheet: ⌘N (or either "+") shows an empty chat in place of the open one, as Messages
+opens a new message. Its **To:** line holds the agent (the one you were talking to, or the one whose "+" you pressed):
+click it for the list of agents, or with the caret on it type the start of a name. The folder the chat will work in
+is at the end of that line, chosen as the sheet chose it (the open chat's folder for its own agent, else the agent's most
+recent); click it for the same folder field. The chat runs on the agent's usual model. Nothing is created until you send
+the first message: Esc in the empty box, or opening another chat, leaves nothing behind.
 
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
 the same folder field, starting on the chat's folder (recents, completion, **browse…**); **move** needs a folder that

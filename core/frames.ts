@@ -444,6 +444,8 @@ export interface Pushes {
   /** One chat's marks as they now stand, after a change to that chat alone (plan 055); null where it has none. */
   seen_chat: { key: string; seen: string | null; viewed: string | null; focus: FocusEntry | null; rest: Rest | null };
   models_recent: { recent: string[] };
+  /** Each agent's usual models (mod/usual-models.ts), most used first: a new chat starts on the first, the switcher leads with them. */
+  models_usual: { usual: Record<string, Array<{ handle: string; reasoning_effort: ReasoningEffort | null; uses: number }>> };
   recall_changed: NoPayload;
   usage_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
@@ -1571,6 +1573,7 @@ export const FRAMES = {
   seen: push("every chat's done and viewed marks, focus weights and rests (on connect, and after marks from a paired Mac)"),
   seen_chat: push("one chat's done and viewed marks, focus weight and rest, after a change to that chat"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
+  models_usual: push("each agent's usual models (on connect, and after a switch)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
   usage_changed: push("the usage ledger counted more: open usage pages refetch"),
   lan_status: push("the phone listener's status"),

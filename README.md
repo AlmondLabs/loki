@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml"><img src="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
-  <img src="https://img.shields.io/badge/macOS-13%2B-1a1a20" alt="macOS 13 or later">
+  <img src="https://img.shields.io/badge/macOS-13.3%2B-1a1a20" alt="macOS 13.3 or later">
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux-preview-1a1a20" alt="Windows and Linux: preview">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
@@ -127,7 +127,7 @@ chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 On both, upgrades are the next file from the releases page; Preferences › About links the one for your system when a
 newer release carries it. There is no Homebrew, winget or Flatpak package yet.
 
-You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
+You need macOS 13.3 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
 
 1. **Node 22.19 or newer**, which runs loki's daemon. The cask brings it; for the `.dmg`, Windows and Linux,
    install one yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or your distribution's

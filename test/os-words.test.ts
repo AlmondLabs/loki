@@ -37,7 +37,7 @@ describe("the words table", () => {
   test("the Mac keeps its old words for the folder example and the system line", () => {
     const mac = osWords("macos");
     expect(mac.folderExample).toBe("~/Documents/…");
-    expect(mac.system).toBe("macOS 13 or later; the shell picks folders with osascript");
+    expect(mac.system).toBe("macOS 13.3 or later; the shell picks folders with osascript");
     expect(osWords("windows").folderExample).toBe("~\\Documents\\…");
     for (const os of ["windows", "linux"] as const) {
       expect(osWords(os).system).not.toMatch(/macOS|lsof|osascript/);

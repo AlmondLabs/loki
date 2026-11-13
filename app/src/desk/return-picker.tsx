@@ -99,7 +99,7 @@ export function ReturnPicker({ onPick, onCancel }: { onPick: (at: Date) => void;
             onClick={() => onPick(c.at)}
             style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}
           >
-            <span style={{ fontSize: 13.5 }}>{c.label}</span>
+            <span style={{ fontSize: "var(--loki-text-body)" }}>{c.label}</span>
             <Meta>{whenText(c.at, now)}</Meta>
           </Row>
         ))}

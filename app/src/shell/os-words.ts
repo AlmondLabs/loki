@@ -29,7 +29,7 @@ const WORDS: Record<Platform, OsWords> = {
     aMachine: "a Mac",
     fileManager: "Finder",
     folderExample: "~/Documents/…",
-    system: "macOS 13 or later; the shell picks folders with osascript",
+    system: "macOS 13.3 or later; the shell picks folders with osascript",
   },
   windows: {
     machine: "this PC",

@@ -23,6 +23,7 @@ import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
+import { readUsualModels, recordUsualModel } from "./usual-models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
@@ -588,6 +589,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
+    usualModels: { read: () => readUsualModels(), record: (agentId, handle, effort) => recordUsualModel(agentId, handle, effort, new Date()) },
     // A chat opens with the suggestions waiting in it (plan 049), its links and its waiting replies (plan 067).
     chat: withRepliesOnOpen(withLinksOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend, messages), replies),
     suggestions,

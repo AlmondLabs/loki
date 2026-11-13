@@ -364,7 +364,7 @@ function Deck({
         <>
           <div
             style={{
-              fontSize: 22,
+              fontSize: "var(--loki-text-display)",
               fontWeight: 600,
               lineHeight: 1.3,
               color: "var(--loki-fg)",
@@ -380,7 +380,7 @@ function Deck({
               style={{
                 borderTop: "1px solid var(--loki-border)",
                 paddingTop: 14,
-                fontSize: 15,
+                fontSize: "var(--loki-text-row)",
                 lineHeight: 1.55,
                 color: "var(--loki-fg)",
                 whiteSpace: "pre-wrap",
@@ -420,7 +420,7 @@ function Deck({
               title={`next in ${gaps[grade]}`}
               style={{ justifyContent: "center" }}
             >
-              {label} <span style={{ fontSize: 10.5, opacity: 0.75 }}>{gaps[grade]}</span>
+              {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>
             </Button>
           ))}
         </div>

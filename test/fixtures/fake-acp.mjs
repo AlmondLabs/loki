@@ -5,6 +5,7 @@
 //   "write"   opens a call with no arguments yet (as Claude's adapter does), fills them in, and writes a file
 //   "edit"    asks permission to edit a file, then edits it (a diff) or reports the edit refused
 //   "plan"    reports a plan, then a reply
+//   "think"   thinks in two pieces, runs a call, thinks again, then replies
 //   "wait"    streams a word and waits for session/cancel
 //   "deaf"    streams a word and never answers, whatever loki sends
 //   "crash"   exits mid-turn
@@ -140,6 +141,27 @@ async function prompt(params) {
       content: [{ type: "diff", path: "a.txt", oldText: null, newText: "a\n" }],
     });
     say(id, "written");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("think")) {
+    update(id, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "The table has a date " } });
+    update(id, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "column; group by week." } });
+    update(id, {
+      sessionUpdate: "tool_call",
+      toolCallId: "call-t",
+      title: "Read signups.csv",
+      kind: "read",
+      status: "pending",
+      rawInput: { path: "signups.csv" },
+    });
+    update(id, {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-t",
+      status: "completed",
+      content: [{ type: "content", content: { type: "text", text: "date,count" } }],
+    });
+    update(id, { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Twelve weeks of data." } });
+    say(id, "grouped");
     return { stopReason: "end_turn" };
   }
   if (text.includes("plan")) {

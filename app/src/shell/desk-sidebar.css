@@ -38,7 +38,7 @@
   color: var(--loki-on-attention);
   box-shadow: var(--loki-shadow-float);
   font-family: var(--loki-font);
-  font-size: 12px;
+  font-size: var(--loki-text-meta);
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;

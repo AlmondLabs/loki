@@ -22,6 +22,17 @@ export interface ToolStep {
    * log, which `history_step_get` answers with the whole step.
    */
   row?: number;
+  /**
+   * On an agent's plan (an ACP `plan` update, plan 097 U9): its entries, read from the step's result, so the Plan
+   * draws them and a lean history page, which drops the output, still carries them.
+   */
+  plan?: PlanItem[];
+}
+
+/** One entry of an agent's plan, as ACP reports it. */
+export interface PlanItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
 }
 
 /** A file a message carried (its attachment tag), shown as a chip on the bubble. */
@@ -54,12 +65,22 @@ export interface TranscriptRow {
   /** On the event a message sent from a suggestion leaves (plan 049): the chat the suggestion was made in, which the row opens. */
   link?: { agent_id: string; conversation_id: string };
   /**
+   * What the agent thought before this row (plan 097, U9): an ACP agent's thought chunks, or a model's thinking kept
+   * in its message, capped at THOUGHT_MAX here (the store keeps all of it). On the reply or the call that followed it.
+   */
+  thought?: string;
+  /** How long it thought, when the thought was heard live; a history page does not know and leaves it out. */
+  thought_ms?: number;
+  /**
    * When the message was written, ISO 8601 (the store's time, an imported log's `timestamp`, or the moment a
    * live row arrived). Absent when nobody knows: such a
    * row shows no time and starts no day.
    */
   at?: string;
 }
+
+/** How much of a thought a row carries; more is cut, and the store keeps the whole. */
+export const THOUGHT_MAX = 4000;
 
 /** How long a lean tool row's label and name may be: one line, as the closed step shows it. */
 export const LEAN_LINE_MAX = 200;

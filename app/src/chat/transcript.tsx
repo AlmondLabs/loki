@@ -9,12 +9,13 @@ import { chatImageUrl, inTauri } from "../desk/env";
 import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/agent-chip";
-import { Icon } from "../shared/icons";
+import { Icon, GlassIcon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
 import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
+import { CheckIcon, CopyIcon } from "lucide-react";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -454,7 +455,7 @@ function Message({
 export const OpenChat = createContext<((agentId: string, conversationId: string) => void) | null>(null);
 
 /** The row a message sent from a suggestion leaves (core/harness.ts extractHarnessEvents). */
-const SUGGESTED = "suggested in another chat";
+export const SUGGESTED = "suggested in another chat";
 
 /**
  * The chat a "suggested in another chat" row came from (plan 049, KTD6), when the row carries it as `link`; null when
@@ -585,26 +586,28 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
       data-copied={copied ? "true" : undefined}
       onClick={() => void copy()}
     >
-      {copied ? (
-        <svg
-          viewBox="0 0 16 16"
-          width="13"
-          height="13"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M3 8.5l3 3 7-7" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
-          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-          <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
-        </svg>
-      )}
+      <GlassIcon icon={copied ? CheckIcon : CopyIcon} size={13}>
+        {copied ? (
+          <svg
+            viewBox="0 0 16 16"
+            width="13"
+            height="13"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M3 8.5l3 3 7-7" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+            <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+          </svg>
+        )}
+      </GlassIcon>
     </IconButton>
   );
 }
@@ -671,11 +674,12 @@ const LiveBlock = memo(function LiveBlock({ text }: { text: string }) {
 });
 
 /** A message's words as the thread shows and copies them: an agent's quick replies (plan 066) are buttons, not words. */
-function shownText(m: TranscriptRow): string {
+export function shownText(m: TranscriptRow): string {
   return m.role === "assistant" ? withoutReplies(m.text) : m.text;
 }
 
-function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
+/** An agent's reply as markdown; while it streams, block by block with its words fading in, and the cursor after it. */
+export function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   const text = withoutReplies(m.text);
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>

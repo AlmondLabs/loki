@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArchiveIcon, ClockIcon, MailOpenIcon, PlusIcon } from "lucide-react";
+import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
+import { useEffect, useRef, useState } from "react";
 import { OUTSIDE_ENDS, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { agentLanes, type AgentLane, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelChips } from "../chat/labels";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
-import { Button, Chip, Dot, Empty, Meta, Popover, Row } from "../components";
+import { Button, Chip, Dot, Empty, Meta, Popover } from "../components";
 import { chipText } from "../chat/suggestion-card";
 import { CardFace, CardHead } from "./card-head";
 import { avatarUrl } from "./env";
 import { keyboard } from "./env";
 import { formatKeys, keyFor } from "../shell/keymap";
+import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { MenuItems, menuKey, menuRows } from "../shell/menu-items";
+import { ItemHeader } from "../item/item-header";
+import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
+import { chatItem } from "../item/item-view";
 
 /** The pieces of a Flow card around its Conversation, and the title with its lane switcher. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -38,8 +45,8 @@ export function ago(iso: string | null): string {
   return `${Math.round(h / 24)}d`;
 }
 
-/** Flow's title as its switcher says it (R11): "flow" in Everything, "flow · Work" in a lane, the name as it was typed. */
-export const laneTitle = (lane: ResolvedLane | null): string => (lane ? `flow · ${lane.name}` : "flow");
+/** Flow's title as its switcher says it (R11): "Flow" in Everything, "Flow · Work" in a lane, the name as it was typed. */
+export const laneTitle = (lane: ResolvedLane | null): string => (lane ? `Flow · ${lane.name}` : "Flow");
 
 /** The quiet line of R14: how many cards need the person in other lanes, never a red badge. Empty at 0. */
 const othersLine = (others: number) => (others > 0 ? `${others} waiting in other lanes` : "");
@@ -82,6 +89,7 @@ export function DeckHeader({ needYou, chats, others, ...lane }: LaneSwitchProps 
 /** Flow's title as a menu button (R11, plan 087 U6): it names the lane, and opens the menu that switches it. */
 function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
   const [open, setOpen] = useState(false);
+  const native = useNativeMenus();
   const close = () => setOpen(false);
   return (
     <span style={{ position: "relative", display: "inline-flex" }}>
@@ -91,11 +99,18 @@ function LaneSwitch({ onLane, onNewLane, ...props }: LaneSwitchProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         title="switch lane"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          // Under Liquid Glass in the Mac app the system's menu hangs from the title (U19).
+          if (native)
+            void popUpMenu(laneMenuEntries({ ...props, onPick: onLane, onNewLane }), under(e.currentTarget)).catch((err: unknown) =>
+              console.warn("loki: lane menu", err),
+            );
+          else setOpen((v) => !v);
+        }}
         style={{ background: "none", border: 0, padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "baseline", gap: 4 }}
       >
         {laneTitle(props.lane)}
-        <span aria-hidden style={{ fontSize: 9.5 }}>
+        <span aria-hidden style={{ fontSize: "var(--loki-text-micro)" }}>
           ▾
         </span>
       </button>
@@ -116,21 +131,37 @@ function listedAgentLanes(items: AttentionItem[], lane: ResolvedLane | null): Ag
   return listed;
 }
 
-const menuItems = (menu: HTMLElement | null) => [...(menu?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
-
-/**
- * The lane menu under Flow's title: everything, the person's lanes, then each agent's built-in lane, each a radio
- * item, and "new lane…". ↑↓ move, Enter picks, Esc or a press outside closes. Every key stays in the menu, so a
- * letter meant for it never moves the card under it.
- */
-export function LaneMenu({
+/** What the lane menu offers (U19): Everything, the person's lanes, each agent's lane with its count, then New Lane…. */
+export function laneMenuEntries({
   lane,
   lanes,
   items,
   onPick,
   onNewLane,
-  onClose,
-}: Omit<LaneSwitchProps, "onLane"> & { onPick: (lane: ResolvedLane | null) => void; onClose: () => void }) {
+}: Pick<LaneSwitchProps, "lane" | "lanes" | "items" | "onNewLane"> & { onPick: (lane: ResolvedLane | null) => void }): MenuEntry[] {
+  const activeId = lane?.id ?? "";
+  const agents = listedAgentLanes(items, lane);
+  return [
+    { type: "item", id: "everything", label: "Everything", checked: activeId === "", run: () => onPick(null) },
+    ...(lanes ?? []).map((l): MenuEntry => ({ type: "item", id: `lane-${l.id}`, label: l.name, checked: l.id === activeId, run: () => onPick(l) })),
+    { type: "separator" },
+    ...agents.map((l): MenuEntry => ({
+      type: "item",
+      id: `lane-${l.id}`,
+      label: l.name,
+      detail: String(l.count),
+      checked: l.id === activeId,
+      run: () => onPick(l),
+    })),
+    ...(onNewLane ? [{ type: "separator" } as const, { type: "item", id: "new-lane", label: "New Lane…", icon: PlusIcon, run: onNewLane } as const] : []),
+  ];
+}
+
+/**
+ * The lane menu drawn under Flow's title where no native menu pops up: laneMenuEntries. ↑↓ move, Enter picks, Esc or
+ * a press outside closes. Every key stays in the menu, so a letter meant for it never moves the card under it.
+ */
+export function LaneMenu({ onClose, ...props }: Omit<LaneSwitchProps, "onLane"> & { onPick: (lane: ResolvedLane | null) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -139,7 +170,7 @@ export function LaneMenu({
   useEffect(() => {
     const menu = ref.current;
     const anchor = menu?.parentElement ?? null;
-    (menu?.querySelector<HTMLElement>('[aria-checked="true"]') ?? menuItems(menu).at(0))?.focus();
+    (menu?.querySelector<HTMLElement>('[aria-checked="true"]') ?? menuRows(menu).at(0))?.focus();
     const away = (e: PointerEvent) => {
       if (!anchor?.contains(e.target as Node)) closeRef.current();
     };
@@ -151,13 +182,6 @@ export function LaneMenu({
       if (!a || a === document.body || menu?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     };
   }, []);
-  const activeId = lane?.id ?? "";
-  const radio = (key: string, on: boolean, pick: () => void, body: ReactNode) => (
-    <Row key={key} dense role="menuitemradio" aria-checked={on} onClick={pick} style={{ display: "flex", justifyContent: "space-between" }}>
-      {body}
-    </Row>
-  );
-  const agents = listedAgentLanes(items, lane);
   return (
     <Popover
       ref={ref}
@@ -169,38 +193,10 @@ export function LaneMenu({
       onKeyDown={(e) => {
         if (e.key === "Tab") return;
         e.stopPropagation();
-        const all = menuItems(ref.current);
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
-        else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
-        else if (e.key === "Home") all[0]?.focus();
-        else if (e.key === "End") all.at(-1)?.focus();
-        else if (e.key === "Escape") onClose();
-        else return;
-        e.preventDefault();
+        menuKey(e, ref.current, onClose);
       }}
     >
-      {radio("", activeId === "", () => onPick(null), <span>everything</span>)}
-      {(lanes ?? []).map((l) => radio(l.id, l.id === activeId, () => onPick(l), <span>{l.name}</span>))}
-      {agents.length > 0 && <hr className="loki-title-menu-sep" />}
-      {agents.map((l) =>
-        radio(
-          l.id,
-          l.id === activeId,
-          () => onPick(l),
-          <>
-            <span>{l.name}</span> <Meta>{l.count}</Meta>
-          </>,
-        ),
-      )}
-      {onNewLane && (
-        <>
-          <hr className="loki-title-menu-sep" />
-          <Row dense role="menuitem" onClick={onNewLane}>
-            new lane…
-          </Row>
-        </>
-      )}
+      <MenuItems entries={laneMenuEntries(props)} onPicked={() => {}} />
     </Popover>
   );
 }
@@ -248,7 +244,7 @@ export function CaughtUp({
         </div>
       )}
       {(decided.length > 0 || replies > 0) && (
-        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
+        <div style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
       <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>
         anything new lands here while this stays open
@@ -317,15 +313,33 @@ export function CardHeader({ current, cameBack, flash, labelList = null, suggest
 
 /** A chat card's second line: the chat's title (its purpose on hover), when, why it ranks here, and its marks. */
 function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions }: Omit<CardHeaderProps, "flash">) {
-  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
-  const reason = REASON_LABEL[current.reason];
   const title = current.title ?? current.id;
-  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
   return (
     <>
       <span className="loki-card-head-what" title={current.purpose ? `${title} — ${current.purpose}` : title}>
         {title}
       </span>
+      <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+      <LabelChips labels={current.labels} list={labelList ?? null} />
+    </>
+  );
+}
+
+/**
+ * A chat card's words after its title: when, why it ranks here, whether it came back, a draft, and its suggestions'
+ * mark. The item header (plan 097, U8) shows them after its properties.
+ */
+export function ChatCardMeta({
+  current,
+  cameBack,
+  suggestions,
+  onSuggestions,
+}: Pick<CardHeaderProps, "current" | "cameBack" | "suggestions" | "onSuggestions">) {
+  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
+  const reason = REASON_LABEL[current.reason];
+  const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
+  return (
+    <>
       <Meta>{when}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
@@ -335,7 +349,6 @@ function ChatCardLine({ current, cameBack, labelList, suggestions, onSuggestions
           {chipText(suggestions ?? 0, false)}
         </Chip>
       )}
-      <LabelChips labels={current.labels} list={labelList ?? null} />
     </>
   );
 }
@@ -352,6 +365,103 @@ function StatusBadge({ status, flash }: { status: AttentionStatus; flash: string
       </Chip>
     );
   return label ? <Chip tone={badge.color}>{label}</Chip> : null;
+}
+
+/**
+ * A chat card's header for the new chat pane's preview (plan 097, U8): the item header with the agent's face, the
+ * chat's name and flags, its agent and state, folder and labels, then when and why. The moves are ChatItemActions, at
+ * the card's bottom.
+ */
+export function ChatItemHeader({
+  current,
+  cameBack,
+  flash,
+  suggestions = 0,
+  onSuggestions,
+  moves,
+}: Omit<CardHeaderProps, "labelList"> & {
+  /** Liquid Glass's card (plan 2026-11-12-1505, U16): its moves, drawn as the header's toolbar group instead of a row under the box. */
+  moves?: Parameters<typeof CardActions>[0];
+}) {
+  const agent = current.agent_name ?? "agent";
+  if (moves) {
+    const view = chatItem({ item: current, live: null, turns: [] }).header;
+    const main = current.id === "default";
+    const open = () => (moves.onOpenDesk(current.agent_id, current.id), moves.onClose());
+    return (
+      <div data-item-header className="loki-card-toolbar">
+        <ToolbarTitle
+          title={view.title}
+          facts={view.properties}
+          onOpen={open}
+          openTitle={`Open Chat (${deckKey("inbox.open", moves.typing)})`}
+          extra={
+            <>
+              {" · "}
+              <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+              {flash && <Meta style={NOTED}>{flash}</Meta>}
+            </>
+          }
+        />
+        <ToolbarGroup
+          label="Chat actions"
+          moves={[
+            { label: "Later", icon: <ClockIcon aria-hidden />, title: `Later (${deckKey("inbox.later", moves.typing)})`, run: moves.later },
+            { label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${deckKey("inbox.next", moves.typing)})`, run: moves.read },
+            {
+              label: "Archive",
+              icon: <ArchiveIcon aria-hidden />,
+              title: main ? "A main chat cannot be archived" : `Archive (${deckKey("inbox.archive", moves.typing)})`,
+              disabled: main,
+              run: moves.archive,
+            },
+          ]}
+        />
+      </div>
+    );
+  }
+  return (
+    <ItemHeader
+      view={chatItem({ item: current, live: null, turns: [] }).header}
+      lead={<CardFace name={agent} src={current.agent_id ? avatarUrl(current.agent_id) : null} />}
+      meta={
+        <>
+          <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
+          {flash && <Meta style={NOTED}>{flash}</Meta>}
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * A chat card's moves as the ActionBar, under its box as CardActions sits today (plan 097, U8): archive named, and
+ * open, later and read before it, each with its key.
+ */
+export function ChatItemActions({ current, typing, read, later, archive, onOpenDesk, onClose }: Parameters<typeof CardActions>[0]) {
+  const main = current.id === "default";
+  return (
+    <ActionBar
+      className={COMPOSER_COLUMN}
+      view={chatItem({ item: current, live: null, turns: [] }).actions}
+      quiet={Boolean(current.pendingApproval ?? current.pendingQuestion)}
+      verbs={{
+        open: { run: () => (onOpenDesk(current.agent_id, current.id), onClose()), keys: deckKey("inbox.open", typing), title: "open the chat in its pane" },
+        archive: {
+          run: archive,
+          keys: deckKey("inbox.archive", typing),
+          disabled: main,
+          title: main ? "a main chat cannot be archived" : "done with this chat: it leaves Flow",
+        },
+        later: {
+          run: later,
+          keys: deckKey("inbox.later", typing),
+          title: "keep it unread: the chat comes back in a day, or sooner if something new arrives",
+        },
+        mark_read: { run: read, keys: deckKey("inbox.next", typing), title: "mark it read: the chat rests and comes back later" },
+      }}
+    />
+  );
 }
 
 /** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */

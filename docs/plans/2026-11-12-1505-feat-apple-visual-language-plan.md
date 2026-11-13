@@ -1,0 +1,545 @@
+---
+title: loki on Apple's Human Interface Guidelines - Plan
+type: feat
+date: 2026-11-12
+topic: apple-visual-language
+artifact_contract: ce-unified-plan/v1
+product_contract_source: ce-brainstorm
+execution: code
+---
+
+# loki on Apple's Human Interface Guidelines - Plan
+
+## Goal Capsule
+
+- **Objective:** loki looks, reads and is driven like a native Apple app, so on a Mac it sits beside Mail, Notes and Messages as one of them, in day and night, and is no slower or heavier than today.
+- **Means:** a new visual language built to Apple's Human Interface Guidelines with Liquid Glass, as the canvas's frame D shows, brought onto every surface one screen at a time.
+- **Product authority:** this Product Contract. Frame D of the canvas "loki glass directions" (a private artifact, 2026-11-12) is the reference look; it is directional, not a pixel spec. How an item behaves across sources and what it shows when (plan 098, the uniform item shape) are not active scope here.
+- **Open blockers:** none.
+- **Stop conditions:** stop and ask if (1) a screen misses R17's budget with glass and the solid look-alike alike; (2) WebKit reports neither Reduce Transparency nor Increase Contrast and native code would be needed (KTD5); (3) the person has not approved the previous screen rendered (R18); (4) a unit needs the old look changed rather than the new one added beside it.
+- **Execution profile:** continues on `feat/shadcn-thread`, by the person's choice (2026-11-12): they run main day to day and do not want this branch merged until the new look is done, so the look builds on plans 096 and 097 here; units in order, each its own commit; the person raises the PR.
+- **Product Contract preservation:** Product Contract unchanged.
+
+---
+
+## Product Contract
+
+### Summary
+
+loki takes Apple's design language in place of Slack's. Liquid Glass goes on the layer you steer with, content stays solid, words and keys follow Apple's conventions, and every surface moves over, desktop, phone and the Windows and Linux previews. Where glass would cost too much, the same shapes are drawn solid.
+
+### Problem Frame
+
+loki has worn Slack's look since 2026-09-23. On 2026-11-11 the person said they were fed up with it: loki borrows another product's identity and has none of its own. A full redesign on 2026-10-18 was built across the whole app at once from written directions, judged worse, and deleted; descriptions did not predict how the result felt, and moving everything together left nothing to keep. Plans 096 and 097 have since rebuilt the chat pane's components on shadcn and AI Elements, still on Slack's tokens, which leaves the look itself as the open problem.
+
+The person likes the apps Apple designs, chose Liquid Glass over a merely Apple-like restraint or a native-only treatment, and asked that loki be designed as a head of design at Apple would, all in on the Human Interface Guidelines.
+
+### Key Decisions
+
+- **The Human Interface Guidelines are the authority for the look, words and keyboard.** Where loki's own rules disagree, the guidelines win, except where a decision below keeps a loki rule. (session-settled: user-directed — chosen over keeping loki's own conventions with Apple-like polish: "go all in on the human interface guidelines")
+- **Liquid Glass, on the steering layer only.** Reverses PRODUCT.md's "no glass panels". Governs R1, R2. (session-settled: user-directed — chosen over a native-Mac look without glass and over Apple-like restraint, with the "no glass panels" reversal shown)
+- **Frame D is the direction.** Chosen over A (floating glass on a loki-styled pane), B (a fully frosted window) and C (a solid app with glass only on transient pieces). Governs R1–R12. (session-settled: user-directed — chosen over frames A, B and C after seeing all four rendered)
+- **Apple's title case on controls, and the approval as a question.** "Mark as Read", "Allow", "Allow friday to edit notes.txt?". Reverses loki's lowercase desktop controls and the phone's sentence case (docs/style.md) and plan 097's labelled approval card. Governs R7. (session-settled: user-directed — chosen over keeping loki's lowercase words, offered as "D, keep loki's words")
+- **Keys live in the menu bar and in tooltips, not on buttons.** Reverses plan 097 KTD9, which shows Flow's keys on each button. Governs R9, R10. (session-settled: user-directed — accepted with frame D, where the reversal was named)
+- **Return answers an approval only while the composer is empty.** Governs R11. (session-settled: user-directed — chosen over ⌘Return, which avoids an accidental approval but is less Apple-like)
+- **Every surface, including the phone and the Windows and Linux previews.** Governs R13–R16. (session-settled: user-directed — chosen over desktop only)
+- **Outside content and widgets are restyled too.** Governs R14. (session-settled: user-directed — chosen over keeping their own styling inside new-look cards)
+- **Solid look-alike as the fallback.** Governs R3. (session-settled: user-directed — chosen over glass everywhere and over a glass preference)
+- **Tokyo Night is retired; loki has one palette on Apple's roles.** Governs R4. (session-settled: user-directed — chosen over keeping Tokyo Night remapped onto Apple's roles)
+- **One switch, and the week starts at the end.** Governs R18. (session-settled: user-directed — chosen over one switch per screen)
+- **The look comes before item behaviour.** The 2026-11-11 research said to settle the paint last, on finished components; the person chose the look first. Plan 098 and the uniform item shape follow, cut onto this look. (session-settled: user-directed — chosen over item behaviour first and over both together, with the trade shown)
+- **One Mac sidebar replaces the labelled rail; chats stay grouped by agent.** The first cut kept the rail; the 2026-11-12 critique found it the strongest Slack signal left, and the person chose to replace it (U12). Chats, Flow, Agents and Learn are the sidebar's top rows; Preferences leaves the window for ⌘, and the menu bar. (session-settled: user-directed, reversing the earlier keep-the-rail decision)
+- **The accent follows the Mac's accent colour, blue by default, at a shade that passes AA.** Apple's stock blue under 13 pt white text falls below PRODUCT.md's AA floor; loki keeps AA. Governs R4.
+- **Apple's focus ring replaces loki's focus flash.** One focus treatment, the one Mac users expect. Governs R12.
+- **One icon set at one stroke on every platform, drawn in the SF Symbols manner.** SF Symbols' licence does not cover Windows, Linux or a bundled web app; real SF Symbols appear only in the native macOS menus. Governs R8.
+
+### Requirements
+
+**Materials and colour**
+
+- R1. Liquid Glass is used only on what floats over content and steers: the sidebar, toolbar control groups, menus and popovers, sheets, the approval and other decisions, and the composer. Messages, turns, cards and pages are solid.
+- R2. Content extends under the glass: the thread scrolls beneath the toolbar and composer, softened at the top edge, as macOS 26 windows do.
+- R3. Where glass cannot meet the speed budget (R17), or the system's Reduce Transparency or Increase Contrast is on, the same surfaces draw solid with the same shapes, sizes and layout; under Increase Contrast their edges are stronger as well.
+- R4. Colour uses Apple's semantic roles (label, secondary label, separators, fills, the accent) in one palette, day and night, and meets WCAG AA for text and controls; red stays a dot or badge for what waits on the person.
+- R5. The saved light, dark or system appearance choice stays, with system as the default.
+- R6. Under Reduce Motion, glass does not morph or slide and the scroll-edge softening is static; motion follows docs/design.md's existing reduced-motion rules.
+
+**Type, shape and icons**
+
+- R7. Type is San Francisco (the system font) on Apple platforms and the current fallbacks elsewhere (Inter, Segoe UI, Roboto), sized to the guidelines' macOS and iOS scales; controls use Apple's title case and Apple's words for common commands on every platform, the phone included.
+- R8. Shapes follow the guidelines: capsule controls in glass groups, rounded corners concentric with the window, and one icon set at one stroke.
+
+**Keyboard and commands**
+
+- R9. Every command a screen offers is in the menu bar under a fitting menu with its key equivalent; on Windows and Linux the same commands sit in loki's ☰ menu in the title strip, which draws the same menus.
+- R10. A control's key shows in its tooltip, not on its face; Escape dismisses where the guidelines say.
+- R11. An approval's keys: Return allows while the composer is empty and sends the reply when it holds text; ⌘⌫ denies; Always Allow has no key and asks to confirm; Flow keeps A and D.
+- R12. Every move on every desktop screen is reachable by keyboard alone, with Apple's focus ring.
+
+**Coverage**
+
+- R13. Every desktop screen moves: the chat pane, sidebar and rail, Flow, Agents, Learn, Preferences, ⌘K search, the Canvas tab, sheets, dialogs and menus.
+- R14. Content from outside (mail HTML, Slack and Jira text) and agents' widgets are restyled to the new look as far as their content allows.
+- R15. The paired phone view takes iOS's Liquid Glass conventions: tab bar, navigation bars, sheets and touch targets of at least 44 pt.
+- R16. The Windows and Linux previews draw the same look, with glass where the budget allows and the solid look-alike (R3) where it does not.
+
+**Speed and rollout**
+
+- R17. Each screen that moves keeps scrolling a long thread and streaming a turn at 60 fps on the person's Mac, with CPU and memory within 5% of the old look, measured before and after on the demo daemons with the fake agent engine (the existing render-measurement setup).
+- R18. One switch in Preferences › Appearance turns on every screen moved so far, shared chrome included; each screen is built on the real app and approved by the person rendered before the next starts, and the old look stays until the last screen has moved.
+
+### Acceptance Examples
+
+- AE1. **Covers R3.** Given Reduce Transparency is on in macOS, when the person opens a chat, the sidebar, toolbar groups and composer are opaque with the same shapes and positions as with glass.
+- AE2. **Covers R3, R16, R17.** Given Linux, where the blur measures over budget, the window draws the solid look-alike; given a Windows machine that measures within budget, it draws glass.
+- AE3. **Covers R10, R11.** Given an approval is waiting and the composer is empty, when the person presses Return, the step is allowed and hovering Allow shows a tooltip naming Return. Given the composer holds text, Return sends it as the reply and the approval stays open.
+- AE4. **Covers R9, R12.** Given the chat pane, every action in its toolbar, approval and the moves under the box appears in the Chat menu with its key, and each can be done without a pointer.
+
+### Success Criteria
+
+- Beside Mail, Notes and Messages on the person's Mac, loki looks like it belongs, in day and night.
+- No screen is slower or heavier than before it moved (R17).
+- Once the last screen has moved, the person uses the new look for a week without switching back.
+
+### Scope Boundaries
+
+- How an item behaves across Slack, Gmail, Jira and chats, and what shows when: plan 098 and the uniform item brainstorm, after this.
+- The phone's interaction model beyond its look (navigation structure, gestures).
+- A new logo or app icon.
+- Moving the item's moves into the toolbar, as Mail does: the moves stay under the box (decided 2026-11-12 in plan 097); the guidelines' placement can be raised again on its own.
+
+### Dependencies / Assumptions
+
+- loki's macOS shell builds a native menu bar (`src-tauri/src/menu.rs`) and Windows and Linux draw the same menus from loki's ☰; both read `app/src/shell/keymap.ts`, so R9 grows the keymap to every command.
+- The desktop draws in the system web view (WebKit on macOS); glass is CSS backdrop blur unless planning finds native window materials cheaper.
+- The phone runs the built app bundle, not a native iOS app, so R15 is iOS's look in the web view.
+- Frame D lives in a private canvas artifact; planning works from this contract and the screenshots it commits beside the plan.
+
+### Outstanding Questions
+
+**Deferred to Planning**
+
+- Which surfaces get native macOS window materials versus CSS blur, decided by measurement against R17.
+- The order screens move in, after the chat pane and sidebar.
+- How the docs carrying the reversed rules change: PRODUCT.md (brand, anti-references), docs/style.md (words on screen, desktop and phone), docs/design.md (the spec, its sentence-case lines included), AGENTS.md (its short form).
+
+### Sources / Research
+
+- docs/research/2026-11-11-design-language.md — what makes loki read as Slack, the 2026-10-18 lessons, the top-down then bottom-up method.
+- docs/design.md "Tried and dropped" — the drafting table, the glass veil, opacity-dimmed text.
+- docs/plans/2026-11-11-097-feat-item-components-plan.md — the twelve item components this look paints, and KTD9 (keys on buttons) reversed here.
+- docs/plans/2026-11-12-098-feat-progressive-disclosure-plan.md — what shows when, to be re-cut onto this look.
+- Apple Human Interface Guidelines, https://developer.apple.com/design/human-interface-guidelines
+
+---
+
+## Planning Contract
+
+### Key Technical Decisions
+
+- KTD1. **The new look is a layer beside the old one, switched by one attribute.** `data-look="apple"` on the root selects a separate token file; the Slack tokens and Tokyo Night keep working untouched until U11 deletes them. One switch, so the person can compare and turn back at any point (R18).
+- KTD2. **The new look paints only the new components.** Turning it on turns on the new chat pane (plans 096/097); the old Slack thread is never repainted and leaves with the old look in U11. Repainting both would double the work for code that is going away. Governs R13.
+- KTD3. **Glass is one material utility with three states: glass, strong glass, solid.** Every glass surface uses it, never its own blur. The root's `data-glass="solid"` turns every one opaque at once; it is set by the system's Reduce Transparency or Increase Contrast, and by the platform budget (KTD6). Governs R1, R3.
+- KTD4. **Glass blurs loki's own content, not the desktop.** No transparent window: Tauri's transparent macOS windows need its private-API mode, which costs speed and rules out the App Store. Sidebar glass shows the thread and canvas beneath it. Native window materials return only if measurement shows them cheaper (Outstanding Questions). Governs R1, R2.
+- KTD5. **The web view first, native code only where it cannot answer.** The accent is WebKit's system-accent colour keyword, mixed darker until white text passes AA; Reduce Transparency, Increase Contrast and Reduce Motion come from CSS media queries. If WebKit on macOS 13.3+ does not report one of them, a small native bridge sets the matching root attribute instead. Governs R3, R4, R6.
+- KTD6. **Glass on Linux starts solid; Windows and macOS start glass.** The measured budget (R17) can move a platform either way; the result is a constant in one place, not a runtime probe on every launch. Governs R16, R17.
+- KTD7. **Menus and tooltips both read the keymap.** `app/src/shell/keymap.ts` already feeds the Mac menu bar (`src-tauri/src/menu.rs`) and the ☰ menu; it grows to every command (R9), and a tooltip that names a key reads the same binding, so a key is written once. Governs R9, R10, R11.
+- KTD8. **A dev-only workbench comes before any screen.** It draws every primitive and item component in day, night, solid and increased contrast with made-up data, so the foundation is approved by looking (R18), and the same page carries the contrast and screenshot checks.
+- KTD9. **Words change screen by screen, with the screen.** Each unit moves its screen's words to Apple's title case (R7); the style docs change once, in U11, when the last screen has moved.
+
+### High-Level Technical Design
+
+```mermaid
+flowchart TB
+  pref["Preferences › Appearance: New look"] --> look["root: data-look=apple"]
+  sys["Reduce Transparency / Increase Contrast (CSS media, KTD5)"] --> glass
+  plat["platform budget (KTD6)"] --> glass["root: data-glass=solid?"]
+  look --> tokens["look tokens: roles, type, radii, accent, focus ring"]
+  glass --> material["material utility: glass / strong / solid"]
+  tokens --> comps["shadcn ui + item components + shell + phone"]
+  material --> comps
+  keymap["keymap.ts"] --> menus["Mac menu bar / ☰ menu"]
+  keymap --> tips["tooltips with keys"]
+```
+
+---
+
+## Implementation Units
+
+### U1. The look layer and its switch
+
+**Goal:** the new tokens, the material utility and one switch, with nothing on screen changed while it is off.
+**Requirements:** R3, R4, R5, R6, R7, R8, R18; KTD1, KTD3, KTD5.
+**Dependencies:** none.
+**Files:** `app/src/kit/look.css` (new), `app/src/styles.css`, `app/src/theme.tsx`, `app/src/settings/settings.tsx`, `app/src/item/preview.ts`, `test/tokens.test.ts`, `test/theme.test.ts`, `test/look.test.ts` (new).
+**Approach:**
+1. `look.css` maps Apple's semantic roles onto the shadcn variables and loki's roles for day and night, with the type scale, concentric radii and the focus ring.
+2. The material utility reads `data-glass`; the media queries for Reduce Transparency and Increase Contrast set the solid state.
+3. The switch sets `data-look` and turns the new chat pane on with it (KTD2).
+**Patterns to follow:** `app/src/kit/tokens.css`'s day and night blocks and its `prefers-contrast` block; `createSessionValue` in `app/src/item/preview.ts`.
+**Test scenarios:**
+- With the switch off, the root carries no `data-look` and every existing token test passes unchanged.
+- With it on, `data-look="apple"` is set and the new chat pane preview reads on.
+- Every text role meets AA on its surface in day and night, the accent with white text included (`test/tokens.test.ts` extended).
+- Under `prefers-reduced-transparency` or `prefers-contrast: more` the material resolves to solid.
+- No colour, radius or size outside the new scales appears in `look.css`.
+**Verification:** the switch toggles cleanly with no visible change while off; the token fence covers the new file.
+
+### U2. The workbench
+
+**Goal:** a dev-only page that draws every primitive and item component in each state, where the person approves the foundation.
+**Requirements:** R18; KTD8.
+**Dependencies:** U1.
+**Files:** `app/src/dev/workbench.tsx` (new), the app's dev-only entry, `test/workbench.test.ts` (new).
+**Approach:** made-up data shaped like real data; a strip of toggles for day, night, solid and increased contrast; sections for `app/src/ui/` primitives, the twelve item components, menus, tooltips and sheets.
+**Test scenarios:**
+- The workbench is absent from the production bundle.
+- Each section renders in all four states without errors.
+**Verification:** the person has looked at it on the demo daemons and approved the foundation.
+
+### U3. The window shell
+
+**Goal:** the glass sidebar with the labelled rail and grouped chats, the toolbar's title and control groups, content running under them.
+**Requirements:** R1, R2, R8, R13; KTD3, KTD4.
+**Dependencies:** U2.
+**Files:** `app/src/shell/sidebar.tsx`, `app/src/shell/desk-sidebar.tsx`, `app/src/shell/desk-sidebar.css`, `app/src/shell/shell.tsx`, `app/src/shell/use-window-chrome.ts`, `app/src/components/index.tsx` (PaneHeader), `app/src/components/components.css`, `test/shell-look.test.ts` (new).
+**Approach:** the sidebar floats inset from the window edge, its corners concentric with the window's; the traffic lights sit in it (the window already overlays its title bar); the pane header becomes the window title with a subtitle and capsule control groups.
+**Test scenarios:**
+- With the new look on, the sidebar, rail and toolbar groups use the material utility and nothing else blurs.
+- With `data-glass="solid"` they draw opaque with the same geometry.
+- The rail keeps its labels and the chats stay grouped by agent.
+**Verification:** rendered on the demo daemons day and night and approved; R17 measured.
+
+### U4. The chat pane
+
+**Goal:** the thread, turns, approval and composer as frame D draws them.
+**Requirements:** R1, R2, R7, R8, R13, R14; KTD2, KTD9.
+**Dependencies:** U3.
+**Files:** `app/src/item/timeline.tsx`, `app/src/item/message-entry.tsx`, `app/src/item/agent-turn.tsx`, `app/src/item/work.tsx`, `app/src/item/agent-plan.tsx`, `app/src/item/thought.tsx`, `app/src/item/proposal.tsx`, `app/src/item/composer.tsx`, `app/src/item/action-bar.tsx`, `app/src/item/item-header.tsx`, `app/src/desk/desk-pane.tsx`, `test/item-*.test.ts`.
+**Approach:**
+1. The thread scrolls under the toolbar and composer with a softened top edge.
+2. The approval reads as a question with Deny, Always Allow… and Allow, Allow the default.
+3. The moves under the box take Apple's words (Later, Mark as Read, Archive) and lose their key chips (U5 puts the keys in tooltips).
+**Test scenarios:**
+- The approval's heading is a question naming the agent and the step.
+- Allow is the one default button; Always Allow… and Deny are plain.
+- ActionBar draws no key on a button face when the new look is on.
+- Messages, turns and cards carry no blur.
+**Verification:** rendered and approved; R17 measured on a long thread and a streaming turn.
+
+### U5. Keyboard: menus, tooltips, approval keys, focus
+
+**Goal:** every command in the menus, every key in a tooltip, the approval keys, and Apple's focus ring.
+**Requirements:** R9, R10, R11, R12; KTD7. Covers AE3, AE4.
+**Dependencies:** U4.
+**Files:** `app/src/shell/keymap.ts`, `src-tauri/src/menu.rs`, `app/src/shell/title-menu.tsx`, `app/src/ui/tooltip.tsx`, `app/src/item/proposal.tsx`, `app/src/item/composer.tsx`, `app/src/kit/look.css`, `test/keymap.test.ts`, `test/approval-keys.test.ts` (new).
+**Approach:** the keymap gains every command a screen offers, sorted into menus; a tooltip wrapper names the bound key; Return allows while the composer is empty, ⌘⌫ denies, Always Allow… confirms first; the focus flash gives way to the focus ring under the new look.
+**Test scenarios:**
+- Covers AE3. Return with an empty composer allows; with text it sends the reply and the approval stays open.
+- ⌘⌫ denies; Always Allow… opens a confirmation before granting.
+- Every binding a screen uses is in a menu; no two bindings in one scope share a key.
+- A tooltip for a bound control shows the same key the menu shows.
+- Covers AE4. Every action in the chat pane is reachable by keyboard alone.
+**Verification:** a keyboard-only walk of the chat pane; `menu.rs` builds the grown menus (cargo checks pass).
+
+### U6. Flow
+
+**Goal:** the deck and its chat, Gmail, Slack and Jira cards on the new look, outside content restyled.
+**Requirements:** R13, R14, R7; KTD9.
+**Dependencies:** U5.
+**Files:** `app/src/desk/catch-up.tsx`, `app/src/desk/catch-up-parts.tsx`, `app/src/desk/outside-card.tsx`, `app/src/desk/mail-thread.tsx`, `app/src/desk/mail-html.tsx`, `app/src/desk/slack-thread.tsx`, `app/src/desk/jira-ticket.tsx`, `test/item-header.test.ts`, `test/outside-threads.test.ts`.
+**Approach:** cards are solid on the page; the deck's controls sit in glass groups; mail HTML takes the new type and colours where its own styles allow, without breaking the sender's layout.
+**Test scenarios:**
+- A mail with its own inline colours keeps them; one without takes the new look's text colours.
+- Slack and Jira text take the new type scale.
+- Flow keeps A and D on an approval card.
+**Verification:** rendered with made-up Gmail, Slack and Jira cards and approved.
+
+### U7. Search, the Canvas tab and widgets
+
+**Goal:** ⌘K search, the Canvas tab and agents' widgets on the new look.
+**Requirements:** R13, R14.
+**Dependencies:** U5.
+**Files:** `app/src/shell/search-sheet.tsx`, `app/src/shell/search-sheet.css`, `app/src/desk/surface.tsx`, `app/src/desk/module-widget.tsx`, `app/src/desk/widget-frame.tsx`, `app/src/desk/widget-bridge.ts`, `test/desktop-search.test.ts`.
+**Approach:** search is a glass sheet; the canvas chrome takes the toolbar groups; the widget frame passes the new look's role variables to widgets so their content restyles as far as it uses them.
+**Test scenarios:**
+- A widget that reads loki's colour variables draws in the new look's roles.
+- Search results keep their keyboard order and selection.
+**Verification:** rendered and approved.
+
+### U8. Agents, Learn, Preferences, sheets and dialogs
+
+**Goal:** the remaining desktop screens on the new look.
+**Requirements:** R13, R7, R4; KTD9.
+**Dependencies:** U5.
+**Files:** `app/src/settings/*.tsx`, the Agents and Learn views under `app/src/shell/views.tsx`, `app/src/ui/dialog.tsx`, `app/src/ui/dropdown-menu.tsx`, related tests.
+**Approach:** sheets and menus take the strong glass; form screens stay solid; the Appearance pane loses the palette choice (Tokyo Night retired, R4) and keeps light, dark and system (R5).
+**Test scenarios:**
+- Appearance offers light, dark and system and no palette.
+- Sheets draw solid under `data-glass="solid"`.
+**Verification:** rendered and approved.
+
+### U9. The phone
+
+**Goal:** the paired phone view on iOS's Liquid Glass conventions.
+**Requirements:** R15, R7.
+**Dependencies:** U2.
+**Files:** `app/src/phone/phone.css`, `app/src/phone/*.tsx`, `test/phone*.test.ts`.
+**Approach:** glass tab bar and navigation bars, solid content, sheets, touch targets of at least 44 pt, title case; the phone reads the same look layer and material utility.
+**Test scenarios:**
+- Every tappable control is at least 44 pt.
+- The tab bar and navigation bars use the material utility; lists and messages do not.
+**Verification:** rendered on a phone-sized viewport and the paired phone, approved.
+
+### U10. Windows and Linux
+
+**Goal:** the previews on the new look with the right glass state.
+**Requirements:** R16, R9, R7; KTD6.
+**Dependencies:** U5.
+**Files:** `app/src/theme.tsx`, `app/src/shell/title-menu.tsx`, `app/src/kit/look.css`, `test/look.test.ts`.
+**Approach:** the platform constant sets solid on Linux; the ☰ menu draws as a strong-glass menu (solid on Linux); fonts fall back as R7 says.
+**Test scenarios:**
+- Covers AE2. On Linux the root carries `data-glass="solid"`; on Windows it does not.
+- The ☰ menu lists the same commands as the Mac menu bar.
+**Verification:** checked on CI's Windows and Linux builds and by measurement where a machine is available.
+
+### U11. Retire the old look and rewrite the docs
+
+**Goal:** one look, and the docs that state the reversed rules.
+**Requirements:** R4, R18; KTD1, KTD9.
+**Dependencies:** U3–U10, and the person's week (Success Criteria).
+**Files:** `app/src/kit/tokens.css`, `app/src/theme.tsx`, the old thread under `app/src/chat/`, `PRODUCT.md`, `docs/style.md`, `docs/design.md`, `docs/manual.md`, `AGENTS.md`, `test/tokens.test.ts`.
+**Approach:** delete the Slack tokens, Tokyo Night, `data-palette`, the switch and the old thread; rewrite PRODUCT.md's brand and anti-references, style.md's words rule, design.md as the new spec with the reversals under "Tried and dropped", the manual's Appearance section and AGENTS.md's short form.
+**Test scenarios:**
+- No reference to `data-palette` or the old tokens remains.
+- The token fence passes on the single look.
+**Verification:** every check in AGENTS.md passes; the person has used the new look for a week.
+
+### U12. One sidebar in place of the rail
+
+**Goal:** the window's left side is one Mac source list, as Mail and Notes draw it, not a rail beside a list.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U3.
+**Files:** `app/src/shell/sidebar.tsx`, `app/src/shell/shell.tsx`, `app/src/shell/list-column.tsx`, `app/src/shell/use-column.ts`, `app/src/components/components.css`, `test/shell-look.test.ts`.
+**Approach:** under Liquid Glass the rail draws nothing and takes no width. The list column becomes the sidebar on every section, Flow included: four place rows at its top (Chats, Flow, Agents, Learn) at 13 pt with an accent-tinted symbol and a grey trailing count, the selected row filled and never bold, then the section's own list under an 11 pt section heading. The sidebar toggle sits beside the traffic lights and stays there while the sidebar is hidden; the main pane leaves room for both. Preferences is ⌘, (and the menu bar); a quiet "Update available" row appears at the sidebar's foot only while a newer loki is out. Today's look keeps the rail.
+**Test scenarios:**
+- Under Liquid Glass the sections nav lists Chats, Flow, Agents and Learn as rows, with no Preferences row and no labelled rail.
+- Flow's row carries the waiting count as text, not a red badge.
+- Today's look still draws the rail with its five segments.
+**Verification:** rendered in light and dark on demo data, with the sidebar shown and hidden.
+
+### U13. The chat's toolbar and the sidebar's real material
+
+**Goal:** the chat pane's top is a Mac toolbar, and the sidebar is the Mac's own translucent material rather than blur painted over a flat colour.
+**Requirements:** R1, R2, R13; KTD1.
+**Dependencies:** U4, U12.
+**Files:** `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `app/index.html`, `app/src/theme.tsx`, `app/src/styles.css`, `app/src/shell/shell.tsx`, `app/src/components/index.tsx`, `app/src/desk/desk-pane.tsx`, `app/src/components/components.css`, `test/shell-look.test.ts`, `test/chat-look.test.ts`.
+**Approach:** on the Mac the window is transparent with the system's sidebar material behind it (Tauri's window effects; the private-API flag it needs is acceptable outside the App Store). The page marks the root `data-vibrant` there; under Liquid Glass the sidebar's region lets the material through and everything right of it is painted opaque, and Reduce Transparency, Increase Contrast and the solid fallback paint it solid as before. The chat's header becomes one 52 pt toolbar row: the title at 15 pt semibold with the agent and its state as a grey line under it, no avatar or Unread chip (the sidebar shows unread), and at the trailing edge the Messages / Canvas control and one glass group of the item's moves as symbols (Label, Mark as Read while unread, Archive) whose names and keys are in their tooltips. The moves leave the row under the box. Today's look and the browser keep today's header and an opaque window.
+**Test scenarios:**
+- On the Mac the window builder asks for transparency and the sidebar effect; elsewhere it does not.
+- Under Liquid Glass with `data-vibrant`, the page ground is transparent and the content right of the sidebar is opaque; under the solid fallbacks it is opaque everywhere.
+- The chat's toolbar draws Archive, Label and Mark as Read as named buttons in the header, and no ActionBar under the box.
+**Verification:** the toolbar rendered on demo data in light and dark; the material checked in the real Mac window.
+
+### U14. The thread reads as a Mac conversation with an agent
+
+**Goal:** the thread stops reading as a Slack channel: your prompts are bubbles at the trailing edge, the agent's work is prose with no name over it, and time is told at gaps, not on every row.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U4.
+**Files:** `app/src/item/message-entry.tsx`, `app/src/item/agent-turn.tsx`, `app/src/item/entries.ts`, `app/src/item/timeline.tsx`, `test/chat-look.test.ts`, `test/thread-new.test.ts`.
+**Approach:** under Liquid Glass, the layout of ChatGPT and Claude for Mac rather than Messages' two-sided bubbles (the critique's recommendation, which the person went ahead with):
+- Your message is a bubble at the trailing edge, at most three quarters of the column, with no "You" and no time on it; its time is its tooltip, and copy shows on hover under it.
+- The agent's turn has no name; its header line appears only while it says something (worked for how long, working, needs you, failed).
+- Its words carry no time row; copy appears on hover.
+- Time is a centred marker before your message when a quarter of an hour or more has passed, or with the day where the day changes.
+- Today's look keeps its rows as they are.
+**Test scenarios:**
+- Under Liquid Glass your message has no "You" label and keeps its time as a tooltip; today's look keeps both on the row.
+- The agent's turn names no agent under Liquid Glass and still announces itself to a screen reader by name.
+- With gaps on, a message 15 minutes or more after the row before it gets a time marker; one sooner does not; the day's marker carries the time where both fall.
+**Verification:** rendered on demo data in light and dark.
+
+### U15. The Mac's type scale
+
+**Goal:** text on the desktop is sized as AppKit sizes it, not at iOS or web sizes.
+**Requirements:** R7, R13; KTD1.
+**Dependencies:** U1.
+**Files:** `app/src/kit/tokens.css`, `app/src/styles.css`, `app/src/phone/phone.css`, every desktop stylesheet and component that set a size, `test/tokens.test.ts`, `test/shell-look.test.ts`.
+**Approach:**
+- The nine sizes become tokens (`--loki-text-micro` … `--loki-text-hero`) at today's values, and every desktop size reads one: the stylesheets' `font-size`, inline `fontSize`, and Tailwind's `text-*` names.
+- Liquid Glass redefines them as the Mac's: 10, 10, 11, 11, 13, 13, 15, 22 and 26.
+- The phone sets today's values back on its own root, so only the desktop moves.
+**Test scenarios:**
+- No desktop stylesheet or component sets a literal size outside the tokens (the agent's monogram, derived from its face, aside).
+- Under Liquid Glass body and rows are 13, secondary text 11, titles 15; the phone and today's look keep 13.5, 12 and 17.
+**Verification:** rendered on demo data, the chat, Flow and Agents.
+
+### U16. A Flow card asks one thing at a time
+
+**Goal:** a chat's Flow card stops showing seven decisions at once; while an approval waits, the bottom of the card holds only the question and the box.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U6, U13.
+**Files:** `app/src/item/toolbar.tsx`, `app/src/desk/catch-up-parts.tsx`, `app/src/desk/catch-up.tsx`, `app/src/desk/desk-pane.tsx`, `app/src/components/components.css`, `test/chat-look.test.ts`.
+**Approach:** under Liquid Glass the card's header is the chat pane's toolbar (one shared component):
+- The chat's title, which opens the chat (its key in the tooltip), over a grey line of its facts and when and why it is here. No face and no Unread chip.
+- Later, Mark as Read and Archive as one glass group of symbols, their keys in their tooltips.
+- The row of four buttons under the box is gone, so an approval's Deny / Always Allow… / Allow is the only row of choices at the bottom.
+- Every key keeps working. Today's look keeps its card.
+**Test scenarios:**
+- The shared toolbar draws named, keyed symbols and a title that opens.
+- Under Liquid Glass the chat card's footer is empty and its header carries the moves; today's look keeps the ActionBar.
+**Verification:** Flow rendered with an approval waiting, light and dark.
+
+### U17. Blue for what waits on you, grey for counts and faces
+
+**Goal:** red stops carrying "needs you" four times on one screen; the desktop says it the way Mail and Messages do.
+**Requirements:** R1, R4; KTD1.
+**Dependencies:** U1, U12.
+**Files:** `app/src/kit/tokens.css`, `app/src/components/components.css`, `app/src/desk/agent-chip.tsx`, `test/shell-look.test.ts`.
+**Approach:** under Liquid Glass on the desktop:
+- The attention role is blue, at the shade that passes AA as text and 3:1 as a dot in each theme. That covers the needs-you dots, the turn's "Needs you", the approval's dot and the New line.
+- A row's count is grey text at its trailing edge, not a red pill.
+- An agent with no picture is Messages' grey monogram, not a coloured tile.
+- Red stays for failures (the negative role), and the phone keeps its own colours.
+**Test scenarios:**
+- The apple family's attention is blue in both themes and still passes the token contrast tests.
+- Under Liquid Glass the row badge has no fill and reads in the muted colour.
+- Under Liquid Glass an agent with no picture draws the monogram ground; today's look keeps its hue.
+**Verification:** rendered with an approval waiting, light and dark, the chat and Agents.
+
+### U18. Settings in a window of its own
+
+**Goal:** under Liquid Glass on the Mac, Preferences is a Settings window, as on every Mac app, not a sheet over the chat.
+**Requirements:** R1, R13; KTD1.
+**Dependencies:** U8, U12, U13.
+**Files:** `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`, `app/src/desk/env.ts`, `app/src/boot.tsx`, `app/src/shell/settings-window.tsx`, `app/src/shell/use-shell-attention.ts`, `app/src/shell/shell.tsx`, `app/src/shell/views.tsx`, `app/src/settings/settings.tsx`, `app/src/shell/use-chat-layout.ts`, `app/src/shell/use-global-shortcut.ts`, `app/src/shared/session-value.ts`, `app/src/components/components.css`, tests.
+**Approach:**
+- A Rust command opens a second window labelled `settings`, or brings it forward when it is open. It carries the same start-up script as the main window, plus which window it is and the page to show. An open window is told a new page by an event. On the Mac it has the overlay title bar and the sidebar material.
+- The page boots a settings-only root in that window: its own link to the daemon and its own attention model, through the hook the shell now shares, and Settings filling the window. The section list sits on the material, there is no ×, and Esc or ⌘W closes the window.
+- Under Liquid Glass in the Mac app, ⌘,, the menu bar's Preferences…, ⌘K's preference hits, the keys sheet and the sidebar's Update row all open the window. Today's look, Windows, Linux and the browser keep the sheet.
+- What lives in one window's storage follows in the other through storage events: the chat's width and place, the system-wide key, the new chat pane, and a models-changed mark the main window answers by forgetting its model list. Light/dark and palette already follow.
+**Test scenarios:**
+- The command reuses an open window and passes a page only when it is a plain page id; the window carries the start-up script and is in the capability.
+- The page routes the settings window to its own root; in the main window, under Liquid Glass in the Mac app, Preferences opens the window and otherwise the sheet.
+- A change in another window's storage moves the chat layout, the shortcut and a session value kept in localStorage.
+**Verification:** checked in the real Mac app by the person (a browser cannot open a second Tauri window); the settings root rendered in a browser on demo data.
+
+Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everything that opens over them still HTML. The person chose, in order: native menus and no full-window dimming layers, ⌘N in place, then the composer. Sidebar and Flow reshape, the canvas as an inspector and agents as contacts stay brainstorm topics. The person also confirmed title case on controls under Liquid Glass (KTD of the direction; many controls were still lowercase).
+
+### U19. Native menus and pickers on the Mac
+
+**Goal:** under Liquid Glass in the Mac app, every command menu and choice picker is a real macOS menu, attached to what opened it, never a drawn dialog over the window.
+**Requirements:** R1, R5, R13; KTD1.
+**Dependencies:** U5, U12.
+**Files:** `app/src/shell/native-menu.ts` (a menu as data, popped up natively), `app/src/shell/menu-items.tsx` (the same data drawn by loki), `app/src/chat/model-switcher.tsx` (Switch model), `app/src/components/index.tsx` (a Sheet that dims nothing), `app/src/shell/desk-sidebar.tsx` (row menu), `app/src/desk/desk-pane.tsx` (the Canvas tab's menu), `app/src/desk/catch-up-parts.tsx` (Flow's lane menu), `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/chat/conversation.tsx`, `app/src/shell/use-shell-keys.ts`, `app/src/shell/keymap.ts`, `src-tauri/src/menu.rs`, tests.
+**Approach:**
+- A menu is data: items with title-case labels, separators, checkmarks, submenus, disabled states, a quiet count, and the key from the keymap. The Mac app pops it up with Tauri's menu API at the control (or the pointer, for a right-click). Popped-up items carry a `popup:` id, which the page's menu-bar handler skips, since the shell forwards every native menu click as `loki:menu`.
+- Command menus (the chat row's, the Canvas tab's, Flow's lanes) are described once and drawn either way: natively, or by loki at menu sizes elsewhere.
+- Select model is a floating switcher, ⌘K's way, at the person's choice once the native menu was tried (a Mac menu cannot filter, and it hid which agent a chat runs on): opened by the pill or ⌘⇧M, a panel near the top of the window with nothing dimmed behind it, the field focused. Results sit under each harness's name, the chat's first; with nothing typed, loki's quick picks or an agent's models, the current one checked; typed, every model whose name, provider or harness holds each word. Once the chat has started, only its own harness shows (plan 020, KD4): the person switches model and effort there, and another harness is a new chat's choice. ↑↓ move, Return switches, Esc closes; the highlighted model's efforts sit at the foot (←→ while the field is empty, or a click). Names only, never a handle. This is the desktop's picker under Liquid Glass in the app and the browser alike; the phone keeps its sheet and today's look its popover.
+- The permission mode pops up natively with the current mode checked; its drawn menu marks it with a check, not the word "current".
+- The menu bar says "Settings…", as macOS has since 13.
+- Labels on menu items and the thread's jump button are title case under Liquid Glass.
+- Left for later: the return-to picker (it has a date field) and the hand-off picker (a list dialog) are not menus and keep their drawn panels; the rest of the copy that says "Preferences" moves with U11.
+**Test scenarios:**
+- Separators are tidied (none leading, trailing or doubled) and a menu's entries become Tauri's option shape with `popup:` ids, checks, accelerators and nested submenus.
+- The row menu groups open and read state, then rename, folder, labels and other Macs, then pin and archive, and disables what needs the link while it is down.
+- The switcher lists the chat's harness first with its quick picks, searches every harness by each word, keeps locked harnesses in view and off, never names a handle, and steps effort within what the model offers.
+- The menu bar handler ignores `popup:` ids.
+**Verification:** the drawn fallback rendered on demo data; the native menus checked by the person in the real Mac app (a browser cannot pop one up).
+
+### U20. Nothing dims the window; ⌘N opens a chat in place
+
+**Goal:** opening search, a picker or a new chat never greys or blurs the window; ⌘N behaves as Messages' does.
+**Requirements:** R1, R5, R7; KTD1.
+**Dependencies:** U7, U19.
+**Files:** `app/src/shell/search-sheet.tsx`, `app/src/desk/new-desk.tsx`, `app/src/shell/shell.tsx`, the keys sheet, `app/src/desk/mentions.tsx`, `app/src/chat/slash-palette.tsx`, `app/src/desk/mail-address.tsx`, `app/src/desk/label-picker.tsx`, `app/src/components/components.css`, tests.
+**Approach:**
+- ⌘K is a floating glass panel near the top of the window with nothing behind it: no scrim, no blur, no instruction footer. Esc, ⌘K or a click outside closes it.
+- ⌘N opens an empty chat at once, with a To: line at the top of the thread holding the agent (the last one used, changeable by typing or a pop-up). Sending the first message creates the chat; leaving it empty leaves nothing behind. The folder moves to the chat's info and defaults as today.
+- The keys sheet stops being a dimmed sheet: the menu bar carries the keys, and the sheet (still reachable from Help) is a plain panel.
+- Type-ahead lists (@mentions, slash commands, mail addresses, labels) stay drawn by loki, as Mail's and Messages' are, attached to the caret, at menu sizes on the glass material, dimming nothing.
+**Test scenarios:**
+- Under Liquid Glass the search panel and type-ahead lists render no backdrop layer.
+- ⌘N shows an empty chat with the To: agent and creates nothing until the first send; Esc or switching away leaves no chat.
+**Verification:** rendered on demo data, light and dark: ⌘K open, ⌘N, an @mention list.
+
+### U21. A Messages composer
+
+**Goal:** the composer reads as Messages', not a web chat app's.
+**Requirements:** R1, R4; KTD1.
+**Dependencies:** U4, U19.
+**Files:** the composer component and its input group, `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/components/components.css`, tests.
+**Approach:** under Liquid Glass on the desktop:
+- One line, a capsule about 30pt tall that grows with the text up to a limit; "+" outside it on the leading side.
+- Send is the accent up-arrow in a filled circle, shown only when there is text; the microphone shows when there is none, as in Messages.
+- The engine and mode pills leave the composer. Changed during the unit, by the person's choice (2026-11-13): the model and the permission mode change rarely, so they get no quick controls and no duplicates. ⌘K is their one home, Models and a new **Permissions** scope (⌘⇧M, ⌘⇧P, or "model " / "mode " typed); "+" only attaches files, and the toolbar names neither. This replaces U19's native mode menu under Liquid Glass.
+**Test scenarios:**
+- Under Liquid Glass the composer has no pills, one row, and swaps the microphone for send when text is typed.
+- "+" attaches files and offers no menu; ⌘K's Permissions scope lists the chat's modes, the current one checked, and plain ⌘K finds a mode by the start of its name.
+**Verification:** rendered empty, typing and multi-line, light and dark.
+
+### U22. SF Symbols in native menus
+
+**Goal:** the main actions in native menus carry Apple's symbols, as Tahoe's own menus do.
+**Requirements:** R1; KTD1.
+**Dependencies:** U19.
+**Files:** `src-tauri/Cargo.toml`, `src-tauri/src/` (a symbol-image command), `app/src/shell/native-menu.ts`, tests.
+**Approach:** Tauri's menus take only AppKit's older named images or image bytes, so the Mac app asks AppKit for the SF Symbol by name at runtime (template image, menu size) and hands its bytes to the menu item; a missing symbol leaves the item text-only. Changed when built (2026-11-13): muda shows image bytes as a fixed-colour image, never a template, so a symbol would stay dark in dark mode and on the highlighted row. The shell instead builds the pop-up menu in AppKit (`src-tauri/src/popup.rs`) from the page's menu data, puts a template image on each item that has an icon, and answers with the index of the item chosen; the page runs it. The icons are not SF Symbols after all: the person chose one icon per action everywhere (2026-11-13), so a menu item shows the Lucide icon the action has in the toolbar and in loki's drawn menus, which show it too. The page draws it as a 2x PNG and the shell marks it a template. This reverses KD "real SF Symbols appear only in the native macOS menus". The same day the person asked for one icon set across the whole new look: under Liquid Glass loki's own hand-drawn icons (`shared/icons.tsx`, the sidebar's places and toggle) and the glyphs that stood in for icons ("×", "✓", "↓", "⎇") draw as Lucide's, through `Icon` and `GlassIcon`; today's look keeps its drawings until U11 retires it. The `popup:` ids and the menu-bar handler's skip for them go, since pop-ups no longer pass through Tauri's menu events. Symbols go on actions (Archive, Pin, Rename, Mark as Read, Labels), not on pickers. Lands after U19 so the menus never wait on it.
+**Test scenarios:** an unknown symbol name yields no icon and no error; pickers carry no icons.
+**Verification:** checked by the person in the real Mac app.
+
+### U23. One ⌘K: search, commands and models
+
+**Goal:** ⌘K is loki's one command panel, as Spotlight is on macOS 26: it finds chats, agents and pages, runs the current screen's commands, and switches the open chat's model, without turning every search into noise. The person chose this, with scopes, on 2026-11-13.
+**Requirements:** R1, R5, R7; KTD1.
+**Dependencies:** U19 (the model switcher), U20 (⌘K floats).
+**Files:** `app/src/shell/command-center.ts` (the open chat shares its model controls; anything opens ⌘K on a scope), `app/src/shell/search-sheet.tsx`, `app/src/shell/shell.tsx`, `app/src/chat/model-switcher.tsx` (its list and foot, now ⌘K's Models scope), `app/src/chat/conversation.tsx`, `app/src/shell/keymap.ts`, tests.
+**Approach:**
+- Plain ⌘K searches as today, and adds two groups: **Commands**, the menu-bar actions that work on this screen now, each with its key; and, while a chat is open and something is typed, **Models**, the three best model matches.
+- **Models** is a scope: a chip in the field. The model pill and ⌘⇧M open ⌘K on it; Tab on a model result, or typing "model " in plain ⌘K, steps in; Backspace in the empty field, or the chip's ×, steps out. In it, the switcher as U19 built it: Usual first, the chat's harness, effort at the foot.
+- The panel floats with nothing dimmed behind it (U20's ⌘K part lands here).
+- The open chat shares its model controls (its models, model, effort, Usual, and how to switch) for ⌘K to read, as views share their actions with the keymap; ⌘K holds no copy of a chat's state.
+**Test scenarios:**
+- The Models scope lists Usual, the chat's harness and effort; plain ⌘K lists at most three model matches and only while a chat is open and something is typed.
+- Commands lists only actions registered now and in this screen, with their keys, and never ⌘K itself.
+- "model " steps into the scope; Backspace on an empty field steps out.
+**Verification:** rendered on demo data: ⌘K plain, typed, in the Models scope from the pill; light and dark.
+
+---
+
+## Verification Contract
+
+- Every unit: the checks in AGENTS.md with CI's toolchain; the cargo checks in docs/CONTRIBUTING.md whenever `src-tauri/` changes (U5).
+- Every screen unit: rendered on the demo daemons with made-up data at 1440 and 900 px, in day, night, solid and increased contrast, then walked by keyboard; R17 measured with the render-measurement setup, before and after; the person's approval before the next unit starts.
+- End: the Success Criteria, read beside Mail, Notes and Messages.
+
+## Definition of Done
+
+- Every R1–R18 holds and AE1–AE4 pass.
+- Each screen was approved rendered by the person in order.
+- The old look, Tokyo Night and the switch are gone, and the docs state the new rules.
+
+---
+
+## Planning Notes
+
+### Scope Boundaries (planning)
+
+- Not built: a transparent window showing the desktop (KTD4); a per-launch glass benchmark (KTD6's constant instead); repainting the old Slack thread (KTD2).
+
+### Risks
+
+- WebKit may not report Reduce Transparency on macOS 13.3: a small native bridge then sets the attribute (KTD5, stop condition 2).
+- Mail HTML restyling can break a sender's layout: U6 restyles only what the mail leaves unstyled.
+- Title case across every screen is a large copy change: per screen with that screen (KTD9) so no half-cased screen ships.
+
+### Deferred to Implementation
+
+- The exact accent darkening amount per system accent, from the contrast test.
+- Where the workbench mounts in the dev build.
+- Whether any Windows machine measures over budget.
+
+### Sources (planning)
+
+- `app/src/kit/tokens.css` (day/night blocks, `prefers-contrast` and reduced-motion handling, the focus flash), `app/src/shell/keymap.ts` (MENUS and KEYMAP), `src-tauri/src/menu.rs` (menus built from the keymap), `src-tauri/src/lib.rs` (overlay title bar), `app/src/item/preview.ts` (the preview switch pattern).
+- Apple's Human Interface Guidelines were not fetched this session, by the person's choice; the plan follows them as known, and implementation checks each screen against them.

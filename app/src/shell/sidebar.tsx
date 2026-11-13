@@ -5,6 +5,8 @@ import { Dot, countText } from "../components";
 import { inTauri, platform, type Platform } from "../desk/env";
 import { keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
+import { PanelLeftIcon } from "lucide-react";
+import { GlassIcon, Icon as SharedIcon, type IconName } from "../shared/icons";
 
 /** The rail's width in px, down the window's left edge. */
 export const SIDEBAR_WIDTH = 48;
@@ -19,6 +21,24 @@ export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform
 }
 /** The top strip's height in px on this system (see `titlebarHeight`); 0 in a browser tab. */
 export const TITLEBAR_HEIGHT = titlebarHeight();
+
+/** Liquid Glass's sidebar (U12): its gap from the window's edges, in px. */
+export const GLASS_INSET = 8;
+/** Liquid Glass's sidebar: the height of its top row, where the traffic lights and the sidebar toggle sit, in px. */
+export const GLASS_HEAD = 44;
+/**
+ * The Mac window's traffic lights (src-tauri lib.rs traffic_light_position): the close button's top-left, in points.
+ * They sit inside Liquid Glass's inset sidebar, and its toggle is centred on them.
+ */
+export const GLASS_LIGHTS = { x: 20, y: 22 };
+/** Where Liquid Glass's sidebar toggle sits from the window's left edge: past the traffic lights on the Mac's window, else near the edge. */
+export function sidebarToggleLeft(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? 92 : 16;
+}
+/** The toggle's top, in px: its 28 px box centred on the lights' row (14 pt buttons), or near the panel's top elsewhere. */
+export function sidebarToggleTop(shell: boolean = inTauri, os: Platform = platform): number {
+  return shell && os === "macos" ? GLASS_LIGHTS.y + 7 - 14 : GLASS_INSET + 8;
+}
 
 /**
  * The window's top edge, Slack style, and it drags the window (a double click zooms, or maximises). On the Mac the
@@ -102,6 +122,9 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
   );
 }
 
+/** Each place's icon under Liquid Glass, by loki's icon names (Lucide's drawings there): the same as ⌘K and the menus use. */
+const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", agents: "agents", learn: "learn", settings: "settings" };
+
 const glyph = { width: 10, height: 10, viewBox: "0 0 10 10", fill: "none", stroke: "currentColor", strokeWidth: 1 } as const;
 
 /**
@@ -135,6 +158,7 @@ export function Sidebar({
   return (
     <nav
       aria-label="sections"
+      className="loki-sections"
       onPointerDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
@@ -143,8 +167,6 @@ export function Sidebar({
         bottom: 0,
         width: SIDEBAR_WIDTH,
         boxSizing: "border-box",
-        borderRight: "1px solid var(--loki-border)",
-        background: "var(--loki-panel)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -204,7 +226,7 @@ export function Sidebar({
                   />
                 )}
               </button>
-              <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
+              <span className="loki-label" style={{ fontSize: "var(--loki-text-micro)", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
                 {s.label}
               </span>
             </span>
@@ -215,18 +237,70 @@ export function Sidebar({
   );
 }
 
-/** Show / hide the list column (⌘⇧D, Slack's sidebar key): a panel with its left pane, above Preferences. */
-function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+/**
+ * Liquid Glass's sidebar head (plan 2026-11-12-1505, U12): the window's places as the source list's first rows, in
+ * place of the rail, as Mail lists its mailboxes. Each row is a symbol in the accent, the place's name and a grey count
+ * (what waits in Flow, the cards due in Learn); the place showing is filled, never bold. Preferences is not a row: it is
+ * ⌘, and the menu bar's, as on every Mac app.
+ */
+export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: Segment; onSelect: (s: Segment) => void; waiting: number; dueCards?: number }) {
+  return (
+    <nav aria-label="sections" className="loki-places">
+      {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
+        const count = s.id === "inbox" ? waiting : s.id === "learn" ? dueCards : 0;
+        const said = s.id === "inbox" ? `${count} waiting` : `${count} due`;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            className="loki-place"
+            aria-current={segment === s.id ? "page" : undefined}
+            aria-label={count > 0 ? `${s.label}, ${said}` : s.label}
+            title={`${s.label} (${s.key})`}
+            onClick={() => onSelect(s.id)}
+          >
+            <span className="loki-place-icon">
+              {/* Places is drawn only under Liquid Glass, where loki's icons are Lucide's, as everywhere in the new look. */}
+              <SharedIcon name={PLACE_ICON[s.id]} size={18} />
+            </span>
+            <span className="loki-place-label">{s.label}</span>
+            {count > 0 && (
+              <span aria-hidden className="loki-place-count">
+                {countText(count)}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** The sidebar's foot under Liquid Glass while a newer loki is out: one quiet row that opens Preferences on it. */
+export function UpdateRow({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button type="button" className="loki-place loki-place--foot" onClick={onOpen}>
+      <Dot aria-hidden color="var(--loki-accent)" />
+      <span className="loki-place-label">Update Available</span>
+    </button>
+  );
+}
+
+/**
+ * Show / hide the sidebar (⌘⇧D). Today's look draws it on the rail, above Preferences; Liquid Glass floats it beside
+ * the traffic lights, where it stays while the sidebar is hidden, as Mail's does.
+ */
+export function ColumnToggle({ open, onToggle, floating = false }: { open: boolean; onToggle: () => void; floating?: boolean }) {
   return (
     <button
       onClick={onToggle}
       aria-label={open ? "Hide sidebar" : "Show sidebar"}
       aria-pressed={open}
       title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
-      className="loki-rail"
+      className={floating ? "loki-rail loki-sidebar-toggle" : "loki-rail"}
       style={{
-        marginTop: "auto",
-        width: 36,
+        marginTop: floating ? 0 : "auto",
+        width: floating ? 28 : 36,
         height: 28,
         display: "grid",
         placeItems: "center",
@@ -238,11 +312,13 @@ function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void 
         padding: 0,
       }}
     >
-      <svg {...common} aria-hidden>
-        <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
-        <path d="M7.5 3.5v13" />
-        {open && <path d="M4.5 7h1M4.5 9.5h1" />}
-      </svg>
+      <GlassIcon icon={PanelLeftIcon} size={18}>
+        <svg {...common} aria-hidden>
+          <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
+          <path d="M7.5 3.5v13" />
+          {open && <path d="M4.5 7h1M4.5 9.5h1" />}
+        </svg>
+      </GlassIcon>
     </button>
   );
 }
@@ -263,7 +339,7 @@ function Badge({ n, tone }: { n: number; tone: "attention" | "quiet" }) {
         background: tone === "attention" ? "var(--loki-attention)" : "var(--loki-muted)",
         color: tone === "attention" ? "var(--loki-on-attention)" : "var(--loki-bg)",
         border: "2px solid var(--loki-panel)",
-        fontSize: 9.5,
+        fontSize: "var(--loki-text-micro)",
         fontWeight: 700,
         lineHeight: "13px",
         textAlign: "center",

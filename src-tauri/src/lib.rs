@@ -11,6 +11,7 @@ mod install;
 mod menu;
 mod native;
 mod node;
+mod popup;
 mod procs;
 mod widgets;
 
@@ -100,6 +101,54 @@ fn init_script() -> String {
         desk = serde_json::to_string(&desk).unwrap_or_else(|_| "null".into()),
         os = page_os(std::env::consts::OS),
     )
+}
+
+/// The Settings window's label (plan 2026-11-12-1505, U18): one at most, brought forward when it is already open.
+const SETTINGS_WINDOW: &str = "settings";
+
+/// A Preferences page id as the page names them (settings/pages.ts): lowercase words, nothing that could leave a string.
+fn settings_page(page: Option<&str>) -> Option<&str> {
+    page.filter(|p| !p.is_empty() && p.len() <= 32 && p.chars().all(|c| c.is_ascii_lowercase() || c == '-'))
+}
+
+/// The Settings window's start-up script: the main window's, then which window this is and the page to open on.
+fn settings_script(page: Option<&str>) -> String {
+    format!(
+        "{} if (window.top === window && window.__LOKI__) {{ window.__LOKI__.window = \"settings\"; window.__LOKI__.page = {}; }}",
+        init_script(),
+        serde_json::to_string(&settings_page(page)).unwrap_or_else(|_| "null".into()),
+    )
+}
+
+/// Open Settings in a window of its own (plan 2026-11-12-1505, U18), or bring the open one forward on `page`. Async,
+/// because a window made from a synchronous command deadlocks on Windows; only the Mac's page calls it today.
+#[tauri::command]
+async fn open_settings<R: tauri::Runtime>(app: tauri::AppHandle<R>, page: Option<String>) -> Result<(), String> {
+    use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+    if let Some(win) = app.get_webview_window(SETTINGS_WINDOW) {
+        if let Some(p) = settings_page(page.as_deref()) {
+            app.emit_to(SETTINGS_WINDOW, "loki:settings-page", p).map_err(|e| e.to_string())?;
+        }
+        let _ = win.unminimize();
+        win.show().map_err(|e| e.to_string())?;
+        return win.set_focus().map_err(|e| e.to_string());
+    }
+    let window = WebviewWindowBuilder::new(&app, SETTINGS_WINDOW, WebviewUrl::default())
+        .title("Settings")
+        .inner_size(820.0, 600.0)
+        .min_inner_size(680.0, 460.0)
+        .initialization_script(settings_script(page.as_deref()));
+    // As the main window: the lights over the page, the system's sidebar material behind the section list.
+    #[cfg(target_os = "macos")]
+    let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true).transparent(true).effects(
+        tauri::window::EffectsBuilder::new()
+            .effect(tauri::window::Effect::Sidebar)
+            .state(tauri::window::EffectState::FollowsWindowActiveState)
+            .build(),
+    );
+    #[cfg(not(target_os = "macos"))]
+    let window = window.background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff));
+    window.build().map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// The page's console, mirrored to the shell's stderr (there is no devtools in a packaged app).
@@ -375,9 +424,11 @@ pub fn run() {
             install_status,
             daemon_status,
             retry_daemon,
+            open_settings,
             native::set_waiting,
             native::set_global_shortcut,
-            menu::set_menu
+            menu::set_menu,
+            popup::popup_menu
         ])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
@@ -429,8 +480,6 @@ pub fn run() {
                 .title("loki")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
-                // It starts on the system theme; the page applies the saved light/dark preference after it loads.
-                .background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff))
                 .initialization_script(&script)
                 // No page opens a second loki window. A link that asks for one (a mail drawn in its frame, whose
                 // clicks the Mac's webview keeps from loki's own listener) goes to the system browser when it is a
@@ -452,6 +501,22 @@ pub fn run() {
             // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            // The lights sit inside Liquid Glass's inset sidebar, level with its toggle (app sidebar.tsx GLASS_LIGHTS).
+            #[cfg(target_os = "macos")]
+            let window = window.traffic_light_position(tauri::LogicalPosition::new(20.0, 22.0));
+            // The Mac's own sidebar material behind a transparent window (plan 2026-11-12-1505, U13): Liquid Glass lets
+            // it through the sidebar and paints everything else; today's look paints the whole window, so it never
+            // shows there. It dims with the window, as Mail's does, and macOS draws it solid under Reduce Transparency.
+            #[cfg(target_os = "macos")]
+            let window = window.transparent(true).effects(
+                tauri::window::EffectsBuilder::new()
+                    .effect(tauri::window::Effect::Sidebar)
+                    .state(tauri::window::EffectState::FollowsWindowActiveState)
+                    .build(),
+            );
+            // Elsewhere it starts on loki's dark ground; the page applies the saved light/dark preference after it loads.
+            #[cfg(not(target_os = "macos"))]
+            let window = window.background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff));
             // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
             // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
             #[cfg(not(target_os = "macos"))]
@@ -546,6 +611,21 @@ mod tests {
         assert_eq!(gdk_backend(None), Some("x11"));
         assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("wayland"))), None, "the user's own choice stands");
         assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("x11"))), None);
+    }
+
+    #[test]
+    fn the_settings_window_is_told_which_it_is_and_only_a_plain_page() {
+        assert_eq!(settings_page(Some("keys")), Some("keys"));
+        assert_eq!(settings_page(Some("learn")), Some("learn"));
+        assert_eq!(settings_page(Some("")), None);
+        assert_eq!(settings_page(Some("x\";alert(1)//")), None);
+        assert_eq!(settings_page(Some("Keys")), None);
+        assert_eq!(settings_page(None), None);
+        let script = settings_script(Some("keys"));
+        assert!(script.contains("window.__LOKI__.window = \"settings\"; window.__LOKI__.page = \"keys\";"));
+        assert!(settings_script(None).ends_with("window.__LOKI__.page = null; }"));
+        // the main window's script first, so the token and the system arrive as they do there
+        assert!(script.starts_with("if (window.top === window) { window.__LOKI__ = "));
     }
 
     #[test]

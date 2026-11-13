@@ -176,7 +176,9 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 
 - **Every export outside the tests has a doc comment** (`/** … */`): what it is or does, in terms of loki, and
   anything the caller must know. **checked**: ESLint (`jsdoc/require-jsdoc` on exported functions, classes,
-  interfaces, type aliases, components and constants; `test/`, `test-node/` and `*.config.ts` are skipped).
+  interfaces, type aliases, components and constants; `test/`, `test-node/` and `*.config.ts` are skipped). shadcn's
+  components in `app/src/ui/` are skipped too: they are upstream source, kept close to the registry so
+  `shadcn add --diff` can merge an update; loki's own code that wraps them is not exempt.
 - **Comments say why**, or what something means for the person using loki; the code already says what it does.
   Write the reason a reader would otherwise have to rediscover: the bug it avoids, the constraint behind it, the
   decision it records. **review**.

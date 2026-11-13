@@ -52,7 +52,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Preferences…", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", typing: true, menu: "Go" },
@@ -84,6 +84,9 @@ export const KEYMAP: Binding[] = [
   { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
   { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
   { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "desk", label: "Show Suggestions…", typing: true, menu: "Chat" },
+  // The step the agent is paused on (plan 2026-11-12-1505, U5): the same keys as Flow's Approve, and a Deny that leaves ⌘⌫ to the text.
+  { id: "chat.allow", keys: ["cmd+enter"], where: "desk", label: "Allow Step", typing: true, menu: "Chat/decide" },
+  { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "desk", label: "Deny Step", typing: true, menu: "Chat/decide" },
   // Ctrl+Alt+arrows are the system's off the Mac (workspaces on Linux, screen rotation on Windows, where Ctrl+Alt is also AltGr).
   {
     id: "chat.left",
@@ -115,6 +118,14 @@ export const KEYMAP: Binding[] = [
 
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
+  {
+    id: "chat.allow-empty",
+    keys: ["enter"],
+    where: "chat",
+    label: "allow the step",
+    typing: true,
+    note: "the empty box, while an approval waits (Liquid Glass)",
+  },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
   { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply", typing: true, note: "the empty box" },
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
@@ -213,6 +224,12 @@ export function keysOf(b: Binding, os: Platform = keyboard): string[] {
 /** A binding's label on a system: the Mac's, unless the key does something else there (labelOn). */
 export function labelOf(b: Binding, os: Platform = keyboard): string {
   return (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
+}
+
+/** A binding's key spec by id on a system, unformatted ("cmd+e"), for a native menu's accelerator; null when it has none. */
+export function specFor(id: string, os: Platform = keyboard, index = 0): string | null {
+  const b = KEYMAP.find((x) => x.id === id);
+  return (b && keysOf(b, os)[index]) ?? null;
 }
 
 /** The key a binding shows, by id, as this system reads it: every shortcut the app prints comes through here or formatKeys. */
@@ -478,4 +495,25 @@ export function runAction(id: string): boolean {
   if (!fn) return false;
   fn();
   return true;
+}
+
+/** One of ⌘K's commands (plan 2026-11-12-1505, U23): a binding's id, its label, and its key as this system writes it. */
+export interface Command {
+  id: string;
+  label: string;
+  keys: string | null;
+}
+
+/**
+ * The menu-bar actions that work on `segment` now, for ⌘K's Commands: in the menu, registered at this moment, firing
+ * there or anywhere (a chat's in the Chats section), ⌘K itself left out.
+ */
+export function commandsFor(segment: Segment, os: Platform = keyboard, map: Binding[] = KEYMAP): Command[] {
+  const here: Where[] = segment === "desk" ? ["anywhere", "desk", "chat"] : ["anywhere", segment];
+  return map
+    .filter((b) => b.menu && b.id !== "search.open" && here.includes(b.where) && actions.has(b.id))
+    .map((b) => {
+      const key = keysOf(b, os).at(0);
+      return { id: b.id, label: labelOf(b, os), keys: key ? formatKeys(key, os) : null };
+    });
 }

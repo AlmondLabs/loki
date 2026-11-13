@@ -4,6 +4,8 @@ import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../core/desk-core
 import { Dot, IconButton } from "../components";
 import { useFrameKeyboard } from "./use-frame-keyboard";
 import { prefersReducedMotion } from "../kit/motion";
+import { CrosshairIcon, MinusIcon, Trash2Icon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an
@@ -255,7 +257,7 @@ function FrameTitleBar({
         touchAction: "none",
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+      <span style={{ fontSize: "var(--loki-text-meta)", fontWeight: 700, color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
         {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
         {entry.title}
       </span>
@@ -265,20 +267,26 @@ function FrameTitleBar({
         </span>
         <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
           {/* target */}
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="8" cy="8" r="4.5" />
-            <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" />
-          </svg>
+          <GlassIcon icon={CrosshairIcon} size={13}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="4.5" />
+              <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" />
+            </svg>
+          </GlassIcon>
         </FrameButton>
         <FrameButton label={`minimise ${entry.title}`} title="minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M3 11.5h10" />
-          </svg>
+          <GlassIcon icon={MinusIcon} size={13}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M3 11.5h10" />
+            </svg>
+          </GlassIcon>
         </FrameButton>
         <FrameButton label={`trash ${entry.title}`} title="delete the widget file" onClick={() => onTrash?.(entry.id)}>
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.5h6.6l.7-8.5M6.5 7v4M9.5 7v4" />
-          </svg>
+          <GlassIcon icon={Trash2Icon} size={13}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.5h6.6l.7-8.5M6.5 7v4M9.5 7v4" />
+            </svg>
+          </GlassIcon>
         </FrameButton>
       </span>
     </div>

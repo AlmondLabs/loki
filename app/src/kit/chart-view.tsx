@@ -23,7 +23,7 @@ export function ChartView({ data }: KitProps) {
           background: "var(--loki-panel)",
           border: "1px solid var(--loki-border)",
           borderRadius: "var(--loki-radius-md)",
-          fontSize: 12,
+          fontSize: "var(--loki-text-meta)",
         }}
       />
     </>

@@ -192,7 +192,7 @@ function ServerRow({
                     aria-label={`always load ${t.name}`}
                   />
                   <span style={{ minWidth: 0 }}>
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{t.name}</span>
+                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)" }}>{t.name}</span>
                     {t.read_only && (
                       <Chip static tag style={{ marginLeft: 6 }}>
                         read-only

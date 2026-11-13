@@ -17,6 +17,8 @@ import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
+import { capitalChildren, capitalFirst } from "../kit/words";
+import { useLook } from "../theme";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
@@ -64,20 +66,26 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   kbd?: ReactNode;
 }
 
-/** The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). */
+/**
+ * The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). Under Liquid Glass its label
+ * takes a capital and its key moves from the face into the tooltip (plan 2026-11-12-1505, R7 and R10).
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", ...rest },
+  { tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", title, ...rest },
   ref,
 ) {
+  const glass = useLook() === "glass";
+  const keyTip = glass && kbd != null && typeof kbd === "string" ? kbd : null;
   return (
     <button
       ref={ref}
       type={type}
       className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)}
+      title={keyTip ? `${title ?? (typeof children === "string" ? capitalFirst(children) : "")} (${keyTip})`.trim() : title}
       {...rest}
     >
-      {children}
-      {kbd != null && <Kbd>{kbd}</Kbd>}
+      {glass ? capitalChildren(children) : children}
+      {kbd != null && !glass && <Kbd>{kbd}</Kbd>}
     </button>
   );
 });
@@ -257,6 +265,8 @@ export interface SheetProps {
   zIndex?: number;
   /** Escape closes by default; pass false when the sheet handles keys itself. */
   escape?: boolean;
+  /** Nothing dims behind it: a floating panel (the model switcher) that a click outside still closes. */
+  clear?: boolean;
   className?: string;
   style?: CSSProperties;
   cardProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, unknown>;
@@ -279,6 +289,7 @@ export function Sheet({
   scroll,
   zIndex = LAYER.modal,
   escape = !!onClose,
+  clear = false,
   className,
   style,
   cardProps,
@@ -298,7 +309,11 @@ export function Sheet({
     // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
     const card = cardRef.current;
     if (card && !card.contains(document.activeElement)) {
-      const first = card.querySelector<HTMLElement>("[autofocus]") ?? card.querySelector<HTMLElement>(FOCUSABLE);
+      // The first control in the tab order: one taken out of it (⌘K's scope chip ×) is for the pointer, not for focus.
+      const first =
+        card.querySelector<HTMLElement>("[autofocus]") ??
+        [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].find((el) => el.tabIndex >= 0 && !el.hasAttribute("disabled")) ??
+        null;
       // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
       // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
       (first ?? card).focus({ preventScroll: true });
@@ -311,7 +326,7 @@ export function Sheet({
   const sheet = (
     <div
       ref={veilRef}
-      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom")}
+      className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom", clear && "loki-veil--clear")}
       data-sheet
       data-grow={grows || undefined}
       style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}
@@ -531,7 +546,7 @@ export function Switch({
         padding: 0,
         cursor: "pointer",
         color: on ? "var(--loki-fg)" : "var(--loki-muted)",
-        fontSize: small ? 12 : 13.5,
+        fontSize: small ? "var(--loki-text-meta)" : "var(--loki-text-body)",
       }}
     >
       <span
@@ -866,6 +881,10 @@ export interface PaneHeaderProps<T extends string = string> {
   panelId?: (id: T) => string;
   /** The title's id, so the pane can be labelled by it. */
   titleId?: string;
+  /** A whole line drawn in place of the lead, title, aside and actions: the new chat pane's item header (plan 097). */
+  line?: ReactNode;
+  /** After the tabs, at the trailing edge: Liquid Glass's toolbar items (plan 2026-11-12-1505, U13). */
+  trailing?: ReactNode;
 }
 
 /** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
@@ -881,20 +900,27 @@ export function PaneHeader<T extends string>({
   tabsLabel = "Views",
   panelId,
   titleId,
+  line,
+  trailing,
 }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
       {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
       <div className="loki-pane-header-line" data-tauri-drag-region="deep">
-        {lead && <span className="loki-pane-header-lead">{lead}</span>}
-        <h1 id={titleId} className="loki-pane-title">
-          {title}
-        </h1>
-        {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
-        {actions && <span className="loki-pane-header-actions">{actions}</span>}
+        {line ?? (
+          <>
+            {lead && <span className="loki-pane-header-lead">{lead}</span>}
+            <h1 id={titleId} className="loki-pane-title">
+              {title}
+            </h1>
+            {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
+            {actions && <span className="loki-pane-header-actions">{actions}</span>}
+          </>
+        )}
       </div>
       {subtitle && <div className="loki-pane-header-subtitle">{subtitle}</div>}
       {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
+      {trailing && <div className="loki-pane-header-trailing">{trailing}</div>}
     </header>
   );
 }

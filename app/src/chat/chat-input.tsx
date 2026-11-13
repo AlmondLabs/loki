@@ -1,4 +1,16 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type ForwardedRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { dictateTitle, useDictation } from "./use-dictation";
 import { discardUpload, droppedFiles, fileSize, imageFromBlob, isInlineImage, uploadFile } from "./attachments";
 import { isFileAttachment, type Attachment, type ImageAttachment } from "../../../core/attention/content.ts";
@@ -10,75 +22,61 @@ import { messageOf } from "../../../core/errors.ts";
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 /** No pictures attached: one list for every render, so what watches `images` sees no change. */
 const NO_IMAGES: Attachment[] = [];
+/** Hands the field to a forwarded ref, whichever kind the host gave. */
+function bindRef(ref: ForwardedRef<HTMLTextAreaElement>) {
+  return (el: HTMLTextAreaElement | null) => {
+    if (typeof ref === "function") ref(el);
+    else if (ref) ref.current = el;
+  };
+}
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
 
+/** What a message box takes, today's ChatInput and the new pane's Composer alike (plan 097, KTD5). */
+export interface MessageBoxProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  /** First look at a key; return true to claim it (the command palette takes arrows, tab, enter, esc while open). */
+  onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean;
+  onEscape?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  /**
+   * Images and files attached to the draft; the host sends them with the text. Images ride inside the message;
+   * any other file is uploaded to the Mac as soon as it is added and goes as its path. Without onImages there is no "+".
+   */
+  images?: Attachment[];
+  onImages?: (images: Attachment[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  /** The phone's sizes: 36 in the row (each with a 44 target), 15px text. */
+  touch?: boolean;
+  /** In the row after "+": the model pill. */
+  tools?: ReactNode;
+  /** Something to send (text or an image); send is disabled without it. */
+  canSend: boolean;
+  /** Send's name: "Send", or what happens mid-turn (it queues). */
+  sendLabel: string;
+  sendTitle?: string;
+  /** The agent is working: with nothing typed, send becomes Stop, which ends the turn so you can take over. Typed text still sends (it queues). */
+  onStop?: () => void;
+  /** A stop was asked for and the turn has not ended yet. */
+  stopping?: boolean;
+  "aria-controls"?: string;
+  "aria-activedescendant"?: string;
+  "aria-expanded"?: boolean;
+}
+
 /**
- * The message box, one for the phone and the desktop (2026-09-24, after Claude's): one rounded field with the
- * text on top and a row inside it — "+" to attach images, the host's tools (the model pill), then the mic and
- * send at the end. Enter sends, Shift+Enter inserts a newline, the text grows with its content up to ~6 lines.
- * The mic (or ⌘D while focused) dictates into the same box; recognition stops by itself after a pause, then
- * Enter (or send) sends as usual. Images come in by paste, drop or "+".
+ * A message box's behaviour without its look (plan 097, KTD5): the draft with dictation woven in, files and images by
+ * paste, drop or the picker (uploads tracked until they land), Enter to send, Escape, ⌘D to dictate, and the field
+ * growing to six lines. ChatInput and the new pane's Composer draw the same box from it.
  */
-export const ChatInput = forwardRef<
-  HTMLTextAreaElement,
-  {
-    value: string;
-    onChange: (v: string) => void;
-    onSubmit: () => void;
-    /** First look at a key; return true to claim it (the command palette takes arrows, tab, enter, esc while open). */
-    onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean;
-    onEscape?: () => void;
-    onFocus?: () => void;
-    onBlur?: () => void;
-    /**
-     * Images and files attached to the draft; the host sends them with the text. Images ride inside the message;
-     * any other file is uploaded to the Mac as soon as it is added and goes as its path. Without onImages there is no "+".
-     */
-    images?: Attachment[];
-    onImages?: (images: Attachment[]) => void;
-    placeholder?: string;
-    disabled?: boolean;
-    /** The phone's sizes: 36 in the row (each with a 44 target), 15px text. */
-    touch?: boolean;
-    /** In the row after "+": the model pill. */
-    tools?: ReactNode;
-    /** Something to send (text or an image); send is disabled without it. */
-    canSend: boolean;
-    /** Send's name: "Send", or what happens mid-turn (it queues). */
-    sendLabel: string;
-    sendTitle?: string;
-    /** The agent is working: with nothing typed, send becomes Stop, which ends the turn so you can take over. Typed text still sends (it queues). */
-    onStop?: () => void;
-    /** A stop was asked for and the turn has not ended yet. */
-    stopping?: boolean;
-    "aria-controls"?: string;
-    "aria-activedescendant"?: string;
-    "aria-expanded"?: boolean;
-  }
->(function ChatInput(
-  {
-    value,
-    onChange,
-    onSubmit,
-    onKeyDown,
-    onEscape,
-    onFocus,
-    onBlur,
-    images = NO_IMAGES,
-    onImages,
-    placeholder,
-    disabled,
-    touch = false,
-    tools,
-    canSend,
-    sendLabel,
-    sendTitle,
-    onStop,
-    stopping = false,
-    ...aria
-  },
-  ref,
+export function useMessageBox(
+  { value, onChange, onSubmit, onKeyDown, onEscape, images = NO_IMAGES, onImages, placeholder }: MessageBoxProps,
+  ref: ForwardedRef<HTMLTextAreaElement>,
 ) {
+  const setRef = bindRef(ref);
   // The latest list, for uploads that finish after the draft moved on.
   const imagesRef = useRef(images);
   useLayoutEffect(() => {
@@ -116,11 +114,6 @@ export const ChatInput = forwardRef<
   const failedUpload = uploads.find((u) => u.error);
   const inner = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
-  const setRef = (el: HTMLTextAreaElement | null) => {
-    inner.current = el;
-    if (typeof ref === "function") ref(el);
-    else if (ref) ref.current = el;
-  };
 
   // What was in the box before dictation (plus finished phrases); interim words sit after it.
   const base = useRef(value);
@@ -194,6 +187,102 @@ export const ChatInput = forwardRef<
   }, [value]);
 
   const listening = dictation.listening;
+  const field = {
+    ref: (el: HTMLTextAreaElement | null) => {
+      inner.current = el;
+      setRef(el);
+    },
+    value,
+    placeholder: listening ? "listening… pause to finish, enter to send" : dictation.pending ? "waiting for the microphone…" : placeholder,
+    "aria-describedby": dictation.error ? "loki-dictation-error" : undefined,
+    onChange: (e: ChangeEvent<HTMLTextAreaElement>) => typed(e.target.value),
+    onPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const picked = droppedFiles(e.clipboardData);
+      if (onImages && (picked.images.length || picked.files.length)) {
+        e.preventDefault(); // the file, not its name
+        void addFiles(picked);
+      }
+    },
+    onDragOver: (e: DragEvent<HTMLTextAreaElement>) => {
+      if (onImages && Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
+    },
+    onDrop: (e: DragEvent<HTMLTextAreaElement>) => {
+      const picked = droppedFiles(e.dataTransfer);
+      if (onImages && (picked.images.length || picked.files.length)) {
+        e.preventDefault();
+        void addFiles(picked);
+      }
+    },
+    onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (onKeyDown?.(e)) return;
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault();
+        send();
+      } else if (e.key === "Escape" && onEscape) {
+        e.preventDefault();
+        onEscape();
+      } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
+        // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)
+        e.preventDefault();
+        startDictation();
+      }
+    },
+  };
+  /** The hidden file picker's change: images ride inside the message, other files upload. */
+  const onPicked = (e: ChangeEvent<HTMLInputElement>) => {
+    const all = Array.from(e.target.files ?? []);
+    e.target.value = ""; // the same file can be picked again
+    void addFiles({ images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) });
+  };
+  return {
+    images,
+    uploads,
+    dismissUpload: (id: string) => setUploads((x) => x.filter((y) => y.id !== id)),
+    uploading,
+    failedUpload,
+    remove,
+    picker,
+    dictation,
+    listening,
+    interim,
+    startDictation,
+    send,
+    field,
+    onPicked,
+  };
+}
+
+/**
+ * The message box, one for the phone and the desktop (2026-09-24, after Claude's): one rounded field with the
+ * text on top and a row inside it — "+" to attach images, the host's tools (the model pill), then the mic and
+ * send at the end. Enter sends, Shift+Enter inserts a newline, the text grows with its content up to ~6 lines.
+ * The mic (or ⌘D while focused) dictates into the same box; recognition stops by itself after a pause, then
+ * Enter (or send) sends as usual. Images come in by paste, drop or "+".
+ */
+export const ChatInput = forwardRef<HTMLTextAreaElement, MessageBoxProps>(function ChatInput(props, ref) {
+  const {
+    onFocus,
+    onBlur,
+    onImages,
+    disabled,
+    touch = false,
+    tools,
+    canSend,
+    sendLabel,
+    sendTitle,
+    onStop,
+    stopping = false,
+    onKeyDown: _k,
+    onChange: _c,
+    onSubmit: _s,
+    onEscape: _e,
+    value: _v,
+    images: _i,
+    placeholder: _p,
+    ...aria
+  } = props;
+  const box = useMessageBox(props, ref);
+  const { images, uploads, uploading, failedUpload, remove, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   return (
     <div className="loki-composer-box" data-listening={listening || undefined}>
       {(images.length > 0 || uploads.length > 0) && (
@@ -236,7 +325,7 @@ export const ChatInput = forwardRef<
                     border: "1px solid var(--loki-border)",
                     background: "var(--loki-panel)",
                     color: "var(--loki-fg)",
-                    fontSize: 10.5,
+                    fontSize: "var(--loki-text-fine)",
                     lineHeight: "16px",
                     cursor: "pointer",
                     padding: 0,
@@ -253,12 +342,7 @@ export const ChatInput = forwardRef<
               <span className="loki-file-chip-name">{u.name}</span>
               <span className="loki-file-chip-size">{u.error ? "failed" : `${Math.round(u.share * 100)}%`}</span>
               {u.error && (
-                <button
-                  type="button"
-                  className="loki-file-chip-remove"
-                  onClick={() => setUploads((x) => x.filter((y) => y.id !== u.id))}
-                  aria-label={`Remove ${u.name}`}
-                >
+                <button type="button" className="loki-file-chip-remove" onClick={() => box.dismissUpload(u.id)} aria-label={`Remove ${u.name}`}>
                   ×
                 </button>
               )}
@@ -272,9 +356,7 @@ export const ChatInput = forwardRef<
         </span>
       )}
       <TextArea
-        ref={setRef}
         className="loki-composer-text"
-        value={value}
         rows={1}
         name="message"
         // iCloud Passwords ignores autocomplete=off but skips textareas that declare themselves a
@@ -289,43 +371,10 @@ export const ChatInput = forwardRef<
         data-bwignore
         data-form-type="other"
         disabled={disabled}
-        placeholder={listening ? "listening… pause to finish, enter to send" : dictation.pending ? "waiting for the microphone…" : placeholder}
-        aria-describedby={dictation.error ? "loki-dictation-error" : undefined}
-        onChange={(e) => typed(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
-        onPaste={(e) => {
-          const picked = droppedFiles(e.clipboardData);
-          if (onImages && (picked.images.length || picked.files.length)) {
-            e.preventDefault(); // the file, not its name
-            void addFiles(picked);
-          }
-        }}
-        onDragOver={(e) => {
-          if (onImages && Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
-        }}
-        onDrop={(e) => {
-          const picked = droppedFiles(e.dataTransfer);
-          if (onImages && (picked.images.length || picked.files.length)) {
-            e.preventDefault();
-            void addFiles(picked);
-          }
-        }}
         {...aria}
-        onKeyDown={(e) => {
-          if (onKeyDown?.(e)) return;
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            send();
-          } else if (e.key === "Escape" && onEscape) {
-            e.preventDefault();
-            onEscape();
-          } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
-            // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)
-            e.preventDefault();
-            startDictation();
-          }
-        }}
+        {...field}
       />
       <ComposerBar
         touch={touch}
@@ -341,19 +390,7 @@ export const ChatInput = forwardRef<
         stop={onStop && !canSend ? { onStop, stopping } : null}
         disabled={disabled}
       />
-      {onImages && (
-        <input
-          ref={picker}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            const all = Array.from(e.target.files ?? []);
-            e.target.value = ""; // the same file can be picked again
-            void addFiles({ images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) });
-          }}
-        />
-      )}
+      {onImages && <input ref={picker} type="file" multiple hidden onChange={onPicked} />}
       {dictation.error && (
         <span
           id="loki-dictation-error"

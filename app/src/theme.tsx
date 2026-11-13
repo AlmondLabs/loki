@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { inTauri } from "./desk/env";
+import { inTauri, platform, type Platform } from "./desk/env";
 
 /** The appearance choices: follow the system, or always light or dark. */
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
@@ -8,18 +8,34 @@ export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 /** The appearance in effect, with the system's choice resolved. */
 export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
-/** The colour families in kit/tokens.css: loki's own drafting table, and Tokyo Night. Each has a day and a night side. */
-export const PALETTES = ["loki", "tokyo-night"] as const;
+/**
+ * The colour families in kit/tokens.css: loki's own, Tokyo Night, and Liquid Glass (Apple's Human Interface Guidelines,
+ * plan 2026-11-12-1505), the new look being built one screen at a time. Each has a day and a night side.
+ */
+export const PALETTES = ["loki", "tokyo-night", "apple"] as const;
 /** One of loki's colour families. */
 export type Palette = (typeof PALETTES)[number];
 /** Each palette's name as Preferences shows it. */
-export const PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "tokyo night" };
+export const PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "tokyo night", apple: "liquid glass" };
 
 /** The localStorage key the appearance choice is kept under. */
 export const THEME_STORAGE_KEY = "loki.theme";
 /** The localStorage key the palette is kept under. */
 export const PALETTE_STORAGE_KEY = "loki.palette";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+/**
+ * Where Liquid Glass may blur (plan 2026-11-12-1505, KTD6): a constant in one place, moved only by measurement against
+ * the speed budget, never probed at launch. Linux's web view blurs slowly, so it starts on the solid look-alike; the
+ * Mac and Windows start on glass. The system's Reduce Transparency and Increase Contrast turn glass solid everywhere.
+ */
+export const GLASS_ON: Record<Platform, "glass" | "solid"> = { macos: "glass", windows: "glass", linux: "solid" };
+
+/**
+ * Whether this window has the Mac's own sidebar material behind a transparent page (plan 2026-11-12-1505, U13): the
+ * Mac app's window only. Liquid Glass lets it through the sidebar (components.css); a browser tab has none.
+ */
+export const VIBRANT = inTauri && platform === "macos";
 
 /** Whether a value (a stored one, say) is an appearance choice. */
 export function isThemePreference(value: unknown): value is ThemePreference {
@@ -69,6 +85,9 @@ function applyTheme(preference: ThemePreference, palette: Palette): void {
   root.dataset.theme = theme;
   root.dataset.themePreference = preference;
   root.dataset.palette = palette;
+  if (GLASS_ON[platform] === "solid") root.dataset.glass = "solid";
+  // The Mac's window carries the system's sidebar material behind the page (src-tauri lib.rs, U13).
+  if (VIBRANT) root.dataset.vibrant = "on";
   root.style.colorScheme = theme;
   requestAnimationFrame(() => {
     // the phone redeclares --loki-bg on its own root (phone/phone.css); the status bar strip follows that
@@ -138,4 +157,28 @@ export function useTheme(): ThemeState {
   const theme = useContext(ThemeContext);
   if (!theme) throw new Error("useTheme must be used inside ThemeProvider");
   return theme;
+}
+
+/** Which look draws the window: Liquid Glass (the apple family, plan 2026-11-12-1505) or today's. */
+export type Look = "glass" | "classic";
+
+/**
+ * The look in effect, for the few places where it changes words or structure rather than colour: Apple's title case
+ * and the approval as a question under Liquid Glass. Outside ThemeProvider (a test rendering one component) it is
+ * today's look, so components stay renderable on their own.
+ */
+export function useLook(): Look {
+  const forced = useContext(LookContext);
+  const palette = useContext(ThemeContext)?.palette;
+  return forced ?? (palette === "apple" ? "glass" : "classic");
+}
+
+const LookContext = createContext<Look | null>(null);
+
+/**
+ * Draws its children in one look whatever this device has chosen: the Liquid Glass workbench (dev/workbench.tsx)
+ * shows the new look without touching the saved palette.
+ */
+export function LookProvider({ look, children }: { look: Look; children: ReactNode }) {
+  return <LookContext.Provider value={look}>{children}</LookContext.Provider>;
 }

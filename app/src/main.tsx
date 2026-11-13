@@ -6,4 +6,6 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has("scan")) {
   const { scan } = await import("react-scan");
   scan({ enabled: true, trackUnnecessaryRenders: true });
 }
-await import("./boot");
+// The Liquid Glass workbench (plan 2026-11-12-1505, U2) in place of the app: development only, with `?workbench`.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has("workbench")) await import("./dev/mount-workbench");
+else await import("./boot");

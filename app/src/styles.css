@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* shadcn's overlay animations and its variants and utilities (data-open, shimmer, scroll-fade), plan 096. */
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* AI Elements' MessageResponse draws markdown with streamdown: its word fade-in, and the classes its blocks use. */
+@import "streamdown/styles.css";
+@source "../../node_modules/streamdown/dist/*.js";
 /* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
 @source "__LOKI_WIDGETS_DIR__";
 @import "./kit/tokens.css";
@@ -30,6 +36,117 @@
   --radius-loki: var(--loki-radius);
 }
 
+/* shadcn's utilities (plan 096): its colour names read the roles in tokens.css, and loki's scales get names of their
+   own so a component says text-body, not a size. Tailwind's defaults stay, because the agents' widgets are told
+   Tailwind classes work and receive this stylesheet; loki's own source is held to these names by tokens.test.ts. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: var(--loki-radius-sm);
+  --radius-md: var(--loki-radius-md);
+  --radius-lg: var(--loki-radius-lg);
+  --radius-xl: var(--loki-radius-lg);
+  --font-sans: var(--loki-font);
+  --font-mono: var(--loki-mono);
+  --text-micro: var(--loki-text-micro);
+  --text-fine: var(--loki-text-fine);
+  --text-tag: var(--loki-text-tag);
+  --text-meta: var(--loki-text-meta);
+  --text-body: var(--loki-text-body);
+  --text-row: var(--loki-text-row);
+  --text-title: var(--loki-text-title);
+  --text-display: var(--loki-text-display);
+  --text-hero: var(--loki-text-hero);
+  --shadow-sheet: var(--loki-shadow-sheet);
+  --shadow-float: var(--loki-shadow-float);
+  --shadow-panel: var(--loki-shadow-panel);
+  --shadow-low: var(--loki-shadow-low);
+}
+
+/* shadcn draws a bare `border` in the quiet divider, not in currentColor as Tailwind's reset would. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+}
+
+/* Night is the bare :root and day is data-theme="light" (theme.tsx), so shadcn's dark: classes key on that, not on a
+   .dark class. */
+@custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
+
+/* Liquid Glass (plan 2026-11-12-1505, KTD3): the one material every floating control layer uses, never its own blur.
+   glass for bars and groups, glass-strong for menus, sheets, the approval and the composer. Outside the apple family
+   the tokens are the solid panel and its hairline (tokens.css). */
+@utility glass {
+  background: var(--loki-glass);
+  -webkit-backdrop-filter: var(--loki-glass-blur);
+  backdrop-filter: var(--loki-glass-blur);
+  box-shadow:
+    inset 0 0.5px 0 var(--loki-glass-hi),
+    0 0 0 0.5px var(--loki-glass-edge),
+    var(--loki-shadow-low);
+}
+@utility glass-strong {
+  background: var(--loki-glass-strong);
+  -webkit-backdrop-filter: var(--loki-glass-blur);
+  backdrop-filter: var(--loki-glass-blur);
+  box-shadow:
+    inset 0 0.5px 0 var(--loki-glass-hi),
+    0 0 0 0.5px var(--loki-glass-edge),
+    var(--loki-shadow-float);
+}
+
+/* Window-level stacking for shadcn's overlays, from LAYER (kit/layers.ts) by way of tokens.css: z-modal, never z-50. */
+@utility z-panel {
+  z-index: var(--loki-layer-panel);
+}
+@utility z-bubble {
+  z-index: var(--loki-layer-bubble);
+}
+@utility z-rail {
+  z-index: var(--loki-layer-rail);
+}
+@utility z-modal {
+  z-index: var(--loki-layer-modal);
+}
+@utility z-strip {
+  z-index: var(--loki-layer-strip);
+}
+@utility z-toast {
+  z-index: var(--loki-layer-toast);
+}
+
 html,
 body,
 #root {
@@ -38,4 +155,30 @@ body,
   background: var(--loki-bg);
   color: var(--loki-fg);
   font-family: var(--loki-font);
+}
+/* The Mac app under Liquid Glass (plan 2026-11-12-1505, U13): the page is clear, so the window's sidebar material shows
+   where the shell lets it (components.css .loki-shell-glass). Reduce Transparency and Increase Contrast paint it again;
+   the clear rule stands on its own because WebKit does not know prefers-reduced-transparency, and a query asking for
+   its no-preference never matches there. */
+:root[data-palette="apple"][data-vibrant]:not([data-glass="solid"]) {
+  &,
+  & body,
+  & #root,
+  & .loki-shell,
+  & .loki-settings-nav {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-palette="apple"][data-vibrant]:not([data-glass="solid"]) {
+    &,
+    & body,
+    & #root,
+    & .loki-shell {
+      background: var(--loki-bg);
+    }
+    & .loki-settings-nav {
+      background: var(--loki-panel);
+    }
+  }
 }

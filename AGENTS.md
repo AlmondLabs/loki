@@ -21,8 +21,8 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
-- **Every export outside `test/` has a `/** … */` doc comment.** Comments say why, in full sentences and plain words;
-  no commented-out code, no bare `TODO`.
+- **Every export outside `test/` has a `/** … */` doc comment** (shadcn's upstream files in `app/src/ui/` excepted).
+  Comments say why, in full sentences and plain words; no commented-out code, no bare `TODO`.
 - **Words on screen**: desktop controls lowercase, phone sentence case, headings sentence case on both, plain words, no
   exclamation marks.
 - **Styles** stay on the scales in [docs/design.md](docs/design.md) (`test/tokens.test.ts` checks).

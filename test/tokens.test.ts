@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 import { must } from "./fixtures/must.ts";
+import { LAYER } from "../app/src/kit/layers.ts";
 
 /**
  * The design tokens are a contract: inline styles pick from the scales in app/src/kit/tokens.css
@@ -38,7 +39,7 @@ const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\( /g, "(").re
 type Rgb = [number, number, number];
 type Theme = "dark" | "light";
 /** The colour families in tokens.css; loki's own is the bare :root, the others sit under data-palette. */
-const PALETTES = ["loki", "tokyo-night"] as const;
+const PALETTES = ["loki", "tokyo-night", "apple"] as const;
 type Palette = (typeof PALETTES)[number];
 const THEMES: Theme[] = ["dark", "light"];
 const selectorFor = (palette: Palette, theme: Theme) =>
@@ -200,7 +201,8 @@ describe("design tokens: definitions and uses agree", () => {
     const named = new Set(
       code.flatMap((f) =>
         [...f.text.matchAll(f.path.startsWith("ui/") ? /"(loki-[a-z0-9-]+)"/g : /className=(?:"[^"]*"|\{[^}]*\})/g)].flatMap((m) =>
-          [...m[0].matchAll(/loki-[a-z0-9-]+/g)].map((c) => c[0]),
+          // A class starts with loki-; text-loki-muted is a Tailwind utility and --loki-bg a variable, neither a class.
+          [...m[0].matchAll(/(?<![\w-])loki-[a-z0-9-]+/g)].map((c) => c[0]),
         ),
       ),
     );
@@ -252,7 +254,7 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     const label = rule(".loki-label");
     expect(label).not.toMatch(/text-transform:\s*uppercase/);
     expect(label).not.toMatch(/letter-spacing/);
-    expect(label).toMatch(/font-size:\s*12px/);
+    expect(label).toMatch(/font-size:\s*var\(--loki-text-meta\)/);
     expect(label).toMatch(/font-weight:\s*600/);
     expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
   });
@@ -293,7 +295,7 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
 describe("design tokens: every family remains readable on both sides", () => {
   const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
-    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles beside the accent: the red unread / needs-you badge and the green affirmative fill, each with its ink. */
   const ROLES = ["attention", "on-attention", "affirm", "on-affirm"];
   for (const palette of PALETTES) {
@@ -354,20 +356,26 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
   const PHONE = join(APP, "phone", "phone.css");
   const phone = existsSync(PHONE) ? readFileSync(PHONE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") : "";
   const PHONE_SELECTOR: Record<Theme, string> = { dark: ".loki-phone", light: ':root[data-theme="light"] .loki-phone' };
-  const phoneBlock = (theme: Theme) => {
-    const start = phone.indexOf(`\n${PHONE_SELECTOR[theme]} {`);
-    if (start < 0) throw new Error(`no phone block for ${PHONE_SELECTOR[theme]}`);
+  /** The phone's own Liquid Glass family (plan 2026-11-12-1505, U9), chosen on the phone: held to the same rules. */
+  const GLASS_SELECTOR: Record<Theme, string> = {
+    dark: ':root[data-palette="apple"] .loki-phone',
+    light: ':root[data-palette="apple"][data-theme="light"] .loki-phone',
+  };
+  const FAMILIES = { slack: PHONE_SELECTOR, glass: GLASS_SELECTOR };
+  const blockOf = (selector: string) => {
+    const start = phone.indexOf(`\n${selector} {`);
+    if (start < 0) throw new Error(`no phone block for ${selector}`);
     return phone.slice(start, phone.indexOf("\n}", start + 1));
   };
-  const raw = (theme: Theme, name: string) => {
-    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme))?.[2].trim();
-    if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
+  const phoneBlock = (theme: Theme, family: keyof typeof FAMILIES = "slack") => blockOf(FAMILIES[family][theme]);
+  const raw = (theme: Theme, name: string, family: keyof typeof FAMILIES = "slack") => {
+    const hit = new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`).exec(phoneBlock(theme, family))?.[2].trim();
+    if (!hit) throw new Error(`missing ${name} in phone ${family} ${theme}`);
     return hit;
   };
-  const color = (theme: Theme, name: string) => parseColor(raw(theme, name));
   const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)]
     .map((m) => m[1])
-    .filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+    .filter((t) => !t.startsWith("radius") && !t.startsWith("text-") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
   const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
 
@@ -379,32 +387,34 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(ui).not.toContain("<style>");
   });
 
-  for (const theme of THEMES) {
-    test(`${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
-      const block = phoneBlock(theme);
-      const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
-      expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
-    });
+  for (const family of ["slack", "glass"] as const)
+    for (const theme of THEMES) {
+      const color = (_theme: Theme, name: string) => parseColor(raw(theme, name, family));
+      test(`${family} ${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
+        const block = phoneBlock(theme, family);
+        const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
+        expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
+      });
 
-    test(`${theme}: text, links and states meet AA on every working surface`, () => {
-      const surfaces = ["bg", "panel", "panel-header", "well"];
-      const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
-      const failures = inks
-        .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
-        .filter(({ ratio }) => ratio < 4.5);
-      expect(failures).toEqual([]);
-      for (const surface of ["bubble", "user-bubble", "hover", "selection"])
-        expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
-    });
+      test(`${family} ${theme}: text, links and states meet AA on every working surface`, () => {
+        const surfaces = ["bg", "panel", "panel-header", "well"];
+        const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
+        const failures = inks
+          .flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) })))
+          .filter(({ ratio }) => ratio < 4.5);
+        expect(failures).toEqual([]);
+        for (const surface of ["bubble", "user-bubble", "hover", "selection"])
+          expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
+      });
 
-    test(`${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
-      for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
-      for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
-    });
-  }
+      test(`${family} ${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
+        for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
+        for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
+      });
+    }
 
   test("the display and label faces are the sans stack for both sides — no serif, condensed or mono presentation", () => {
     // declared once on the root class; the day block only changes colours
@@ -412,10 +422,10 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phoneBlock("light")).not.toMatch(/--loki-(font|display|label):/);
   });
 
-  test("the phone never keys on data-palette, and its tokens sit on the phone element rather than :root", () => {
-    expect(phone).not.toContain("data-palette");
+  test("the phone keys on data-palette only for its own Liquid Glass, and its tokens sit on the phone element rather than :root", () => {
+    expect([...phone.matchAll(/data-palette="([^"]+)"/g)].map((m) => m[1]).filter((p) => p !== "apple")).toEqual([]);
     const declaring = [...phone.matchAll(/(?:^|\n)([^\n{}@]+?)\s*\{[^}]*--loki-bg:/g)].map((m) => m[1].trim());
-    expect(declaring.sort()).toEqual(Object.values(PHONE_SELECTOR).sort());
+    expect(declaring.sort()).toEqual([...Object.values(PHONE_SELECTOR), ...Object.values(GLASS_SELECTOR)].sort());
   });
 
   test("the gates and the paired shell all carry the phone root class", () => {
@@ -519,5 +529,136 @@ describe("keys come from the keymap: no Mac key symbol in a string outside its s
   test("every shortcut a user reads is formatted by the keymap", () => {
     const hits = code.flatMap((f) => strings(f.path, f.text));
     expect(hits).toEqual([]);
+  });
+});
+
+/**
+ * shadcn on loki's tokens (plan 096, U2). shadcn's colour names are loki's roles under other names, declared once in
+ * tokens.css; the pairs shadcn draws text on meet AA in every family and side; its stacking repeats LAYER. Tailwind's
+ * default theme stays for the agents' widgets, so loki's own class strings are fenced here instead: no default palette
+ * colour, no default text size, no arbitrary size, radius, layer or tracking, no weight outside 400 · 600 · 700.
+ */
+describe("shadcn reads loki's tokens, and loki's class strings stay on its scales", () => {
+  const styles = readFileSync(join(APP, "styles.css"), "utf8");
+  const start = tokens.indexOf(":root,\n.loki-phone {");
+  const shadcnBlock = start < 0 ? "" : tokens.slice(start, tokens.indexOf("\n}", start));
+  const shadcn = new Map([...shadcnBlock.matchAll(/^\s*(--[a-z0-9-]+):\s*var\(--loki-([a-z0-9-]+)\);/gm)].map((m) => [m[1], m[2]]));
+
+  test("every shadcn variable is a loki token, declared on :root and the phone", () => {
+    expect(shadcnBlock).not.toBe("");
+    const lines = [...shadcnBlock.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)];
+    expect(lines.filter((m) => !/^var\(--loki-[a-z0-9-]+\)$/.test(m[2].trim())).map((m) => m[1])).toEqual([]);
+    const loki = new Set([...tokens.matchAll(/^\s*--loki-([a-z0-9-]+):/gm)].map((m) => m[1]));
+    expect([...shadcn].filter(([, role]) => !loki.has(role)).map(([name]) => name)).toEqual([]);
+  });
+
+  test("every shadcn colour utility names a declared shadcn variable", () => {
+    const utilities = [...styles.matchAll(/--color-([a-z0-9-]+):\s*var\((--[a-z0-9-]+)\)/g)].filter((m) => !m[2].startsWith("--loki-"));
+    expect(utilities.length).toBeGreaterThan(20);
+    expect(utilities.filter((m) => !shadcn.has(m[2])).map((m) => m[1])).toEqual([]);
+  });
+
+  /** The surfaces shadcn draws text on, each with the ink it draws there. */
+  const PAIRS: Array<[string, string]> = [
+    ["--foreground", "--background"],
+    ["--card-foreground", "--card"],
+    ["--popover-foreground", "--popover"],
+    ["--primary-foreground", "--primary"],
+    ["--secondary-foreground", "--secondary"],
+    ["--muted-foreground", "--muted"],
+    ["--muted-foreground", "--background"],
+    ["--muted-foreground", "--card"],
+    ["--accent-foreground", "--accent"],
+    ["--destructive", "--background"],
+    ["--destructive", "--card"],
+    ["--sidebar-foreground", "--sidebar"],
+    ["--sidebar-primary-foreground", "--sidebar-primary"],
+    ["--sidebar-accent-foreground", "--sidebar-accent"],
+  ];
+  for (const palette of PALETTES) {
+    for (const theme of THEMES) {
+      test(`${palette} ${theme}: every shadcn ink meets AA on its surface`, () => {
+        const color = (name: string) => themeColor(palette, theme, must(shadcn.get(name), name));
+        const failures = PAIRS.map(([ink, surface]) => ({ pair: `${ink} on ${surface}`, ratio: contrast(color(ink), color(surface)) })).filter(
+          ({ ratio }) => ratio < 4.5,
+        );
+        expect(failures).toEqual([]);
+      });
+    }
+  }
+
+  test("the layer variables repeat LAYER, and each has its z-* utility", () => {
+    const declared = Object.fromEntries([...tokens.matchAll(/--loki-layer-([a-z]+):\s*(\d+);/g)].map((m) => [m[1], Number(m[2])]));
+    expect(declared).toEqual({ ...LAYER });
+    for (const name of Object.keys(LAYER)) expect(styles).toContain(`@utility z-${name} {\n  z-index: var(--loki-layer-${name});`);
+  });
+
+  /** Class-shaped words that leave loki's scales; Tailwind still knows them, for the widgets. */
+  const OFF_SCALE: Array<[string, RegExp]> = [
+    [
+      "a default palette colour",
+      /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|placeholder|caret|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white)(?:-\d{2,3})?(?:\/\d+)?\b/,
+    ],
+    ["a default text size", /\btext-(?:xs|sm|base|lg|xl|[2-9]xl)\b/],
+    ["an arbitrary size, radius, layer, weight or line height", /\b(?:text|z|font|leading|shadow)-\[|\brounded(?:-[trblse]{1,2})?-\[(?!(?:1|3|4|9|24)px\])/],
+    // small numbers stack inside one component, which the design allows; 50 and up is window-level stacking
+    ["a numbered window layer", /\bz-(?:[5-9]\d|\d{3,})\b/],
+    ["tracking", /\btracking-[a-z0-9[(]/],
+    ["a weight outside 400 · 600 · 700", /\bfont-(?:thin|extralight|light|medium|extrabold|black)\b/],
+    ["outline-none, which hides the focus ring tokens.css draws", /(?:^|\s)(?:\S*:)?outline-none(?=\s|$)/],
+    ["a default shadow", /\bshadow-(?:2xs|xs|sm|md|lg|xl|2xl)\b/],
+    ["a radius off the scale", /\brounded(?:-[trblse]{1,2})?-(?:xs|2xl|3xl|4xl)\b/],
+  ];
+  const classStrings = (path: string, text: string): Array<{ at: string; text: string }> => {
+    const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const out: Array<{ at: string; text: string }> = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) {
+        out.push({ at: `${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}`, text: n.text });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(src);
+    return out;
+  };
+  const offScale = (path: string, text: string) =>
+    classStrings(path, text).flatMap((s) => OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`));
+
+  test("the fence catches what it should and passes loki's names", () => {
+    expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
+    expect(offScale("x.tsx", 'const a = <b className="text-[13px] rounded-[5px] bg-black/10" />;')).toHaveLength(2);
+    expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
+      [],
+    );
+  });
+
+  test("no class string in loki's source leaves the scales", () => {
+    expect(code.flatMap((f) => offScale(f.path, f.text))).toEqual([]);
+  });
+});
+
+describe("Liquid Glass: the material and its solid fallback (plan 2026-11-12-1505, U1)", () => {
+  const styles = readFileSync(join(APP, "styles.css"), "utf8");
+  const solid = (block: string) => /--loki-glass:\s*var\(--loki-panel\)/.test(block) && /--loki-glass-blur:\s*none/.test(block);
+
+  test("the glass utilities read only the glass tokens, so one switch turns every surface solid", () => {
+    for (const name of ["glass", "glass-strong"]) {
+      const body = must(new RegExp(`@utility ${name} \\{([^}]*)\\}`).exec(styles), `@utility ${name}`)[1];
+      expect(body).toContain("var(--loki-glass-blur)");
+      expect(body).not.toMatch(/blur\(/);
+    }
+  });
+
+  test("every other family draws the solid panel: the glass defaults are the panel with no blur", () => {
+    const defaults = tokens.slice(tokens.indexOf(":root {\n  --loki-glass:"));
+    expect(solid(defaults.slice(0, defaults.indexOf("\n}")))).toBe(true);
+  });
+
+  test("Reduce Transparency, Increase Contrast and data-glass=solid each turn Liquid Glass solid", () => {
+    const media = must(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{([\s\S]*?)\n\}/.exec(tokens), "the media block")[1];
+    expect(media).toContain(':root[data-palette="apple"]');
+    expect(solid(media)).toBe(true);
+    const forced = must(/:root\[data-palette="apple"\]\[data-glass="solid"\],[^{]*\{([^}]*)\}/.exec(tokens), "the data-glass block")[1];
+    expect(solid(forced)).toBe(true);
   });
 });
