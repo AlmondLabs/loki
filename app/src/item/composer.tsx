@@ -35,88 +35,15 @@ export interface ComposerProps extends MessageBoxProps {
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer(props, ref) {
   const { queued = [], onCancelQueued, onFocus, onBlur, onImages, disabled, tools, canSend, sendLabel, sendTitle, onStop, stopping = false } = props;
   const box = useMessageBox(props, ref);
-  const { images, uploads, uploading, failedUpload, remove, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
+  const { uploading, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   const stop = onStop && !canSend;
   const glass = useLook() === "glass" && !props.touch;
   if (glass) return <MessagesBox {...props} box={box} />;
   return (
     <div data-composer className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 pb-3">
-      {queued.length > 0 && (
-        <Queue aria-label="queued messages" className="rounded-lg border bg-card px-1 py-1">
-          <QueueList>
-            {queued.map((row, k) => (
-              <QueueItem key={`${k}-${row.text}`} className="flex-row items-center gap-2">
-                <QueueItemIndicator />
-                <QueueItemContent>{row.text}</QueueItemContent>
-                <span className="shrink-0 text-meta text-muted-foreground">sends when this turn ends</span>
-                {onCancelQueued && (
-                  <QueueItemActions>
-                    <QueueItemAction
-                      aria-label={`take back "${row.text}"`}
-                      title="take back"
-                      className="opacity-40 focus-visible:opacity-100"
-                      onClick={() => onCancelQueued(row.text)}
-                    >
-                      <XIcon />
-                    </QueueItemAction>
-                  </QueueItemActions>
-                )}
-              </QueueItem>
-            ))}
-          </QueueList>
-        </Queue>
-      )}
+      <QueuedList queued={queued} onCancelQueued={onCancelQueued} glass={false} />
       <InputGroup data-listening={listening || undefined} className="h-auto flex-col items-stretch rounded-xl bg-card">
-        {(images.length > 0 || uploads.length > 0) && (
-          <div data-attachments className="flex flex-wrap gap-2 px-3 pt-3">
-            {images.map((a) =>
-              isFileAttachment(a) ? (
-                <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
-                  <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="max-w-40 truncate">{a.name}</span>
-                  <span className="text-muted-foreground">{fileSize(a.size)}</span>
-                  <PromptInputButton size="icon-xs" aria-label={`remove ${a.name}`} onClick={() => remove(a)}>
-                    <XIcon />
-                  </PromptInputButton>
-                </span>
-              ) : (
-                <span key={a.id} className="relative inline-block">
-                  <img src={a.url} alt="" className="block h-14 max-w-30 rounded-sm border object-cover" />
-                  <PromptInputButton
-                    size="icon-xs"
-                    aria-label="remove image"
-                    onClick={() => remove(a)}
-                    className="absolute -top-2 -right-2 rounded-full border bg-card"
-                  >
-                    <XIcon />
-                  </PromptInputButton>
-                </span>
-              ),
-            )}
-            {uploads.map((u) => (
-              <span
-                key={u.id}
-                title={u.error}
-                data-failed={u.error ? true : undefined}
-                className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
-              >
-                <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                <span className="max-w-40 truncate">{u.name}</span>
-                <span className={u.error ? "text-destructive" : "text-muted-foreground"}>{u.error ? "failed" : `${Math.round(u.share * 100)}%`}</span>
-                {u.error && (
-                  <PromptInputButton size="icon-xs" aria-label={`remove ${u.name}`} onClick={() => box.dismissUpload(u.id)}>
-                    <XIcon />
-                  </PromptInputButton>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-        {failedUpload && (
-          <span role="status" className="px-3 pt-2 text-meta text-destructive">
-            {failedUpload.name}: {failedUpload.error}
-          </span>
-        )}
+        <Attachments box={box} glass={false} />
         <InputGroupTextarea
           rows={1}
           name="message"
@@ -217,36 +144,12 @@ function MessagesBox({
   extras,
   ...props
 }: ComposerProps & { box: ReturnType<typeof useMessageBox> }) {
-  const { images, uploads, uploading, failedUpload, remove, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
+  const { uploading, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   const stop = onStop && !canSend;
   return (
     <div data-composer="messages" className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 pb-3">
       {extras && <div className="flex justify-end">{extras}</div>}
-      {queued.length > 0 && (
-        <Queue aria-label="Queued messages" className="rounded-lg border bg-card px-1 py-1">
-          <QueueList>
-            {queued.map((row, k) => (
-              <QueueItem key={`${k}-${row.text}`} className="flex-row items-center gap-2">
-                <QueueItemIndicator />
-                <QueueItemContent>{row.text}</QueueItemContent>
-                <span className="shrink-0 text-meta text-muted-foreground">Sends when this turn ends</span>
-                {onCancelQueued && (
-                  <QueueItemActions>
-                    <QueueItemAction
-                      aria-label={`Take back "${row.text}"`}
-                      title="Take Back"
-                      className="opacity-40 focus-visible:opacity-100"
-                      onClick={() => onCancelQueued(row.text)}
-                    >
-                      <XIcon />
-                    </QueueItemAction>
-                  </QueueItemActions>
-                )}
-              </QueueItem>
-            ))}
-          </QueueList>
-        </Queue>
-      )}
+      <QueuedList queued={queued} onCancelQueued={onCancelQueued} glass />
       <div className="flex items-end gap-2">
         {onImages && (
           <button
@@ -261,56 +164,7 @@ function MessagesBox({
           </button>
         )}
         <InputGroup data-listening={listening || undefined} className="loki-composer-capsule h-auto min-w-0 flex-1 flex-col items-stretch bg-card">
-          {(images.length > 0 || uploads.length > 0) && (
-            <div data-attachments className="flex flex-wrap gap-2 px-3 pt-2">
-              {images.map((a) =>
-                isFileAttachment(a) ? (
-                  <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
-                    <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                    <span className="max-w-40 truncate">{a.name}</span>
-                    <span className="text-muted-foreground">{fileSize(a.size)}</span>
-                    <PromptInputButton size="icon-xs" aria-label={`Remove ${a.name}`} onClick={() => remove(a)}>
-                      <XIcon />
-                    </PromptInputButton>
-                  </span>
-                ) : (
-                  <span key={a.id} className="relative inline-block">
-                    <img src={a.url} alt="" className="block h-14 max-w-30 rounded-sm border object-cover" />
-                    <PromptInputButton
-                      size="icon-xs"
-                      aria-label="Remove Image"
-                      onClick={() => remove(a)}
-                      className="absolute -top-2 -right-2 rounded-full border bg-card"
-                    >
-                      <XIcon />
-                    </PromptInputButton>
-                  </span>
-                ),
-              )}
-              {uploads.map((u) => (
-                <span
-                  key={u.id}
-                  title={u.error}
-                  data-failed={u.error ? true : undefined}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
-                >
-                  <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="max-w-40 truncate">{u.name}</span>
-                  <span className={u.error ? "text-destructive" : "text-muted-foreground"}>{u.error ? "Failed" : `${Math.round(u.share * 100)}%`}</span>
-                  {u.error && (
-                    <PromptInputButton size="icon-xs" aria-label={`Remove ${u.name}`} onClick={() => box.dismissUpload(u.id)}>
-                      <XIcon />
-                    </PromptInputButton>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
-          {failedUpload && (
-            <span role="status" className="px-3 pt-2 text-meta text-destructive">
-              {failedUpload.name}: {failedUpload.error}
-            </span>
-          )}
+          <Attachments box={box} glass />
           <div className="flex items-end">
             <InputGroupTextarea
               rows={1}
@@ -390,5 +244,106 @@ function MessagesBox({
         </span>
       )}
     </div>
+  );
+}
+
+/** What was sent mid-turn and waits for the turn to end, each with take back; nothing while none waits. */
+function QueuedList({
+  queued,
+  onCancelQueued,
+  glass,
+}: {
+  queued: readonly TranscriptRow[];
+  onCancelQueued?: (text: string) => void;
+  /** Liquid Glass's words, in title case. */
+  glass: boolean;
+}) {
+  if (queued.length === 0) return null;
+  return (
+    <Queue aria-label={glass ? "Queued messages" : "queued messages"} className="rounded-lg border bg-card px-1 py-1">
+      <QueueList>
+        {queued.map((row, k) => (
+          <QueueItem key={`${k}-${row.text}`} className="flex-row items-center gap-2">
+            <QueueItemIndicator />
+            <QueueItemContent>{row.text}</QueueItemContent>
+            <span className="shrink-0 text-meta text-muted-foreground">{glass ? "Sends when this turn ends" : "sends when this turn ends"}</span>
+            {onCancelQueued && (
+              <QueueItemActions>
+                <QueueItemAction
+                  aria-label={glass ? `Take back "${row.text}"` : `take back "${row.text}"`}
+                  title={glass ? "Take Back" : "take back"}
+                  className="opacity-40 focus-visible:opacity-100"
+                  onClick={() => onCancelQueued(row.text)}
+                >
+                  <XIcon />
+                </QueueItemAction>
+              </QueueItemActions>
+            )}
+          </QueueItem>
+        ))}
+      </QueueList>
+    </Queue>
+  );
+}
+
+/** The box's images and files, the uploads still going or failed, and why the last one failed; nothing while none. */
+function Attachments({ box, glass }: { box: ReturnType<typeof useMessageBox>; glass: boolean }) {
+  const { images, uploads, failedUpload, remove } = box;
+  const say = (today: string, titled: string) => (glass ? titled : today);
+  return (
+    <>
+      {(images.length > 0 || uploads.length > 0) && (
+        <div data-attachments className={glass ? "flex flex-wrap gap-2 px-3 pt-2" : "flex flex-wrap gap-2 px-3 pt-3"}>
+          {images.map((a) =>
+            isFileAttachment(a) ? (
+              <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
+                <FileIcon className="size-4 text-muted-foreground" aria-hidden />
+                <span className="max-w-40 truncate">{a.name}</span>
+                <span className="text-muted-foreground">{fileSize(a.size)}</span>
+                <PromptInputButton size="icon-xs" aria-label={say(`remove ${a.name}`, `Remove ${a.name}`)} onClick={() => remove(a)}>
+                  <XIcon />
+                </PromptInputButton>
+              </span>
+            ) : (
+              <span key={a.id} className="relative inline-block">
+                <img src={a.url} alt="" className="block h-14 max-w-30 rounded-sm border object-cover" />
+                <PromptInputButton
+                  size="icon-xs"
+                  aria-label={say("remove image", "Remove Image")}
+                  onClick={() => remove(a)}
+                  className="absolute -top-2 -right-2 rounded-full border bg-card"
+                >
+                  <XIcon />
+                </PromptInputButton>
+              </span>
+            ),
+          )}
+          {uploads.map((u) => (
+            <span
+              key={u.id}
+              title={u.error}
+              data-failed={u.error ? true : undefined}
+              className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
+            >
+              <FileIcon className="size-4 text-muted-foreground" aria-hidden />
+              <span className="max-w-40 truncate">{u.name}</span>
+              <span className={u.error ? "text-destructive" : "text-muted-foreground"}>
+                {u.error ? say("failed", "Failed") : `${Math.round(u.share * 100)}%`}
+              </span>
+              {u.error && (
+                <PromptInputButton size="icon-xs" aria-label={say(`remove ${u.name}`, `Remove ${u.name}`)} onClick={() => box.dismissUpload(u.id)}>
+                  <XIcon />
+                </PromptInputButton>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {failedUpload && (
+        <span role="status" className="px-3 pt-2 text-meta text-destructive">
+          {failedUpload.name}: {failedUpload.error}
+        </span>
+      )}
+    </>
   );
 }

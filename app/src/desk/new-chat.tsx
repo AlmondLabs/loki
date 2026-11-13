@@ -66,25 +66,26 @@ export function NewChat({
   const where = useChatHome(agents, agentId, macs, requirements);
   const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey, home: where.remote?.mac_id });
   const [draft, setDraft] = useState<Draft>(NO_DRAFT);
-  const [starting, setStarting] = useState(false);
+  // A first message on its way: a second Return must not make a second chat. Never drawn, so a ref, not state.
+  const starting = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const folder = field.folder.trim();
   // A folder that was checked and is not usable stops the send; one not checked yet goes, and the daemon has the last word.
   const badFolder = folder && field.status?.ok === false ? (field.status.reason ?? "that folder cannot be used") : null;
   const send = (text: string, images: Attachment[] = []) => {
-    if (!agentId || starting) return;
+    if (!agentId || starting.current) return;
     if (badFolder) {
       setDraft({ text, images });
       return setError(`${folderLabel(folder)}: ${badFolder}`);
     }
-    setStarting(true);
+    starting.current = true;
     setError(null);
     onStart({ agentId, folder, home: where.home, text, images }).catch((err: unknown) => {
       // The message comes back to the box for another try.
       setDraft({ text, images });
       setError(messageOf(err));
-      setStarting(false);
+      starting.current = false;
     });
   };
 

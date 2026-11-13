@@ -228,6 +228,14 @@ export function ReplyProposals({ source, rt, blocked = null }: Omit<ReplyProposa
   );
 }
 
+/**
+ * What approving a reply proposal sends as the person's edit: their text when they changed it, else none, so the
+ * proposal goes as the agent wrote it last, even when it was still being drafted when the card opened.
+ */
+export function replyEdit(edited: string | null, proposed: string): string | null {
+  return edited === null || edited === proposed ? null : edited;
+}
+
 /** One reply proposal: a quiet quote of its text until edit opens it, then approve or reject; a refusal says why. */
 export function ReplyProposalView({
   proposal: p,
@@ -238,7 +246,10 @@ export function ReplyProposalView({
   blocked: string | null;
   onDecide: (action: ReplyAction, opts: { text?: string | null; replace?: boolean }) => Promise<ReplyOutcome>;
 }) {
-  const [text, setText] = useState(p.text);
+  // The person's own edit, null until they change the text: until then the text is the proposal's as it is now, so a
+  // proposal still being drafted keeps following the agent, and approving it sends no edit.
+  const [edited, setEdited] = useState<string | null>(null);
+  const text = edited ?? p.text;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<{ message: string | null; replace: boolean } | null>(null);
@@ -248,7 +259,7 @@ export function ReplyProposalView({
   const act = async (action: "approve" | "reject") => {
     setBusy(true);
     try {
-      const out = await onDecide(action, action === "approve" ? { text: text === p.text ? null : text, replace: refused?.replace === true } : {});
+      const out = await onDecide(action, action === "approve" ? { text: replyEdit(edited, p.text), replace: refused?.replace === true } : {});
       setRefused(out.done ? null : { message: out.message, replace: out.replace });
     } catch (err: unknown) {
       setRefused({ message: messageOf(err), replace: false });
@@ -270,7 +281,7 @@ export function ReplyProposalView({
     >
       <div data-reply={p.id} className="flex flex-col gap-2">
         {editing ? (
-          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setText(e.target.value)} onKeyDown={keys} aria-label="reply text" />
+          <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="reply text" />
         ) : (
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
         )}

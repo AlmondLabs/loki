@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PendingApproval } from "../core/attention/model.ts";
 import type { ReplyProposal } from "../core/frame-types.ts";
-import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView } from "../app/src/item/proposal.tsx";
+import { ApprovalProposal, QuestionProposal, QuickReplyChips, ReplyProposalView, replyEdit } from "../app/src/item/proposal.tsx";
 import { Conversation } from "../app/src/chat/conversation.tsx";
 import { threadPreview } from "../app/src/item/preview.ts";
 
@@ -86,6 +86,15 @@ describe("a reply proposal", () => {
     const refused = html(createElement(ReplyProposalView, { proposal: reply({ reason: "the thread is gone" }), blocked: null, onDecide: decide }));
     expect(refused).toContain('role="alert"');
     expect(refused).toContain("the thread is gone");
+  });
+});
+
+describe("approving a reply proposal", () => {
+  test("sends no edit unless the person changed the text, whatever the agent wrote since the card opened", () => {
+    // Opened while drafting, finished since: approving untouched sends the agent's text, not the early draft.
+    expect(replyEdit(null, "Thursday at 3pm works.")).toBeNull();
+    expect(replyEdit("Thursday at 3pm works.", "Thursday at 3pm works.")).toBeNull();
+    expect(replyEdit("Friday instead.", "Thursday at 3pm works.")).toBe("Friday instead.");
   });
 });
 
