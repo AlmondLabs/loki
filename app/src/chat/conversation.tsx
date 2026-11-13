@@ -78,6 +78,8 @@ export interface ConversationView {
   home?: string | null;
   /** The chat's live links to other chats (plan 067), as its header shows them. */
   links?: LinkSeen[];
+  /** A chat not started yet (⌘N under Liquid Glass): its empty thread says nothing, as a new message in Messages. */
+  blank?: boolean;
 }
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
@@ -383,6 +385,7 @@ export function Conversation({
           loadFailed={view.loadFailed ?? null}
           loadStep={view.loadStep}
           home={view.home ?? null}
+          blank={view.blank}
           layout={layout}
           tail={
             composer &&
@@ -647,6 +650,8 @@ export interface ThreadProps {
   loadFailed?: (() => void) | null;
   loadStep?: (row: number) => Promise<WholeRow | null>;
   home?: string | null;
+  /** An empty thread says nothing (ConversationView's `blank`): a chat not started yet. */
+  blank?: boolean;
   layout?: MessageLayout;
   /**
    * Drawn after the last row, inside the scroll (the agent's quick replies): going away it leaves the thread's height
@@ -686,6 +691,7 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
     loadFailed = null,
     loadStep,
     home = null,
+    blank = false,
     layout,
     tail,
     style,
@@ -751,7 +757,7 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
             </Button>
           </div>
         )}
-        {rows?.length === 0 && (
+        {rows?.length === 0 && !blank && (
           <div style={{ color: "var(--loki-muted)", fontSize: "var(--loki-text-meta)" }}>
             nothing here yet — everything you send lands in {who}'s transcript
           </div>

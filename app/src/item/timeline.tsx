@@ -61,6 +61,7 @@ function ThreadBody({
   loadFailed = null,
   loadStep,
   home = null,
+  blank = false,
   layout,
   tail,
   style,
@@ -200,7 +201,9 @@ function ThreadBody({
               </Button>
             </div>
           )}
-          {rows?.length === 0 && <p className="m-0 text-meta text-muted-foreground">nothing here yet — everything you send lands in {who}'s transcript</p>}
+          {rows?.length === 0 && !blank && (
+            <p className="m-0 text-meta text-muted-foreground">nothing here yet — everything you send lands in {who}'s transcript</p>
+          )}
           <StepsLoad.Provider value={stableLoadStep}>
             {entries.map((e) => (
               <MessageScrollerItem key={e.key} messageId={e.key}>

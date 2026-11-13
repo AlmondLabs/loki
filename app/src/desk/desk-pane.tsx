@@ -14,7 +14,7 @@ import {
 import { useHeightVar } from "../shared/use-height-var";
 import { useLook } from "../theme";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
-import { IconButton, PaneHeader, Popover, type Tab } from "../components";
+import { IconButton, PaneHeader, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
@@ -25,7 +25,7 @@ import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
 import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
-import { MenuItems, menuKey } from "../shell/menu-items";
+import { PopoverMenu } from "../shell/menu-items";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
@@ -466,48 +466,8 @@ function DeskActions() {
       >
         <Icon name="more" size={16} />
       </IconButton>
-      {menuOpen && <DeskMenu entries={entries} onClose={() => setMenuOpen(false)} />}
+      {menuOpen && <PopoverMenu label="Chat actions" entries={entries} onClose={() => setMenuOpen(false)} />}
     </span>
-  );
-}
-
-/** The overflow menu drawn by loki: ↑↓ / Enter / Esc, or click; a click outside closes it. */
-function DeskMenu({ entries, onClose }: { entries: MenuEntry[]; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-  useEffect(() => {
-    const node = ref.current;
-    const anchor = node?.parentElement ?? null;
-    node?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
-    // a press outside the menu and its button closes it (the button toggles it itself)
-    const away = (e: PointerEvent) => {
-      if (!anchor?.contains(e.target as Node)) closeRef.current();
-    };
-    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
-    window.addEventListener("pointerdown", away, true);
-    return () => {
-      window.removeEventListener("pointerdown", away, true);
-      // Esc, or a pick whose action takes no focus of its own: back to the "More Chat Actions" button.
-      const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-    };
-  }, []);
-  return (
-    <Popover
-      ref={ref}
-      role="menu"
-      aria-label="Chat actions"
-      anchor="right"
-      width={260}
-      // hung from a 28px button: the popover's own cap (its parent's width) would crush it
-      style={{ padding: 4, right: 0, maxWidth: "none" }}
-      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
-    >
-      <MenuItems entries={entries} onPicked={onClose} />
-    </Popover>
   );
 }
 

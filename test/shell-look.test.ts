@@ -36,8 +36,8 @@ describe("the window shell on Liquid Glass", () => {
 });
 
 describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
-  test("every sheet and popover is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
-    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-title-menu-panel \{([^}]*)\}/.exec(apple), "the sheet rule")[1];
+  test("every sheet, popover and type-ahead list is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
+    const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest,\s*\.loki-title-menu-panel \{([^}]*)\}/.exec(apple), "the sheet rule")[1];
     expect(sheets).toContain("var(--loki-glass-strong)");
     expect(sheets).toContain("var(--loki-glass-blur)");
     const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(apple), "the chip rule")[1];

@@ -199,7 +199,7 @@ function RecipientRow({
                     add(asRecipient(p));
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>{p.name || p.address}</span>
+                  <span className="loki-mail-suggest-name">{p.name || p.address}</span>
                   {p.name && <Meta>{p.address}</Meta>}
                 </button>
               ))}

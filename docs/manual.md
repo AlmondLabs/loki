@@ -585,6 +585,13 @@ completion, or **browse…** for the system's folder dialog; the git branch show
 folder is a checkout) and an optional name. **start** creates the conversation
 and opens the empty chat on Messages with the message box focused.
 
+Under **Liquid Glass** there is no sheet: ⌘N (or either "+") shows an empty chat in place of the open one, as Messages
+opens a new message. Its **To:** line holds the agent (the one you were talking to, or the one whose "+" you pressed):
+click it for the list of agents, or with the caret on it type the start of a name. The folder the chat will work in
+is at the end of that line, chosen as the sheet chose it (the open chat's folder for its own agent, else the agent's most
+recent); click it for the same folder field. The chat runs on the agent's usual model. Nothing is created until you send
+the first message: Esc in the empty box, or opening another chat, leaves nothing behind.
+
 **Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
 the same folder field, starting on the chat's folder (recents, completion, **browse…**); **move** needs a folder that
 exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders

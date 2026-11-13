@@ -1845,6 +1845,11 @@ button.loki-label-chip:focus-visible {
   min-width: 0;
   padding: 2px 0;
 }
+/* The picker open on a Flow card, above its moves: where the thread goes, when it comes back, its labels. */
+.loki-card-picker {
+  padding: 10px 18px;
+  border-top: 1px solid var(--loki-border);
+}
 .loki-mail-suggest {
   position: absolute;
   left: 0;
@@ -1879,6 +1884,9 @@ button.loki-label-chip:focus-visible {
   font-size: var(--loki-text-meta);
   text-align: left;
   cursor: pointer;
+}
+.loki-mail-suggest-name {
+  font-weight: 600;
 }
 .loki-mail-suggest-row[aria-selected="true"],
 .loki-mail-suggest-row:hover {

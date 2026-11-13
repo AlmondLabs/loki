@@ -610,6 +610,7 @@ export function DeskSidebarView({
   onNew,
   query,
   onQuery,
+  drafting = false,
 }: {
   desk: Desk;
   catchUp: CatchUp;
@@ -618,6 +619,8 @@ export function DeskSidebarView({
   onNew: (agentId: string | null) => void;
   query: string;
   onQuery: (query: string) => void;
+  /** A chat not started yet shows in the pane (⌘N under Liquid Glass): no row is the open one. */
+  drafting?: boolean;
 }) {
   const connected = catchUp.status === "open";
   return (
@@ -636,7 +639,7 @@ export function DeskSidebarView({
       desks={desk.desks.list}
       agents={catchUp.agents}
       items={catchUp.items}
-      current={desk.scope}
+      current={drafting ? "" : desk.scope}
       connected={connected}
       avatar={avatarUrl}
       onOpen={onOpen}

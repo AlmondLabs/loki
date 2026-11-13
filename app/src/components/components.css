@@ -1511,6 +1511,82 @@ button.loki-list-section-toggle {
     font-size: var(--loki-text-tag);
     font-weight: 400;
   }
+  /* A chat not started yet (U20): under its title, a To: line as Messages draws one, with the agent as a token and
+     the folder it will work in, quiet, at the trailing edge. */
+  .loki-new-chat-to {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 12px 0 20px;
+    border-top: 0.5px solid var(--loki-border);
+    border-bottom: 0.5px solid var(--loki-border);
+    font-size: var(--loki-text-body);
+    color: var(--loki-fg);
+  }
+  .loki-new-chat > .loki-pane-header {
+    grid-template-areas:
+      "line tabs tools"
+      "sub sub sub";
+    padding-right: 0;
+    background: var(--loki-bg);
+  }
+  .loki-new-chat .loki-pane-header-subtitle {
+    padding: 0;
+    white-space: normal;
+    overflow: visible;
+  }
+  .loki-new-chat-to-label {
+    color: var(--loki-muted);
+  }
+  .loki-new-chat-anchor {
+    position: relative;
+    display: inline-flex;
+  }
+  .loki-new-chat-spacer {
+    flex: 1;
+  }
+  .loki-new-chat-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px 0 4px;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: var(--loki-accent-soft);
+    color: var(--loki-accent);
+    font: inherit;
+    cursor: default;
+  }
+  .loki-new-chat-folder {
+    max-width: 280px;
+    height: 24px;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    border-radius: var(--loki-radius-pill);
+    background: transparent;
+    color: var(--loki-muted);
+    font: inherit;
+    font-size: var(--loki-text-meta);
+    cursor: default;
+  }
+  .loki-new-chat-folder:hover {
+    background: var(--loki-hover);
+  }
+  .loki-new-chat-folder[data-failed] {
+    color: var(--loki-negative);
+  }
+  .loki-new-chat-notice {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 48rem;
+    padding: 0 24px 6px;
+  }
+
   /* The toolbar is solid to its foot, with a short fade under it, so the thread scrolls out of sight beneath it as
      under a Mac window's scroll edge, never through its words. */
   .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title) {
@@ -1643,6 +1719,7 @@ button.loki-list-section-toggle {
      glass, as a Mac's sheets, popovers and menus are; what they hold stays as it is. */
   .loki-sheet-card,
   .loki-popover,
+  .loki-mail-suggest,
   .loki-title-menu-panel {
     border-color: transparent;
     background: var(--loki-glass-strong);
@@ -1652,6 +1729,38 @@ button.loki-list-section-toggle {
       inset 0 0.5px 0 var(--loki-glass-hi),
       0 0 0 0.5px var(--loki-glass-edge),
       var(--loki-shadow-sheet);
+  }
+  /* Type-ahead lists (U20): people to mention and mail addresses read as a Mac's completion list, at menu sizes, with
+     the arrow a menu has, not a link's hand. */
+  .loki-mail-suggest-row {
+    padding: 4px 8px;
+    font-size: var(--loki-text-body);
+    cursor: default;
+  }
+  .loki-mail-suggest-name {
+    font-weight: 400;
+  }
+  /* The label picker (U20) is a menu hung over the card from its Label move, on the popover's glass: its slot above
+     the moves takes no room, and the list fills the menu, so the focus ring is the menu's own edge. */
+  .loki-card-picker:has(> .loki-label-menu) {
+    position: relative;
+    height: 0;
+    padding: 0;
+    border-top: 0;
+  }
+  .loki-label-menu {
+    top: auto;
+    bottom: 6px;
+    right: 18px;
+    width: 220px;
+    padding: 0;
+  }
+  .loki-label-menu [role="listbox"] {
+    padding: 4px;
+    border-radius: inherit;
+  }
+  .loki-label-menu .loki-meta {
+    padding: 4px 8px;
   }
   .loki-chip--float {
     background: var(--loki-glass);

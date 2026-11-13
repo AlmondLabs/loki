@@ -523,7 +523,7 @@ function Card({
           suggestions={{ source: deck.chats, rt: current.runtime }}
         />
       </OpenChat.Provider>
-      {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
+      {picker && <div className="loki-card-picker">{picker}</div>}
     </div>
   );
 }

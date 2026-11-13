@@ -4,6 +4,7 @@ import { AgentFace } from "./agent-chip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
+import { useLook } from "../theme";
 import type { Pushes } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
 
@@ -29,10 +30,16 @@ export function NewDesk({ open, ...props }: NewDeskProps & { open: boolean }) {
   return <NewDeskSheet {...props} />;
 }
 
+/** An agent a new chat can be for. `home_mac` is the Mac it lives on (plan 023). */
+export interface NewChatAgent {
+  id: string;
+  name: string;
+  home_mac?: string | null;
+}
+
 interface NewDeskProps {
   onClose: () => void;
-  /** `home_mac` is the Mac each agent lives on (plan 023). */
-  agents: Array<{ id: string; name: string; home_mac?: string | null }>;
+  agents: NewChatAgent[];
   /** This Mac and the Macs paired with it; with none, every chat starts here and nothing is asked. */
   macs?: Pushes["peers"] | null;
   defaultAgentId: string | null;
@@ -344,7 +351,7 @@ function NewDeskSheet({
  * name when starting it: named outright either way, so the chat lives where the dialog said even if that Mac came
  * back meanwhile; undefined when the agent lives here.
  */
-function useChatHome(agents: NewDeskProps["agents"], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
+export function useChatHome(agents: NewChatAgent[], agentId: string | null, macs: NewDeskProps["macs"], requirements: NewDeskProps["requirements"]) {
   const [pickHere, setPickHere] = useState(false);
   const agentHome = agentHomeOf(
     agents.find((a) => a.id === agentId),
@@ -610,6 +617,8 @@ export function FolderPicker({
   browser: BrowseWith;
 }) {
   const [hi, setHi] = useState(0);
+  // Liquid Glass words its controls in title case (plan 2026-11-12-1505, R7).
+  const glass = useLook() === "glass";
   return (
     <div style={{ position: "relative" }}>
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
@@ -654,7 +663,17 @@ export function FolderPicker({
         />
         {browser && (
           <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`choose a folder in ${osWords().fileManager}`}>
-            {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
+            {glass
+              ? busy === "picking"
+                ? "Choosing…"
+                : !canBrowse
+                  ? "Loading…"
+                  : "Browse…"
+              : busy === "picking"
+                ? "choosing…"
+                : !canBrowse
+                  ? "loading…"
+                  : "browse…"}
           </Button>
         )}
       </div>

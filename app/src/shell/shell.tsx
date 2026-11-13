@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/desk-pane";
+import { NewChat } from "../desk/new-chat";
+import { useFirstMessage } from "../desk/use-first-message";
+import type { Attachment } from "../../../core/attention/content.ts";
 import { useDeskPane } from "../desk/use-desk-pane";
 import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/use-desk";
@@ -126,6 +129,11 @@ export function Shell() {
     capture("desk_switched", { desk: desk.scope });
   }, [desk.scope, capture]);
   const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
+  /**
+   * ⌘N under Liquid Glass (plan 2026-11-12-1505, U20): a chat not started yet, shown in place of the open one. `n` counts
+   * the asks, so asking again starts over on the agent asked for and puts the caret back in its box.
+   */
+  const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
   const chat = useChatLayout(desk);
   // The desk pane: Messages or the Desk tab, per desk; every open lands on Messages (desk/pane.ts).
   const pane = useDeskPane(desk.scope);
@@ -207,6 +215,7 @@ export function Shell() {
       switchTo(scope);
       paneOpen(scope);
       setSegment("desk");
+      setNewChat(null);
       setFocusChat((n) => n + 1);
     },
     [setSegment, paneOpen, switchTo],
@@ -233,6 +242,25 @@ export function Shell() {
   const createDesk = async (agent: string, folder: string, name: string, home?: string) => {
     const rt = await catchUp.createDesk(agent, folder, name, home);
     setNewDesk({ open: false, name: "", agentId: null });
+    openDesk(rt.agent_id, rt.conversation_id, { chat: true });
+  };
+
+  // Under Liquid Glass there is no rail (U12): the list column is the window's one sidebar, beside every section.
+  const glass = useLook() === "glass";
+  // Under Liquid Glass a new chat opens in place and is created by its first message; today's look asks in the dialog.
+  const startNewChat = (agentId: string | null) => {
+    if (!glass) return setNewDesk({ open: true, name: "", agentId });
+    setNewChat((was) => ({ agentId, n: (was?.n ?? 0) + 1 }));
+    setPrefsOpen(false);
+    setSegment("desk");
+  };
+  const queueFirst = useFirstMessage(desk.scope, desk.connection, (m) =>
+    catchUp.send(m.runtime, m.text, m.images, { desk: null, labels: null, origin: "desk" }),
+  );
+  const startChat = async ({ agentId, folder, home, text, images }: { agentId: string; folder: string; home?: string; text: string; images: Attachment[] }) => {
+    const rt = await catchUp.createDesk(agentId, folder, "", home);
+    // The message goes once the pane is on the new chat and its link is open (use-first-message.ts).
+    queueFirst({ scope: scopeFor(rt.conversation_id, rt.agent_id), runtime: rt, text, images });
     openDesk(rt.agent_id, rt.conversation_id, { chat: true });
   };
 
@@ -278,7 +306,6 @@ export function Shell() {
   }, [segment, desk.scope]);
   // The list column between the rail and the main pane (Desk, Agents, Learn); the pane starts where it ends. Under
   // Liquid Glass there is no rail (U12): the column is the window's one sidebar, beside every section, its places on top.
-  const glass = useLook() === "glass";
   const column = useColumn(segment, glass);
   /** A label's chats: the sidebar filtered to it, on Chats with its column open. */
   const showLabel = (name: string) => {
@@ -287,6 +314,9 @@ export function Shell() {
     setSegment("desk");
     if (!column.open) column.toggle();
   };
+  // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
+  const drafting = glass && newChat !== null && segment === "desk";
+  const onChat = segment === "desk" && !drafting;
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
   const immersive = sidebarHidden(segment, pane.tab);
   const columnShown = column.shown && !immersive;
@@ -322,7 +352,7 @@ export function Shell() {
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
       "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
-      "desk.new": () => setNewDesk({ open: true, name: "", agentId: null }),
+      "desk.new": () => startNewChat(null),
       "keys.sheet": () => setKeysOpen((v) => !v),
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
@@ -352,6 +382,7 @@ export function Shell() {
     desk.desks.switchTo(scope);
     pane.open(scope);
     setSegment("desk");
+    setNewChat(null);
     setFocusChat((n) => n + 1);
   };
 
@@ -426,9 +457,10 @@ export function Shell() {
                 catchUp={catchUp}
                 notice={notice}
                 onOpen={switchDesk}
-                onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })}
+                onNew={startNewChat}
                 query={sidebarQuery}
                 onQuery={setSidebarQuery}
+                drafting={drafting}
               />
             ),
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
@@ -439,11 +471,11 @@ export function Shell() {
         {/* The main pane: one main landmark for whichever section shows; the rail is the navigation, the list column the sidebar. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
-          <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
+          <div style={{ position: "absolute", inset: 0, visibility: onChat ? "visible" : "hidden" }} aria-hidden={!onChat}>
             <DeskPane
               desk={desk}
               catchUp={catchUp}
-              active={segment === "desk"}
+              active={onChat}
               tab={pane.tab}
               onTab={pane.setTab}
               frameRequest={pane.frameRequest}
@@ -467,6 +499,26 @@ export function Shell() {
               onShowLabel={showLabel}
             />
           </div>
+
+          {/* A chat not started yet takes the open chat's place (U20); keyed by the ask, so ⌘N again starts over. */}
+          {drafting && (
+            <div style={{ position: "absolute", inset: 0 }}>
+              <NewChat
+                key={newChat.n}
+                agents={catchUp.agents}
+                avatar={avatarUrl}
+                defaultAgentId={newChat.agentId ?? desk.agentId}
+                currentAgentId={desk.agentId}
+                currentConversationKey={desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null}
+                folders={desk.attention.folders}
+                macs={desk.macs.view}
+                requirements={desk.attention.requirements}
+                onStart={startChat}
+                onClose={() => setNewChat(null)}
+                focusTick={newChat.n}
+              />
+            </div>
+          )}
 
           {segment === "inbox" && (
             <InboxView

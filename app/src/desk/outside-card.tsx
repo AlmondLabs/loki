@@ -1361,7 +1361,7 @@ export function OutsideCard({
         <OutsideThread facts={facts} state={thread} own={own} items={preview === "on"} />
         {mailBox && <div style={{ marginLeft: MAIL_INDENT, marginTop: 16 }}>{reply}</div>}
       </div>
-      {picker && <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>{picker}</div>}
+      {picker && <div className="loki-card-picker">{picker}</div>}
       <div style={{ padding: "10px 18px", borderTop: "1px solid var(--loki-border)" }}>
         {reply && !mailBox ? reply : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>{row}</div>}
       </div>
