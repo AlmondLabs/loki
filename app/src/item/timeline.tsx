@@ -226,7 +226,8 @@ function ThreadBody({
         aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"}
       >
         <ArrowDownIcon data-icon="inline-start" />
-        {fresh > 0 ? `${fresh} new` : "latest"}
+        {/* Title case under Liquid Glass, as a Mac button says it (U19). */}
+        {fresh > 0 ? `${fresh} ${glass ? "New" : "new"}` : glass ? "Latest" : "latest"}
       </MessageScrollerButton>
     </MessageScroller>
   );

@@ -66,14 +66,14 @@ function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
 
 describe("the title switcher", () => {
   test('the title reads "flow" in Everything and names the lane as the person typed it otherwise', () => {
-    expect(laneTitle(null)).toBe("flow");
-    expect(laneTitle(WORK)).toBe("flow · Work");
+    expect(laneTitle(null)).toBe("Flow");
+    expect(laneTitle(WORK)).toBe("Flow · Work");
     const html = renderToStaticMarkup(createElement(DeckHeader, { lane: WORK, lanes: [WORK], items: [], needYou: 0, chats: 0, others: 0, onLane: noop }));
-    expect(html).toContain("flow · Work");
+    expect(html).toContain("Flow · Work");
     expect(html).toContain('aria-haspopup="menu"');
   });
 
-  test("the menu lists Everything, the person's lanes, an agent lane for each agent with cards, then new lane…", () => {
+  test("the menu lists Everything, the person's lanes, an agent lane for each agent with cards, then New Lane…", () => {
     const items = [work, of("w2", "ag-work", "Ada"), home];
     const html = renderToStaticMarkup(createElement(LaneMenu, { lane: WORK, lanes: [WORK, HOME], items, onPick: noop, onNewLane: noop, onClose: noop }));
     expect(html).toContain('role="menu"');
@@ -83,7 +83,7 @@ describe("the title switcher", () => {
         .replace(/\s+/g, " ")
         .trim(),
     );
-    expect(rows).toEqual(["everything", "Work", "Home", "Ada 2", "Bo 1", "new lane…"]);
+    expect(rows).toEqual(["Everything", "Work ✓", "Home", "Ada 2", "Bo 1", "New Lane…"]);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-checked="true"[^>]*>.*?Work/);
   });

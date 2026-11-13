@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { inTauri, keyboard, type Platform } from "../desk/env";
 import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
+import { POPUP } from "./native-menu";
 
 /**
  * The webview's own keys on Windows (WebView2's browser accelerators) and Linux: reload, print, find, the caret,
@@ -119,6 +120,8 @@ export function useShellKeys(
     void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e: unknown) => console.warn("loki: menu", e));
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen<string>("loki:menu", (ev) => {
+        // A popped-up menu's item ran its own action (native-menu.ts); the shell forwards every menu click.
+        if (ev.payload.startsWith(POPUP)) return;
         const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;
         const last = lastKeyFired.current;
         if (last && last.ids.has(id) && Date.now() - last.at < 250) return;

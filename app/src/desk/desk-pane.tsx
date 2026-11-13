@@ -14,7 +14,7 @@ import {
 import { useHeightVar } from "../shared/use-height-var";
 import { useLook } from "../theme";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
-import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
+import { IconButton, PaneHeader, Popover, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
@@ -23,7 +23,9 @@ import { OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transc
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
-import { keyFor, registerActions, runAction } from "../shell/keymap";
+import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
+import { popUpMenu, under, useNativeMenus, type MenuEntry } from "../shell/native-menu";
+import { MenuItems, menuKey } from "../shell/menu-items";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
@@ -407,12 +409,6 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
   }, [visible, root, last]);
 }
 
-/** A line of the header's menu: a keymap action, run through runAction, its key shown. */
-interface MenuItem {
-  id: string;
-  label: string;
-  keys?: string;
-}
 const DONE = "desk.done";
 
 /** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */
@@ -439,32 +435,36 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
  */
 function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const items: MenuItem[] = [
-    { id: "desk.arrange", label: "Arrange widgets", keys: keyFor("desk.arrange") },
-    { id: "view.fit", label: "Fit all widgets", keys: keyFor("view.fit") },
-    { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
+  const native = useNativeMenus();
+  const action = (id: string, label: string): MenuEntry => ({ type: "item", id, label, keys: specFor(id), run: () => runAction(id) });
+  const entries: MenuEntry[] = [
+    action("desk.arrange", "Arrange Widgets"),
+    action("view.fit", "Fit All Widgets"),
+    { type: "separator" },
+    action("chat.toggle", "Show / Hide Chat"),
   ];
   return (
     <span className="loki-desk-pane-menu-anchor">
-      <IconButton size={28} label="More chat actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+      <IconButton
+        size={28}
+        label="More Chat Actions"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={(e) => {
+          // Under Liquid Glass in the Mac app the system's menu hangs from the button (U19).
+          if (native) void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err));
+          else setMenuOpen((v) => !v);
+        }}
+      >
         <Icon name="more" size={16} />
       </IconButton>
-      {menuOpen && (
-        <DeskMenu
-          items={items}
-          onPick={(id) => {
-            setMenuOpen(false);
-            runAction(id);
-          }}
-          onClose={() => setMenuOpen(false)}
-        />
-      )}
+      {menuOpen && <DeskMenu entries={entries} onClose={() => setMenuOpen(false)} />}
     </span>
   );
 }
 
-/** The overflow menu: ↑↓ / Enter / Esc, or click; a click outside closes it. */
-function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: string) => void; onClose: () => void }) {
+/** The overflow menu drawn by loki: ↑↓ / Enter / Esc, or click; a click outside closes it. */
+function DeskMenu({ entries, onClose }: { entries: MenuEntry[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -473,7 +473,7 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
   useEffect(() => {
     const node = ref.current;
     const anchor = node?.parentElement ?? null;
-    node?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    node?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
     // a press outside the menu and its button closes it (the button toggles it itself)
     const away = (e: PointerEvent) => {
       if (!anchor?.contains(e.target as Node)) closeRef.current();
@@ -482,7 +482,7 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
     window.addEventListener("pointerdown", away, true);
     return () => {
       window.removeEventListener("pointerdown", away, true);
-      // Esc, or a pick whose action takes no focus of its own: back to the "More desk actions" button.
+      // Esc, or a pick whose action takes no focus of its own: back to the "More Chat Actions" button.
       const a = document.activeElement;
       if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     };
@@ -496,23 +496,9 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
       width={260}
       // hung from a 28px button: the popover's own cap (its parent's width) would crush it
       style={{ padding: 4, right: 0, maxWidth: "none" }}
-      onKeyDown={(e) => {
-        const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-        const i = all.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
-        else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
-        else if (e.key === "Escape") onClose();
-        else return;
-        e.preventDefault();
-        e.stopPropagation();
-      }}
+      onKeyDown={(e) => menuKey(e, ref.current, onClose)}
     >
-      {items.map((it) => (
-        <Row key={it.id} dense role="menuitem" onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
-          <span>{it.label}</span>
-          {it.keys && <Kbd>{it.keys}</Kbd>}
-        </Row>
-      ))}
+      <MenuItems entries={entries} onPicked={onClose} />
     </Popover>
   );
 }

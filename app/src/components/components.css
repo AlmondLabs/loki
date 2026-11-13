@@ -947,6 +947,13 @@ button.loki-list-section-toggle {
   width: 100%;
   font-size: var(--loki-text-body);
 }
+/* A drawn menu's checkmark on its chosen item, and a submenu's label over its items (shell/menu-items.tsx, U19). */
+.loki-menu-check {
+  color: var(--loki-accent);
+}
+.loki-menu-group-label {
+  padding: 6px 8px 2px;
+}
 .loki-title-menu-sep {
   height: 1px;
   margin: 4px 0;

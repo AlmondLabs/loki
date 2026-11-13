@@ -52,7 +52,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Preferences…", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", typing: true, menu: "Go" },
@@ -224,6 +224,12 @@ export function keysOf(b: Binding, os: Platform = keyboard): string[] {
 /** A binding's label on a system: the Mac's, unless the key does something else there (labelOn). */
 export function labelOf(b: Binding, os: Platform = keyboard): string {
   return (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
+}
+
+/** A binding's key spec by id on a system, unformatted ("cmd+e"), for a native menu's accelerator; null when it has none. */
+export function specFor(id: string, os: Platform = keyboard, index = 0): string | null {
+  const b = KEYMAP.find((x) => x.id === id);
+  return (b && keysOf(b, os)[index]) ?? null;
 }
 
 /** The key a binding shows, by id, as this system reads it: every shortcut the app prints comes through here or formatKeys. */

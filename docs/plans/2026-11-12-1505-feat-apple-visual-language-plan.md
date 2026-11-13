@@ -424,6 +424,70 @@ flowchart TB
 - A change in another window's storage moves the chat layout, the shortcut and a session value kept in localStorage.
 **Verification:** checked in the real Mac app by the person (a browser cannot open a second Tauri window); the settings root rendered in a browser on demo data.
 
+Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everything that opens over them still HTML. The person chose, in order: native menus and no full-window dimming layers, ⌘N in place, then the composer. Sidebar and Flow reshape, the canvas as an inspector and agents as contacts stay brainstorm topics. The person also confirmed title case on controls under Liquid Glass (KTD of the direction; many controls were still lowercase).
+
+### U19. Native menus and pickers on the Mac
+
+**Goal:** under Liquid Glass in the Mac app, every command menu and choice picker is a real macOS menu, attached to what opened it, never a drawn dialog over the window.
+**Requirements:** R1, R5, R13; KTD1.
+**Dependencies:** U5, U12.
+**Files:** `app/src/shell/native-menu.ts` (a menu as data, popped up natively), `app/src/shell/menu-items.tsx` (the same data drawn by loki), `app/src/shell/desk-sidebar.tsx` (row menu), `app/src/desk/desk-pane.tsx` (the Canvas tab's menu), `app/src/desk/catch-up-parts.tsx` (Flow's lane menu), `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/chat/conversation.tsx`, `app/src/shell/use-shell-keys.ts`, `app/src/shell/keymap.ts`, `src-tauri/src/menu.rs`, tests.
+**Approach:**
+- A menu is data: items with title-case labels, separators, checkmarks, submenus, disabled states, a quiet count, and the key from the keymap. The Mac app pops it up with Tauri's menu API at the control (or the pointer, for a right-click). Popped-up items carry a `popup:` id, which the page's menu-bar handler skips, since the shell forwards every native menu click as `loki:menu`.
+- Command menus (the chat row's, the Canvas tab's, Flow's lanes) are described once and drawn either way: natively, or by loki at menu sizes elsewhere.
+- Select model pops up natively: the chat's harness's quick picks with the current one checked, then More Models ▸ one submenu per provider, every other harness the chat can still move to as a submenu, then Effort ▸ its levels. Names only, never a handle such as `acp:fake/sonnet`. The filter field goes in the native menu. Off the Mac (and in today's look) the drawn picker stays as it is, filter included.
+- The permission mode pops up natively with the current mode checked; its drawn menu marks it with a check, not the word "current".
+- The menu bar says "Settings…", as macOS has since 13.
+- Labels on menu items and the thread's jump button are title case under Liquid Glass.
+- Left for later: the return-to picker (it has a date field) and the hand-off picker (a list dialog) are not menus and keep their drawn panels; the rest of the copy that says "Preferences" moves with U11.
+**Test scenarios:**
+- Separators are tidied (none leading, trailing or doubled) and a menu's entries become Tauri's option shape with `popup:` ids, checks, accelerators and nested submenus.
+- The row menu groups open and read state, then rename, folder, labels and other Macs, then pin and archive, and disables what needs the link while it is down.
+- The model menu checks the current model and effort, nests More Models by provider and other harnesses as submenus, leaves locked harnesses out, and never shows a raw handle.
+- The menu bar handler ignores `popup:` ids.
+**Verification:** the drawn fallback rendered on demo data; the native menus checked by the person in the real Mac app (a browser cannot pop one up).
+
+### U20. Nothing dims the window; ⌘N opens a chat in place
+
+**Goal:** opening search, a picker or a new chat never greys or blurs the window; ⌘N behaves as Messages' does.
+**Requirements:** R1, R5, R7; KTD1.
+**Dependencies:** U7, U19.
+**Files:** `app/src/shell/search-sheet.tsx`, `app/src/desk/new-desk.tsx`, `app/src/shell/shell.tsx`, the keys sheet, `app/src/desk/mentions.tsx`, `app/src/chat/slash-palette.tsx`, `app/src/desk/mail-address.tsx`, `app/src/desk/label-picker.tsx`, `app/src/components/components.css`, tests.
+**Approach:**
+- ⌘K is a floating glass panel near the top of the window with nothing behind it: no scrim, no blur, no instruction footer. Esc, ⌘K or a click outside closes it.
+- ⌘N opens an empty chat at once, with a To: line at the top of the thread holding the agent (the last one used, changeable by typing or a pop-up). Sending the first message creates the chat; leaving it empty leaves nothing behind. The folder moves to the chat's info and defaults as today.
+- The keys sheet stops being a dimmed sheet: the menu bar carries the keys, and the sheet (still reachable from Help) is a plain panel.
+- Type-ahead lists (@mentions, slash commands, mail addresses, labels) stay drawn by loki, as Mail's and Messages' are, attached to the caret, at menu sizes on the glass material, dimming nothing.
+**Test scenarios:**
+- Under Liquid Glass the search panel and type-ahead lists render no backdrop layer.
+- ⌘N shows an empty chat with the To: agent and creates nothing until the first send; Esc or switching away leaves no chat.
+**Verification:** rendered on demo data, light and dark: ⌘K open, ⌘N, an @mention list.
+
+### U21. A Messages composer
+
+**Goal:** the composer reads as Messages', not a web chat app's.
+**Requirements:** R1, R4; KTD1.
+**Dependencies:** U4, U19.
+**Files:** the composer component and its input group, `app/src/chat/model-picker.tsx`, `app/src/chat/permission-mode.tsx`, `app/src/components/components.css`, tests.
+**Approach:** under Liquid Glass on the desktop:
+- One line, a capsule about 30pt tall that grows with the text up to a limit; "+" outside it on the leading side.
+- Send is the accent up-arrow in a filled circle, shown only when there is text; the microphone shows when there is none, as in Messages.
+- The engine and mode pills leave the composer: they open from the "+" menu and the chat's toolbar subtitle, through U19's native menus.
+**Test scenarios:**
+- Under Liquid Glass the composer has no pills, one row, and swaps the microphone for send when text is typed.
+- The model and mode stay reachable from the "+" menu and keep their keys.
+**Verification:** rendered empty, typing and multi-line, light and dark.
+
+### U22. SF Symbols in native menus
+
+**Goal:** the main actions in native menus carry Apple's symbols, as Tahoe's own menus do.
+**Requirements:** R1; KTD1.
+**Dependencies:** U19.
+**Files:** `src-tauri/Cargo.toml`, `src-tauri/src/` (a symbol-image command), `app/src/shell/native-menu.ts`, tests.
+**Approach:** Tauri's menus take only AppKit's older named images or image bytes, so the Mac app asks AppKit for the SF Symbol by name at runtime (template image, menu size) and hands its bytes to the menu item; a missing symbol leaves the item text-only. Symbols go on actions (Archive, Pin, Rename, Mark as Read, Labels), not on pickers. Lands after U19 so the menus never wait on it.
+**Test scenarios:** an unknown symbol name yields no icon and no error; pickers carry no icons.
+**Verification:** checked by the person in the real Mac app.
+
 ---
 
 ## Verification Contract
