@@ -3,7 +3,7 @@ import { ListIcon, Sheet } from "../components";
 import { AgentFace } from "../desk/agent-chip";
 import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
-import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";
+import { buildIndex, coverageLine, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";
 import { formatKeys } from "./keymap";
 import type { CommandScope, SharedMode, SharedModels, SharedModes } from "./command-center";
 import {
@@ -421,7 +421,7 @@ export function SearchSheet({
         <p className="loki-meta loki-meta--wrap loki-search-coverage">Applies to this chat. ↑ ↓ to move, {formatKeys("enter")} to change.</p>
       ) : (
         <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
-          {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
+          {coverageLine({ commands: commands.length > 0, chat: models !== null })} ↑ ↓ to move, {formatKeys("enter")} to open.
         </p>
       )}
     </Sheet>

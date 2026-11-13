@@ -34,6 +34,16 @@ import type { LabelView } from "../../../core/labels.ts";
 /** What search covers, said wherever it could pass for message search (the phone says the same). */
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
 
+/**
+ * ⌘K's foot line: what plain ⌘K finds. Under Liquid Glass it also runs this screen's commands (U23) and, with a chat
+ * open, offers its models and permission modes (U21), and says so.
+ */
+export function coverageLine({ commands, chat }: { commands: boolean; chat: boolean }): string {
+  if (!commands && !chat) return COVERAGE;
+  const kinds = ["chats", "agents", "labels", "waiting items", "pages", ...(commands ? ["commands"] : []), ...(chat ? ["this chat's models and modes"] : [])];
+  return `Finds ${kinds.slice(0, -1).join(", ")} and ${kinds.at(-1) ?? ""}, not message text.`;
+}
+
 /** ⌘K search's groups: chats ("desks", the code's older name), agents, labels, what waits on you, and the app's pages. */
 export type GroupId = "desks" | "agents" | "labels" | "waiting" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", labels: "Labels", waiting: "Waiting", pages: "Pages" };

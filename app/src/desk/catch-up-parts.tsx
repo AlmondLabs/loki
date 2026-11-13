@@ -1,6 +1,6 @@
 import { ArchiveIcon, ClockIcon, MailOpenIcon, PlusIcon } from "lucide-react";
 import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { OUTSIDE_ENDS, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { agentLanes, type AgentLane, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
@@ -334,23 +334,40 @@ export function ChatCardMeta({
   cameBack,
   suggestions,
   onSuggestions,
-}: Pick<CardHeaderProps, "current" | "cameBack" | "suggestions" | "onSuggestions">) {
+  inline = false,
+}: Pick<CardHeaderProps, "current" | "cameBack" | "suggestions" | "onSuggestions"> & {
+  /** In a line of text (the Liquid Glass toolbar's grey line) rather than a spaced row: the parts are joined by dots. */
+  inline?: boolean;
+}) {
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
   const when = current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at);
-  return (
-    <>
-      <Meta>{when}</Meta>
-      {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
-      {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
-      {current.has_draft && <Meta>draft</Meta>}
-      {(suggestions ?? 0) > 0 && (
-        <Chip tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
-          {chipText(suggestions ?? 0, false)}
-        </Chip>
-      )}
-    </>
-  );
+  const parts = [
+    <Meta key="when">{when}</Meta>,
+    reason && (
+      <Meta key="reason" style={current.reason === "focus" ? NOTED : undefined}>
+        {reason}
+      </Meta>
+    ),
+    cameBack && (
+      <Meta key="back" style={NOTED}>
+        back · new since you moved on
+      </Meta>
+    ),
+    current.has_draft && <Meta key="draft">draft</Meta>,
+    (suggestions ?? 0) > 0 && (
+      <Chip key="suggestions" tag brass onClick={onSuggestions} aria-haspopup="dialog" title="open them in this card's message box">
+        {chipText(suggestions ?? 0, false)}
+      </Chip>
+    ),
+  ].filter(Boolean);
+  if (!inline) return <>{parts}</>;
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && " · "}
+      {part}
+    </Fragment>
+  ));
 }
 
 /** A chat's status as its card's tag: a dot in full ink when it waits on the person, a toned chip otherwise. */
@@ -398,8 +415,13 @@ export function ChatItemHeader({
           extra={
             <>
               {" · "}
-              <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} />
-              {flash && <Meta style={NOTED}>{flash}</Meta>}
+              <ChatCardMeta current={current} cameBack={cameBack} suggestions={suggestions} onSuggestions={onSuggestions} inline />
+              {flash && (
+                <>
+                  {" · "}
+                  <Meta style={NOTED}>{flash}</Meta>
+                </>
+              )}
             </>
           }
         />

@@ -36,8 +36,8 @@ describe("plain ⌘K's commands and models", () => {
   test("commands are the menu-bar actions registered now and on this screen, with their keys; never ⌘K itself", () => {
     release.push(registerActions({ "desk.new": () => {}, "desk.done": () => {}, "inbox.archive": () => {}, "search.open": () => {} }));
     const chats = commandsFor("desk", "macos");
-    expect(chats.map((c) => `${c.label} ${c.keys ?? ""}`)).toEqual(["New Chat… ⌘N", "Mark as Read ⌘⇧↵"]);
-    expect(commandsFor("inbox", "macos").map((c) => c.label)).toEqual(["New Chat…", "Archive"]);
+    expect(chats.map((c) => `${c.label} ${c.keys ?? ""}`)).toEqual(["New Chat ⌘N", "Mark as Read ⌘⇧↵"]);
+    expect(commandsFor("inbox", "macos").map((c) => c.label)).toEqual(["New Chat", "Archive"]);
     expect(KEYMAP.find((b) => b.id === "search.open")?.menu).toBeTruthy();
   });
 

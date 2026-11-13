@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { buildIndex, flatHits, PLACES_KEY, recentPlaceHits, search, topHit, type SearchSources } from "../app/src/shell/search-model.ts";
+import {
+  buildIndex,
+  coverageLine,
+  COVERAGE,
+  flatHits,
+  PLACES_KEY,
+  recentPlaceHits,
+  search,
+  topHit,
+  type SearchSources,
+} from "../app/src/shell/search-model.ts";
 import { createRecents } from "../app/src/shared/recents.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -132,5 +142,15 @@ describe("desktop search: recent places", () => {
       src,
     );
     expect(hits.map((h) => h.title)).toEqual(["Revenue dashboard", "ira", "Learn", "Keyboard shortcuts"]);
+  });
+});
+
+describe("⌘K's foot line", () => {
+  test("says what plain ⌘K finds: commands under Liquid Glass, and the open chat's models and modes", () => {
+    expect(coverageLine({ commands: false, chat: false })).toBe(COVERAGE);
+    expect(coverageLine({ commands: true, chat: false })).toBe("Finds chats, agents, labels, waiting items, pages and commands, not message text.");
+    expect(coverageLine({ commands: true, chat: true })).toBe(
+      "Finds chats, agents, labels, waiting items, pages, commands and this chat's models and modes, not message text.",
+    );
   });
 });

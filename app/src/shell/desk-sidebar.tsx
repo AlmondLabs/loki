@@ -12,7 +12,7 @@ import {
   ArrowDownIcon,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Button, Field, IconButton, ListRow, ListSection } from "../components";
+import { Button, Field, IconButton, ListIcon, ListRow, ListSection } from "../components";
 import { ago } from "../shared/ago";
 import { Icon, GlassIcon } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -84,6 +84,11 @@ export interface DeskSidebarProps {
   onOpen: (scope: string) => void;
   /** Start a new desk, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
+  /**
+   * A chat not started yet shows in the pane (⌘N under Liquid Glass, U20): the list leads with a New Chat row, the
+   * current one, as Messages leads with a new message, and no chat below it is current.
+   */
+  drafting?: boolean;
   onPin: (desk: DeskSummary, pinned: boolean) => void;
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
@@ -129,6 +134,7 @@ export function DeskSidebar({
   connected,
   onOpen,
   onNew,
+  drafting = false,
   onPin,
   onArchive,
   onRename,
@@ -378,6 +384,12 @@ export function DeskSidebar({
       </div>
       <div className="loki-sidebar-body">
         <div ref={scrollRef} className="loki-column-scroll" onScroll={onScroll} onKeyDown={onRowsKey}>
+          {drafting && (
+            <ul className="loki-list" aria-label="New chat">
+              {/* The chat it stands for is already open in the pane; the row only shows where you are. */}
+              <ListRow lead={<ListIcon name="compose" />} title="New Chat" current label="New chat, not started yet" onOpen={() => {}} />
+            </ul>
+          )}
           {model.sections.map((s) => {
             const shut = folded(s.id);
             return (
@@ -686,6 +698,7 @@ export function DeskSidebarView({
       agents={catchUp.agents}
       items={catchUp.items}
       current={drafting ? "" : desk.scope}
+      drafting={drafting}
       connected={connected}
       avatar={avatarUrl}
       onOpen={onOpen}

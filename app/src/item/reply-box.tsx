@@ -4,6 +4,8 @@ import { Button } from "@/ui/button";
 import { Kbd } from "@/ui/kbd";
 import { InputGroup, InputGroupTextarea } from "@/ui/input-group";
 import { PromptInputFooter, PromptInputSubmit, PromptInputTools } from "@/ui/ai-elements/prompt-input";
+import { sentence } from "../components";
+import { useLook } from "../theme";
 
 /** The reply box's field as the outside card wires it: its text, its mentions and the deck's keys. */
 export interface ReplyField {
@@ -24,7 +26,8 @@ export interface ReplyField {
  * line, else where the reply goes: "reply in the thread", "comment on the ticket"), the field with its mention list,
  * a mail's signature and the quoted mail behind •••, then send with its key, and discard for a mail. The behaviour is
  * the card's own (outside-card.tsx OutsideReply): what is sent and how, the deck's ⌘], ⌘[ and ⌘E that send with their
- * move, who a mail goes to. The card's moves sit under it, as today.
+ * move, who a mail goes to. The card's moves sit under it, as today. Under Liquid Glass its words follow Apple's
+ * (title case on controls, sentences elsewhere) and send's key is in its tooltip, not on the box's face.
  */
 export function ItemReplyBox({
   isMail,
@@ -50,23 +53,31 @@ export function ItemReplyBox({
   actions: ReactNode;
 }) {
   const [quoteOpen, setQuoteOpen] = useState(false);
+  const glass = useLook() === "glass";
+  /** A line of text: a sentence under Liquid Glass, as written otherwise. */
+  const line = (s: string) => (glass ? sentence(s) : s);
   return (
     <div data-composer data-reply-box className="flex flex-col gap-2">
       <InputGroup className="h-auto flex-col items-stretch rounded-xl bg-card">
         <div data-target className="min-w-0 px-3 pt-2 text-meta text-muted-foreground">
-          {target}
+          {typeof target === "string" ? line(target) : target}
         </div>
         <div className="relative flex flex-col">
           {mentions}
-          <InputGroupTextarea rows={isMail ? 4 : 2} className="max-h-48 min-h-12 px-3 pt-2 text-body" {...field} />
+          <InputGroupTextarea
+            rows={isMail ? 4 : 2}
+            className="max-h-48 min-h-12 px-3 pt-2 text-body"
+            {...field}
+            placeholder={field.placeholder && line(field.placeholder)}
+          />
         </div>
         {(signature !== null || quote !== null) && (
           <div className="flex flex-col gap-1 px-3 text-meta text-muted-foreground">
             {signature && (
               <div className="flex min-w-0 items-baseline gap-2">
-                <span className="min-w-0 flex-1 whitespace-pre-wrap">{signature.text ? `-- \n${signature.text}` : "no signature"}</span>
+                <span className="min-w-0 flex-1 whitespace-pre-wrap">{signature.text ? `-- \n${signature.text}` : line("no signature")}</span>
                 <Button size="xs" variant="ghost" disabled={field.disabled} onClick={signature.toggle}>
-                  {signature.text ? "remove" : "add signature"}
+                  {glass ? (signature.text ? "Remove" : "Add Signature") : signature.text ? "remove" : "add signature"}
                 </Button>
               </div>
             )}
@@ -77,8 +88,8 @@ export function ItemReplyBox({
                   variant="ghost"
                   className="self-start"
                   aria-expanded={quoteOpen}
-                  aria-label="show the quoted mail"
-                  title={quote.forward ? "the mail goes under your note, with its files" : "the mail you answer goes quoted under your reply"}
+                  aria-label={glass ? "Show the Quoted Mail" : "show the quoted mail"}
+                  title={line(quote.forward ? "the mail goes under your note, with its files" : "the mail you answer goes quoted under your reply")}
                   onClick={() => setQuoteOpen(!quoteOpen)}
                 >
                   •••
@@ -91,14 +102,20 @@ export function ItemReplyBox({
         <PromptInputFooter className="px-2 pb-2">
           <PromptInputTools className="min-w-0">
             {discard && (
-              <Button size="sm" variant="ghost" disabled={discard.disabled} onClick={discard.onDiscard} title="clear the reply and its recipients">
-                discard
+              <Button size="sm" variant="ghost" disabled={discard.disabled} onClick={discard.onDiscard} title={line("clear the reply and its recipients")}>
+                {glass ? "Discard" : "discard"}
               </Button>
             )}
           </PromptInputTools>
           <PromptInputTools>
-            <Kbd className="text-muted-foreground">{send.keys}</Kbd>
-            <PromptInputSubmit type="button" aria-label={send.busy ? "sending…" : "send"} title={send.title} disabled={send.disabled} onClick={send.onSend}>
+            {!glass && <Kbd className="text-muted-foreground">{send.keys}</Kbd>}
+            <PromptInputSubmit
+              type="button"
+              aria-label={glass ? (send.busy ? "Sending…" : "Send") : send.busy ? "sending…" : "send"}
+              title={glass ? `${sentence(send.title)} (${send.keys})` : send.title}
+              disabled={send.disabled}
+              onClick={send.onSend}
+            >
               <SendIcon />
             </PromptInputSubmit>
           </PromptInputTools>
