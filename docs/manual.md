@@ -1196,15 +1196,17 @@ then stands. A hand-off cannot be undone. When someone writes in that thread aga
 that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
 while the account is disconnected.
 
-**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts that read:
-`account_list` (its accounts and the threads waiting in each, with no message text; a Jira site's open tickets with
-their key and title), `account_read` (a whole thread, or a Jira ticket by its key or id, oldest first) and
-`account_search` (a mailbox, in Gmail's search syntax; Slack and Jira cannot be searched yet). No other agent has them,
-and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
-even if you ask it to. For a Google account the owner's scripts can do more, sending included (see Scripts).
+**What the owner can do.** In any of its chats, the owning agent reads its accounts with scripts (see Scripts):
+`flow_list` (the threads waiting in Flow for each account, with no message text; a Jira ticket with its key),
+`slack_read` (a DM or a thread), `jira_read` (a ticket by its key or id, with its comments and changes), and for a
+Google account the `google_*` tools (Gmail search and read among them; Slack and Jira cannot be searched yet). Its
+prompt lists its accounts. No other agent has these, and each call checks the account is still the caller's, so a
+chat with a different agent cannot read or draft there even if you ask it to. Until plan 097 (November 2026) these
+reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
+they were. For a Google account the owner's scripts can do more, sending included.
 
 **Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
-one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
+one it found or read with a script, so you can simply ask it to draft a reply in a chat.
 The reply always asks you first, in every permission
 mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card

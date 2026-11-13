@@ -163,7 +163,10 @@ export class Handoff {
         type: "chat_send",
         agent_id: owner,
         conversation_id: conversationId,
-        text: [`Handed off from ${accountLabel(account)}, thread ${threadId}. Use account_read for newer messages.`, fenceThread(messages)].join("\n\n"),
+        text: [
+          `Handed off from ${accountLabel(account)}, thread ${threadId}. Read newer messages with a script (google_gmail_read, slack_read or jira_read).`,
+          fenceThread(messages),
+        ].join("\n\n"),
         images: [],
         // One hand-off of one generation is sent once, however often it is retried.
         send_id: `handoff:${accountId}:${threadId}:${ends ? String(record.generation) : handedMessageId}`,

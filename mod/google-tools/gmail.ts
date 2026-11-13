@@ -33,7 +33,7 @@ function messageOf(m: GmailMessage): Record<string, unknown> {
     subject: mailHeader(m, "Subject"),
     date: mailHeader(m, "Date"),
     labels: m.labelIds,
-    // The same text a hand-off and account_read give (mod/account-ops/gmail.ts): plain part tidied, else HTML as text, else the snippet.
+    // The same text a hand-off and a card give (mod/account-ops/gmail.ts): plain part tidied, else HTML as text, else the snippet.
     text: mailParts(m).text,
     attachments: partsOf(m.payload)
       .filter((p) => p.filename && p.body.attachmentId)

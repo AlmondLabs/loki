@@ -114,7 +114,9 @@ describe("handing a thread to its owner's chat", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ agent_id: "agent-work", conversation_id: "c-new-1" });
     const { text } = sent[0];
-    expect(text.startsWith("Handed off from ada@acme.com, thread t1. Use account_read for newer messages.")).toBe(true);
+    expect(text.startsWith("Handed off from ada@acme.com, thread t1. Read newer messages with a script (google_gmail_read, slack_read or jira_read).")).toBe(
+      true,
+    );
     expect(text).toContain(fenceThread(THREAD));
     // The reminder names loki's deck by its name on screen, Flow (plan 087).
     expect(sent[0].context).toContain("to you from Flow.");

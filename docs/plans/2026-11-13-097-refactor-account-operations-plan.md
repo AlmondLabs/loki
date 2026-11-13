@@ -85,6 +85,11 @@ changing that would make reading mail worse. Changing it makes one path good eno
 - R7. **The prompt costs no more than it saves.** The script section with four namespaces, together with the script
   tool, costs no more than the three removed tools' definitions plus today's script section. The measurement is
   pinned in `test/scripts-prompt.test.ts`.
+  - Measured on 2026-11-13 (`test/scripts-prompt.test.ts`), in tokens a turn over an agent that owns nothing: a Google
+    owner went from about 1,547 (scripts 991, the three account tools 492, the accounts section 64) to 1,097. A Slack
+    or Jira owner without Google went from about 556 to 1,050, since it now pays for the script tool and its section.
+    R7 holds for Google owners and not for the others; the person accepted that cost on 2026-11-13 over offering such
+    agents direct tools again, which would bring back two ways to the same reads.
 
 ### Scope Boundaries
 
@@ -174,9 +179,11 @@ changing that would make reading mail worse. Changing it makes one path good eno
   (they are pi-durable's, not ChatTools), and `store`/`load` values are not kept between scripts. Tests: the listing
   shows `script` and not the tools behind it; a read answers fenced without a card; three sends, two at once, raise
   one card; `describeTool` answers.
-- **U6. Removal and words.** Remove the three account tools. Update the hand-off message and `reply_propose`'s
-  description; `docs/manual.md` (accounts, scripts, permission modes); `docs/SECURITY.md` (what reaches the model,
-  scripts' asking, residual risks); `glossary.md`; and `skills/loki/SKILL.md`. Measure the prompt (R7).
+- **U6. Removal and words.** `account_list`, `account_read`, `account_search` and `mod/account-tools.ts` are gone;
+  `ownedAccount` moved to `mod/accounts.ts` for `reply_propose`, and the "Your accounts" section to
+  `mod/account-ops/script-tools.ts`, naming the script tools. The hand-off message, `reply_propose`'s description,
+  prompt text and its "no comment box" error name the script tools. Docs: `docs/manual.md`, `docs/SECURITY.md`,
+  `docs/architecture.md`, `glossary.md`. The prompt measurement is under R7.
 
 ### Verification
 

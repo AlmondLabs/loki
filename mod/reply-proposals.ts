@@ -6,9 +6,8 @@ import type { ChatState, ReplyAction } from "../core/frames.ts";
 import { splitMailboxes } from "../core/mail-header.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
-import { ownedAccount } from "./account-tools.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
-import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
+import { accountLabel, ownedAccount, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { type GmailClient, type GmailMessage } from "./gmail.ts";
 import { GoogleError } from "./google-auth.ts";
@@ -454,7 +453,7 @@ export class ReplyProposals {
     const found =
       this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
     if (!found)
-      throw new Error(`${ticket} has never had a card in Flow, so there is no comment box for a comment to wait in: comment on a ticket from account_list`);
+      throw new Error(`${ticket} has never had a card in Flow, so there is no comment box for a comment to wait in: comment on a ticket flow_list lists`);
     return found;
   }
 
@@ -580,8 +579,8 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     name: "reply_propose",
     forAgent,
     description:
-      "Propose a reply in a thread of an account you own: one the person handed to this chat, or one from account_list, " +
-      "account_read or, for Gmail, account_search. The person sees it as a card, may edit it, and on " +
+      "Propose a reply in a thread of an account you own: one the person handed to this chat, or one a script found " +
+      "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person sees it as a card, may edit it, and on " +
       "approve loki saves it as a draft in that same thread, which they send from Gmail or Slack; nothing is ever sent " +
       "by you or loki. It goes only to the thread's own people (Gmail: reply-all to the newest message; Slack: the same " +
       "conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a ticket that has " +
@@ -590,10 +589,10 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     parameters: {
       type: "object",
       properties: {
-        account: { type: "string", description: "The account's id or name, from account_list, account_search or the hand-off." },
+        account: { type: "string", description: "The account's id or name, from the prompt's list of your accounts, a script or the hand-off." },
         thread: {
           type: "string",
-          description: "The thread id, from the hand-off, account_list, account_search or account_read; for Jira, the ticket's key or id.",
+          description: "The thread id, from the hand-off or a script (flow_list, google_gmail_search, slack_read); for Jira, the ticket's key or id.",
         },
         text: { type: "string", description: "The reply, as plain text." },
       },
@@ -627,7 +626,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with account_search, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

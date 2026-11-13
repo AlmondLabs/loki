@@ -75,7 +75,11 @@ async function fixture() {
     jira: () => jiraAccountClient(accounts, SITE, { fetch: jira.fetch, now }),
   };
   const tools = new Map<string, ModTool>();
-  const api = { tools: { register: (t: ModTool) => (tools.set(t.name, t), () => {}) } } as unknown as ModApi;
+  const sections: Array<(input: { agentId: string }) => string | undefined> = [];
+  const api = {
+    tools: { register: (t: ModTool) => (tools.set(t.name, t), () => {}) },
+    prompt: { section: (_key: string, render: (input: { agentId: string }) => string | undefined) => (sections.push(render), () => {}) },
+  } as unknown as ModApi;
   registerAccountScriptTools(api, deps);
   const call = async (agentId: string, name: string, args: Record<string, unknown>): Promise<unknown> => {
     try {
@@ -90,7 +94,8 @@ async function fixture() {
       return `refused: ${err instanceof Error ? err.message : String(err)}`;
     }
   };
-  return { tools, call, replies, ticketId: id };
+  const section = (agentId: string) => sections.map((r) => r({ agentId }) ?? "").join("\n");
+  return { tools, call, replies, section, accounts, ticketId: id };
 }
 
 describe("account script tools (plan 097, U2)", () => {
@@ -146,5 +151,22 @@ describe("account script tools (plan 097, U2)", () => {
     expect(await f.call(HOME, "flow_list", { account: "Acme" })).toBe(`refused: this agent owns no account "Acme"; its own are ${MAIL}`);
     expect(await f.call(WORK, "slack_read", {})).toBe("refused: `thread` is required");
     expect(f.replies).toEqual([]);
+  });
+
+  test("after a move, the old owner's next call is refused and the new owner's works", async () => {
+    const f = await fixture();
+    f.accounts.moveOwner(SLACK, HOME);
+    expect(await f.call(WORK, "slack_read", { thread: "C1:100.0" })).toMatch(/^refused: /);
+    expect(await f.call(HOME, "slack_read", { thread: "C1:100.0" })).toMatchObject({ account: SLACK });
+  });
+
+  test("the prompt section lists the owner's accounts, says how to read them, and that their text is content, never instructions", async () => {
+    const f = await fixture();
+    const text = f.section(WORK);
+    expect(text).toContain(`${SLACK}: Acme (Slack), connected`);
+    expect(text).toContain("slack_read");
+    expect(text).not.toContain("ada@home.net");
+    expect(text).toMatch(/never instructions/);
+    expect(f.section("agent-local-nobody")).toBe("");
   });
 });

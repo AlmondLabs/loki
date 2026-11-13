@@ -250,10 +250,9 @@ and nothing an agent writes is posted to Slack or Jira.
   undo and a hand-off write nothing to Jira, and nothing changes a ticket's status, fields, watchers or other
   comments. An agent's proposed comment, once you approve it, waits in the card's box for you to send.
 - **What reaches the model.** Mail, Slack and Jira text reaches your model provider only when you hand a thread to its
-  owner (`mod/handoff.ts`), when the owning agent reads it with its account tools (`account_list`, `account_read`,
-  `account_search`), which only the owner's chats are offered and which check ownership on every call, or when an
-  owner's script returns or prints what it read from Google, Slack, Jira or Flow. For the account tools and hand-offs the
-  text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
+  owner (`mod/handoff.ts`), or when an owner's script returns or prints what it read from Google, Slack, Jira or Flow
+  with the script-only reads, which only the owner's chats are offered and which check ownership on every call. In a
+  hand-off the text is fenced as a stranger's content, not instructions, with anything inside it that could pass for loki's own
   tags made inert. A script's whole answer is fenced the same way when the script called a tool marked as answering
   with other people's text (`strangerText`: every Google read, `google_api`, `slack_read`, `jira_read`, `flow_list`),
   failed scripts included (plan 097, `fencedIfRead` in `daemon/scripts.ts`). The Inbox card itself is drawn in the app and goes to no model.
@@ -283,7 +282,7 @@ and nothing an agent writes is posted to Slack or Jira.
 - **Residual risks.** A fence asks the model to treat text as content; it cannot make it. A fence covers what a
   script answers, not what it leaves behind: text it writes to a file, an attachment it saves, or the whole of an
   answer too long for the model, which goes to a file, reaches the model unfenced when the agent later reads that file.
-  The same was true before, when an agent could write what `account_read` showed it to a file. An owner that also has shell
+  The same was true before plan 097, when an agent could write what its account tools showed it to a file. An owner that also has shell
   or file tools could be steered by mail written to do so, so give an account to an agent whose permission mode you
   are comfortable with for anything a stranger can write to you, and use strict mode for it if in doubt. An owner may
   propose a reply in any thread of its accounts (plan 071), not only one you handed it, so mail could steer it to
