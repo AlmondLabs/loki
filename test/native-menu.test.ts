@@ -152,12 +152,17 @@ describe("Switch model, ⌘K's way", () => {
     expect(switcherGroups(entries, null, false, "nothing like it")).toEqual([]);
   });
 
-  test("on an agent once the chat has started, its own models lead and the others stay in view, off; no handle is a name", () => {
+  test("once the chat has started, only its own agent's models, under its name; no handle is a name", () => {
     const groups = switcherGroups(entries, "acp:fake/sonnet", true, "");
-    expect(shape(groups)).toEqual(["Demo agent: Default, Sonnet ✓", "loki: Fable 5 (off), GPT X (off)"]);
+    expect(shape(groups)).toEqual(["Demo agent: Default, Sonnet ✓"]);
+    expect(shape(switcherGroups(entries, "acp:fake/sonnet", true, "gpt"))).toEqual([]);
     expect(groups.flatMap((g) => g.rows.map((r) => r.name)).join(" ")).not.toContain("acp:");
     expect(groups[0].rows.find((r) => r.name === "Sonnet")?.line).toBeNull();
-    expect(groups[1].rows.find((r) => r.name === "GPT X")?.line).toBe("openai");
+    expect(
+      switcherGroups(entries, "anthropic/claude-fable-5", true, "")
+        .find((g) => g.harness.id === null)
+        ?.rows.find((r) => r.name === "GPT X")?.line,
+    ).toBe("openai");
   });
 
   test("effort steps within what the model offers and stays at the ends; titles read as a Mac menu writes them", () => {

@@ -24,7 +24,7 @@ export interface SwitchRow {
   name: string;
   /** The muted line: the model's own words, else its provider; never the bare handle. */
   line: string | null;
-  /** The chat has started on another harness, or this account cannot reach the model. */
+  /** This account cannot reach the model. */
   off: boolean;
   current: boolean;
 }
@@ -50,14 +50,16 @@ const providerOf = (handle: string) => {
 /**
  * What the switcher lists (plan 2026-11-12-1505, U19): the chat's harness first, then the others in their order, each
  * under its name. With nothing typed, loki's quick picks (and an agent's every model); typed, every model whose name,
- * provider or harness holds each word, names that start with the query first. A harness the chat cannot move to once
- * started stays in view, off, so nothing goes missing without a word.
+ * provider or harness holds each word, names that start with the query first. Once the chat has started, only its
+ * own harness: switching models and effort happens there, and another harness is a new chat's choice.
  */
 export function switcherGroups(entries: ModelEntry[], current: string | null, started: boolean, query: string): SwitchGroup[] {
   const chatHarness = harnessOf(current);
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const tabs = harnesses(entries, chatHarness, started);
-  const ordered = [...tabs.filter((t) => t.id === chatHarness), ...tabs.filter((t) => t.id !== chatHarness)];
+  // Once the chat has started only its own harness is offered (plan 020, KD4): its history lives there.
+  const open = tabs.filter((t) => !t.locked);
+  const ordered = [...open.filter((t) => t.id === chatHarness), ...open.filter((t) => t.id !== chatHarness)];
   return ordered.flatMap((harness): SwitchGroup[] => {
     const inHarness = entries.filter((e) => harnessOf(e.handle) === harness.id);
     const groups = !words.length && harness.id === null ? modelLists(inHarness, current).short : groupModelEntries(inHarness);
@@ -203,7 +205,6 @@ export function ModelSwitcher({
               <div key={g.harness.id ?? "loki"} role="group" aria-label={g.harness.name} className="loki-search-group">
                 <div className="loki-search-group-head">
                   <span className="loki-search-group-title">{g.harness.name}</span>
-                  {g.harness.locked && <span className="loki-meta">In a New Chat</span>}
                   {g.hidden > 0 && <span className="loki-meta">{`${g.hidden} more: type more letters`}</span>}
                 </div>
                 <ul className="loki-list" role="presentation">
