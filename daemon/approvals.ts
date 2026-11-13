@@ -6,6 +6,7 @@ import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { lokiModeOf, stricterMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
+import { SCRIPT_TOOL } from "./scripts.ts";
 import { CODING_TOOL_KINDS, isOldTool, renamedTools, type ToolKind } from "./tool-kinds.ts";
 
 /**
@@ -76,6 +77,9 @@ function callKind(name: string, args: Record<string, unknown>): ToolKind | undef
   return undefined;
 }
 
+/** A script call's code, as its arguments carry it; "" when they do not. */
+const scriptCode = (args: Record<string, unknown>): string => (typeof args.code === "string" ? args.code : "");
+
 function insideFolder(path: unknown, folder: string, cwd: string | undefined): boolean {
   if (typeof path !== "string" || !path) return false;
   const full = isAbsolute(path) ? path : resolve(cwd ?? folder, path);
@@ -109,6 +113,13 @@ export class Approvals {
    */
   private readonly alwaysPath: string | null;
   private readonly alwaysAllowed: Set<string>;
+  /**
+   * Each running script's code and, once one of its calls asked, the person's answer, by the script's call id: every
+   * later call of the run takes that answer (plan 097, KTD3). Held in memory, since a tool's memos are its own and a
+   * script's calls are tasks of their own; each call's decision is still kept in its own memo, so a call resumed after
+   * a restart never asks again, but a later call of a script resumed after a restart may ask once more.
+   */
+  private readonly scriptRuns = new Map<string, { code: string; answer?: Promise<Decision> }>();
 
   /**
    * Whether a script may call a tool (daemon/scripts.ts, scriptMayCall), for a nested call: one a running script made.
@@ -225,12 +236,23 @@ export class Approvals {
             // own tool list (daemon/scripts.ts), which leaves such a tool out.
             const mayCall = call.parent === undefined ? undefined : this.scriptMayCall;
             if (mayCall && !mayCall(call.name)) return { block: `A script may not call ${call.name}.` };
+            // A script's code, kept for the one card its run may raise later (decideCall).
+            if (call.parent === undefined && call.name === SCRIPT_TOOL) this.scriptRuns.set(call.id, { code: scriptCode(call.arguments) });
             const memoName = `approval:${call.id}`;
             const decided = await api.memo<Decision>(memoName, context);
-            const decision = decided ?? (await this.decideCall(call.name, call.arguments, call.id, api, context, mayCall !== undefined));
+            const decision =
+              decided ??
+              (mayCall === undefined || !call.parent
+                ? await this.decideCall(call.name, call.arguments, call.id, api, context)
+                : await this.decideCall(call.name, call.arguments, call.id, api, context, call.parent.callId));
             if (!decision) return undefined;
             if (!decided) await api.memo(memoName, decision, context);
             return decision.allow ? undefined : { block: decision.message || "The person declined this tool call." };
+          },
+          // A script's run ends with its call: its code and answer go.
+          afterTool: (call, result) => {
+            if (call.parent === undefined && call.name === SCRIPT_TOOL) this.scriptRuns.delete(call.id);
+            return result;
           },
         }),
       ],
@@ -238,9 +260,11 @@ export class Approvals {
   }
 
   /**
-   * null when the mode lets the call run without asking. A script's own call (`nested`) asks only in strict mode: its
-   * script was approved, or ran without asking, under the same mode, and one card per call would make a forty-file
-   * move forty cards (plan 2026-11-11 scripts, KTD4). Strict asks for everything, by choice.
+   * null when the mode lets the call run without asking. A script's own call (one made in the script whose call id is
+   * `script`) asks by its own kind, but once for the whole run (plan 097, KTD3): its first call that would ask raises
+   * one card showing the script and that call, and the answer stands for every later call of the run (scriptRuns). A
+   * forty-file move is one card, not forty, and a script that only reads asks nothing. Strict asks for each call, by
+   * choice.
    */
   private async decideCall(
     name: string,
@@ -248,7 +272,7 @@ export class Approvals {
     callId: string,
     api: HookApi,
     context: Context,
-    nested = false,
+    script?: string,
   ): Promise<Decision | null> {
     const [own, agent, settings] = await Promise.all([
       api.snapshot(ChatDoc, api.conversationId, context),
@@ -259,11 +283,34 @@ export class Approvals {
     const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     // A turn another chat's message started runs with no more power than that chat has (plan 067).
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
-    if (nested && mode !== "strict") return null;
     if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
     const conversationId = chat?.id || `conversation-${api.conversationId}`;
+    if (script !== undefined && mode !== "strict") {
+      const run = this.scriptRuns.get(script) ?? { code: "" };
+      this.scriptRuns.set(script, run);
+      // Calls a script makes at once wait on the one card the first of them raised; later calls take its answer.
+      run.answer ??= this.ask<Decision>(
+        agentId,
+        conversationId,
+        // The card is the script's: "always allow" is never offered for one (NEVER_ALWAYS_TOOLS), and it shows the
+        // script with the call that raised it.
+        {
+          kind: "approval",
+          request_id: `approval-script-${script}`,
+          tool_name: SCRIPT_TOOL,
+          input: { code: run.code, first_call: { tool: name, input: args } },
+        },
+        context.abortSignal,
+      ).catch((error: unknown) => {
+        // A stopped turn's card is withdrawn; a later call of the same run, if any, asks again.
+        delete run.answer;
+        throw error;
+      });
+      const answer = await run.answer;
+      return answer.allow ? answer : { allow: false, message: answer.message || "The person declined this script's changes." };
+    }
     return this.ask<Decision>(
       agentId,
       conversationId,

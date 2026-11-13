@@ -198,8 +198,9 @@ export function scriptExtensions(
   const codemode = createCodemodeExtension({ sandbox, namespaces: SCRIPT_NAMESPACES, inlineBudget: SCRIPT_LISTING_TOKENS, models: false });
   const tool = codemode.tools?.find((t) => t.name === SCRIPT_TOOL);
   if (!tool) throw new Error("pi-durable's code mode extension has no code mode tool");
-  // A script asks as a command does (plan, R7): the kind rides on the registered tool, where the gate reads it.
-  withKind("command", tool);
+  // A script itself is a read (plan 097, KTD3): it asks by what it does, once, at its first call that would ask
+  // (daemon/approvals.ts). Strict mode still asks for it, as for everything. The kind rides on the registered tool.
+  withKind("read", tool);
   const confine = defineExtension({
     name: "loki.scripts",
     wraps: [

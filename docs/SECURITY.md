@@ -175,9 +175,12 @@ modules. It reaches anything only by calling tools, and the `loki.scripts` exten
 tools (loki's `ls`, `find` and `grep` among them) and pi-durable's file tools (`read`, `write`, `edit`); `bash`, background runs, helpers and the
 rest are not functions in a script, and the approval gate blocks a script's call of any other tool as well.
 
-- **Asking.** A script asks as a command does, in the chat's mode; "always allow" is never offered or kept for it. Its
-  own calls ask again only in strict mode. In unrestricted mode, the default, a script runs without asking, sends
-  included.
+- **Asking.** A script asks by what it does (plan 097, KTD3). It does not ask when it starts; each call it makes is
+  weighed by that tool's kind in the chat's mode, and the first that would ask raises one card showing the script and
+  that call. The answer stands for the rest of that run, calls made at once included; a decline refuses them all.
+  "Always allow" is never offered or kept for a script. Strict mode asks for the script and for each call. In
+  unrestricted mode, the default, a script runs without asking, sends included. The answer is held in memory for the
+  run: after a restart a later call of the same script may ask once more, and a call already answered never does.
 - **Google tools.** The `google_*` tools (`mod/google-tools/`) act for the Google accounts the chat's agent owns on
   this Mac, checked at every call: the owner, this Mac, connected, and the service granted. They read and change mail,
   Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of

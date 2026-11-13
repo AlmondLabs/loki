@@ -155,10 +155,15 @@ changing that would make reading mail worse. Changing it makes one path good eno
   that read a marked tool answers fenced with a forged closing tag made inert; one that read only a file answers bare;
   a failed one that read is fenced. The file pass-through, and the whole of an answer too long for the model, which
   goes to a file, are written down as residual risks.
-- **U4. Asking.** The script tool becomes a read; one lazy decision per run; strict unchanged. Tests:
-  - the mode table for a read-only script, a script that sends once, and one that sends three times (one card);
-  - a decline ends the run;
-  - a resumed run does not ask again.
+- **U4. Asking.** The script tool is a read (`withKind("read")` in `daemon/scripts.ts`). In `daemon/approvals.ts` a
+  script's call is weighed by its own kind; outside strict the first that would ask raises one `codemode` card with
+  `{ code, first_call: { tool, input } }`, and every later call of the run, calls made at once included, takes its
+  answer. A tool's memos are its own task's and a script's calls are tasks of their own, so the run's code and answer
+  are held in memory (`scriptRuns`), set when the script's call passes the gate and cleared after it; each call's own
+  decision is still memoized, so a call resumed after a restart never asks again, but a later call of a script resumed
+  after a restart may ask once more. Tests: a read-only script asks nothing in standard; a script that writes three
+  times, two at once, raises one card that shows its code and first call; a decline refuses every later call; strict
+  asks for the script and each call; "always allow" is still not kept.
 - **U5. ACP script tool.** KTD4, or its fallback. Tests: an ACP chat's MCP server lists `script` and none of the
   removed tools; a script there reads a Slack thread fenced, and a send asks once.
 - **U6. Removal and words.** Remove the three account tools. Update the hand-off message and `reply_propose`'s

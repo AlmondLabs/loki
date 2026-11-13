@@ -204,7 +204,8 @@ proposal never sends; a script may send from a Google account (Script). _Avoid_:
 
 **Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program an agent on loki's engine runs
 with its `codemode` tool, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
-scripts may call. It asks as a command does, never "always allow", and resumes after a restart. _Avoid_: code
+scripts may call. It asks by what it does, once a run, at its first call that would ask (plan 097), never "always
+allow", and resumes after a restart. _Avoid_: code
 execution, exec.
 
 **Script-only tool** (`callers: ["tools"]` on a tool, `ModTool.callers`): a tool only scripts call, never offered to the

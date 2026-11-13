@@ -1239,9 +1239,11 @@ file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scr
 file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
 browser. Claude Code and other ACP agents do not get scripts.
 
-1. **Asking first.** A script asks as a command does, in the chat's permission mode, and its card shows the script.
-   What it does inside does not ask again, except in strict mode, which asks for each call. "always allow" is never
-   offered for a script: each one is new code.
+1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
+   files) runs without a card in standard mode. One that changes or sends something asks once, at its first such call:
+   the card shows the script and that call, and your answer stands for the rest of the run, so moving forty files is
+   one card. Declining refuses every change the script tries after. Strict mode asks for the script and for each call.
+   "always allow" is never offered for a script: each one is new code.
 2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
    limit it reached. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
 3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
