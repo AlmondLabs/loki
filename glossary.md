@@ -166,8 +166,8 @@ whose threads addressed to the person (for Jira, the tickets they watch) become 
 integration, connector, source (a Source is where a thread's steps come from).
 
 **Owner** (`owner_agent_id` on an account): the one agent an account belongs to. It receives the account's hand-offs
-and is the only agent with its tools (`account_list`, `account_read`, `account_search`, `reply_propose`, and for a
-Google account the script-only `google_*` tools); moving the account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
+and is the only agent with its tools (`reply_propose`, and the script-only reads: `flow_list`, `slack_read`,
+`jira_read`, and for a Google account the `google_*` tools); moving the account moves them. An account never has no owner, so an agent that owns one cannot be deleted until each is moved or
 disconnected.
 
 **Outside card** (`kind: "outside"` on an `AttentionItem`, `mod/account-threads.ts`): a card in Flow for one thread in
@@ -204,7 +204,8 @@ proposal never sends; a script may send from a Google account (Script). _Avoid_:
 
 **Script** (`daemon/scripts.ts`, plan 2026-11-11 scripts): a short JavaScript program an agent on loki's engine runs
 with its `codemode` tool, in pi-durable's Code Mode sandbox: no files, network or programs of its own, only the tools
-scripts may call. It asks as a command does, never "always allow", and resumes after a restart. _Avoid_: code
+scripts may call. It asks by what it does, once a run, at its first call that would ask (plan 097), never "always
+allow", and resumes after a restart. _Avoid_: code
 execution, exec.
 
 **Script-only tool** (`callers: ["tools"]` on a tool, `ModTool.callers`): a tool only scripts call, never offered to the

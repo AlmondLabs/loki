@@ -1196,15 +1196,17 @@ then stands. A hand-off cannot be undone. When someone writes in that thread aga
 that names the chat it went to ("went to …"), and you hand it to that chat, another, or archive it. Hand off is off
 while the account is disconnected.
 
-**What the owner can do.** In any of its chats, the owning agent has three tools for its accounts that read:
-`account_list` (its accounts and the threads waiting in each, with no message text; a Jira site's open tickets with
-their key and title), `account_read` (a whole thread, or a Jira ticket by its key or id, oldest first) and
-`account_search` (a mailbox, in Gmail's search syntax; Slack and Jira cannot be searched yet). No other agent has them,
-and each call checks the account is still the caller's, so a chat with a different agent cannot read or draft there
-even if you ask it to. For a Google account the owner's scripts can do more, sending included (see Scripts).
+**What the owner can do.** In any of its chats, the owning agent reads its accounts with scripts (see Scripts):
+`flow_list` (the threads waiting in Flow for each account, with no message text; a Jira ticket with its key),
+`slack_read` (a DM or a thread), `jira_read` (a ticket by its key or id, with its comments and changes), and for a
+Google account the `google_*` tools (Gmail search and read among them; Slack and Jira cannot be searched yet). Its
+prompt lists its accounts. No other agent has these, and each call checks the account is still the caller's, so a
+chat with a different agent cannot read or draft there even if you ask it to. Until plan 097 (November 2026) these
+reads were three tools of their own, `account_list`, `account_read` and `account_search`; old chats show those calls as
+they were. For a Google account the owner's scripts can do more, sending included.
 
 **Replies are drafts.** The owner may propose a reply in any thread of its accounts: one you handed to its chat, or
-one it found with `account_search` or read with `account_read`, so you can simply ask it to draft a reply in a chat.
+one it found or read with a script, so you can simply ask it to draft a reply in a chat.
 The reply always asks you first, in every permission
 mode: it shows in its chat and as a card in Flow, and you can edit it before you approve. Approved, loki writes it as a
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card
@@ -1231,16 +1233,21 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 ## Scripts
 
 An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
-tools only scripts may call: today, the Google tools for the Google accounts it owns on this Mac. A script runs in a
+tools only scripts may call: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and
+Flow reads for any account it owns. A script runs in a
 sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
 file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
 `bash`. So one script can page through every Drive
 file, move forty attachments into a folder, or write a formula and read the cell back, in one step and without a
-browser. Claude Code and other ACP agents do not get scripts.
+browser. A chat on Claude Code or another ACP agent gets the same scripts as a `script` tool on loki's tool server
+(`mcp__loki__script`), over the same account tools, with the same limits, asking and fencing; it has no file tools
+there, and a value one script stores is not kept for the next.
 
-1. **Asking first.** A script asks as a command does, in the chat's permission mode, and its card shows the script.
-   What it does inside does not ask again, except in strict mode, which asks for each call. "always allow" is never
-   offered for a script: each one is new code.
+1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
+   files) runs without a card in standard mode. One that changes or sends something asks once, at its first such call:
+   the card shows the script and that call, and your answer stands for the rest of the run, so moving forty files is
+   one card. Declining refuses every change the script tries after. Strict mode asks for the script and for each call.
+   "always allow" is never offered for a script: each one is new code.
 2. **Limits.** A script runs for at most 10 minutes and 64 MB, four at once across every chat; the agent is told which
    limit it reached. A chat runs one script at a time. Output past the budget is cut, with the whole of it in a file.
 3. **What it can do with Google.** Read, label, archive and send mail, and save attachments; list, download, upload,
@@ -1248,9 +1255,15 @@ browser. Claude Code and other ACP agents do not get scripts.
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
    use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
    Mac, connected, and allowed that service.
-4. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
+4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
+   changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
+   subject, time and the chat it went to. They only read; a reply to Slack or Jira still goes through `reply_propose`.
+   Each checks that the account is the agent's, and names none that is not.
+   A script that read any account's content (mail, messages, tickets, files, Flow's list) answers fenced: the agent
+   is told it is content from other people, not instructions, as with a thread you hand it.
+5. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
    does counts as your own pick. A reply a script sends does not mark its card as waiting.
-5. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
+6. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
    a change that was under way fails in the script with that reason, for it to check and retry.
 
 ## Scheduled tasks

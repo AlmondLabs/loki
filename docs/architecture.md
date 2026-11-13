@@ -204,7 +204,9 @@ every chat gets, the chats, then the mods.
     usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
     memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
     (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
-    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`). The MCP servers the agent has on are
+    that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); an agent
+    with script-only tools is served one `script` tool instead of them, run by `scripts.ts` in the daemon's sandbox
+    with the same one card a run and the same fence (plan 097, U5). The MCP servers the agent has on are
     handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
     asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
     `open`, `rundll32` or `xdg-open`). The agents are Claude Code (through npx, pinned) and the person's own in
@@ -488,7 +490,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    update time and the past fill's page token kept in the account record's backfill) and its write-back, which writes
    nothing to Jira; and `jira-view.ts`, which builds a Jira card's ticket (fields, description, changes) and its
    window of comments, or the older merged log of comments and changes when the app does not ask for the ticket, and
-   the whole ticket for a hand-off and `account_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
+   the whole ticket for a hand-off and `jira_read`; `account-threads.ts` keeps each thread's record and yields the outside cards, and its `OutsideSource` is
    each provider's write-back (plan 070): `archive`, `markRead`, `markUnread`, `addLabels` and `restore`, each
    recording what it changed so `restore` puts back exactly that for undo, and `labels`, the account's Gmail labels
    for the picker. `gmail-sync.ts` and `slack-sync.ts` implement them (Slack's `markRead` and `archive` are the same DM
@@ -501,7 +503,11 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    `mail-outbox.ts` (the 10-second hold for undo send) and `mail-people.ts` (the people each mailbox has mail with, fed
    by `gmail-sync.ts` and by what the person sends, its address headers read by `core/mail-header.ts`, which the card's
    thread in `app/src/desk/mail-thread.tsx` reads too, plan 078); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
-   thread was (plan 069); `account-tools.ts` holds the owner's `account_list`, `account_read` and `account_search`, the three that read; and
+   thread was (plan 069); `account-ops/` reads a thread from each service once, as loki's messages (`thread.ts`, `gmail.ts`,
+   `slack.ts`; Jira's is `jira-view.ts`'s `jiraThreadText`), for hand-offs, cards and scripts alike, `fence.ts` fences
+   other people's text for the model, and `script-tools.ts` gives scripts `slack_read`, `jira_read` and `flow_list`
+   and the prompt's list of the owner's accounts (plan 097, which removed `account_list`, `account_read` and
+   `account_search`); and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),

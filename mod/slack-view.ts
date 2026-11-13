@@ -1,5 +1,6 @@
 import type { JiraCardTicket, OutsideWindow, OutsideWindowAsk, SlackCardView, SlackFile, SlackReaction } from "../core/frame-types.ts";
-import { senderOf, tsIso, type ThreadMessage } from "./handoff.ts";
+import { senderOf, tsIso } from "./account-ops/slack.ts";
+import type { ThreadMessage } from "./account-ops/thread.ts";
 import type { SlackClient, SlackMessage } from "./slack.ts";
 import { reactionEmoji, readSlackMessage, slackFileParts, type SlackNames, type SlackThumb } from "./slack-markup.ts";
 import { SlackError } from "./slack.ts";

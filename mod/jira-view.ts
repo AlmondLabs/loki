@@ -1,6 +1,6 @@
 import { messageOf as errorText } from "../core/errors.ts";
 import type { JiraCardTicket, JiraFieldChange, SlackFile } from "../core/frame-types.ts";
-import type { ThreadMessage, ThreadText } from "./handoff.ts";
+import type { ThreadMessage, ThreadText } from "./account-ops/thread.ts";
 import {
   JiraError,
   jiraPersonOf,

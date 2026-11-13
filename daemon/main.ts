@@ -59,7 +59,7 @@ import { AcpChats } from "./acp/chats.ts";
 import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
-import { checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
+import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptMayCall, scriptSandbox } from "./scripts.ts";
 
 /** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
@@ -161,7 +161,14 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 // it counts as undecided and resumes on the next start.
 const sandbox = scriptSandbox();
 // Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
-const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules, history: chats, scripts: scriptExtensions(sandbox) });
+const builtins = builtinExtensions({
+  approvals,
+  backendDir: backend,
+  background,
+  schedules,
+  history: chats,
+  scripts: scriptExtensions(sandbox, undefined, (name) => mods.annotations(name)?.strangerText === true),
+});
 const builtinToolKinds = builtinKinds(builtins);
 for (const extension of builtins) mods.registry.install(extension);
 // The install's id names this Mac to the providers that ask for one, and to other paired Macs (plan 023).
@@ -235,6 +242,20 @@ const lokiTools = new LokiTools({
   stores,
   context,
   version: appVersion(paths.root) ?? "0",
+  // Scripts for chats on ACP agents (plan 097, U5): the same sandbox and limits, the same one card a run.
+  scripts: {
+    sandbox,
+    timeoutMs: SCRIPT_TIMEOUT_MS,
+    strangerText: (name) => mods.annotations(name)?.strangerText === true,
+    ask: (agentId, conversationId, input, signal) =>
+      approvals.ask<{ allow: boolean; message?: string }>(
+        agentId,
+        conversationId,
+        { kind: "approval", request_id: `approval-script-${randomUUID()}`, tool_name: SCRIPT_TOOL, input },
+        signal,
+        { remember: false },
+      ),
+  },
 });
 await lokiTools.start();
 // Chats on ACP agents (plan 020): Claude Code built in, others added in state/acp.json.

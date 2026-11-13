@@ -9,9 +9,19 @@
  * the daemon spends on it stays visible.
  */
 import { existsSync } from "node:fs";
-import { defineExtension, wrapSection, wrapTool, type Agent, type Extension, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable";
+import {
+  defineExtension,
+  wrapSection,
+  wrapTool,
+  type Agent,
+  type Extension,
+  type ToolExecutionApi,
+  type ToolExecutionResult,
+  type ToolRegistration,
+} from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME, createCodemodeExtension, type CodemodeNamespace } from "@earendil-works/pi-durable/codemode";
 import { CODEMODE_OPTIONS_PREFIX, CodemodeSandbox, parseCodemodeSource, type CodemodeSandboxBase } from "@earendil-works/pi-codemode";
+import { fenceScriptAnswer } from "../mod/account-ops/fence.ts";
 import { withKind } from "./tool-kinds.ts";
 
 /** The script tool's name, as the model calls it. */
@@ -51,7 +61,10 @@ export const SCRIPTS_AT_ONCE = 4;
  */
 export const SCRIPT_LISTING_TOKENS = 0;
 
-/** The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools. */
+/**
+ * The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools; a namespace
+ * shows only to an agent offered one of its tools (plan 097: Slack, Jira and Flow beside Google).
+ */
 export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   {
     name: "google",
@@ -59,6 +72,9 @@ export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
     description:
       "Gmail, Drive, Sheets, Docs and Calendar of the Google accounts this agent owns on this Mac; `account` (an address) may be left out when it owns one. Changes happen at once. Send mail or invites only when the person asks.",
   },
+  { name: "slack", prefix: "slack_", description: "Read the Slack workspaces this agent owns." },
+  { name: "jira", prefix: "jira_", description: "Read tickets on the Jira sites this agent owns." },
+  { name: "flow", prefix: "flow_", description: "The threads waiting in Flow for this agent's accounts." },
 ];
 
 /** Whether only scripts may call a tool: it names scripts as callers and not the model. */
@@ -127,6 +143,22 @@ export function withTimeLimit(source: string, limitMs: number): string {
   return source.trimStart().startsWith(CODEMODE_OPTIONS_PREFIX) ? `${line}${parsed.code}` : `${line}\n${source}`;
 }
 
+/**
+ * A script's result as the model gets it: its text fenced as other people's when the script called a tool that
+ * answers with their text, found in the calls its result lists (Code Mode's `details.calls`), which are kept with the
+ * result, so a script resumed after a restart is judged the same. Pictures and the rest of the result are left as they
+ * are; a failed script is fenced too, since its error may quote what it read.
+ */
+export function fencedIfRead<Result extends ToolExecutionResult>(result: Result, strangerText: (tool: string) => boolean): Result {
+  const details: unknown = result.details;
+  const calls = typeof details === "object" && details !== null && "calls" in details && Array.isArray(details.calls) ? (details.calls as unknown[]) : [];
+  const read = calls.some((c) => typeof c === "object" && c !== null && "name" in c && typeof c.name === "string" && strangerText(c.name));
+  if (!read || !result.output) return result;
+  const text = result.output.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+  const rest = result.output.filter((part) => part.type !== "text");
+  return { ...result, output: [{ type: "text" as const, text: fenceScriptAnswer(text) }, ...rest] };
+}
+
 /** Whether a script tool call's arguments carry its code, as they do once the Harness has validated them. */
 const isScript = (args: unknown): args is { code: string } => typeof args === "object" && args !== null && "code" in args && typeof args.code === "string";
 
@@ -155,21 +187,31 @@ function confinedApi<Api extends ToolExecutionApi>(api: Api): Api {
  * The script tool and its prompt section, confined (plan, KTD1-KTD3): Code Mode without paid model calls, its tool
  * wrapped so a script sees only what `scriptMayCall` allows and runs one at a time in a model round, and its section
  * shown only where the tool is offered, so a background pass with a fixed tool list never gets it. Every script runs
- * within `timeLimitMs` (withTimeLimit).
+ * within `timeLimitMs` (withTimeLimit). A script that called a tool `strangerText` names answers fenced (plan 097,
+ * KTD2): such a tool answers with what other people wrote.
  */
-export function scriptExtensions(sandbox: CodemodeSandboxBase, timeLimitMs = SCRIPT_TIMEOUT_MS): Extension[] {
+export function scriptExtensions(
+  sandbox: CodemodeSandboxBase,
+  timeLimitMs = SCRIPT_TIMEOUT_MS,
+  strangerText: (tool: string) => boolean = () => false,
+): Extension[] {
   const codemode = createCodemodeExtension({ sandbox, namespaces: SCRIPT_NAMESPACES, inlineBudget: SCRIPT_LISTING_TOKENS, models: false });
   const tool = codemode.tools?.find((t) => t.name === SCRIPT_TOOL);
   if (!tool) throw new Error("pi-durable's code mode extension has no code mode tool");
-  // A script asks as a command does (plan, R7): the kind rides on the registered tool, where the gate reads it.
-  withKind("command", tool);
+  // A script itself is a read (plan 097, KTD3): it asks by what it does, once, at its first call that would ask
+  // (daemon/approvals.ts). Strict mode still asks for it, as for everything. The kind rides on the registered tool.
+  withKind("read", tool);
   const confine = defineExtension({
     name: "loki.scripts",
     wraps: [
       wrapTool(tool, (t) => ({
         ...t,
         executionMode: "sequential",
-        execute: (args, api, context) => t.execute(isScript(args) ? { ...args, code: withTimeLimit(args.code, timeLimitMs) } : args, confinedApi(api), context),
+        execute: async (args, api, context) =>
+          fencedIfRead(
+            await t.execute(isScript(args) ? { ...args, code: withTimeLimit(args.code, timeLimitMs) } : args, confinedApi(api), context),
+            strangerText,
+          ),
       })),
       wrapSection(SCRIPT_TOOL, (s) => ({
         ...s,

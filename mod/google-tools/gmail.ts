@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { htmlToText } from "../../core/mail-text.ts";
+import { mailHeader, mailParts } from "../account-ops/gmail.ts";
 import type { GmailMessage, GmailMessagePart } from "../gmail.ts";
 import { uploadToDrive } from "./drive.ts";
 import { accountFor, count, flag, listing, md5, optText, readInChat, rec, str, textArg, textList, writeInChat, type GoogleToolDef } from "./core.ts";
@@ -16,22 +17,9 @@ const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** How many threads google_gmail_modify reads at once when it is named whole threads. */
 const THREAD_READS_AT_ONCE = 10;
 
-const header = (m: GmailMessage, name: string): string => m.payload?.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
-
 /** Every part of a message's MIME tree, depth first. */
 function partsOf(part: GmailMessagePart | null): GmailMessagePart[] {
   return part ? [part, ...part.parts.flatMap(partsOf)] : [];
-}
-
-const decode = (data: string | undefined): string => (data ? Buffer.from(data, "base64url").toString("utf8") : "");
-
-/** A message's text: its plain part, or its HTML part made plain. */
-function textOf(m: GmailMessage): string {
-  const parts = partsOf(m.payload).filter((p) => !p.filename);
-  const plain = parts.find((p) => p.mimeType === "text/plain" && p.body.data);
-  if (plain) return decode(plain.body.data);
-  const html = parts.find((p) => p.mimeType === "text/html" && p.body.data);
-  return html ? htmlToText(decode(html.body.data)) : "";
 }
 
 /** A message as a script reads it: who, when, its labels, its text, and its attachments by id. */
@@ -39,13 +27,14 @@ function messageOf(m: GmailMessage): Record<string, unknown> {
   return {
     id: m.id,
     thread_id: m.threadId,
-    from: header(m, "From"),
-    to: header(m, "To"),
-    cc: header(m, "Cc"),
-    subject: header(m, "Subject"),
-    date: header(m, "Date"),
+    from: mailHeader(m, "From"),
+    to: mailHeader(m, "To"),
+    cc: mailHeader(m, "Cc"),
+    subject: mailHeader(m, "Subject"),
+    date: mailHeader(m, "Date"),
     labels: m.labelIds,
-    text: textOf(m),
+    // The same text a hand-off and a card give (mod/account-ops/gmail.ts): plain part tidied, else HTML as text, else the snippet.
+    text: mailParts(m).text,
     attachments: partsOf(m.payload)
       .filter((p) => p.filename && p.body.attachmentId)
       .map((p) => ({ id: p.body.attachmentId, part: p.partId, filename: p.filename, mime_type: p.mimeType, size: p.body.size })),
@@ -165,7 +154,8 @@ const send: GoogleToolDef = {
     const last = replyTo ? (await client.getThread(replyTo, "metadata")).messages.at(-1) : undefined;
     if (replyTo && !last) throw new Error(`there is no thread ${replyTo} in ${call.account.address}`);
     const subject =
-      optText(call.args, "subject") ?? (last ? (/^re:/i.test(header(last, "Subject")) ? header(last, "Subject") : `Re: ${header(last, "Subject")}`) : "");
+      optText(call.args, "subject") ??
+      (last ? (/^re:/i.test(mailHeader(last, "Subject")) ? mailHeader(last, "Subject") : `Re: ${mailHeader(last, "Subject")}`) : "");
     const files = await Promise.all(
       textList(call.args, "attachments").map(async (path) => {
         const { full, data } = await readInChat(call.ctx, path);
@@ -175,8 +165,8 @@ const send: GoogleToolDef = {
     const html = optText(call.args, "html");
     const sent = await client.sendReply({
       threadId: last?.threadId ?? "",
-      inReplyTo: last ? header(last, "Message-ID") : "",
-      references: last ? header(last, "References").split(/\s+/).filter(Boolean) : [],
+      inReplyTo: last ? mailHeader(last, "Message-ID") : "",
+      references: last ? mailHeader(last, "References").split(/\s+/).filter(Boolean) : [],
       to,
       cc: textList(call.args, "cc"),
       bcc: textList(call.args, "bcc"),

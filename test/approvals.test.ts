@@ -362,7 +362,8 @@ async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => bool
   const faux = fauxProvider();
   const models = createModels();
   models.setProvider(faux.provider);
-  const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : "command"), scriptMayCall: mayCall });
+  // As the daemon's built-in kinds have them: the script tool is a read (plan 097), `write` an edit, the rest commands.
+  const approvals = new Approvals({ kindOfTool: (name) => (name === "write" ? "edit" : name === "codemode" ? "read" : "command"), scriptMayCall: mayCall });
   const pushed: ChatEvent[] = [];
   approvals.attach((_a, _c, events) => pushed.push(...events));
   const ran: string[] = [];
@@ -399,18 +400,56 @@ async function scriptSetup(mode: PermissionMode, mayCall: (name: string) => bool
 const approvalTools = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.tool_name] : []));
 
 describe("approvals for scripts", () => {
-  test("AE9: in standard mode a script asks once, as a command, and its own write runs without a second card", async () => {
+  test("in standard mode a script that only reads runs without a card (plan 097, KTD3)", async () => {
     const s = await scriptSetup("standard");
     try {
-      s.faux.setResponses([s.script("await tools.write({ x: 'a' }); return 'wrote'", "s1"), fauxAssistantMessage("done")]);
+      s.faux.setResponses([s.script("return 1 + 1", "s1"), fauxAssistantMessage("done")]);
+      await (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      expect(approvalIds(s.pushed)).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("in standard mode a script asks once, at its first change, showing the script and that call; the rest of the run follows the answer", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      const code = "await tools.write({ x: 'a' }); await Promise.all([tools.write({ x: 'b' }), tools.write({ x: 'c' })]); return 'wrote'";
+      s.faux.setResponses([s.script(code, "s1"), fauxAssistantMessage("done")]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
-      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
       expect(s.ran).toEqual([]);
-      s.approvals.decide("approval-s1", true);
+      expect(s.pushed.find((e) => e.kind === "approval")).toEqual({
+        kind: "approval",
+        request_id: "approval-script-s1",
+        tool_name: "codemode",
+        input: { code, first_call: { tool: "write", input: { x: "a" } } },
+      });
+      s.approvals.decide("approval-script-s1", true);
       await run;
-      expect(s.ran).toEqual(["write:a"]);
-      expect(approvalTools(s.pushed)).toEqual(["codemode"]);
+      expect([...s.ran].sort()).toEqual(["write:a", "write:b", "write:c"]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-script-s1"]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  test("a declined script's call and every later one in the run is refused, calls made at once included", async () => {
+    const s = await scriptSetup("standard");
+    try {
+      const code =
+        "const out = []; for (const x of ['a', 'b']) { try { await tools.write({ x }) } catch (e) { out.push(e.message) } }" +
+        " await Promise.allSettled([tools.write({ x: 'c' }), tools.write({ x: 'd' })]).then((r) => r.forEach((x) => out.push(x.status))); return out.join(' | ')";
+      s.faux.setResponses([s.script(code, "s1"), fauxAssistantMessage("done")]);
+      const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await until(() => approvalIds(s.pushed).length === 1);
+      s.approvals.decide("approval-script-s1", false, "not now");
+      await run;
+      expect(s.ran).toEqual([]);
+      expect(approvalIds(s.pushed)).toEqual(["approval-script-s1"]);
+      const result = JSON.stringify((await s.entries()).filter((e) => e.kind === "pi.tool-result").map((e) => e.model));
+      expect(result).toContain("not now");
+      expect(result).toContain("rejected | rejected");
     } finally {
       await s.close();
     }
@@ -446,7 +485,7 @@ describe("approvals for scripts", () => {
   });
 
   test("an always-allow answer on a script's card allows that script only: the next one asks again", async () => {
-    const s = await scriptSetup("standard");
+    const s = await scriptSetup("strict");
     try {
       s.faux.setResponses([s.script("return 1", "s1"), s.script("return 2", "s2"), fauxAssistantMessage("done")]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);

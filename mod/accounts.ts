@@ -392,3 +392,13 @@ export class PeerAccounts {
     return null;
   }
 }
+
+/**
+ * The calling agent's account that `name` names, by id, address or label, in any case; null when it owns none such.
+ * Every tool that touches an account asks this on each call, so a call naming another agent's account is refused.
+ */
+export function ownedAccount(accounts: Pick<Accounts, "ownedBy">, agentId: string, name: string): AccountRecord | null {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  return accounts.ownedBy(agentId).find((a) => [a.account_id, a.address, accountLabel(a)].some((n) => n.toLowerCase() === wanted)) ?? null;
+}

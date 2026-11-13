@@ -11,7 +11,7 @@ import { signInAgainFor, type GoogleAuth } from "../google-auth.ts";
  * What every Google tool shares (plan 2026-11-11 scripts, U7): finding the account a call is for and checking, at the
  * moment of the call, that the calling chat's agent may use it (KTD12); the chat's folder for files (KTD13); full
  * listings saved to the chat's tool-results folder; and checksums. The tools are script-only: the model never sees
- * them, and an ACP chat is never served them (daemon/acp/loki-tools.ts).
+ * them, and an ACP chat reaches them only through its `script` tool (daemon/acp/scripts.ts).
  */
 
 /** What the Google tools are built from; each account's sign-in and Gmail client are the mod's shared ones (mod/index.ts). */
@@ -37,6 +37,8 @@ export interface GoogleToolDef {
   service: GoogleService | null;
   /** Reads only: safe to run again after a restart, and a read for the permission modes. */
   reads: boolean;
+  /** Whether a tool that changes things also answers with what is in the account (google_api); every read does. */
+  answersContent?: boolean;
   run: (call: GoogleCall) => Promise<Record<string, unknown>>;
 }
 
@@ -93,7 +95,12 @@ export function modToolOf(def: GoogleToolDef, deps: GoogleToolDeps): ModTool {
     parameters: { type: "object", properties: { account: ACCOUNT_PROPERTY, ...def.properties }, ...(def.required ? { required: def.required } : {}) },
     callers: ["tools"],
     outputSchema: { type: "object" },
-    ...(def.reads ? { replay: "safe" as const, annotations: { readOnly: true } } : {}),
+    // Every read answers with what is in the account, which other people may have written (plan 097, KTD2).
+    ...(def.reads
+      ? { replay: "safe" as const, annotations: { readOnly: true, strangerText: true } }
+      : def.answersContent
+        ? { annotations: { strangerText: true } }
+        : {}),
     forAgent: (agentId) => googleAccountsOf(deps.accounts, agentId).length > 0,
     execute: async (args, ctx) => {
       const account = accountFor(deps, ctx, args.account, def.service);
