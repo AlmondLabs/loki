@@ -1231,7 +1231,8 @@ scripts read and return. Showing a card, ranking it and archiving it send nothin
 ## Scripts
 
 An agent on loki's own engine can write a short JavaScript program and run it with its `codemode` tool, when it has
-tools only scripts may call: today, the Google tools for the Google accounts it owns on this Mac. A script runs in a
+tools only scripts may call: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and
+Flow reads for any account it owns. A script runs in a
 sandbox with no files, network or programs of its own; it reaches anything only by calling those tools and loki's
 file tools (`read`, `write`, `edit`, and `ls`, `find` and `grep`, which only scripts have: the model uses `bash`), never
 `bash`. So one script can page through every Drive
@@ -1248,9 +1249,13 @@ browser. Claude Code and other ACP agents do not get scripts.
    delete Calendar events and invite guests. Changes happen at once; the agent reads them back. Downloads and uploads
    use the chat's folder, and transfers report a checksum. Every call checks that the account is the agent's, on this
    Mac, connected, and allowed that service.
-4. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
+4. **Slack, Jira and Flow.** `slack_read` reads a DM or a thread, `jira_read` a ticket with its comments and field
+   changes, and `flow_list` the threads waiting in Flow for the agent's accounts, each with its account, sender,
+   subject, time and the chat it went to. They only read; a reply to Slack or Jira still goes through `reply_propose`.
+   Each checks that the account is the agent's, and names none that is not.
+5. **Flow.** A script's Gmail changes reach Flow as changes made in Gmail do: the card follows, and nothing a script
    does counts as your own pick. A reply a script sends does not mark its card as waiting.
-5. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
+6. **A restart.** A script cut off by a restart carries on from where it was, without repeating the calls it finished;
    a change that was under way fails in the script with that reason, for it to check and retry.
 
 ## Scheduled tasks

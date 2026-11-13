@@ -183,6 +183,9 @@ rest are not functions in a script, and the approval gate blocks a script's call
   Drive, Sheets, Docs and Calendar, send mail and invites, and delete Drive files; `google_api` reaches any method of
   those five services on their own hosts, never a URL the script names. No tool returns a token. Files are read and
   written only inside the chat's folder.
+- **Slack, Jira and Flow.** `slack_read`, `jira_read` and `flow_list` (`mod/account-ops/script-tools.ts`, plan 097)
+  only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
+  another agent's account is refused without saying whose it is.
 - **Limits.** 10 minutes, a 64 MB memory cap and four scripts at once across every chat.
 
 

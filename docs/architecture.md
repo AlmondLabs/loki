@@ -503,7 +503,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    thread in `app/src/desk/mail-thread.tsx` reads too, plan 078); `inbox-ledger.ts` keeps the person's moves on outside cards with what each
    thread was (plan 069); `account-ops/` reads a thread from each service once, as loki's messages (`thread.ts`, `gmail.ts`,
    `slack.ts`; Jira's is `jira-view.ts`'s `jiraThreadText`), for hand-offs, cards, the account tools and the scripts'
-   Gmail tools alike (plan 097); `account-tools.ts` holds the owner's `account_list`, `account_read` and
+   Gmail tools alike, and `script-tools.ts` gives scripts `slack_read`, `jira_read` and `flow_list` (plan 097); `account-tools.ts` holds the owner's `account_list`, `account_read` and
    `account_search`, the three that read; and
    `reply-proposals.ts` holds `reply_propose` and writes an approved reply as a draft.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),

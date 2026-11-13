@@ -51,7 +51,10 @@ export const SCRIPTS_AT_ONCE = 4;
  */
 export const SCRIPT_LISTING_TOKENS = 0;
 
-/** The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools. */
+/**
+ * The namespaces scripts see in the prompt and in `searchTools()`, one per family of script-only tools; a namespace
+ * shows only to an agent offered one of its tools (plan 097: Slack, Jira and Flow beside Google).
+ */
 export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
   {
     name: "google",
@@ -59,6 +62,9 @@ export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
     description:
       "Gmail, Drive, Sheets, Docs and Calendar of the Google accounts this agent owns on this Mac; `account` (an address) may be left out when it owns one. Changes happen at once. Send mail or invites only when the person asks.",
   },
+  { name: "slack", prefix: "slack_", description: "Read the Slack workspaces this agent owns." },
+  { name: "jira", prefix: "jira_", description: "Read tickets on the Jira sites this agent owns." },
+  { name: "flow", prefix: "flow_", description: "The threads waiting in Flow for this agent's accounts." },
 ];
 
 /** Whether only scripts may call a tool: it names scripts as callers and not the model. */

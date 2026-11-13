@@ -78,6 +78,7 @@ import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountTools, type AccountReader } from "./account-tools.ts";
+import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
 import { ReplyProposals, registerReplyTools, withRepliesOnOpen, type ReplyClient } from "./reply-proposals.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
@@ -808,6 +809,8 @@ export default function activate(api: ModApi, host: Host): () => void {
         }
       },
     }),
+    // The same reads for scripts (plan 097, U2): Slack threads, Jira tickets and Flow's list, script-only.
+    ...registerAccountScriptTools(api, { accounts, threads, slack: slackClient, jira: jiraClients.of }),
     ...registerReplyTools(api, { accounts, replies }),
     // The Google tools scripts call (plan 2026-11-11 scripts): the owner's Google accounts on this Mac, through the
     // account's shared sign-in; full listings go where every chat's too-big results go (daemon/tool-results.ts).
