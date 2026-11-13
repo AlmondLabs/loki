@@ -5,17 +5,66 @@ import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
 import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";
 import { formatKeys } from "./keymap";
+import type { CommandScope, SharedModels } from "./command-center";
+import {
+  ModelRow,
+  ModelSwitchFoot,
+  ModelSwitchList,
+  modelOptionId,
+  switcherGroups,
+  useModelSwitch,
+  type SwitchRow,
+  type SwitchSource,
+} from "../chat/model-switcher";
+import { preferredModelEntry } from "../chat/model-picker";
+import { selectionOf, type ReasoningEffort } from "../../../core/models.ts";
 import "./search-sheet.css";
 
 const LIST_ID = "loki-search-results";
 const optionId = (key: string) => `loki-search-opt-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
+/** A command plain ⌘K offers: a menu-bar action that works on this screen now, and its key (commandsFor). */
+export interface CommandHit {
+  id: string;
+  label: string;
+  keys: string | null;
+}
+
+/** One row of plain ⌘K, whatever it is: a search hit, a command to run, or a model to switch to. */
+type Row = { kind: "hit"; hit: SearchHit } | { kind: "command"; command: CommandHit } | { kind: "model"; model: SwitchRow };
+const rowKey = (r: Row) => (r.kind === "hit" ? r.hit.key : r.kind === "command" ? `command:${r.command.id}` : `model:${r.model.key}`);
+
+/** How many commands and models plain ⌘K shows for a query: the Models scope holds the rest. */
+const COMMANDS_MAX = 5;
+const MODELS_MAX = 3;
+/** Typed at the start of plain ⌘K, this steps into the Models scope. */
+const MODELS_PREFIX = /^models?\s$/i;
+
+/** The commands whose label holds every word of the query, at most COMMANDS_MAX; none before anything is typed. */
+export function matchCommands(commands: readonly CommandHit[], typed: string): CommandHit[] {
+  const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return commands.filter((c) => words.every((w) => c.label.toLowerCase().includes(w))).slice(0, COMMANDS_MAX);
+}
+
+/** The open chat's best model matches for plain ⌘K: at most MODELS_MAX, none before anything is typed or with no chat. */
+export function matchModels(models: SharedModels | null, typed: string): SwitchRow[] {
+  if (!models?.entries || !typed) return [];
+  return switcherGroups(models.entries, models.current, models.started, typed)
+    .flatMap((g) => g.rows)
+    .filter((r) => !r.off)
+    .slice(0, MODELS_MAX);
+}
+
+const EMPTY_SOURCE: SwitchSource = { entries: null, current: null, currentEffort: null, started: false, usual: [], pick: () => {} };
+
 /**
- * ⌘K, Slack's switcher (plan 013 U9): a sheet near the top of the window, the field focused at once. Before
- * typing, the recent places (search-model.ts drops ones that no longer resolve); while typing, Desks,
- * Agents, Waiting and Pages, each group placed by its best hit, so the first row is the top result.
- * ↑ ↓ move the highlight (focus stays in the field: a combobox over one listbox), Enter opens it, Esc and
- * ⌘K again close. The line at the foot says what is searched, so no one takes it for message search.
+ * ⌘K, loki's one command panel (plan 013 U9; plan 2026-11-12-1505 U23): a panel near the top of the window, floating
+ * with nothing dimmed, the field focused at once. Plain, it finds chats, agents, labels, waiting items and pages
+ * (before typing, the recent places), runs this screen's commands, and offers the open chat's best model matches. The
+ * Models scope (a chip in the field: the model pill or ⌘⇧M open on it; Tab on a model, or "model ", steps in;
+ * Backspace on the empty field steps out) is the model switcher: Usual first, the chat's harness, effort at the foot.
+ * ↑↓ move the highlight (focus stays in the field: a combobox over one listbox), Enter takes it, Esc and ⌘K close.
  */
 export function SearchSheet({
   sources,
@@ -23,18 +72,31 @@ export function SearchSheet({
   avatar,
   onOpen,
   onClose,
+  scope = "all",
+  onScope = () => {},
+  models = null,
+  commands = [],
+  onCommand = () => {},
 }: {
   sources: SearchSources;
   /** The place showing (a recent-places key), left out of the recents. */ here: string | null;
   avatar: (agentId: string) => string | null;
   onOpen: (hit: SearchHit) => void;
   onClose: () => void;
+  scope?: CommandScope;
+  onScope?: (scope: CommandScope) => void;
+  /** The open chat's model controls (command-center.ts); null with no chat open. */
+  models?: SharedModels | null;
+  /** This screen's commands (commandsFor). */
+  commands?: readonly CommandHit[];
+  onCommand?: (id: string) => void;
 }) {
   // No autoFocus on the field: Sheet notes the element focused before it (to hand focus back on close), then focuses the field, its first control.
   const [query, setQuery] = useState("");
   const [placeKeys, setPlaceKeys] = useState(() => recentPlaces.read());
   const [active, setActive] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
+  const inModels = scope === "models";
 
   const typed = cleanQuery(query);
   const index = useMemo(() => buildIndex(sources), [sources]);
@@ -49,101 +111,252 @@ export function SearchSheet({
           ),
     [typed, placeKeys, here, sources],
   );
-  const rows = typed ? flatHits(groups) : places;
-  const found = groups.reduce((n, g) => n + g.total, 0);
+  const commandHits = matchCommands(commands, typed);
+  const modelHits = matchModels(models, typed);
+  const rows: Row[] = [
+    ...(typed ? flatHits(groups) : places).map((hit): Row => ({ kind: "hit", hit })),
+    ...commandHits.map((command): Row => ({ kind: "command", command })),
+    ...modelHits.map((model): Row => ({ kind: "model", model })),
+  ];
+  const found = groups.reduce((n, g) => n + g.total, 0) + commandHits.length + modelHits.length;
   const at = Math.min(active, rows.length - 1);
   const current = at >= 0 ? rows[at] : null;
+  const sw = useModelSwitch(models ?? EMPTY_SOURCE, inModels ? typed : "");
 
   // A new query starts at the top result (the highlight resets as it is typed, below).
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [typed]);
+  }, [typed, scope]);
   useEffect(() => {
-    if (current) document.getElementById(optionId(current.key))?.scrollIntoView({ block: "nearest" });
-  }, [current]);
+    if (current && !inModels) document.getElementById(optionId(rowKey(current)))?.scrollIntoView({ block: "nearest" });
+  }, [current, inModels]);
 
   const open = (hit: SearchHit) => {
     recentPlaces.add(hit.place);
     onOpen(hit);
   };
-  const row = (h: SearchHit, i: number) => (
-    <HitRow key={h.key} hit={h} selected={h === current} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />
-  );
+  const pickModel = (row: SwitchRow, effort?: ReasoningEffort | null) => {
+    if (!models) return;
+    sw.pick(row, effort);
+    onClose();
+  };
+  const take = (r: Row) => {
+    if (r.kind === "hit") {
+      open(r.hit);
+    } else if (r.kind === "command") {
+      onClose();
+      onCommand(r.command.id);
+    } else if (models) {
+      models.pick(selectionOf(preferredModelEntry(r.model.group, models.currentEffort)));
+      onClose();
+    }
+  };
+  const enterModels = () => {
+    onScope("models");
+    setActive(0);
+  };
+  const leaveModels = () => {
+    onScope("all");
+    setQuery("");
+    setActive(0);
+  };
 
   const starts = groupStarts(groups); // each group's first row in `rows`
+  const hitRow = (h: SearchHit, i: number) => (
+    <HitRow key={h.key} hit={h} selected={current?.kind === "hit" && current.hit === h} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />
+  );
+  const searchCount = typed ? flatHits(groups).length : places.length;
+  const activeId = inModels ? (sw.active ? modelOptionId(sw.active.key) : undefined) : current ? optionId(rowKey(current)) : undefined;
   return (
-    <Sheet label="Search" onClose={onClose} width={640} top="10vh" className="loki-search" cardProps={{ "data-search": "" }}>
-      <form role="search" className="loki-search-bar" onSubmit={(e) => (e.preventDefault(), current && open(current))}>
+    <Sheet
+      label={inModels ? "Switch model" : "Search"}
+      onClose={onClose}
+      width={640}
+      top="10vh"
+      clear
+      className="loki-search"
+      cardProps={{ "data-search": "" }}
+    >
+      <form
+        role="search"
+        className="loki-search-bar"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (inModels) {
+            if (sw.active) pickModel(sw.active);
+          } else if (current) take(current);
+        }}
+      >
         <Icon name="search" size={18} className="loki-search-glass" />
+        {inModels && (
+          <span className="loki-search-scope">
+            Models
+            <button
+              type="button"
+              className="loki-search-scope-x"
+              aria-label="Search everything"
+              tabIndex={-1}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={leaveModels}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </span>
+        )}
         <input
           className="loki-search-input"
           value={query}
-          onChange={(e) => (setQuery(e.target.value.slice(0, 200)), setActive(0))}
+          onChange={(e) => {
+            const text = e.target.value.slice(0, 200);
+            if (!inModels && models && MODELS_PREFIX.test(text)) {
+              setQuery("");
+              enterModels();
+              return;
+            }
+            setQuery(text);
+            setActive(0);
+          }}
           onKeyDown={(e) => {
+            if (inModels) {
+              if (e.key === "Backspace" && !query) {
+                e.preventDefault();
+                leaveModels();
+              } else if (sw.onKey(e.key)) e.preventDefault();
+              return;
+            }
+            if (e.key === "Tab" && !e.shiftKey && current?.kind === "model") {
+              e.preventDefault();
+              enterModels();
+              return;
+            }
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
             e.preventDefault();
             if (rows.length) setActive((a) => (Math.min(a, rows.length - 1) + (e.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length);
           }}
-          placeholder="Search chats, agents and pages"
-          aria-label="Search"
+          placeholder={inModels ? (models?.agentName ? `Switch ${models.agentName}'s model` : "Switch model") : "Search chats, agents, pages and commands"}
+          aria-label={inModels ? "Switch model" : "Search"}
           role="combobox"
-          aria-expanded={rows.length > 0}
-          aria-controls={LIST_ID}
+          aria-expanded={inModels ? sw.groups.length > 0 : rows.length > 0}
+          aria-controls={inModels ? "loki-model-switch-list" : LIST_ID}
           aria-autocomplete="list"
-          aria-activedescendant={current ? optionId(current.key) : undefined}
-          aria-describedby="loki-search-coverage"
+          aria-activedescendant={activeId}
+          aria-describedby={inModels ? undefined : "loki-search-coverage"}
           autoComplete="off"
           spellCheck={false}
           data-1p-ignore
           data-form-type="other"
         />
-        <span className="loki-meta">esc</span>
       </form>
       <p className="sr-only" aria-live="polite">
-        {typed ? (found ? `${found} ${found === 1 ? "result" : "results"}` : "No results") : ""}
+        {!inModels && typed ? (found ? `${found} ${found === 1 ? "result" : "results"}` : "No results") : ""}
       </p>
       <div ref={scroller} className="loki-search-body">
-        {!typed && places.length > 0 && (
-          // The recents' heading sits outside the listbox: its Clear is a button, not an option.
-          <div className="loki-search-group-head">
-            <span id="loki-search-recent" className="loki-search-group-title">
-              Recent
-            </span>
-            <span style={{ flex: 1 }} />
-            <button type="button" className="loki-search-clear" onClick={() => (recentPlaces.clear(), setPlaceKeys([]))}>
-              Clear
-            </button>
-          </div>
-        )}
-        <div id={LIST_ID} role="listbox" aria-label={typed ? "Results" : undefined} aria-labelledby={typed ? undefined : "loki-search-recent"}>
-          {typed ? (
-            groups.map((g, gi) => (
-              <Group key={g.id} title={g.title} note={g.total > g.hits.length ? `${g.hits.length} of ${g.total}` : null}>
-                {g.hits.map((h, i) => row(h, starts[gi] + i))}
-              </Group>
-            ))
+        {inModels ? (
+          models ? (
+            <ModelSwitchList sw={sw} query={typed} />
           ) : (
-            <ul className="loki-list" role="presentation">
-              {places.map((h, i) => row(h, i))}
-            </ul>
-          )}
-        </div>
-        {typed && groups.length === 0 && (
-          <div className="loki-search-empty">
-            <p className="loki-search-miss">No matches for “{typed}”</p>
-          </div>
-        )}
-        {!typed && places.length === 0 && (
-          <div className="loki-search-empty">
-            <p className="loki-search-miss">Search loki</p>
-            <p className="loki-meta loki-meta--wrap">Chats and pages you open show here.</p>
-          </div>
+            <div className="loki-search-empty">
+              <p className="loki-search-miss">Open a chat to switch its model</p>
+            </div>
+          )
+        ) : (
+          <>
+            {!typed && places.length > 0 && (
+              // The recents' heading sits outside the listbox: its Clear is a button, not an option.
+              <div className="loki-search-group-head">
+                <span id="loki-search-recent" className="loki-search-group-title">
+                  Recent
+                </span>
+                <span style={{ flex: 1 }} />
+                <button type="button" className="loki-search-clear" onClick={() => (recentPlaces.clear(), setPlaceKeys([]))}>
+                  Clear
+                </button>
+              </div>
+            )}
+            <div id={LIST_ID} role="listbox" aria-label={typed ? "Results" : undefined} aria-labelledby={typed ? undefined : "loki-search-recent"}>
+              {typed ? (
+                groups.map((g, gi) => (
+                  <Group key={g.id} title={g.title} note={g.total > g.hits.length ? `${g.hits.length} of ${g.total}` : null}>
+                    {g.hits.map((h, i) => hitRow(h, starts[gi] + i))}
+                  </Group>
+                ))
+              ) : (
+                <ul className="loki-list" role="presentation">
+                  {places.map((h, i) => hitRow(h, i))}
+                </ul>
+              )}
+              {commandHits.length > 0 && (
+                <Group title="Commands">
+                  {commandHits.map((c, i) => (
+                    <CommandRow
+                      key={c.id}
+                      command={c}
+                      selected={current?.kind === "command" && current.command.id === c.id}
+                      onPoint={() => setActive(searchCount + i)}
+                      onRun={() => take({ kind: "command", command: c })}
+                    />
+                  ))}
+                </Group>
+              )}
+              {modelHits.length > 0 && (
+                <Group title="Models" note={`Tab for all of ${models?.agentName ?? "this chat"}'s models`}>
+                  {modelHits.map((m, i) => (
+                    <ModelRow
+                      key={m.key}
+                      row={m}
+                      selected={current?.kind === "model" && current.model.key === m.key}
+                      onPoint={() => setActive(searchCount + commandHits.length + i)}
+                      onPick={() => take({ kind: "model", model: m })}
+                    />
+                  ))}
+                </Group>
+              )}
+            </div>
+            {typed && rows.length === 0 && (
+              <div className="loki-search-empty">
+                <p className="loki-search-miss">No matches for “{typed}”</p>
+              </div>
+            )}
+            {!typed && places.length === 0 && (
+              <div className="loki-search-empty">
+                <p className="loki-search-miss">Search loki</p>
+                <p className="loki-meta loki-meta--wrap">Chats and pages you open show here.</p>
+              </div>
+            )}
+          </>
         )}
       </div>
-      <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
-        {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
-      </p>
+      {inModels ? (
+        models && <ModelSwitchFoot sw={{ ...sw, pick: (row, effort) => pickModel(row, effort) }} />
+      ) : (
+        <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
+          {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
+        </p>
+      )}
     </Sheet>
+  );
+}
+
+/** A command as a listbox option: its label, its key on the right; the field keeps focus. */
+function CommandRow({ command, selected, onPoint, onRun }: { command: CommandHit; selected: boolean; onPoint: () => void; onRun: () => void }) {
+  return (
+    <li id={optionId(`command:${command.id}`)} role="option" aria-selected={selected} className="loki-list-item">
+      <div className="loki-list-row loki-search-row" onPointerDown={(e) => e.preventDefault()} onPointerMove={selected ? undefined : onPoint} onClick={onRun}>
+        <span className="loki-list-row-lead">
+          <ListIcon name="menu" />
+        </span>
+        <span className="loki-list-row-copy">
+          <span className="loki-list-row-title">
+            <span className="loki-list-row-name">{command.label}</span>
+          </span>
+        </span>
+        {command.keys && (
+          <span className="loki-meta" aria-hidden>
+            {command.keys}
+          </span>
+        )}
+      </div>
+    </li>
   );
 }
 

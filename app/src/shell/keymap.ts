@@ -496,3 +496,24 @@ export function runAction(id: string): boolean {
   fn();
   return true;
 }
+
+/** One of ⌘K's commands (plan 2026-11-12-1505, U23): a binding's id, its label, and its key as this system writes it. */
+export interface Command {
+  id: string;
+  label: string;
+  keys: string | null;
+}
+
+/**
+ * The menu-bar actions that work on `segment` now, for ⌘K's Commands: in the menu, registered at this moment, firing
+ * there or anywhere (a chat's in the Chats section), ⌘K itself left out.
+ */
+export function commandsFor(segment: Segment, os: Platform = keyboard, map: Binding[] = KEYMAP): Command[] {
+  const here: Where[] = segment === "desk" ? ["anywhere", "desk", "chat"] : ["anywhere", segment];
+  return map
+    .filter((b) => b.menu && b.id !== "search.open" && here.includes(b.where) && actions.has(b.id))
+    .map((b) => {
+      const key = keysOf(b, os).at(0);
+      return { id: b.id, label: labelOf(b, os), keys: key ? formatKeys(key, os) : null };
+    });
+}

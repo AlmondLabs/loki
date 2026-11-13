@@ -27,7 +27,7 @@ import {
   UpdateRow,
 } from "./sidebar";
 import { useLook } from "../theme";
-import type { Segment } from "./keymap";
+import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
 import { useChatLayout } from "./use-chat-layout";
@@ -41,6 +41,7 @@ import { ListColumn } from "./list-column";
 import { DeskSidebarView } from "./desk-sidebar";
 import { AgentsView, InboxView, NewDeskSheet, SettingsView, WelcomeView, RecallView } from "./views";
 import { SearchSheet } from "./search-sheet";
+import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
 import { agentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
@@ -106,8 +107,10 @@ export function Shell() {
     setSegmentRaw(s);
     sessionStorage.setItem(SEGMENT_KEY, s);
   }, []);
-  /** ⌘K search (SearchSheet): a sheet over whatever shows. */
+  /** ⌘K (SearchSheet): a panel over whatever shows, on a scope (U23): everything, or the open chat's models. */
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchScope, setSearchScope] = useState<CommandScope>("all");
+  const sharedModels = useSharedModels();
   /** The Chats sidebar's filter, held here so a label chip or ⌘K can set it to `label:<name>` (plan 022, R4). */
   const [sidebarQuery, setSidebarQuery] = useState("");
   /** Preferences: the Settings sheet over the section showing (KTD11). The rail keeps that section highlighted underneath. */
@@ -184,10 +187,13 @@ export function Shell() {
   useEffect(() => {
     desksRef.current = desk.desks;
   });
-  const openSearch = useCallback(() => {
+  const openSearch = useCallback((scope: CommandScope = "all") => {
     desksRef.current.request(); // the freshest desk titles to search
+    setSearchScope(scope);
     setSearchOpen(true);
   }, []);
+  // The model pill and ⌘⇧M open ⌘K on the open chat's models (command-center.ts).
+  useEffect(() => takeCommandCenter(openSearch), [openSearch]);
   /**
    * Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, search, a new desk): its Messages tab with the box focused.
    * `_opts.chat` predates the tabs and is kept for callers. `switchTo` is a dependency: it compares against the desk showing,
@@ -514,6 +520,11 @@ export function Shell() {
           avatar={avatarUrl}
           onOpen={openHit}
           onClose={() => setSearchOpen(false)}
+          scope={searchScope}
+          onScope={setSearchScope}
+          models={sharedModels}
+          commands={glass ? commandsFor(segment) : []}
+          onCommand={(id) => void runAction(id)}
         />
       )}
       {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), showPreferences("keys"))} />}

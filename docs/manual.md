@@ -161,8 +161,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   featured ones, then **More models**, where you can type to filter), and under them the model's effort levels when it
   has more than one (for loki's models, the levels the model takes, from **No reasoning** up; a chat with none
   chosen runs with no reasoning, and says so). The pill names the harness only when it isn't loki ("Claude Code · Sonnet · High"). Both apply
-  per conversation; a main chat's model is the agent's. Under the Liquid Glass look on the desktop, Select model is a
-  floating switcher near the top of the window, as ⌘K is: type to filter every harness and provider at once, ↑↓ and
+  per conversation; a main chat's model is the agent's. Under the Liquid Glass look on the desktop, Select model is
+  ⌘K's **Models** scope (the pill and ⌘⇧M open ⌘K on it, a "Models" chip in the field): type to filter every harness and provider at once, ↑↓ and
   Return to switch, ←→ (with nothing typed) or a click for the effort, Esc to close. It opens on the agent's **Usual**:
   the three model and effort settings you switch that agent's chats to most. Once a chat has started it lists only its
   own harness's models, since a chat stays on the harness it started on. A **new chat starts on the agent's most used
@@ -263,6 +263,11 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
 places you visited last; ↑↓ move, ↵ opens the top result (a chat on Messages), Esc or ⌘K again closes it. `/chats`
 in a message box opens it too. ⌘K used to open the chats tree; the sidebar holds that list now. Typing "desk", the old word, still finds chats.
+Under the Liquid Glass look on the desktop, ⌘K is also the command panel: it floats with nothing dimmed behind it,
+and as you type it adds **Commands** (the menu bar's actions that work on the screen you're on, each with its key) and,
+while a chat is open, the three best **Models** to switch it to. Tab on a model, or typing "model " and a space, steps
+into the Models scope, where all of the chat's models are listed with Usual first and the effort at the foot;
+Backspace in the empty field, or the chip's ×, steps back out.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in Flow; Preferences › Keyboard shortcuts says so); `?` or

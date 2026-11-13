@@ -186,12 +186,6 @@ describe("Switch model, ⌘K's way", () => {
     expect(stepEffort(["low", "medium", "high"], null, -1)).toBe("low");
     expect([effortTitle("none"), effortTitle("xhigh")]).toEqual(["No Reasoning", "X-High"]);
   });
-
-  test("under Liquid Glass on the desktop the pill and ⌘⇧M open the switcher; nothing dims behind it", () => {
-    const conversation = readFileSync(join(ROOT, "app", "src", "chat", "conversation.tsx"), "utf8");
-    expect(conversation).toMatch(/glass && !touch \? \(\s*controls\.pickerOpen && \(\s*<ModelSwitcher/);
-    expect(readFileSync(join(ROOT, "app", "src", "chat", "model-switcher.tsx"), "utf8")).toContain('top="12vh" clear');
-  });
 });
 
 describe("the mode and lane menus", () => {

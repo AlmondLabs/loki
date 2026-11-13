@@ -488,6 +488,23 @@ Critique round 2 (2026-11-13, 24/40) found the main surfaces Mac-like and everyt
 **Test scenarios:** an unknown symbol name yields no icon and no error; pickers carry no icons.
 **Verification:** checked by the person in the real Mac app.
 
+### U23. One ⌘K: search, commands and models
+
+**Goal:** ⌘K is loki's one command panel, as Spotlight is on macOS 26: it finds chats, agents and pages, runs the current screen's commands, and switches the open chat's model, without turning every search into noise. The person chose this, with scopes, on 2026-11-13.
+**Requirements:** R1, R5, R7; KTD1.
+**Dependencies:** U19 (the model switcher), U20 (⌘K floats).
+**Files:** `app/src/shell/command-center.ts` (the open chat shares its model controls; anything opens ⌘K on a scope), `app/src/shell/search-sheet.tsx`, `app/src/shell/shell.tsx`, `app/src/chat/model-switcher.tsx` (its list and foot, now ⌘K's Models scope), `app/src/chat/conversation.tsx`, `app/src/shell/keymap.ts`, tests.
+**Approach:**
+- Plain ⌘K searches as today, and adds two groups: **Commands**, the menu-bar actions that work on this screen now, each with its key; and, while a chat is open and something is typed, **Models**, the three best model matches.
+- **Models** is a scope: a chip in the field. The model pill and ⌘⇧M open ⌘K on it; Tab on a model result, or typing "model " in plain ⌘K, steps in; Backspace in the empty field, or the chip's ×, steps out. In it, the switcher as U19 built it: Usual first, the chat's harness, effort at the foot.
+- The panel floats with nothing dimmed behind it (U20's ⌘K part lands here).
+- The open chat shares its model controls (its models, model, effort, Usual, and how to switch) for ⌘K to read, as views share their actions with the keymap; ⌘K holds no copy of a chat's state.
+**Test scenarios:**
+- The Models scope lists Usual, the chat's harness and effort; plain ⌘K lists at most three model matches and only while a chat is open and something is typed.
+- Commands lists only actions registered now and in this screen, with their keys, and never ⌘K itself.
+- "model " steps into the scope; Backspace on an empty field steps out.
+**Verification:** rendered on demo data: ⌘K plain, typed, in the Models scope from the pill; light and dark.
+
 ---
 
 ## Verification Contract

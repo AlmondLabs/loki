@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { Sheet } from "../components";
+import type { SharedModels } from "../shell/command-center";
 import { Icon } from "../shared/icons";
 import { formatKeys } from "../shell/keymap";
-import {
-  REASONING_EFFORTS,
-  harnessOf,
-  harnesses,
-  selectionOf,
-  type Harness,
-  type ModelEntry,
-  type ModelSelection,
-  type ReasoningEffort,
-} from "../../../core/models.ts";
+import { REASONING_EFFORTS, harnessOf, harnesses, selectionOf, type Harness, type ModelEntry, type ReasoningEffort } from "../../../core/models.ts";
 import { effortEntriesFor, effortTitle, groupModelEntries, modelLists, nameInHarness, preferredModelEntry, type ModelGroup } from "./model-picker";
 import "../shell/search-sheet.css";
 
@@ -146,42 +136,26 @@ export function stepEffort(offered: ReasoningEffort[], at: ReasoningEffort | nul
   return offered[Math.max(0, Math.min(offered.length - 1, from + step))];
 }
 
-const NO_USUAL: readonly UsualChoice[] = [];
 const LIST_ID = "loki-model-switch-list";
+/** A model row's option id, safe as an HTML id. */
 const optionId = (key: string) => `loki-model-switch-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
+/** What the switcher works from: the open chat's models, what it is on, and how to switch (command-center.ts). */
+export type SwitchSource = Pick<SharedModels, "entries" | "current" | "currentEffort" | "started" | "usual" | "pick">;
+
 /**
- * Switch model, ⌘K's way (U19): a floating panel near the top of the window with nothing dimmed behind it, the field
- * focused at once. Type to filter every harness and provider; ↑↓ move, Return switches, Esc or a click outside
- * closes. The highlighted model's efforts sit at the foot: ←→ (while the field is empty) or a click on one.
+ * Switch model's state over a query (plan 2026-11-12-1505, U19, U23): the groups, the highlighted row (pointed at or
+ * moved to, else the current model, else the first that can be picked), the efforts it offers and the one shown, and
+ * the moves. ⌘K's Models scope draws it with ModelSwitchList and ModelSwitchFoot; ⌘K's field carries the keys.
  */
-export function ModelSwitcher({
-  entries,
-  current,
-  currentEffort,
-  started = false,
-  usual = NO_USUAL,
-  onPick,
-  onClose,
-}: {
-  entries: ModelEntry[] | null;
-  current: string | null;
-  currentEffort: ReasoningEffort | null;
-  started?: boolean;
-  /** The agent's usual configurations, most used first; they lead the list with nothing typed. */
-  usual?: readonly UsualChoice[];
-  onPick: (selection: ModelSelection) => void;
-  onClose: () => void;
-}) {
-  const [query, setQuery] = useState("");
+export function useModelSwitch(src: SwitchSource, query: string) {
+  const { entries, current, currentEffort, started, usual } = src;
   const groups = useMemo(
     () => switcherGroups(entries ?? [], current, started, query, usual, currentEffort),
     [entries, current, started, query, usual, currentEffort],
   );
-  const rows = groups.flatMap((g) => g.rows);
-  const live = rows.filter((r) => !r.off);
+  const live = groups.flatMap((g) => g.rows).filter((r) => !r.off);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  // The highlight: the one pointed at or moved to, else the current model, else the first that can be picked.
   const first = live.at(0) ?? null;
   const active = live.find((r) => r.key === activeKey) ?? (query ? first : (live.find((r) => r.current) ?? first));
   const offered = active ? effortsOf(entries ?? [], active.group.handle) : [];
@@ -194,7 +168,8 @@ export function ModelSwitcher({
         : active?.current
           ? currentEffort
           : null;
-  // The effort shown: the one chosen here, else the chat's for its own model, else the one a pick would take.
+  // The effort shown: the one chosen here, else the row's own (a usual one), else the chat's for its own model, else
+  // the one a pick would take.
   const shownEffort =
     !active || !offered.length
       ? null
@@ -209,123 +184,115 @@ export function ModelSwitcher({
   const pick = (row: SwitchRow, at: ReasoningEffort | null = row === active ? shownEffort : (row.effort ?? null)) => {
     if (row.off) return;
     const entry = (at ? row.group.entries.find((e) => e.reasoning_effort === at) : undefined) ?? preferredModelEntry(row.group, currentEffort);
-    onPick(selectionOf(entry));
+    src.pick(selectionOf(entry));
   };
-  const move = (step: 1 | -1) => {
-    if (!live.length) return;
-    const i = active ? live.indexOf(active) : -1;
-    setActiveKey(live[(i + step + live.length) % live.length].key);
+  /** ⌘K's field's keys in this scope: ↑↓ move; ←→ step the effort while nothing is typed. True when the key was used. */
+  const onKey = (key: string): boolean => {
+    if ((key === "ArrowDown" || key === "ArrowUp") && live.length) {
+      const i = active ? live.indexOf(active) : -1;
+      setActiveKey(live[(i + (key === "ArrowDown" ? 1 : -1) + live.length) % live.length].key);
+      return true;
+    }
+    if ((key === "ArrowLeft" || key === "ArrowRight") && !query && active && offered.length) {
+      const to = stepEffort(offered, shownEffort, key === "ArrowRight" ? 1 : -1);
+      if (to) setEffortPick({ handle: active.group.handle, effort: to });
+      return true;
+    }
+    return false;
   };
+  return { groups, active, offered, shownEffort, pick, onKey, point: setActiveKey, loaded: entries !== null };
+}
 
-  // Drawn at the page's root, as the other sheets are: the composer's glass would otherwise frame it.
-  const sheet = (
-    <Sheet label="Switch model" onClose={onClose} width={560} top="12vh" clear className="loki-search loki-model-switch">
-      <form role="search" className="loki-search-bar" onSubmit={(e) => (e.preventDefault(), active && pick(active))}>
-        <Icon name="search" size={18} className="loki-search-glass" />
-        <input
-          className="loki-search-input"
-          value={query}
-          onChange={(e) => (setQuery(e.target.value.slice(0, 100)), setActiveKey(null))}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              move(e.key === "ArrowDown" ? 1 : -1);
-            } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !query && active && offered.length) {
-              e.preventDefault();
-              const next = stepEffort(offered, shownEffort, e.key === "ArrowRight" ? 1 : -1);
-              if (next) setEffortPick({ handle: active.group.handle, effort: next });
-            }
-          }}
-          placeholder="Switch model"
-          aria-label="Switch model"
-          role="combobox"
-          aria-expanded={rows.length > 0}
-          aria-controls={LIST_ID}
-          aria-autocomplete="list"
-          aria-activedescendant={active ? optionId(active.key) : undefined}
-          autoComplete="off"
-          spellCheck={false}
-          data-1p-ignore
-          data-form-type="other"
-        />
-      </form>
-      <div className="loki-search-body">
-        {!entries ? (
-          <div className="loki-search-empty">
-            <p className="loki-search-miss">Loading models…</p>
-          </div>
-        ) : groups.length === 0 ? (
-          <div className="loki-search-empty">
-            <p className="loki-search-miss">{query ? `No model matches “${query}”` : "No models from the harness"}</p>
-          </div>
-        ) : (
-          <div id={LIST_ID} role="listbox" aria-label="Models">
-            {groups.map((g) => (
-              <div key={g.id} role="group" aria-label={g.title} className="loki-search-group">
-                <div className="loki-search-group-head">
-                  <span className="loki-search-group-title">{g.title}</span>
-                  {g.hidden > 0 && <span className="loki-meta">{`${g.hidden} more: type more letters`}</span>}
-                </div>
-                <ul className="loki-list" role="presentation">
-                  {g.rows.map((r) => (
-                    <li
-                      key={r.key}
-                      id={optionId(r.key)}
-                      role="option"
-                      aria-selected={r === active}
-                      aria-disabled={r.off || undefined}
-                      className="loki-list-item"
-                      data-dim={r.off || undefined}
-                    >
-                      {/* The field keeps focus: a press would take it, so the row picks on click without being focused. */}
-                      <div
-                        className="loki-list-row loki-search-row"
-                        onPointerDown={(e) => e.preventDefault()}
-                        onPointerMove={r.off || r === active ? undefined : () => setActiveKey(r.key)}
-                        onClick={() => pick(r)}
-                      >
-                        <span className="loki-list-row-copy">
-                          <span className="loki-list-row-title">
-                            <span className="loki-list-row-name">{r.name}</span>
-                          </span>
-                          {r.line && <span className="loki-list-row-preview">{r.line}</span>}
-                        </span>
-                        {r.current && <Icon name="check" size={16} className="loki-model-switch-check" />}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            {!query && <p className="loki-meta loki-model-switch-more">Type to search every model</p>}
-          </div>
-        )}
+/** The switcher's state, as useModelSwitch returns it. */
+export type ModelSwitch = ReturnType<typeof useModelSwitch>;
+
+/** The id of a model row's option, for the field's aria-activedescendant. */
+export const modelOptionId = optionId;
+
+/** The Models scope's list: Usual, then each harness's models, the current one checked; or why there are none. */
+export function ModelSwitchList({ sw, query }: { sw: ModelSwitch; query: string }) {
+  if (!sw.loaded)
+    return (
+      <div className="loki-search-empty">
+        <p className="loki-search-miss">Loading models…</p>
       </div>
-      <div className="loki-model-switch-foot">
-        {offered.length > 0 && active ? (
-          <div role="radiogroup" aria-label={`Effort for ${active.name}`} className="loki-model-switch-efforts">
-            <span className="loki-meta">Effort</span>
-            {offered.map((e) => (
-              <button
-                key={e}
-                type="button"
-                role="radio"
-                aria-checked={e === shownEffort}
-                tabIndex={-1}
-                className="loki-model-switch-effort"
-                onPointerDown={(ev) => ev.preventDefault()}
-                onClick={() => pick(active, e)}
-              >
-                {effortTitle(e)}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span />
-        )}
-        <span className="loki-meta">{`↑↓ ${offered.length ? "· ←→ effort " : ""}· ${formatKeys("enter")} switch · ${formatKeys("escape")}`}</span>
+    );
+  if (!sw.groups.length)
+    return (
+      <div className="loki-search-empty">
+        <p className="loki-search-miss">{query ? `No model matches “${query}”` : "No models from the harness"}</p>
       </div>
-    </Sheet>
+    );
+  return (
+    <div id={LIST_ID} role="listbox" aria-label="Models">
+      {sw.groups.map((g) => (
+        <div key={g.id} role="group" aria-label={g.title} className="loki-search-group">
+          <div className="loki-search-group-head">
+            <span className="loki-search-group-title">{g.title}</span>
+            {g.hidden > 0 && <span className="loki-meta">{`${g.hidden} more: type more letters`}</span>}
+          </div>
+          <ul className="loki-list" role="presentation">
+            {g.rows.map((r) => (
+              <ModelRow key={r.key} row={r} selected={r === sw.active} onPoint={() => sw.point(r.key)} onPick={() => sw.pick(r)} />
+            ))}
+          </ul>
+        </div>
+      ))}
+      {!query && <p className="loki-meta loki-model-switch-more">Type to search every model</p>}
+    </div>
   );
-  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
+}
+
+/** One model as a listbox option: its name over its line, the current one checked; the field keeps focus. */
+export function ModelRow({ row: r, selected, onPoint, onPick }: { row: SwitchRow; selected: boolean; onPoint: () => void; onPick: () => void }) {
+  return (
+    <li id={optionId(r.key)} role="option" aria-selected={selected} aria-disabled={r.off || undefined} className="loki-list-item" data-dim={r.off || undefined}>
+      {/* A press would take the field's focus, so the row picks on click without being focused. */}
+      <div
+        className="loki-list-row loki-search-row"
+        onPointerDown={(e) => e.preventDefault()}
+        onPointerMove={r.off || selected ? undefined : onPoint}
+        onClick={onPick}
+      >
+        <span className="loki-list-row-copy">
+          <span className="loki-list-row-title">
+            <span className="loki-list-row-name">{r.name}</span>
+          </span>
+          {r.line && <span className="loki-list-row-preview">{r.line}</span>}
+        </span>
+        {r.current && <Icon name="check" size={16} className="loki-model-switch-check" />}
+      </div>
+    </li>
+  );
+}
+
+/** The Models scope's foot: the highlighted model's efforts (a click switches at that one), then the keys. */
+export function ModelSwitchFoot({ sw }: { sw: ModelSwitch }) {
+  const { active, offered, shownEffort } = sw;
+  return (
+    <div className="loki-model-switch-foot">
+      {offered.length > 0 && active ? (
+        <div role="radiogroup" aria-label={`Effort for ${active.name}`} className="loki-model-switch-efforts">
+          <span className="loki-meta">Effort</span>
+          {offered.map((e) => (
+            <button
+              key={e}
+              type="button"
+              role="radio"
+              aria-checked={e === shownEffort}
+              tabIndex={-1}
+              className="loki-model-switch-effort"
+              onPointerDown={(ev) => ev.preventDefault()}
+              onClick={() => sw.pick(active, e)}
+            >
+              {effortTitle(e)}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span />
+      )}
+      <span className="loki-meta">{`↑↓ ${offered.length ? "· ←→ effort " : ""}· ${formatKeys("enter")} switch · ${formatKeys("escape")}`}</span>
+    </div>
+  );
 }

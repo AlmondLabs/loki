@@ -35,7 +35,8 @@ import { SlashPalette } from "./slash-palette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./model-picker";
-import { ModelSwitcher, type UsualChoice } from "./model-switcher";
+import type { UsualChoice } from "./model-switcher";
+import { openCommandCenter, useShareModels } from "../shell/command-center";
 import { ModeSwitch } from "./permission-mode";
 import { engineControls } from "./engine-controls";
 import type { ChatEngineView } from "../../../core/models.ts";
@@ -303,22 +304,27 @@ export function Conversation({
     sendReply(option);
     return true;
   };
-  // The new pane picks a model in AI Elements' ModelSelector dialog; today's box keeps its popover (plan 097, U6).
-  // Under Liquid Glass on the desktop it is a floating switcher, ⌘K's way (plan 2026-11-12-1505, U19).
+  // Under Liquid Glass on the desktop the model is switched in ⌘K's Models scope (plan 2026-11-12-1505, U19, U23): the chat
+  // shares its model controls, and the pill and ⌘⇧M open ⌘K there. The new pane otherwise picks a model in AI Elements'
+  // ModelSelector dialog; today's box keeps its popover (plan 097, U6).
+  const inCommand = glass && !touch && hasModelPicker;
+  useShareModels(
+    inCommand
+      ? {
+          entries: models,
+          current: model,
+          currentEffort: reasoningEffort,
+          started,
+          usual: usualModels ?? NO_USUAL,
+          agentName: agentName ?? null,
+          pick: (selection) => void controls.pickModel(selection),
+        }
+      : null,
+  );
   const picker =
     hasModelPicker &&
-    (glass && !touch ? (
-      controls.pickerOpen && (
-        <ModelSwitcher
-          current={model}
-          currentEffort={reasoningEffort}
-          entries={models}
-          started={started}
-          usual={usualModels}
-          onPick={(selection) => void controls.pickModel(selection)}
-          onClose={controls.closePicker}
-        />
-      )
+    (inCommand ? (
+      <OpenModels open={controls.pickerOpen} onOpened={controls.closePicker} />
     ) : proposals ? (
       <ModelDialog
         open={controls.pickerOpen}
@@ -800,3 +806,22 @@ const TodayThread = forwardRef<ThreadHandle, Omit<ThreadProps, "previewable">>(f
     </div>
   );
 });
+
+const NO_USUAL: readonly UsualChoice[] = [];
+
+/**
+ * The pill or ⌘⇧M asked for the model (the picker's open flag): ⌘K opens on its Models scope (U23), and the flag is
+ * handed back so the next click or key opens it again.
+ */
+function OpenModels({ open, onOpened }: { open: boolean; onOpened: () => void }) {
+  const opened = useRef(onOpened);
+  useEffect(() => {
+    opened.current = onOpened;
+  });
+  useEffect(() => {
+    if (!open) return;
+    openCommandCenter("models");
+    opened.current();
+  }, [open]);
+  return null;
+}

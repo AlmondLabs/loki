@@ -142,3 +142,29 @@
   color: var(--loki-fg);
   font-weight: 600;
 }
+
+/* ⌘K's scope (U23): a chip before the field says only the open chat's models are searched; its × steps back out. */
+.loki-search-scope {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-selection);
+  color: var(--loki-fg);
+  font-size: var(--loki-text-meta);
+  font-weight: 600;
+}
+.loki-search-scope-x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--loki-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  cursor: default;
+}
