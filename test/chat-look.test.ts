@@ -178,9 +178,9 @@ describe("the wording pass under Liquid Glass", () => {
   test("a chat's icon is a speech bubble, not Slack's #", async () => {
     const { Icon } = await import("../app/src/shared/icons.tsx");
     withPalette("apple");
-    expect(html(createElement(Icon, { name: "desk" }))).toContain('d="M4 5h16v11H9l-5 4z"');
+    expect(html(createElement(Icon, { name: "desk" }))).toContain("lucide-message-square");
     withPalette(null);
-    expect(html(createElement(Icon, { name: "desk" }))).not.toContain('d="M4 5h16v11H9l-5 4z"');
+    expect(html(createElement(Icon, { name: "desk" }))).not.toContain("lucide-message-square");
   });
 });
 

@@ -2,6 +2,8 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
 import { Kbd, Meta, Popover, Row } from "../components";
 import { formatKeys } from "./keymap";
 import { tidyEntries, type MenuEntry } from "./native-menu";
+import { CheckIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** The focusable rows of a drawn menu, in order. */
 export const menuRows = (node: Element | null | undefined) => [...(node?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not(:disabled)') ?? [])];
@@ -29,7 +31,10 @@ export function menuKey(e: KeyboardEvent, node: Element | null, onClose: () => v
  * right; a submenu draws as its label over its items. `onPicked` runs before an item's action (to close the menu).
  */
 export function MenuItems({ entries, onPicked }: { entries: MenuEntry[]; onPicked: () => void }) {
-  return tidyEntries(entries).map((e, i) => {
+  const tidy = tidyEntries(entries);
+  // As AppKit does: once one item has an icon, every item's label starts after the icon's column.
+  const icons = tidy.some((e) => e.type === "item" && e.icon);
+  return tidy.map((e, i) => {
     if (e.type === "separator") return <hr key={`sep-${i}`} className="loki-title-menu-sep" />;
     if (e.type === "submenu")
       return (
@@ -55,13 +60,16 @@ export function MenuItems({ entries, onPicked }: { entries: MenuEntry[]; onPicke
           e.run();
         }}
       >
-        <span>
-          {e.label}
-          {e.detail && <Meta> {e.detail}</Meta>}
+        <span className="loki-menu-label">
+          {icons && <span className="loki-menu-icon">{e.icon && <e.icon aria-hidden />}</span>}
+          <span>
+            {e.label}
+            {e.detail && <Meta> {e.detail}</Meta>}
+          </span>
         </span>
         {choice && e.checked ? (
           <span aria-hidden className="loki-menu-check">
-            ✓
+            <GlassIcon icon={CheckIcon}>✓</GlassIcon>
           </span>
         ) : (
           e.keys && <Kbd>{formatKeys(e.keys)}</Kbd>

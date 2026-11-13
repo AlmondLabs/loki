@@ -1,6 +1,8 @@
 import type { MailAddressing, MailCompose, MailMode, MailPerson } from "../../../core/frame-types.ts";
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Chip, Field, Meta } from "../components";
+import { XIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /**
  * A mail card's recipients line (plan 076), as Gmail draws it: collapsed to whom the reply goes ("to Pinku Kumar, cc 2
@@ -159,7 +161,12 @@ function RecipientRow({
             onClick={() => onChange(list.filter((_, j) => j !== i))}
             aria-label={`remove ${recipientName(entry)}`}
           >
-            {recipientName(entry)} <span aria-hidden>×</span>
+            {recipientName(entry)}{" "}
+            <span aria-hidden>
+              <GlassIcon icon={XIcon} size={12} inline>
+                ×
+              </GlassIcon>
+            </span>
           </Chip>
         ))}
         <div style={{ position: "relative", flex: 1, minWidth: 120 }}>

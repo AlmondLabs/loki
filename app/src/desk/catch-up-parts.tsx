@@ -1,4 +1,4 @@
-import { ArchiveIcon, ClockIcon, MailOpenIcon } from "lucide-react";
+import { ArchiveIcon, ClockIcon, MailOpenIcon, PlusIcon } from "lucide-react";
 import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { useEffect, useRef, useState } from "react";
 import { OUTSIDE_ENDS, type AttentionItem, type AttentionStatus } from "../../../core/attention/model.ts";
@@ -153,7 +153,7 @@ export function laneMenuEntries({
       checked: l.id === activeId,
       run: () => onPick(l),
     })),
-    ...(onNewLane ? [{ type: "separator" } as const, { type: "item", id: "new-lane", label: "New Lane…", run: onNewLane } as const] : []),
+    ...(onNewLane ? [{ type: "separator" } as const, { type: "item", id: "new-lane", label: "New Lane…", icon: PlusIcon, run: onNewLane } as const] : []),
   ];
 }
 

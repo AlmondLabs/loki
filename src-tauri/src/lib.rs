@@ -11,6 +11,7 @@ mod install;
 mod menu;
 mod native;
 mod node;
+mod popup;
 mod procs;
 mod widgets;
 
@@ -406,7 +407,8 @@ pub fn run() {
             open_settings,
             native::set_waiting,
             native::set_global_shortcut,
-            menu::set_menu
+            menu::set_menu,
+            popup::popup_menu
         ])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))

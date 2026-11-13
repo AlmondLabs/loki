@@ -19,6 +19,8 @@ import { fileSize } from "./mail-thread";
 import type { ThreadControls } from "./outside-card";
 import { keyFor, registerActions } from "../shell/keymap";
 import { Emoji, EmojiPicker, QUICK_EMOJI, Reactions } from "./slack-reactions";
+import { SmilePlusIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** Two messages by one person this close together read as one run, under one face and name, as Slack draws them. */
 const RUN_GAP_MS = 5 * 60_000;
@@ -317,6 +319,15 @@ const BAR_QUICK = 3;
 
 /** Slack's add-reaction mark: a face with a plus, drawn in the text's colour. */
 function AddReactionMark() {
+  return (
+    <GlassIcon icon={SmilePlusIcon} size={18}>
+      <AddReactionDrawing />
+    </GlassIcon>
+  );
+}
+
+/** Today's look's add-reaction drawing. */
+function AddReactionDrawing() {
   return (
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
       <path d="M16.5 9.5a7 7 0 1 1-6-6.9" />

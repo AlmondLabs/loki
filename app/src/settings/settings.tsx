@@ -37,6 +37,8 @@ import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { PALETTES, PALETTE_LABEL, THEME_PREFERENCES, useTheme, type Palette } from "../theme";
 import { useThreadPreview } from "../item/preview";
+import { XIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -264,7 +266,9 @@ export function Settings({
           </h3>
           {onClose && (
             <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: "var(--loki-text-title)" }}>
-              ×
+              <GlassIcon icon={XIcon} size={16}>
+                ×
+              </GlassIcon>
             </IconButton>
           )}
         </div>

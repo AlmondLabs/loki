@@ -7,6 +7,8 @@ import type { SuggestionsProps } from "./suggestion-card";
 import type { ControlledDraft } from "./use-draft";
 import { useAttentive } from "./use-attentive";
 import { LinkHeader } from "./link-header";
+import { PanelLeftIcon, PanelRightIcon, XIcon, MessageSquareIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /**
  * The panel sits on the sheet in one of three places (⌘← / ⌘→ move it): stacked on the left
@@ -104,11 +106,13 @@ export function ChatWindow({
                 <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
                   {onToggleWidth && placement !== "center" && (
                     <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
-                      <WidthIcon wide={width === "wide"} />
+                      <GlassIcon icon={width === "wide" ? PanelLeftIcon : PanelRightIcon}>
+                        <WidthIcon wide={width === "wide"} />
+                      </GlassIcon>
                     </IconButton>
                   )}
                   <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: "var(--loki-text-body)" }}>
-                    ×
+                    <GlassIcon icon={XIcon}>×</GlassIcon>
                   </IconButton>
                 </div>
               }
@@ -229,7 +233,15 @@ export function ChatBubble({
         zIndex: LAYER.bubble,
       }}
     >
-      {open ? "×" : "✳"}
+      {open ? (
+        <GlassIcon icon={XIcon} size={18}>
+          ×
+        </GlassIcon>
+      ) : (
+        <GlassIcon icon={MessageSquareIcon} size={18}>
+          ✳
+        </GlassIcon>
+      )}
       {alert && !open && (
         <span
           aria-label="permission waiting"

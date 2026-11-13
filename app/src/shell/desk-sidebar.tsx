@@ -1,7 +1,20 @@
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  FolderIcon,
+  MailDotIcon,
+  MailOpenIcon,
+  PencilIcon,
+  PinIcon,
+  PinOffIcon,
+  TagIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button, Field, IconButton, ListRow, ListSection } from "../components";
 import { ago } from "../shared/ago";
-import { Icon } from "../shared/icons";
+import { Icon, GlassIcon } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { AgentFace } from "../desk/agent-chip";
@@ -429,7 +442,12 @@ export function DeskSidebar({
             onClick={() => reveal(pills.up)}
             aria-label="Scroll up to a chat that needs you"
           >
-            <span aria-hidden>↑</span> Needs you
+            <span aria-hidden>
+              <GlassIcon icon={ArrowUpIcon} size={12} inline>
+                ↑
+              </GlassIcon>
+            </span>{" "}
+            Needs you
           </button>
         )}
         {pills.down && (
@@ -439,7 +457,12 @@ export function DeskSidebar({
             onClick={() => reveal(pills.down)}
             aria-label="Scroll down to a chat that needs you"
           >
-            <span aria-hidden>↓</span> Needs you
+            <span aria-hidden>
+              <GlassIcon icon={ArrowDownIcon} size={12} inline>
+                ↓
+              </GlassIcon>
+            </span>{" "}
+            Needs you
           </button>
         )}
       </div>
@@ -534,12 +557,24 @@ export function rowMenuEntries({
   return [
     { type: "item", id: "open", label: "Open", run: () => onOpen(d.scope) },
     ...(onDone && item && done
-      ? [{ type: "item", id: "done", label: done === "done" ? "Mark as Read" : "Mark as Unread", run: () => onDone(item, done === "done") } as const]
+      ? [
+          {
+            type: "item",
+            id: "done",
+            label: done === "done" ? "Mark as Read" : "Mark as Unread",
+            icon: done === "done" ? MailOpenIcon : MailDotIcon,
+            run: () => onDone(item, done === "done"),
+          } as const,
+        ]
       : []),
     { type: "separator" },
-    ...(canRename(d) ? [{ type: "item", id: "rename", label: "Rename…", run: () => onRename(d), ...off(NO_RENAME_REASON) } as const] : []),
-    ...(onMove && canMove(d) ? [{ type: "item", id: "folder", label: "Change Folder…", run: () => onMove(d), ...off(NO_MOVE_REASON) } as const] : []),
-    ...(onLabels && canLabel(d) ? [{ type: "item", id: "labels", label: "Labels…", run: () => onLabels(d), ...off(NO_LABEL_REASON) } as const] : []),
+    ...(canRename(d) ? [{ type: "item", id: "rename", label: "Rename…", icon: PencilIcon, run: () => onRename(d), ...off(NO_RENAME_REASON) } as const] : []),
+    ...(onMove && canMove(d)
+      ? [{ type: "item", id: "folder", label: "Change Folder…", icon: FolderIcon, run: () => onMove(d), ...off(NO_MOVE_REASON) } as const]
+      : []),
+    ...(onLabels && canLabel(d)
+      ? [{ type: "item", id: "labels", label: "Labels…", icon: TagIcon, run: () => onLabels(d), ...off(NO_LABEL_REASON) } as const]
+      : []),
     ...(onMoveTo
       ? targets.map((t): MenuEntry => ({
           type: "item",
@@ -550,9 +585,20 @@ export function rowMenuEntries({
         }))
       : []),
     { type: "separator" },
-    ...(canPin(d) ? [{ type: "item", id: "pin", label: d.pinned ? "Unpin" : "Pin", run: () => onPin(d, !d.pinned) } as const] : []),
+    ...(canPin(d)
+      ? [{ type: "item", id: "pin", label: d.pinned ? "Unpin" : "Pin", icon: d.pinned ? PinOffIcon : PinIcon, run: () => onPin(d, !d.pinned) } as const]
+      : []),
     ...(canArchive(d)
-      ? [{ type: "item", id: "archive", label: archived ? "Restore" : "Archive", run: () => onArchive(d, !archived), ...off(NO_ARCHIVE_REASON) } as const]
+      ? [
+          {
+            type: "item",
+            id: "archive",
+            label: archived ? "Restore" : "Archive",
+            icon: archived ? ArchiveRestoreIcon : ArchiveIcon,
+            run: () => onArchive(d, !archived),
+            ...off(NO_ARCHIVE_REASON),
+          } as const,
+        ]
       : []),
   ];
 }

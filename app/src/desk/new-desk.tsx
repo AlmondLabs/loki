@@ -7,6 +7,8 @@ import { osWords } from "../shell/os-words";
 import { useLook } from "../theme";
 import type { Pushes } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
+import { GitBranchIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 /**
  * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
@@ -576,7 +578,24 @@ function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"
 function FolderVerdict({ status }: { status: FolderStatus }) {
   return (
     <span style={{ fontWeight: 400, color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
-      {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
+      {status ? (
+        status.ok ? (
+          status.branch ? (
+            <>
+              <GlassIcon icon={GitBranchIcon} size={12} inline>
+                ⎇
+              </GlassIcon>{" "}
+              {status.branch}
+            </>
+          ) : (
+            "folder ok"
+          )
+        ) : (
+          status.reason
+        )
+      ) : (
+        ""
+      )}
     </span>
   );
 }

@@ -7,6 +7,8 @@ import { isConnected } from "../settings/provider-model";
 import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
 import { formatKeys } from "./keymap";
 import { useAgentDraft, type CreateAgent } from "./use-agent-draft";
+import { CheckIcon } from "lucide-react";
+import { GlassIcon } from "../shared/icons";
 
 interface ProviderProps {
   providers: ConnectProvider[] | null;
@@ -290,7 +292,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
           color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)",
         }}
       >
-        {done ? "✓" : n}
+        {done ? <GlassIcon icon={CheckIcon}>✓</GlassIcon> : n}
       </span>
       <div style={{ display: "grid", gap: 8 }}>
         <div style={{ fontSize: "var(--loki-text-row)", fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>

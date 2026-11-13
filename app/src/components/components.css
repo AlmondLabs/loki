@@ -608,6 +608,11 @@ textarea.loki-field {
   display: block;
   flex: none;
 }
+/* In a line of text ("⎇ main", "↓ Needs you"): on the line, centred on its letters. */
+.loki-icon.loki-icon--inline {
+  display: inline-block;
+  vertical-align: -0.15em;
+}
 
 /* A list of rows (ListRow): no markers, no indent. */
 .loki-list {
@@ -952,6 +957,25 @@ button.loki-list-section-toggle {
   gap: 12px;
   width: 100%;
   font-size: var(--loki-text-body);
+}
+/* A drawn menu's icon column (U22): the action's Lucide icon, at the toolbar's size and stroke, in the label's colour. */
+.loki-menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.loki-menu-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.loki-menu-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
 }
 /* A drawn menu's checkmark on its chosen item, and a submenu's label over its items (shell/menu-items.tsx, U19). */
 .loki-menu-check {

@@ -1,19 +1,21 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { nativeOptions, tidyEntries, POPUP, type MenuEntry } from "../app/src/shell/native-menu.ts";
+import { popupEntries, tidyEntries, type MenuEntry } from "../app/src/shell/native-menu.ts";
 import { rowMenuEntries } from "../app/src/shell/desk-sidebar.tsx";
 import { effortTitle } from "../app/src/chat/model-picker.tsx";
 import { stepEffort, switcherGroups } from "../app/src/chat/model-switcher.tsx";
 import { modeMenuEntries, MODES } from "../app/src/chat/permission-mode.tsx";
 import { laneMenuEntries } from "../app/src/desk/catch-up-parts.tsx";
 import type { DeskSummary } from "../core/frame-types.ts";
+import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, MailOpenIcon, PencilIcon, PinIcon, PinOffIcon, PlusIcon, TagIcon, type LucideIcon } from "lucide-react";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
 import type { Lane } from "../core/attention/lanes.ts";
 
-// Plan 2026-11-12-1505, U19: under Liquid Glass in the Mac app, menus and pickers are the system's. A browser cannot
-// pop one up, so these read what each menu offers, as data, and how it reaches Tauri.
+// Plan 2026-11-12-1505, U19 and U22: under Liquid Glass in the Mac app, menus and pickers are the system's, drawn by
+// AppKit (src-tauri popup.rs), each action with the Lucide icon it has everywhere else. A browser cannot pop one up, so
+// these read what each menu offers, as data, and the shape it reaches the shell in.
 
 const ROOT = join(import.meta.dirname, "..");
 const noop = () => {};
@@ -37,26 +39,47 @@ describe("a menu as data", () => {
     expect(labels(entries)).toEqual(["a", "—", "b"]);
   });
 
-  test("Tauri gets plain options: popup ids, checks, accelerators, counts and nested submenus", () => {
+  test("the shell gets items, separators and submenus, with checks, keys, counts and the icon's picture", () => {
     const run = () => {};
-    const options = nativeOptions([
-      { type: "item", id: "open", label: "Open", run, keys: "cmd+o" },
+    const png = [137, 80, 78, 71];
+    const { entries } = popupEntries(
+      [
+        { type: "item", id: "open", label: "Open", run, keys: "cmd+o", icon: ArchiveIcon },
+        { type: "separator" },
+        { type: "item", id: "work", label: "Work", detail: "2", checked: true, run },
+        // An icon not drawn (its picture failed) leaves the item without one.
+        { type: "submenu", id: "more", label: "More", items: [{ type: "item", id: "x", label: "X", disabled: true, run, icon: TagIcon }] },
+      ],
+      (icon) => (icon === ArchiveIcon ? png : undefined),
+    );
+    expect(entries).toEqual([
+      { type: "item", label: "Open", enabled: true, keys: "cmd+o", icon: png },
       { type: "separator" },
-      { type: "item", id: "work", label: "Work", detail: "2", checked: true, run },
-      { type: "submenu", id: "more", label: "More", items: [{ type: "item", id: "x", label: "X", disabled: true, run }] },
-    ]);
-    expect(options).toEqual([
-      { id: `${POPUP}open`, text: "Open", enabled: true, accelerator: "CmdOrCtrl+O", action: run },
-      { item: "Separator" },
-      { id: `${POPUP}work`, text: "Work (2)", enabled: true, checked: true, action: run },
-      { id: `${POPUP}more`, text: "More", enabled: true, items: [{ id: `${POPUP}x`, text: "X", enabled: false, action: run }] },
+      { type: "item", label: "Work (2)", enabled: true, checked: true },
+      { type: "submenu", label: "More", enabled: true, items: [{ type: "item", label: "X", enabled: false }] },
     ]);
   });
 
-  test("the menu bar's handler skips a popped-up item's click, whose own action already ran", () => {
+  test("the shell's answer is an item's index, depth first over items alone, so the right one runs", () => {
+    const ran: string[] = [];
+    const item = (id: string): MenuEntry => ({ type: "item", id, label: id, run: () => ran.push(id) });
+    const { runs } = popupEntries([
+      item("a"),
+      { type: "separator" },
+      { type: "submenu", id: "s", label: "S", items: [item("b"), { type: "separator" }, item("c")] },
+      { type: "separator" },
+      { type: "separator" },
+      item("d"),
+    ]);
+    for (const run of runs) run();
+    expect(ran).toEqual(["a", "b", "c", "d"]);
+  });
+
+  test("the menu bar's handler takes every click it hears: pop-up menus answer the page directly", () => {
     const keys = readFileSync(join(ROOT, "app", "src", "shell", "use-shell-keys.ts"), "utf8");
-    expect(keys).toContain("if (ev.payload.startsWith(POPUP)) return;");
+    expect(keys).not.toContain("POPUP");
     expect(readFileSync(join(ROOT, "src-tauri", "src", "menu.rs"), "utf8")).toContain('"Settings…"');
+    expect(readFileSync(join(ROOT, "src-tauri", "src", "lib.rs"), "utf8")).toContain("popup::popup_menu");
   });
 });
 
@@ -112,6 +135,24 @@ describe("the chat row's menu", () => {
       "Unpin",
       "Archive",
     ]);
+  });
+
+  test("its actions carry the Lucide icon they have elsewhere, Archive and Mark as Read the toolbar's; Open carries none", () => {
+    const icons = (entries: MenuEntry[]): Array<[string, LucideIcon | null]> =>
+      tidyEntries(entries).flatMap((e): Array<[string, LucideIcon | null]> => (e.type === "item" ? [[e.label, e.icon ?? null]] : []));
+    expect(icons(rowMenuEntries({ ...base, desk: desk() }))).toEqual([
+      ["Open", null],
+      ["Mark as Read", MailOpenIcon],
+      ["Rename…", PencilIcon],
+      ["Change Folder…", FolderIcon],
+      ["Labels…", TagIcon],
+      ["Pin", PinIcon],
+      ["Archive", ArchiveIcon],
+    ]);
+    const pinned = icons(rowMenuEntries({ ...base, desk: desk({ pinned: true }) }));
+    expect(pinned.filter(([label]) => label === "Unpin")).toEqual([["Unpin", PinOffIcon]]);
+    const archived = icons(rowMenuEntries({ ...base, desk: desk({ status: "archived" }) }));
+    expect(archived.filter(([label]) => label === "Restore")).toEqual([["Restore", ArchiveRestoreIcon]]);
   });
 
   test("with the link down, what needs it is off and says why when drawn", () => {
@@ -203,5 +244,13 @@ describe("the mode and lane menus", () => {
       "New Lane…",
     ]);
     expect(labels(laneMenuEntries({ lane: null, lanes: [], items: [], onPick: noop }))).toEqual(["Everything ✓"]);
+  });
+
+  test("a picker's choices carry no icon; only the action after them does", () => {
+    const work: Lane = { id: "l-work", name: "Work", chats: "all", accounts: [] };
+    const iconOf = (e: MenuEntry): LucideIcon | null | undefined => (e.type === "item" ? (e.icon ?? null) : undefined);
+    expect(modeMenuEntries("standard", MODES, noop).map(iconOf)).toEqual([null, null, null, null]);
+    const lanes = tidyEntries(laneMenuEntries({ lane: work, lanes: [work], items: [], onPick: noop, onNewLane: noop }));
+    expect(lanes.map(iconOf)).toEqual([null, null, undefined, PlusIcon]);
   });
 });

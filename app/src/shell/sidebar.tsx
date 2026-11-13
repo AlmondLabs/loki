@@ -5,6 +5,8 @@ import { Dot, countText } from "../components";
 import { inTauri, platform, type Platform } from "../desk/env";
 import { keyFor, type Segment } from "./keymap";
 import { TitleMenu } from "./title-menu";
+import { PanelLeftIcon } from "lucide-react";
+import { GlassIcon, Icon as SharedIcon, type IconName } from "../shared/icons";
 
 /** The rail's width in px, down the window's left edge. */
 export const SIDEBAR_WIDTH = 48;
@@ -119,6 +121,9 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
     </div>
   );
 }
+
+/** Each place's icon under Liquid Glass, by loki's icon names (Lucide's drawings there): the same as ⌘K and the menus use. */
+const PLACE_ICON: Record<Segment, IconName> = { desk: "desk", inbox: "inbox", agents: "agents", learn: "learn", settings: "settings" };
 
 const glyph = { width: 10, height: 10, viewBox: "0 0 10 10", fill: "none", stroke: "currentColor", strokeWidth: 1 } as const;
 
@@ -255,14 +260,8 @@ export function Places({ segment, onSelect, waiting, dueCards = 0 }: { segment: 
             onClick={() => onSelect(s.id)}
           >
             <span className="loki-place-icon">
-              {s.id === "desk" ? (
-                // a chat is a speech bubble on the Mac, as the menu and search draw it under Liquid Glass
-                <svg {...common} aria-hidden>
-                  <path d="M3.5 4.5h13v9h-8l-4.5 3.5z" />
-                </svg>
-              ) : (
-                <Icon id={s.id} />
-              )}
+              {/* Places is drawn only under Liquid Glass, where loki's icons are Lucide's, as everywhere in the new look. */}
+              <SharedIcon name={PLACE_ICON[s.id]} size={18} />
             </span>
             <span className="loki-place-label">{s.label}</span>
             {count > 0 && (
@@ -313,11 +312,13 @@ export function ColumnToggle({ open, onToggle, floating = false }: { open: boole
         padding: 0,
       }}
     >
-      <svg {...common} aria-hidden>
-        <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
-        <path d="M7.5 3.5v13" />
-        {open && <path d="M4.5 7h1M4.5 9.5h1" />}
-      </svg>
+      <GlassIcon icon={PanelLeftIcon} size={18}>
+        <svg {...common} aria-hidden>
+          <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
+          <path d="M7.5 3.5v13" />
+          {open && <path d="M4.5 7h1M4.5 9.5h1" />}
+        </svg>
+      </GlassIcon>
     </button>
   );
 }

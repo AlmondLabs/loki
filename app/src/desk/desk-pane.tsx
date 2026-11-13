@@ -40,7 +40,7 @@ import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { ItemHeader } from "../item/item-header";
 import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
-import { ArchiveIcon, MailOpenIcon, TagIcon } from "lucide-react";
+import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
 import { ActionBar, COMPOSER_COLUMN } from "../item/action-bar";
 import { chatItem } from "../item/item-view";
 import { useThreadPreview } from "../item/preview";
@@ -444,12 +444,12 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
 function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
   const native = useNativeMenus();
-  const action = (id: string, label: string): MenuEntry => ({ type: "item", id, label, keys: specFor(id), run: () => runAction(id) });
+  const action = (id: string, label: string, icon: LucideIcon): MenuEntry => ({ type: "item", id, label, icon, keys: specFor(id), run: () => runAction(id) });
   const entries: MenuEntry[] = [
-    action("desk.arrange", "Arrange Widgets"),
-    action("view.fit", "Fit All Widgets"),
+    action("desk.arrange", "Arrange Widgets", LayoutGridIcon),
+    action("view.fit", "Fit All Widgets", Maximize2Icon),
     { type: "separator" },
-    action("chat.toggle", "Show / Hide Chat"),
+    action("chat.toggle", "Show / Hide Chat", PanelRightIcon),
   ];
   return (
     <span className="loki-desk-pane-menu-anchor">

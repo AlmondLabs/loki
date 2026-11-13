@@ -526,7 +526,9 @@ timer written by hand stays a convention, as its shape is also ordinary code:
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
-   Mac's tray, badge, shortcut and menu bar.
+   Mac's tray, badge, shortcut and menu bar; `popup.rs` the pop-up menus under Liquid Glass, built in AppKit so an
+   action's Lucide icon, drawn by the page as a PNG, shows as a template image that follows dark mode and the highlight
+   (the page sends the menu as data, `shell/native-menu.ts`, and gets back the index of the item chosen).
 6. `scripts/`: `dev.ts` (`npm start` and `npm run dev`), `build-mod.ts` (the daemon and mod bundles the app ships),
    `trial.ts` (the timing trial), `smoke.ts` (the built bundle in a scratch home), `check-pr-title.ts` (a PR title
    against the commit rules, run by `pr-title.yml`), `shrink-images.ts` (the pictures already in the stores),
@@ -547,7 +549,7 @@ place, and the Mac's side of it is what shipped first.
    Alt, Shift elsewhere; a binding whose Mac key the other system keeps for itself carries its own keys there
    (`keysOn`), and a label that only fits there its own label (`labelOn`). `os-words.ts` holds the other
    per-system words (this Mac, this PC, this computer; Finder, File Explorer).
-3. **Mac extras exist only on macOS.** The tray, dock badge, global shortcut and native menu bar are compiled under
+3. **Mac extras exist only on macOS.** The tray, dock badge, global shortcut, native menu bar and pop-up menus are compiled under
    `cfg(target_os = "macos")` with Mac-only dependencies; dictation, phone pairing and Tailscale are hidden in the
    page, which says the feature "isn't on Windows yet" (or Linux) where it would appear.
 4. **loki's own title strip.** The window is undecorated on Windows and Linux; `TitleStrip` in
