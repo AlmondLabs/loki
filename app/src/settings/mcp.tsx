@@ -245,7 +245,8 @@ function ServerRow({
 
 /**
  * A remote server's OAuth sign-in: "sign in" opens its authorization page in the browser, which comes back to loki
- * and connects the server; "sign out" forgets the tokens. A page that went stale is made again by restart.
+ * and connects the server; "sign out" forgets the tokens and loki's registration, so the next sign-in registers anew (a
+ * server that forgot loki's registration says so on its own page). A page that went stale is made again by restart.
  */
 function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullable<McpServerView["sign_in"]>; onSignOut: () => void }) {
   const url = signIn.url;

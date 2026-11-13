@@ -142,11 +142,20 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       expect(JSON.parse(must(keychain.get(tokens), "the stored tokens"))).toMatchObject({ access_token: "token-1" });
       expect(await mcp.finishAuth(params)).toMatchObject({ ok: false, server: null });
 
-      // Signing out forgets the tokens and asks for a sign-in again; the registration stays.
+      // Signing out forgets the tokens and loki's registration, and asks for a sign-in again, which registers anew:
+      // a registration the server has forgotten fails in the browser, where loki never hears of it.
+      const client = `mcp-oauth.${oauthKey("issues", `${fake.base}/mcp`)}.client`;
+      expect(keychain.has(client)).toBe(true);
       await mcp.signOut("issues");
       expect(keychain.has(tokens)).toBe(false);
       await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.sign_in?.url != null);
-      expect(fake.seen.registrations).toBe(1);
+      expect(fake.seen.registrations).toBe(2);
+      expect(keychain.has(client)).toBe(true);
+
+      // Removing the server forgets its sign-in: nothing of it is left in the keychain for a later one of that name.
+      mcp.setServer("issues", null);
+      await until(() => ![...keychain.keys()].some((k) => k.startsWith("mcp-oauth.issues.")));
+      expect([...keychain.keys()].filter((k) => k.startsWith("mcp-oauth.issues."))).toEqual([]);
     } finally {
       await mcp.close();
       await fake.close();

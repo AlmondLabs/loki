@@ -1419,7 +1419,9 @@ server's own sign-in page in your browser, and when you approve there, the brows
 (`http://127.0.0.1:41414/mcp/oauth/callback`, on this computer only), loki finishes the sign-in and the server
 connects. loki registers itself with the server's authorization server the first time (when the server allows that),
 keeps the tokens in the system keychain, never in `mcp.json`, and renews them when they expire. **sign out** forgets the
-tokens; the server then asks again. While a server waits for a sign-in, agents see that in their server list and none
+tokens and loki's registration; the server then asks again, and the next sign-in registers anew. If the server's
+sign-in page says it does not know loki ("the OAuth client could not be found"), sign out and sign in again. Removing a
+server, renaming it or giving it a new address forgets its old sign-in too. While a server waits for a sign-in, agents see that in their server list and none
 of its tools.
 
 **Tools wait until they are needed.** Every agent sees one short list: each server, what it is for, and the names of
