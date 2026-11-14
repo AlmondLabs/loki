@@ -119,7 +119,7 @@ export function JiraConnectForm({
         mono
         style={{ marginTop: 8 }}
       />
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0" }}>
+      <div className="flex items-center gap-2" style={{ padding: "12px 0" }}>
         <Button tone="positive" disabled={!input || connecting} onClick={() => input && void connect(input)}>
           {form.reconnecting ? "Reconnect Jira" : "Connect"}
         </Button>

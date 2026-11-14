@@ -317,14 +317,14 @@ export function ChangeFolder({
       escape={false}
       cardProps={{ onKeyDown: sheetKeys(listOpen, setListOpen, onClose, () => void move()) }}
     >
-      <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
         <div style={{ fontSize: "var(--loki-text-title)", fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
           {title ? `Move ${title}` : "Move this chat"}
           {agentName ? ` · ${agentName}` : ""}
         </div>
       </div>
-      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+      <div className="grid gap-4" style={{ padding: 16 }}>
         <FolderPicker
           inputRef={field.inputRef}
           folder={folder}
@@ -346,9 +346,9 @@ export function ChangeFolder({
         </div>
         {error && <div style={{ color: "var(--loki-negative)", fontSize: "var(--loki-text-meta)" }}>{error}</div>}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+      <div className="flex items-center gap-2" style={{ padding: 12, borderTop: "1px solid var(--loki-border)" }}>
         <span className="loki-label">Enter move · esc close</span>
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -441,16 +441,16 @@ export function FolderPicker({
   const [hi, setHi] = useState(0);
   return (
     <div style={{ position: "relative" }}>
-      <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+      <div className="loki-label flex justify-between" style={{ marginBottom: 8 }}>
         <span>
           Folder
           {source && (
-            <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>
+            <span style={{ fontWeight: 400, marginLeft: 4 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>
           )}
         </span>
         <FolderVerdict status={status} />
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <Field
           ref={inputRef}
           mono
@@ -533,7 +533,7 @@ function FolderList({
         return (
           <div key={o.path}>
             {first && o.group !== "match" && (
-              <div className="loki-label" style={{ padding: "8px 10px 2px" }}>
+              <div className="loki-label" style={{ padding: "8px 8px 2px" }}>
                 {o.group === "mine" ? `${agentName ?? "This agent"}'s recent folders` : "Other agents' folders"}
               </div>
             )}
@@ -550,9 +550,7 @@ function FolderList({
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-fg)" }}>{label}</div>
-              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>
-                {o.path}
-              </div>
+              <div className="loki-meta loki-mono">{o.path}</div>
             </Row>
           </div>
         );

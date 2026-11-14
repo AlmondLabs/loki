@@ -20,7 +20,7 @@ const picker = () =>
 describe("the label picker", () => {
   test("is a popover menu named in title case, with no heading of its own while the labels come", () => {
     const out = renderToStaticMarkup(picker());
-    expect(out).toContain('class="loki-popover loki-label-menu"');
+    expect(out).toMatch(/class="loki-popover loki-label-menu[ "]/);
     expect(out).toContain('aria-label="Add a Label"');
     expect(out).toContain("Loading labels…");
     expect(out).not.toContain("add a label");

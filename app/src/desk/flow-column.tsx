@@ -80,7 +80,8 @@ const firstLine = (text: string | null | undefined) =>
 /**
  * The lane's cards as the list's rows (plan 2026-11-14-1330, U6), in the deck's order: who it is from (the sender, or
  * the chat's agent), what it is about (the subject, the channel, the ticket or the chat's name) and one line of the
- * newest words, with the kind's symbol at the start and, where the card's account needs mending, a muted "Sign In" mark.
+ * newest words (an empty line when there are none, so every row is the same height), with the kind's symbol at the
+ * start and, where the card's account needs mending, a muted "Sign In" mark.
  */
 export function flowRows(queue: readonly AttentionItem[]): ContentRow[] {
   return queue.map((item): ContentRow => {
@@ -96,7 +97,8 @@ export function flowRows(queue: readonly AttentionItem[]): ContentRow[] {
       preview: (
         <>
           <span className="loki-flow-row-subject">{about}</span>
-          {line && <span className="loki-flow-row-line">{line}</span>}
+          {/* Always drawn, a no-break space when there is nothing to show, so every row is three lines tall (R6). */}
+          <span className="loki-flow-row-line">{line || "\u00a0"}</span>
         </>
       ),
       flags: mend && (

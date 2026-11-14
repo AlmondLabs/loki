@@ -2,6 +2,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, NavButton } from "../components";
 import { GROUPS, groupOf, pageAfterKey, pagesMatching, type SettingsGroup, type SettingsPage } from "./pages";
 
+/** A page row's padding (`.loki-nav`). The search field takes it too, and its 1px border is the row's, so its text starts where the page names do. */
+export const NAV_ROW_PADDING = 8;
+
+/** Where a page name's text starts inside its row: the row's padding and its 1px border. Preferences' title starts there too (R8). */
+export const NAV_TEXT_INSET = NAV_ROW_PADDING + 1;
+
 /**
  * Preferences' section list: a filter, then one row per group (plan 031), a vertical tablist with a roving tab stop, as
  * TabRow is across. A row opens its group on its first page, or the first one the filter left; the group's pages are
@@ -25,12 +31,13 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
   const stop = groups.some((r) => r.g === current) ? current : groups[0]?.g;
   return (
     // The heading and the filter stay; the list under them scrolls when the window is short.
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 0 }}>
+    <div className="flex flex-col gap-3 flex-1" style={{ minHeight: 0 }}>
       <Field
         size="sm"
         type="search"
         placeholder="Search"
         aria-label="Filter preferences"
+        style={{ paddingInline: NAV_ROW_PADDING }}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
@@ -51,7 +58,8 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
         role="tablist"
         aria-label="Preferences sections"
         aria-orientation="vertical"
-        style={{ display: "grid", alignContent: "start", gap: 2, flex: 1, minHeight: 0, overflowY: "auto", scrollbarGutter: "stable", paddingBottom: 16 }}
+        className="grid content-start gap-0.5 flex-1"
+        style={{ minHeight: 0, overflowY: "auto", scrollbarGutter: "stable", paddingBottom: 16 }}
         onKeyDown={(e) => {
           if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
           const next = pageAfterKey(page, e.key, shown);
@@ -80,7 +88,7 @@ export function PageList({ page, onPick, extra }: { page: SettingsPage; onPick: 
           );
         })}
         {!groups.length && (
-          <div className="loki-meta loki-meta--wrap" style={{ padding: "8px 10px" }}>
+          <div className="loki-meta loki-meta--wrap" style={{ padding: 8 }}>
             No page matches
           </div>
         )}

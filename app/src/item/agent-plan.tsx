@@ -30,7 +30,7 @@ export function AgentPlan({ items }: { items: readonly PlanItem[] }) {
         <PlanTrigger className="size-7" />
       </PlanHeader>
       <PlanContent className="px-4">
-        <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+        <ol className="m-0 flex list-none flex-col gap-2 p-0">
           {items.map((item, i) => {
             const mark = MARK[item.status];
             return (

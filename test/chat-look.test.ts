@@ -225,3 +225,73 @@ describe("a Flow card asks one thing at a time (U16)", () => {
     for (const key of ["inbox.later", "inbox.next", "inbox.archive", "inbox.open"]) expect(parts).toContain(`deckKey("${key}", moves.typing)`);
   });
 });
+
+describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
+  // Reading columns keep their width but start at the title's 20px edge (R1, R2); only focus states stay centred (R3).
+  const classOf = (out: string, marker: string) => {
+    const tag = new RegExp(`<[^>]*${marker}[^>]*>`).exec(out)?.[0] ?? "";
+    return /class="([^"]*)"/.exec(tag)?.[1].split(" ") ?? [];
+  };
+
+  test("the transcript and the composer start at the edge, at the thread's width", async () => {
+    const { Conversation } = await import("../app/src/chat/conversation.tsx");
+    const out = html(
+      createElement(Conversation, { view: { rows: [{ role: "assistant", text: "On it." }], status: "idle" }, actions: { onSend: noop }, agentName: "friday" }),
+    );
+    const thread = classOf(out, 'data-slot="message-scroller-content"');
+    expect(thread).toContain("max-w-3xl");
+    expect(thread).not.toContain("mx-auto");
+    // The chat viewport's 20px gutter is the transcript's edge, so the column adds no side padding of its own.
+    expect(thread.filter((c) => /^(px|pl|pr|ps|pe)-/.test(c))).toEqual([]);
+    const composer = classOf(out, 'data-composer="messages"');
+    expect(composer).toContain("max-w-3xl");
+    expect(composer).toContain("px-5");
+    expect(composer).not.toContain("mx-auto");
+    expect(out).not.toContain("mx-auto");
+  });
+
+  test("an outside card's thread and reply box start at the edge, 20px in", async () => {
+    const { OutsideCard } = await import("../app/src/desk/outside-card.tsx");
+    const facts = {
+      provider: "slack" as const,
+      account_id: "slack:acme",
+      account_label: "acme",
+      place: "#web-launch",
+      sender: "Priya Raman",
+      subject: "launch review",
+      thread_id: "C1:1.0",
+      generation: 0,
+      owner_agent_id: "agent-work",
+      owner_name: "friday",
+      sender_address: null,
+      lines: ["Can we move it?"],
+      newest_message_id: "1.0",
+      newest_at: "2026-11-11T10:31:00.000Z",
+      handoff_conversation_id: null,
+      disconnected: null,
+    };
+    const box = { text: "", mail: null, busy: false, error: null, onText: noop, onMail: noop, onSend: noop };
+    const out = html(
+      createElement(OutsideCard, {
+        current: { id: "o1", outside: facts } as unknown as Parameters<typeof OutsideCard>[0]["current"],
+        facts,
+        flash: null,
+        cameBack: false,
+        typing: false,
+        moves: { read: noop, later: noop, archive: noop, label: noop },
+        box,
+      }),
+    );
+    expect(out).not.toContain("mx-auto");
+    expect(out).toContain('class="w-full max-w-3xl" style="padding:8px 20px 16px"');
+    expect(out).toContain('class="w-full max-w-3xl" style="padding:12px 20px 16px"');
+  });
+
+  test("Learn's review deck stays centred, and All Cards starts at the edge", async () => {
+    const { LearnColumn } = await import("../app/src/recall/recall-parts.tsx");
+    const column = (view: "review" | "all") => html(createElement(LearnColumn, { view, children: "body" }));
+    expect(column("review")).toContain("margin:0 auto");
+    expect(column("all")).not.toContain("auto");
+    expect(column("all")).toContain("max-width:100%");
+  });
+});

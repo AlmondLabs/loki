@@ -53,7 +53,7 @@ export function MessageEntry({
   if (m.from === "you" && source !== "slack" && source !== "jira")
     return (
       <Message from="user" data-row="user" className="max-w-full">
-        <MessageContent className="w-full gap-1 bg-accent! px-3.5! py-2.5!">
+        <MessageContent className="w-full gap-1 bg-accent! px-4! py-2!">
           <div className="flex min-h-6 items-center gap-2 text-meta text-muted-foreground">
             <span className="font-semibold text-foreground">You</span>
             {time && <time dateTime={m.at}>{time}</time>}
@@ -69,7 +69,7 @@ export function MessageEntry({
     <div
       data-row="person"
       data-mentions={m.mentions_you || undefined}
-      className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2.5", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
+      className={cn("grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2", m.in_thread && "pl-6", m.mentions_you && "border-l-2 border-loki-attention pl-2")}
     >
       {first ? <Avatar who={m.who} src={m.avatar} /> : <span aria-hidden />}
       <div className="flex min-w-0 flex-col gap-1">
@@ -135,7 +135,7 @@ export const ChatMessage = memo(function ChatMessage({
               <CopyAsMarkdown text={text} />
             </span>
           )}
-          <MessageContent title={time ?? undefined} className={cn("rounded-[24px]! bg-accent! px-4! py-2.5!", m.queued && "border border-dashed border-ring")}>
+          <MessageContent title={time ?? undefined} className={cn("rounded-[24px]! bg-accent! px-4! py-2!", m.queued && "border border-dashed border-ring")}>
             <UserContent row={m} />
           </MessageContent>
         </div>
@@ -203,7 +203,7 @@ function UserContent({ row: m }: { row: TranscriptRow }) {
   return (
     <div className="flex flex-col gap-2">
       {m.images && m.images.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {m.images.map((src, k) => (
             <img key={k} src={chatImageUrl(src)} alt="" className="block max-h-40 max-w-56 rounded-sm border border-border" />
           ))}

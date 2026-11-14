@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { afterScroll, keepReading } from "../app/src/chat/use-transcript-scroll.ts";
+import { afterScroll, keepReading, putBackAfterReveal } from "../app/src/chat/use-transcript-scroll.ts";
 
 /**
  * A thread and its rows as layout numbers: each row's top in the content, its height, and the thread's offset. The
@@ -47,6 +47,20 @@ describe("the chat keeps the row being read in place (WebKit has no scroll ancho
     t.rows[3].h += 160;
     keepReading(t.el, was);
     expect(t.raw.scrollTop).toBe(250);
+  });
+});
+
+describe("the phone's thread keeps your place once when older rows come in above", () => {
+  test("the scroll the reveal makes is not taken for content moving, so the offset moves once", () => {
+    const t = thread([100, 100, 100, 100], 250);
+    const reading = keepReading(t.el, null); // the last scroll's look
+    t.rows.unshift({ h: 400, isConnected: true }); // the reveal mounts an older row above
+    Object.defineProperty(t.raw, "scrollHeight", { get: () => t.rows.reduce((n, r) => n + r.h, 0), configurable: true });
+    const now = putBackAfterReveal(t.el, { top: 250, height: 400 });
+    expect(t.raw.scrollTop).toBe(650);
+    keepReading(t.el, now); // the scroll event the new offset fires
+    expect(t.raw.scrollTop).toBe(650);
+    expect(reading?.offset).toBe(now?.offset);
   });
 });
 

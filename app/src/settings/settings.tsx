@@ -31,13 +31,14 @@ export interface ReturnTimesApi {
   set: (times: ReturnTimes) => void;
 }
 import { PAGES, SETTINGS_PAGE_KEY, groupOf, pageTitle, savedPage, type SettingsPage } from "./pages";
-import { PageList } from "./page-list";
+import { NAV_TEXT_INSET, PageList } from "./page-list";
 import { Block, Fact, Fold, Segmented, Setting } from "./layout";
 import type { UsageApi } from "../shared/use-usage";
 import { UsagePage } from "./usage";
 import { THEME_PREFERENCES, useTheme } from "../theme";
 import { XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
+import { cn } from "@/lib/utils";
 
 /** The chat panel's widths at the side, narrow first. */
 const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
@@ -45,6 +46,12 @@ const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
 const HOME = "~/.loki";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
+
+/** The window's toolbar height: the nav's top padding clears the traffic lights by it, as the pane header's 52px line does. */
+const TOOLBAR_HEIGHT = 52;
+
+/** The pane's left edge for its title, tab track and cards: the detail panes' 20px inset (plan 2026-11-14-2224, R1, R8). */
+export const PANE_INSET = 20;
 
 /** The daemon's chat link (useAttention's status, "off" shown as connecting). */
 type ChatLink = "connecting" | "open" | "closed";
@@ -217,22 +224,21 @@ export function Settings({
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", flex: 1, minHeight: 0 }}>
+    <div className="grid grid-cols-[200px_1fr] flex-1" style={{ minHeight: 0 }}>
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
       <nav
         aria-label="Preferences"
-        className={windowed ? "loki-settings-nav" : undefined}
+        className={cn(windowed && "loki-settings-nav", "flex flex-col")}
         data-tauri-drag-region={windowed ? "deep" : undefined}
         style={{
-          display: "flex",
-          flexDirection: "column",
           minHeight: 0,
-          padding: windowed ? "52px 10px 0" : "16px 10px 0",
+          // In the sheet the title sits on the pane title's line, centred in the 52px bar beside it.
+          padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "8px 8px 0",
           borderRight: windowed ? undefined : "1px solid var(--loki-border)",
         }}
       >
         {!windowed && (
-          <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
+          <h2 className="loki-title" style={{ margin: 0, padding: `4px ${NAV_TEXT_INSET}px 12px` }}>
             Preferences
           </h2>
         )}
@@ -246,21 +252,18 @@ export function Settings({
           }
         />
       </nav>
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "var(--loki-bg)" }}>
+      <div className="flex flex-col min-w-0" style={{ minHeight: 0, background: "var(--loki-bg)" }}>
+        {/* The detail panes' title line (KTD4): 52 high and 20 in. Its one-line title stays centred with the close
+            button, on the same line as the nav's "Preferences". */}
         <div
           data-tauri-drag-region={windowed ? "deep" : undefined}
+          className="loki-pane-header-line flex-none"
           style={{
-            flex: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            minHeight: windowed ? 52 : 48,
-            padding: "0 12px 0 28px",
             // A group with tabs draws its rule under them instead.
             borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
           }}
         >
-          <h3 className="loki-title" style={{ margin: 0, flex: 1, minWidth: 0 }}>
+          <h3 className="loki-title flex-1 min-w-0" style={{ margin: 0 }}>
             {group.title}
           </h3>
           {onClose && (
@@ -270,12 +273,12 @@ export function Settings({
           )}
         </div>
         {group.pages.length > 1 && (
-          <div style={{ flex: "none", padding: "0 8px", borderBottom: "1px solid var(--loki-border)" }}>
+          <div className="flex-none" style={{ padding: `0 ${PANE_INSET}px`, borderBottom: "1px solid var(--loki-border)" }}>
             <TabRow label={group.title} tabs={group.pages.map((p) => ({ id: p, label: pageTitle(p) }))} current={page} onChange={pick} />
           </div>
         )}
         {/* Keyed by page so a new page starts at its top. */}
-        <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
+        <div key={page} className="grid content-start gap-6 flex-1" style={{ minHeight: 0, overflowY: "auto", padding: `24px ${PANE_INSET}px 48px` }}>
           {pageBody[page]()}
         </div>
       </div>
@@ -590,7 +593,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
           <Kbd>{keyFor("inbox.next")}</Kbd>
         </Setting>
         <Setting label="Read rests a card for" help="The first rest after read, on every device.">
-          <div style={KIND_GRID}>
+          <div className={KIND_GRID}>
             {READ_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
                 {sentence(KIND_NAME[kind])}
@@ -613,7 +616,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
           <Kbd>{keyFor("inbox.later")}</Kbd>
         </Setting>
         <Setting label="Later brings a card back after" help="On every device. A new time counts from the next later; a card already set aside keeps its own.">
-          <div style={KIND_GRID}>
+          <div className={KIND_GRID}>
             {LATER_KINDS.map((kind) => [
               <span key={`${kind}-name`} className="loki-meta">
                 {sentence(KIND_NAME[kind])}
@@ -665,7 +668,7 @@ export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi;
 }
 
 /** Per-kind choices on a row: each kind's name beside its control, the controls lined up on the right. */
-const KIND_GRID: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto auto", alignItems: "center", justifyItems: "end", gap: 8 };
+const KIND_GRID = "grid grid-cols-[auto_auto] items-center justify-items-end gap-2";
 /** The kinds of card read rests; a Slack message or a Jira card is done once read, so it has no rest. */
 const READ_KINDS = ["chat", "email"] as const;
 /** The kinds of card later brings back. */
@@ -683,7 +686,11 @@ const REST_LATER_LABELS: Record<RestLater, string> = { "3h": "3 Hours", "1d": "1
 
 /** A score on the right of an Inbox row: what the rule adds. */
 function Score({ children }: { children: string }) {
-  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>{children}</span>;
+  return (
+    <span className="loki-mono" style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-fg)" }}>
+      {children}
+    </span>
+  );
 }
 
 /** Preferences › About: every folder and file loki keeps, folded shut (was a page of its own until plan 031). */
@@ -713,7 +720,7 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
       label={GLOBAL_KEY}
       value={
         shortcut.available ? (
-          <span style={{ display: "inline-grid", gap: 4 }}>
+          <span className="inline-grid gap-1">
             <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="Bring loki up on Flow from anywhere on the Mac" />
             {shortcut.error ? (
               <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note>
@@ -763,14 +770,14 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
             <tbody>
               {rows.map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
-                  <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>
+                  <td className="loki-label" style={{ padding: "4px 0", width: 90, verticalAlign: "top" }}>
                     {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
                   </td>
                   <td
+                    className="loki-mono"
                     style={{
-                      padding: "6px 12px 6px 0",
+                      padding: "4px 12px 4px 0",
                       width: 170,
-                      fontFamily: "var(--loki-mono)",
                       fontSize: "var(--loki-text-meta)",
                       color: "var(--loki-fg)",
                       whiteSpace: "nowrap",
@@ -778,24 +785,16 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                   >
                     {b.keys.map((k) => formatKeys(k)).join(" · ")}
                   </td>
-                  <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
+                  <td style={{ padding: "4px 0", color: "var(--loki-muted)" }}>
                     {b.label}
                     {b.typing ? (
                       ""
                     ) : b.where === "inbox" || b.where === "desk" ? (
                       <span style={{ marginLeft: 8, fontSize: "var(--loki-text-fine)", opacity: 0.7 }}>Not while typing</span>
                     ) : null}
-                    {b.was && (
-                      <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
-                        {sentence(wasFor(b) ?? "")}
-                      </span>
-                    )}
+                    {b.was && <span className="loki-meta loki-meta--wrap block">{sentence(wasFor(b) ?? "")}</span>}
                     {takenBy(b).map((t) => (
-                      <span
-                        key={t.id}
-                        className="loki-meta loki-meta--wrap"
-                        style={{ display: "block" }}
-                      >{`Not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
+                      <span key={t.id} className="loki-meta loki-meta--wrap block">{`Not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
                     ))}
                   </td>
                 </tr>
@@ -824,7 +823,7 @@ function InstallState({ s }: { s: string }) {
 function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
+    <span className="inline-flex items-center gap-1" style={{ color, fontSize: "var(--loki-text-meta)", fontWeight: 600 }}>
       <Dot color={color} />
       {sentence(s)}
     </span>

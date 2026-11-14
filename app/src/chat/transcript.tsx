@@ -532,15 +532,16 @@ function Bubble({
       data-row={m.role}
       data-queued={m.queued ? "true" : undefined}
       data-arrived={arrived}
-      style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}
+      className="flex flex-col"
+      style={{ alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}
     >
       <div className="loki-bubble" data-role={m.role}>
         <div
+          className="min-w-0"
           style={{
             maxWidth: "78%",
-            minWidth: 0,
             overflowWrap: "anywhere",
-            padding: "9px 13px",
+            padding: "8px 12px",
             borderRadius: "var(--loki-radius-lg)",
             background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
             // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
@@ -710,13 +711,14 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
   return (
     <>
       {m.images && m.images.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
+        <div className="flex flex-wrap gap-2" style={{ marginBottom: m.text ? 8 : 0 }}>
           {m.images.map((src, k) => (
             <img
               key={k}
               src={chatImageUrl(src)}
               alt=""
-              style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }}
+              className="block"
+              style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)" }}
             />
           ))}
         </div>

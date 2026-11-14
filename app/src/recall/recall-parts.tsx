@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { GaugeIcon, MessagesSquareIcon, RepeatIcon, type LucideIcon } from "lucide-react";
 import { isNew } from "../../../core/recall/fsrs.ts";
 import {
@@ -15,6 +15,7 @@ import { ago } from "../desk/catch-up-parts";
 import { Setting } from "../settings/layout";
 import { Glyph } from "../shared/icons";
 import { dueWord, writtenLine } from "./learn-list";
+import type { LearnView } from "./views";
 import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow } from "./welcome";
 
 /** The pieces around the deck: the source line, the card editor, the details of what Learn's lists hold, the key legend. */
@@ -23,7 +24,7 @@ import { WELCOME_LINE, WELCOME_MORE, WELCOME_TITLE, welcomeRows, type WelcomeRow
 export function SourceLine({ c }: { c: CardWithSchedule }) {
   const { source } = c.card;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-2">
       {source.agent_name && <Chip static>{source.agent_name}</Chip>}
       <Meta>
         {source.title ?? "A conversation"}
@@ -55,10 +56,10 @@ export function CardEditor({
   const [front, setFront] = useState(c.card.front);
   const [back, setBack] = useState(c.card.back);
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div className="grid gap-3">
       <TextArea value={front} onChange={(e) => setFront(e.target.value)} rows={2} aria-label="Front" autoFocus={autoFocus} />
       <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="Back" />
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+      <div className="flex justify-end gap-2">
         <Button size="sm" onClick={onCancel}>
           Cancel
         </Button>
@@ -75,12 +76,24 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   const prev = c.card.previous.at(-1);
   if (!prev) return null;
   return (
-    <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
+    <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
       <Meta>
         Before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
       </Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
       <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
+    </div>
+  );
+}
+
+/**
+ * Learn's reading column, 760px wide. The review deck is a focus state, so it sits in the middle of the pane as Apple
+ * centres one; the other views' items and the notices start at the pane title's 20px edge (plan 2026-11-14-2224, KTD3).
+ */
+export function LearnColumn({ view, children }: { view: LearnView; children: ReactNode }) {
+  return (
+    <div className="flex flex-1 flex-col gap-4" style={{ width: 760, maxWidth: "100%", ...(view === "review" ? { margin: "0 auto" } : {}) }}>
+      {children}
     </div>
   );
 }
@@ -91,12 +104,14 @@ const DETAIL: CSSProperties = {
   border: "1px solid var(--loki-border)",
   borderRadius: "var(--loki-radius-lg)",
   boxShadow: "var(--loki-shadow-sheet)",
-  padding: "18px 24px 16px",
-  display: "grid",
-  gap: 14,
+  padding: "16px 24px",
 };
+/** How a detail's card stacks its parts. */
+const DETAIL_LAYOUT = "grid gap-4";
 /** The row of a detail's buttons under a hairline. */
-const MOVES: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 };
+const MOVES: CSSProperties = { borderTop: "1px solid var(--loki-border)", paddingTop: 12 };
+/** How the row of a detail's buttons lines them up, wrapping when the pane is narrow. */
+const MOVES_LAYOUT = "flex flex-wrap items-center gap-2";
 /** A detail's title: the card's front, the lead's name. */
 const TITLE: CSSProperties = {
   fontSize: "var(--loki-text-display)",
@@ -128,14 +143,14 @@ export function CardDetail({
   // Bumped by Cancel: the editor starts over from the card as saved.
   const [round, setRound] = useState(0);
   return (
-    <section aria-label="Card" style={DETAIL}>
+    <section aria-label="Card" className={DETAIL_LAYOUT} style={DETAIL}>
       <SourceLine c={c} />
       <CardEditor key={`${c.card.id}:${round}`} c={c} autoFocus={false} onSave={onSave} onCancel={() => setRound((r) => r + 1)} />
-      <div style={MOVES}>
+      <div className={MOVES_LAYOUT} style={MOVES}>
         <Meta>
           {dueWord(c, now)} · {c.schedule.reps} review{c.schedule.reps === 1 ? "" : "s"} · {c.schedule.lapses} forgotten
         </Meta>
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         <Button size="sm" tone="negative" onClick={onDelete} title="Delete — it joins the pile the worker reads as 'not this'">
           Delete
         </Button>
@@ -148,7 +163,7 @@ export function CardDetail({
 /** A deleted card chosen in Deleted: what it said, when it went, and Restore or Forget. */
 export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRestore: () => void; onForget: () => void }) {
   return (
-    <section aria-label="Deleted card" style={DETAIL}>
+    <section aria-label="Deleted card" className={DETAIL_LAYOUT} style={DETAIL}>
       <Meta>
         Deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}
       </Meta>
@@ -158,7 +173,7 @@ export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRest
         Deleted cards teach the worker: one deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back
         reworded.
       </Meta>
-      <div style={MOVES}>
+      <div className={MOVES_LAYOUT} style={MOVES}>
         <Button size="sm" onClick={onRestore}>
           Restore
         </Button>
@@ -173,7 +188,7 @@ export function RejectedDetail({ r, onRestore, onForget }: { r: Rejected; onRest
 /** The key legend under the deck. */
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
-    <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap loki-mono" style={{ textAlign: "center", marginTop: 12 }}>
       {revealed
         ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back"
         : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
@@ -189,22 +204,22 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   const [more, setMore] = useState(false);
   return (
-    <section aria-labelledby="learn-welcome" style={{ display: "grid", gap: 20, justifyItems: "center", maxWidth: 440, margin: "0 auto" }}>
-      <div style={{ display: "grid", gap: 4, textAlign: "center" }}>
+    <section aria-labelledby="learn-welcome" className="grid justify-items-center gap-4" style={{ maxWidth: 440, margin: "0 auto" }}>
+      <div className="grid gap-1" style={{ textAlign: "center" }}>
         <h2 id="learn-welcome" style={{ margin: 0, fontSize: "var(--loki-text-hero)", fontWeight: 700 }}>
           {WELCOME_TITLE}
         </h2>
         <p style={{ margin: 0, color: "var(--loki-muted)", fontSize: "var(--loki-text-body)" }}>{WELCOME_LINE}</p>
       </div>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 16 }}>
+      <ul className="grid gap-4" style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {welcomeRows(worker.daily_cap).map((row) => {
           const Drawn = WELCOME_ICON[row.icon];
           return (
-            <li key={row.icon} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 12, alignItems: "start" }}>
+            <li key={row.icon} className="grid grid-cols-[28px_1fr] items-start gap-3">
               <span style={{ color: "var(--loki-accent)", paddingTop: 2 }}>
                 <Glyph icon={Drawn} size={22} />
               </span>
-              <span style={{ display: "grid", gap: 2, fontSize: "var(--loki-text-body)", lineHeight: 1.4 }}>
+              <span className="grid gap-0.5" style={{ fontSize: "var(--loki-text-body)", lineHeight: 1.4 }}>
                 <b style={{ fontWeight: 600 }}>{row.head}</b>
                 <span style={{ color: "var(--loki-muted)" }}>{row.line}</span>
               </span>
@@ -213,7 +228,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         })}
       </ul>
       {more && (
-        <div style={{ display: "grid", gap: 8, fontSize: "var(--loki-text-meta)", color: "var(--loki-muted)", lineHeight: 1.45 }}>
+        <div className="grid gap-2" style={{ fontSize: "var(--loki-text-meta)", color: "var(--loki-muted)", lineHeight: 1.45 }}>
           {WELCOME_MORE.map((line) => (
             <p key={line} style={{ margin: 0 }}>
               {line}
@@ -221,7 +236,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
           ))}
         </div>
       )}
-      <div style={{ display: "grid", gap: 6, justifyItems: "center" }}>
+      <div className="grid justify-items-center gap-2">
         {onEnable ? (
           <Button tone="positive" size="md" onClick={onEnable}>
             Turn On Learn
@@ -311,12 +326,12 @@ const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting"
 /** Where a lead came up: the agent's name as a chip, the chat's title and how long ago. */
 function LeadSource({ lead, at }: { lead: Lead; at: string }) {
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <span className="flex flex-wrap items-center gap-2">
       {lead.source.agent_name && <Chip static>{lead.source.agent_name}</Chip>}
       <Meta>
         {lead.source.title ?? "A conversation"} · {ago(at)}
       </Meta>
-      <span style={{ flex: 1 }} />
+      <span className="flex-1" />
       <Meta>{DEPTH[lead.depth]}</Meta>
     </span>
   );
@@ -342,11 +357,11 @@ export function LeadDetail({
 }) {
   const { agent_id: agentId, conversation_id: conversationId } = lead.source;
   return (
-    <section aria-label={`Lead: ${lead.title}`} style={DETAIL}>
+    <section aria-label={`Lead: ${lead.title}`} className={DETAIL_LAYOUT} style={DETAIL}>
       <LeadSource lead={lead} at={lead.created_at} />
       <div style={TITLE}>{lead.title}</div>
       <div style={{ ...BODY, color: "var(--loki-muted)", fontStyle: "italic" }}>{lead.why}</div>
-      <div style={MOVES}>
+      <div className={MOVES_LAYOUT} style={MOVES}>
         <Button
           size="sm"
           tone="positive"
@@ -372,11 +387,11 @@ export function LeadDetail({
 /** A lesson under way chosen in Leads: the lead it began from, a way to its chat, and Send the Brief when it never arrived. */
 export function LessonDetail({ lesson, onOpen, onResume }: { lesson: Lesson; onOpen: () => void; onResume: () => void }) {
   return (
-    <section aria-label={`Lesson: ${lesson.lead.title}`} style={DETAIL}>
+    <section aria-label={`Lesson: ${lesson.lead.title}`} className={DETAIL_LAYOUT} style={DETAIL}>
       <LeadSource lead={lesson.lead} at={lesson.started_at} />
       <div style={TITLE}>{lesson.lead.title}</div>
       <Meta wrap>{lesson.empty ? "The brief never arrived: the lesson's chat is still empty." : `Started ${ago(lesson.started_at)}.`}</Meta>
-      <div style={MOVES}>
+      <div className={MOVES_LAYOUT} style={MOVES}>
         <Button size="sm" onClick={onOpen} title="Open the lesson's chat">
           Open the Lesson
         </Button>
@@ -393,12 +408,12 @@ export function LessonDetail({ lesson, onOpen, onResume }: { lesson: Lesson; onO
 /** A dismissed lead chosen in Deleted: what it was, when it was dismissed, and Restore. */
 export function DismissedDetail({ d, onRestore }: { d: DismissedLead; onRestore: () => void }) {
   return (
-    <section aria-label={`Dismissed lead: ${d.lead.title}`} style={DETAIL}>
+    <section aria-label={`Dismissed lead: ${d.lead.title}`} className={DETAIL_LAYOUT} style={DETAIL}>
       <Meta>Dismissed {ago(d.at)}</Meta>
       <div style={TITLE}>{d.lead.title}</div>
       <div style={{ ...BODY, color: "var(--loki-muted)", fontStyle: "italic" }}>{d.lead.why}</div>
       <Meta wrap>Learn reads the dismissed leads before proposing again, so this one does not come back reworded.</Meta>
-      <div style={MOVES}>
+      <div className={MOVES_LAYOUT} style={MOVES}>
         <Button size="sm" onClick={onRestore}>
           Restore
         </Button>

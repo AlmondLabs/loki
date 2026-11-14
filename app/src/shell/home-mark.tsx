@@ -20,7 +20,7 @@ export function HomeMark({
   const mark = homeMark(row, agentHome, here, osWords().machine);
   if (!mark) return null;
   return (
-    <span className="loki-meta" title={mark.note} style={{ display: "inline-flex", flexShrink: 0 }}>
+    <span className="loki-meta inline-flex" title={mark.note} style={{ flexShrink: 0 }}>
       <Icon name={mark.kind === "asleep" ? "moon" : "laptop"} size={12} title={mark.note} />
     </span>
   );

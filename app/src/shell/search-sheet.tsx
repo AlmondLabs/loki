@@ -342,7 +342,7 @@ export function SearchSheet({
                 <span id="loki-search-recent" className="loki-search-group-title">
                   Recent
                 </span>
-                <span style={{ flex: 1 }} />
+                <span className="flex-1" />
                 <button type="button" className="loki-search-clear" onClick={() => (recentPlaces.clear(), setPlaceKeys([]))}>
                   Clear
                 </button>

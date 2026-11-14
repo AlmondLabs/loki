@@ -193,8 +193,8 @@ export function ModuleWidget({
         title={entry.title}
         referrerPolicy="no-referrer"
         data-widget-frame={entry.id}
+        className="block"
         style={{
-          display: "block",
           border: 0,
           background: "transparent",
           width: fill ? "100%" : (size?.width ?? 0),
@@ -212,7 +212,7 @@ export function ModuleWidget({
 /** A widget's error message, in monospace red, in the widget's place. */
 export function WidgetError({ message }: { message: string }) {
   return (
-    <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
+    <div className="loki-meta loki-meta--negative loki-meta--wrap loki-mono" style={{ whiteSpace: "pre-wrap" }}>
       {message}
     </div>
   );

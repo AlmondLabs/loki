@@ -52,7 +52,7 @@ function MessagesBox({
   const { uploading, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   const stop = onStop && !canSend;
   return (
-    <div data-composer="messages" className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 pb-3">
+    <div data-composer="messages" className="flex w-full max-w-3xl flex-col gap-2 px-5 pb-3">
       {extras && <div className="flex justify-end">{extras}</div>}
       <QueuedList queued={queued} onCancelQueued={onCancelQueued} />
       <div className="flex items-end gap-2">
@@ -191,9 +191,9 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
         <div data-attachments className="flex flex-wrap gap-2 px-3 pt-2">
           {images.map((a) =>
             isFileAttachment(a) ? (
-              <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
+              <span key={a.id} title={a.path} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta">
                 <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-                <span className="max-w-40 truncate">{a.name}</span>
+                <span className="loki-truncate max-w-40">{a.name}</span>
                 <span className="text-muted-foreground">{fileSize(a.size)}</span>
                 <PromptInputButton size="icon-xs" aria-label={`Remove ${a.name}`} onClick={() => remove(a)}>
                   <XIcon />
@@ -218,10 +218,10 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
               key={u.id}
               title={u.error}
               data-failed={u.error ? true : undefined}
-              className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
+              className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta"
             >
               <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-              <span className="max-w-40 truncate">{u.name}</span>
+              <span className="loki-truncate max-w-40">{u.name}</span>
               <span className={u.error ? "text-destructive" : "text-muted-foreground"}>{u.error ? "Failed" : `${Math.round(u.share * 100)}%`}</span>
               {u.error && (
                 <PromptInputButton size="icon-xs" aria-label={`Remove ${u.name}`} onClick={() => box.dismissUpload(u.id)}>

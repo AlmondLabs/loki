@@ -103,7 +103,7 @@ export function ChatWindow({
                 view.links?.length ? <LinkHeader links={view.links} onClose={actions.onCloseLink ? (id) => void actions.onCloseLink?.(id) : undefined} /> : null
               }
               right={
-                <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "0 0 auto" }}>
+                <div className="flex flex-none items-center gap-0.5">
                   {onToggleWidth && placement !== "center" && (
                     <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "Narrow chat" : "Wide chat"}>
                       <Glyph icon={width === "wide" ? PanelLeftIcon : PanelRightIcon} />

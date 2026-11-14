@@ -152,7 +152,9 @@ function RecipientRow({
   const label = { to: "To", cc: "Cc", bcc: "Bcc" }[row];
   return (
     <div className="loki-mail-row">
-      <Meta style={{ width: 28, flex: "none" }}>{label}</Meta>
+      <Meta className="flex-none" style={{ width: 28 }}>
+        {label}
+      </Meta>
       <div className="loki-mail-row-chips">
         {list.map((entry, i) => (
           <Chip
@@ -168,7 +170,7 @@ function RecipientRow({
             </span>
           </Chip>
         ))}
-        <div style={{ position: "relative", flex: 1, minWidth: 120 }}>
+        <div className="flex-1" style={{ position: "relative", minWidth: 120 }}>
           <Field
             bare
             size={touch ? "touch" : "sm"}
@@ -308,11 +310,11 @@ export function MailAddressLine({
       </div>
     );
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: touch ? "var(--phone-space-1)" : 2 }}>
+    <div className="flex flex-col" style={{ gap: touch ? "var(--phone-space-1)" : 2 }}>
       <div className="loki-mail-line">
         {lead}
-        <span style={{ flex: 1 }} />
-        <button type="button" className="loki-mail-line-who" onClick={() => onOpen(false)} style={{ flex: "none" }}>
+        <span className="flex-1" />
+        <button type="button" className="loki-mail-line-who flex-none" onClick={() => onOpen(false)}>
           {control("done")}
         </button>
       </div>

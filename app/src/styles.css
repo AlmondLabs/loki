@@ -12,6 +12,9 @@
 
 /* Tailwind utilities that resolve to the loki tokens: bg-loki-panel, text-loki-muted, … */
 @theme inline {
+  /* One spacing step is 4px, loki's grid, so gap-2 is 8px. Tailwind's default is 0.25rem, and the page's root is 15px
+     (index.html), which made a step 3.75px. */
+  --spacing: 4px;
   --color-loki-bg: var(--loki-bg);
   --color-loki-panel: var(--loki-panel);
   --color-loki-panel-header: var(--loki-panel-header);

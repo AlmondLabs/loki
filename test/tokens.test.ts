@@ -82,6 +82,14 @@ const contrast = (a: Rgb, b: Rgb) => {
 
 /** Type scale (px): micro, meta, label (.loki-label), small, body, row title, card title, display, hero. */
 const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
+/**
+ * Spacing (px), the desktop's padding, margins and gaps: a hairline, then loki's 4px grid with 20 for the pane inset.
+ * They are Tailwind's steps 0, px, 0.5, 1, 2, 3, 4, 5, 6, 8 and 12, because styles.css sets one step to 4px.
+ * The phone keeps its own scale, --phone-space-1 to 6.
+ */
+const SPACE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 48]);
+/** The spacing steps a gap, space, padding or margin class may name; anything else, an arbitrary value included, is off the scale. */
+const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "2", "3", "4", "5", "6", "8", "12"]);
 /** Radii: control, row, card/sheet, pill — plus the geometric ones used for circles and hairlines. */
 const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
 /**
@@ -98,6 +106,44 @@ const findAll = (list: typeof files, re: RegExp, pick: (m: RegExpMatchArray) => 
   list.flatMap((f) => [...f.text.matchAll(re)].map((m) => `${f.path}: ${pick(m)}`));
 const numbers = (expr: string) => [...expr.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
 const value = (hit: string) => hit.slice(hit.indexOf(": ") + 2);
+/** An expression without its var() and env() calls, innermost first so a fallback's own var() goes too: those are tokens, not literals. */
+const withoutCalls = (expr: string) => {
+  let out = expr;
+  for (let last = ""; last !== out;) [last, out] = [out, out.replace(/\b(?:var|env)\([^()]*\)/g, "")];
+  return out;
+};
+/** A line number in a file, from an offset into it. */
+const lineAt = (text: string, at: number) => text.slice(0, at).split("\n").length;
+
+/**
+ * The px lengths in a padding, margin or gap value that leave the spacing scale. A bare number counts as px (React's
+ * inline styles); a percentage, an em or a token does not, and a negative counts as its size.
+ */
+const offSpace = (expr: string) =>
+  [...withoutCalls(expr).matchAll(/(?<![\w.$])(\d+(?:\.\d+)?)(?:px)?(?![\w%.])/g)].map((m) => Number(m[1])).filter((n) => !SPACE.has(n));
+
+/** Padding, margin and gap declarations in a stylesheet whose px terms leave the scale, as "path:line: declaration". */
+const offSpaceCss = (path: string, text: string) => {
+  // comments become blanks of the same shape, so a line number still points at its line
+  const bare = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, " "));
+  return [...bare.matchAll(/(?<![\w-])((?:padding|margin)(?:-[a-z-]+)?|gap|row-gap|column-gap)\s*:\s*([^;{}]+)/g)]
+    .filter((m) => offSpace(m[2]).length > 0)
+    .map((m) => `${path}:${lineAt(bare, m.index)}: ${m[1]}: ${m[2].trim().replace(/\s+/g, " ")}`);
+};
+
+/**
+ * Padding, margin and gap in a desktop view's inline styles whose literals leave the scale, as "path:line: value". A
+ * value runs to the next comma or brace outside its quotes, so a template literal's commas stay inside it; a named
+ * constant is not a literal and passes, and a phone token on one side of a ternary is a var() and goes.
+ */
+const offSpaceInline = (path: string, text: string) =>
+  [
+    ...text.matchAll(
+      /\b(?:gap|rowGap|columnGap|(?:padding|margin)(?:Top|Right|Bottom|Left|Inline|Block)?(?:Start|End)?): ((?:`[^`]*`|"[^"]*"|'[^']*'|[^,}\n"'`])+)/g,
+    ),
+  ]
+    .filter((m) => offSpace(m[1]).length > 0)
+    .map((m) => `${path}:${lineAt(text, m.index)}: ${m[1].trim()}`);
 
 describe("design tokens: every style stays on the scales", () => {
   test("no literal colours — every colour is a --loki token", () => {
@@ -111,6 +157,48 @@ describe("design tokens: every style stays on the scales", () => {
     const off = inline.filter((h) => numbers(value(h)).some((n) => !FONT_SCALE.has(n)));
     const inCss = findAll(files, /font-size:\s*([\d.]+)px/g, (m) => m[1]).filter((h) => !FONT_SCALE.has(Number(value(h))));
     expect([...off, ...inCss]).toEqual([]);
+  });
+  test("the inline spacing fence fails an off-scale literal and passes tokens, names and the phone's ternaries", () => {
+    expect(offSpaceInline("x.tsx", 'const s = { padding: "14px 28px" };')).toHaveLength(1);
+    expect(offSpaceInline("x.tsx", "const s = { marginTop: 10, gap: 8 };")).toHaveLength(1);
+    expect(offSpaceInline("x.tsx", "const s = { paddingInlineStart: `${x}px 18px`, margin: -12 };")).toHaveLength(1);
+    expect(offSpaceInline("x.tsx", "const s = { padding: `calc(${a}px, 14px)` };")).toHaveLength(1);
+    expect(
+      offSpaceInline(
+        "x.tsx",
+        'const s = { padding: 20, margin: "0 auto", paddingLeft: MAIL_INDENT, gap: touch ? "var(--phone-space-3)" : 8, marginTop: "calc(100% - 8px)" };',
+      ),
+    ).toEqual([]);
+    expect(offSpaceInline("x.tsx", "const s = { padding: `${SPACE_2}px 12px`, margin: -4 };")).toEqual([]);
+  });
+  test("desktop padding, margins and gaps in views come from the spacing scale (a value from the phone's scale on touch is the phone's)", () => {
+    // .tsx only: a gap: in plain .ts is an argument, not a style (chat/use-transcript-scroll.ts)
+    const desktop = code.filter((f) => f.path.endsWith(".tsx") && !f.path.startsWith("phone/") && !f.path.startsWith("ui/"));
+    expect(desktop.flatMap((f) => offSpaceInline(f.path, f.text))).toEqual([]);
+  });
+  test("the stylesheet spacing fence fails an off-scale px term and passes auto, tokens and on-scale calc", () => {
+    expect(offSpaceCss("x.css", ".a { padding: 10px; }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { margin: 0 14px; }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a {\n  gap: 8px;\n  row-gap: 3px;\n}")).toEqual(["x.css:3: row-gap: 3px"]);
+    expect(offSpaceCss("x.css", ".a { margin-left: -4px; padding-inline: calc(36px + 10px); }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { padding: 6px; }")).toHaveLength(1);
+    expect(offSpaceCss("x.css", ".a { margin: 40px; }")).toHaveLength(1);
+    expect(
+      offSpaceCss(
+        "x.css",
+        [
+          ".a { margin: 0 auto; padding: calc(var(--loki-header-height) + 20px); }",
+          ".b { padding-left: env(safe-area-inset-left); margin-top: -12px; padding: 50% 0; }",
+          ".c { padding-inline: calc(12px - 1px); column-gap: var(--x, 10px); --loki-gap: 10px; scroll-padding: 10px; }",
+          "/* margin: 10px in a comment */",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+  test("desktop stylesheets keep padding, margins and gaps on the spacing scale (the phone keeps its own)", () => {
+    const desktopCss = css.filter((f) => f.path === "kit/tokens.css" || ["components/", "chat/", "shell/"].some((dir) => f.path.startsWith(dir)));
+    expect(desktopCss.map((f) => f.path)).toEqual(expect.arrayContaining(["kit/tokens.css", "components/components.css", "chat/chat.css"]));
+    expect(desktopCss.flatMap((f) => offSpaceCss(f.path, f.text))).toEqual([]);
   });
   test("radii come from the radius scale", () => {
     const inline = findAll(code, /borderRadius: ([^,}\n]+)/g, (m) => m[1].trim());
@@ -138,11 +226,16 @@ describe("design tokens: every style stays on the scales", () => {
     expect([...inline, ...inCss]).toEqual([]);
   });
   test("inline faces are the reading face or mono — never the retired display or label aliases", () => {
-    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter(
-      (h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$|^mono \? "var\(--loki-mono\)" : undefined$/.test(value(h)),
-    );
+    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$/.test(value(h)));
     expect(off).toEqual([]);
     expect(findAll(code, /var\(--loki-(display|label)\)/g, (m) => m[0])).toEqual([]);
+  });
+  test("desktop views set mono and a one-line ellipsis with their classes, loki-mono and loki-truncate, never inline", () => {
+    // the phone keeps its own inline styles and .loki-phone-ellipsis; shadcn's files are upstream
+    const desktop = code.filter((f) => f.path.endsWith(".tsx") && !f.path.startsWith("phone/") && !f.path.startsWith("ui/"));
+    const mono = findAll(desktop, /fontFamily: [^,}\n]*--loki-mono/g, (m) => m[0]);
+    const ellipsis = findAll(desktop, /textOverflow: "ellipsis"/g, (m) => m[0]);
+    expect([...mono, ...ellipsis]).toEqual([]);
   });
   test("labels are shown as written: no uppercase transform inline, nor in a desktop stylesheet", () => {
     const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => value(h).includes("uppercase"));
@@ -165,8 +258,9 @@ describe("design tokens: every style stays on the scales", () => {
     const mono = desktopCss.flatMap((f) =>
       [...f.text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => `${f.path}: ${m[1].trim()}`),
     );
-    // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing
-    expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$/.test(value(h)))).toEqual([]);
+    // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing. .loki-mono is the one class a
+    // view puts on code, data and keys.
+    expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$|^\.loki-mono$/.test(value(h)))).toEqual([]);
   });
   test("window-level stacking uses LAYER, never a big literal or arithmetic on one", () => {
     const big = findAll(code, /zIndex: ([0-9]{3,})/g, (m) => m[1]);
@@ -629,8 +723,25 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     visit(src);
     return out;
   };
+  /**
+   * A gap, space, padding or margin class whose step is off the spacing scale; shadcn's own files in ui/ keep theirs,
+   * and so does the dev workbench in dev/, a harness whose room under its last demo clears the floating composer.
+   * classStrings reads every string, so a padding or margin class counts only when its step looks like one (a number,
+   * px, auto or a bracketed value): "my-macbook-pro.local" and a template head "m-${id}" are not classes. Tailwind's
+   * trailing ! is importance, not part of the step.
+   */
+  const offSpacing = (path: string, text: string): boolean => {
+    if (path.startsWith("ui/") || path.startsWith("dev/")) return false;
+    const steps = (re: RegExp) => [...text.matchAll(re)].map((m) => m[1].replace(/!$/, ""));
+    const gaps = steps(/(?:^|[\s:])!?(?:gap(?:-[xy])?|space-[xy])-(\S+)/g);
+    const boxes = steps(/(?:^|[\s:])!?-?(?:p|m)[xytrblse]?-(\d+(?:\.\d+)?!?|px!?|auto!?|\[[^\]\s]*\]!?)(?=\s|$)/g);
+    return gaps.some((s) => !SPACE_STEPS.has(s)) || boxes.some((s) => s !== "auto" && !SPACE_STEPS.has(s));
+  };
   const offScale = (path: string, text: string) =>
-    classStrings(path, text).flatMap((s) => OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`));
+    classStrings(path, text).flatMap((s) => [
+      ...OFF_SCALE.filter(([, re]) => re.test(s.text)).map(([why]) => `${s.at}: ${why} in "${s.text}"`),
+      ...(offSpacing(path, s.text) ? [`${s.at}: spacing off the scale in "${s.text}"`] : []),
+    ]);
 
   test("the fence catches what it should and passes loki's names", () => {
     expect(offScale("x.tsx", 'const a = <b className="bg-blue-500 text-sm z-50 tracking-widest font-medium focus-visible:outline-none" />;')).toHaveLength(6);
@@ -638,6 +749,26 @@ describe("shadcn reads loki's tokens, and loki's class strings stay on its scale
     expect(offScale("x.tsx", 'const a = <b className="bg-primary text-body text-muted-foreground rounded-md z-modal shadow-float font-semibold" />;')).toEqual(
       [],
     );
+  });
+
+  test("the fence holds gap and space classes to the spacing scale, outside shadcn's own files", () => {
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-7" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="grid gap-x-2.5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-[10px]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-1.5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex gap-1 gap-px space-y-2 sm:gap-3 gap-y-0.5" />;')).toEqual([]);
+    expect(offScale("ui/x.tsx", 'const a = <b className="flex gap-2.5" />;')).toEqual([]);
+  });
+
+  test("the fence holds padding and margin classes to the spacing scale, and reads only what looks like a class", () => {
+    expect(offScale("x.tsx", 'const a = <b className="p-2.5" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="flex mt-7" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="hover:-ml-[10px]" />;')).toHaveLength(1);
+    expect(offScale("x.tsx", 'const a = <b className="mx-auto px-5 py-5 px-4! -mt-2 ps-px m-0" />;')).toEqual([]);
+    expect(offScale("x.tsx", 'const host = "my-macbook-pro.local";')).toEqual([]);
+    expect(offScale("x.tsx", "const id = `m-${n}`;")).toEqual([]);
+    expect(offScale("ui/x.tsx", 'const a = <b className="p-2.5" />;')).toEqual([]);
+    expect(offScale("dev/x.tsx", 'const a = <b className="pt-20 pb-56" />;')).toEqual([]);
   });
 
   test("no class string in loki's source leaves the scales", () => {

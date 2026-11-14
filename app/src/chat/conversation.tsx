@@ -389,7 +389,7 @@ export function Conversation({
         // (components.css).
         <div ref={dockRef} className="loki-dock">
           {/* The new pane lines its Proposals up with the thread's column (plan 097, U5). */}
-          <div className={proposals ? "mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 empty:hidden" : "contents"}>
+          <div className={proposals ? "flex w-full max-w-3xl flex-col gap-2 px-5 empty:hidden" : "contents"}>
             {question &&
               actions.onAnswer &&
               (() => {
@@ -430,7 +430,7 @@ export function Conversation({
                   <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
                 );
                 // In the new pane the palette rises from the Composer's column, not the pane's edge.
-                return proposals ? <div className="relative mx-auto w-full max-w-3xl px-6">{list}</div> : list;
+                return proposals ? <div className="relative w-full max-w-3xl px-5">{list}</div> : list;
               })()}
             {(() => {
               // The desktop's Composer takes the same props as the phone's box, plus the queue it shows above the field.
@@ -565,29 +565,25 @@ export function ConversationHeader({
 }) {
   return (
     <div
+      className="flex flex-none items-center justify-between gap-3"
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        padding: "14px 18px",
+        padding: "12px 20px",
         borderBottom: "1px solid var(--loki-border)",
-        flex: "0 0 auto",
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
+      <div className="min-w-0">
+        <Title className="loki-truncate">{title}</Title>
         {purpose && (
           <div className="loki-chat-purpose" title={purpose}>
             {purpose}
           </div>
         )}
-        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div className="flex min-w-0 items-center gap-2" style={{ marginTop: 4 }}>
           <AgentFace name={agentName} src={agentId ? avatarUrl(agentId) : null} size={18} />
           <AgentChip name={agentName} />
           {children}
         </div>
-        {below && <div style={{ marginTop: 6 }}>{below}</div>}
+        {below && <div style={{ marginTop: 4 }}>{below}</div>}
       </div>
       {right}
     </div>
@@ -691,7 +687,7 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
   const stableLoadStep = useCallback((row: number) => loadStepRef.current?.(row) ?? Promise.resolve(null), []);
   const who = agentName ?? "the agent";
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div className="flex flex-1 flex-col" style={{ position: "relative", minHeight: 0 }}>
       <div
         ref={scrollRef}
         onScroll={onScroll}
