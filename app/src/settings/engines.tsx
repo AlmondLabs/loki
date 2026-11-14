@@ -127,7 +127,7 @@ function EngineRow({
         label={e.name}
         help={
           <>
-            <Dot color={TONE[e.status]} style={{ marginRight: 6, verticalAlign: "middle" }} />
+            <Dot color={TONE[e.status]} style={{ marginRight: 4, verticalAlign: "middle" }} />
             {sentence(WORDS[e.status])}
             {e.builtin ? (e.changed ? ", started your way" : ", built in") : ""}.
             {e.detail && <span className={`loki-meta--wrap${bad ? " loki-meta--negative" : ""} block`}>{e.detail}</span>}
@@ -221,7 +221,7 @@ function EngineForm({
         spellCheck={false}
       />
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
-      <div className="flex gap-1.5">
+      <div className="flex gap-2">
         <Button size="sm" tone="positive" onClick={() => void save()} disabled={busy}>
           {busy ? "Saving…" : "Save"}
         </Button>

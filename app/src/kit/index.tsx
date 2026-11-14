@@ -20,7 +20,7 @@ function asText(v: unknown): string {
 export function InfoCard({ data }: KitProps) {
   const lines = (data.lines as string[] | undefined) ?? [];
   return (
-    <div className="loki-widget-body grid gap-1.5">
+    <div className="loki-widget-body grid gap-2">
       {lines.map((line, i) => (
         <div key={i}>{line}</div>
       ))}
@@ -33,7 +33,7 @@ export function Stat({ data }: KitProps) {
   const delta = typeof data.delta === "number" ? data.delta : null;
   return (
     <div className="loki-widget-body">
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex items-baseline gap-1">
         <span className="loki-mono" style={{ fontSize: "var(--loki-text-hero)", fontWeight: 600 }}>
           {asText(data.value ?? "—")}
         </span>
@@ -118,7 +118,7 @@ export function SliderControl({ data, onSet }: KitProps) {
 export function ListCard({ data, onSet }: KitProps) {
   const items = (data.items as Array<{ text: string; done?: boolean }> | undefined) ?? [];
   return (
-    <div className="loki-widget-body grid gap-1.5">
+    <div className="loki-widget-body grid gap-2">
       {items.map((item, i) => (
         <label key={i} className="flex items-center gap-2" style={{ cursor: "pointer" }}>
           <input

@@ -198,7 +198,7 @@ function MinimisedTray({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="flex flex-wrap items-center gap-1.5"
+      className="flex flex-wrap items-center gap-2"
       // Moved by transform as the chat opens or closes beside it, so the move never lays the sheet out again.
       style={{
         position: "absolute",

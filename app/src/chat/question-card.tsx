@@ -65,7 +65,7 @@ function QuestionCardFor({
         const sel = picked[q.question] ?? [];
         const shown = q.options.find((o) => o.label === peek) ?? q.options.find((o) => sel.includes(o.label));
         return (
-          <div key={qi} className="grid gap-1.5">
+          <div key={qi} className="grid gap-2">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="loki-label loki-question-kicker">
                 {qi === 0 ? (many ? `Asks you · ${question.questions.length}` : "Asks you") : `${qi + 1}`}
@@ -76,7 +76,7 @@ function QuestionCardFor({
             <div
               role={q.multiSelect ? "group" : "radiogroup"}
               aria-label={q.question}
-              className="flex flex-wrap items-center gap-1.5"
+              className="flex flex-wrap items-center gap-2"
               onMouseLeave={() => setPeek(null)}
             >
               {q.options.map((o) => {

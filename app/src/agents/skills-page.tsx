@@ -93,7 +93,7 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
 function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: AgentSkill; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
-    <div className="loki-label flex items-center gap-2" style={{ marginBottom: 6 }}>
+    <div className="loki-label flex items-center gap-2" style={{ marginBottom: 8 }}>
       <span className="loki-mono" style={{ color: "var(--loki-fg)" }}>
         {skill.path}
       </span>
@@ -183,7 +183,7 @@ function SkillAdd({
   };
   return (
     <div
-      className="grid gap-1.5"
+      className="grid gap-2"
       style={{
         margin: "0 0 12px",
         padding: "8px 12px",
@@ -257,7 +257,7 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     }
   };
   return (
-    <div className="grid gap-1.5" style={{ padding: "8px 12px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+    <div className="grid gap-2" style={{ padding: "8px 12px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
       <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
         Nobody wrote down where {name} came from. Say once; it is remembered.
       </span>

@@ -123,7 +123,7 @@ function MailMessage({ m, own, folded, now }: { m: OutsideMessage; own: readonly
       <div className="loki-mail-msg-head">
         {face}
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-1.5">
+          <div className="flex min-w-0 items-baseline gap-1">
             <span className="loki-mail-msg-name">{name}</span>
             {address && address !== name && <Meta>&lt;{address}&gt;</Meta>}
           </div>

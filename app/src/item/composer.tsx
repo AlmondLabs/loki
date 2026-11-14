@@ -191,7 +191,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
         <div data-attachments className="flex flex-wrap gap-2 px-3 pt-2">
           {images.map((a) =>
             isFileAttachment(a) ? (
-              <span key={a.id} title={a.path} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta">
+              <span key={a.id} title={a.path} className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta">
                 <FileIcon className="size-4 text-muted-foreground" aria-hidden />
                 <span className="loki-truncate max-w-40">{a.name}</span>
                 <span className="text-muted-foreground">{fileSize(a.size)}</span>
@@ -218,7 +218,7 @@ function Attachments({ box }: { box: ReturnType<typeof useMessageBox> }) {
               key={u.id}
               title={u.error}
               data-failed={u.error ? true : undefined}
-              className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-meta"
+              className="inline-flex items-center gap-2 rounded-md border px-2 py-1 text-meta"
             >
               <FileIcon className="size-4 text-muted-foreground" aria-hidden />
               <span className="loki-truncate max-w-40">{u.name}</span>

@@ -45,7 +45,7 @@ describe("Preferences' pane starts at the detail panes' 20px edge", () => {
     // The header is the detail panes' title line, so its title takes their 20 and their top line (KTD4).
     expect(settings).toMatch(/className="loki-pane-header-line[ "]/);
     expect(paddingLeft(decls(".loki-pane-header-line").get("padding") ?? "")).toBe(PANE_INSET);
-    expect(settings).toContain("padding: `24px ${PANE_INSET}px 40px`");
+    expect(settings).toContain("padding: `24px ${PANE_INSET}px 48px`");
     expect(settings).toContain("padding: `0 ${PANE_INSET}px`");
   });
 });

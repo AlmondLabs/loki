@@ -110,7 +110,7 @@ export const Work = memo(
       ...after.map((r) => ({ thought: r })),
     ].filter((item) => "step" in item || filter === "all");
     return (
-      <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-1.5">
+      <div data-row="tool" data-arrived={arrived || undefined} className="flex flex-col gap-2">
         {plan && (planAsBefore ? <PlanAsBefore items={plan} /> : <AgentPlan items={plan} />)}
         {rows.length > 0 && (
           <ChainOfThought open={open} onOpenChange={(next) => (next ? show(null) : setOpen(false))} className="max-w-none space-y-0">
@@ -157,7 +157,7 @@ export const Work = memo(
           </ChainOfThought>
         )}
         {failure !== null && !open && (
-          <button type="button" className="flex w-fit cursor-pointer items-center gap-1.5 text-meta text-loki-negative" onClick={() => show(failure)}>
+          <button type="button" className="flex w-fit cursor-pointer items-center gap-2 text-meta text-loki-negative" onClick={() => show(failure)}>
             <XIcon className="size-3" aria-hidden />
             {stepTarget(rows[failure]) ?? stepName(rows[failure])} failed
           </button>

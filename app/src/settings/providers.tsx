@@ -41,7 +41,7 @@ export function Providers({
   const connectedCount = providers.filter(isConnected).length;
 
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-2">
       <div className="flex items-center gap-2">
         <Field
           size="sm"
@@ -70,7 +70,7 @@ export function Providers({
           />
         ))}
         {shown.length === 0 && (
-          <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
+          <div className="loki-meta loki-meta--wrap" style={{ padding: "4px 8px" }}>
             Nothing matches
           </div>
         )}
@@ -132,7 +132,7 @@ export function ProviderSettings({
       </Block>
       <Block title="Add a provider">
         {adding ? (
-          <div className="grid gap-1.5" style={{ paddingTop: 12 }}>
+          <div className="grid gap-2" style={{ paddingTop: 12 }}>
             <Field
               size="sm"
               type="search"
@@ -155,7 +155,7 @@ export function ProviderSettings({
             <div className="grid gap-0.5" style={{ maxHeight: 380, overflowY: "auto" }}>
               {others.map(row)}
               {others.length === 0 && (
-                <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
+                <div className="loki-meta loki-meta--wrap" style={{ padding: "4px 8px" }}>
                   Nothing matches
                 </div>
               )}

@@ -13,7 +13,7 @@
 .loki-md h2,
 .loki-md h3,
 .loki-md h4 {
-  margin: 12px 0 6px;
+  margin: 12px 0 4px;
   font-size: var(--loki-text-body);
   font-weight: 600;
   color: var(--loki-fg);
@@ -78,7 +78,7 @@
   line-height: 1.5;
 }
 .loki-md blockquote {
-  margin: 6px 0;
+  margin: 8px 0;
   padding: 2px 12px;
   border-left: 2px solid var(--loki-border);
   color: var(--loki-muted);
@@ -172,7 +172,7 @@
   opacity: 0;
   transition: opacity 120ms ease-out;
   flex: none;
-  margin: 0 6px -8px;
+  margin: 0 8px -8px;
 } /* rides into the next row's top margin: 16px of rhythm, not 24 */
 .loki-bubble:focus-within .loki-bubble-copy,
 .loki-bubble-copy[data-copied="true"] {
@@ -236,7 +236,7 @@
 }
 .loki-steps-list {
   list-style: none;
-  margin: 4px 0 6px;
+  margin: 4px 0;
   padding: 0;
   display: grid;
   gap: 2px;
@@ -246,8 +246,8 @@
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 4px 6px;
-  margin-left: -6px;
+  padding: 4px;
+  margin-left: -4px;
   border: none;
   border-radius: var(--loki-radius-sm);
   background: none;
@@ -265,7 +265,7 @@
 .loki-steps-failure {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   max-width: 100%;
   margin: 0 0 2px;
   padding: 1px 0;
@@ -278,7 +278,7 @@
 }
 .loki-steps-open {
   margin: 4px 0 8px;
-  padding: 6px 8px;
+  padding: 8px;
   border: 1px solid var(--loki-border);
   border-radius: var(--loki-radius-md);
   background: var(--loki-panel);
@@ -287,7 +287,7 @@
 .loki-steps-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   padding: 2px 0 8px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--loki-border);
@@ -330,7 +330,7 @@
 .loki-steps-verb {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   color: var(--loki-fg);
 }
 .loki-steps-failed {
@@ -394,7 +394,7 @@
   font-family: var(--loki-font);
 }
 .loki-event-detail {
-  margin: 6px 0 0 12px;
+  margin: 8px 0 0 12px;
   padding: 8px;
   background: var(--loki-well);
   border: 1px solid var(--loki-border);
@@ -500,7 +500,7 @@
 .loki-suggestion-body {
   display: grid;
   gap: 8px;
-  padding: 4px 0 6px;
+  padding: 4px 0;
 }
 /* The message, as markdown (loki-md): in a well, its first and last block flush with the well's padding. */
 .loki-suggestion-text {
@@ -531,7 +531,7 @@
 }
 .loki-suggestion-picker {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 .loki-suggestion-hits {
   display: grid;
@@ -601,7 +601,7 @@ button.loki-suggested-chip {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px;
+  padding: 4px;
   border: 1px solid var(--loki-control-border);
   border-radius: var(--loki-radius-lg);
   background: var(--loki-well);
@@ -625,14 +625,14 @@ button.loki-suggested-chip {
 }
 .loki-field.loki-composer-text {
   min-height: 0;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border: none;
   background: transparent;
   line-height: 20px;
 }
 .loki-composer-images {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   padding: 4px 4px 0;
 }
@@ -640,7 +640,7 @@ button.loki-suggested-chip {
 .loki-file-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   max-width: 260px;
   min-height: 32px;
   padding: 4px 8px;
@@ -699,11 +699,11 @@ button.loki-file-chip {
 }
 .loki-file-error {
   display: block;
-  padding: 4px 6px 0;
+  padding: 4px 8px 0;
 }
 .loki-bubble-files {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .loki-composer-bar {
@@ -962,7 +962,7 @@ button.loki-file-chip {
   font-weight: 600;
 }
 .loki-model-provider {
-  padding: 6px 8px 2px;
+  padding: 8px 8px 2px;
 }
 .loki-model-status {
   margin: 0;
@@ -988,18 +988,18 @@ button.loki-file-chip {
 /* The link card (plan 067, link-card.tsx): a question card holding the message and two rows of choices. */
 .loki-link-choices {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 .loki-link-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
 /* The chat's links in its header (link-header.tsx): the other chat's name and the time left, a click closes one. */
 .loki-chat-links {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
   min-width: 0;
@@ -1046,7 +1046,7 @@ button.loki-file-chip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: 8px;
   color: var(--loki-negative);
   font-family: var(--loki-font);
   font-size: var(--loki-text-meta);
@@ -1089,7 +1089,7 @@ button.loki-file-chip {
 }
 .loki-msg[data-first]:not(.loki-phone *) {
   margin-top: 8px;
-  padding-top: 6px;
+  padding-top: 8px;
 }
 @media (hover: hover) and (pointer: fine) {
   .loki-msg:not(.loki-phone *):hover {
@@ -1160,7 +1160,7 @@ button.loki-file-chip {
   align-items: center;
   gap: 2px;
   min-height: 24px;
-  margin: 0 0 -6px -4px;
+  margin: 0 0 -4px -4px;
 }
 .loki-msg-actions .loki-msg-time:not(.loki-phone *) {
   margin-left: 4px;
@@ -1269,7 +1269,7 @@ button.loki-file-chip {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
   font-size: var(--loki-text-meta);
@@ -1332,7 +1332,7 @@ button.loki-file-chip {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  padding: 6px 0;
+  padding: 4px 0;
   color: var(--loki-muted);
   font-size: var(--loki-text-meta);
 }
@@ -1381,7 +1381,7 @@ button.loki-file-chip {
   align-items: center;
   gap: 4px;
   max-width: 120px;
-  padding: 0 6px;
+  padding: 0 8px;
   border-radius: var(--loki-radius-pill);
   background: color-mix(in srgb, var(--label-tone) 16%, transparent);
   color: var(--loki-fg);
@@ -1427,7 +1427,7 @@ button.loki-label-chip:focus-visible {
 .loki-desk-pane-labels {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 .loki-desk-pane-label-add {
@@ -1459,7 +1459,7 @@ button.loki-label-chip:focus-visible {
   color: var(--loki-fg);
 }
 .loki-labels-dialog-chat {
-  margin-top: -6px;
+  margin-top: -4px;
   font-size: var(--loki-text-meta);
   color: var(--loki-muted);
   overflow: hidden;
@@ -1597,7 +1597,7 @@ button.loki-label-chip:focus-visible {
 .loki-card-head-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 0 0 auto;
 }
 .loki-card-face {
@@ -1634,7 +1634,7 @@ button.loki-label-chip:focus-visible {
 .loki-jira-key-line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   font-size: var(--loki-text-meta);
   color: var(--loki-muted);
@@ -1708,7 +1708,7 @@ button.loki-label-chip:focus-visible {
 .loki-jira-field-now {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1848,7 +1848,7 @@ button.loki-label-chip:focus-visible {
   align-items: baseline;
   gap: 8px;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border: none;
   border-radius: var(--loki-radius-sm);
   background: transparent;
@@ -2011,7 +2011,7 @@ img.loki-emoji,
 /* A message that brought the card in (plan 077, R12): Slack's mention wash with a bar at its left edge. */
 .loki-slack-brought {
   margin: 0 -8px;
-  padding: 0 8px 0 6px;
+  padding: 0 8px 0 calc(8px - 2px);
   border-left: 2px solid var(--loki-mention-bar);
   border-radius: 0 var(--loki-radius-sm) var(--loki-radius-sm) 0;
   background: var(--loki-mention);
@@ -2100,7 +2100,7 @@ img.loki-emoji,
 .loki-slack-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
 }
 .loki-slack-preview {
@@ -2133,7 +2133,7 @@ img.loki-emoji,
 .loki-mail-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   margin-top: 8px;
 }
 .loki-mail-compose {
@@ -2144,7 +2144,7 @@ img.loki-emoji,
   background: var(--loki-well);
 }
 .loki-mail-compose-head {
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--loki-border);
 }
 .loki-mail-compose-text {
@@ -2155,7 +2155,7 @@ img.loki-emoji,
   font-size: var(--loki-text-meta);
 }
 .loki-mail-compose-foot {
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-top: 1px solid var(--loki-border);
 }
 /* The framed box's head draws the line under its last recipients row. */
@@ -2268,7 +2268,7 @@ img.loki-emoji,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 2px 4px;
   border: none;
   border-radius: var(--loki-radius-sm);
   background: none;

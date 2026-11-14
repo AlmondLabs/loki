@@ -80,7 +80,7 @@ export function ReflectionPage({
         ) : settings === null ? (
           <Meta wrap>loki's daemon did not answer for this setting — it has to be running.</Meta>
         ) : (
-          <span className="inline-flex gap-1.5">
+          <span className="inline-flex gap-2">
             <Chip label active={settings.reflection.enabled} aria-pressed={settings.reflection.enabled} onClick={() => void toggle(true)}>
               On
             </Chip>
@@ -96,7 +96,7 @@ export function ReflectionPage({
         </Meta>
         <div className="loki-label">Without a provider</div>
         {settings && (
-          <span className="inline-flex gap-1.5">
+          <span className="inline-flex gap-2">
             <Chip label active={settings.acp.enabled} aria-pressed={settings.acp.enabled} onClick={() => void toggleAcp(true)}>
               Use Claude Code or Cursor
             </Chip>

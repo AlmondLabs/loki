@@ -441,11 +441,11 @@ export function FolderPicker({
   const [hi, setHi] = useState(0);
   return (
     <div style={{ position: "relative" }}>
-      <div className="loki-label flex justify-between" style={{ marginBottom: 6 }}>
+      <div className="loki-label flex justify-between" style={{ marginBottom: 8 }}>
         <span>
           Folder
           {source && (
-            <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>
+            <span style={{ fontWeight: 400, marginLeft: 4 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>
           )}
         </span>
         <FolderVerdict status={status} />

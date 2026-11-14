@@ -67,7 +67,7 @@ export function Welcome({
         {/* loki's mark, the L (app/public/mark.png). */}
         <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 16 }} />
         <Title page>Welcome to loki</Title>
-        <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
         </div>
       </div>

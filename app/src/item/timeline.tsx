@@ -230,7 +230,7 @@ function ThreadBody({
       <MessageScrollerButton
         onClick={fold}
         size="sm"
-        className="gap-1.5 rounded-full px-3 shadow-float"
+        className="gap-2 rounded-full px-3 shadow-float"
         aria-label={fresh > 0 ? `Jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "Jump to latest"}
       >
         <ArrowDownIcon data-icon="inline-start" />

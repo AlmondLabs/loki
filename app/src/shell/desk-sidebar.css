@@ -15,7 +15,7 @@
   z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 4px 12px;
   border: none;
   border-radius: var(--loki-radius-pill);

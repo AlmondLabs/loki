@@ -67,7 +67,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
   };
   return (
     <div className="grid gap-1" style={{ padding: "12px 0" }}>
-      <div className="flex gap-1.5">
+      <div className="flex gap-2">
         <Field
           size="sm"
           mono

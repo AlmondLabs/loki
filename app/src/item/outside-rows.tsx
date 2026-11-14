@@ -50,7 +50,7 @@ function ItemMail({ m, own, folded, now }: { m: OutsideMessage; own: readonly st
         type="button"
         aria-expanded={false}
         onClick={() => setOpened(true)}
-        className="flex w-full min-w-0 cursor-pointer items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-body hover:bg-muted"
+        className="flex w-full min-w-0 cursor-pointer items-baseline gap-2 rounded-md px-2 py-1 text-left text-body hover:bg-muted"
       >
         <span className="shrink-0 font-semibold">{name}</span>
         <span className="loki-truncate flex-1 text-muted-foreground">{snippet(m.text)}</span>

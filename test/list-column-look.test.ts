@@ -42,11 +42,14 @@ function paddingSide(rule: Map<string, string>): string {
 const BARS = [".loki-content-list-bar", ".loki-pane-header-line", ".loki-card-toolbar"];
 
 describe("the title bars share one top line (KTD4)", () => {
-  test("the list's bar, the pane header's line and the card toolbar are 52 high with a 6px top padding", () => {
+  test("the list's bar, the pane header's line and the card toolbar are 52 high, their title stacks 6px down (4 of padding, 2 of margin)", () => {
     for (const bar of BARS) {
       const rule = decls(bar);
       expect([bar, rule.get("min-height")]).toEqual([bar, "52px"]);
-      expect([bar, paddingTop(rule)]).toEqual([bar, "6px"]);
+      expect([bar, paddingTop(rule)]).toEqual([bar, "4px"]);
+    }
+    for (const stack of [".loki-content-list-head", ".loki-toolbar-title"]) {
+      expect([stack, decls(stack).get("margin-top")]).toEqual([stack, "2px"]);
     }
   });
   test("each bar centres its buttons and puts its title stack at the top", () => {

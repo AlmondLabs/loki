@@ -371,7 +371,7 @@ function AccountLine({
   const [confirm, setConfirm] = useState(false);
   const { reconnect, more } = row;
   return (
-    <div className="grid gap-1.5" style={{ padding: "12px 0" }}>
+    <div className="grid gap-2" style={{ padding: "12px 0" }}>
       <div className="flex items-center gap-2">
         <Dot color={row.problem ? "var(--loki-negative)" : "var(--loki-positive)"} />
         <strong className="min-w-0" style={{ fontSize: "var(--loki-text-body)", overflowWrap: "anywhere" }}>
