@@ -79,7 +79,8 @@ import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { bdReader, moveTasks, tasksDir } from "./task-migration.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
-import { ReplyProposals, registerReplyTools, withRepliesOnOpen, type ReplyClient } from "./reply-proposals.ts";
+import { ReplyProposals, registerReplyTools, withRepliesOnOpen } from "./reply-proposals.ts";
+import type { ReplyReads } from "./account-ops/reply-reader.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { messageOf } from "../core/errors.ts";
@@ -456,15 +457,24 @@ export default function activate(api: ModApi, host: Host): () => void {
     accounts,
     threads,
     outside,
-    // The clients read where a reply goes for its card; a Jira ticket's place is its card's record.
-    clientFor: (account): ReplyClient => {
+    // The clients read where a reply goes for its card, from the service itself (plan 2026-11-14-1530, KTD2); a Jira
+    // link may name the site's own domain, which the keychain entry keeps beside the token.
+    clientFor: (account): ReplyReads => {
       switch (account.provider) {
         case "gmail":
           return { provider: "gmail", client: gmailClient(account.account_id) };
         case "slack":
           return { provider: "slack", client: slackClient(account.account_id) };
-        case "jira":
-          return { provider: "jira" };
+        case "jira": {
+          const jira = jiraClients.of(account.account_id);
+          return {
+            provider: "jira",
+            client: {
+              ticketFacts: (idOrKey) => jira.ticketFacts(idOrKey),
+              linkHost: async () => parseJiraSecret(await accounts.getSecret(account.account_id))?.link_host ?? null,
+            },
+          };
+        }
       }
     },
     push: (agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }),

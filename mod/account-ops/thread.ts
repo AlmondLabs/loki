@@ -1,4 +1,4 @@
-import type { MailFile, SlackAttachment, SlackBlock, SlackFile, SlackReaction } from "../../core/frame-types.ts";
+import type { MailFile, ReplyHeardBy, SlackAttachment, SlackBlock, SlackFile, SlackReaction } from "../../core/frame-types.ts";
 
 /**
  * A thread as loki reads it from an account (plan 097, U1): the shape every reader returns, whatever the service, and
@@ -68,16 +68,7 @@ export interface ReplyDestination {
   /** Slack: whether people outside the workspace are in the conversation (R10). */
   shared_outside: boolean;
   /** Jira: who Jira usually tells of a comment, and whether a service desk's customer sees it (R10). */
-  heard_by: JiraHeardBy | null;
-}
-
-/** Who Jira usually tells of a comment on a ticket: its assignee and reporter by name, and its watchers by count. */
-export interface JiraHeardBy {
-  assignee: string | null;
-  reporter: string | null;
-  watchers: number;
-  /** A service desk's ticket, whose customer sees a comment posted as this one is. */
-  customer_sees: boolean;
+  heard_by: ReplyHeardBy | null;
 }
 
 /**

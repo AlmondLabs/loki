@@ -693,6 +693,26 @@ export interface ReplyProposal {
   people_removed?: string[];
   /** Jira: the names of its files already on the ticket from an earlier Send, which a later one does not attach again (KTD8). */
   attached?: string[];
+  /**
+   * Whether the thread had a record in Flow when the reply was proposed (plan 2026-11-14-1530, R10): a reply where it
+   * had none says so on its card. Absent on one stored before, which could only be proposed where it had one.
+   */
+  in_flow?: boolean;
+  /** Slack: people outside the workspace are in the conversation, read from Slack when proposed (R10). */
+  shared_outside?: boolean;
+  /** Jira: who Jira usually tells of the comment, read from the ticket when proposed (R10). */
+  heard_by?: ReplyHeardBy;
+}
+
+/**
+ * Who Jira usually tells of a comment on a ticket (plan 2026-11-14-1530, R10): its assignee and reporter by name, its
+ * watchers by count, and whether it is a service desk's ticket, whose customer sees a comment posted as loki posts one.
+ */
+export interface ReplyHeardBy {
+  assignee: string | null;
+  reporter: string | null;
+  watchers: number;
+  customer_sees: boolean;
 }
 
 /**

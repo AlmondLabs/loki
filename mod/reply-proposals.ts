@@ -3,24 +3,22 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { ReplyAttachment, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { ReplyAttachment, ReplyHeardBy, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
 import type { ChatState, ReplyAction, ReplyDecideOptions } from "../core/frames.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { ModApi } from "../daemon/mods/api.ts";
-import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
+import type { AccountThreads } from "./account-threads.ts";
+import { readReplyDestination, type ReplyReads } from "./account-ops/reply-reader.ts";
 import { accountLabel, ownedAccount, type AccountRecord, type Accounts } from "./accounts.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import type { GmailClient } from "./gmail.ts";
-import { GoogleError } from "./google-auth.ts";
 import { inert } from "./account-ops/fence.ts";
 import { inChatFolder, md5 } from "./google-tools/core.ts";
 import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
-import { bareAddresses, headerOf, replyAllOf, replySubject, replyTarget, slackPlace } from "./reply-addressing.ts";
+import { bareAddresses } from "./reply-addressing.ts";
 import type { HeldProposal, HeldReply } from "./mail-outbox.ts";
 import type { AgentReplyReports, OutsideThreads, PeopleChanged } from "./outside-threads.ts";
-import type { SlackClient } from "./slack.ts";
 import type { ChatKey } from "./suggestions.ts";
 import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
 
@@ -41,20 +39,14 @@ import { argText, toolRegistrar, type LokiTool } from "./tools.ts";
  * reply reaches every client as the chat's `reply_proposals` event (KTD3).
  */
 
-/** What reading the thread for a Gmail card needs of the mailbox's client: the thread and the person's own addresses. */
-export type ReplyGmail = Pick<GmailClient, "getThread" | "sendAsAddresses">;
-/** What naming a Slack card's place needs of the workspace's client: a conversation's name. */
-export type ReplySlack = Pick<SlackClient, "conversationsInfo">;
-/** An account's client for reading where a reply goes, by its provider. A Jira ticket's place comes from its card's record. */
-export type ReplyClient = { provider: "gmail"; client: ReplyGmail } | { provider: "slack"; client: ReplySlack } | { provider: "jira" };
-
 /** What the proposals are built from. `now` and `newId` exist for tests. */
 export interface ReplyProposalsOptions {
   /** `state/reply-proposals.json`. */
   file: string;
   accounts: Pick<Accounts, "get" | "onChange">;
-  threads: Pick<AccountThreads, "get" | "list">;
-  clientFor(account: AccountRecord): ReplyClient;
+  threads: Pick<AccountThreads, "get">;
+  /** An account's reads of where a reply goes (plan 2026-11-14-1530, U1): the card's facts come from the service. */
+  clientFor(account: AccountRecord): ReplyReads;
   /** The person's send path (KTD1): the hold, its undo, and what the outbox still has and whether a reply went. */
   outside: Pick<OutsideThreads, "holdAgentReply" | "unsend" | "holds" | "wentOutIn" | "acknowledge">;
   /** Tell every client following a chat what its open proposals now are. */
@@ -170,6 +162,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const added = strings("people_added");
   const removed = strings("people_removed");
   const attached = strings("attached");
+  const heardBy = parseHeardBy(r.heard_by);
   return {
     id,
     account_id: account,
@@ -191,6 +184,22 @@ function parseProposal(v: unknown): ReplyProposal | null {
     ...(added.length ? { people_added: added } : {}),
     ...(removed.length ? { people_removed: removed } : {}),
     ...(attached.length ? { attached } : {}),
+    ...(typeof r.in_flow === "boolean" ? { in_flow: r.in_flow } : {}),
+    ...(r.shared_outside === true ? { shared_outside: true } : {}),
+    ...(heardBy ? { heard_by: heardBy } : {}),
+  };
+}
+
+/** Who Jira usually tells of a stored comment, or null when it was stored without them. */
+function parseHeardBy(v: unknown): ReplyHeardBy | null {
+  if (typeof v !== "object" || v === null) return null;
+  const r = v as Record<string, unknown>;
+  const name = (x: unknown) => (typeof x === "string" ? x : null);
+  return {
+    assignee: name(r.assignee),
+    reporter: name(r.reporter),
+    watchers: typeof r.watchers === "number" ? r.watchers : 0,
+    customer_sees: r.customer_sees === true,
   };
 }
 
@@ -260,19 +269,21 @@ export class ReplyProposals implements AgentReplyReports {
     if (!input.text.trim()) throw new Error("a reply needs text");
     const account = this.opts.accounts.get(input.account_id);
     if (account?.owner_agent_id !== chat.agent_id) throw new Error("this agent owns no such account");
-    // Any thread of the agent's own account will do (plan 071): the person's Send on the card is the gate. A thread
-    // found by search has no record here, so its subject comes from the thread itself. A Jira ticket is named by its
-    // id or its key, which only a ticket that has had a card can be found by (R28, KTD7).
+    // Any thread of the agent's own account will do, in Flow or not (plan 071; plan 2026-11-14-1530, R1): the person's
+    // Send on the card is the gate, so the card shows where the reply lands as the service itself says (KTD2).
     const files = await this.files(input.attachments ?? []);
-    const record = account.provider === "jira" ? this.ticketRecord(account, input.thread_id) : this.opts.threads.get(input.account_id, input.thread_id);
-    const threadId = record?.thread_id ?? input.thread_id;
-    const where = await this.where(account, threadId, record?.subject_or_first_line ?? "");
+    const where = await readReplyDestination(
+      account,
+      this.opts.clientFor(account),
+      input.thread_id,
+      (accountId, threadId) => this.opts.threads.get(accountId, threadId) ?? null,
+    );
     const proposal: ReplyProposal = {
       id: this.opts.newId?.() ?? `reply-${randomUUID()}`,
       account_id: account.account_id,
       provider: account.provider,
       account_label: accountLabel(account),
-      thread_id: threadId,
+      thread_id: where.thread_id,
       subject: where.subject,
       to: where.to,
       cc: where.cc,
@@ -282,6 +293,9 @@ export class ReplyProposals implements AgentReplyReports {
       reason: null,
       created_at: this.now(),
       ...(files.length ? { attachments: files } : {}),
+      in_flow: where.in_flow,
+      ...(where.shared_outside ? { shared_outside: true } : {}),
+      ...(where.heard_by ? { heard_by: where.heard_by } : {}),
     };
     await this.locked(chat, () => {
       const r = this.record(chat);
@@ -504,45 +518,6 @@ export class ReplyProposals implements AgentReplyReports {
   }
 
   /**
-   * Who the card says a reply goes to, read from the thread: Gmail's reply-all, or Slack's conversation and thread; a
-   * Jira comment goes on the ticket, named by its key from its card's record.
-   */
-  private async where(
-    account: AccountRecord,
-    threadId: string,
-    subject: string,
-  ): Promise<{ subject: string; to: string[]; cc: string[]; place: string | null }> {
-    const reader = this.opts.clientFor(account);
-    if (reader.provider === "jira") return { subject, to: [], cc: [], place: this.opts.threads.get(account.account_id, threadId)?.place ?? null };
-    if (reader.provider === "gmail") {
-      const thread = await reader.client.getThread(threadId, "metadata").catch((err: unknown) => {
-        if (err instanceof GoogleError && err.status === 404) throw new Error(`there is no thread ${threadId} in ${account.address}`);
-        throw err;
-      });
-      const newest = replyTarget(thread.messages);
-      const own = [account.address, ...(await reader.client.sendAsAddresses().catch(() => []))];
-      return { subject: replySubject(headerOf(newest, "Subject") || subject), ...replyAllOf(newest, own), place: null };
-    }
-    const { channel, ts } = slackPlace(threadId);
-    const info = await reader.client.conversationsInfo(channel).catch(() => null);
-    const sender = this.opts.threads.get(account.account_id, threadId)?.sender || "them";
-    const conversation = info?.is_im ? `your DM with ${sender}` : info?.name ? `#${info.name}` : "that conversation";
-    return { subject, to: [], cc: [], place: ts ? `the thread in ${conversation}` : conversation };
-  }
-
-  /**
-   * The card's record of a Jira ticket named by its id or its key, in any case (KTD7); throws why when the ticket never
-   * had a card, since its key is known only from one (R28).
-   */
-  private ticketRecord(account: AccountRecord, ticket: string): ThreadRecord {
-    const wanted = ticket.trim().toLowerCase();
-    const found =
-      this.opts.threads.get(account.account_id, ticket.trim()) ?? this.opts.threads.list(account.account_id).find((r) => r.place?.toLowerCase() === wanted);
-    if (!found) throw new Error(`${ticket} has never had a card in Flow, so loki cannot find it: comment on a ticket flow_list lists`);
-    return found;
-  }
-
-  /**
    * The old owner's waiting replies for a moved account are withdrawn, each with a notice to its chat. One the person
    * already pressed Send on stays: their Send was for the account as it was.
    */
@@ -674,8 +649,9 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       "(flow_list, google_gmail_search, google_gmail_read, slack_read, jira_read). The person reviews it on a card, may edit " +
       "it or take its files off, and sends it from there as themselves; you cannot send it, and nothing goes before their " +
       "Send. It goes only to the thread's own people (Gmail: reply-all to the newest message, with the person's signature; " +
-      "Slack: the same conversation and thread), so there is no recipient to choose. On a Jira site it is a comment on a " +
-      "ticket that has had a card in Flow (by key or id), its files attached to the ticket. " +
+      "Slack: the same conversation and thread, or a new message in a conversation you are in), so there is no recipient " +
+      "to choose. On a Jira site it is a comment on any ticket you can see, its files attached to the ticket. The thread " +
+      "need not be in Flow. " +
       "You hear what became of it with the next message.",
     parameters: {
       type: "object",
@@ -683,7 +659,8 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
         account: { type: "string", description: "The account's id or name, from the prompt's list of your accounts, a script or the hand-off." },
         thread: {
           type: "string",
-          description: "The thread id, from the hand-off or a script (flow_list, google_gmail_search, slack_read); for Jira, the ticket's key or id.",
+          description:
+            "The thread: Gmail's thread id (from the hand-off or a script); Slack's `channel:ts`, a channel or DM id, a message link or #channel; Jira's ticket key, id or link.",
         },
         text: { type: "string", description: "The reply, as plain text." },
         attachments: {

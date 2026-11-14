@@ -22,7 +22,8 @@ import { GmailClient } from "../mod/gmail.ts";
 import { jiraAccountClient, type JiraSecret } from "../mod/jira.ts";
 import { jiraOutsideSource } from "../mod/jira-sync.ts";
 import { OutsideThreads, type SendClient, type SendSlack } from "../mod/outside-threads.ts";
-import { MAX_REPLY_BYTES, MAX_REPLY_FILES, MAY_HAVE_GONE, ReplyProposals, registerReplyTools, type ReplySlack } from "../mod/reply-proposals.ts";
+import { MAX_REPLY_BYTES, MAX_REPLY_FILES, MAY_HAVE_GONE, ReplyProposals, registerReplyTools } from "../mod/reply-proposals.ts";
+import type { ReplySlackReads } from "../mod/account-ops/slack.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
 import { must } from "./fixtures/must.ts";
@@ -93,7 +94,7 @@ function mailOf(raw: string): { headers: Partial<Record<string, string>>; text: 
 function fakeSlack() {
   const posted: Array<{ channel: string; thread_ts?: string; text: string; files: string[] }> = [];
   const answers = { timesOut: false };
-  const client: SendSlack & ReplySlack = {
+  const client: SendSlack & ReplySlackReads = {
     postReply: (r) => {
       posted.push({ channel: r.channel, ...(r.thread_ts ? { thread_ts: r.thread_ts } : {}), text: r.text, files: [] });
       if (answers.timesOut) return Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
@@ -116,7 +117,17 @@ function fakeSlack() {
         is_private: false,
         user: null,
         last_read: null,
+        is_member: true,
       }),
+    authTest: () => Promise.resolve({ team_id: "T1", team: "Acme", user_id: "U1", user: "ada", url: "https://acme.slack.com/" }),
+    conversationsReplies: ({ ts }) =>
+      Promise.resolve({
+        messages: [{ ts, user: "U2", bot_id: null, text: "deploy tonight?", thread_ts: ts, subtype: null, reply_count: 1, raw: {} }],
+        has_more: false,
+        next_cursor: null,
+      }),
+    usersConversations: () => Promise.resolve({ conversations: [], next_cursor: null }),
+    usersInfo: () => Promise.reject(new Error("user_not_found")),
   };
   return { client, posted, answers };
 }
@@ -324,7 +335,7 @@ async function fixture() {
           ? { provider: "gmail", client: gmail }
           : a.provider === "slack"
             ? { provider: "slack", client: slack.client }
-            : { provider: "jira" },
+            : { provider: "jira", client: { ticketFacts: (idOrKey: string) => jiraClient.ticketFacts(idOrKey), linkHost: () => Promise.resolve(null) } },
       push: (_agent, conversationId, events) => pushed.push({ chat: conversationId, events }),
       now,
     });
@@ -899,7 +910,7 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
     const f = await fixture();
     expect(await f.call("reply_propose", { account: SITE, thread: "OPS-7", text: "Rotating tonight." })).toMatch(/waits for the person to review and send it/);
     const p = f.only();
-    expect(p).toMatchObject({ provider: "jira", thread_id: f.ops7, place: "OPS-7", subject: "Ticket OPS-7", to: [], cc: [] });
+    expect(p).toMatchObject({ provider: "jira", thread_id: f.ops7, place: "OPS-7", subject: "Rotate the keys", to: [], cc: [], in_flow: true });
     await f.sendAndWait(p.id, { text: "Rotating tonight, 9pm." });
     expect(f.only().status).toBe("sent");
     expect(f.jira.posted.map((c) => c.key)).toEqual(["OPS-7"]);
@@ -948,9 +959,24 @@ describe("a comment on a Jira ticket (plan 2026-11-10-1451, U8; plan 2026-11-14-
     expect(JSON.stringify(f.jira.posted[0]?.body)).toContain("Attached: shot.png");
   });
 
-  test("a comment for a ticket that never had a card is refused with the reason", async () => {
+  test("a comment on a ticket that never had a card is proposed with its key and title read from Jira (AE1)", async () => {
     const f = await fixture();
-    expect(await f.call("reply_propose", { account: SITE, thread: "OPS-99", text: "Hello." })).toMatch(/^refused: OPS-99 has never had a card in Flow/);
+    const ops13 = f.jira.addTicket({ key: "FMOS-13190", summary: "Fix the login timeout" });
+    expect(f.threads.get(SITE, ops13)).toBeNull();
+    expect(await f.call("reply_propose", { account: SITE, thread: "fmos-13190", text: "Looking now." })).toMatch(/waits for the person to review and send it/);
+    expect(f.only()).toMatchObject({ thread_id: ops13, place: "FMOS-13190", subject: "Fix the login timeout", in_flow: false });
+    await f.sendAndWait(f.only().id);
+    expect(f.only().status).toBe("sent");
+    expect(f.jira.posted.map((c) => c.key)).toEqual(["FMOS-13190"]);
+    // Proposing and sending leave Flow as it was (R20).
+    expect(f.threads.get(SITE, ops13)).toBeNull();
+  });
+
+  test("a key Jira does not have is refused with that reason, and no card appears (AE2)", async () => {
+    const f = await fixture();
+    expect(await f.call("reply_propose", { account: SITE, thread: "OPS-990", text: "Hello." })).toMatch(
+      /^refused: there is no ticket OPS-990 on acme\.atlassian\.net that you can see/,
+    );
     expect(f.replies.list(f.chat)).toEqual([]);
   });
 
