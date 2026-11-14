@@ -1276,6 +1276,11 @@ mode: it shows in its chat and as a card in Flow, and you can edit it before you
 draft in Gmail or Slack, in the same thread and to that thread's own people; you send it from there. A reply card
 never sends; an owner's script may send mail and calendar invites from a Google account (see Scripts).
 When a Slack thread already holds a draft, loki asks before replacing it ("a draft is already there: replace it?").
+A Gmail reply can carry files from the chat's folder, up to 10 and 25 MB together: the card names each one with its
+size ("Attached: invoice.pdf (482 KB)"), and the draft holds them. If a file changed or went away after the reply was
+proposed, approving is refused with which file, so the draft never holds something the card did not name; reject it
+and ask again. To leave a file out, take it off the draft in Gmail before you send. A file from another mail reaches
+the folder through a script first. Slack and Jira replies carry no files.
 On a Jira ticket the proposal is a comment, and Jira has no drafts: once you approve it, the text waits in the ticket
 card's comment box (a card that had ended comes back, unread) until you send it yourself; nothing is posted on
 approval. The owner can propose a comment only on a ticket that has had a card in Flow. The agent cannot take a

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { AccountProvider, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
+import type { AccountProvider, ReplyAttachment, ReplyProposal, ReplyProposalStatus } from "../core/frame-types.ts";
 import type { ChatState, ReplyAction } from "../core/frames.ts";
 import { splitMailboxes } from "../core/mail-header.ts";
 import { keyedQueue } from "../core/serial.ts";
@@ -12,6 +14,7 @@ import type { ChatBackend } from "./frames/chat.ts";
 import { type GmailClient, type GmailMessage } from "./gmail.ts";
 import { GoogleError } from "./google-auth.ts";
 import { inert } from "./account-ops/fence.ts";
+import { fileTypeOf, inChatFolder, md5 } from "./google-tools/core.ts";
 import { causeWords } from "./handoff.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import { log } from "./log.ts";
@@ -75,6 +78,20 @@ export interface ReplyInput {
   account_id: string;
   thread_id: string;
   text: string;
+  /** Full paths of files for a Gmail reply to carry, already found inside the chat's folder (R1). */
+  attachments?: string[];
+}
+
+/** The most files one reply carries (plan 2026-11-14-1500, R2). */
+export const MAX_REPLY_FILES = 10;
+/** The most bytes a reply's files come to together: Gmail's limit for a message (R2). */
+export const MAX_REPLY_BYTES = 25 * 1024 * 1024;
+
+/** A size as the agent and the person read it: "482 KB", "3.1 MB". */
+export function bytesWords(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
 interface ChatRecord extends ChatKey {
@@ -200,6 +217,7 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
   if (!id || !account || !thread || text === null || !status || !provider) return null;
   const strings = (k: string) => (Array.isArray(r[k]) ? r[k].filter((x): x is string => typeof x === "string") : []);
+  const files = Array.isArray(r.attachments) ? r.attachments.map(parseAttachment).filter((a): a is ReplyAttachment => a !== null) : [];
   return {
     id,
     account_id: account,
@@ -217,7 +235,15 @@ function parseProposal(v: unknown): ReplyProposal | null {
     decided_by: s("decided_by"),
     decided_at: s("decided_at"),
     draft_url: s("draft_url"),
+    ...(files.length ? { attachments: files } : {}),
   };
+}
+
+function parseAttachment(v: unknown): ReplyAttachment | null {
+  if (typeof v !== "object" || v === null) return null;
+  const r = v as Record<string, unknown>;
+  const { name, path, size, md5: sum } = r;
+  return typeof name === "string" && typeof path === "string" && typeof size === "number" && typeof sum === "string" ? { name, path, size, md5: sum } : null;
 }
 
 function parseChat(v: unknown): ChatRecord | null {
@@ -272,6 +298,7 @@ export class ReplyProposals {
     // Any thread of the agent's own account will do (plan 071): the person's approval on the card is the gate. A thread
     // found by search has no record here, so its subject comes from the thread itself. A Jira comment waits on its
     // ticket's card, so the ticket must have one, named by its id or its key (R28, KTD7).
+    const files = await this.files(account.provider, input.attachments ?? []);
     const record = account.provider === "jira" ? this.ticketRecord(account, input.thread_id) : this.opts.threads.get(input.account_id, input.thread_id);
     const threadId = record?.thread_id ?? input.thread_id;
     const where = await this.where(account, threadId, record?.subject_or_first_line ?? "");
@@ -289,6 +316,7 @@ export class ReplyProposals {
       status: "pending",
       reason: null,
       created_at: this.now(),
+      ...(files.length ? { attachments: files } : {}),
     };
     await this.locked(chat, () => {
       const r = this.record(chat);
@@ -389,6 +417,14 @@ export class ReplyProposals {
       return seeded ? { ok: true, drafted: {}, url: null } : { ok: false, message: "loki has no card for that ticket now" };
     }
     if (reader.provider === "gmail") {
+      // The files as the card named them, or a refusal that says which one is not (R4).
+      const files: Array<{ filename: string; mimeType: string; data: Buffer }> = [];
+      for (const f of p.attachments ?? []) {
+        const data = await readFile(f.path).catch(() => null);
+        if (!data) return { ok: false, message: `${f.name} is no longer in the chat's folder: reject this reply and ask for it again` };
+        if (md5(data) !== f.md5) return { ok: false, message: `${f.name} changed since this reply was proposed: reject it and ask for it again` };
+        files.push({ filename: f.name, mimeType: fileTypeOf(f.name), data });
+      }
       const thread = await reader.client.getThread(p.thread_id, "metadata");
       const newest = replyTarget(thread.messages);
       if (!newest) return { ok: false, message: "that thread is empty in Gmail now" };
@@ -404,6 +440,7 @@ export class ReplyProposals {
         cc,
         subject,
         body: p.text,
+        ...(files.length ? { attachments: files } : {}),
       });
       const url = `https://mail.google.com/mail/u/${encodeURIComponent(account.address)}/#drafts?compose=${encodeURIComponent(draft.messageId)}`;
       return { ok: true, drafted: { to, cc, subject }, url };
@@ -415,6 +452,27 @@ export class ReplyProposals {
     for (const d of there) await reader.client.draftsDelete(d.id);
     await reader.client.draftsCreate({ channel, ...(ts ? { thread_ts: ts } : {}), text: p.text });
     return { ok: true, drafted: {}, url: null };
+  }
+
+  /**
+   * The files a reply carries, checked now (R1, R2): only a Gmail reply takes any, at most MAX_REPLY_FILES and
+   * MAX_REPLY_BYTES together, each one a file that can be read. Each is kept by its path, size and MD5, never its bytes.
+   */
+  private async files(provider: AccountProvider, paths: readonly string[]): Promise<ReplyAttachment[]> {
+    if (paths.length === 0) return [];
+    if (provider !== "gmail") throw new Error(`a ${SERVICE[provider]} reply cannot carry files: only a Gmail reply takes attachments`);
+    if (paths.length > MAX_REPLY_FILES) throw new Error(`a reply carries ${String(MAX_REPLY_FILES)} files at most`);
+    const files = await Promise.all(
+      paths.map(async (path) => {
+        const data = await readFile(path).catch(() => {
+          throw new Error(`there is no file ${basename(path)} in this chat's folder`);
+        });
+        return { name: basename(path), path, size: data.length, md5: md5(data) };
+      }),
+    );
+    const total = files.reduce((n, f) => n + f.size, 0);
+    if (total > MAX_REPLY_BYTES) throw new Error(`the files come to ${bytesWords(total)}, and a Gmail message holds ${bytesWords(MAX_REPLY_BYTES)} at most`);
+    return files;
   }
 
   /**
@@ -541,6 +599,9 @@ function whoWords(p: ReplyProposal): string {
   }
 }
 
+/** A reply's files as the agent is told them: each name and size. */
+const filesWords = (files: readonly ReplyAttachment[]): string => files.map((f) => `${inert(f.name)} (${bytesWords(f.size)})`).join(", ");
+
 /** What the agent is told once its reply is a draft: where, to whom, and what it says, and that nothing was sent. */
 function draftedNotice(p: ReplyProposal): string {
   if (p.provider === "jira")
@@ -551,17 +612,20 @@ function draftedNotice(p: ReplyProposal): string {
     ].join("\n");
   const who = whoWords(p);
   return [
-    `The person approved your reply in ${p.account_label}, thread ${p.thread_id}, and loki saved it as a ${SERVICE[p.provider]} draft ${who}${p.draft_url ? ` (${p.draft_url})` : ""}.`,
+    `The person approved your reply in ${p.account_label}, thread ${p.thread_id}, and loki saved it as a ${SERVICE[p.provider]} draft ${who}${p.draft_url ? ` (${p.draft_url})` : ""}${p.attachments?.length ? `, with ${filesWords(p.attachments)}` : ""}.`,
     `Nothing was sent: the person sends it from ${SERVICE[p.provider]}. The draft says:`,
     // The notice rides in a system-reminder; text that echoes a stranger's markup must not end it.
     inert(p.text),
   ].join("\n");
 }
 
-/** A proposal as a tool result lists it: one line, with its id, where it goes and how it stands. */
+/** A proposal as a tool result lists it: one line, with its id, where it goes, its files and how it stands. */
 function proposalLine(p: ReplyProposal): string {
   const who = whoWords(p);
-  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, p.status, p.reason && inert(p.reason)].filter(Boolean).join(" · ");
+  const files = p.attachments?.length ? `with ${filesWords(p.attachments)}` : "";
+  return [p.id, p.account_label, `thread ${p.thread_id}`, `"${inert(p.subject)}"`, who, files, p.status, p.reason && inert(p.reason)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**
@@ -595,6 +659,11 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
           description: "The thread id, from the hand-off or a script (flow_list, google_gmail_search, slack_read); for Jira, the ticket's key or id.",
         },
         text: { type: "string", description: "The reply, as plain text." },
+        attachments: {
+          type: "array",
+          items: { type: "string" },
+          description: `Gmail only: files for the draft to carry, as paths in this chat's folder; at most ${String(MAX_REPLY_FILES)}, ${bytesWords(MAX_REPLY_BYTES)} together. A file from another mail gets there with google_gmail_attachment first.`,
+        },
       },
       required: ["account", "thread", "text"],
       additionalProperties: false,
@@ -606,7 +675,15 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
       const thread = argText(ctx.args.thread);
       if (!thread) return failed("reply_propose needs thread");
       try {
-        const p = await deps.replies.propose(chatOf(ctx), { account_id: account.account_id, thread_id: thread, text: argText(ctx.args.text) });
+        const named = Array.isArray(ctx.args.attachments) ? ctx.args.attachments.map(argText).filter(Boolean) : [];
+        // A path is found in the chat's folder, and one that leads out of it is refused, as a script's files are.
+        const attachments = named.map((path) => inChatFolder(ctx, path));
+        const p = await deps.replies.propose(chatOf(ctx), {
+          account_id: account.account_id,
+          thread_id: thread,
+          text: argText(ctx.args.text),
+          ...(attachments.length ? { attachments } : {}),
+        });
         log("tool:reply_propose", { agent: ctx.agent.id, provider: p.provider });
         return `Proposed ${p.id}: it waits for the person's approval.\n${proposalLine(p)}`;
       } catch (err) {
@@ -626,7 +703,7 @@ export function registerReplyTools(api: ModApi, deps: { accounts: Pick<Accounts,
     }),
     api.prompt.section("replies", ({ agentId }) =>
       forAgent(agentId)
-        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
+        ? "To answer a thread in an account you own, handed to you or found with a script, use reply_propose, with `attachments` for a Gmail reply's files: the person approves it and loki saves it as a draft there, or for a Jira ticket puts the comment in its card's box for the person to post. Never send mail, Slack messages or Jira comments any other way."
         : undefined,
     ),
   );

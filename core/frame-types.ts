@@ -680,6 +680,19 @@ export interface ReplyProposal {
   decided_at?: string | null;
   /** Where the person finds the draft once written: Gmail's drafts page for it; null for Slack, for Jira (the card's box) or before. */
   draft_url?: string | null;
+  /** Gmail: the files the draft carries, from the chat's folder, as they were when the reply was proposed; empty for none. */
+  attachments?: ReplyAttachment[];
+}
+
+/**
+ * A file on a proposed Gmail reply (plan 2026-11-14-1500, R2): where it is in the chat's folder, and its size and MD5
+ * when the reply was proposed, so approving drafts the file the card named or refuses (R4). Its bytes are never kept.
+ */
+export interface ReplyAttachment {
+  name: string;
+  path: string;
+  size: number;
+  md5: string;
 }
 
 /**

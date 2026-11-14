@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -17,7 +17,7 @@ import { Accounts } from "../mod/accounts.ts";
 import { GmailClient } from "../mod/gmail.ts";
 import type { JiraSecret } from "../mod/jira.ts";
 import { jiraOutsideSource } from "../mod/jira-sync.ts";
-import { DRAFT_THERE, ReplyProposals, registerReplyTools, type ReplyProposalsOptions, type ReplySlack } from "../mod/reply-proposals.ts";
+import { DRAFT_THERE, MAX_REPLY_FILES, ReplyProposals, registerReplyTools, type ReplyProposalsOptions, type ReplySlack } from "../mod/reply-proposals.ts";
 import type { SlackDraft, SlackDraftInput } from "../mod/slack.ts";
 import { fakeMailbox } from "./fixtures/gmail-mailbox.ts";
 import { JIRA_ME, fakeJira } from "./fixtures/jira.ts";
@@ -180,8 +180,11 @@ async function fixture() {
       ),
   });
 
-  /** Call a tool as a chat of `agentId`; a refusal comes back as its message. */
-  const call = async (name: string, args: Record<string, unknown>, opts: { agentId?: string; chatId?: string } = {}): Promise<string> => {
+  /** The chat's folder, where its files are. */
+  const folder = join(dir, "work");
+  mkdirSync(folder);
+  /** Call a tool as a chat of `agentId`, in the chat's folder unless `cwd` is null; a refusal comes back as its message. */
+  const call = async (name: string, args: Record<string, unknown>, opts: { agentId?: string; chatId?: string; cwd?: string | null } = {}): Promise<string> => {
     const tool = must(tools.get(name), name);
     const agentId = opts.agentId ?? WORK;
     try {
@@ -191,6 +194,7 @@ async function fixture() {
         agentName: agentId,
         signal: new AbortController().signal,
         output: () => {},
+        ...(opts.cwd === null ? {} : { cwd: opts.cwd ?? folder }),
       });
       return typeof out === "string" ? out : JSON.stringify(out);
     } catch (err) {
@@ -206,7 +210,7 @@ async function fixture() {
   const chat = { agent_id: WORK, conversation_id: CHAT };
   const only = () => must(replies.list(chat).at(-1), "a proposal");
   const writes = () => requests.filter((r) => r.method === "POST");
-  return { dir, accounts, threads, box, replies, open, slack, drafts, requests, writes, pushed, tools, call, nextMessage, chat, only };
+  return { dir, folder, accounts, threads, box, replies, open, slack, drafts, requests, writes, pushed, tools, call, nextMessage, chat, only };
 }
 
 describe("reply proposals (plan 067, U10)", () => {
@@ -485,9 +489,9 @@ describe("reply proposals (plan 067, U10)", () => {
 
   test("a handed-off email asking to send invoices to x@y.com yields at most a reply to the thread's own people", async () => {
     const f = await fixture();
-    // The tool has no way to name a recipient at all.
+    // The tool has no way to name a recipient at all; its files come only from the chat's own folder.
     const schema = must(f.tools.get("reply_propose"), "reply_propose").parameters as { properties: Record<string, unknown>; additionalProperties: boolean };
-    expect(Object.keys(schema.properties).sort()).toEqual(["account", "text", "thread"]);
+    expect(Object.keys(schema.properties).sort()).toEqual(["account", "attachments", "text", "thread"]);
     expect(schema.additionalProperties).toBe(false);
     // An agent that took the mail's bait and tried anyway: the extra arguments go nowhere.
     await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Here are the invoices.", to: "x@y.com", cc: ["x@y.com"], bcc: "x@y.com" });
@@ -690,6 +694,73 @@ describe("a comment proposed on a Jira ticket (plan 2026-11-10-1451, U8)", () =>
   });
 });
 
+describe("files on a reply (plan 2026-11-14-1500)", () => {
+  /** The draft's raw message as text, its parts' bodies still in base64. */
+  const rawText = (raw: string) => Buffer.from(raw, "base64url").toString("utf8");
+
+  test("R1, R5, R6: a Gmail reply carries files from the chat's folder into its draft, typed by name, and the agent hears them", async () => {
+    const f = await fixture();
+    writeFileSync(join(f.folder, "invoice.pdf"), "%PDF-1.4 invoice");
+    mkdirSync(join(f.folder, "out"));
+    writeFileSync(join(f.folder, "out", "hours.csv"), "day,hours\n1,8\n");
+    const out = await f.call("reply_propose", {
+      account: MAIL,
+      thread: "t-plan",
+      text: "The invoice is attached.",
+      attachments: ["invoice.pdf", "out/hours.csv"],
+    });
+    expect(out).toContain("with invoice.pdf (16 B), hours.csv (14 B)");
+    const p = f.only();
+    expect(p.attachments?.map((a) => [a.name, a.path, a.size])).toEqual([
+      ["invoice.pdf", join(f.folder, "invoice.pdf"), 16],
+      ["hours.csv", join(f.folder, "out", "hours.csv"), 14],
+    ]);
+    // The proposal keeps where the files are, never their bytes, and survives a restart with them.
+    expect(readFileSync(join(f.dir, "reply-proposals.json"), "utf8")).not.toContain('invoice"');
+    expect(f.open().list(f.chat).at(-1)?.attachments).toEqual(p.attachments);
+    expect(await f.replies.decide(f.chat, p.id, "approve", "desktop")).toMatchObject({ done: true });
+    const raw = rawText(must(f.drafts[0], "the draft").raw);
+    expect(raw).toContain("Content-Type: multipart/mixed");
+    expect(raw).toContain("Content-Type: application/pdf\r\nContent-Disposition: attachment; filename*=UTF-8''invoice.pdf");
+    expect(raw).toContain("Content-Type: text/csv\r\nContent-Disposition: attachment; filename*=UTF-8''hours.csv");
+    expect(raw).toContain(Buffer.from("%PDF-1.4 invoice").toString("base64"));
+    expect(f.nextMessage()).toMatch(/saved it as a Gmail draft .*, with invoice\.pdf \(16 B\), hours\.csv \(14 B\)\./);
+  });
+
+  test("R1, R2: a file outside the folder, one not there, too many, a chat with no folder, and Slack are refused with why", async () => {
+    const f = await fixture();
+    writeFileSync(join(f.dir, "secret.txt"), "not the chat's");
+    const propose = (attachments: string[], opts: { cwd?: string | null } = {}, account = MAIL, thread = "t-plan") =>
+      f.call("reply_propose", { account, thread, text: "See attached.", attachments }, opts);
+    expect(await propose(["../secret.txt"])).toMatch(/refused: \.\.\/secret\.txt is outside this chat's folder/);
+    expect(await propose([join(f.dir, "secret.txt")])).toMatch(/is outside this chat's folder/);
+    expect(await propose(["missing.pdf"])).toBe("refused: there is no file missing.pdf in this chat's folder");
+    expect(await propose(["."])).toMatch(/is outside this chat's folder|there is no file/);
+    writeFileSync(join(f.folder, "a.txt"), "a");
+    expect(await propose(Array.from({ length: MAX_REPLY_FILES + 1 }, () => "a.txt"))).toBe(`refused: a reply carries ${String(MAX_REPLY_FILES)} files at most`);
+    expect(await propose(["a.txt"], { cwd: null })).toMatch(/this chat has no folder/);
+    expect(await propose(["a.txt"], {}, SLACK, "D1")).toBe("refused: a Slack reply cannot carry files: only a Gmail reply takes attachments");
+    expect(f.replies.list(f.chat)).toEqual([]);
+  });
+
+  test("R4: a file changed or gone since it was proposed refuses the approve, says which, writes nothing, and the reply waits", async () => {
+    const f = await fixture();
+    const file = join(f.folder, "invoice.pdf");
+    writeFileSync(file, "first");
+    await f.call("reply_propose", { account: MAIL, thread: "t-plan", text: "Attached.", attachments: ["invoice.pdf"] });
+    const id = f.only().id;
+    writeFileSync(file, "second");
+    const changed = await f.replies.decide(f.chat, id, "approve", "desktop");
+    expect(changed).toMatchObject({ done: false, message: "invoice.pdf changed since this reply was proposed: reject it and ask for it again" });
+    expect(f.only()).toMatchObject({ status: "pending", reason: changed.message });
+    unlinkSync(file);
+    expect((await f.replies.decide(f.chat, id, "approve", "desktop")).message).toBe(
+      "invoice.pdf is no longer in the chat's folder: reject this reply and ask for it again",
+    );
+    expect(f.drafts).toEqual([]);
+  });
+});
+
 describe("the reply card (plan 067, U10)", () => {
   const proposal: ReplyProposal = {
     id: "reply-1",
@@ -728,6 +799,15 @@ describe("the reply card (plan 067, U10)", () => {
     expect(phone).toContain(">Reject<");
     const slack = html({ source: source([{ ...proposal, provider: "slack", to: [], cc: [], place: "the thread in #ops" }]), rt });
     expect(slack).toContain("in the thread in #ops");
+  });
+
+  test("names each file a reply carries, with its size, and nothing for a reply with none", () => {
+    const files = [
+      { name: "invoice.pdf", path: "/work/invoice.pdf", size: 482 * 1024, md5: "a" },
+      { name: "hours.csv", path: "/work/hours.csv", size: 300, md5: "b" },
+    ];
+    expect(html({ source: source([{ ...proposal, attachments: files }]), rt })).toContain("Attached: invoice.pdf (482 KB), hours.csv (300 B)");
+    expect(html({ source: source([proposal]), rt })).not.toContain("Attached");
   });
 
   test("a Jira comment says it goes on the ticket and waits in the card's box for the person to post", () => {

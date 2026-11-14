@@ -5,6 +5,7 @@ import type { ChatFace } from "../../../core/attention/use-attention.ts";
 import type { ReplyProposal } from "../../../core/frame-types.ts";
 import type { ReplyAction } from "../../../core/frames.ts";
 import { messageOf } from "../../../core/errors.ts";
+import { fileSize } from "../chat/attachments";
 import { Button, Meta, TextArea, sentence } from "../components";
 
 /**
@@ -49,6 +50,12 @@ export function recipientsText(p: Pick<ReplyProposal, "provider" | "to" | "cc" |
     case "gmail":
       return [p.to.length ? `to ${p.to.join(", ")}` : "", p.cc.length ? `cc ${p.cc.join(", ")}` : ""].filter(Boolean).join(" · ") || "to no one";
   }
+}
+
+/** A reply's files as its card names them, each with its size; null for a reply that carries none (plan 2026-11-14-1500, R3). */
+export function attachmentsText(p: Pick<ReplyProposal, "attachments">): string | null {
+  const files = p.attachments ?? [];
+  return files.length ? `Attached: ${files.map((f) => `${f.name} (${fileSize(f.size)})`).join(", ")}` : null;
 }
 
 /** The replies proposed in a chat that wait on the person or are being drafted; nothing when there are none. */
@@ -103,6 +110,7 @@ function ReplyProposalCard({
   // The Inbox's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   const reason = refused?.message ?? p.reason;
+  const files = attachmentsText(p);
   return (
     <div className="loki-suggestion" data-reply={p.id} onPointerDown={stopEvent} onPointerMove={stopEvent} onPointerUp={stopEvent}>
       <div className="loki-suggestion-head" style={{ cursor: "default" }}>
@@ -122,6 +130,11 @@ function ReplyProposalCard({
           onKeyDown={keys}
           aria-label="Reply text"
         />
+        {files && (
+          <div className="loki-suggestion-note" data-attachments>
+            {files}
+          </div>
+        )}
         {drafting && (
           <div className="loki-suggestion-note" role="status">
             {sentence(REPLY_WORDS[p.provider].writing)}

@@ -3,7 +3,22 @@ import { htmlToText } from "../../core/mail-text.ts";
 import { mailHeader, mailParts } from "../account-ops/gmail.ts";
 import type { GmailMessage, GmailMessagePart } from "../gmail.ts";
 import { uploadToDrive } from "./drive.ts";
-import { accountFor, count, flag, listing, md5, optText, readInChat, rec, str, textArg, textList, writeInChat, type GoogleToolDef } from "./core.ts";
+import {
+  accountFor,
+  count,
+  fileTypeOf,
+  flag,
+  listing,
+  md5,
+  optText,
+  readInChat,
+  rec,
+  str,
+  textArg,
+  textList,
+  writeInChat,
+  type GoogleToolDef,
+} from "./core.ts";
 
 /**
  * Gmail for scripts (plan 2026-11-11 scripts, U7): search, read, change labels, send, and save attachments, to the
@@ -159,7 +174,7 @@ const send: GoogleToolDef = {
     const files = await Promise.all(
       textList(call.args, "attachments").map(async (path) => {
         const { full, data } = await readInChat(call.ctx, path);
-        return { filename: basename(full), mimeType: "application/octet-stream", data: Buffer.from(data) };
+        return { filename: basename(full), mimeType: fileTypeOf(full), data: Buffer.from(data) };
       }),
     );
     const html = optText(call.args, "html");

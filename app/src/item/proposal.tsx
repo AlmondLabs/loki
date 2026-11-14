@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/ui/textarea";
 import { Suggestion as SuggestionChip, Suggestions as SuggestionChips } from "@/ui/ai-elements/suggestion";
 import { cn } from "@/lib/utils";
-import { recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
+import { attachmentsText, recipientsText, REPLY_WORDS, type ReplyProposalsProps } from "../desk/reply-proposal-card";
 import { replyKeyDown } from "../chat/quick-replies";
 
 /*
@@ -212,6 +212,7 @@ export function ReplyProposalView({
   // Flow's single keys are the deck's; inside the text they are the text's.
   const keys = (e: KeyboardEvent) => e.stopPropagation();
   const reason = refused?.message ?? p.reason;
+  const files = attachmentsText(p);
   return (
     <ProposalFrame
       kind="reply"
@@ -226,6 +227,11 @@ export function ReplyProposalView({
           <Textarea value={text} rows={4} disabled={off} onChange={(e) => setEdited(e.target.value)} onKeyDown={keys} aria-label="Reply text" />
         ) : (
           <blockquote className="m-0 border-l-2 border-border pl-3 whitespace-pre-wrap">{text}</blockquote>
+        )}
+        {files && (
+          <p className="m-0 text-meta text-muted-foreground" data-attachments>
+            {files}
+          </p>
         )}
         {drafting && (
           <p role="status" className="m-0 text-meta text-muted-foreground">
