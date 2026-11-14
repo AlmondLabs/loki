@@ -1019,12 +1019,15 @@ button.loki-list-section-toggle {
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
+/* The detail's, the list's and a Flow card's title bars (plan 2026-11-14-2224, KTD4) are 52 high, their buttons centred
+   and their title stacks at the top under 6px (the detail title's 40px stack centred in 52), so a one-line and a
+   two-line title share one top line. */
 .loki-pane-header-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 12px 0 20px;
+  min-height: 52px;
+  padding: 6px 12px 6px 20px;
 }
 .loki-pane-header-lead {
   display: inline-flex;
@@ -1193,8 +1196,22 @@ button.loki-list-section-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 8px 0 16px;
+  min-height: 52px;
+  padding: 6px 8px 6px 16px;
+}
+/* The bar's title stack: the source's name and grey count, over its grey line when it has one. */
+.loki-content-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  align-self: flex-start;
+}
+.loki-content-list-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 .loki-content-list-title {
   min-width: 0;
@@ -1219,9 +1236,7 @@ button.loki-list-section-toggle {
 }
 /* The toolbar's grey line under the title (All Cards: when Learn last wrote), as a chat's toolbar has one. */
 .loki-content-list-line {
-  flex: none;
   margin: 0;
-  padding: 0 16px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1640,9 +1655,6 @@ button.loki-list-section-toggle {
 
   /* The chat's toolbar (U13): one row, the title over a grey line of facts, then the Messages / Canvas control and one
      glass group of the chat's moves as symbols, their names and keys in their tooltips, as Mail's toolbar draws them. */
-  .loki-pane-header-line:has(> .loki-toolbar-title) {
-    min-height: 52px;
-  }
   .loki-pane-header:has(.loki-toolbar-title) .loki-tab {
     min-height: 22px;
     padding: 0 12px;
@@ -1662,6 +1674,7 @@ button.loki-list-section-toggle {
     flex-direction: column;
     gap: 1px;
     min-width: 0;
+    align-self: flex-start;
   }
   .loki-toolbar-name {
     margin: 0;
