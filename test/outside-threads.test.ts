@@ -950,7 +950,10 @@ describe("an agent's reply takes the person's send path (plan 2026-11-14-1134, U
     const file = opts.file ?? join(dir, "outbox.json");
     // The options are filled in place rather than copied, so a test may change what a fake does between two sends.
     opts.sendAs ??= [{ address: "ada@acme.com", name: "Ada Lovelace", signature: "<div>Ada<br>Acme</div>", isDefault: true }];
-    opts.extra = { outbox: { file, key: Promise.resolve("the daemon's key"), after: tm.after, ...(opts.now ? { now: opts.now } : {}) }, ...opts.extra };
+    // The outbox's clock is always the test's: with the real one, a millisecond passing between holding a reply and
+    // setting its timer made the hold read 9999 ms on a slow CI runner.
+    const fixed = new Date("2026-11-14T10:00:00.000Z");
+    opts.extra = { outbox: { file, key: Promise.resolve("the daemon's key"), after: tm.after, now: opts.now ?? (() => fixed) }, ...opts.extra };
     const made = threads(opts);
     const sent: HeldReply[] = [];
     const notSent: Array<{ held: HeldReply; reason: string; people: PeopleChanged | null }> = [];
