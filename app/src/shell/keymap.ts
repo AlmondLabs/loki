@@ -131,7 +131,7 @@ export const KEYMAP: Binding[] = [
   // digits work only while one of them has focus.
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
-  { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply", note: "a quick reply with focus" },
+  { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply, while one has focus", note: "a quick reply with focus" },
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
   // --- inbox (the reply box usually has focus: chords) -------------------
