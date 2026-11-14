@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { SetStateAction } from "react";
 import type { AttentionItem } from "../core/attention/model.ts";
-import type { Decision } from "../core/attention/queue.ts";
+import { idOf, mergeQueue, type Decision } from "../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyResult } from "../core/attention/use-attention.ts";
 import type { ReplyThen } from "../core/frame-types.ts";
 import { opensChat } from "../app/src/desk/use-deck-keys.ts";
@@ -9,12 +11,29 @@ import { FLASH_MS, createFlash } from "../app/src/desk/use-deck-actions.ts";
 import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind } from "../app/src/desk/deck-moves.ts";
 import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/return-picker.tsx";
 import { pickableLabels } from "../app/src/desk/label-picker.tsx";
+import { COMMIT_REST_MS, createListSelection } from "../app/src/shell/list-keys.ts";
 import { replyBoxKey } from "../app/src/desk/outside-card.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
 
-/** The desktop deck's keys (app/src/desk/use-deck-keys.ts, deck-moves.ts): what each press does to the card on top. */
+/** The desktop deck's keys (app/src/desk/use-deck-keys.ts, deck-moves.ts): what each press does to the selected card. */
+
+describe("Esc and focus in Flow (plan 2026-11-14-1330, KTD7, KTD14)", () => {
+  const source = (...path: string[]) => readFileSync(join(import.meta.dirname, "..", "app", "src", ...path), "utf8");
+  test("Esc in the list does not leave Flow: the deck has no Esc of its own, the reply box's hands the keys back, and the shell's skips Flow", () => {
+    expect(source("desk", "use-deck-keys.ts")).not.toContain("Escape");
+    const deck = source("desk", "catch-up.tsx");
+    expect(deck).not.toMatch(/onEscapeEmpty=\{(deck\.)?onClose\}/);
+    expect(deck).toContain("onEscapeEmpty={leaveBox}");
+    expect(source("shell", "use-shell-keys.ts")).not.toMatch(/segment === "inbox"[^\n]*\n[^\n]*toDesk/);
+  });
+  test("a new selection never focuses the reply box on its own; R or a click does", () => {
+    const deck = source("desk", "catch-up.tsx");
+    expect(deck).not.toContain("setTimeout(() => replyRef.current?.focus()");
+    expect(source("desk", "use-deck-keys.ts")).toContain('case "reply":\n        return replyRef.current?.focus();');
+  });
+});
 
 describe("O on a card", () => {
   test("a chat's card opens its chat", () => {
@@ -31,10 +50,14 @@ describe("O on a card", () => {
 const DONE: MoveResult = { error: null, ask: false, rest: null };
 const settle = () => new Promise<void>((r) => setImmediate(r));
 
-/** A deck with `queue` up, recording every call its moves make. */
+/** A deck with `queue` up and its first row selected, recording every call its moves make. */
 function deck(
   queue: AttentionItem[],
   over: {
+    /** Archive's answer out there: the reason when it refused. */
+    archive?: string | null;
+    /** The selected card was answered elsewhere (R11): the deck hands the moves no card. */
+    elsewhere?: boolean;
     asks?: boolean;
     text?: string;
     reply?: OutsideReplyResult | Promise<OutsideReplyResult>;
@@ -49,15 +72,20 @@ function deck(
   const calls: Array<[string, ...unknown[]]> = [];
   const state = {
     queue,
+    selected: null as string | null,
     decided: [] as Decision[],
     flash: [] as string[],
     picker: null as PickerKind | null,
     box: { ...EMPTY_REPLY, text: over.text ?? "" },
   };
   const apply = <T>(v: SetStateAction<T>, old: T): T => (typeof v === "function" ? (v as (o: T) => T)(old) : v);
+  /** The selected card: the one picked, else the first row, as the deck falls back. */
+  const selected = () => state.queue.find((i) => idOf(i) === state.selected) ?? state.queue.at(0);
   const moves = () =>
     createDeckMoves({
-      current: state.queue[0],
+      selected: over.elsewhere ? () => undefined : selected,
+      queue: state.queue,
+      select: (id) => (state.selected = id),
       decided: state.decided,
       lane: null,
       reply: state.box,
@@ -74,7 +102,7 @@ function deck(
         read: (item) => (calls.push(["read", item.id]), Promise.resolve(over.read ?? DONE)),
         later: (item, until) => (calls.push(["later", item.id, until]), Promise.resolve(over.later ?? DONE)),
         laterAsks: () => over.asks ?? false,
-        archive: (item) => (calls.push(["archive", item.id]), Promise.resolve(null)),
+        archive: (item) => (calls.push(["archive", item.id]), Promise.resolve(over.archive ?? null)),
         label: (item, ids) => (calls.push(["label", item.id, ids]), Promise.resolve(null)),
         undo: (item) => (calls.push(["undo", item.id]), Promise.resolve(null)),
         replyOutside: (item, text: string, then: ReplyThen, extra) => (
@@ -94,8 +122,102 @@ function deck(
         approve: () => {},
       },
     });
-  return { state, calls, moves };
+  /** Select the row `id` names, as a click or the arrows commit it. */
+  const select = (id: string) => (state.selected = `a1/${id}`);
+  const shown = () => selected()?.id;
+  return { state, calls, moves, select, shown };
 }
+
+describe("the selected card (R9)", () => {
+  const abc = () => [attentionItem("a"), attentionItem("b"), attentionItem("c")];
+  test("a move acts on the selected card, closes the gap, and selects the row below; the rows above keep their places", async () => {
+    const d = deck(abc());
+    d.select("b");
+    d.moves().read();
+    await settle();
+    expect(d.calls).toEqual([["read", "b"]]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "c"]);
+    expect(d.shown()).toBe("c");
+  });
+  test("Read on the last row selects the row above", async () => {
+    const d = deck(abc());
+    d.select("c");
+    d.moves().read();
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(d.shown()).toBe("b");
+  });
+  test("a refused Archive brings the card back selected, at its old place", async () => {
+    const d = deck(abc(), { archive: "Gmail refused" });
+    d.select("b");
+    d.moves().archive();
+    expect(d.shown()).toBe("c");
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "b", "c"]);
+    expect(d.shown()).toBe("b");
+    expect(d.state.decided).toEqual([]);
+  });
+  test("Undo selects the card it restores, at its old place", async () => {
+    const d = deck(abc());
+    d.select("c");
+    d.moves().later();
+    await settle();
+    expect(d.shown()).toBe("b");
+    d.moves().undo();
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "b", "c"]);
+    expect(d.shown()).toBe("c");
+  });
+  test("Approve answers the selected approval and selects the row below", () => {
+    const asks = attentionItem("b", { status: "approval", pendingApproval: { requestId: "p1", toolName: "Bash", input: {}, at: "2026-09-05T10:00:00Z" } });
+    const d = deck([attentionItem("a"), asks, attentionItem("c")]);
+    d.select("b");
+    d.moves().approve("allow");
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "c"]);
+    expect(d.shown()).toBe("c");
+    expect(d.state.decided.map((x) => [x.item.id, x.via])).toEqual([["b", "approve"]]);
+  });
+  test("Covers AE2. a selected card answered elsewhere is no card to act on: every move does nothing (R11)", async () => {
+    const d = deck(abc(), { elsewhere: true });
+    d.select("b");
+    const m = d.moves();
+    m.read();
+    m.later();
+    m.archive();
+    m.approve("allow");
+    await settle();
+    expect(d.calls).toEqual([]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "b", "c"]);
+  });
+  test("Covers AE1. Read on B, with D just arrived under it, selects D", async () => {
+    const a = attentionItem("a", { score: 5 }),
+      b = attentionItem("b", { score: 3 }),
+      c = attentionItem("c", { score: 1 }),
+      dd = attentionItem("d", { score: 50 });
+    const d = deck(mergeQueue([a, b, c], [a, b, c, dd], [], { selectedId: "a1/b" }));
+    d.select("b");
+    d.moves().read();
+    await settle();
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "d", "c"]);
+    expect(d.shown()).toBe("d");
+  });
+  test("Covers AE4. E pressed within the arrows' rest archives the newly highlighted card", () => {
+    const d = deck(abc());
+    const jobs: Array<() => void> = [];
+    const sel = createListSelection({
+      committed: () => d.state.selected ?? "a1/a",
+      commit: (id) => (d.state.selected = id),
+      focusDetail: () => {},
+      onHighlight: () => {},
+      schedule: (run, ms) => (expect(ms).toBe(COMMIT_REST_MS), jobs.push(run), () => {}),
+    });
+    sel.press(["a1/a", "a1/b", "a1/c"], "down");
+    expect(d.shown()).toBe("a");
+    sel.act(() => d.moves().archive());
+    expect(d.calls).toEqual([["archive", "b"]]);
+    expect(d.state.queue.map((i) => i.id)).toEqual(["a", "c"]);
+  });
+});
 
 describe("⌘] and ⌘[ on a card", () => {
   test("⌘[ on a chat card calls the later move and the card goes, flashing later", async () => {

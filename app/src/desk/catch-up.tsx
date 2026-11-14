@@ -1,6 +1,6 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
-import { inLane, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
+import { otherLanesCount, type Lane, type ResolvedLane } from "../../../core/attention/lanes.ts";
 import type { LabelView } from "../../../core/labels.ts";
 import { catchUpQueue, idOf, inboxQueue, restingCount, type Decision } from "../../../core/attention/queue.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -15,25 +15,26 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { BADGE, CaughtUp, ChatItemHeader, DeckHeader, cameBackIn, deckKey, liveWaitingCount } from "./catch-up-parts";
-import { useDeckActions } from "./use-deck-actions";
+import type { useDeckActions } from "./use-deck-actions";
 import { useDeckKeys } from "./use-deck-keys";
-import { useDeckQueue } from "./use-deck-queue";
+import { useFlowDeck, type PassSummaryHandler } from "./use-flow-deck";
 import { OutsideCard, threadSourceOf, useMailCompose, wentTo } from "./outside-card";
 import { addressingFor } from "./mail-address";
 import { HandoffPicker } from "./handoff-picker";
 import { ReturnPicker } from "./return-picker";
 import { LabelPicker } from "./label-picker";
-import type { DeckMoveApi } from "./deck-moves";
+import { rowAfter, type DeckMoveApi } from "./deck-moves";
 import type { MoveResult } from "../../../core/attention/use-attention.ts";
 import type { AccountLabel } from "../../../core/frame-types.ts";
 
 /**
- * The Inbox: every chat you have not archived, one at a time, highest score first (core/attention/priority.ts):
- * blocked agents, then what is new, then the chats in focus, then the rest.
+ * The Inbox: every chat you have not archived, highest score first (core/attention/priority.ts): blocked agents, then
+ * what is new, then the chats in focus, then the rest. The moves act on the selected card (useFlowDeck):
  *   ⌘] / →  read (it rests, then comes back)   ⌘[ / ←  later (unread, back in a day; the second time, you pick)
  *   ⌘E / E  archive (done: it leaves)          L  label (email cards)
- *   A approve  D deny   R reply   O open the chat   Z undo   Esc close
+ *   A approve  D deny   R reply   O open the chat   Z undo
  * A reply keeps a chat's card; on an email or Slack card, the key pressed sends the reply and then makes its move.
+ * Esc in the reply box hands the keys back; it never leaves Flow (plan 2026-11-14-1330, KTD14).
  */
 
 /** Status → label and colour; the phone inbox (app/src/phone/inbox.tsx) uses the same table. */
@@ -42,12 +43,13 @@ export { catchUpQueue };
 
 /** The Inbox, as a card over the shell; nothing is mounted while it is closed, so each opening builds its queue afresh. */
 export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
-  // Closed: nothing mounted, so each opening is a fresh visit — the queue is built from the Inbox right now.
+  // Closed: nothing mounted, so each opening is a fresh visit (KTD6) — the queue is built from the Inbox right now.
   if (!open) return null;
   return <CatchUpDeck {...props} />;
 }
 
 interface CatchUpProps {
+  /** Leave Flow: a chat was opened from a card. */
   onClose: () => void;
   /** The labels' colours (plan 022), for the card's chips. */
   labelList?: readonly LabelView[] | null;
@@ -103,40 +105,29 @@ interface CatchUpProps {
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
-  /** The deck closed: what this visit did, for analytics. Not called for a visit that decided nothing. */
+  /** The visit ended (leaving Flow, or the page unloading): what it did, for analytics. Not called for a visit that decided nothing. */
   onPass?: PassSummaryHandler;
-  /** A card came to the top (analytics: its dwell clock starts). */
+  /** A card became the selection (analytics: its dwell clock starts). */
   onShown?: (item: AttentionItem) => void;
   /** The desks' widgets, so a card draws the ones its chat made, live, in the thread (chat/use-inline-widgets.tsx). */
   widgetSource?: InlineWidgetSource;
 }
 
-/**
- * Called when the Inbox closes after a visit that decided something: how many cards each action took, the replies, the
- * cards shown and how long the visit lasted (in milliseconds), for analytics.
- */
-export type PassSummaryHandler = (pass: {
-  decided: number;
-  next: number;
-  archive: number;
-  approve: number;
-  deny: number;
-  replies: number;
-  shown: number;
-  duration_ms: number;
-}) => void;
-
 type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
-  const { onClose, items, lane, loadHistory, onOpenDesk } = props;
-  /** The cards the active lane holds: only they come up (R13). */
-  const shown = useMemo(() => laneItems(items, lane), [items, lane]);
-  /** Going through the cards Next rested, asked for at the end of the pass. */
-  const [resting, setResting] = useState(false);
-  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, lane, resting);
-  // What undo takes back and the summary shows: the visit's moves on cards this lane holds (KTD6).
-  const decided = lane ? allDecided.filter((d) => inLane(d.item, lane)) : allDecided;
+  const { onClose, items, lane, onOpenDesk } = props;
+  const { replyOutside, composeOutside, unsendOutside } = props.chats;
+  const flow = useFlowDeck({
+    items,
+    lane,
+    moves: deckMoveApi(props, replyOutside, unsendOutside),
+    onSignIn: props.onSignIn,
+    onPass: props.onPass,
+    onShown: props.onShown,
+    loadHistory: props.loadHistory,
+  });
+  const { shown, current, decided, actions } = flow;
   // The quiet line: cards needing the person in the other lanes (R14, KTD5).
   const others = useMemo(() => otherLanesCount(items, lane), [items, lane]);
   /** Switch lanes from the title's menu; picking the lane already on is no switch. */
@@ -148,21 +139,26 @@ function CatchUpDeck(props: DeckProps) {
   const [modeTick, setModeTick] = useState(0);
   // The card's suggestions open from its mark or /suggestions, for that card only (a later card never opens on it).
   const [suggestTick, setSuggestTick] = useState<ChatTick>(null);
-  // The reply box is always there and takes focus with each card. While you are in it,
-  // letters type; the deck's single-key shortcuts return when you press Esc (or click out).
+  // The reply box is always there; it takes focus on R or a click, never on its own as the selection moves (KTD7). While
+  // you are in it, letters type; the deck's single-key shortcuts return when you press Esc (or click out).
   const [typingRaw, setTyping] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
-  const live = useMemo(() => new Map(items.map((i) => [idOf(i), i])), [items]);
 
-  const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   const { handoffPropose, handoff } = props.chats;
   const handoffSource = handoffPropose && handoff ? { handoffPropose, handoff } : null;
-  const { replyOutside, composeOutside, unsendOutside } = props.chats;
   const outsideSource = threadSourceOf(props.chats);
-  // What the recipients line of the mail card on top starts from (plan 076); the keys that switch its mode need it too.
+  // What the recipients line of the selected mail card starts from (plan 076); the keys that switch its mode need it too.
   const compose = useMailCompose(current, composeOutside ? { composeOutside } : null);
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
+  /** Esc in an outside card's empty box: the keys go back to the deck, and Flow stays (KTD14). */
+  const leaveBox = () => replyRef.current?.blur();
+  // A chat replied to or answered here waits on its agent's turn, which is not an answer from elsewhere (R11).
+  const deck: DeckProps = {
+    ...props,
+    onReply: (item, text, images) => (flow.touch(item), props.onReply(item, text, images)),
+    onAnswer: (item, requestId, answers) => (flow.touch(item), props.onAnswer(item, requestId, answers)),
+  };
 
   // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
   const runCommand = (item: AttentionItem, id: string, args: string) => {
@@ -171,38 +167,24 @@ function CatchUpDeck(props: DeckProps) {
     else if (id === "suggestions") setSuggestTick((t) => bumpTick(t, idOf(item)));
     else props.onCommand?.(item, id, args);
   };
-  // Analytics: each card that comes to the top, once per stay there (a card gets there many ways: an effect, not a handler).
-  const seenCards = useRef(new Set<string>());
-  const currentId = current ? idOf(current) : null;
-  const cardShown = useEffectEvent((id: string) => {
-    if (!current) return;
-    seenCards.current.add(id);
-    props.onShown?.(current);
-  });
-  useEffect(() => {
-    if (currentId) cardShown(currentId);
-  }, [currentId]);
-  const actions = useDeckActions({
-    current,
-    decided: allDecided,
-    lane,
-    setDecided,
-    setQueue,
-    moves: deckMoveApi(props, replyOutside, unsendOutside),
-    onSignIn: props.onSignIn,
-  });
   /** ⇧R and F on a mail card (plan 076): the reply goes to the sender alone, or is forwarded, and the box takes focus. */
   const mailMode = (mode: "reply" | "forward") => {
-    if (current?.outside?.provider !== "gmail" || !compose || !replyOutside) return;
+    if (flow.elsewhere || current?.outside?.provider !== "gmail" || !compose || !replyOutside) return;
     actions.setMail(addressingFor(compose, mode, actions.reply.mail));
     replyRef.current?.focus();
   };
+  // A card answered elsewhere has its moves off (R11); with no list to arrow through here, ⌘] steps past it, which
+  // leaves it.
+  const stepPast = () => {
+    if (current) flow.select(rowAfter(flow.queue, idOf(current)));
+  };
+  const flash = flow.elsewhere ? "Answered elsewhere" : actions.flash;
   useDeckKeys({
     typing,
-    current,
+    current: flow.elsewhere ? undefined : current,
     decided,
     replyRef,
-    read: actions.read,
+    read: flow.elsewhere ? stepPast : actions.read,
     later: actions.later,
     archive: actions.archive,
     label: props.labelsOf ? actions.label : () => {},
@@ -217,56 +199,7 @@ function CatchUpDeck(props: DeckProps) {
     onClose,
   });
 
-  // Fetch the thread once when a card becomes current; live rows stream in on top of it.
-  const currentAgentId = current?.agent_id;
-  const currentCardId = current?.id;
-  const loadCurrent = useEffectEvent(() => {
-    // An outside card (plan 067) carries its own lines: there is no chat thread to fetch.
-    if (current && !current.outside) loadHistory(current);
-  });
-  useEffect(() => loadCurrent(), [currentAgentId, currentCardId]);
-
-  // Each card arrives with the reply box focused, so you can just type — except approvals,
-  // where the decision is the point: A and D must work at once, so the box waits for R or a click.
-  const hasCard = current !== undefined;
-  const asksApproval = !!current?.pendingApproval;
-  const asksQuestion = !!current?.pendingQuestion;
-  useEffect(() => {
-    if (!hasCard) return;
-    if (asksApproval || asksQuestion) {
-      replyRef.current?.blur();
-      return;
-    }
-    const t = setTimeout(() => replyRef.current?.focus(), 0); // after the keystroke that brought this card has finished
-    return () => clearTimeout(t);
-  }, [hasCard, currentAgentId, currentCardId, asksApproval, asksQuestion]);
-
-  // The visit's tally, read when the deck unmounts (closing it is what ends a visit).
-  const [openedAt] = useState(() => Date.now());
-  const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass, openedAt });
-  useEffect(() => {
-    passRef.current = { decided: allDecided, replies: actions.replies, onPass: props.onPass, openedAt };
-  });
-  useEffect(
-    () => () => {
-      const { decided: d, replies, onPass, openedAt: began } = passRef.current;
-      if (!onPass || (!d.length && !replies)) return;
-      const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
-      onPass({
-        decided: d.length,
-        next: by("next"),
-        archive: by("archive"),
-        approve: by("approve"),
-        deny: by("deny"),
-        replies,
-        shown: seenCards.current.size,
-        duration_ms: Date.now() - began,
-      });
-    },
-    [],
-  );
-
-  // The picker open on the card on top, in the card's picker slot: where the thread goes, when the card comes back, its labels.
+  // The picker open on the selected card, in the card's picker slot: where the thread goes, when the card comes back, its labels.
   const closePicker = () => actions.openPicker(null);
   const picker = !current ? null : actions.picker === "handoff" && handoffSource ? (
     <HandoffPicker
@@ -278,7 +211,7 @@ function CatchUpDeck(props: DeckProps) {
         // The thread went to its chat: the card leaves this visit, and comes back only on a new message. A Jira card
         // stays where it is (KTD13), since only read ends it.
         if (current.outside && !OUTSIDE_ENDS[current.outside.provider].handoff) return;
-        setQueue((q) => q.filter((i) => idOf(i) !== idOf(current)));
+        flow.remove(current);
       }}
     />
   ) : actions.picker === "later" ? (
@@ -321,8 +254,8 @@ function CatchUpDeck(props: DeckProps) {
             items={shown}
             decided={decided}
             replies={actions.replies}
-            resting={resting ? 0 : restingCount(shown)}
-            onResting={() => setResting(true)}
+            resting={flow.resting ? 0 : restingCount(shown)}
+            onResting={flow.goThrough}
             others={others}
             onEverything={lane ? () => pickLane(null) : undefined}
           />
@@ -331,7 +264,7 @@ function CatchUpDeck(props: DeckProps) {
             <OutsideCard
               current={current}
               facts={current.outside}
-              flash={actions.flash}
+              flash={flash}
               cameBack={cameBackIn(decided, current)}
               typing={typing}
               moves={{ read: actions.read, later: actions.later, archive: actions.archive, label: props.labelsOf ? actions.label : () => {} }}
@@ -357,7 +290,7 @@ function CatchUpDeck(props: DeckProps) {
               compose={compose}
               replyRef={replyRef}
               onTyping={setTyping}
-              onEscapeEmpty={onClose}
+              onEscapeEmpty={leaveBox}
               picker={picker}
             />
           </div>
@@ -370,7 +303,8 @@ function CatchUpDeck(props: DeckProps) {
             setTyping={setTyping}
             replyRef={replyRef}
             actions={actions}
-            deck={props}
+            flash={flash}
+            deck={deck}
             onCommand={(id, args) => runCommand(current, id, args)}
             modelTick={modelTick}
             modeTick={modeTick}
@@ -395,6 +329,7 @@ function Card({
   setTyping,
   replyRef,
   actions,
+  flash,
   deck,
   onCommand,
   modelTick,
@@ -409,6 +344,8 @@ function Card({
   setTyping: (v: boolean) => void;
   replyRef: RefObject<HTMLTextAreaElement | null>;
   actions: ReturnType<typeof useDeckActions>;
+  /** The badge's word: the last move's, or that the card was answered elsewhere (R11). */
+  flash: string | null;
   deck: DeckProps;
   onCommand: (id: string, args: string) => void;
   modelTick: number;
@@ -470,7 +407,7 @@ function Card({
             <ChatItemHeader
               current={current}
               cameBack={cameBack}
-              flash={actions.flash}
+              flash={flash}
               suggestions={waitingCount(deck.chats, current.runtime)}
               onSuggestions={onSuggestions}
               moves={{ current, ...moves }}
@@ -480,7 +417,6 @@ function Card({
           draft={{ value: draft, onChange: setDraft }}
           inputRef={replyRef}
           onTyping={setTyping}
-          onEscapeEmpty={deck.onClose} // esc: keep a draft and hand keys back, or close an untouched deck
           onSent={actions.sent}
           modelPickerTick={modelTick}
           modeMenuTick={modeTick}

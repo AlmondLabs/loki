@@ -3,16 +3,17 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SetStateAction } from "react";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { inboxQueue, type Decision } from "../core/attention/queue.ts";
+import { idOf, inboxQueue, type Decision } from "../core/attention/queue.ts";
 import { agentLane, laneEvent, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../core/attention/lanes.ts";
 import type { MoveResult } from "../core/attention/use-attention.ts";
 import * as parts from "../app/src/desk/catch-up-parts.tsx";
 import { CaughtUp, DeckHeader, LaneMenu, laneTitle } from "../app/src/desk/catch-up-parts.tsx";
 import { switchLane } from "../app/src/desk/use-deck-queue.ts";
 import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
+import { createVisit, endOnPageHide } from "../app/src/desk/use-flow-deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The desktop Flow's lanes (plan 087, U6): the title switcher, the deck's lane, the quiet count and undo across switches. */
+/** The desktop Flow's lanes (plan 087, U6): the title switcher, the deck's lane, the quiet count and undo across switches; and a visit's end. */
 
 const WORK: Lane = { id: "w", name: "Work", chats: ["ag-work"], accounts: [] };
 const HOME: Lane = { id: "h", name: "Home", chats: ["ag-home"], accounts: [] };
@@ -26,14 +27,18 @@ const noop = () => {};
 const DONE: MoveResult = { error: null, ask: false, rest: null };
 const settle = () => new Promise<void>((r) => setImmediate(r));
 
-/** A deck with `queue` up in `lane`, recording every move it makes out there. */
+/** A deck with `queue` up in `lane` and its first row selected, recording every move it makes out there. */
 function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
   const calls: Array<[string, string]> = [];
-  const state = { queue, decided: [] as Decision[], lane, flash: [] as string[] };
+  const state = { queue, selected: null as string | null, decided: [] as Decision[], lane, flash: [] as string[] };
   const apply = <T>(v: SetStateAction<T>, old: T): T => (typeof v === "function" ? (v as (o: T) => T)(old) : v);
+  /** The selected card: the one picked, else the first row. */
+  const selected = () => state.queue.find((i) => idOf(i) === state.selected) ?? state.queue.at(0);
   const moves = () =>
     createDeckMoves({
-      current: state.queue[0],
+      selected,
+      queue: state.queue,
+      select: (id) => (state.selected = id),
       decided: state.decided,
       lane: state.lane,
       reply: EMPTY_REPLY,
@@ -59,9 +64,10 @@ function deck(queue: AttentionItem[], lane: ResolvedLane | null) {
   /** Switch the deck to `next`, as the queue hook does on a lane change. */
   const switchTo = (next: ResolvedLane | null, items: AttentionItem[]) => {
     state.lane = next;
-    state.queue = switchLane(state.queue, laneItems(items, next), next, state.decided, false);
+    const at = selected();
+    state.queue = switchLane(state.queue, laneItems(items, next), next, state.decided, false, at ? idOf(at) : null);
   };
-  return { state, calls, moves, switchTo };
+  return { state, calls, moves, switchTo, shown: () => selected()?.id };
 }
 
 describe("the title switcher", () => {
@@ -110,10 +116,25 @@ describe("the deck in a lane", () => {
     expect(all).not.toContain("other lanes");
   });
 
-  test("switching from Everything to Work while a Work card is on top keeps it on top", () => {
+  test("switching from Everything to Work while a Work card is selected keeps it selected", () => {
     const d = deck([work, home, of("w2", "ag-work", "Ada")], null);
     d.switchTo(WORK, [work, home, of("w2", "ag-work", "Ada")]);
     expect(ids(d.state.queue)).toEqual(["w1", "w2"]);
+    expect(d.shown()).toBe("w1");
+  });
+
+  test("a lane switch keeps the visit's decisions and sorts the lane's rows afresh by score, the selection with them", async () => {
+    const low = of("w3", "ag-work", "Ada", { score: 1 });
+    const high = of("w4", "ag-work", "Ada", { score: 9 });
+    const items = [home, low, work, high];
+    const d = deck([home, low, work, high], null);
+    d.moves().read();
+    await settle();
+    d.state.selected = idOf(work);
+    d.switchTo(WORK, items);
+    expect(ids(d.state.queue)).toEqual(["w4", "w3", "w1"]);
+    expect(d.shown()).toBe("w1");
+    expect(d.state.decided.map((x) => x.item.id)).toEqual(["h1"]);
   });
 
   test("switching to Work while a Home card is on top takes it off the deck with no read, later or archive", async () => {
@@ -143,6 +164,7 @@ describe("the deck in a lane", () => {
       ["undo", "h1"],
     ]);
     expect(ids(d.state.queue)[0]).toBe("h1");
+    expect(d.shown()).toBe("h1");
     expect(d.state.decided).toEqual([]);
   });
 
@@ -181,6 +203,44 @@ describe("an emptied lane", () => {
     const away = renderToStaticMarkup(createElement(LaneMenu, { lane: null, lanes: [], items, onPick: noop, onNewLane: noop, onClose: noop }));
     expect(away).not.toContain("Ada");
     expect(away).toContain("Bo");
+  });
+});
+
+describe("a visit is the time in the Flow place (KTD6)", () => {
+  const read = (item: AttentionItem): Decision => ({ item, action: "seen", via: "next", stamp: "" });
+  test("leaving the place fires onPass once, with the cards shown as committed selections", () => {
+    const passes: unknown[] = [];
+    const visit = createVisit(1_000, () => 4_000);
+    visit.show(idOf(work));
+    visit.show(idOf(home));
+    visit.show(idOf(work));
+    const tally = { decided: [read(work)], replies: 1, onPass: (p: unknown) => passes.push(p) };
+    visit.end(tally);
+    visit.end(tally);
+    expect(passes).toEqual([{ decided: 1, next: 1, archive: 0, approve: 0, deny: 0, replies: 1, shown: 2, duration_ms: 3_000 }]);
+  });
+
+  test("hiding and showing the window fires no onPass and the visit goes on; the page unloading ends it, once", () => {
+    const passes: unknown[] = [];
+    const visit = createVisit(0, () => 10);
+    const tally = { decided: [] as Decision[], replies: 0, onPass: (p: unknown) => passes.push(p) };
+    const page = new EventTarget();
+    const stop = endOnPageHide(page, () => visit.end(tally));
+    page.dispatchEvent(new Event("visibilitychange"));
+    page.dispatchEvent(new Event("blur"));
+    expect(passes).toEqual([]);
+    tally.decided = [read(home)];
+    page.dispatchEvent(new Event("pagehide"));
+    stop();
+    visit.end(tally);
+    expect(passes).toHaveLength(1);
+    expect(passes[0]).toMatchObject({ decided: 1, next: 1 });
+  });
+
+  test("a visit that decided nothing and sent nothing reports nothing", () => {
+    const passes: unknown[] = [];
+    createVisit(0, () => 10).end({ decided: [], replies: 0, onPass: (p: unknown) => passes.push(p) });
+    expect(passes).toEqual([]);
   });
 });
 

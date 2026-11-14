@@ -254,9 +254,11 @@ export function CaughtUp({
           </Button>
         </div>
       )}
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>
-        {decided.length ? "z undo · " : ""}esc close
-      </div>
+      {decided.length > 0 && (
+        <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>
+          Z to undo
+        </div>
+      )}
     </Empty>
   );
 }

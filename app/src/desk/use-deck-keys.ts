@@ -10,9 +10,9 @@ import { registerActions } from "../shell/keymap";
 export const opensChat = (item: AttentionItem | undefined): item is AttentionItem => !!item && !item.outside;
 
 /**
- * The deck's keys: its actions by keymap id, and Esc with the reply box idle. The handlers always reach
- * the latest closures; the actions register again when the current card, the decisions or typing change,
- * so the deck's registration stays the newest one.
+ * The deck's keys: its actions by keymap id, on the selected card. The handlers always reach the latest closures; the
+ * actions register again when the selected card, the decisions or typing change, so the deck's registration stays the
+ * newest one. Esc is not the deck's: it never leaves Flow, the same in every place (plan 2026-11-14-1330, KTD14).
  */
 export function useDeckKeys({
   typing,
@@ -31,6 +31,7 @@ export function useDeckKeys({
   onClose,
 }: {
   typing: boolean;
+  /** The selected card, undefined while there is none to act on (answered elsewhere, R11). */
   current: AttentionItem | undefined;
   decided: Decision[];
   replyRef: RefObject<HTMLTextAreaElement | null>;
@@ -45,6 +46,7 @@ export function useDeckKeys({
   /** F on a mail card: forward it (plan 076). */
   forward?: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
+  /** O opened the card's chat: Flow is left for it. */
   onClose: () => void;
 }) {
   const mailKey = useEffectEvent((mode: "reply" | "forward") => (mode === "reply" ? replySender() : forward()));
@@ -90,14 +92,4 @@ export function useDeckKeys({
       "inbox.forward": () => mailKey("forward"),
     });
   }, [typing, current, decided]);
-  // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).
-  const close = useEffectEvent(() => onClose());
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // A layer over the inbox (search, a dialog, a picker on the card) owns Esc while it is up: it closes, the inbox stays.
-      if (e.key === "Escape" && !typing && !document.querySelector('[role="dialog"]')) close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [typing]);
 }

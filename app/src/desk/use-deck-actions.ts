@@ -40,13 +40,16 @@ export function createFlash(set: (word: string | null) => void, ms = FLASH_MS): 
  * move went so the next card enters from that side, the picker open on the card, and an outside card's reply box,
  * which the deck holds so its keys can send it (KTD9). The moves themselves are `createDeckMoves`, the same on every
  * card: read (⌘]) marks it read and it rests, later (⌘[) keeps it unread and brings it back, archive (⌘E) is done. The
- * queue and the decisions are the deck's (useDeckQueue); this hook only writes to them. Every move pops the head and
- * re-orders the rest by score at that moment (popHead), the way a scheduler picks its next process when one leaves
- * the CPU. A Jira comment the person approved for the agent goes into the box of its card once, when the card is on top,
- * after whatever is typed there, and waits for them to send it (plan 2026-11-10-1451, KTD18).
+ * rows, the selection and the decisions are the deck's (useDeckQueue); this hook only writes to them. Every move acts on
+ * the selected card, takes it out of the rows and selects the row after it. A Jira comment the person approved for the
+ * agent goes into the box of its card once, when the card is selected, after whatever is typed there, and waits for
+ * them to send it (plan 2026-11-10-1451, KTD18).
  */
 export function useDeckActions({
   current,
+  selected,
+  queue,
+  select,
   decided,
   setDecided,
   setQueue,
@@ -54,7 +57,13 @@ export function useDeckActions({
   lane = null,
   onSignIn,
 }: {
+  /** The selected card as drawn, whose reply box and picker these are. */
   current: AttentionItem | undefined;
+  /** The card the moves act on, read at the press; undefined while there is none to act on (R11). */
+  selected: () => AttentionItem | undefined;
+  /** The visit's rows, in the list's order. */
+  queue: AttentionItem[];
+  select: (id: string | null) => void;
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
@@ -69,10 +78,10 @@ export function useDeckActions({
   const [replies, setReplies] = useState(0);
   /** Which way the last move went; the next card enters from that side. */
   const [dir, setDir] = useState<"next" | "back">("next");
-  /** The picker open, and on which card; another card on top closes it. */
+  /** The picker open, and on which card; another card selected closes it. */
   const [picking, setPicking] = useState<{ id: string; kind: PickerKind } | null>(null);
   /**
-   * The reply box of one outside card, and the approved comments it took in by proposal id; another card on top starts
+   * The reply box of one outside card, and the approved comments it took in by proposal id; another card selected starts
    * with an empty one, but for the words the person left unsent in that card's box, which are kept for the session
    * (plan 087, KTD7) so a lane switch does not lose them, and the comments still waiting on that card, taken in again
    * unless the kept words already hold them.
@@ -100,7 +109,9 @@ export function useDeckActions({
     setBox((b) => ({ ...(b.id === id ? b : { id, seeded: [], ...EMPTY_REPLY, text: outsideReplies.get(id) }), ...patch }));
   };
   const deck = createDeckMoves({
-    current,
+    selected,
+    queue,
+    select,
     decided,
     lane,
     reply,
@@ -135,9 +146,9 @@ export function useDeckActions({
     picker,
     reply,
     setText: (text: string) => setReply(currentId, { text }),
-    /** How the mail reply on top is addressed (plan 076). */
+    /** How the selected mail reply is addressed (plan 076). */
     setMail: (mail: MailAddressing) => setReply(currentId, { mail }),
-    /** The thread opened on the Slack card on top, which its reply goes into (plan 085); null back in its conversation. */
+    /** The thread opened on the selected Slack card, which its reply goes into (plan 085); null back in its conversation. */
     setThread: (thread: OpenedThread | null) => setReply(currentId, { thread }),
     openPicker: (kind: PickerKind | null) => setPicking(kind && currentId ? { id: currentId, kind } : null),
     ...deck,

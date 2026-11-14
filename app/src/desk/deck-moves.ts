@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { OUTSIDE_ENDS, type AttentionItem } from "../../../core/attention/model.ts";
 import { inLane, type ResolvedLane } from "../../../core/attention/lanes.ts";
-import { idOf, popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
+import { idOf, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
 import { newId } from "../shared/new-id";
@@ -73,14 +73,40 @@ export interface DeckMoveApi {
   approve: (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => void;
 }
 
-/** What the deck's moves read and write: the card on top, the visit's queue and decisions, the badge's flash, the pickers and the reply box. */
+/**
+ * The row selected once the card `id` leaves the list (R9): the row below, or the row above when it was the last; null
+ * when it was the only one, or is not among `rows`.
+ */
+export function rowAfter(rows: readonly AttentionItem[], id: string): string | null {
+  const at = rows.findIndex((i) => idOf(i) === id);
+  if (at < 0) return null;
+  const to = at + 1 < rows.length ? at + 1 : at - 1;
+  return to >= 0 ? idOf(rows[to]) : null;
+}
+
+/** `rows` with `item` back at row `at` (clamped to the list), wherever it was before. */
+export function placeAt(rows: readonly AttentionItem[], item: AttentionItem, at: number): AttentionItem[] {
+  const rest = rows.filter((i) => idOf(i) !== idOf(item));
+  const to = Math.max(0, Math.min(at, rest.length));
+  return [...rest.slice(0, to), item, ...rest.slice(to)];
+}
+
+/** What the deck's moves read and write: the selected card, the visit's rows and decisions, the badge's flash, the pickers and the reply box. */
 export interface DeckMovesHost {
-  current: AttentionItem | undefined;
+  /**
+   * The selected card the moves act on, read when the key is pressed, so a highlight that press committed counts (AE4).
+   * Undefined with no card, or one answered elsewhere, whose moves are off (R11).
+   */
+  selected: () => AttentionItem | undefined;
+  /** The visit's rows in the list's order, which a move closes up and a refusal or undo opens again. */
+  queue: AttentionItem[];
+  /** Select a card by its id, or null for the first row. */
+  select: (id: string | null) => void;
   /** Every decision this visit, across lane switches; `lane` narrows which one undo takes back. */
   decided: Decision[];
   /** The lane Flow is in on this device, null for Everything (plan 087, KTD6). */
   lane: ResolvedLane | null;
-  /** The reply box of the card on top. */
+  /** The reply box of the selected card. */
   reply: ReplyBox;
   setReply: (id: string, patch: Partial<ReplyBox>) => void;
   setDecided: Dispatch<SetStateAction<Decision[]>>;
@@ -92,7 +118,7 @@ export interface DeckMovesHost {
    */
   notice?: (item: AttentionItem, words: string) => void;
   setDir: (dir: "next" | "back") => void;
-  /** Open a picker on the card on top, or close it with null. */
+  /** Open a picker on the selected card, or close it with null. */
   pick: (kind: PickerKind | null) => void;
   /** A reply went out this visit. */
   sent: () => void;
@@ -124,35 +150,58 @@ export const needsSignIn = (item: AttentionItem | undefined): boolean => {
 export const takesLabels = (item: AttentionItem | undefined): boolean => item?.outside?.provider === "gmail";
 
 /**
- * The deck's moves on the card on top (plan 070, U7), the same on a chat, an email and a Slack card: read (⌘]), later
- * (⌘[, the second press asks when), archive (⌘E), label (L, email only), undo and approve. A move pops the card at once
- * and re-orders the rest by score (popHead); a write-back that fails out there brings the card back on top with the
- * reason. Text in an outside card's box goes first, with the key's move after it (R11): the card moves only once the
+ * The deck's moves on the selected card (plan 070, U7; plan 2026-11-14-1330, R9), the same on a chat, an email and a
+ * Slack card: read (⌘]), later (⌘[, the second press asks when), archive (⌘E), label (L, email only), undo and approve.
+ * A move takes the card out of the list at once, closing the gap, and selects the row below it, or the row above when it
+ * was the last; a write-back that fails out there brings the card back to its row, selected, with the reason. Text in an outside card's box goes first, with the key's move after it (R11): the card moves only once the
  * reply is sent and the move went, and a sent reply is never sent again. Outside React, so a test drives it with a fake
  * host; the deck builds one each render (useDeckActions).
  */
 export function createDeckMoves(host: DeckMovesHost) {
   const { moves } = host;
-  const decide = (item: AttentionItem, then: Move) => {
+  /** The card's row now, for putting it back there. */
+  const rowOf = (item: AttentionItem) =>
+    Math.max(
+      0,
+      host.queue.findIndex((i) => idOf(i) === idOf(item)),
+    );
+  /**
+   * Take the card out of the list and select the row after it, unless the person selected another card while a reply
+   * went out first: their selection stays.
+   */
+  const leave = (item: AttentionItem) => {
+    const id = idOf(item);
+    const now = host.selected();
+    if (now && idOf(now) === id) host.select(rowAfter(host.queue, id));
+    host.setQueue((q) => q.filter((i) => idOf(i) !== id));
+  };
+  /** Back at row `at`, selected. */
+  const putBack = (item: AttentionItem, at: number) => {
+    host.setQueue((q) => placeAt(q, item, at));
+    host.select(idOf(item));
+  };
+  const decide = (item: AttentionItem, then: Move): number => {
     const { action, via } = DECISION[then];
+    const at = rowOf(item);
     host.setDir("next");
-    host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item) }]);
-    host.setQueue(popHead);
+    host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item), at }]);
+    leave(item);
+    return at;
   };
   /** A move refused out there: said as a notice where the host has one, the flash otherwise. */
   const refuse = (item: AttentionItem, words: string) => (host.notice ? host.notice(item, words) : host.say(words));
-  /** The card is still where it was: its decision goes and it is back on top. */
-  const restore = (item: AttentionItem, action: Decision["action"]) => {
+  /** The card is still where it was: its decision goes and it is back at row `at`, selected. */
+  const restore = (item: AttentionItem, action: Decision["action"], at: number) => {
     host.setDecided((d) => d.filter((x) => !(x.item === item && x.action === action)));
-    host.setQueue((q) => [item, ...q.filter((i) => idOf(i) !== idOf(item))]);
+    putBack(item, at);
   };
   /** Text waits in an outside card's box: the key sends it, then makes its move. */
   const hasReply = (item: AttentionItem) => !!item.outside && !!moves.replyOutside && host.reply.text.trim() !== "";
 
   /**
    * A mail reply (plan 076): the card moves on at once and the reply is held for its undo, which Z takes back while it
-   * waits (`held` on its decision). A send that fails brings the card back on top with the words and the reason; a move
-   * after it that fails brings it back with the reason, the reply sent.
+   * waits (`held` on its decision). A send that fails brings the card back to its row with the words and the reason; a
+   * move after it that fails brings it back with the reason, the reply sent.
    */
   const sendHeld = async (item: AttentionItem, then: Move, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
     const id = idOf(item);
@@ -160,10 +209,11 @@ export function createDeckMoves(host: DeckMovesHost) {
     const outbox = host.newId?.() ?? newId();
     const { action, via } = DECISION[then];
     const mine = (d: Decision) => d.held?.outbox_id === outbox;
+    const at = rowOf(item);
     host.setReply(id, { text: "", mail: null, error: null });
     host.setDir("next");
-    host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item), held: { outbox_id: outbox, text, mail } }]);
-    host.setQueue(popHead);
+    host.setDecided((d) => [...d, { item, action, via, stamp: stampOf(item), at, held: { outbox_id: outbox, text, mail } }]);
+    leave(item);
     host.say("Sending · z undo");
     const r = await send(item, text, then, { mail, outbox_id: outbox });
     // Undo stopped it and already put the card and the words back.
@@ -171,12 +221,12 @@ export function createDeckMoves(host: DeckMovesHost) {
     if (r.sent) host.sent();
     if (r.sent && !r.error) {
       // Sent: from here undo takes back the key's move, as for any card.
-      host.setDecided((d) => d.map((x) => (mine(x) ? { item: x.item, action: x.action, via: x.via, stamp: x.stamp } : x)));
+      host.setDecided((d) => d.map((x) => (mine(x) ? { item: x.item, action: x.action, via: x.via, stamp: x.stamp, at: x.at } : x)));
       host.say("Sent");
       return;
     }
     host.setDecided((d) => d.filter((x) => !mine(x)));
-    host.setQueue((q) => [item, ...q.filter((i) => idOf(i) !== id)]);
+    putBack(item, at);
     if (r.sent) {
       host.setReply(id, { error: r.error });
       host.say(`Sent, ${REFUSED[then].toLowerCase()}`);
@@ -187,7 +237,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   };
 
   /**
-   * A mail reply sent alone (plan 083): held for its undo like any mail reply, while the card stays on top for the
+   * A mail reply sent alone (plan 083): held for its undo like any mail reply, while the card stays selected for the
    * person's own next move. Z stops it while it waits and puts the words back; a send that fails puts them back too.
    */
   const sendHeldStay = async (item: AttentionItem, send: NonNullable<DeckMoveApi["replyOutside"]>): Promise<void> => {
@@ -244,21 +294,21 @@ export function createDeckMoves(host: DeckMovesHost) {
 
   /** Read (⌘], →): marked read here and out there; the card rests and comes back later. */
   const read = () => {
-    const item = host.current;
+    const item = host.selected();
     if (!item || host.reply.busy) return;
     if (hasReply(item)) return void sendThen(item, "read");
-    decide(item, "read");
+    const at = decide(item, "read");
     host.say("Read");
     void moves.read(item).then((r) => {
       if (!r.error) return;
-      restore(item, "seen");
+      restore(item, "seen", at);
       refuse(item, `${REFUSED.read}: ${r.error}`);
     });
   };
 
   /** Later (⌘[, ←): left unread here and out there, back in a day; the second press in a row asks when (R7). */
   const later = () => {
-    const item = host.current;
+    const item = host.selected();
     if (!item || host.reply.busy) return;
     if (hasReply(item)) return void sendThen(item, "later");
     // An account that needs a sign-in refuses every write, so Later would bring the card straight back and the deck
@@ -270,15 +320,15 @@ export function createDeckMoves(host: DeckMovesHost) {
       return;
     }
     if (moves.laterAsks(item)) return host.pick("later");
-    decide(item, "later");
+    const at = decide(item, "later");
     host.say("Later");
     void moves.later(item).then((r) => {
       if (r.error) {
-        restore(item, "later");
+        restore(item, "later", at);
         refuse(item, `${REFUSED.later}: ${r.error}`);
       } else if (r.ask) {
         // The card's rest moved under the press: it asks after all.
-        restore(item, "later");
+        restore(item, "later", at);
         host.pick("later");
       }
     });
@@ -286,14 +336,14 @@ export function createDeckMoves(host: DeckMovesHost) {
 
   /** The return time picked for the second later (ISO): the card rests until then. */
   const pickLater = (until: string) => {
-    const item = host.current;
+    const item = host.selected();
     if (!item) return;
     host.pick(null);
-    decide(item, "later");
+    const at = decide(item, "later");
     host.say("Later");
     void moves.later(item, until).then((r) => {
       if (!r.error) return;
-      restore(item, "later");
+      restore(item, "later", at);
       refuse(item, `${REFUSED.later}: ${r.error}`);
     });
   };
@@ -304,28 +354,28 @@ export function createDeckMoves(host: DeckMovesHost) {
    * account (Slack: read), and a refusal there brings the card back the same way.
    */
   const archive = () => {
-    const item = host.current;
+    const item = host.selected();
     if (!item || host.reply.busy) return;
     if (!item.outside && item.id === "default") return host.say("Main chats stay");
     if (item.outside && !OUTSIDE_ENDS[item.outside.provider].archive) return host.say("A Jira card ends with read");
     if (hasReply(item)) return void sendThen(item, "archive");
-    decide(item, "archive");
+    const at = decide(item, "archive");
     host.say("Archived");
     void moves.archive(item).then((err) => {
       if (!err) return;
-      restore(item, "archived");
+      restore(item, "archived", at);
       refuse(item, `${REFUSED.archive}: ${err}`);
     });
   };
 
   /** L: open the label picker on an email card; on any other card it does nothing. */
   const label = () => {
-    if (takesLabels(host.current)) host.pick("label");
+    if (takesLabels(host.selected())) host.pick("label");
   };
 
-  /** The labels picked for the card on top: added in Gmail, and the card stays for the next key (R12). Resolves to the reason, or null. */
+  /** The labels picked for the selected card: added in Gmail, and the card stays for the next key (R12). Resolves to the reason, or null. */
   const pickLabels = async (labelIds: string[]): Promise<string | null> => {
-    const item = host.current;
+    const item = host.selected();
     if (!item) return null;
     const err = await moves.label(item, labelIds);
     if (err) return err;
@@ -335,11 +385,11 @@ export function createDeckMoves(host: DeckMovesHost) {
     return null;
   };
 
-  /** Back on top as it was before its last move. */
+  /** Back in its row as it was before its last move, and selected (R9). */
   const back = (last: Decision) => {
     host.setDir("back");
     host.setDecided((d) => d.filter((x) => x !== last));
-    host.setQueue((q) => [last.item, ...q.filter((i) => idOf(i) !== idOf(last.item))]);
+    putBack(last.item, last.at ?? 0);
   };
 
   /**
@@ -349,7 +399,7 @@ export function createDeckMoves(host: DeckMovesHost) {
   const undo = () => {
     // A mail reply sent alone and still held (plan 083): stopped before it goes, and the words come back to the box.
     const waiting = host.reply.held;
-    const here = host.current;
+    const here = host.selected();
     if (waiting && here && moves.unsendOutside) {
       void moves.unsendOutside(here, waiting.outbox_id).then((stopped) => {
         if (!stopped) return host.say("Already sent");
@@ -388,14 +438,14 @@ export function createDeckMoves(host: DeckMovesHost) {
 
   /** Approve or deny the card's request: answered, and the card moves past for this visit. */
   const approve = (behavior: "allow" | "deny" | "always") => {
-    const item = host.current;
+    const item = host.selected();
     if (!item?.pendingApproval) return;
     const via = behavior !== "deny" ? "approve" : "deny";
     moves.approve(item, item.pendingApproval.requestId, behavior);
     moves.seen(item, via);
     host.setDir("next");
-    host.setDecided((d) => [...d, { item, action: "seen", via, stamp: stampOf(item) }]);
-    host.setQueue(popHead);
+    host.setDecided((d) => [...d, { item, action: "seen", via, stamp: stampOf(item), at: rowOf(item) }]);
+    leave(item);
     host.say(behavior !== "deny" ? "Approved" : "Denied");
   };
 
@@ -404,7 +454,7 @@ export function createDeckMoves(host: DeckMovesHost) {
    * it is for the person's own next move (plan 083).
    */
   const sendReply = () => {
-    const item = host.current;
+    const item = host.selected();
     if (item && hasReply(item)) void sendThen(item, "stay");
   };
 
