@@ -62,10 +62,10 @@ export function Welcome({
 
   return (
     // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
-    <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 16 }}>
+    <Sheet label="Welcome" width={640} top="10vh" scroll style={{ padding: 24, display: "grid", gap: 16 }}>
       <div>
         {/* loki's mark, the L (app/public/mark.png). */}
-        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 14 }} />
+        <img src="/mark.png" alt="" aria-hidden width={48} height={48} className="block" style={{ borderRadius: "var(--loki-radius-md)", marginBottom: 16 }} />
         <Title page>Welcome to loki</Title>
         <div style={{ fontSize: "var(--loki-text-body)", color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
           A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
@@ -303,7 +303,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="grid grid-cols-[90px_1fr] items-start gap-3" style={{ fontSize: "var(--loki-text-meta)" }}>
-      <span className="loki-label" style={{ paddingTop: 9 }}>
+      <span className="loki-label" style={{ paddingTop: 8 }}>
         {label}
       </span>
       <span className="grid min-w-0 gap-1">{children}</span>

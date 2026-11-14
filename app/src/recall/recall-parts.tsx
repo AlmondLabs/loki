@@ -75,7 +75,7 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   const prev = c.card.previous.at(-1);
   if (!prev) return null;
   return (
-    <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
+    <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
       <Meta>
         Before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}
       </Meta>
@@ -91,7 +91,7 @@ const DETAIL: CSSProperties = {
   border: "1px solid var(--loki-border)",
   borderRadius: "var(--loki-radius-lg)",
   boxShadow: "var(--loki-shadow-sheet)",
-  padding: "18px 24px 16px",
+  padding: "16px 24px",
 };
 /** How a detail's card stacks its parts. */
 const DETAIL_LAYOUT = "grid gap-4";

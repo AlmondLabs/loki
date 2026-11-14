@@ -174,7 +174,7 @@ function ServerRow({
         </span>
       </Row>
       {open && (
-        <div className="grid gap-2" style={{ padding: "4px 8px 10px 28px" }}>
+        <div className="grid gap-2" style={{ padding: "4px 8px 8px 24px" }}>
           {s.error && s.state !== "signin" && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
           {s.sign_in && <SignIn s={s} signIn={s.sign_in} onSignOut={() => void api.signOut(s.name).then(apply)} />}
           {s.tools.length > 0 && (
@@ -367,7 +367,7 @@ function ServerForm({
   };
 
   return (
-    <div className="grid gap-2" style={{ padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
+    <div className="grid gap-2" style={{ padding: 12, marginTop: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>

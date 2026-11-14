@@ -454,7 +454,7 @@ function Deck({
         border: "1px solid var(--loki-border)",
         borderRadius: "var(--loki-radius-lg)",
         boxShadow: "var(--loki-shadow-sheet)",
-        padding: "18px 24px 16px",
+        padding: "16px 24px",
         animation: "loki-card-next 200ms ease-out",
       }}
     >
@@ -477,7 +477,7 @@ function Deck({
               color: "var(--loki-fg)",
               whiteSpace: "pre-wrap",
               textWrap: "balance" as never,
-              padding: "10px 0",
+              padding: "12px 0",
             }}
           >
             {c.card.front}
@@ -486,7 +486,7 @@ function Deck({
             <div
               style={{
                 borderTop: "1px solid var(--loki-border)",
-                paddingTop: 14,
+                paddingTop: 12,
                 fontSize: "var(--loki-text-row)",
                 lineHeight: 1.55,
                 color: "var(--loki-fg)",
@@ -516,7 +516,7 @@ function Deck({
         </>
       )}
       {revealed && !editing && (
-        <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
+        <div className="grid grid-cols-[repeat(2,1fr)] gap-2" style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
           {ANSWERS.map(({ grade, label, key }) => (
             <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`Next in ${gaps[grade]}`}>
               {label} <span style={{ fontSize: "var(--loki-text-fine)", opacity: 0.75 }}>{gaps[grade]}</span>

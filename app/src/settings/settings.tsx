@@ -47,6 +47,9 @@ const HOME = "~/.loki";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 
+/** The window's toolbar height: the pane header matches it, and the nav's top padding clears the traffic lights by it. */
+const TOOLBAR_HEIGHT = 52;
+
 /** The daemon's chat link (useAttention's status, "off" shown as connecting). */
 type ChatLink = "connecting" | "open" | "closed";
 type ModConnection = "connecting" | "open" | "closed";
@@ -226,12 +229,12 @@ export function Settings({
         data-tauri-drag-region={windowed ? "deep" : undefined}
         style={{
           minHeight: 0,
-          padding: windowed ? "52px 10px 0" : "16px 10px 0",
+          padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "16px 8px 0",
           borderRight: windowed ? undefined : "1px solid var(--loki-border)",
         }}
       >
         {!windowed && (
-          <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
+          <h2 className="loki-title" style={{ margin: 0, padding: "4px 8px 12px" }}>
             Preferences
           </h2>
         )}
@@ -250,7 +253,7 @@ export function Settings({
           data-tauri-drag-region={windowed ? "deep" : undefined}
           className="flex-none flex items-center gap-2"
           style={{
-            minHeight: windowed ? 52 : 48,
+            minHeight: windowed ? TOOLBAR_HEIGHT : 48,
             padding: "0 12px 0 28px",
             // A group with tabs draws its rule under them instead.
             borderBottom: group.pages.length > 1 ? undefined : "1px solid var(--loki-border)",
@@ -763,7 +766,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
             <tbody>
               {rows.map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
-                  <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>
+                  <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 8 }}>
                     {i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}
                   </td>
                   <td

@@ -17,7 +17,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
       <div
         // The card caps its height and clips; the list scrolls inside it, so a view with many keys shows them all.
         className="grid gap-4"
-        style={{ padding: "18px 22px 16px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
+        style={{ padding: "16px 24px", maxHeight: "inherit", boxSizing: "border-box", overflowY: "auto" }}
         onKeyDown={(e) => {
           if (e.key === "?" && !(e.target instanceof HTMLInputElement)) {
             e.preventDefault();

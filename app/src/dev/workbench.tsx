@@ -175,7 +175,7 @@ export function Workbench() {
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
         <Section title="Glass over content" note="The bar, the view switch, the approval and the composer are glass; the page under them is solid.">
           <div className="relative h-[480px] overflow-hidden rounded-lg border bg-background">
-            <div className="absolute inset-0 overflow-auto px-10 pt-20 pb-56">
+            <div className="absolute inset-0 overflow-auto px-10 pt-12 pb-12">
               <div className="mx-auto flex max-w-2xl flex-col gap-4 text-body">
                 {LOREM.map((line) => (
                   <p key={line} className="m-0">

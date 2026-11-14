@@ -1195,7 +1195,7 @@ export function OutsideCard({
       </div>
       {picker && <div className="loki-card-picker">{picker}</div>}
       {reply && !mailBox && (
-        <div className="mx-auto w-full max-w-3xl" style={{ padding: "10px 24px 16px" }}>
+        <div className="mx-auto w-full max-w-3xl" style={{ padding: "12px 24px 16px" }}>
           {reply}
         </div>
       )}

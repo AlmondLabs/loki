@@ -567,7 +567,7 @@ export function ConversationHeader({
     <div
       className="flex flex-none items-center justify-between gap-3"
       style={{
-        padding: "14px 18px",
+        padding: "12px 20px",
         borderBottom: "1px solid var(--loki-border)",
       }}
     >
