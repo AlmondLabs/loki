@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { Notices, notify } from "../components";
+import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
-import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, conversationDirName, scopeFor } from "../../../core/desk-core.ts";
+import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/desk-pane";
 import { NewChat } from "../desk/new-chat";
@@ -261,6 +262,37 @@ export function Shell() {
   useEffect(() => {
     if (desk.connection === "open") linkUp();
   }, [desk.connection]);
+  // A window with no chat to show lands somewhere real once it can tell where (plan 2026-11-14-1300, 1): Flow when
+  // something waits, else the latest chat; with neither, the pane says "No Chat Selected". Once per window, so a person
+  // who leaves a chat for nothing later is not moved.
+  const [landed, setLanded] = useState(false);
+  const where = landed
+    ? null
+    : landing({
+        scope: desk.scope,
+        onChats: segment === "desk" && newChat === null,
+        ready: desk.desks.loaded && catchUp.status === "open" && catchUp.agentsLoaded,
+        desks: desk.desks.list,
+        waiting,
+      });
+  // As a string, so the effect below runs when the landing changes, not on every render's new object.
+  const whereKey = where ? landingKey(where) : null;
+  const land = useEffectEvent(() => {
+    if (!where) return;
+    setLanded(true);
+    if (where.kind === "flow") setSegment("inbox");
+    else if (where.kind === "chat") {
+      desk.desks.switchTo(where.scope);
+      pane.open(where.scope);
+    }
+  });
+  useEffect(() => {
+    if (!whereKey) return;
+    // A landing is a navigation, made on the next frame once the window has painted what it has, and dropped if the
+    // window moves on first.
+    const frame = requestAnimationFrame(() => land());
+    return () => cancelAnimationFrame(frame);
+  }, [whereKey]);
   // Search's recent places: every desk opened and every section visited, not only what search opened.
   useEffect(() => {
     if (segment === "desk") {
@@ -280,6 +312,8 @@ export function Shell() {
   // A chat not started yet shows in place of the open one, which stays mounted behind it and takes no keys meanwhile.
   const drafting = newChat !== null && segment === "desk";
   const onChat = segment === "desk" && !drafting;
+  /** The window holds no chat: the desk's shared scope is the canvas's own, never a chat to draw. */
+  const noChat = desk.scope === SHARED_SCOPE;
   // The sidebar stays on every tab, the Canvas one too, as Finder's does whatever the view (plan 2026-11-14-1130, 2);
   // ⌃⌘S folds it for a wider canvas.
   const columnShown = column.shown;
@@ -431,7 +465,7 @@ export function Shell() {
         {/* The main pane: one main landmark for whichever section shows; the sidebar is the navigation. */}
         <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
-          <div style={{ position: "absolute", inset: 0, visibility: onChat ? "visible" : "hidden" }} aria-hidden={!onChat}>
+          <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
             <DeskPane
               desk={desk}
               catchUp={catchUp}
@@ -459,6 +493,16 @@ export function Shell() {
               onShowLabel={showLabel}
             />
           </div>
+
+          {/* No chat to show: say so, as Messages and Mail do, rather than draw an empty room (plan 2026-11-14-1300, 1). */}
+          {onChat && noChat && (
+            <EmptyPane icon="desk" title="No Chat Selected" style={{ position: "absolute", inset: 0 }}>
+              <span className="loki-meta">Choose a chat in the sidebar, or start one.</span>
+              <Button tone="positive" onClick={() => startNewChat(null)}>
+                New Chat
+              </Button>
+            </EmptyPane>
+          )}
 
           {/* A chat not started yet takes the open chat's place (U20); keyed by the ask, so ⌘N again starts over. */}
           {drafting && (
