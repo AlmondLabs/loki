@@ -174,7 +174,7 @@ export function ModeMenu({
           <span style={{ fontSize: "var(--loki-text-fine)", color: "var(--loki-accent)" }}>{m.id === selected ? "✓" : ""}</span>
         </Row>
       ))}
-      <div style={{ padding: "5px 8px 3px" }}>
+      <div style={{ padding: "4px 8px" }}>
         <Meta>Applies to this conversation · esc</Meta>
       </div>
     </Popover>

@@ -172,8 +172,7 @@ export function ContentList({
 
   return (
     <section className="loki-content-list" aria-label={label}>
-      <ListBar title={title} count={count} newAction={newAction} />
-      {line && <p className="loki-content-list-line">{line}</p>}
+      <ListBar title={title} count={count} line={line} newAction={newAction} />
       {onQuery && <ListSearch label={label} query={query} onQuery={onQuery} />}
       <div ref={rowsRef} className="loki-content-list-rows">
         {shown.length === 0 ? (
@@ -269,12 +268,20 @@ function useHeldRows(rows: readonly ContentRow[], current: string | null, search
   return shown;
 }
 
-/** The list's toolbar: the source's name, its grey count, and the place's New with its key in the tooltip. */
-function ListBar({ title, count, newAction }: Pick<ContentListProps, "title" | "newAction"> & { count: number | null }) {
+/**
+ * The list's toolbar: the source's name and grey count over its grey line, one stack as the detail's title is so the
+ * two share a top line (plan 2026-11-14-2224, KTD4), and the place's New with its key in the tooltip.
+ */
+function ListBar({ title, count, line, newAction }: Pick<ContentListProps, "title" | "line" | "newAction"> & { count: number | null }) {
   return (
     <div className="loki-content-list-bar" data-tauri-drag-region="deep">
-      <h2 className="loki-content-list-title">{title}</h2>
-      {count !== null && <span className="loki-content-list-count">{count}</span>}
+      <div className="loki-content-list-head">
+        <div className="loki-content-list-name">
+          <h2 className="loki-content-list-title">{title}</h2>
+          {count !== null && <span className="loki-content-list-count">{count}</span>}
+        </div>
+        {line && <p className="loki-content-list-line">{line}</p>}
+      </div>
       {newAction && (
         <IconButton
           size={24}

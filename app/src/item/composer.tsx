@@ -52,7 +52,7 @@ function MessagesBox({
   const { uploading, picker, dictation, listening, interim, startDictation, send, field, onPicked } = box;
   const stop = onStop && !canSend;
   return (
-    <div data-composer="messages" className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 pb-3">
+    <div data-composer="messages" className="flex w-full max-w-3xl flex-col gap-2 px-5 pb-3">
       {extras && <div className="flex justify-end">{extras}</div>}
       <QueuedList queued={queued} onCancelQueued={onCancelQueued} />
       <div className="flex items-end gap-2">

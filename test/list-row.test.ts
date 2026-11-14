@@ -38,6 +38,33 @@ describe("list row markup", () => {
     expect(out).toContain('aria-current="page"');
     expect(out).toContain(">3h<");
   });
+  test("the time sits on the name line, after the name and its flags, so a row with a preview shows it at the top", () => {
+    const out = html(
+      createElement(ListRow, {
+        title: "ira",
+        preview: "Signups",
+        flags: createElement("span", { className: "mark" }, "Sign In"),
+        time: "3h",
+        onOpen: () => {},
+      }),
+    );
+    expect(out).toContain(
+      '<span class="loki-list-row-title"><span class="loki-list-row-name">ira</span><span class="mark">Sign In</span><span class="loki-list-row-time">3h</span></span>',
+    );
+  });
+  test("a one-line row draws the same markup as before but for where the time sits", () => {
+    const out = html(createElement(ListRow, { title: "Budget", time: "3h", onOpen: () => {} }));
+    expect(out).toBe(
+      '<li class="loki-list-item"><button type="button" class="loki-list-row">' +
+        '<span class="loki-list-row-copy"><span class="loki-list-row-title"><span class="loki-list-row-name">Budget</span>' +
+        '<span class="loki-list-row-time">3h</span></span></span></button></li>',
+    );
+  });
+  test("a badge or the live mark at the end still takes the time's place, at the row's right edge", () => {
+    const out = html(createElement(ListRow, { title: "Budget", time: "3h", badge: 2, onOpen: () => {} }));
+    expect(out).not.toContain("loki-list-row-time");
+    expect(out).toMatch(/<\/span><\/span><span class="sr-only">[^<]*<\/span><span class="loki-list-badge"/);
+  });
   test("a folded section says so and draws no list", () => {
     const out = html(
       createElement(ListSection, { title: "Friday", open: false, onToggle: () => {}, children: createElement(ListRow, { title: "x", onOpen: () => {} }) }),

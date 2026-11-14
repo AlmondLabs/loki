@@ -63,7 +63,7 @@ export function SlashPalette({
           </Row>
         ))}
         {matches.length === 0 && (
-          <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>
+          <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 8 }}>
             {`No command matches. ${formatKeys("enter")} sends it as a message.`}
           </div>
         )}

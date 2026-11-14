@@ -666,8 +666,9 @@ export interface ListRowProps {
 
 /**
  * One row of a desktop list, Slack's anatomy: the lead, the title (bold when unread) over an optional
- * preview, and on the right the time or the red badge. The whole row is one button; `actions` sit beside
- * it, not inside, so they are their own tab stops. Goes inside a ListSection or a `<ul className="loki-list">`.
+ * preview, and on the right the time (on the title's line) or the red badge. The whole row is one button;
+ * `actions` sit beside it, not inside, so they are their own tab stops. Goes inside a ListSection or a
+ * `<ul className="loki-list">`.
  */
 export function ListRow({
   lead,
@@ -702,6 +703,9 @@ export function ListRow({
     if (count !== null && (shown === null || count > shown)) setPops((n) => n + 1);
   }
   const liveDot = live && !liveAtEnd ? <span aria-hidden className="loki-list-row-live" /> : null;
+  // The time sits on the name line, so a row with a preview shows it at the top as Mail does; a badge or the live
+  // mark at the end takes its place at the row's right edge instead.
+  const showTime = count === null && !(live && liveAtEnd) && !!time;
   return (
     <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>
       <button
@@ -735,6 +739,7 @@ export function ListRow({
           <span className="loki-list-row-title">
             <span className="loki-list-row-name">{title}</span>
             {flags}
+            {showTime && <span className="loki-list-row-time">{time}</span>}
           </span>
           {preview && <span className="loki-list-row-preview">{preview}</span>}
         </span>
@@ -745,8 +750,6 @@ export function ListRow({
           </span>
         ) : live && liveAtEnd ? (
           <span aria-hidden className="loki-list-row-live loki-list-row-live--end" title="Working" />
-        ) : time ? (
-          <span className="loki-list-row-time">{time}</span>
         ) : null}
       </button>
       {actions && <span className="loki-list-row-actions">{actions}</span>}

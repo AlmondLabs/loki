@@ -17,7 +17,7 @@ export function ApprovalCard({ approval, actions }: { approval: PendingApproval;
       </div>
       <pre className="loki-approval-input">{formatInput(approval.input)}</pre>
       {actions && (
-        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
           {actions}
         </div>
       )}

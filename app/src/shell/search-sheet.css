@@ -7,7 +7,7 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 12px 16px;
   border-bottom: 1px solid var(--loki-border);
@@ -44,7 +44,7 @@
   align-items: baseline;
   gap: 8px;
   min-height: 24px;
-  padding: 4px 10px 2px;
+  padding: 4px 12px 2px;
 }
 .loki-search-group-title {
   font-size: var(--loki-text-meta);
@@ -79,7 +79,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  padding: 16px 10px;
+  padding: 16px 12px;
 }
 .loki-search-miss {
   margin: 0;
@@ -90,7 +90,7 @@
 .loki-search-coverage {
   flex: none;
   margin: 0;
-  padding: 8px 16px 10px;
+  padding: 8px 16px;
   border-top: 1px solid var(--loki-border);
 }
 .loki-search-empty p {
@@ -108,7 +108,7 @@
 }
 .loki-model-switch-more {
   margin: 0;
-  padding: 6px 10px 4px;
+  padding: 6px 12px 4px;
 }
 .loki-model-switch-foot {
   flex: none;
@@ -116,7 +116,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px 10px 16px;
+  padding: 8px 12px 8px 16px;
   border-top: 1px solid var(--loki-border);
 }
 .loki-model-switch-efforts {
@@ -130,7 +130,7 @@
 .loki-model-switch-effort {
   border: none;
   background: transparent;
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: var(--loki-radius-pill);
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -149,7 +149,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px 4px 2px 10px;
+  padding: 2px 4px 2px 8px;
   border-radius: var(--loki-radius-pill);
   background: var(--loki-selection);
   color: var(--loki-fg);

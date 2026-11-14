@@ -84,6 +84,13 @@ describe("a Flow row", () => {
     expect(text(row)).toBe("|Grace|Your invoice|Can you look?|");
   });
 
+  test("a chat with nothing said yet still draws its third line, empty, so every row is three lines tall", () => {
+    const [row] = flowRows([attentionItem("c1", { agent_name: "ira", title: "Signups", lastAssistantText: null })]);
+    const preview = renderToStaticMarkup(createElement("span", null, row.preview));
+    expect(preview).toContain('<span class="loki-flow-row-subject">Signups</span><span class="loki-flow-row-line">');
+    expect(text(row)).toMatch(/^\|ira\|Signups\|\s*\|$/);
+  });
+
   test("a card whose account needs a sign-in carries a muted Sign In mark", () => {
     const base = outsideItem("Your invoice");
     const out = base.outside ? { ...base.outside, disconnected: "sign_in_again" as const } : undefined;

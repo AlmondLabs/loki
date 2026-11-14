@@ -48,7 +48,7 @@ export function NewAgent({
   return (
     <div
       className="flex-1"
-      style={{ minHeight: 0, overflowY: "auto", padding: "24px 28px" }}
+      style={{ minHeight: 0, overflowY: "auto", padding: "24px 20px" }}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void submit()}
     >
       <div className="grid gap-4" style={{ maxWidth: 640 }}>
@@ -112,7 +112,7 @@ export function NewAgent({
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4" style={{ padding: "0 8px" }}>
-      <span className="loki-label" style={{ paddingTop: 9, lineHeight: "18px" }}>
+      <span className="loki-label" style={{ paddingTop: 8, lineHeight: "18px" }}>
         {label}
       </span>
       <div className="min-w-0">{children}</div>

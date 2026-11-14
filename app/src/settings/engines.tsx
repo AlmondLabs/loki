@@ -198,7 +198,7 @@ function EngineForm({
     }
   };
   return (
-    <div className="grid gap-2" style={{ padding: 12, marginTop: 10, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
+    <div className="grid gap-2" style={{ padding: 12, marginTop: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <label htmlFor={`${uid}-name`} className="loki-label">
         Name
       </label>

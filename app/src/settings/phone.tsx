@@ -207,7 +207,7 @@ function RouteRow({
       onClick={() => !disabled && onPick(via)}
       style={{ padding: "8px 12px", cursor: disabled ? "default" : undefined, opacity: disabled ? 0.5 : 1 }}
     >
-      <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 5 }} />
+      <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 4 }} />
       <span className="grid gap-px min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-2">
           <span style={{ fontSize: "var(--loki-text-body)", color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{sentence(ROUTE_NAME[via])}</span>
