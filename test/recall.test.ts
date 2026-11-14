@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { newSchedule } from "../core/recall/fsrs.ts";
 import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/views.ts";
 import { learnSources } from "../app/src/recall/learn-column.tsx";
-import { cardRows, deletedRows, holdDeckKeys, leadRows, reviewRows } from "../app/src/recall/learn-list.ts";
+import { cardRows, deletedRows, dueWord, holdDeckKeys, leadRows, reviewRows, workerLine, writtenLine } from "../app/src/recall/learn-list.ts";
 import { CardDetail } from "../app/src/recall/recall-parts.tsx";
 import { nextInDeck } from "../app/src/recall/use-deck-pass.ts";
 import { ContentList } from "../app/src/shell/content-list.tsx";
@@ -330,5 +330,39 @@ describe("learn on the list (plan 2026-11-14-1330, R14)", () => {
     );
     expect(out).toContain("Deleted Cards");
     expect(out).toContain("Dismissed Leads");
+  });
+
+  describe("the words on All Cards' line and a card's row", () => {
+    const worker = (over: Partial<RecallSnapshot["worker"]> = {}): RecallSnapshot["worker"] => ({
+      enabled: true,
+      daily_cap: 5,
+      last_run_at: null,
+      last_run_note: null,
+      written_today: 3,
+      ...over,
+    });
+    const at = (msAgo: number) => new Date(T0 - msAgo).toISOString();
+    test.each([
+      ["off", worker({ enabled: false, last_run_at: at(0) }), "Learn is off"],
+      ["never run", worker(), "Has not run yet · 3 of 5 written today"],
+      ["just now", worker({ last_run_at: at(10_000) }), "Last run just now · 3 of 5 written today"],
+      ["hours ago", worker({ last_run_at: at(3 * 3_600_000) }), "Last run 3h ago · 3 of 5 written today"],
+    ])("the writer %s", (_, w, line) => {
+      expect(workerLine(w, T0)).toBe(line);
+    });
+    test.each([
+      ["at the cap", worker({ written_today: 5 }), "today's 5 cards are written — more after midnight"],
+      ["under the cap", worker({ written_today: 2 }), "2 of 5 written today"],
+      ["none written", worker({ written_today: 0 }), "0 of 5 written today"],
+    ])("today's count %s", (_, w, line) => {
+      expect(writtenLine(w)).toBe(line);
+    });
+    test("a card's due word: New until reviewed, then Due, or how long until it is", () => {
+      const reviewed = { last_review: new Date(T0 - 86_400_000).toISOString() };
+      const fresh = scheduled("a");
+      const due = { ...fresh, schedule: { ...fresh.schedule, ...reviewed, due: at(60_000) } };
+      const later = { ...fresh, schedule: { ...fresh.schedule, ...reviewed, due: new Date(T0 + 3 * 86_400_000).toISOString() } };
+      expect([dueWord(fresh, T0), dueWord(due, T0), dueWord(later, T0)]).toEqual(["New", "Due", "In 3d"]);
+    });
   });
 });

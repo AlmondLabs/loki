@@ -26,11 +26,16 @@ export function useDeckPass(cards: CardWithSchedule[]) {
   const current = queue.find((c) => c.card.id === currentId) ?? queue.at(0);
   const revealed = !!current && revealedId === current.card.id;
   const reveal = () => current && setRevealedId(current.card.id);
-  /** Leave the current card behind for the next one (nextInDeck). */
-  const advance = () => {
-    if (!current) return;
-    const next = nextInDeck(queue, current, chosenId === current.card.id);
-    setPassed((p) => new Set(p).add(current.card.id));
+  /**
+   * Leave a card behind for the next one (nextInDeck): the current card, or the one `id` names, which Review's list may
+   * have committed in the same press (an X on a highlighted row) before this render's `current` caught up. A card other
+   * than the current one was chosen out of order, so the one after it is the queue's first.
+   */
+  const advance = (id = current?.card.id) => {
+    const card = queue.find((c) => c.card.id === id);
+    if (!card) return;
+    const next = nextInDeck(queue, card, chosenId === card.card.id || card !== current);
+    setPassed((p) => new Set(p).add(card.card.id));
     setCurrentId(next?.card.id ?? null);
     setChosenId(null);
   };
@@ -39,6 +44,7 @@ export function useDeckPass(cards: CardWithSchedule[]) {
     if (!queue.some((c) => c.card.id === id)) return;
     setCurrentId(id);
     setChosenId(id);
+    setRevealedId(null);
   };
   const total = queue.length + passed.size;
   /** When the next card not yet due comes due, for the "done for now" note. */

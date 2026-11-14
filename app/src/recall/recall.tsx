@@ -3,7 +3,7 @@ import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall
 import { learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import { lessonBrief } from "../../../core/recall/extract.ts";
 import { Button, Empty, Meta, PaneHeader } from "../components";
-import { ContentList, NothingSelected, type ContentRow } from "../shell/content-list";
+import { ContentList, NothingSelected, type ContentListHandle, type ContentRow } from "../shell/content-list";
 import { PlaceColumns } from "../shell/place-columns";
 import { ToolbarTitle } from "../item/toolbar";
 import type { ItemProperty } from "../item/item-view";
@@ -72,14 +72,20 @@ export function Recall({
     void recall.grade(current.card.id, g);
     pass.advance();
   };
-  const remove = () => {
-    if (!current) return;
-    void recall.remove(current.card.id);
-    pass.advance();
+  const remove = (id = current?.card.id) => {
+    if (!id) return;
+    void recall.remove(id);
+    pass.advance(id);
   };
-  const open = () => {
-    const s = current?.card.source;
+  const open = (id = current?.card.id) => {
+    const s = cards.find((c) => c.card.id === id)?.card.source;
     if (s?.agent_id && s.conversation_id) onOpenDesk(s.agent_id, s.conversation_id);
+  };
+  /** Review's list, so X, E and O act on the row the person sees: it commits a pending highlight first (KTD3). */
+  const listRef = useRef<ContentListHandle>(null);
+  const onSeen = (run: (id: string) => void) => {
+    if (listRef.current) listRef.current.act(run);
+    else if (current) run(current.card.id);
   };
   // Space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a pass
   // through the deck is → → → with ← for the ones that slipped.
@@ -90,9 +96,9 @@ export function Recall({
       reveal: () => answer(3),
       again: () => answer(1),
       good: () => answer(3),
-      remove,
-      edit: () => current && setEditingId(current.card.id),
-      open,
+      remove: () => onSeen(remove),
+      edit: () => onSeen(setEditingId),
+      open: () => onSeen(open),
     };
   });
   // The deck's keys, registered once per showing; the handlers above are read at press time.
@@ -131,9 +137,9 @@ export function Recall({
       showPrevious={previousId === current.card.id}
       onReveal={pass.reveal}
       onGrade={grade}
-      onDelete={remove}
+      onDelete={() => remove()}
       onEdit={() => setEditingId(current.card.id)}
-      onOpen={open}
+      onOpen={() => open()}
       onTogglePrevious={() => setPreviousId((p) => (p === current.card.id ? null : current.card.id))}
       onSave={(text) => {
         void recall.edit(current.card.id, text);
@@ -149,6 +155,7 @@ export function Recall({
     <div className="loki-learn-list" onKeyDown={view === "review" ? (e) => holdDeckKeys(e.nativeEvent) : undefined}>
       <ContentList
         key={view}
+        {...(view === "review" ? { ref: listRef } : {})}
         label={LEARN_VIEW_LABEL[view]}
         title={LEARN_VIEW_LABEL[view]}
         count={shown.rows.length || null}
@@ -171,6 +178,7 @@ export function Recall({
         </ReviewView>
       );
     }
+    // With no snapshot the notices are all there is to show (an error, most likely); the wrapper leaves them to this.
     if (!snap) return <Notices recall={recall} />;
     const chosen = shown.selectedId;
     if (view === "leads") {
@@ -273,7 +281,7 @@ export function Recall({
             The gutter is reserved so a long item's scrollbar does not shift the column sideways. */}
           <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
             <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-              {view !== "review" && <Notices recall={recall} />}
+              {view !== "review" && snap && <Notices recall={recall} />}
               {body}
             </div>
           </div>

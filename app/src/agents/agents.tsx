@@ -12,7 +12,7 @@ import { PlaceColumns } from "../shell/place-columns";
 
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_LABEL, type AgentPage } from "./pages";
 import { readingFor, shownShaOf, shownSkillOf } from "./reading";
-import { agentsSelection, shownAgent, useAgentsSelection, type AgentsSelection } from "./selection";
+import { agentsHasList, agentsSelection, shownAgent, useAgentsSelection, type AgentsSelection } from "./selection";
 import { useAgentDetails } from "./use-agent-details";
 import { useReading } from "./use-reading";
 import { NewAgent } from "./new-agent";
@@ -160,7 +160,8 @@ export function useAgentsPlace({
 
   const name = d?.agent.name ?? agents.find((a) => a.id === selected)?.name ?? "agent";
   const pageList: PageList | null =
-    !selected || creating || page === "profile" || !agents.length
+    // The shell's rule for whether the list column shows (agentsHasList), so the two never disagree.
+    !selected || !agentsHasList(sel, agents.length)
       ? null
       : !d
         ? { rows: [], selectedId: null, onSelect: () => {}, empty: d === null ? "No local record" : "Reading the agent…", noun: "Item" }
@@ -172,7 +173,9 @@ export function useAgentsPlace({
               ? { rows: changeRows(runs), selectedId: shownRun, onSelect: setRunSha, empty: `Reflection has not changed ${name}'s memory lately.`, noun: "Run" }
               : { rows: skillRows(d.skills), selectedId: shownSkill?.name ?? null, onSelect: setSkillName, empty: `${name} has no skills yet.`, noun: "Skill" };
   const listColumn = pageList && (
+    // Keyed by agent and page, so a highlight or a held row never carries over to another agent's or page's rows.
     <ContentList
+      key={`${selected}:${page}`}
       ref={list}
       label={`${name}: ${AGENT_PAGE_LABEL[page]}`}
       title={AGENT_PAGE_LABEL[page]}
@@ -183,6 +186,7 @@ export function useAgentsPlace({
       onEnter={() => detailRef.current?.focus()}
       empty={pageList.empty}
       newAction={{ label: "New Agent", run: () => setCreating(true) }}
+      emptyAction={false}
     />
   );
 
