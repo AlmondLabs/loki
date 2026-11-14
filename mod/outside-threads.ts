@@ -25,7 +25,8 @@ import { MailOutbox, type HeldFile, type HeldProposal, type HeldReply, type Mail
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 import { fileTypeOf } from "./google-tools/core.ts";
-import { MAY_HAVE_GONE, checkedFiles, headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-proposals.ts";
+import { headerOf, peopleChange, replyAllOf, replyOf, replySubject, replyTarget, slackPlace } from "./reply-addressing.ts";
+import { MAY_HAVE_GONE, checkedFiles } from "./reply-proposals.ts";
 import { SlackError, type SlackClient } from "./slack.ts";
 import { reactionEmoji, searchEmoji } from "./slack-markup.ts";
 import type { SlackPeople } from "./slack-people.ts";

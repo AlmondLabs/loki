@@ -639,6 +639,7 @@ describe("the only things the client writes are the person's comment and its fil
     await c.history("OPS-1");
     await c.ticket("OPS-1");
     await c.issue("OPS-1");
+    await c.ticketFacts("OPS-1");
     await c.attachments("OPS-1");
     await c.thumbnail("10001");
     expect(jira.writes()).toEqual([]);
@@ -653,7 +654,8 @@ describe("the only things the client writes are the person's comment and its fil
     expect(
       called.filter(
         (n) =>
-          !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue", "attachments", "thumbnail"].includes(n) && !PRIVATE.includes(n),
+          !["myself", "serverInfo", "searchWatched", "comments", "history", "ticket", "issue", "ticketFacts", "attachments", "thumbnail"].includes(n) &&
+          !PRIVATE.includes(n),
       ),
     ).toEqual([]);
   });

@@ -36,6 +36,8 @@ export const SLACK_METHODS = [
   "conversations.history",
   "conversations.replies",
   "conversations.info",
+  "conversations.members",
+  "users.conversations",
   "users.info",
   "users.list",
   "users.prefs.get",
@@ -171,6 +173,22 @@ export interface SlackConversation {
   is_private: boolean;
   user: string | null;
   last_read: string | null;
+  /**
+   * Whether the person is in it (plan 2026-11-14-1530, R6): a reply goes only where they are. Slack leaves it out for a
+   * DM, which is theirs by being one; absent where a caller built the conversation without asking Slack.
+   */
+  is_member?: boolean;
+  /** Whether it is shared with another workspace (Slack Connect), so a reply reaches people outside this one (R10). */
+  is_ext_shared?: boolean;
+}
+
+/** A conversation the person is in, as the list of them gives it: enough to find one by its name. */
+export interface SlackMembership {
+  id: string;
+  name: string | null;
+  is_im: boolean;
+  is_mpim: boolean;
+  user: string | null;
 }
 
 /** A person in the workspace, by the names Slack shows. */
@@ -348,6 +366,35 @@ export class SlackClient {
       is_private: c.is_private === true,
       user: strOrNull(c.user),
       last_read: strOrNull(c.last_read),
+      is_member: c.is_im === true || c.is_member === true,
+      is_ext_shared: c.is_ext_shared === true,
+    };
+  }
+
+  /**
+   * One page of the conversations the person is in, channels and group DMs and DMs (plan 2026-11-14-1530): how a
+   * `#name` an agent writes becomes a channel id, found only among the person's own.
+   */
+  async usersConversations(cursor: string | null): Promise<{ conversations: SlackMembership[]; next_cursor: string | null }> {
+    const r = await this.call("users.conversations", {
+      types: "public_channel,private_channel,mpim,im",
+      exclude_archived: true,
+      limit: 200,
+      ...(cursor ? { cursor } : {}),
+    });
+    const conversations = list(r.channels).map((v) => {
+      const c = rec(v);
+      return { id: str(c.id), name: strOrNull(c.name), is_im: c.is_im === true, is_mpim: c.is_mpim === true, user: strOrNull(c.user) };
+    });
+    return { conversations: conversations.filter((c) => c.id), next_cursor: strOrNull(rec(r.response_metadata).next_cursor) };
+  }
+
+  /** One page of who is in a conversation, by user id (plan 2026-11-14-1530, R22): a mention reaches only them. */
+  async conversationsMembers(channel: string, cursor: string | null): Promise<{ members: string[]; next_cursor: string | null }> {
+    const r = await this.call("conversations.members", { channel, limit: 200, ...(cursor ? { cursor } : {}) });
+    return {
+      members: list(r.members).filter((m): m is string => typeof m === "string" && m !== ""),
+      next_cursor: strOrNull(rec(r.response_metadata).next_cursor),
     };
   }
 

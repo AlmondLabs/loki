@@ -12,7 +12,7 @@ import { MailOutbox, RESUME_MAX_MS } from "../mod/mail-outbox.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import { MailPeople } from "../mod/mail-people.ts";
 import { OutsideThreads } from "../mod/outside-threads.ts";
-import { peopleChange, replyOf } from "../mod/reply-proposals.ts";
+import { peopleChange, replyOf } from "../mod/reply-addressing.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OutsideReply } from "../app/src/desk/outside-card.tsx";

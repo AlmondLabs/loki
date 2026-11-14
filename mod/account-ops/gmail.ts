@@ -1,6 +1,9 @@
 import { htmlToText, tidyMail } from "../../core/mail-text.ts";
+import type { AccountRecord } from "../accounts.ts";
 import type { GmailClient, GmailMessage, GmailMessagePart } from "../gmail.ts";
-import { MAIL_HTML_MAX, type ThreadMessage, type ThreadText } from "./thread.ts";
+import { GoogleError } from "../google-auth.ts";
+import { headerOf, replyAllOf, replySubject, replyTarget } from "../reply-addressing.ts";
+import { MAIL_HTML_MAX, type FlowRecord, type ReplyDestination, type ThreadMessage, type ThreadText } from "./thread.ts";
 
 /**
  * Reading Gmail (plan 097, U1): a thread as loki's messages, and a message's text and files. One implementation, which
@@ -89,4 +92,32 @@ export function mailAttachments(m: GmailMessage): Array<{ filename: string; mime
 function addressOf(from: string): string {
   const angled = /<([^>]+)>/.exec(from)?.[1] ?? from;
   return angled.trim().toLowerCase();
+}
+
+/** What reading a Gmail reply's destination needs of the mailbox's client: the thread and the person's own addresses. */
+export type ReplyGmailReads = Pick<GmailClient, "getThread" | "sendAsAddresses">;
+
+/**
+ * Where a Gmail reply goes (plan 2026-11-14-1530, U1): reply all to the thread's newest message but the person's own
+ * addresses, under its subject, read from Gmail itself. The reference is the thread id Gmail's API and the scripts
+ * give; a thread the mailbox does not have is refused.
+ */
+export async function gmailReplyDestination(account: AccountRecord, client: ReplyGmailReads, reference: string, flow: FlowRecord): Promise<ReplyDestination> {
+  const threadId = reference.trim();
+  const thread = await client.getThread(threadId, "metadata").catch((err: unknown) => {
+    if (err instanceof GoogleError && (err.status === 404 || err.status === 400)) throw new Error(`there is no thread ${threadId} in ${account.address}`);
+    throw err;
+  });
+  const record = flow(account.account_id, threadId);
+  const newest = replyTarget(thread.messages);
+  const own = [account.address, ...(await client.sendAsAddresses().catch(() => []))];
+  return {
+    thread_id: threadId,
+    subject: replySubject(headerOf(newest, "Subject") || record?.subject_or_first_line || ""),
+    ...replyAllOf(newest, own),
+    place: null,
+    in_flow: record !== null,
+    shared_outside: false,
+    heard_by: null,
+  };
 }

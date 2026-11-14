@@ -172,6 +172,21 @@ export interface JiraIssue {
   created: string;
 }
 
+/**
+ * What a reply's card says of a ticket (plan 2026-11-14-1530, R9 and R10): its key and title, and who Jira usually
+ * tells of a comment on it, the assignee, the reporter and its watchers, and whether it is a service desk's, whose
+ * customer sees a comment.
+ */
+export interface JiraTicketFacts {
+  id: string;
+  key: string;
+  summary: string;
+  assignee: string | null;
+  reporter: string | null;
+  watchers: number;
+  service_desk: boolean;
+}
+
 /** A file attached to a ticket, as its attachment list gives it (plan 093): enough to match, label and open it. */
 export interface JiraAttachment {
   /** Jira's REST id for the file, which its thumbnail and content addresses take. */
@@ -422,6 +437,24 @@ export class JiraClient {
     const sprint = await this.sprintField();
     const fields = sprint ? `${ISSUE_FIELDS},${sprint}` : ISSUE_FIELDS;
     return parseIssue(await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields }), sprint);
+  }
+
+  /**
+   * The facts a reply's card shows of a ticket, by its id or its key in any case (plan 2026-11-14-1530): one read of
+   * the few fields it needs. A ticket the person may not see is not found.
+   */
+  async ticketFacts(idOrKey: string): Promise<JiraTicketFacts> {
+    const r = await this.call("GET", `/rest/api/3/issue/${encodeURIComponent(idOrKey)}`, { fields: "summary,assignee,reporter,watches,project" });
+    const fields = rec(r.fields);
+    return {
+      id: str(r.id),
+      key: str(r.key),
+      summary: str(fields.summary),
+      assignee: nameOf(fields.assignee),
+      reporter: nameOf(fields.reporter),
+      watchers: num(rec(fields.watches).watchCount),
+      service_desk: rec(fields.project).projectTypeKey === "service_desk",
+    };
   }
 
   /** A page of a ticket's comments, read from the newest back; the ticket is named by its id or its key. */
